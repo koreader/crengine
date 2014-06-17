@@ -3636,6 +3636,8 @@ bool ShutdownFontManager()
 
 int LVFontDef::CalcDuplicateMatch( const LVFontDef & def ) const
 {
+    if (def._documentId != -1 && _documentId != def._documentId)
+        return false;
     bool size_match = (_size==-1 || def._size==-1) ? true
         : (def._size == _size);
     bool weight_match = (_weight==-1 || def._weight==-1) ? true
