@@ -2330,6 +2330,7 @@ ldomTextStorageChunk::ldomTextStorageChunk(ldomDataStorageManager * manager, lUI
 	, _type( manager->_type )
 	, _saved(true)
 {
+    CR_UNUSED(compsize);
 }
 
 ldomTextStorageChunk::ldomTextStorageChunk(int preAllocSize, ldomDataStorageManager * manager, lUInt16 index)
