@@ -1519,6 +1519,7 @@ public:
                         bool allow_hyphenation=true
                      )
     {
+        CR_UNUSED(allow_hyphenation);
         lUInt16 res = _baseFont->measureText(
                         text, len,
                         widths,
