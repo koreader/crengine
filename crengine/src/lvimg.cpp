@@ -2253,6 +2253,7 @@ public:
     }
     virtual void OnEndDecode( LVImageSource * obj, bool res)
     {
+        CR_UNUSED(obj);
         _callback->OnEndDecode(this, res);
     }
     virtual ldomNode * GetSourceNode() { return NULL; }
