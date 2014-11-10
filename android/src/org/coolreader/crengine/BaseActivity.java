@@ -117,7 +117,8 @@ public class BaseActivity extends Activity implements Settings {
 		Services.startServices(this);
 	}
 
-    @Override
+    @SuppressLint("NewApi")
+	@Override
     public void onWindowFocusChanged(boolean hasFocus) {
 	super.onWindowFocusChanged(hasFocus);
 	if (hasFocus && (DeviceInfo.getSDKLevel() >= 19)) {
