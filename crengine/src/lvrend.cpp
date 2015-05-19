@@ -1099,7 +1099,7 @@ void SplitLines( const lString16 & str, lString16Collection & lines )
     while ( *start=='\r' || *start=='\n' )
         start++;
     if ( s > start )
-        lines.add( lString16( start, s-start ) );
+        lines.add( lString16( start, (lvsize_t)(s-start) ) );
 }
 
 // Returns the marker for a list item node. If txform is supplied render the marker, too.
