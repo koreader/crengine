@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.04.38"
+#define CACHE_FILE_FORMAT_VERSION "3.12.53"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -2302,6 +2302,7 @@ ldomTextStorageChunk::ldomTextStorageChunk(ldomDataStorageManager * manager, lUI
 	, _type( manager->_type )
 	, _saved(true)
 {
+    CR_UNUSED(compsize);
 }
 
 ldomTextStorageChunk::ldomTextStorageChunk(int preAllocSize, ldomDataStorageManager * manager, lUInt16 index)
@@ -6444,6 +6445,38 @@ bool ldomXPointerEx::nextVisibleWordStart( bool thisBlockOnly )
     }
 }
 
+/// move to end of current word
+bool ldomXPointerEx::thisVisibleWordEnd(bool thisBlockOnly)
+{
+    CR_UNUSED(thisBlockOnly);
+    if ( isNull() )
+        return false;
+    ldomNode * node = NULL;
+    lString16 text;
+    int textLen = 0;
+    bool moved = false;
+    if ( !isText() || !isVisible() )
+        return false;
+    node = getNode();
+    text = node->getText();
+    textLen = text.length();
+    if ( _data->getOffset() >= textLen )
+        return false;
+    // skip spaces
+    while ( _data->getOffset()<textLen && IsUnicodeSpace(text[ _data->getOffset() ]) ) {
+        _data->addOffset(1);
+        //moved = true;
+    }
+    // skip non-spaces
+    while ( _data->getOffset()<textLen ) {
+        if ( IsUnicodeSpace(text[ _data->getOffset() ]) )
+            break;
+        moved = true;
+        _data->addOffset(1);
+    }
+    return moved;
+}
+
 /// move to next visible word end
 bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
 {
@@ -6666,7 +6699,8 @@ bool ldomXPointerEx::isSentenceEnd()
     // word is not ended with . ! ?
     // check whether it's last word of block
     ldomXPointerEx pos(*this);
-    return !pos.nextVisibleWordStart(true);
+    //return !pos.nextVisibleWordStart(true);
+    return !pos.thisVisibleWordEnd(true);
 }
 
 /// move to beginning of current visible text sentence
@@ -6869,10 +6903,6 @@ public:
             }
             if ( !alpha && beginOfWord>=0) {
                 _list.add( ldomWord( node, beginOfWord, i ) );
-                beginOfWord = -1;
-            }
-            if (lGetCharProps(text[i]) == CH_PROP_CJK) {
-                _list.add( ldomWord( node, i, i+1 ) );
                 beginOfWord = -1;
             }
         }
@@ -11026,37 +11056,17 @@ void ldomDocument::registerEmbeddedFonts()
 {
     if (_fontList.empty())
         return;
-    int list = _fontList.length();
-    lString8 lastface = lString8("");
-    for (int i = list; i > 0; i--) {
-        LVEmbeddedFontDef *item = _fontList.get(i - 1);
+    for (int i=0; i<_fontList.length(); i++) {
+        LVEmbeddedFontDef * item =  _fontList.get(i);
         lString16 url = item->getUrl();
-        lString8 face = item->getFace();
-        if (face.empty()) face = lastface;
-        else lastface = face;
         if (url.startsWithNoCase(lString16("res://")) || url.startsWithNoCase(lString16("file://"))) {
             if (!fontMan->RegisterExternalFont(item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
                 CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
             }
             continue;
         }
-        else {
-            if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
-                CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
-            lString16Collection flist;
-            fontMan->getFaceList(flist);
-            int cnt = flist.length();
-            lString16 fontface = lString16("");
-            for (int j = 0; j < cnt; j = j + 1) {
-                fontface = flist[j];
-                do { (fontface.replace(lString16(" "), lString16("\0"))); }
-                while (fontface.pos(lString16(" ")) != -1);
-                if (fontface.lowercase().pos(url.lowercase()) != -1) {
-                    fontMan->setalias(face, UnicodeToLocal(flist[j]), getDocIndex()) ;
-                    break;
-                }
-            }
-            }
+        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+            CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
         }
     }
 }
@@ -11782,9 +11792,9 @@ void runBasicTinyDomUnitTests()
     doc->compact();
     doc->dumpStatistics();
 #endif
-
+    
     delete doc;
-
+    
 
     CRLog::info("Finished tinyDOM unit test");
 

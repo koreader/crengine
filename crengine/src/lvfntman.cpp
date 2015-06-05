@@ -40,8 +40,27 @@
 
 #if (USE_FREETYPE==1)
 
-#include <ft2build.h>
+//#include <ft2build.h>
+
+#ifdef ANDROID
+#ifdef USE_FREETYPE2
+#include "freetype2/config/ftheader.h"
+#include "freetype2/freetype.h"
+#else
+#include "freetype/config/ftheader.h"
+#include "freetype/freetype.h"
+#endif
+#else
+
+#ifdef USE_FREETYPE2
+#include <freetype2/config/ftheader.h>
+#else
+#include <freetype/config/ftheader.h>
+#endif
+//#include <ft2build.h>
 #include FT_FREETYPE_H
+//#include <freetype/freetype.h>
+#endif
 
 #if (USE_FONTCONFIG==1)
     #include <fontconfig/fontconfig.h>
@@ -66,6 +85,31 @@ LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
 static int gammaIndex = GAMMA_LEVELS/2;
+
+/// returns first found face from passed list, or return face for font found by family only
+lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
+	// faces we want
+	lString8Collection list;
+	splitPropertyValueList(commaSeparatedFaceList.c_str(), list);
+	// faces we have
+	lString16Collection faces;
+	getFaceList(faces);
+	// find first matched
+	for (int i = 0; i < list.length(); i++) {
+		lString8 wantFace = list[i];
+		for (int j = 0; j < faces.length(); j++) {
+			lString16 haveFace = faces[j];
+			if (wantFace == haveFace)
+				return wantFace;
+		}
+	}
+	// not matched - get by family name
+    LVFontRef fnt = GetFont(10, 400, false, fallbackByFamily, lString8("Arial"));
+    if (fnt.isNull())
+    	return lString8::empty_str; // not found
+    // get face from found font
+    return fnt->getTypeFace();
+}
 
 /// fills array with list of available gamma levels
 void LVFontManager::GetGammaLevels(LVArray<double> dst) {
@@ -224,7 +268,8 @@ int LVFont::getVisualAligmentWidth()
 {
     FONT_GUARD
     if ( _visual_alignment_width==-1 ) {
-        lChar16 chars[] = { getHyphChar(), ',', '.', '!', '?', ':', ';', L'，', L'。', L'！', 0 };
+        //lChar16 chars[] = { getHyphChar(), ',', '.', '!', ':', ';', 0 };
+        lChar16 chars[] = { getHyphChar(), ',', '.', '!', ':', ';', (lChar16)L'，', (lChar16)L'。', (lChar16)L'！', 0 };
         int maxw = 0;
         for ( int i=0; chars[i]; i++ ) {
             int w = getCharWidth( chars[i] );
@@ -401,7 +446,6 @@ public:
     void gc(); // garbage collector
     void update( const LVFontDef * def, LVFontRef ref );
     void removeDocumentFonts(int documentId);
-    void removefont(const LVFontDef * def);
     int  length() { return _registered_list.length(); }
     void addInstance( const LVFontDef * def, LVFontRef ref );
     LVPtrVector< LVFontCacheItem > * getInstances() { return &_instance_list; }
@@ -1493,6 +1537,7 @@ public:
                         bool allow_hyphenation=true
                      )
     {
+        CR_UNUSED(allow_hyphenation);
         lUInt16 res = _baseFont->measureText(
                         text, len,
                         widths,
@@ -2164,6 +2209,28 @@ public:
 
             return facesFound > 0;
         }
+        #elif (CR3_OSX == 1)
+
+        int facesFound = 0;
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Bold.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Bold Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Unicode.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Narrow.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Narrow Bold.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Arial Narrow Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Courier New.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Courier New Bold.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Courier New Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Courier New Bold Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Georgia.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Georgia Bold.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Georgia Italic.ttf"));
+        facesFound += fontMan->RegisterFont(lString8("/Library/Fonts/Georgia Bold Italic.ttf"));
+
+        return facesFound > 0;
+
         #else
         return false;
         #endif
@@ -2222,46 +2289,7 @@ public:
         FONT_MAN_GUARD
         _cache.getFaceList( list );
     }
-	bool setalias(lString8 alias,lString8 facename,int id)
-{
-    FONT_MAN_GUARD
-    lString8 fontname=lString8("\0");
-    LVFontDef def(
-            fontname,
-            10,
-            400,
-            false,
-            css_ff_inherit,
-            facename,
-            -1,
-            id
-    );
-        LVFontCacheItem * item = _cache.find( &def);
-    LVFontDef def1(
-            fontname,
-            10,
-            400,
-            false,
-            css_ff_inherit,
-            alias,
-            -1,
-            id
-    );
-        if (!item->getDef()->getName().empty()) {
-            _cache.removefont(&def1);
-            def.setTypeFace(alias);
-            def.setName(item->getDef()->getName());
-            LVFontDef newDef(*item->getDef());
-            newDef.setTypeFace(alias);
-            LVFontRef ref = item->getFont();
-            _cache.update(&newDef, ref);
-            return true;
-        }
-    else
-        {
-            return false;
-        }
-}
+
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId)
     {
         FONT_MAN_GUARD
@@ -2511,6 +2539,11 @@ public:
             );
         }
     #endif
+			if ( face ) {
+				FT_Done_Face( face );
+				face = NULL;
+			}
+
             if ( _cache.findDuplicate( &def ) ) {
                 CRLog::trace("font definition is duplicate");
                 return false;
@@ -2523,11 +2556,6 @@ public:
                     _cache.update( &newDef, LVFontRef(NULL) );
             }
             res = true;
-
-            if ( face ) {
-                FT_Done_Face( face );
-                face = NULL;
-            }
 
             if ( index>=num_faces-1 )
                 break;
@@ -2703,7 +2731,13 @@ public:
             );
         }
     #endif
-            if ( _cache.findDuplicate( &def ) ) {
+
+			if ( face ) {
+				FT_Done_Face( face );
+				face = NULL;
+			}
+
+			if ( _cache.findDuplicate( &def ) ) {
                 CRLog::trace("font definition is duplicate");
                 return false;
             }
@@ -2715,11 +2749,6 @@ public:
                     _cache.update( &newDef, LVFontRef(NULL) );
             }
             res = true;
-
-            if ( face ) {
-                FT_Done_Face( face );
-                face = NULL;
-            }
 
             if ( index>=num_faces-1 )
                 break;
@@ -2892,10 +2921,10 @@ public:
     virtual LVFontRef GetFont(int size, int weight, bool bitalic, css_font_family_t family, lString8 typeface )
     {
         int italic = bitalic?1:0;
-        if (size<10)
-            size = 10;
-        if (size>52)
-            size = 52;
+        if (size < 8)
+            size = 8;
+        if (size > 255)
+            size = 255;
         
         LVFontDef def( 
             lString8::empty_str,
@@ -3086,7 +3115,9 @@ bool ShutdownFontManager()
 
 int LVFontDef::CalcDuplicateMatch( const LVFontDef & def ) const
 {
-    bool size_match = (_size==-1 || def._size==-1) ? true 
+    if (def._documentId != -1 && _documentId != def._documentId)
+        return false;
+	bool size_match = (_size==-1 || def._size==-1) ? true
         : (def._size == _size);
     bool weight_match = (_weight==-1 || def._weight==-1) ? true 
         : (def._weight == _weight);
@@ -3427,26 +3458,7 @@ void LVFontCache::update( const LVFontDef * def, LVFontRef ref )
         _registered_list.add( item );
     }
 }
-void LVFontCache::removefont(const LVFontDef * def)
-{
-    int i;
-        for (i=0; i<_instance_list.length(); i++)
-        {
-            if ( _instance_list[i]->_def.getTypeFace() == def->getTypeFace() )
-            {
-                _instance_list.remove(i);
-            }
 
-        }
-        for (i=0; i<_registered_list.length(); i++)
-        {
-            if ( _registered_list[i]->_def.getTypeFace() == def->getTypeFace() )
-            {
-                _registered_list.remove(i);
-            }
-        }
-
-}
 void LVFontCache::removeDocumentFonts(int documentId)
 {
     int i;
