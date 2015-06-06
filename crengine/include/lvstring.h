@@ -25,14 +25,6 @@
 #define UNICODE_NO_BREAK_SPACE   0x00a0
 #define UNICODE_HYPHEN   0x2010
 #define UNICODE_NB_HYPHEN   0x2011
-#define UNICODE_CJK_IDEOGRAPHS_BEGIN 0x4e00
-#define UNICODE_CJK_IDEOGRAPHS_END 0x9FFF
-#define UNICODE_CJK_PUNCTUATION_BEGIN 0x3000
-#define UNICODE_CJK_PUNCTUATION_END 0x303F
-#define UNICODE_GENERAL_PUNCTUATION_BEGIN 0x2000
-#define UNICODE_GENERAL_PUNCTUATION_END 0x206F
-#define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN 0xFF01
-#define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END 0xFFEE
 
 
 
@@ -99,7 +91,6 @@ int decodeDecimal( const lChar16 * str, int len );
 #define CH_PROP_SIGN        0x0100 ///< sign character flag
 #define CH_PROP_ALPHA_SIGN  0x0200 ///< alpha sign character flag
 #define CH_PROP_DASH        0x0400 ///< minus, emdash, endash, ... (- signs)
-#define CH_PROP_CJK         0x0800 ///< CJK ideographs
 
 /// retrieve character properties mask array for wide c-string
 void lStr_getCharProps( const lChar16 * str, int sz, lUInt16 * props );
@@ -847,6 +838,14 @@ inline bool operator == (const lString16& s1, const lChar8 * s2 )
 /// returns true if wide strings is equal to wide c-string
 inline bool operator == (const lChar16 * s1, const lString16& s2 )
     { return s2.compare(s1)==0; }
+
+/// returns true if wide strings is equal to wide c-string
+inline bool operator == (const lString16& s1, const lString8& s2 )
+    { return lStr_cmp(s2.c_str(), s1.c_str())==0; }
+/// returns true if wide strings is equal to wide c-string
+inline bool operator == (const lString8& s1, const lString16& s2 )
+    { return lStr_cmp(s2.c_str(), s1.c_str())==0; }
+
 inline bool operator != (const lString16& s1, const lString16& s2 )
     { return s1.compare(s2)!=0; }
 inline bool operator != (const lString16& s1, const lChar16 * s2 )
@@ -894,6 +893,7 @@ template <int BUFSIZE> class lStringBuf16 {
     int pos;
 	lStringBuf16 & operator = (lStringBuf16 & v)
 	{
+        CR_UNUSED(v);
 		// not available
 		return *this;
 	}
