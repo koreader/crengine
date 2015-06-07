@@ -25,7 +25,7 @@
 #endif
 
 // disable CJK support since it breaks usual text formatting with floating punctuation and space trunctaion turned on
-#define CJK_PATCH 0
+#define CJK_PATCH 1
 
 #define MIN_SPACE_CONDENSING_PERCENT 50
 
