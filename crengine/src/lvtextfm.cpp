@@ -1,4 +1,4 @@
-﻿/*******************************************************
+/*******************************************************
 
    CoolReader Engine C-compatible API
 
@@ -1073,20 +1073,20 @@ public:
             int downSkipCount = 0;
             int upSkipCount = 0;
             if (endp > 1 && isCJKLeftPunctuation(*(m_text + endp))) {
-				CRLog::trace("skip skip punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
+				//CRLog::trace("skip skip punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
             } else if (endp > 1 && endp < m_length && isCJKLeftPunctuation(*(m_text + endp - 1))) {
                endp--; wrapPos--;
-               CRLog::trace("up skip left punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
+               //CRLog::trace("up skip left punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
             } else if (endp > 1 && isCJKPunctuation(*(m_text + endp))) {
                 for (int epos = endp; epos>=start; epos++, downSkipCount++) {
                     if ( !isCJKPunctuation(*(m_text + epos)) ) 
 						break;
-                   //CRLog::trace("down skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
+                  // CRLog::trace("down skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
                 }
                 for (int epos = endp; epos>=start; epos--, upSkipCount++) {
                     if ( !isCJKPunctuation(*(m_text + epos)) ) 
 						break;
-                   //CRLog::trace("up skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
+                  // CRLog::trace("up skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
 				}
                 if (downSkipCount <= upSkipCount && visualAlignmentEnabled) {
                    endp += downSkipCount;
@@ -1095,7 +1095,7 @@ public:
                 } else {
                    endp -= upSkipCount;
                    wrapPos -= upSkipCount;
-                   //CRLog::trace("finally up skip punctuations %d", upSkipCount);
+                  // CRLog::trace("finally up skip punctuations %d", upSkipCount);
                 }
             }
 #endif // CJK_PATCH
@@ -1283,6 +1283,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
     buf->GetClipRect( &clip );
     const lChar16 * str;
     int line_y = y;
+    int letterspace=srcline->letter_spacing;
     for (i=0; i<m_pbuffer->frmlinecount; i++)
     {
         if (line_y>=clip.bottom)
@@ -1406,6 +1407,14 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         buf->SetTextColor( cl );
                     if ( bgcl!=0xFFFFFFFF )
                         buf->SetBackgroundColor( bgcl );
+                    if ((*srcline->t.text >=  0x4e00 && *srcline->t.text <= 0x9FFF)||
+                            (*srcline->t.text >=  0x3000 && *srcline->t.text <= 0x4DB5)||
+                            (*srcline->t.text >=  0xFE10 && *srcline->t.text <= 0xFFFD))
+                    {
+                        letterspace=(m_pbuffer->width-frmline->x-frmline->width)/frmline->words->t.len;
+                        if (i == m_pbuffer->frmlinecount - 1) letterspace = srcline->letter_spacing;
+			  if (frmline->align==0) letterspace=srcline->letter_spacing;
+                    }else letterspace=srcline->letter_spacing;
                     font->DrawTextString(
                         buf,
                         x + frmline->x + word->x,
@@ -1416,7 +1425,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         NULL,
                         flgHyphen,
                         srcline->flags & 0x0F00,
-                        srcline->letter_spacing);
+                        letterspace);
                     if ( cl!=0xFFFFFFFF )
                         buf->SetTextColor( oldColor );
                     if ( bgcl!=0xFFFFFFFF )
