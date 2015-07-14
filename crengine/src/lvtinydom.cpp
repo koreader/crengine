@@ -11041,7 +11041,7 @@ void ldomDocument::registerEmbeddedFonts()
                 if (!tmp.empty()) {face=tmp;break;}
             }
         }
-        if (!x.empty() and x.pos(face)!=-1)
+        if ((!x.empty() and x.pos(face)!=-1) or url.empty())
         {continue;}
         if (url.startsWithNoCase(lString16("res://")) || url.startsWithNoCase(lString16("file://"))) {
             if (!fontMan->RegisterExternalFont(item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
