@@ -867,6 +867,7 @@ public:
                     delta += asd;
             }
             frmline->width += delta;
+            alignLine(frmline,maxWidth,align);
         }//(Chinese) align last line of a paragraph to the previous lines. function alignLine() does not process last line
 
         m_y += frmline->height;
