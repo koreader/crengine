@@ -11057,6 +11057,8 @@ void ldomDocument::registerEmbeddedFonts()
                 fontface = flist[j];
                 do { (fontface.replace(lString16(" "), lString16("\0"))); }
                 while (fontface.pos(lString16(" ")) != -1);
+                do { (url.replace(lString16(" "), lString16("\0"))); }
+                while (url.pos(lString16(" ")) != -1);
                  if (fontface.lowercase().pos(url.lowercase()) != -1) {
                     if(fontMan->SetAlias(face, UnicodeToLocal(flist[j]), getDocIndex(),item->getBold(),item->getItalic())){
                     x.append(face).append(lString8(","));
