@@ -1457,6 +1457,37 @@ LVArray<int> & LVDocView::getSectionBounds() {
 	return m_section_bounds;
 }
 
+int LVDocView::getPosEndPagePercent() {
+    LVLock lock(getMutex());
+    checkPos();
+    if (getViewMode() == DVM_SCROLL) {
+        int fh = GetFullHeight();
+        int p = GetPos() + m_pageRects[0].height() - m_pageMargins.top - m_pageMargins.bottom - 10;
+        if (fh > 0)
+            return (int) (((lInt64) p * 10000) / fh);
+        else
+            return 0;
+    } else {
+        int fh = m_pages.length();
+        if (fh > 0) {
+            int p = getCurPage() + 1;// + 1;
+            if (getVisiblePageCount() > 1)
+                p++;
+            if (p > fh - 1)
+                p = fh - 1;
+            if (p < 0)
+                p = 0;
+            p = m_pages[p]->start - 10;
+            int fh = GetFullHeight();
+            if (fh > 0)
+                return (int) (((lInt64) p * 10000) / fh);
+            else
+                return 0;
+        } else
+            return 0;
+    }
+}
+
 int LVDocView::getPosPercent() {
 	LVLock lock(getMutex());
 	checkPos();
