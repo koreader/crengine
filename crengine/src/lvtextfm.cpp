@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <lvtextfm.h>
 #include "../include/crsetup.h"
 #include "../include/lvfnt.h"
 #include "../include/lvtextfm.h"
@@ -861,13 +862,14 @@ public:
 	else _first=false; //save state of line processed
         alignLine( frmline, maxWidth, align );
         if (last and !first){
+            if ((frmline->words[frmline->word_count-1].x+(frmline->word_count-1)*asd+
+                    frmline->words[frmline->word_count-1].width)>maxWidth) {asd=0;}
             int delta=0;
             for (int i=0; i<(int)frmline->word_count; i++ ) {
                 frmline->words[i].x += delta;
                     delta += asd;
             }
             frmline->width += delta;
-            alignLine(frmline,maxWidth,align);
         }//(Chinese) align last line of a paragraph to the previous lines. function alignLine() does not process last line
 
         m_y += frmline->height;
