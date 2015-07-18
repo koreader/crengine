@@ -642,7 +642,6 @@ public:
             }
             if ( addSpacePoints>0 ) {
                 int addSpaceDiv = extraSpace / addSpacePoints;
-                if (asd==0||asd>=addSpaceDiv) { if (_first==false) asd=addSpaceDiv;}
                 int addSpaceMod = extraSpace % addSpacePoints;
                 int delta = 0;
                 for ( i=0; i<(int)frmline->word_count; i++ ) {
@@ -659,8 +658,6 @@ public:
             }
         }
     }
-	int asd=0; //
-	bool _first=false;//
     /// split line into words, add space for width alignment
     void addLine( int start, int end, int x, src_text_fragment_t * para, int interval, bool first, bool last, bool preFormattedOnly, bool needReduceSpace )
     {
@@ -831,6 +828,40 @@ public:
                             else if (w!=0){if (end - start == int((maxWidth - wAlign) / w)) word->width -= w;} //Chinese floating punctuation
                         }
                         word->min_width = word->width;
+                        if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER){
+                            int properwordcount=maxWidth/font->getSize()-2;
+                            int extraSpace =maxWidth-frmline->x-properwordcount*font->getSize()-frmline->x;
+                            //if (frmline->width+extraSpace+frmline->x>maxWidth) extraSpace=0;
+                            if ( extraSpace>0 )
+                            {
+                                int addSpacePoints = 0;
+                                int a;
+                                int points=0;
+                                for ( a=0; a<(int)frmline->word_count-1; a++ ) {
+                                    if ( frmline->words[a].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER )
+                                        points++;
+                                }
+                                addSpacePoints=properwordcount+(frmline->word_count-1-points);
+                                int excesswordcount=end-start-properwordcount;
+                                if (excesswordcount>0) extraSpace=extraSpace-excesswordcount*font->getSize()>0?extraSpace-excesswordcount*font->getSize():0;
+                                if (addSpacePoints > 0) {
+                                    int addSpaceDiv = extraSpace / addSpacePoints;
+                                    int addSpaceMod = extraSpace % addSpacePoints;
+                                    int delta = 0;
+                                    for (a = 0; a < (int) frmline->word_count; a++) {
+                                        frmline->words[a].x +=  delta;
+                                        {
+                                            delta += addSpaceDiv;
+                                            if (addSpaceMod > 0) {
+                                                addSpaceMod--;
+                                                delta++;
+                                            }
+                                        }
+                                    }
+                                    frmline->width += extraSpace;
+                                }
+                            }
+                        }//(Chinese) add spaces between words in last line or single line
                     }
 
                     word->y = wy;
@@ -858,20 +889,7 @@ public:
             }
             lastIsSpace = isSpace;
         }
-        if (first or last) _first=true;
-	else _first=false; //save state of line processed
         alignLine( frmline, maxWidth, align );
-        if (last and !first){
-            if ((frmline->words[frmline->word_count-1].x+(frmline->word_count-1)*asd+
-                    frmline->words[frmline->word_count-1].width)>maxWidth) {asd=0;}
-            int delta=0;
-            for (int i=0; i<(int)frmline->word_count; i++ ) {
-                frmline->words[i].x += delta;
-                    delta += asd;
-            }
-            frmline->width += delta;
-        }//(Chinese) align last line of a paragraph to the previous lines. function alignLine() does not process last line
-
         m_y += frmline->height;
         m_pbuffer->height = m_y;
     }
