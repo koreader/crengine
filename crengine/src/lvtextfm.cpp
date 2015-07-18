@@ -830,7 +830,7 @@ public:
                         word->min_width = word->width;
                         if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER){
                             int properwordcount=maxWidth/font->getSize()-2;
-                            int extraSpace =maxWidth-frmline->x-properwordcount*font->getSize()-frmline->x;
+                            int extraSpace =maxWidth-properwordcount*font->getSize()-1.4*font->getSize();
                             int excesswordcount=end-start-properwordcount-1;
                             if (excesswordcount>0) extraSpace=extraSpace-excesswordcount*font->getSize();
                             if ( extraSpace>0 )
