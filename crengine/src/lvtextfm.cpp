@@ -831,7 +831,8 @@ public:
                         if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER){
                             int properwordcount=maxWidth/font->getSize()-2;
                             int extraSpace =maxWidth-frmline->x-properwordcount*font->getSize()-frmline->x;
-                            //if (frmline->width+extraSpace+frmline->x>maxWidth) extraSpace=0;
+                            int excesswordcount=end-start-properwordcount-1;
+                            if (excesswordcount>0) extraSpace=extraSpace-excesswordcount*font->getSize();
                             if ( extraSpace>0 )
                             {
                                 int addSpacePoints = 0;
@@ -842,8 +843,6 @@ public:
                                         points++;
                                 }
                                 addSpacePoints=properwordcount+(frmline->word_count-1-points);
-                                int excesswordcount=end-start-properwordcount;
-                                if (excesswordcount>0) extraSpace=extraSpace-excesswordcount*font->getSize()>0?extraSpace-excesswordcount*font->getSize():0;
                                 if (addSpacePoints > 0) {
                                     int addSpaceDiv = extraSpace / addSpacePoints;
                                     int addSpaceMod = extraSpace % addSpacePoints;
