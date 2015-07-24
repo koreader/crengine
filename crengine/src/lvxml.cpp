@@ -2908,6 +2908,7 @@ bool LVXMLParser::Parse()
     lString16 attrname;
     lString16 attrns;
     lString16 attrvalue;
+    lString16Collection multi_values;
     bool errorFlag = false;
     int flags = m_callback->getFlags();
     for (;!m_eof && !errorFlag;)
@@ -2987,6 +2988,14 @@ bool LVXMLParser::Parse()
 //                        dumpActive = false;
 //                    }
                     m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
+                    if (multi_values.length()>0)
+                    {
+                        for (int i=0;i<multi_values.length()-1;i++)
+                        {
+                            m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
+                            multi_values.clear();
+                        }
+                    } //emulate tag close when last tag defines multi-classes
 //                    if ( dumpActive )
 //                        CRLog::trace("</%s>", LCSTR(tagname) );
                     if (SkipTillChar('>'))
@@ -3081,7 +3090,30 @@ bool LVXMLParser::Parse()
                 if ( (flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING) && m_conv_table ) {
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
                 }
-                m_callback->OnAttribute( attrns.c_str(), attrname.c_str(), attrvalue.c_str());
+                if (attrname.lowercase().pos("class")==0 and attrname.length()==5) {
+                    attrvalue.trimDoubleSpaces(false,false,false);
+                    if (attrvalue.pos(" ") == -1) {
+                        m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
+                    }
+                    else {
+                        for(;;){
+                            if (attrvalue.pos(" ") != -1) {
+                                m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.substr(0,attrvalue.pos(" ")).c_str());
+                                multi_values.add(attrvalue.substr(0,attrvalue.pos(" ")));
+                                attrvalue=attrvalue.substr(attrvalue.pos(" ")+1,attrvalue.length()-attrvalue.pos(" ")-1);
+                                m_callback->OnTagBody();
+                            }
+                            else
+                            {
+                                multi_values.add(attrvalue);
+                                m_callback->OnTagOpen(tagns.c_str(),tagname.c_str());
+                                m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
+                                break;
+                            }
+                        }
+                    }
+                }//support elements which defined multi classes,like this <span class="bold color italic">
+                else m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
                 if (inXmlTag && attrname == "encoding")
                 {
                     SetCharset( attrvalue.c_str() );
