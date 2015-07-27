@@ -716,7 +716,7 @@ public:
                 // create and add new word
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
                 src_text_fragment_t * srcline = m_srcs[wstart];
-                int fh=m_pbuffer->height/m_pbuffer->frmlinecount-interval;
+                int fh=(m_pbuffer->height/m_pbuffer->frmlinecount);
                 int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                 int b;
                 int h;
@@ -735,9 +735,9 @@ public:
                     int height = lastSrc->o.height;
                     if ( vertical_align )  {
                         if ( vertical_align == LTEXT_VALIGN_SUB )
-                            word->y +=  fh*0.4;
+                            word->y +=  fh*0.3333;
                         else if ( vertical_align == LTEXT_VALIGN_SUPER )
-                            word->y -=  fh*0.4;
+                            word->y -=  fh*0.3333;
                             width=width/height*fh*0.6667;
                             height=fh*0.6667;
                     }
@@ -748,7 +748,6 @@ public:
                     b = word->o.height;
                     h = 0;
                     //frmline->width += width;
-
                 } else {
                     // word
                     src_text_fragment_t * srcline = m_srcs[wstart];
