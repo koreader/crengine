@@ -715,6 +715,9 @@ public:
             if ( i>wstart && (newSrc!=lastSrc || space || lastWord || isCJKIdeograph(m_text[i])) ) {
                 // create and add new word
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
+                src_text_fragment_t * srcline = m_srcs[wstart];
+                int fh=m_pbuffer->height/m_pbuffer->frmlinecount-interval;
+                int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                 int b;
                 int h;
                 word->src_text_index = m_srcs[wstart]->index;
@@ -730,6 +733,14 @@ public:
 
                     int width = lastSrc->o.width;
                     int height = lastSrc->o.height;
+                    if ( vertical_align )  {
+                        if ( vertical_align == LTEXT_VALIGN_SUB )
+                            word->y +=  fh*0.4;
+                        else if ( vertical_align == LTEXT_VALIGN_SUPER )
+                            word->y -=  fh*0.4;
+                            width=width/height*fh*0.6667;
+                            height=fh*0.6667;
+                    }
                     resizeImage(width, height, m_pbuffer->width - x, m_pbuffer->page_height, m_length>1);
                     word->width = width;
                     word->o.height = height;
@@ -737,6 +748,7 @@ public:
                     b = word->o.height;
                     h = 0;
                     //frmline->width += width;
+
                 } else {
                     // word
                     src_text_fragment_t * srcline = m_srcs[wstart];
