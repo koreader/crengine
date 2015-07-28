@@ -716,7 +716,7 @@ public:
                 // create and add new word
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
                 src_text_fragment_t * srcline = m_srcs[wstart];
-                int fh=(m_pbuffer->height/m_pbuffer->frmlinecount);
+                ldomNode *node=(ldomNode*)srcline->object;
                 int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                 int b;
                 int h;
@@ -733,7 +733,8 @@ public:
 
                     int width = lastSrc->o.width;
                     int height = lastSrc->o.height;
-                    if ( vertical_align )  {
+                    if ( vertical_align )  {                         //if (vertical_align && node->getAttributeValue("","class")=="duokan-footnote") // apply to duokan-footnote
+                        int fh=node->getFont()->getHeight();
                         if ( vertical_align == LTEXT_VALIGN_SUB )
                             word->y +=  fh*0.3333;
                         else if ( vertical_align == LTEXT_VALIGN_SUPER )
