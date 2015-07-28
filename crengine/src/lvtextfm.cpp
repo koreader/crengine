@@ -716,7 +716,6 @@ public:
                 // create and add new word
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
                 src_text_fragment_t * srcline = m_srcs[wstart];
-                ldomNode *node=(ldomNode*)srcline->object;
                 int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                 int b;
                 int h;
@@ -733,14 +732,23 @@ public:
 
                     int width = lastSrc->o.width;
                     int height = lastSrc->o.height;
+                    resizeImage(width, height, m_pbuffer->width - x, m_pbuffer->page_height, m_length>1);
                     if ( vertical_align )  {                         //if (vertical_align && node->getAttributeValue("","class")=="duokan-footnote") // apply to duokan-footnote
-                        int fh=node->getFont()->getHeight();
+                        ldomNode *node=(ldomNode*)para->object;
+                        LVFont *font=(LVFont*)para->t.font;
+                        if (!node->getText().empty())
+                        {
                         if ( vertical_align == LTEXT_VALIGN_SUB )
+                        {   int fh=font->getHeight();
                             word->y +=  fh*0.3333;
+                            width=width/height*fh*0.6667;
+                            height=fh*0.6667;}
                         else if ( vertical_align == LTEXT_VALIGN_SUPER )
+                        {   int fh=font->getHeight();
                             word->y -=  fh*0.3333;
                             width=width/height*fh*0.6667;
-                            height=fh*0.6667;
+                            height=fh*0.6667;}
+                        }
                     }
                     resizeImage(width, height, m_pbuffer->width - x, m_pbuffer->page_height, m_length>1);
                     word->width = width;
