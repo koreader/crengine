@@ -3096,11 +3096,11 @@ bool LVXMLParser::Parse()
                 if ( (flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING) && m_conv_table ) {
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
                 }
-                if (attrname.compare("class")==0 &&tagname.compare("img")!=0) {
+                if (attrname.compare("class")==0 ) {
                     int cnt=0;
                     attrvalue.trimDoubleSpaces(false,false,false);
                     if (attrvalue.pos(" ")!=-1 &&(tagname.compare("table")==0
-                                                  ||tagname.compare("tr")==0))
+                                                  ||tagname.compare("tr")==0||tagname.compare("img")==0))
                     {
                         lString16 tmp=(attrvalue.substr(0,attrvalue.pos(" ")));
                         attrvalue=tmp;

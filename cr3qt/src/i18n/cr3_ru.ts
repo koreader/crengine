@@ -1,37 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="ru_RU" sourcelanguage="en">
+<TS version="2.0" language="ru_RU">
 <context>
     <name>AboutDialog</name>
     <message>
-        <source>About CoolReader</source>
-        <translation>CoolReader - О программе</translation>
-    </message>
-    <message>
-        <source>License</source>
-        <translation>Лицензия</translation>
-    </message>
-    <message>
-        <source>Source Code</source>
-        <translation>Исходный код</translation>
-    </message>
-    <message>
-        <source>About</source>
-        <translation>О программе</translation>
-    </message>
-    <message>
-        <source>About Cool Reader</source>
-        <translation>О программе CoolReader</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="166"/>
         <source>Dialog</source>
-        <translation>Диалог</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="167"/>
         <source>...</source>
-        <translation>...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="169"/>
+        <source>About Cool Reader</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="171"/>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;CoolReader is free open source e-book viewer based on CoolReader engine.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Source code is available at SourceForge &lt;/span&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;http://sourceforge.net/projects/crengine &lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;under the terms of GNU GPL2 license.&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;Third party components used:&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Qt4.5 - as GUI library&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;FreeType - font engine&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;ZLib - ompressing library&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libpng - PNG image format support&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libjpeg - JPEG image format support&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Hyphenation dictionaries - from AlReader&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="190"/>
+        <source>About</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="191"/>
         <source>		    GNU GENERAL PUBLIC LICENSE
 		       Version 2, June 1991
 
@@ -316,40 +329,12 @@ POSSIBILITY OF SUCH DAMAGES.
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;CoolReader is free open source e-book viewer based on CoolReader engine.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Source code is available at SourceForge &lt;/span&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;http://sourceforge.net/projects/crengine &lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;under the terms of GNU GPL2 license.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;Third party components used:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Qt4.5 - as GUI library&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;FreeType - font engine&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;ZLib - ompressing library&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libpng - PNG image format support&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libjpeg - JPEG image format support&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Hyphenation dictionaries - from AlReader&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;MS Shell Dlg 2&apos;; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;CoolReader это свободная программа с открытым исходным кодом для просмотра електронных книг основана на движке CoolReader.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Исходный код доступен на SourceForge &lt;/span&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;http://sourceforge.net/projects/crengine &lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;под лицензией GNU GPL2.&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt; text-decoration: underline;&quot;&gt;Использованы следующие компоненты:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Qt4.5 - библиотека ГПИ&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;FreeType - шрифтовой движок&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;ZLib - библиотека сжатия&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libpng - библиотека поддержки изображений формата PNG&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;libjpeg - библиотека поддержки изображений формата JPEG&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;Словари переносов - из AlReader&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-family:&apos;DejaVu Sans&apos;; font-size:9pt;&quot;&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="487"/>
+        <source>License</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="488"/>
         <source>Source code may be downloaded from sourceforge crengine project page:
 http://sourceforge.net/projects/crengine/
 
@@ -358,1677 +343,2160 @@ Latest source code is available from GIT repository:
 
 See README.TXT at root directory of project for build instructions.
 </source>
-        <translation>Исходный код доступен на странице проекта crengine:
-http://sourceforge.net/projects/crengine/
-
-Исходный код доступен из GIT репозитория:
-&gt; git clone git://crengine.git.sourceforge.net/gitroot/crengine/crengine
-
-Инструкция по сборке находится в файле README.TXT корневого каталога.</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_aboutdlg.h" line="496"/>
+        <source>Source Code</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../aboutdlg.cpp" line="35"/>
+        <source>About CoolReader</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>AddBookmarkDialog</name>
     <message>
-        <source>Add bookmark</source>
-        <translation>Добавить закладку</translation>
-    </message>
-    <message>
-        <source>Correction</source>
-        <translation>Исправление</translation>
-    </message>
-    <message>
-        <source>Bookmark type</source>
-        <translation>Тип закладки</translation>
-    </message>
-    <message>
-        <source>Title</source>
-        <translation>Название</translation>
-    </message>
-    <message>
-        <source>Position</source>
-        <translation>Позиция</translation>
-    </message>
-    <message>
-        <source>Position text</source>
-        <translation>Позиция текста</translation>
-    </message>
-    <message>
-        <source>Comment</source>
-        <translation>Комментарии</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="123"/>
         <source>Dialog</source>
-        <translation>Диалог</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="124"/>
+        <source>Bookmark type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="125"/>
+        <location filename="../addbookmarkdlg.cpp" line="35"/>
+        <source>Position</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="126"/>
         <source>Page 1/10 10%</source>
-        <translation>Страница 1/10 10%</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="127"/>
+        <source>Position text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="128"/>
+        <location filename="../addbookmarkdlg.cpp" line="37"/>
+        <location filename="../addbookmarkdlg.cpp" line="111"/>
+        <source>Comment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="129"/>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_addbookmarkdlg.h" line="130"/>
         <source>sample title</source>
-        <translation>пример заголовка</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../addbookmarkdlg.cpp" line="30"/>
+        <source>Add bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../addbookmarkdlg.cpp" line="38"/>
+        <location filename="../addbookmarkdlg.cpp" line="115"/>
+        <source>Correction</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>BookmarkListDialog</name>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="80"/>
+        <source>Dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="81"/>
+        <source>Go to Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="82"/>
+        <source>Return</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="83"/>
+        <source>Remove Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="84"/>
+        <source>Del</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="85"/>
+        <source>Remove ALL Bookmarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="86"/>
+        <source>Edit Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="87"/>
+        <source>F4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="88"/>
+        <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_bookmarklistdlg.h" line="89"/>
+        <source>Esc</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../bookmarklistdlg.cpp" line="22"/>
         <source>Bookmarks</source>
-        <translation>Закладки</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="25"/>
         <source>Position</source>
-        <translation>Позиция</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="25"/>
         <source>Type</source>
         <comment>bookmark type</comment>
-        <translation>Тип закладки</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="25"/>
         <source>Text</source>
-        <translation>Текст</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="25"/>
         <source>Comment</source>
-        <translation>Комментарии</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="63"/>
         <source>P</source>
         <comment>Bookmark type first letter - Position</comment>
-        <translation>П</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="65"/>
         <source>C</source>
         <comment>Bookmark type first letter - Comment</comment>
-        <translation>К</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../bookmarklistdlg.cpp" line="67"/>
         <source>E</source>
         <comment>Bookmark type first letter - Correction/Edit</comment>
-        <translation>И</translation>
-    </message>
-    <message>
-        <source>Go to Bookmark</source>
-        <translation>Перейти к закладке</translation>
-    </message>
-    <message>
-        <source>Remove Bookmark</source>
-        <translation>Удалить закладку</translation>
-    </message>
-    <message>
-        <source>Remove ALL Bookmarks</source>
-        <translation>Удалить все закладки</translation>
-    </message>
-    <message>
-        <source>Edit Bookmark</source>
-        <translation>Редактировать закладку</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Закрыть</translation>
-    </message>
-    <message>
-        <source>Dialog</source>
-        <translation>Диалог</translation>
-    </message>
-    <message>
-        <source>Return</source>
-        <translation>Return</translation>
-    </message>
-    <message>
-        <source>Del</source>
-        <translation>Del</translation>
-    </message>
-    <message>
-        <source>F4</source>
-        <translation>F4</translation>
-    </message>
-    <message>
-        <source>Esc</source>
-        <translation>Esc</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>CR3View</name>
     <message>
+        <location filename="../cr3widget.cpp" line="455"/>
         <source>Error while opening document </source>
-        <translation>Ошибка открытия документа </translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../cr3widget.cpp" line="1355"/>
         <source>Loading: please wait...</source>
-        <translation>Загрузка: подождите...</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>ExportProgressDlg</name>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_exportprogressdlg.h" line="57"/>
         <source>Dialog</source>
-        <translation>Диалог</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_exportprogressdlg.h" line="58"/>
         <source>Export is in progress...</source>
-        <translation>Идет экспорт...</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>FilePropsDialog</name>
     <message>
-        <source>Document properties</source>
-        <translation>Свойства документа</translation>
-    </message>
-    <message>
-        <source>Property</source>
-        <translation>Свойство</translation>
-    </message>
-    <message>
-        <source>Value</source>
-        <translation>Значение</translation>
-    </message>
-    <message>
-        <source>Current page</source>
-        <translation>Текущая страница</translation>
-    </message>
-    <message>
-        <source>Total pages</source>
-        <translation>Всего страниц</translation>
-    </message>
-    <message>
-        <source>Battery state</source>
-        <translation>Состояние батареи</translation>
-    </message>
-    <message>
-        <source>Current Time</source>
-        <translation>Текущее время</translation>
-    </message>
-    <message>
-        <source>Current chapter</source>
-        <translation>Глава</translation>
-    </message>
-    <message>
-        <source>Status</source>
-        <translation>Статус</translation>
-    </message>
-    <message>
-        <source>Archive name</source>
-        <translation>Имя файла архива</translation>
-    </message>
-    <message>
-        <source>Archive path</source>
-        <translation>Путь к архиву</translation>
-    </message>
-    <message>
-        <source>Archive size</source>
-        <translation>Размер архива</translation>
-    </message>
-    <message>
-        <source>File name</source>
-        <translation>Имя файла</translation>
-    </message>
-    <message>
-        <source>File path</source>
-        <translation>Путь к файлу</translation>
-    </message>
-    <message>
-        <source>File size</source>
-        <translation>Размер файла</translation>
-    </message>
-    <message>
-        <source>File format</source>
-        <translation>Формат файла</translation>
-    </message>
-    <message>
-        <source>File info</source>
-        <translation>Информация о файле</translation>
-    </message>
-    <message>
-        <source>Title</source>
-        <translation>Название</translation>
-    </message>
-    <message>
-        <source>Author(s)</source>
-        <translation>Автор(ы)</translation>
-    </message>
-    <message>
-        <source>Series name</source>
-        <translation>Серия</translation>
-    </message>
-    <message>
-        <source>Series number</source>
-        <translation>Номер в серии</translation>
-    </message>
-    <message>
-        <source>Date</source>
-        <translation>Дата</translation>
-    </message>
-    <message>
-        <source>Genres</source>
-        <translation>Жанры</translation>
-    </message>
-    <message>
-        <source>Translator</source>
-        <translation>Перевод</translation>
-    </message>
-    <message>
-        <source>Book info</source>
-        <translation>Информация о книге</translation>
-    </message>
-    <message>
-        <source>Document author</source>
-        <translation>Автор документа</translation>
-    </message>
-    <message>
-        <source>Document date</source>
-        <translation>Дата документа</translation>
-    </message>
-    <message>
-        <source>Document source URL</source>
-        <translation>URL исходного документа</translation>
-    </message>
-    <message>
-        <source>OCR by</source>
-        <translation>OCR</translation>
-    </message>
-    <message>
-        <source>Document version</source>
-        <translation>Версия документа</translation>
-    </message>
-    <message>
-        <source>Document info</source>
-        <translation>Информация о документе</translation>
-    </message>
-    <message>
-        <source>Publication name</source>
-        <translation>Название публикации</translation>
-    </message>
-    <message>
-        <source>Publisher</source>
-        <translation>Издательство</translation>
-    </message>
-    <message>
-        <source>Publisher city</source>
-        <translation>Город</translation>
-    </message>
-    <message>
-        <source>Publication year</source>
-        <translation>Год издания</translation>
-    </message>
-    <message>
-        <source>ISBN</source>
-        <translation>ISBN</translation>
-    </message>
-    <message>
-        <source>Publication info</source>
-        <translation>Информация о публикации</translation>
-    </message>
-    <message>
-        <source>Custom info</source>
-        <translation>Прочая информация</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_filepropsdlg.h" line="61"/>
         <source>Dialog</source>
-        <translation>Диалог</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="14"/>
+        <source>Document properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="17"/>
+        <source>Property</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="17"/>
+        <source>Value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="167"/>
+        <source>Current page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="168"/>
+        <source>Total pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="169"/>
+        <source>Battery state</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="170"/>
+        <source>Current Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="175"/>
+        <source>Current chapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="178"/>
+        <source>Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="180"/>
+        <source>Archive name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="181"/>
+        <source>Archive path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="182"/>
+        <source>Archive size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="183"/>
+        <source>File name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="184"/>
+        <source>File path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="185"/>
+        <source>File size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="186"/>
+        <source>File format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="187"/>
+        <source>File info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="189"/>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="190"/>
+        <source>Author(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="191"/>
+        <source>Series name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="192"/>
+        <source>Series number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="193"/>
+        <source>Date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="194"/>
+        <source>Genres</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="195"/>
+        <source>Translator</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="196"/>
+        <source>Book info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="198"/>
+        <source>Document author</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="199"/>
+        <source>Document date</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="200"/>
+        <source>Document source URL</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="201"/>
+        <source>OCR by</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="202"/>
+        <source>Document version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="203"/>
+        <source>Document info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="205"/>
+        <source>Publication name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="206"/>
+        <source>Publisher</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="207"/>
+        <source>Publisher city</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="208"/>
+        <source>Publication year</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="209"/>
+        <source>ISBN</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="210"/>
+        <source>Publication info</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../filepropsdlg.cpp" line="212"/>
+        <source>Custom info</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>MainWindow</name>
     <message>
-        <source>Open book file</source>
-        <translation>Открыть книгу</translation>
-    </message>
-    <message>
+        <location filename="../mainwindow.cpp" line="174"/>
         <source>Export document to</source>
-        <translation>Экспортировать документ в</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="176"/>
         <source>WOL book (*.wol)</source>
-        <translation>Книга WOL (.wol)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="181"/>
         <source>Export to WOL format</source>
-        <translation>Экспортировать в WOL формат</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="216"/>
+        <source>Open book file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../mainwindow.cpp" line="218"/>
         <source>All supported formats</source>
-        <translation>Все форматы</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="219"/>
         <source>FB2 books</source>
-        <translation>Книги FB2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="220"/>
         <source>Text files</source>
-        <translation>Текстовые файлы</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="221"/>
         <source>Rich text</source>
-        <translation>Текст RTF</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="222"/>
         <source>MS Word document</source>
-        <translation>Документы MS Word</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="223"/>
         <source>HTML files</source>
-        <translation>Файлы HTML</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="224"/>
         <source>EPUB files</source>
-        <translation>Книги EPUB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="225"/>
         <source>CHM files</source>
-        <translation>Файлы CHM</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="226"/>
         <source>MOBI files</source>
-        <translation>Файлы MOBI</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="227"/>
         <source>PalmDOC files</source>
-        <translation>Файлы PDB/PalmDoc</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../mainwindow.cpp" line="228"/>
         <source>ZIP archives</source>
-        <translation>Архивы ZIP</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>MainWindowClass</name>
     <message>
-        <source>File</source>
-        <translation>Файл</translation>
-    </message>
-    <message>
-        <source>View</source>
-        <translation>Вид</translation>
-    </message>
-    <message>
-        <source>Navigation</source>
-        <translation>Навигация</translation>
-    </message>
-    <message>
-        <source>Help</source>
-        <translation>Справка</translation>
-    </message>
-    <message>
-        <source>Open...</source>
-        <translation>Открыть...</translation>
-    </message>
-    <message>
-        <source>Open file</source>
-        <translation>Открыть файл</translation>
-    </message>
-    <message>
-        <source>Toggle Pages/Scroll</source>
-        <translation>Переключить вид Страница/Свиток</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Закрыть</translation>
-    </message>
-    <message>
-        <source>Minimize</source>
-        <translation>Свернуть</translation>
-    </message>
-    <message>
-        <source>Page Down</source>
-        <translation>На страницу вниз</translation>
-    </message>
-    <message>
-        <source>Page Up</source>
-        <translation>На страницу вверх</translation>
-    </message>
-    <message>
-        <source>Line Down</source>
-        <translation>На строку вниз</translation>
-    </message>
-    <message>
-        <source>Line Up</source>
-        <translation>На строку вверх</translation>
-    </message>
-    <message>
-        <source>First Page</source>
-        <translation>Первая страница</translation>
-    </message>
-    <message>
-        <source>Go to first page</source>
-        <translation>Перейти на первую страницу</translation>
-    </message>
-    <message>
-        <source>Last Page</source>
-        <translation>Последняя страница</translation>
-    </message>
-    <message>
-        <source>End</source>
-        <translation>End</translation>
-    </message>
-    <message>
-        <source>Back</source>
-        <translation>Назад</translation>
-    </message>
-    <message>
-        <source>Forward</source>
-        <translation>Вперед</translation>
-    </message>
-    <message>
-        <source>Next Chapter</source>
-        <translation>Следующая глава</translation>
-    </message>
-    <message>
-        <source>Previous Chapter</source>
-        <translation>Предыдущая глава</translation>
-    </message>
-    <message>
-        <source>Toggle Full Screen</source>
-        <translation>Полно-экранный режим</translation>
-    </message>
-    <message>
-        <source>Toggle Full Screen mode</source>
-        <translation>Полно-экранный режим</translation>
-    </message>
-    <message>
-        <source>Zoom In</source>
-        <translation>Увеличить</translation>
-    </message>
-    <message>
-        <source>Increase font size</source>
-        <translation>Увеличить размер шрифта</translation>
-    </message>
-    <message>
-        <source>Zoom Out</source>
-        <translation>Уменьшить</translation>
-    </message>
-    <message>
-        <source>Decrease font size</source>
-        <translation>Уменьшить размер шрифта</translation>
-    </message>
-    <message>
-        <source>Table of Contents...</source>
-        <translation>Содержание...</translation>
-    </message>
-    <message>
-        <source>Show table of contents</source>
-        <translation>Показать содержание</translation>
-    </message>
-    <message>
-        <source>Recent Books</source>
-        <translation>Последние книги</translation>
-    </message>
-    <message>
-        <source>Show recent books list</source>
-        <translation>Показать список последних книг</translation>
-    </message>
-    <message>
-        <source>Settings...</source>
-        <translation>Настройки...</translation>
-    </message>
-    <message>
-        <source>Settings dialog</source>
-        <translation>Диалог настроек</translation>
-    </message>
-    <message>
-        <source>Copy</source>
-        <translation>Копировать</translation>
-    </message>
-    <message>
-        <source>Copy selected text</source>
-        <translation>Копировать выделение</translation>
-    </message>
-    <message>
-        <source>About Qt</source>
-        <translation>О Qt</translation>
-    </message>
-    <message>
-        <source>About CoolReader</source>
-        <translation>О программе CoolReader</translation>
-    </message>
-    <message>
-        <source>Add Bookmark</source>
-        <translation>Добавить закладку</translation>
-    </message>
-    <message>
-        <source>Add bookmark</source>
-        <translation>Добавить закладку</translation>
-    </message>
-    <message>
-        <source>Bookmark List...</source>
-        <translation>Список закладок...</translation>
-    </message>
-    <message>
-        <source>Show bookmarks list</source>
-        <translation>Показать список закладок</translation>
-    </message>
-    <message>
-        <source>File Properties...</source>
-        <translation>Свойства документа...</translation>
-    </message>
-    <message>
-        <source>Show file properties</source>
-        <translation>Свойства документа</translation>
-    </message>
-    <message>
-        <source>Rotate</source>
-        <translation>Поворот страницы</translation>
-    </message>
-    <message>
-        <source>Find text...</source>
-        <translation>Найти текст...</translation>
-    </message>
-    <message>
-        <source>Find text</source>
-        <translation>Найти текст</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="312"/>
         <source>CoolReader</source>
-        <translation>CoolReader</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="313"/>
+        <source>Open...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="315"/>
+        <source>Open file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="317"/>
         <source>F3</source>
-        <translation>F3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="318"/>
+        <source>Toggle Pages/Scroll</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="319"/>
         <source>Ctrl+P</source>
-        <translation>Ctrl+P</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="320"/>
+        <source>Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="321"/>
         <source>F12</source>
-        <translation>F12</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="322"/>
+        <source>Minimize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="323"/>
         <source>Esc</source>
-        <translation>Esc</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="324"/>
+        <source>Page Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="326"/>
         <source>Go to next page</source>
-        <translation>Перейти на следующую страницу</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="328"/>
         <source>PgDown</source>
-        <translation>PgDown</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="329"/>
+        <source>Page Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="331"/>
         <source>Back by page</source>
-        <translation>Назад на страницу</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="333"/>
         <source>PgUp</source>
-        <translation>PgUp</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="334"/>
+        <source>Line Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="336"/>
         <source>Forward by one line</source>
-        <translation>Вперед на одну линию</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="338"/>
         <source>Down</source>
-        <translation>Down</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="339"/>
+        <source>Line Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="341"/>
         <source>Back by line</source>
-        <translation>Назад на линию</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="343"/>
         <source>Up</source>
-        <translation>Up</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="344"/>
+        <source>First Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="346"/>
+        <source>Go to first page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="348"/>
         <source>Home</source>
-        <translation>Home</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="349"/>
+        <source>Last Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="351"/>
         <source>Go to last page</source>
-        <translation>Перейти у последней странице</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="353"/>
+        <source>End</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="354"/>
+        <source>Back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="356"/>
         <source>Back in navigation history</source>
-        <translation>Назад по истории навигации</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="358"/>
         <source>Backspace</source>
-        <translation>Backspace</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="359"/>
+        <source>Forward</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="361"/>
         <source>Go to the next position in navigation history</source>
-        <translation>Перейти к следующей позиции і истории навигации</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="363"/>
         <source>Shift+Backspace</source>
-        <translation>Shift+Backspace</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="364"/>
+        <source>Next Chapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="366"/>
         <source>Go to next chapter</source>
-        <translation>Перейти к следующей главе</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="368"/>
         <source>Alt+Down</source>
-        <translation>Alt+Down</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="369"/>
+        <source>Previous Chapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="371"/>
         <source>Go to previous chapter</source>
-        <translation>Перейти к предыдущей главе</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="373"/>
         <source>Alt+Up</source>
-        <translation>Alt+Up</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="374"/>
+        <source>Toggle Full Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="376"/>
+        <source>Toggle Full Screen mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="378"/>
         <source>Alt+Return</source>
-        <translation>Alt+Return</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="379"/>
+        <source>Zoom In</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="381"/>
+        <source>Increase font size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="383"/>
         <source>+</source>
-        <translation>+</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="384"/>
+        <source>Zoom Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="386"/>
+        <source>Decrease font size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="388"/>
         <source>-</source>
-        <translation>-</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="389"/>
+        <source>Table of Contents...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="391"/>
+        <source>Show table of contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="393"/>
         <source>F4</source>
-        <translation>F4</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="394"/>
+        <source>Recent Books</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="396"/>
+        <source>Show recent books list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="398"/>
         <source>F5</source>
-        <translation>F5</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="399"/>
+        <source>Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="401"/>
+        <source>Settings dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="403"/>
         <source>F9</source>
-        <translation>F9</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="404"/>
+        <source>Copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="406"/>
+        <source>Copy selected text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="408"/>
         <source>Ctrl+C</source>
-        <translation>Ctrl+C</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="409"/>
         <source>copy2</source>
-        <translation>копия2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="411"/>
         <source>Copy alternative shortcut</source>
-        <translation>Копировать альтернативную ссылку</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="413"/>
         <source>Ctrl+Ins</source>
-        <translation>Ctrl+Ins</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="414"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="416"/>
+        <source>About Qt</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="418"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="420"/>
+        <source>About CoolReader</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="422"/>
         <source>F1</source>
-        <translation>F1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="423"/>
+        <source>Add Bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="425"/>
+        <source>Add bookmark</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="427"/>
         <source>Ctrl+B</source>
-        <translation>Ctrl+B</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="428"/>
+        <source>Bookmark List...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="430"/>
+        <source>Show bookmarks list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="432"/>
         <source>F6</source>
-        <translation>F6</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="433"/>
+        <source>File Properties...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="435"/>
+        <source>Show file properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="437"/>
         <source>Ctrl+F1</source>
-        <translation>Ctrl+F1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="438"/>
+        <source>Rotate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="439"/>
         <source>Ctrl+R</source>
-        <translation>Ctrl+R</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="440"/>
+        <source>Find text...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="442"/>
+        <source>Find text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="444"/>
         <source>Ctrl+F</source>
-        <translation>Ctrl+F</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="445"/>
+        <source>Toggle Edit Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="447"/>
+        <source>Toggle edit mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="449"/>
         <source>Ctrl+E</source>
-        <translation>Ctrl+E</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="450"/>
         <source>Export</source>
-        <translation>Экспорт</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="452"/>
         <source>Export document</source>
-        <translation>Экспортировать документ</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="454"/>
         <source>Ctrl+S</source>
-        <translation>Ctrl+S</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="455"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="457"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="465"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="467"/>
         <source>Next Page</source>
-        <translation>Следующая страница</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="459"/>
         <source>Right</source>
-        <translation>Вправо</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="460"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="462"/>
         <source>Previous Page</source>
-        <translation>Предыдущая страница</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="464"/>
         <source>Left</source>
-        <translation>Влево</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="469"/>
         <source>Space</source>
-        <translation>Пробел</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="470"/>
+        <source>File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="471"/>
+        <source>View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="472"/>
+        <source>Navigation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_mainwindow.h" line="473"/>
+        <source>Help</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>RecentBooksDlg</name>
     <message>
-        <source>#</source>
-        <translation>№п/п</translation>
-    </message>
-    <message>
-        <source>Author</source>
-        <translation>Автор</translation>
-    </message>
-    <message>
-        <source>Title</source>
-        <translation>Название</translation>
-    </message>
-    <message>
-        <source>Filename</source>
-        <translation>Имя файла</translation>
-    </message>
-    <message>
-        <source>Remove all history items</source>
-        <translation>Очистка списка последних книг</translation>
-    </message>
-    <message>
-        <source>Do you really want to remove all history records?</source>
-        <translation>Вы действительно ходите удалить все записи из списка последних открытых книг?</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_recentdlg.h" line="70"/>
         <source>Recent Books</source>
-        <translation>Последние книги</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_recentdlg.h" line="71"/>
         <source>Remove Item</source>
-        <translation>Удалить запись</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clear All</source>
-        <translation>Очистить весь список</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_recentdlg.h" line="72"/>
         <source>Del</source>
-        <translation>Del</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_recentdlg.h" line="73"/>
+        <source>Clear All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="16"/>
+        <source>#</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="16"/>
+        <source>Author</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="16"/>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="16"/>
+        <source>Filename</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="154"/>
+        <source>Remove all history items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../recentdlg.cpp" line="154"/>
+        <source>Do you really want to remove all history records?</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>SearchDialog</name>
     <message>
-        <source>Not found</source>
-        <translation>Не найдено</translation>
-    </message>
-    <message>
-        <source>Search pattern is not found in document</source>
-        <translation>Искомый шаблон не найден в документе</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="117"/>
         <source>Search</source>
-        <translation>Поиск</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="118"/>
         <source>Text</source>
-        <translation>Текст</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="119"/>
         <source>Case Sensitive</source>
-        <translation>Чувствительность к регистру</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="120"/>
         <source>Search forward</source>
-        <translation>Искать вперед</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="121"/>
         <source>Search backward</source>
-        <translation>Искать назад</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="122"/>
         <source>Find Next</source>
-        <translation>Найти следующий</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_searchdlg.h" line="123"/>
         <source>Close</source>
-        <translation>Закрыть</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../searchdlg.cpp" line="113"/>
+        <source>Not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../searchdlg.cpp" line="113"/>
+        <source>Search pattern is not found in document</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>SettingsDlg</name>
     <message>
-        <source>[No hyphenation]</source>
-        <translation>[Без переносов]</translation>
-    </message>
-    <message>
-        <source>[Algorythmic hyphenation]</source>
-        <translation>[Алгоритмические переносы]</translation>
-    </message>
-    <message>
-        <source>The quick brown fox jumps over the lazy dog. </source>
-        <translation>Съешь ещё этих мягких французских булочек! </translation>
-    </message>
-    <message>
-        <source>Text color</source>
-        <translation>Цвет текста</translation>
-    </message>
-    <message>
-        <source>Background color</source>
-        <translation>Цвет фона</translation>
-    </message>
-    <message>
-        <source>Page header text color</source>
-        <translation>Цвет колонтитула</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1103"/>
         <source>Settings</source>
-        <translation>Настройки</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1105"/>
         <source>Window options</source>
-        <translation>Настройки окна</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Window</source>
-        <translation>Окно</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1110"/>
         <source>Look &amp; feel</source>
-        <translation>Стиль интерфейса</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1111"/>
         <source>Startup action</source>
-        <translation>Действие при старте</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1114"/>
         <source>Open recent book</source>
-        <translation>Открыть последнюю книгу</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1115"/>
         <source>Show list of recent books</source>
-        <translation>Показать список последних книг</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1116"/>
         <source>Show File Open dialog</source>
-        <translation>Показать диалог открытия файла</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1117"/>
         <source>Do nothing</source>
-        <translation>Ничего не делать</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1119"/>
         <source>Controls</source>
-        <translation>Управление</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1120"/>
         <source>Show toolbar</source>
-        <translation>Показать панель инструментов</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1121"/>
         <source>Show menu</source>
-        <translation>Показать меню</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1122"/>
         <source>Show scroll bar</source>
-        <translation>Показать полосу прокрутки</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1123"/>
         <source>Show status bar</source>
-        <translation>Показать строку состояния</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1124"/>
         <source>Fullscreen display</source>
-        <translation>Полно-экранный режим</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Page</source>
-        <translation>Страница</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1125"/>
+        <source>Window</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1128"/>
         <source>One page</source>
-        <translation>Одна страница</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1129"/>
         <source>Two pages</source>
-        <translation>Две страницы</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1130"/>
         <source>Scroll View</source>
-        <translation>Свиток</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1132"/>
         <source>Vew Mode</source>
-        <translation>Режим просмотра</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1133"/>
         <source>Page margins</source>
-        <translation>Отступы страницы</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Show page header</source>
-        <translation>Показывать заголовок страницы</translation>
-    </message>
-    <message>
-        <source>Book name</source>
-        <translation>Название книги</translation>
-    </message>
-    <message>
-        <source>Clock</source>
-        <translation>Часы</translation>
-    </message>
-    <message>
-        <source>Battery status</source>
-        <translation>Состояние батареи</translation>
-    </message>
-    <message>
-        <source>Header font</source>
-        <translation>Шрифт заголовка</translation>
-    </message>
-    <message>
-        <source>Change</source>
-        <translation>Изменить</translation>
-    </message>
-    <message>
-        <source>Show footnotes at bottom of page</source>
-        <translation>Показывать сноски внизу страницы</translation>
-    </message>
-    <message>
-        <source>Styles</source>
-        <translation>Стили</translation>
-    </message>
-    <message>
-        <source>Text font</source>
-        <translation>Шрифт текста</translation>
-    </message>
-    <message>
-        <source>Hyphenation</source>
-        <translation>Переносы</translation>
-    </message>
-    <message>
-        <source>Interline spacing</source>
-        <translation>Междустрочный интервал</translation>
-    </message>
-    <message>
-        <source>Page skin</source>
-        <translation>Стиль страницы</translation>
-    </message>
-    <message>
-        <source>Sample</source>
-        <translation>Образец</translation>
-    </message>
-    <message>
-        <source>.TXT files</source>
-        <translation>.TXT файлы</translation>
-    </message>
-    <message>
-        <source>Disable automatic formatting</source>
-        <translation>Отключить авто форматирование</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1136"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1175"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1188"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1202"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1216"/>
+        <location filename="../settings.cpp" line="397"/>
+        <location filename="../settings.cpp" line="438"/>
         <source>0</source>
-        <translation>0</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1137"/>
         <source>5</source>
-        <translation>5</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1138"/>
         <source>8</source>
-        <translation>8</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1139"/>
         <source>10</source>
-        <translation>10</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1140"/>
         <source>15</source>
-        <translation>15</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1141"/>
         <source>20</source>
-        <translation>20</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1142"/>
         <source>25</source>
-        <translation>25</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1143"/>
         <source>30</source>
-        <translation>30</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Default paragraph style</source>
-        <translation>Стиль параграфа</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1145"/>
+        <source>Show page header</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Title</source>
-        <translation>Заголовок</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1146"/>
+        <source>Book name</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Subtitle</source>
-        <translation>Подзаголовок</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1147"/>
+        <source>Clock</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Preformatted text</source>
-        <translation>Пред-форматированный текст</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1148"/>
+        <source>Battery status</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Link</source>
-        <translation>Ссылка</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1149"/>
+        <source>Header font</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Cite / quotation</source>
-        <translation>Цитата</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1150"/>
+        <location filename="../settings.cpp" line="827"/>
+        <source>Page header text color</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Epigraph</source>
-        <translation>Эпиграф</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1151"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1154"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1156"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1158"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1225"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1229"/>
+        <source>Change</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Poem</source>
-        <translation>Поэма</translation>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1152"/>
+        <source>Show footnotes at bottom of page</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Text author</source>
-        <translation>Автор текста</translation>
-    </message>
-    <message>
-        <source>Footnote link</source>
-        <translation>Ссылка на сноску</translation>
-    </message>
-    <message>
-        <source>Footnote</source>
-        <translation>Сноска</translation>
-    </message>
-    <message>
-        <source>Footnote title</source>
-        <translation>Заголовок сноски</translation>
-    </message>
-    <message>
-        <source>Annotation</source>
-        <translation>Аннотация</translation>
-    </message>
-    <message>
-        <source>-</source>
-        <translation>-</translation>
-    </message>
-    <message>
-        <source>Justify</source>
-        <translation>Выравнивание</translation>
-    </message>
-    <message>
-        <source>Left</source>
-        <translation>Слева</translation>
-    </message>
-    <message>
-        <source>Center</source>
-        <translation>По центру</translation>
-    </message>
-    <message>
-        <source>Right</source>
-        <translation>Справа</translation>
-    </message>
-    <message>
-        <source>No indent</source>
-        <translation>Без отступа</translation>
-    </message>
-    <message>
-        <source>Small Indent</source>
-        <translation>Маленький отступ</translation>
-    </message>
-    <message>
-        <source>Big Indent</source>
-        <translation>Большой отступ</translation>
-    </message>
-    <message>
-        <source>Small Outdent</source>
-        <translation>Маленький выступ</translation>
-    </message>
-    <message>
-        <source>Big Outdent</source>
-        <translation>Большой выступ</translation>
-    </message>
-    <message>
-        <source>20% of line height</source>
-        <translation>20% от высоты строки</translation>
-    </message>
-    <message>
-        <source>30% of line height</source>
-        <translation>30% от высоты строки</translation>
-    </message>
-    <message>
-        <source>50% of line height</source>
-        <translation>50% от высоты строки</translation>
-    </message>
-    <message>
-        <source>100% of line height</source>
-        <translation>100% от высоты строки</translation>
-    </message>
-    <message>
-        <source>150% of line height</source>
-        <translation>150% от высоты строки</translation>
-    </message>
-    <message>
-        <source>200% of line height</source>
-        <translation>200% от высоты строки</translation>
-    </message>
-    <message>
-        <source>400% of line height</source>
-        <translation>400% от высоты строки</translation>
-    </message>
-    <message>
-        <source>5% of line width</source>
-        <translation>5% от ширины строки</translation>
-    </message>
-    <message>
-        <source>10% of line width</source>
-        <translation>10% от ширины строки</translation>
-    </message>
-    <message>
-        <source>15% of line width</source>
-        <translation>15% от ширины строки</translation>
-    </message>
-    <message>
-        <source>20% of line width</source>
-        <translation>20% от ширины строки</translation>
-    </message>
-    <message>
-        <source>30% of line width</source>
-        <translation>30% от ширины строки</translation>
-    </message>
-    <message>
-        <source>Normal</source>
-        <translation>Обычный</translation>
-    </message>
-    <message>
-        <source>Bold</source>
-        <translation>Полужирный</translation>
-    </message>
-    <message>
-        <source>Bolder</source>
-        <translation>Жирный</translation>
-    </message>
-    <message>
-        <source>Lighter</source>
-        <translation>Тонкий</translation>
-    </message>
-    <message>
-        <source>Increase: 110%</source>
-        <translation>Увеличить: 110%</translation>
-    </message>
-    <message>
-        <source>Increase: 120%</source>
-        <translation>Увеличить: 120%</translation>
-    </message>
-    <message>
-        <source>Increase: 150%</source>
-        <translation>Увеличить: 150%</translation>
-    </message>
-    <message>
-        <source>Decrease: 90%</source>
-        <translation>Уменьшить: 90%</translation>
-    </message>
-    <message>
-        <source>Decrease: 80%</source>
-        <translation>Уменьшить: 80%</translation>
-    </message>
-    <message>
-        <source>Decrease: 70%</source>
-        <translation>Уменьшить: 70%</translation>
-    </message>
-    <message>
-        <source>Decrease: 60%</source>
-        <translation>Уменьшить: 60%</translation>
-    </message>
-    <message>
-        <source>Italic</source>
-        <translation>Курсив</translation>
-    </message>
-    <message>
-        <source>[Default Sans Serif]</source>
-        <translation>[рубленый шрифт без засечек]</translation>
-    </message>
-    <message>
-        <source>[Default Serif]</source>
-        <translation>[рубленый шрифт с засечками]</translation>
-    </message>
-    <message>
-        <source>[Default Monospace]</source>
-        <translation>[моноширинный шрифт]</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Чёрный</translation>
-    </message>
-    <message>
-        <source>Green</source>
-        <translation>Зелёный</translation>
-    </message>
-    <message>
-        <source>Silver</source>
-        <translation>Серебристый</translation>
-    </message>
-    <message>
-        <source>Lime</source>
-        <translation>Лимоновый</translation>
-    </message>
-    <message>
-        <source>Gray</source>
-        <translation>Серый</translation>
-    </message>
-    <message>
-        <source>Olive</source>
-        <translation>Оливковый</translation>
-    </message>
-    <message>
-        <source>White</source>
-        <translation>Белый</translation>
-    </message>
-    <message>
-        <source>Yellow</source>
-        <translation>Жёлтый</translation>
-    </message>
-    <message>
-        <source>Maroon</source>
-        <translation>Каштановый</translation>
-    </message>
-    <message>
-        <source>Navy</source>
-        <translation>Темно-синий</translation>
-    </message>
-    <message>
-        <source>Red</source>
-        <translation>Красный</translation>
-    </message>
-    <message>
-        <source>Blue</source>
-        <translation>Синий</translation>
-    </message>
-    <message>
-        <source>Purple</source>
-        <translation>Пурпурный</translation>
-    </message>
-    <message>
-        <source>Teal</source>
-        <translation>Сине-зелёный</translation>
-    </message>
-    <message>
-        <source>Fuchsia</source>
-        <translation>Фуксия</translation>
-    </message>
-    <message>
-        <source>Aqua</source>
-        <translation>Зеленовато-голубой</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <translation>Нет</translation>
-    </message>
-    <message>
-        <source>Underline</source>
-        <translation>Подчеркнутый</translation>
-    </message>
-    <message>
-        <source>Line through</source>
-        <translation>Перечеркнутый</translation>
-    </message>
-    <message>
-        <source>Overline</source>
-        <translation>Надчеркнутый</translation>
-    </message>
-    <message>
-        <source>Baseline</source>
-        <translation>По снованию</translation>
-    </message>
-    <message>
-        <source>Subscript</source>
-        <translation>Нижний индекс</translation>
-    </message>
-    <message>
-        <source>Superscript</source>
-        <translation>Верхний индекс</translation>
-    </message>
-    <message>
-        <source>Floating punctuation</source>
-        <translation>Висячая пунктуация</translation>
-    </message>
-    <message>
-        <source>Enable floating punctuation</source>
-        <translation>Разрешить висячую пунктуацию</translation>
-    </message>
-    <message>
-        <source>0.3</source>
-        <translation>0.3</translation>
-    </message>
-    <message>
-        <source>0.35</source>
-        <translation>0.35</translation>
-    </message>
-    <message>
-        <source>0.4</source>
-        <translation>0.4</translation>
-    </message>
-    <message>
-        <source>0.45</source>
-        <translation>0.45</translation>
-    </message>
-    <message>
-        <source>0.5</source>
-        <translation>0.5</translation>
-    </message>
-    <message>
-        <source>0.55</source>
-        <translation>0.55</translation>
-    </message>
-    <message>
-        <source>0.6</source>
-        <translation>0.6</translation>
-    </message>
-    <message>
-        <source>0.65</source>
-        <translation>0.65</translation>
-    </message>
-    <message>
-        <source>0.7</source>
-        <translation>0.7</translation>
-    </message>
-    <message>
-        <source>0.75</source>
-        <translation>0.75</translation>
-    </message>
-    <message>
-        <source>0.8</source>
-        <translation>0.8</translation>
-    </message>
-    <message>
-        <source>0.85</source>
-        <translation>0.85</translation>
-    </message>
-    <message>
-        <source>0.9</source>
-        <translation>0.9</translation>
-    </message>
-    <message>
-        <source>0.95</source>
-        <translation>0.95</translation>
-    </message>
-    <message>
-        <source>0.98</source>
-        <translation>0.98</translation>
-    </message>
-    <message>
-        <source>1.0</source>
-        <translation>1.0</translation>
-    </message>
-    <message>
-        <source>1.02</source>
-        <translation>1.02</translation>
-    </message>
-    <message>
-        <source>1.05</source>
-        <translation>1.05</translation>
-    </message>
-    <message>
-        <source>1.1</source>
-        <translation>1.1</translation>
-    </message>
-    <message>
-        <source>1.15</source>
-        <translation>1.15</translation>
-    </message>
-    <message>
-        <source>1.2</source>
-        <translation>1.2</translation>
-    </message>
-    <message>
-        <source>1.25</source>
-        <translation>1.25</translation>
-    </message>
-    <message>
-        <source>1.3</source>
-        <translation>1.3</translation>
-    </message>
-    <message>
-        <source>1.35</source>
-        <translation>1.35</translation>
-    </message>
-    <message>
-        <source>1.4</source>
-        <translation>1.4</translation>
-    </message>
-    <message>
-        <source>1.45</source>
-        <translation>1.45</translation>
-    </message>
-    <message>
-        <source>1.5</source>
-        <translation>1.5</translation>
-    </message>
-    <message>
-        <source>1.6</source>
-        <translation>1.6</translation>
-    </message>
-    <message>
-        <source>1.7</source>
-        <translation>1.7</translation>
-    </message>
-    <message>
-        <source>1.8</source>
-        <translation>1.8</translation>
-    </message>
-    <message>
-        <source>1.9</source>
-        <translation>1.9</translation>
-    </message>
-    <message>
-        <source>Font Gamma</source>
-        <translation>Гамма шрифта</translation>
-    </message>
-    <message>
-        <source>Font hinting</source>
-        <translation>Хинтинг</translation>
-    </message>
-    <message>
-        <source>No hinting</source>
-        <translation>Без хинтинга</translation>
-    </message>
-    <message>
-        <source>Use bytecode</source>
-        <translation>Использовать байт-код</translation>
-    </message>
-    <message>
-        <source>Autohinting</source>
-        <translation>Автохинтинг</translation>
-    </message>
-    <message>
-        <source>Fallback font</source>
-        <translation>Дополнительный шрифт</translation>
-    </message>
-    <message>
-        <source>Enable documetn internal styles</source>
-        <translation>Разрешить встроенные стили</translation>
-    </message>
-    <message>
-        <source>Internal CSS</source>
-        <translation>Внутренние таблицы стилей</translation>
-    </message>
-    <message>
-        <source>Enable document embedded fonts</source>
-        <translation>Разрешить встроенные шрифты</translation>
-    </message>
-    <message>
-        <source>.EPUB</source>
-        <translation>Для файлов .EPUB</translation>
-    </message>
-    <message>
-        <source>Alignment</source>
-        <translation>Выравнивание</translation>
-    </message>
-    <message>
-        <source>First line</source>
-        <translation>Первая строка</translation>
-    </message>
-    <message>
-        <source>Font size</source>
-        <translation>Размер шрифта</translation>
-    </message>
-    <message>
-        <source>Font face</source>
-        <translation>Начертание шрифта</translation>
-    </message>
-    <message>
-        <source>Font weight</source>
-        <translation>Насыщенность шрифта</translation>
-    </message>
-    <message>
-        <source>Font style</source>
-        <translation>Стиль шрифта</translation>
-    </message>
-    <message>
-        <source>Font color</source>
-        <translation>Цвет шрифта</translation>
-    </message>
-    <message>
-        <source>Margins:</source>
-        <translation>Отступы:</translation>
-    </message>
-    <message>
-        <source>Before</source>
-        <translation>Перед</translation>
-    </message>
-    <message>
-        <source>After</source>
-        <translation>После</translation>
-    </message>
-    <message>
-        <source>Interline space</source>
-        <translation>Междустрочный интервал</translation>
-    </message>
-    <message>
-        <source>Text decoration</source>
-        <translation>Оформление текста</translation>
-    </message>
-    <message>
-        <source>Vertical align</source>
-        <translation>Вертикальное выравнивание</translation>
-    </message>
-    <message>
-        <source>Stylesheet</source>
-        <translation>Таблицы стилей</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1153"/>
+        <location filename="../settings.cpp" line="1019"/>
         <source>Selection color</source>
-        <translation>Цвет выделения</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Comment bookmark color</source>
-        <translation>Цвет комментариев</translation>
-    </message>
-    <message>
-        <source>Correction bookmark color</source>
-        <translation>Цвет исправлений</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1155"/>
         <source>Comment color</source>
-        <translation>Цвет комментариев</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1157"/>
         <source>Correction color</source>
-        <translation>Цвет исправлений</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1159"/>
         <source>Bookmark highlight</source>
-        <translation>Подсветка закладок</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1162"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1169"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1182"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1196"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1210"/>
         <source>Disabled</source>
-        <translation>Отключить</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1163"/>
         <source>Solid fill</source>
-        <translation>Цвет фона</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1164"/>
+        <location filename="../settings.cpp" line="610"/>
+        <source>Underline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1166"/>
         <source>Inline images zoom in</source>
-        <translation>Инлайн картинки, увеличение</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1170"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1183"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1197"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1211"/>
         <source>Integer scale</source>
-        <translation>В целое число раз</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1171"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1184"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1198"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1212"/>
         <source>Arbitrary scale</source>
-        <translation>Произвольный масштаб</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1176"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1189"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1203"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1217"/>
         <source>1</source>
-        <translation>х1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1177"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1190"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1204"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1218"/>
         <source>2</source>
-        <translation>х2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1178"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1191"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1205"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1219"/>
         <source>3</source>
-        <translation>х3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1193"/>
         <source>Block images zoom in</source>
-        <translation>Обычные картинки, увеличеие</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1207"/>
         <source>Block images zoom out</source>
-        <translation>Обычные картинки, уменьшение</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1221"/>
         <source>Inline images zoom out</source>
-        <translation>Инлайн картинки, уменьшение</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1222"/>
         <source>Image scaling options</source>
-        <translation>Масштабирование картинок</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1223"/>
+        <source>Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1224"/>
+        <location filename="../settings.cpp" line="817"/>
+        <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1226"/>
+        <source>Text font</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1227"/>
+        <source>Page skin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1228"/>
+        <location filename="../settings.cpp" line="822"/>
+        <source>Background color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1230"/>
+        <source>Hyphenation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1231"/>
+        <source>Interline spacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1232"/>
+        <source>Floating punctuation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1233"/>
+        <source>Enable floating punctuation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1234"/>
+        <source>.TXT files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1235"/>
+        <source>Disable automatic formatting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1236"/>
+        <source>Sample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1239"/>
+        <source>0.3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1240"/>
+        <source>0.35</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1241"/>
+        <source>0.4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1242"/>
+        <source>0.45</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1243"/>
+        <source>0.5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1244"/>
+        <source>0.55</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1245"/>
+        <source>0.6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1246"/>
+        <source>0.65</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1247"/>
+        <source>0.7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1248"/>
+        <source>0.75</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1249"/>
+        <source>0.8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1250"/>
+        <source>0.85</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1251"/>
+        <source>0.9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1252"/>
+        <source>0.95</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1253"/>
+        <source>0.98</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1254"/>
+        <source>1.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1255"/>
+        <source>1.02</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1256"/>
+        <source>1.05</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1257"/>
+        <source>1.1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1258"/>
+        <source>1.15</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1259"/>
+        <source>1.2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1260"/>
+        <source>1.25</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1261"/>
+        <source>1.3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1262"/>
+        <source>1.35</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1263"/>
+        <source>1.4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1264"/>
+        <source>1.45</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1265"/>
+        <source>1.5</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1266"/>
+        <source>1.6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1267"/>
+        <source>1.7</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1268"/>
+        <source>1.8</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1269"/>
+        <source>1.9</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1271"/>
+        <source>Font Gamma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1272"/>
+        <source>Font hinting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1275"/>
+        <source>No hinting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1276"/>
+        <source>Use bytecode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1277"/>
+        <source>Autohinting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1279"/>
+        <source>Fallback font</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1280"/>
+        <source>Enable documetn internal styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1281"/>
+        <source>Internal CSS</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1282"/>
+        <source>Enable document embedded fonts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1283"/>
+        <source>.EPUB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1284"/>
+        <source>Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1287"/>
+        <location filename="../settings.cpp" line="266"/>
+        <source>Default paragraph style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1289"/>
+        <source>Alignment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1290"/>
+        <source>First line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1291"/>
+        <source>Font size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1292"/>
+        <source>Font face</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1293"/>
+        <source>Font weight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1294"/>
+        <source>Font style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1295"/>
+        <source>Font color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1296"/>
+        <source>Margins:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1297"/>
+        <source>Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1298"/>
+        <source>After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1299"/>
+        <location filename="../settings.cpp" line="346"/>
+        <source>Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1300"/>
+        <location filename="../settings.cpp" line="348"/>
+        <source>Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1301"/>
+        <source>Interline space</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1302"/>
+        <source>Text decoration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1303"/>
+        <source>Vertical align</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_settings.h" line="1304"/>
+        <source>Stylesheet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="249"/>
+        <source>[No hyphenation]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="251"/>
+        <source>[Algorythmic hyphenation]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="260"/>
+        <source>The quick brown fox jumps over the lazy dog. </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="267"/>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="268"/>
+        <source>Subtitle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="269"/>
+        <source>Preformatted text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="270"/>
+        <source>Link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="271"/>
+        <source>Cite / quotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="272"/>
+        <source>Epigraph</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="273"/>
+        <source>Poem</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="274"/>
+        <source>Text author</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="275"/>
+        <source>Footnote link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="276"/>
+        <source>Footnote</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="277"/>
+        <source>Footnote title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="278"/>
+        <source>Annotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="344"/>
+        <location filename="../settings.cpp" line="363"/>
+        <location filename="../settings.cpp" line="396"/>
+        <location filename="../settings.cpp" line="437"/>
+        <location filename="../settings.cpp" line="466"/>
+        <location filename="../settings.cpp" line="486"/>
+        <location filename="../settings.cpp" line="504"/>
+        <location filename="../settings.cpp" line="548"/>
+        <location filename="../settings.cpp" line="608"/>
+        <location filename="../settings.cpp" line="624"/>
+        <source>-</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="345"/>
+        <source>Justify</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="347"/>
+        <source>Center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="364"/>
+        <source>No indent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="365"/>
+        <source>Small Indent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="366"/>
+        <source>Big Indent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="367"/>
+        <source>Small Outdent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="368"/>
+        <source>Big Outdent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="398"/>
+        <source>20% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="399"/>
+        <source>30% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="400"/>
+        <location filename="../settings.cpp" line="439"/>
+        <source>50% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="401"/>
+        <location filename="../settings.cpp" line="440"/>
+        <source>100% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="402"/>
+        <location filename="../settings.cpp" line="441"/>
+        <source>150% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="442"/>
+        <source>200% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="443"/>
+        <source>400% of line height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="444"/>
+        <source>5% of line width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="445"/>
+        <source>10% of line width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="446"/>
+        <source>15% of line width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="447"/>
+        <source>20% of line width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="448"/>
+        <source>30% of line width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="467"/>
+        <location filename="../settings.cpp" line="505"/>
+        <source>Normal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="468"/>
+        <source>Bold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="469"/>
+        <source>Bolder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="470"/>
+        <source>Lighter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="487"/>
+        <source>Increase: 110%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="488"/>
+        <source>Increase: 120%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="489"/>
+        <source>Increase: 150%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="490"/>
+        <source>Decrease: 90%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="491"/>
+        <source>Decrease: 80%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="492"/>
+        <source>Decrease: 70%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="493"/>
+        <source>Decrease: 60%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="506"/>
+        <source>Italic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="514"/>
+        <source>[Default Sans Serif]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="516"/>
+        <source>[Default Serif]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="518"/>
+        <source>[Default Monospace]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="549"/>
+        <source>Black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="550"/>
+        <source>Green</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="551"/>
+        <source>Silver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="552"/>
+        <source>Lime</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="553"/>
+        <source>Gray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="554"/>
+        <source>Olive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="555"/>
+        <source>White</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="556"/>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="557"/>
+        <source>Maroon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="558"/>
+        <source>Navy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="559"/>
+        <source>Red</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="560"/>
+        <source>Blue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="561"/>
+        <source>Purple</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="562"/>
+        <source>Teal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="563"/>
+        <source>Fuchsia</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="564"/>
+        <source>Aqua</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="609"/>
+        <source>None</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="611"/>
+        <source>Line through</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="612"/>
+        <source>Overline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="625"/>
+        <source>Baseline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="626"/>
+        <source>Subscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="627"/>
+        <source>Superscript</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="1024"/>
+        <source>Comment bookmark color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../settings.cpp" line="1029"/>
+        <source>Correction bookmark color</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>TocDlg</name>
     <message>
-        <source>Title</source>
-        <translation>Название</translation>
-    </message>
-    <message>
-        <source>Page</source>
-        <translation>Страница</translation>
-    </message>
-    <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_tocdlg.h" line="67"/>
         <source>Table of Contents</source>
-        <translation>Содержание</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../tocdlg.cpp" line="50"/>
+        <source>Title</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../tocdlg.cpp" line="50"/>
+        <source>Page</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>WolExportDlg</name>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="86"/>
         <source>Dialog</source>
-        <translation>Диалог</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="87"/>
         <source>Bits per pixel</source>
-        <translation>Бит на пиксель</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="90"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="96"/>
         <source>1</source>
-        <translation>1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="91"/>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="97"/>
         <source>2</source>
-        <translation>2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="93"/>
         <source>Table of Contents levels</source>
-        <translation>Уровней заголовка</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../../../../../.clion10/system/cmake/generated/1ddfdfa4/1ddfdfa4/Debug/cr3qt/ui_wolexportdlg.h" line="98"/>
         <source>3</source>
-        <translation>3</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>
