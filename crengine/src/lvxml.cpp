@@ -2992,7 +2992,6 @@ bool LVXMLParser::Parse()
 
                     if (multi_tagnumbers.length()>0)
                     {
-
                         int cnt=multi_tagnumbers[multi_tagnumbers.length()-1].atoi();
                         for (int i=0;i<cnt-1;i++)
                         {
@@ -3097,7 +3096,7 @@ bool LVXMLParser::Parse()
                 if ( (flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING) && m_conv_table ) {
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
                 }
-                if (attrname.compare("class")==0 ) {
+                if (attrname.compare("class")==0 &&tagname.compare("img")!=0) {
                     int cnt=0;
                     attrvalue.trimDoubleSpaces(false,false,false);
                     if (attrvalue.pos(" ")!=-1 &&(tagname.compare("table")==0
@@ -3119,7 +3118,10 @@ bool LVXMLParser::Parse()
                                 m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.substr(0,attrvalue.pos(" ")).c_str());
                                 attrvalue=attrvalue.substr(attrvalue.pos(" ")+1,attrvalue.length()-attrvalue.pos(" ")-1);
                                 m_callback->OnTagBody();
-                                if (attrvalue.pos(" ") != -1) m_callback->OnTagOpen(tagns.c_str(),L"span");
+                                if (attrvalue.pos(" ") != -1){
+                                    if (tagname.compare("div")!=0) m_callback->OnTagOpen(tagns.c_str(),L"span");
+                                    else m_callback->OnTagOpen(tagns.c_str(),L"div");
+                                }
                                 multi_tagnames.add(tagname);
                                 cnt++;
                             }
@@ -3130,7 +3132,8 @@ bool LVXMLParser::Parse()
                                 lString8 tmp=lString8("");
                                 tmp.appendDecimal(cnt);
                                 multi_tagnumbers.add(tmp);
-                                m_callback->OnTagOpen(tagns.c_str(),L"span");
+                                if (tagname.compare("div")!=0) m_callback->OnTagOpen(tagns.c_str(),L"span");
+                                else m_callback->OnTagOpen(tagns.c_str(),L"div");
                                 m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
                                 break;
                             }
