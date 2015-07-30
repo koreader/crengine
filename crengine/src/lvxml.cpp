@@ -2908,7 +2908,9 @@ bool LVXMLParser::Parse()
     lString16 attrname;
     lString16 attrns;
     lString16 attrvalue;
-    lString16Collection multi_values;
+    lString16Collection multi_tagnames;
+    lString8Collection multi_tagnumbers;
+
     bool errorFlag = false;
     int flags = m_callback->getFlags();
     for (;!m_eof && !errorFlag;)
@@ -2987,15 +2989,20 @@ bool LVXMLParser::Parse()
 //                    } else if ( tagname==L"section" ) {
 //                        dumpActive = false;
 //                    }
-                    m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
-                    if (multi_values.length()>0)
+
+                    if (multi_tagnumbers.length()>0)
                     {
-                        for (int i=0;i<multi_values.length()-1;i++)
+
+                        int cnt=multi_tagnumbers[multi_tagnumbers.length()-1].atoi();
+                        for (int i=0;i<cnt-1;i++)
                         {
-                            m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
-                            multi_values.clear();
+                            m_callback->OnTagClose(tagns.c_str(), L"span");
                         }
+                        m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
+                        multi_tagnames.erase(multi_tagnames.length()-1-cnt,cnt);
+                        multi_tagnumbers.erase(multi_tagnumbers.length()-1,1);
                     } //emulate tag close when last tag defines multi-classes
+                    else m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
 //                    if ( dumpActive )
 //                        CRLog::trace("</%s>", LCSTR(tagname) );
                     if (SkipTillChar('>'))
@@ -3090,29 +3097,46 @@ bool LVXMLParser::Parse()
                 if ( (flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING) && m_conv_table ) {
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
                 }
-                if (attrname.lowercase().pos("class")==0 and attrname.length()==5) {
+                if (attrname.compare("class")==0 ) {
+                    int cnt=0;
                     attrvalue.trimDoubleSpaces(false,false,false);
+                    if (attrvalue.pos(" ")!=-1 &&(tagname.compare("table")==0
+                                                  ||tagname.compare("tr")==0))
+                    {
+                        lString16 tmp=(attrvalue.substr(0,attrvalue.pos(" ")));
+                        attrvalue=tmp;
+                    }
                     if (attrvalue.pos(" ") == -1) {
                         m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
+                        if (tagname.compare("img")!=0){
+                        multi_tagnames.add(tagname);
+                        multi_tagnumbers.add("1");
+                    }
                     }
                     else {
-                        for(;;){
+                            for(;;){
                             if (attrvalue.pos(" ") != -1) {
                                 m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.substr(0,attrvalue.pos(" ")).c_str());
-                                multi_values.add(attrvalue.substr(0,attrvalue.pos(" ")));
                                 attrvalue=attrvalue.substr(attrvalue.pos(" ")+1,attrvalue.length()-attrvalue.pos(" ")-1);
                                 m_callback->OnTagBody();
+                                if (attrvalue.pos(" ") != -1) m_callback->OnTagOpen(tagns.c_str(),L"span");
+                                multi_tagnames.add(tagname);
+                                cnt++;
                             }
                             else
                             {
-                                multi_values.add(attrvalue);
-                                m_callback->OnTagOpen(tagns.c_str(),tagname.c_str());
+                                cnt++;
+                                multi_tagnames.add(tagname);
+                                lString8 tmp=lString8("");
+                                tmp.appendDecimal(cnt);
+                                multi_tagnumbers.add(tmp);
+                                m_callback->OnTagOpen(tagns.c_str(),L"span");
                                 m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
                                 break;
                             }
-                        }
+                            }
                     }
-                }//support elements which defined multi classes,like this <span class="bold color italic">
+                    }//support elements which defined multi classes,like this <span class="bold color italic">
                 else m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
                 if (inXmlTag && attrname == "encoding")
                 {
