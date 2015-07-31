@@ -2990,12 +2990,15 @@ bool LVXMLParser::Parse()
 //                        dumpActive = false;
 //                    }
 
-                    if (multi_tagnumbers.length()>0)
+                    if (multi_tagnumbers.length()>0&&multi_tagnames[multi_tagnames.length()-1].compare(tagname)==0)
                     {
                         int cnt=multi_tagnumbers[multi_tagnumbers.length()-1].atoi();
                         for (int i=0;i<cnt-1;i++)
                         {
-                            m_callback->OnTagClose(tagns.c_str(), L"span");
+                            if (tagname.compare("div")==0)
+                                m_callback->OnTagClose(tagns.c_str(), L"div");
+                            else
+                                m_callback->OnTagClose(tagns.c_str(), L"span");
                         }
                         m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
                         multi_tagnames.erase(multi_tagnames.length()-1-cnt,cnt);
