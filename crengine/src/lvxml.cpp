@@ -2910,7 +2910,7 @@ bool LVXMLParser::Parse()
     lString16 attrvalue;
     lString16Collection multi_tagnames;
     lString8Collection multi_tagnumbers;
-
+    bool hasattr=false;//weather the tag has defined classes
     bool errorFlag = false;
     int flags = m_callback->getFlags();
     for (;!m_eof && !errorFlag;)
@@ -2977,7 +2977,7 @@ bool LVXMLParser::Parse()
                         ch = ReadCharFromBuffer();
                     }
                     break;
-                }
+                } else hasattr=false;//no "="
                 if ( m_citags ) {
                     tagns.lowercase();
                     tagname.lowercase();
@@ -3001,7 +3001,9 @@ bool LVXMLParser::Parse()
                                 m_callback->OnTagClose(tagns.c_str(), L"span");
                         }
                         m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
-                        multi_tagnames.erase(multi_tagnames.length()-1-cnt,cnt);
+                        if (cnt==0)
+                            multi_tagnames.erase(multi_tagnames.length()-1,1);
+                        else multi_tagnames.erase(multi_tagnames.length()-1-cnt,cnt);
                         multi_tagnumbers.erase(multi_tagnumbers.length()-1,1);
                     } //emulate tag close when last tag defines multi-classes
                     else m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
@@ -3043,7 +3045,14 @@ bool LVXMLParser::Parse()
                     if ( ch!='>' )
                         m_callback->OnTagClose(tagns.c_str(), tagname.c_str());
                     if ( ch=='>' )
+                    {
                         ch = PeekNextCharFromBuffer();
+                        if (tagname.compare("img")!=0&&attrname.compare("class")==0&&!hasattr)
+                        {
+                            multi_tagnames.add(tagname);
+                            multi_tagnumbers.add("0");//make it 0 for later check
+                        }
+                    }
                     else
                         ch = PeekNextCharFromBuffer(1);
                     m_state = ps_text;
@@ -3100,6 +3109,7 @@ bool LVXMLParser::Parse()
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
                 }
                 if (attrname.compare("class")==0 ) {
+                    hasattr=true;
                     int cnt=0;
                     attrvalue.trimDoubleSpaces(false,false,false);
                     if (attrvalue.pos(" ")!=-1 &&(tagname.compare("table")==0
