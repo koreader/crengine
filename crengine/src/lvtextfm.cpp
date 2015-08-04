@@ -828,6 +828,7 @@ public:
                         int wAlign = font->getVisualAligmentWidth();
                         word->width += wAlign * 0.7;//
                         frmline->x += wAlign * 0.2;//add space for some Chinese font floating punctuation at line end
+                        frmline->width-=wAlign * 0.2;
                         while ( (lastc==' ') && endp>0 ) { // || lastc=='\r' || lastc=='\n'
                             word->width -= m_widths[endp] - m_widths[endp-1];
                             endp--;
@@ -849,10 +850,14 @@ public:
                         }
                         word->min_width = word->width;
                         if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER){
+                            FONT_GUARD
                             int properwordcount=maxWidth/font->getSize()-2;
-                            int extraSpace =maxWidth-properwordcount*font->getSize()-1.4*font->getSize();
-                            int excesswordcount=end-start-properwordcount-1;
-                            if (excesswordcount>0) extraSpace=extraSpace-excesswordcount*font->getSize();
+                            int lastw=font->getCharWidth(lastc);
+                            int extraSpace =maxWidth-properwordcount*font->getSize()-1.2*font->getSize();
+                            if (frmline->width+x+word->width-lastw+extraSpace>maxWidth)
+                            {
+                                extraSpace=maxWidth-(frmline->width+x+word->width+extraSpace-lastw);//do not exceed maxwidth of a line
+                            }
                             if ( extraSpace>0 )
                             {
                                 int addSpacePoints = 0;
@@ -862,7 +867,7 @@ public:
                                     if ( frmline->words[a].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER )
                                         points++;
                                 }
-                                addSpacePoints=properwordcount+(frmline->word_count-1-points);
+                                addSpacePoints=properwordcount-(frmline->word_count-1-points);
                                 if (addSpacePoints > 0) {
                                     int addSpaceDiv = extraSpace / addSpacePoints;
                                     int addSpaceMod = extraSpace % addSpacePoints;
@@ -877,7 +882,6 @@ public:
                                             }
                                         }
                                     }
-                                    frmline->width += extraSpace;
                                 }
                             }
                         }//(Chinese) add spaces between words in last line or single line
