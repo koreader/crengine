@@ -10310,6 +10310,7 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
         return NULL;
     ldomNode * enode = this;
     RenderRectAccessor fmt( this );
+    pt.y+=lengthToPx(enode->getStyle()->margin[2],fmt.getWidth(),enode->getFont()->getSize());
     if ( enode->getRendMethod() == erm_invisible ) {
         return NULL;
     }
