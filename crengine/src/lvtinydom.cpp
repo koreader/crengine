@@ -5167,7 +5167,7 @@ bool ldomXPointer::getRect(lvRect & rect) const
     }
 }
 
-/// returns caret rectangle for pointer inside formatted document considering paddings
+/// returns caret rectangle for pointer inside formatted document considering paddings and borders
 bool ldomXPointer::getRectEX(lvRect & rect) const
 {
     //CRLog::trace("ldomXPointer::getRect()");
