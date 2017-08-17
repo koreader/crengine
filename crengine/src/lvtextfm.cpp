@@ -987,7 +987,9 @@ public:
 
     bool isCJKPunctuation(lChar16 c) {
        return (c >= UNICODE_CJK_PUNCTUATION_BEGIN && c <= UNICODE_CJK_PUNCTUATION_END) || \
-       (c >= UNICODE_GENERAL_PUNCTUATION_BEGIN && c <= UNICODE_GENERAL_PUNCTUATION_END) || \
+       (c >= UNICODE_GENERAL_PUNCTUATION_BEGIN && c <= UNICODE_GENERAL_PUNCTUATION_END && \
+        c!=0x2018 && c!=0x201a && c!=0x201b && c!=0x201c && c!=0x201e && c!=0x201f && \
+        c!=0x2035 && c!=0x2036 && c!=0x2037 && c!=0x2039 && c!=0x2045 && c!=0x204c  ) || \
        (c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) || \
         c == L'·';
     }
