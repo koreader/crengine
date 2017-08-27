@@ -52,7 +52,7 @@
     },
     {
         "name": "French",
-        "filename": "French_hyphen_(Alan).pdb",
+        "filename": "French.pattern",
         "language": "fr",
         "aliases": ["fra"]
     },
