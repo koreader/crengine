@@ -323,8 +323,12 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         str++;
         while (*str>='0' && *str<='9')
         {
-            frac = frac*10 + (*str - '0');
-            frac_div *= 10;
+            // don't process more than 6 digits after decimal point
+            // to avoid overflow in case of very long values
+            if (frac_div < 1000000) {
+                frac = frac*10 + (*str - '0');
+                frac_div *= 10;
+            }
             str++;
         }
     }
