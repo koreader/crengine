@@ -32,7 +32,7 @@
 -->
 <HyphenationDescription>
 <pattern>1b</pattern>
-<pattern>4b.</pattern>
+<pattern>4b </pattern>
 <pattern>2bb</pattern>
 <pattern>2bc</pattern>
 <pattern>2bd</pattern>
@@ -53,7 +53,7 @@
 <pattern>2by</pattern>
 <pattern>2bz</pattern>
 <pattern>1c</pattern>
-<pattern>4c.</pattern>
+<pattern>4c </pattern>
 <pattern>2cb</pattern>
 <pattern>2cc</pattern>
 <pattern>2cd</pattern>
@@ -73,7 +73,7 @@
 <pattern>2cy</pattern>
 <pattern>2cz</pattern>
 <pattern>1d</pattern>
-<pattern>4d.</pattern>
+<pattern>4d </pattern>
 <pattern>2db</pattern>
 <pattern>2dc</pattern>
 <pattern>2dd</pattern>
@@ -95,7 +95,7 @@
 <pattern>2dy</pattern>
 <pattern>2dz</pattern>
 <pattern>1f</pattern>
-<pattern>4f.</pattern>
+<pattern>4f </pattern>
 <pattern>2fb</pattern>
 <pattern>2fc</pattern>
 <pattern>2fd</pattern>
@@ -116,7 +116,7 @@
 <pattern>2fy</pattern>
 <pattern>2fz</pattern>
 <pattern>1g</pattern>
-<pattern>4g.</pattern>
+<pattern>4g </pattern>
 <pattern>2gb</pattern>
 <pattern>2gc</pattern>
 <pattern>2gd</pattern>
@@ -136,7 +136,7 @@
 <pattern>2gx</pattern>
 <pattern>2gy</pattern>
 <pattern>2gz</pattern>
-<pattern>4h.</pattern>
+<pattern>4h </pattern>
 <pattern>2hb</pattern>
 <pattern>2hc</pattern>
 <pattern>2hd</pattern>
@@ -159,7 +159,7 @@
 <pattern>2hy</pattern>
 <pattern>2hz</pattern>
 <pattern>1j</pattern>
-<pattern>4j.</pattern>
+<pattern>4j </pattern>
 <pattern>2jb</pattern>
 <pattern>2jc</pattern>
 <pattern>2jd</pattern>
@@ -182,7 +182,7 @@
 <pattern>2jy</pattern>
 <pattern>2jz</pattern>
 <pattern>1k</pattern>
-<pattern>4k.</pattern>
+<pattern>4k </pattern>
 <pattern>2kb</pattern>
 <pattern>2kc</pattern>
 <pattern>2kd</pattern>
@@ -203,7 +203,7 @@
 <pattern>2ky</pattern>
 <pattern>2kz</pattern>
 <pattern>1l</pattern>
-<pattern>4l.</pattern>
+<pattern>4l </pattern>
 <pattern>2lb</pattern>
 <pattern>2lc</pattern>
 <pattern>2ld</pattern>
@@ -225,7 +225,7 @@
 <pattern>2ly</pattern>
 <pattern>2lz</pattern>
 <pattern>1m</pattern>
-<pattern>4m.</pattern>
+<pattern>4m </pattern>
 <pattern>2mb</pattern>
 <pattern>2mc</pattern>
 <pattern>2md</pattern>
@@ -248,7 +248,7 @@
 <pattern>2my</pattern>
 <pattern>2mz</pattern>
 <pattern>1n</pattern>
-<pattern>4n.</pattern>
+<pattern>4n </pattern>
 <pattern>2nb</pattern>
 <pattern>2nc</pattern>
 <pattern>2nd</pattern>
@@ -271,7 +271,7 @@
 <pattern>2ny</pattern>
 <pattern>2nz</pattern>
 <pattern>1p</pattern>
-<pattern>4p.</pattern>
+<pattern>4p </pattern>
 <pattern>2pb</pattern>
 <pattern>2pc</pattern>
 <pattern>2pd</pattern>
@@ -292,7 +292,7 @@
 <pattern>2py</pattern>
 <pattern>2pz</pattern>
 <pattern>1q</pattern>
-<pattern>4q.</pattern>
+<pattern>4q </pattern>
 <pattern>2qb</pattern>
 <pattern>2qc</pattern>
 <pattern>2qd</pattern>
@@ -315,7 +315,7 @@
 <pattern>2qy</pattern>
 <pattern>2qz</pattern>
 <pattern>1r</pattern>
-<pattern>4r.</pattern>
+<pattern>4r </pattern>
 <pattern>2rb</pattern>
 <pattern>2rc</pattern>
 <pattern>2rd</pattern>
@@ -337,7 +337,7 @@
 <pattern>2ry</pattern>
 <pattern>2rz</pattern>
 <pattern>1s</pattern>
-<pattern>4s.</pattern>
+<pattern>4s </pattern>
 <pattern>2sb</pattern>
 <pattern>2sc</pattern>
 <pattern>2sd</pattern>
@@ -360,7 +360,7 @@
 <pattern>2sy</pattern>
 <pattern>2sz</pattern>
 <pattern>1t</pattern>
-<pattern>4t.</pattern>
+<pattern>4t </pattern>
 <pattern>2tb</pattern>
 <pattern>2tc</pattern>
 <pattern>2td</pattern>
@@ -381,7 +381,7 @@
 <pattern>2ty</pattern>
 <pattern>2tz</pattern>
 <pattern>1v</pattern>
-<pattern>4v.</pattern>
+<pattern>4v </pattern>
 <pattern>2vb</pattern>
 <pattern>2vc</pattern>
 <pattern>2vd</pattern>
@@ -402,7 +402,7 @@
 <pattern>2vy</pattern>
 <pattern>2vz</pattern>
 <pattern>1w</pattern>
-<pattern>4w.</pattern>
+<pattern>4w </pattern>
 <pattern>2wb</pattern>
 <pattern>2wc</pattern>
 <pattern>2wd</pattern>
@@ -425,7 +425,7 @@
 <pattern>2wy</pattern>
 <pattern>2wz</pattern>
 <pattern>1x</pattern>
-<pattern>4x.</pattern>
+<pattern>4x </pattern>
 <pattern>2xb</pattern>
 <pattern>2xc</pattern>
 <pattern>2xd</pattern>
@@ -448,7 +448,7 @@
 <pattern>2xy</pattern>
 <pattern>2xz</pattern>
 <pattern>1y</pattern>
-<pattern>4y.</pattern>
+<pattern>4y </pattern>
 <pattern>2yb</pattern>
 <pattern>2yc</pattern>
 <pattern>2yd</pattern>
@@ -471,7 +471,7 @@
 <pattern>2yy</pattern>
 <pattern>2yz</pattern>
 <pattern>1z</pattern>
-<pattern>4z.</pattern>
+<pattern>4z </pattern>
 <pattern>2zb</pattern>
 <pattern>2zc</pattern>
 <pattern>2zd</pattern>
@@ -494,9 +494,9 @@
 <pattern>2zy</pattern>
 <pattern>2zz</pattern>
 <pattern>1ñ</pattern>
-<pattern>4ñ.</pattern>
+<pattern>4ñ </pattern>
 <pattern>c4h</pattern>
-<pattern>4ch.</pattern>
+<pattern>4ch </pattern>
 <pattern>2chb</pattern>
 <pattern>2chc</pattern>
 <pattern>2chd</pattern>
@@ -519,7 +519,7 @@
 <pattern>2chy</pattern>
 <pattern>2chz</pattern>
 <pattern>l4l</pattern>
-<pattern>4ll.</pattern>
+<pattern>4ll </pattern>
 <pattern>2llb</pattern>
 <pattern>2llc</pattern>
 <pattern>2lld</pattern>
@@ -542,7 +542,7 @@
 <pattern>2lly</pattern>
 <pattern>2llz</pattern>
 <pattern>b2l</pattern>
-<pattern>4bl.</pattern>
+<pattern>4bl </pattern>
 <pattern>2bl2b</pattern>
 <pattern>2bl2c</pattern>
 <pattern>2bl2d</pattern>
@@ -565,7 +565,7 @@
 <pattern>2bl2y</pattern>
 <pattern>2bl2z</pattern>
 <pattern>c2l</pattern>
-<pattern>4cl.</pattern>
+<pattern>4cl </pattern>
 <pattern>2cl2b</pattern>
 <pattern>2cl2c</pattern>
 <pattern>2cl2d</pattern>
@@ -588,7 +588,7 @@
 <pattern>2cl2y</pattern>
 <pattern>2cl2z</pattern>
 <pattern>f2l</pattern>
-<pattern>4fl.</pattern>
+<pattern>4fl </pattern>
 <pattern>2fl2b</pattern>
 <pattern>2fl2c</pattern>
 <pattern>2fl2d</pattern>
@@ -611,7 +611,7 @@
 <pattern>2fl2y</pattern>
 <pattern>2fl2z</pattern>
 <pattern>g2l</pattern>
-<pattern>4gl.</pattern>
+<pattern>4gl </pattern>
 <pattern>2gl2b</pattern>
 <pattern>2gl2c</pattern>
 <pattern>2gl2d</pattern>
@@ -634,7 +634,7 @@
 <pattern>2gl2y</pattern>
 <pattern>2gl2z</pattern>
 <pattern>k2l</pattern>
-<pattern>4kl.</pattern>
+<pattern>4kl </pattern>
 <pattern>2kl2b</pattern>
 <pattern>2kl2c</pattern>
 <pattern>2kl2d</pattern>
@@ -657,7 +657,7 @@
 <pattern>2kl2y</pattern>
 <pattern>2kl2z</pattern>
 <pattern>p2l</pattern>
-<pattern>4pl.</pattern>
+<pattern>4pl </pattern>
 <pattern>2pl2b</pattern>
 <pattern>2pl2c</pattern>
 <pattern>2pl2d</pattern>
@@ -680,7 +680,7 @@
 <pattern>2pl2y</pattern>
 <pattern>2pl2z</pattern>
 <pattern>v2l</pattern>
-<pattern>4vl.</pattern>
+<pattern>4vl </pattern>
 <pattern>2vl2b</pattern>
 <pattern>2vl2c</pattern>
 <pattern>2vl2d</pattern>
@@ -703,7 +703,7 @@
 <pattern>2vl2y</pattern>
 <pattern>2vl2z</pattern>
 <pattern>b2r</pattern>
-<pattern>4br.</pattern>
+<pattern>4br </pattern>
 <pattern>2br2b</pattern>
 <pattern>2br2c</pattern>
 <pattern>2br2d</pattern>
@@ -726,7 +726,7 @@
 <pattern>2br2y</pattern>
 <pattern>2br2z</pattern>
 <pattern>c2r</pattern>
-<pattern>4cr.</pattern>
+<pattern>4cr </pattern>
 <pattern>2cr2b</pattern>
 <pattern>2cr2c</pattern>
 <pattern>2cr2d</pattern>
@@ -749,7 +749,7 @@
 <pattern>2cr2y</pattern>
 <pattern>2cr2z</pattern>
 <pattern>d2r</pattern>
-<pattern>4dr.</pattern>
+<pattern>4dr </pattern>
 <pattern>2dr2b</pattern>
 <pattern>2dr2c</pattern>
 <pattern>2dr2d</pattern>
@@ -772,7 +772,7 @@
 <pattern>2dr2y</pattern>
 <pattern>2dr2z</pattern>
 <pattern>f2r</pattern>
-<pattern>4fr.</pattern>
+<pattern>4fr </pattern>
 <pattern>2fr2b</pattern>
 <pattern>2fr2c</pattern>
 <pattern>2fr2d</pattern>
@@ -795,7 +795,7 @@
 <pattern>2fr2y</pattern>
 <pattern>2fr2z</pattern>
 <pattern>g2r</pattern>
-<pattern>4gr.</pattern>
+<pattern>4gr </pattern>
 <pattern>2gr2b</pattern>
 <pattern>2gr2c</pattern>
 <pattern>2gr2d</pattern>
@@ -818,7 +818,7 @@
 <pattern>2gr2y</pattern>
 <pattern>2gr2z</pattern>
 <pattern>k2r</pattern>
-<pattern>4kr.</pattern>
+<pattern>4kr </pattern>
 <pattern>2kr2b</pattern>
 <pattern>2kr2c</pattern>
 <pattern>2kr2d</pattern>
@@ -841,7 +841,7 @@
 <pattern>2kr2y</pattern>
 <pattern>2kr2z</pattern>
 <pattern>p2r</pattern>
-<pattern>4pr.</pattern>
+<pattern>4pr </pattern>
 <pattern>2pr2b</pattern>
 <pattern>2pr2c</pattern>
 <pattern>2pr2d</pattern>
@@ -864,7 +864,7 @@
 <pattern>2pr2y</pattern>
 <pattern>2pr2z</pattern>
 <pattern>r2r</pattern>
-<pattern>4rr.</pattern>
+<pattern>4rr </pattern>
 <pattern>2rr2b</pattern>
 <pattern>2rr2c</pattern>
 <pattern>2rr2d</pattern>
@@ -887,7 +887,7 @@
 <pattern>2rr2y</pattern>
 <pattern>2rr2z</pattern>
 <pattern>t2r</pattern>
-<pattern>4tr.</pattern>
+<pattern>4tr </pattern>
 <pattern>2tr2b</pattern>
 <pattern>2tr2c</pattern>
 <pattern>2tr2d</pattern>
@@ -910,7 +910,7 @@
 <pattern>2tr2y</pattern>
 <pattern>2tr2z</pattern>
 <pattern>v2r</pattern>
-<pattern>4vr.</pattern>
+<pattern>4vr </pattern>
 <pattern>2vr2b</pattern>
 <pattern>2vr2c</pattern>
 <pattern>2vr2d</pattern>
@@ -943,7 +943,7 @@
 <pattern>2t3p2t</pattern>
 <pattern>2x3p2t</pattern>
 <pattern>2y3p2t</pattern>
-<pattern>4pt.</pattern>
+<pattern>4pt </pattern>
 <pattern>2b3c2t</pattern>
 <pattern>2c3c2t</pattern>
 <pattern>2d3c2t</pattern>
@@ -955,7 +955,7 @@
 <pattern>2t3c2t</pattern>
 <pattern>2x3c2t</pattern>
 <pattern>2y3c2t</pattern>
-<pattern>4ct.</pattern>
+<pattern>4ct </pattern>
 <pattern>2b3c2n</pattern>
 <pattern>2c3c2n</pattern>
 <pattern>2d3c2n</pattern>
@@ -967,7 +967,7 @@
 <pattern>2t3c2n</pattern>
 <pattern>2x3c2n</pattern>
 <pattern>2y3c2n</pattern>
-<pattern>4cn.</pattern>
+<pattern>4cn </pattern>
 <pattern>2b3p2s</pattern>
 <pattern>2c3p2s</pattern>
 <pattern>2d3p2s</pattern>
@@ -979,7 +979,7 @@
 <pattern>2t3p2s</pattern>
 <pattern>2x3p2s</pattern>
 <pattern>2y3p2s</pattern>
-<pattern>4ps.</pattern>
+<pattern>4ps </pattern>
 <pattern>2b3m2n</pattern>
 <pattern>2c3m2n</pattern>
 <pattern>2d3m2n</pattern>
@@ -991,7 +991,7 @@
 <pattern>2t3m2n</pattern>
 <pattern>2x3m2n</pattern>
 <pattern>2y3m2n</pattern>
-<pattern>4mn.</pattern>
+<pattern>4mn </pattern>
 <pattern>2b3g2n</pattern>
 <pattern>2c3g2n</pattern>
 <pattern>2d3g2n</pattern>
@@ -1003,7 +1003,7 @@
 <pattern>2t3g2n</pattern>
 <pattern>2x3g2n</pattern>
 <pattern>2y3g2n</pattern>
-<pattern>4gn.</pattern>
+<pattern>4gn </pattern>
 <pattern>2b3f2t</pattern>
 <pattern>2c3f2t</pattern>
 <pattern>2d3f2t</pattern>
@@ -1015,7 +1015,7 @@
 <pattern>2t3f2t</pattern>
 <pattern>2x3f2t</pattern>
 <pattern>2y3f2t</pattern>
-<pattern>4ft.</pattern>
+<pattern>4ft </pattern>
 <pattern>2b3p2n</pattern>
 <pattern>2c3p2n</pattern>
 <pattern>2d3p2n</pattern>
@@ -1027,7 +1027,7 @@
 <pattern>2t3p2n</pattern>
 <pattern>2x3p2n</pattern>
 <pattern>2y3p2n</pattern>
-<pattern>4pn.</pattern>
+<pattern>4pn </pattern>
 <pattern>2b3c2z</pattern>
 <pattern>2c3c2z</pattern>
 <pattern>2d3c2z</pattern>
@@ -1039,7 +1039,7 @@
 <pattern>2t3c2z</pattern>
 <pattern>2x3c2z</pattern>
 <pattern>2y3c2z</pattern>
-<pattern>4cz.</pattern>
+<pattern>4cz </pattern>
 <pattern>2b3t2z</pattern>
 <pattern>2c3t2z</pattern>
 <pattern>2d3t2z</pattern>
@@ -1051,7 +1051,7 @@
 <pattern>2t3t2z</pattern>
 <pattern>2x3t2z</pattern>
 <pattern>2y3t2z</pattern>
-<pattern>4tz.</pattern>
+<pattern>4tz </pattern>
 <pattern>2b3t2s</pattern>
 <pattern>2c3t2s</pattern>
 <pattern>2d3t2s</pattern>
@@ -1063,415 +1063,415 @@
 <pattern>2t3t2s</pattern>
 <pattern>2x3t2s</pattern>
 <pattern>2y3t2s</pattern>
-<pattern>4ts.</pattern>
+<pattern>4ts </pattern>
 <pattern>san4c5t</pattern>
 <pattern>plan4c5t</pattern>
-<pattern>2no.</pattern>
+<pattern>2no </pattern>
 <pattern>2t2l</pattern>
 <pattern>4caca4</pattern>
 <pattern>4cago4</pattern>
 <pattern>4caga4</pattern>
-<pattern>4cagas.</pattern>
-<pattern>4teta.</pattern>
-<pattern>4tetas.</pattern>
+<pattern>4cagas </pattern>
+<pattern>4teta </pattern>
+<pattern>4tetas </pattern>
 <pattern>4puta4</pattern>
 <pattern>4puto4</pattern>
-<pattern>.hu4mea</pattern>
-<pattern>.hu4meo</pattern>
-<pattern>.he4mee</pattern>
-<pattern>4meo.</pattern>
-<pattern>4meable.</pattern>
-<pattern>4meables.</pattern>
+<pattern> hu4mea</pattern>
+<pattern> hu4meo</pattern>
+<pattern> he4mee</pattern>
+<pattern>4meo </pattern>
+<pattern>4meable </pattern>
+<pattern>4meables </pattern>
 <pattern>4pedo4</pattern>
 <pattern>4culo4</pattern>
-<pattern>3mente.</pattern>
-<pattern>4i3go.</pattern>
-<pattern>4es.</pattern>
+<pattern>3mente </pattern>
+<pattern>4i3go </pattern>
+<pattern>4es </pattern>
 <pattern>4és</pattern>
-<pattern>4e.</pattern>
-<pattern>4e3mos.</pattern>
-<pattern>4éis.</pattern>
-<pattern>4en.</pattern>
-<pattern>4ía.</pattern>
-<pattern>4ías.</pattern>
-<pattern>4ía3mos.</pattern>
-<pattern>4íais.</pattern>
-<pattern>4ían.</pattern>
-<pattern>4í.</pattern>
-<pattern>4í4s3te.</pattern>
-<pattern>4í4s3tes.</pattern>
-<pattern>4í3tes.</pattern>
-<pattern>4í3mos.</pattern>
-<pattern>4ís3teis.</pattern>
-<pattern>4e3ré.</pattern>
-<pattern>4e3rás.</pattern>
-<pattern>4e3rés.</pattern>
-<pattern>4e3rís.</pattern>
-<pattern>4e3rá.</pattern>
-<pattern>4e3re3mos.</pattern>
-<pattern>4e3réis.</pattern>
-<pattern>4e3rán.</pattern>
-<pattern>4i3ga.</pattern>
-<pattern>4i3gas.</pattern>
-<pattern>4i3gás.</pattern>
-<pattern>4i3gamos.</pattern>
-<pattern>4i3gáis.</pattern>
-<pattern>4a4i3gan.</pattern>
-<pattern>4e3ría.</pattern>
-<pattern>4e3rías.</pattern>
-<pattern>4e3ríamos.</pattern>
-<pattern>4e3ríais.</pattern>
-<pattern>4e3rían.</pattern>
-<pattern>4i3gá3mosme.</pattern>
-<pattern>4i3gá3mosmele.</pattern>
-<pattern>4i3gá3mosmelo.</pattern>
-<pattern>4i3gá3mos3mela.</pattern>
-<pattern>4i3gá3mosmeles.</pattern>
-<pattern>4i3gá3mosmelos.</pattern>
-<pattern>4i3gá3mos3melas.</pattern>
-<pattern>4i3gá3moste.</pattern>
-<pattern>4i3gá3mostele.</pattern>
-<pattern>4i3gá3mostelo.</pattern>
-<pattern>4i3gá3mos3tela.</pattern>
-<pattern>4i3gá3mosteles.</pattern>
-<pattern>4i3gá3mostelos.</pattern>
-<pattern>4i3gá3mos3telas.</pattern>
-<pattern>4i3gá3mosle.</pattern>
-<pattern>4i3gá3mosla.</pattern>
-<pattern>4i3gá3moslo.</pattern>
-<pattern>4i3gá3mosele.</pattern>
-<pattern>4i3gá3moselo.</pattern>
-<pattern>4i3gá3mosela.</pattern>
-<pattern>4i3gá3moseles.</pattern>
-<pattern>4i3gá3moselos.</pattern>
-<pattern>4i3gá3moselas.</pattern>
-<pattern>4i3gá3monos.</pattern>
-<pattern>4i3gá3monosle.</pattern>
-<pattern>4i3gá3monoslo.</pattern>
-<pattern>4i3gá3monosla.</pattern>
-<pattern>4i3gá3monosles.</pattern>
-<pattern>4i3gá3monoslos.</pattern>
-<pattern>4i3gá3monoslas.</pattern>
-<pattern>4i3gá3moos.</pattern>
-<pattern>4i3gá3moosle.</pattern>
-<pattern>4i3gá3mooslo.</pattern>
-<pattern>4i3gá3moosla.</pattern>
-<pattern>4i3gá3moosles.</pattern>
-<pattern>4i3gá3mooslos.</pattern>
-<pattern>4i3gá3mooslas.</pattern>
-<pattern>4i3gá3mosles.</pattern>
-<pattern>4i3gá3moslas.</pattern>
-<pattern>4i3gá3moslos.</pattern>
-<pattern>4ed.</pattern>
-<pattern>4é.</pattern>
-<pattern>4edme.</pattern>
-<pattern>4édmele.</pattern>
-<pattern>4édmelo.</pattern>
-<pattern>4éd3mela.</pattern>
-<pattern>4édmeles.</pattern>
-<pattern>4édmelos.</pattern>
-<pattern>4éd3melas.</pattern>
-<pattern>4edte.</pattern>
-<pattern>4édtele.</pattern>
-<pattern>4édtelo.</pattern>
-<pattern>4éd3tela.</pattern>
-<pattern>4édteles.</pattern>
-<pattern>4édtelos.</pattern>
-<pattern>4éd3telas.</pattern>
-<pattern>4edle.</pattern>
-<pattern>4eedla.</pattern>
-<pattern>4edlo.</pattern>
-<pattern>4édsele.</pattern>
-<pattern>4édselo.</pattern>
-<pattern>4édsela.</pattern>
-<pattern>4édseles.</pattern>
-<pattern>4édselos.</pattern>
-<pattern>4édselas.</pattern>
-<pattern>4ednos.</pattern>
-<pattern>4édnosle.</pattern>
-<pattern>4édnoslo.</pattern>
-<pattern>4édnosla.</pattern>
-<pattern>4édnosles.</pattern>
-<pattern>4édnoslos.</pattern>
-<pattern>4édnoslas.</pattern>
-<pattern>4eos.</pattern>
-<pattern>4éosle.</pattern>
-<pattern>4éoslo.</pattern>
-<pattern>4éosla.</pattern>
-<pattern>4éosles.</pattern>
-<pattern>4éoslos.</pattern>
-<pattern>4éoslas.</pattern>
-<pattern>4edles.</pattern>
-<pattern>4edlas.</pattern>
-<pattern>4edlos.</pattern>
-<pattern>4er.</pattern>
-<pattern>4erme.</pattern>
-<pattern>4érmele.</pattern>
-<pattern>4érmelo.</pattern>
-<pattern>4ér3mela.</pattern>
-<pattern>4érmeles.</pattern>
-<pattern>4érmelos.</pattern>
-<pattern>4ér3melas.</pattern>
-<pattern>4erte.</pattern>
-<pattern>4értele.</pattern>
-<pattern>4értelo.</pattern>
-<pattern>4ér3tela.</pattern>
-<pattern>4érteles.</pattern>
-<pattern>4értelos.</pattern>
-<pattern>4ér3telas.</pattern>
-<pattern>4erle.</pattern>
-<pattern>4erla.</pattern>
-<pattern>4erlo.</pattern>
-<pattern>4erse.</pattern>
-<pattern>4érsele.</pattern>
-<pattern>4érselo.</pattern>
-<pattern>4érsela.</pattern>
-<pattern>4érseles.</pattern>
-<pattern>4érselos.</pattern>
-<pattern>4érselas.</pattern>
-<pattern>4ernos.</pattern>
-<pattern>4érnosle.</pattern>
-<pattern>4érnoslo.</pattern>
-<pattern>4érnosla.</pattern>
-<pattern>4érnosles.</pattern>
-<pattern>4érnoslos.</pattern>
-<pattern>4érnoslas.</pattern>
-<pattern>4e3ros.</pattern>
-<pattern>4é3rosle.</pattern>
-<pattern>4é3roslo.</pattern>
-<pattern>4é3rosla.</pattern>
-<pattern>4é3rosles.</pattern>
-<pattern>4é3roslos.</pattern>
-<pattern>4é3roslas.</pattern>
-<pattern>4erles.</pattern>
-<pattern>4erlas.</pattern>
-<pattern>4erlos.</pattern>
-<pattern>4í3do.</pattern>
-<pattern>4í3da.</pattern>
-<pattern>4í3dos.</pattern>
-<pattern>4í3das.</pattern>
-<pattern>4o.</pattern>
-<pattern>4as.</pattern>
-<pattern>4a.</pattern>
-<pattern>4ás.</pattern>
-<pattern>4a3mos.</pattern>
-<pattern>4áis.</pattern>
-<pattern>4an.</pattern>
-<pattern>4aste.</pattern>
-<pattern>4astes.</pattern>
-<pattern>4ó.</pattern>
-<pattern>4ates.</pattern>
-<pattern>4asteis.</pattern>
-<pattern>4a3ron.</pattern>
-<pattern>4a3ba.</pattern>
-<pattern>4a3bas.</pattern>
-<pattern>4á3bamos.</pattern>
-<pattern>4a3bais.</pattern>
-<pattern>4a3ban.</pattern>
-<pattern>4a3ría.</pattern>
-<pattern>4a3rías.</pattern>
-<pattern>4a3ríamos.</pattern>
+<pattern>4e </pattern>
+<pattern>4e3mos </pattern>
+<pattern>4éis </pattern>
+<pattern>4en </pattern>
+<pattern>4ía </pattern>
+<pattern>4ías </pattern>
+<pattern>4ía3mos </pattern>
+<pattern>4íais </pattern>
+<pattern>4ían </pattern>
+<pattern>4í </pattern>
+<pattern>4í4s3te </pattern>
+<pattern>4í4s3tes </pattern>
+<pattern>4í3tes </pattern>
+<pattern>4í3mos </pattern>
+<pattern>4ís3teis </pattern>
+<pattern>4e3ré </pattern>
+<pattern>4e3rás </pattern>
+<pattern>4e3rés </pattern>
+<pattern>4e3rís </pattern>
+<pattern>4e3rá </pattern>
+<pattern>4e3re3mos </pattern>
+<pattern>4e3réis </pattern>
+<pattern>4e3rán </pattern>
+<pattern>4i3ga </pattern>
+<pattern>4i3gas </pattern>
+<pattern>4i3gás </pattern>
+<pattern>4i3gamos </pattern>
+<pattern>4i3gáis </pattern>
+<pattern>4a4i3gan </pattern>
+<pattern>4e3ría </pattern>
+<pattern>4e3rías </pattern>
+<pattern>4e3ríamos </pattern>
+<pattern>4e3ríais </pattern>
+<pattern>4e3rían </pattern>
+<pattern>4i3gá3mosme </pattern>
+<pattern>4i3gá3mosmele </pattern>
+<pattern>4i3gá3mosmelo </pattern>
+<pattern>4i3gá3mos3mela </pattern>
+<pattern>4i3gá3mosmeles </pattern>
+<pattern>4i3gá3mosmelos </pattern>
+<pattern>4i3gá3mos3melas </pattern>
+<pattern>4i3gá3moste </pattern>
+<pattern>4i3gá3mostele </pattern>
+<pattern>4i3gá3mostelo </pattern>
+<pattern>4i3gá3mos3tela </pattern>
+<pattern>4i3gá3mosteles </pattern>
+<pattern>4i3gá3mostelos </pattern>
+<pattern>4i3gá3mos3telas </pattern>
+<pattern>4i3gá3mosle </pattern>
+<pattern>4i3gá3mosla </pattern>
+<pattern>4i3gá3moslo </pattern>
+<pattern>4i3gá3mosele </pattern>
+<pattern>4i3gá3moselo </pattern>
+<pattern>4i3gá3mosela </pattern>
+<pattern>4i3gá3moseles </pattern>
+<pattern>4i3gá3moselos </pattern>
+<pattern>4i3gá3moselas </pattern>
+<pattern>4i3gá3monos </pattern>
+<pattern>4i3gá3monosle </pattern>
+<pattern>4i3gá3monoslo </pattern>
+<pattern>4i3gá3monosla </pattern>
+<pattern>4i3gá3monosles </pattern>
+<pattern>4i3gá3monoslos </pattern>
+<pattern>4i3gá3monoslas </pattern>
+<pattern>4i3gá3moos </pattern>
+<pattern>4i3gá3moosle </pattern>
+<pattern>4i3gá3mooslo </pattern>
+<pattern>4i3gá3moosla </pattern>
+<pattern>4i3gá3moosles </pattern>
+<pattern>4i3gá3mooslos </pattern>
+<pattern>4i3gá3mooslas </pattern>
+<pattern>4i3gá3mosles </pattern>
+<pattern>4i3gá3moslas </pattern>
+<pattern>4i3gá3moslos </pattern>
+<pattern>4ed </pattern>
+<pattern>4é </pattern>
+<pattern>4edme </pattern>
+<pattern>4édmele </pattern>
+<pattern>4édmelo </pattern>
+<pattern>4éd3mela </pattern>
+<pattern>4édmeles </pattern>
+<pattern>4édmelos </pattern>
+<pattern>4éd3melas </pattern>
+<pattern>4edte </pattern>
+<pattern>4édtele </pattern>
+<pattern>4édtelo </pattern>
+<pattern>4éd3tela </pattern>
+<pattern>4édteles </pattern>
+<pattern>4édtelos </pattern>
+<pattern>4éd3telas </pattern>
+<pattern>4edle </pattern>
+<pattern>4eedla </pattern>
+<pattern>4edlo </pattern>
+<pattern>4édsele </pattern>
+<pattern>4édselo </pattern>
+<pattern>4édsela </pattern>
+<pattern>4édseles </pattern>
+<pattern>4édselos </pattern>
+<pattern>4édselas </pattern>
+<pattern>4ednos </pattern>
+<pattern>4édnosle </pattern>
+<pattern>4édnoslo </pattern>
+<pattern>4édnosla </pattern>
+<pattern>4édnosles </pattern>
+<pattern>4édnoslos </pattern>
+<pattern>4édnoslas </pattern>
+<pattern>4eos </pattern>
+<pattern>4éosle </pattern>
+<pattern>4éoslo </pattern>
+<pattern>4éosla </pattern>
+<pattern>4éosles </pattern>
+<pattern>4éoslos </pattern>
+<pattern>4éoslas </pattern>
+<pattern>4edles </pattern>
+<pattern>4edlas </pattern>
+<pattern>4edlos </pattern>
+<pattern>4er </pattern>
+<pattern>4erme </pattern>
+<pattern>4érmele </pattern>
+<pattern>4érmelo </pattern>
+<pattern>4ér3mela </pattern>
+<pattern>4érmeles </pattern>
+<pattern>4érmelos </pattern>
+<pattern>4ér3melas </pattern>
+<pattern>4erte </pattern>
+<pattern>4értele </pattern>
+<pattern>4értelo </pattern>
+<pattern>4ér3tela </pattern>
+<pattern>4érteles </pattern>
+<pattern>4értelos </pattern>
+<pattern>4ér3telas </pattern>
+<pattern>4erle </pattern>
+<pattern>4erla </pattern>
+<pattern>4erlo </pattern>
+<pattern>4erse </pattern>
+<pattern>4érsele </pattern>
+<pattern>4érselo </pattern>
+<pattern>4érsela </pattern>
+<pattern>4érseles </pattern>
+<pattern>4érselos </pattern>
+<pattern>4érselas </pattern>
+<pattern>4ernos </pattern>
+<pattern>4érnosle </pattern>
+<pattern>4érnoslo </pattern>
+<pattern>4érnosla </pattern>
+<pattern>4érnosles </pattern>
+<pattern>4érnoslos </pattern>
+<pattern>4érnoslas </pattern>
+<pattern>4e3ros </pattern>
+<pattern>4é3rosle </pattern>
+<pattern>4é3roslo </pattern>
+<pattern>4é3rosla </pattern>
+<pattern>4é3rosles </pattern>
+<pattern>4é3roslos </pattern>
+<pattern>4é3roslas </pattern>
+<pattern>4erles </pattern>
+<pattern>4erlas </pattern>
+<pattern>4erlos </pattern>
+<pattern>4í3do </pattern>
+<pattern>4í3da </pattern>
+<pattern>4í3dos </pattern>
+<pattern>4í3das </pattern>
+<pattern>4o </pattern>
+<pattern>4as </pattern>
+<pattern>4a </pattern>
+<pattern>4ás </pattern>
+<pattern>4a3mos </pattern>
+<pattern>4áis </pattern>
+<pattern>4an </pattern>
+<pattern>4aste </pattern>
+<pattern>4astes </pattern>
+<pattern>4ó </pattern>
+<pattern>4ates </pattern>
+<pattern>4asteis </pattern>
+<pattern>4a3ron </pattern>
+<pattern>4a3ba </pattern>
+<pattern>4a3bas </pattern>
+<pattern>4á3bamos </pattern>
+<pattern>4a3bais </pattern>
+<pattern>4a3ban </pattern>
+<pattern>4a3ría </pattern>
+<pattern>4a3rías </pattern>
+<pattern>4a3ríamos </pattern>
 <pattern>4a3ríais</pattern>
-<pattern>4a3rían.</pattern>
-<pattern>4a3ré.</pattern>
-<pattern>4a3rás.</pattern>
-<pattern>4a3rés.</pattern>
-<pattern>4a3rís.</pattern>
-<pattern>4a3rá.</pattern>
-<pattern>4a3remos.</pattern>
-<pattern>4a3réis.</pattern>
-<pattern>4a3rán.</pattern>
-<pattern>4a3ra.</pattern>
-<pattern>4a3ras.</pattern>
-<pattern>4á3ramos.</pattern>
-<pattern>4a3rais.</pattern>
-<pattern>4a3ran.</pattern>
-<pattern>4a3re.</pattern>
-<pattern>4a3res.</pattern>
-<pattern>4á3remos.</pattern>
-<pattern>4a3reis.</pattern>
-<pattern>4a3ren.</pattern>
-<pattern>4a3se.</pattern>
-<pattern>4a3ses.</pattern>
-<pattern>4á3semos.</pattern>
-<pattern>4a3seis.</pattern>
-<pattern>4a3sen.</pattern>
-<pattern>4ad.</pattern>
-<pattern>e5r4as.</pattern>
-<pattern>e5r4a3mos.</pattern>
-<pattern>e5r4áis.</pattern>
-<pattern>e5r4an.</pattern>
-<pattern>e5r4aste.</pattern>
-<pattern>e5r4astes.</pattern>
-<pattern>e5r4ates.</pattern>
-<pattern>e5r4asteis.</pattern>
-<pattern>e5r4a3ron.</pattern>
-<pattern>e5r4a3ba.</pattern>
-<pattern>e5r4a3bas.</pattern>
-<pattern>e5r4á3bamos.</pattern>
-<pattern>e5r4a3bais.</pattern>
-<pattern>e5r4a3ban.</pattern>
-<pattern>e5r4a3ría.</pattern>
-<pattern>e5r4a3rías.</pattern>
-<pattern>e5r4a3ríamos.</pattern>
+<pattern>4a3rían </pattern>
+<pattern>4a3ré </pattern>
+<pattern>4a3rás </pattern>
+<pattern>4a3rés </pattern>
+<pattern>4a3rís </pattern>
+<pattern>4a3rá </pattern>
+<pattern>4a3remos </pattern>
+<pattern>4a3réis </pattern>
+<pattern>4a3rán </pattern>
+<pattern>4a3ra </pattern>
+<pattern>4a3ras </pattern>
+<pattern>4á3ramos </pattern>
+<pattern>4a3rais </pattern>
+<pattern>4a3ran </pattern>
+<pattern>4a3re </pattern>
+<pattern>4a3res </pattern>
+<pattern>4á3remos </pattern>
+<pattern>4a3reis </pattern>
+<pattern>4a3ren </pattern>
+<pattern>4a3se </pattern>
+<pattern>4a3ses </pattern>
+<pattern>4á3semos </pattern>
+<pattern>4a3seis </pattern>
+<pattern>4a3sen </pattern>
+<pattern>4ad </pattern>
+<pattern>e5r4as </pattern>
+<pattern>e5r4a3mos </pattern>
+<pattern>e5r4áis </pattern>
+<pattern>e5r4an </pattern>
+<pattern>e5r4aste </pattern>
+<pattern>e5r4astes </pattern>
+<pattern>e5r4ates </pattern>
+<pattern>e5r4asteis </pattern>
+<pattern>e5r4a3ron </pattern>
+<pattern>e5r4a3ba </pattern>
+<pattern>e5r4a3bas </pattern>
+<pattern>e5r4á3bamos </pattern>
+<pattern>e5r4a3bais </pattern>
+<pattern>e5r4a3ban </pattern>
+<pattern>e5r4a3ría </pattern>
+<pattern>e5r4a3rías </pattern>
+<pattern>e5r4a3ríamos </pattern>
 <pattern>e5r4a3ríais</pattern>
-<pattern>e5r4a3rían.</pattern>
-<pattern>e5r4a3ré.</pattern>
-<pattern>e5r4a3rás.</pattern>
-<pattern>e5r4a3rés.</pattern>
-<pattern>e5r4a3rís.</pattern>
-<pattern>e5r4a3rá.</pattern>
-<pattern>e5r4a3remos.</pattern>
-<pattern>e5r4a3réis.</pattern>
-<pattern>e5r4a3rán.</pattern>
-<pattern>e5r4a3ra.</pattern>
-<pattern>e5r4a3ras.</pattern>
-<pattern>e5r4á3ramos.</pattern>
-<pattern>e5r4a3rais.</pattern>
-<pattern>e5r4a3ran.</pattern>
-<pattern>e5r4a3re.</pattern>
-<pattern>e5r4a3res.</pattern>
-<pattern>e5r4á3remos.</pattern>
-<pattern>e5r4a3reis.</pattern>
-<pattern>e5r4a3ren.</pattern>
-<pattern>e5r4a3se.</pattern>
-<pattern>e5r4a3ses.</pattern>
-<pattern>e5r4á3semos.</pattern>
-<pattern>e5r4a3seis.</pattern>
-<pattern>e5r4a3sen.</pattern>
-<pattern>e5r4ad.</pattern>
-<pattern>4adme.</pattern>
-<pattern>4ádmele.</pattern>
-<pattern>4ádmelo.</pattern>
-<pattern>4ád3mela.</pattern>
-<pattern>4ádmeles.</pattern>
-<pattern>4ádmelos.</pattern>
-<pattern>4ád3melas.</pattern>
-<pattern>4adte.</pattern>
-<pattern>4ádtele.</pattern>
-<pattern>4ádtelo.</pattern>
-<pattern>4ád3tela.</pattern>
-<pattern>4ádteles.</pattern>
-<pattern>4ádtelos.</pattern>
-<pattern>4ád3telas.</pattern>
-<pattern>4adle.</pattern>
-<pattern>4eadla.</pattern>
-<pattern>4adlo.</pattern>
-<pattern>4ádsele.</pattern>
-<pattern>4ádselo.</pattern>
-<pattern>4ádsela.</pattern>
-<pattern>4ádseles.</pattern>
-<pattern>4ádselos.</pattern>
-<pattern>4ádselas.</pattern>
-<pattern>4adnos.</pattern>
-<pattern>4ádnosle.</pattern>
-<pattern>4ádnoslo.</pattern>
-<pattern>4ádnosla.</pattern>
-<pattern>4ádnosles.</pattern>
-<pattern>4ádnoslos.</pattern>
-<pattern>4ádnoslas.</pattern>
-<pattern>4aos.</pattern>
-<pattern>4áosle.</pattern>
-<pattern>4áoslo.</pattern>
-<pattern>4áosla.</pattern>
-<pattern>4áosles.</pattern>
-<pattern>4áoslos.</pattern>
-<pattern>4áoslas.</pattern>
-<pattern>4adles.</pattern>
-<pattern>4adlas.</pattern>
-<pattern>4adlos.</pattern>
-<pattern>4ar.</pattern>
-<pattern>4a4rme.</pattern>
-<pattern>4á4rmele.</pattern>
-<pattern>4á4rmelo.</pattern>
-<pattern>4á4r3mela.</pattern>
-<pattern>4á4r3meles.</pattern>
-<pattern>4á4r3melos.</pattern>
-<pattern>4á4r3melas.</pattern>
-<pattern>4a4r3te.</pattern>
-<pattern>4á4r3tele.</pattern>
-<pattern>4á4r3telo.</pattern>
-<pattern>4á4r3tela.</pattern>
-<pattern>4á4r3teles.</pattern>
-<pattern>4á4r3telos.</pattern>
-<pattern>4á4r3telas.</pattern>
-<pattern>4a4r3le.</pattern>
-<pattern>4a4r3la.</pattern>
-<pattern>4a4r3lo.</pattern>
-<pattern>4a4r3se.</pattern>
-<pattern>4á4r3sele.</pattern>
-<pattern>4á4r3selo.</pattern>
-<pattern>4á4r3sela.</pattern>
-<pattern>4á4r3seles.</pattern>
-<pattern>4á4r3selos.</pattern>
-<pattern>4á4r3selas.</pattern>
-<pattern>4a4r3nos.</pattern>
-<pattern>4á4r3nosle.</pattern>
-<pattern>4á4r3noslo.</pattern>
-<pattern>4á4r3nosla.</pattern>
-<pattern>4á4r3nosles.</pattern>
-<pattern>4á4r3noslos.</pattern>
-<pattern>4á4r3noslas.</pattern>
-<pattern>4a3ros.</pattern>
-<pattern>4árosle.</pattern>
-<pattern>4ároslo.</pattern>
-<pattern>4árosla.</pattern>
-<pattern>4árosles.</pattern>
-<pattern>4ároslos.</pattern>
-<pattern>4ároslas.</pattern>
-<pattern>4a4r3les.</pattern>
-<pattern>4a4r3las.</pattern>
-<pattern>4a4r3los.</pattern>
-<pattern>4a3do.</pattern>
-<pattern>4a3da.</pattern>
-<pattern>4a3dos.</pattern>
-<pattern>4a3das.</pattern>
-<pattern>e5r4a3do.</pattern>
-<pattern>e5r4a3da.</pattern>
-<pattern>e5r4a3dos.</pattern>
-<pattern>e5r4a3das.</pattern>
+<pattern>e5r4a3rían </pattern>
+<pattern>e5r4a3ré </pattern>
+<pattern>e5r4a3rás </pattern>
+<pattern>e5r4a3rés </pattern>
+<pattern>e5r4a3rís </pattern>
+<pattern>e5r4a3rá </pattern>
+<pattern>e5r4a3remos </pattern>
+<pattern>e5r4a3réis </pattern>
+<pattern>e5r4a3rán </pattern>
+<pattern>e5r4a3ra </pattern>
+<pattern>e5r4a3ras </pattern>
+<pattern>e5r4á3ramos </pattern>
+<pattern>e5r4a3rais </pattern>
+<pattern>e5r4a3ran </pattern>
+<pattern>e5r4a3re </pattern>
+<pattern>e5r4a3res </pattern>
+<pattern>e5r4á3remos </pattern>
+<pattern>e5r4a3reis </pattern>
+<pattern>e5r4a3ren </pattern>
+<pattern>e5r4a3se </pattern>
+<pattern>e5r4a3ses </pattern>
+<pattern>e5r4á3semos </pattern>
+<pattern>e5r4a3seis </pattern>
+<pattern>e5r4a3sen </pattern>
+<pattern>e5r4ad </pattern>
+<pattern>4adme </pattern>
+<pattern>4ádmele </pattern>
+<pattern>4ádmelo </pattern>
+<pattern>4ád3mela </pattern>
+<pattern>4ádmeles </pattern>
+<pattern>4ádmelos </pattern>
+<pattern>4ád3melas </pattern>
+<pattern>4adte </pattern>
+<pattern>4ádtele </pattern>
+<pattern>4ádtelo </pattern>
+<pattern>4ád3tela </pattern>
+<pattern>4ádteles </pattern>
+<pattern>4ádtelos </pattern>
+<pattern>4ád3telas </pattern>
+<pattern>4adle </pattern>
+<pattern>4eadla </pattern>
+<pattern>4adlo </pattern>
+<pattern>4ádsele </pattern>
+<pattern>4ádselo </pattern>
+<pattern>4ádsela </pattern>
+<pattern>4ádseles </pattern>
+<pattern>4ádselos </pattern>
+<pattern>4ádselas </pattern>
+<pattern>4adnos </pattern>
+<pattern>4ádnosle </pattern>
+<pattern>4ádnoslo </pattern>
+<pattern>4ádnosla </pattern>
+<pattern>4ádnosles </pattern>
+<pattern>4ádnoslos </pattern>
+<pattern>4ádnoslas </pattern>
+<pattern>4aos </pattern>
+<pattern>4áosle </pattern>
+<pattern>4áoslo </pattern>
+<pattern>4áosla </pattern>
+<pattern>4áosles </pattern>
+<pattern>4áoslos </pattern>
+<pattern>4áoslas </pattern>
+<pattern>4adles </pattern>
+<pattern>4adlas </pattern>
+<pattern>4adlos </pattern>
+<pattern>4ar </pattern>
+<pattern>4a4rme </pattern>
+<pattern>4á4rmele </pattern>
+<pattern>4á4rmelo </pattern>
+<pattern>4á4r3mela </pattern>
+<pattern>4á4r3meles </pattern>
+<pattern>4á4r3melos </pattern>
+<pattern>4á4r3melas </pattern>
+<pattern>4a4r3te </pattern>
+<pattern>4á4r3tele </pattern>
+<pattern>4á4r3telo </pattern>
+<pattern>4á4r3tela </pattern>
+<pattern>4á4r3teles </pattern>
+<pattern>4á4r3telos </pattern>
+<pattern>4á4r3telas </pattern>
+<pattern>4a4r3le </pattern>
+<pattern>4a4r3la </pattern>
+<pattern>4a4r3lo </pattern>
+<pattern>4a4r3se </pattern>
+<pattern>4á4r3sele </pattern>
+<pattern>4á4r3selo </pattern>
+<pattern>4á4r3sela </pattern>
+<pattern>4á4r3seles </pattern>
+<pattern>4á4r3selos </pattern>
+<pattern>4á4r3selas </pattern>
+<pattern>4a4r3nos </pattern>
+<pattern>4á4r3nosle </pattern>
+<pattern>4á4r3noslo </pattern>
+<pattern>4á4r3nosla </pattern>
+<pattern>4á4r3nosles </pattern>
+<pattern>4á4r3noslos </pattern>
+<pattern>4á4r3noslas </pattern>
+<pattern>4a3ros </pattern>
+<pattern>4árosle </pattern>
+<pattern>4ároslo </pattern>
+<pattern>4árosla </pattern>
+<pattern>4árosles </pattern>
+<pattern>4ároslos </pattern>
+<pattern>4ároslas </pattern>
+<pattern>4a4r3les </pattern>
+<pattern>4a4r3las </pattern>
+<pattern>4a4r3los </pattern>
+<pattern>4a3do </pattern>
+<pattern>4a3da </pattern>
+<pattern>4a3dos </pattern>
+<pattern>4a3das </pattern>
+<pattern>e5r4a3do </pattern>
+<pattern>e5r4a3da </pattern>
+<pattern>e5r4a3dos </pattern>
+<pattern>e5r4a3das </pattern>
 <pattern>4ando</pattern>
-<pattern>4ándole.</pattern>
-<pattern>4ándolo.</pattern>
-<pattern>4ándola.</pattern>
-<pattern>4ándoles.</pattern>
-<pattern>4ándolos.</pattern>
-<pattern>4ándolas.</pattern>
-<pattern>4ándonos.</pattern>
-<pattern>4ándoos.</pattern>
-<pattern>4ándome.</pattern>
-<pattern>4ándomelo.</pattern>
-<pattern>4ándomela.</pattern>
-<pattern>4ándomele.</pattern>
-<pattern>4ándomelos.</pattern>
-<pattern>4ándomelas.</pattern>
-<pattern>4ándomeles.</pattern>
-<pattern>4ándote.</pattern>
-<pattern>4ándoteme.</pattern>
-<pattern>4ándotelo.</pattern>
-<pattern>4ándotela.</pattern>
-<pattern>4ándotele.</pattern>
-<pattern>4ándotelos.</pattern>
-<pattern>4ándotelas.</pattern>
-<pattern>4ándoteles.</pattern>
-<pattern>4ándotenos.</pattern>
-<pattern>4ándose.</pattern>
-<pattern>4ándoseme.</pattern>
-<pattern>4ándoselo.</pattern>
-<pattern>4ándosela.</pattern>
-<pattern>4ándosele.</pattern>
-<pattern>4ándoselos.</pattern>
-<pattern>4ándoselas.</pattern>
-<pattern>4ándoseles.</pattern>
-<pattern>4ándosenos.</pattern>
-<pattern>4a3dor.</pattern>
-<pattern>4a3dora.</pattern>
-<pattern>4a3dores.</pattern>
-<pattern>4a3doras.</pattern>
-<pattern>e5r4a3dor.</pattern>
-<pattern>e5r4a3dora.</pattern>
-<pattern>e5r4a3dores.</pattern>
-<pattern>e5r4a3doras.</pattern>
+<pattern>4ándole </pattern>
+<pattern>4ándolo </pattern>
+<pattern>4ándola </pattern>
+<pattern>4ándoles </pattern>
+<pattern>4ándolos </pattern>
+<pattern>4ándolas </pattern>
+<pattern>4ándonos </pattern>
+<pattern>4ándoos </pattern>
+<pattern>4ándome </pattern>
+<pattern>4ándomelo </pattern>
+<pattern>4ándomela </pattern>
+<pattern>4ándomele </pattern>
+<pattern>4ándomelos </pattern>
+<pattern>4ándomelas </pattern>
+<pattern>4ándomeles </pattern>
+<pattern>4ándote </pattern>
+<pattern>4ándoteme </pattern>
+<pattern>4ándotelo </pattern>
+<pattern>4ándotela </pattern>
+<pattern>4ándotele </pattern>
+<pattern>4ándotelos </pattern>
+<pattern>4ándotelas </pattern>
+<pattern>4ándoteles </pattern>
+<pattern>4ándotenos </pattern>
+<pattern>4ándose </pattern>
+<pattern>4ándoseme </pattern>
+<pattern>4ándoselo </pattern>
+<pattern>4ándosela </pattern>
+<pattern>4ándosele </pattern>
+<pattern>4ándoselos </pattern>
+<pattern>4ándoselas </pattern>
+<pattern>4ándoseles </pattern>
+<pattern>4ándosenos </pattern>
+<pattern>4a3dor </pattern>
+<pattern>4a3dora </pattern>
+<pattern>4a3dores </pattern>
+<pattern>4a3doras </pattern>
+<pattern>e5r4a3dor </pattern>
+<pattern>e5r4a3dora </pattern>
+<pattern>e5r4a3dores </pattern>
+<pattern>e5r4a3doras </pattern>
 <pattern>acto1h</pattern>
 <pattern>acto1a2</pattern>
 <pattern>acto1e2</pattern>
@@ -1494,53 +1494,53 @@
 <pattern>afro1í2</pattern>
 <pattern>afro1ó2</pattern>
 <pattern>afro1ú2</pattern>
-<pattern>.a2</pattern>
-<pattern>.an2a2</pattern>
-<pattern>.an2e2</pattern>
-<pattern>.an2i2</pattern>
-<pattern>.an2o2</pattern>
-<pattern>.an2u2</pattern>
-<pattern>.an2á2</pattern>
-<pattern>.an2é2</pattern>
-<pattern>.an2í2</pattern>
-<pattern>.an2ó2</pattern>
-<pattern>.an2ú2.</pattern>
+<pattern> a2</pattern>
+<pattern> an2a2</pattern>
+<pattern> an2e2</pattern>
+<pattern> an2i2</pattern>
+<pattern> an2o2</pattern>
+<pattern> an2u2</pattern>
+<pattern> an2á2</pattern>
+<pattern> an2é2</pattern>
+<pattern> an2í2</pattern>
+<pattern> an2ó2</pattern>
+<pattern> an2ú2 </pattern>
 <pattern>ana3lí</pattern>
-<pattern>.aná3li</pattern>
-<pattern>.ana3li</pattern>
-<pattern>.an3aero</pattern>
-<pattern>.an3e2pigr</pattern>
-<pattern>.ane3xa</pattern>
-<pattern>.ane3xá</pattern>
-<pattern>.ane3xe</pattern>
-<pattern>.ane3xé</pattern>
-<pattern>.ane3xio</pattern>
-<pattern>.ane3xió</pattern>
-<pattern>.an3h</pattern>
-<pattern>.ani3mad</pattern>
-<pattern>.ani3mád</pattern>
-<pattern>.ani3dar</pattern>
-<pattern>.ani3ll</pattern>
-<pattern>.ani3m</pattern>
-<pattern>.aniña</pattern>
-<pattern>.ani3q</pattern>
-<pattern>.an3i2so</pattern>
-<pattern>.an3i2só</pattern>
-<pattern>.ani3vel</pattern>
-<pattern>.ano5che</pattern>
-<pattern>.ano5din</pattern>
-<pattern>.ano5mal</pattern>
-<pattern>.ano5nad</pattern>
-<pattern>.anó3nim</pattern>
-<pattern>.anó5mal</pattern>
-<pattern>.ano5nim</pattern>
-<pattern>.ano5ta</pattern>
-<pattern>.ano3tá</pattern>
-<pattern>.anua3l</pattern>
-<pattern>.anua4lm</pattern>
-<pattern>.anu3bl</pattern>
-<pattern>.anu3da</pattern>
-<pattern>.anu3l</pattern>
+<pattern> aná3li</pattern>
+<pattern> ana3li</pattern>
+<pattern> an3aero</pattern>
+<pattern> an3e2pigr</pattern>
+<pattern> ane3xa</pattern>
+<pattern> ane3xá</pattern>
+<pattern> ane3xe</pattern>
+<pattern> ane3xé</pattern>
+<pattern> ane3xio</pattern>
+<pattern> ane3xió</pattern>
+<pattern> an3h</pattern>
+<pattern> ani3mad</pattern>
+<pattern> ani3mád</pattern>
+<pattern> ani3dar</pattern>
+<pattern> ani3ll</pattern>
+<pattern> ani3m</pattern>
+<pattern> aniña</pattern>
+<pattern> ani3q</pattern>
+<pattern> an3i2so</pattern>
+<pattern> an3i2só</pattern>
+<pattern> ani3vel</pattern>
+<pattern> ano5che</pattern>
+<pattern> ano5din</pattern>
+<pattern> ano5mal</pattern>
+<pattern> ano5nad</pattern>
+<pattern> anó3nim</pattern>
+<pattern> anó5mal</pattern>
+<pattern> ano5nim</pattern>
+<pattern> ano5ta</pattern>
+<pattern> ano3tá</pattern>
+<pattern> anua3l</pattern>
+<pattern> anua4lm</pattern>
+<pattern> anu3bl</pattern>
+<pattern> anu3da</pattern>
+<pattern> anu3l</pattern>
 <pattern>asu3b2</pattern>
 <pattern>aero1h</pattern>
 <pattern>aero1a2</pattern>
@@ -1586,30 +1586,30 @@
 <pattern>ante1í2</pattern>
 <pattern>ante1ó2</pattern>
 <pattern>ante1ú2</pattern>
-<pattern>.ante2o3je</pattern>
+<pattern> ante2o3je</pattern>
 <pattern>acante2</pattern>
-<pattern>4ísmo.</pattern>
-<pattern>4ísmos.</pattern>
-<pattern>4ísta.</pattern>
-<pattern>4ístas.</pattern>
-<pattern>4ístico.</pattern>
-<pattern>4ísticos.</pattern>
-<pattern>4ística.</pattern>
-<pattern>4ísticas.</pattern>
-<pattern>t4eo3nes.</pattern>
+<pattern>4ísmo </pattern>
+<pattern>4ísmos </pattern>
+<pattern>4ísta </pattern>
+<pattern>4ístas </pattern>
+<pattern>4ístico </pattern>
+<pattern>4ísticos </pattern>
+<pattern>4ística </pattern>
+<pattern>4ísticas </pattern>
+<pattern>t4eo3nes </pattern>
 <pattern>mante4a</pattern>
 <pattern>e4a3miento</pattern>
-<pattern>.anti1h</pattern>
-<pattern>.anti1a2</pattern>
-<pattern>.anti1e2</pattern>
-<pattern>.anti1i2</pattern>
-<pattern>.anti1o2</pattern>
-<pattern>.anti1u2</pattern>
-<pattern>.anti1á2</pattern>
-<pattern>.anti1é2</pattern>
-<pattern>.anti1í2</pattern>
-<pattern>.anti1ó2</pattern>
-<pattern>.anti1ú2</pattern>
+<pattern> anti1h</pattern>
+<pattern> anti1a2</pattern>
+<pattern> anti1e2</pattern>
+<pattern> anti1i2</pattern>
+<pattern> anti1o2</pattern>
+<pattern> anti1u2</pattern>
+<pattern> anti1á2</pattern>
+<pattern> anti1é2</pattern>
+<pattern> anti1í2</pattern>
+<pattern> anti1ó2</pattern>
+<pattern> anti1ú2</pattern>
 <pattern>ti2o3qu</pattern>
 <pattern>ti2o3co</pattern>
 <pattern>archi1h</pattern>
@@ -1702,16 +1702,16 @@
 <pattern>ciclo1í2</pattern>
 <pattern>ciclo1ó2</pattern>
 <pattern>ciclo1ú2</pattern>
-<pattern>o4i3dea.</pattern>
-<pattern>o4i3deas.</pattern>
-<pattern>o4i3dal.</pattern>
-<pattern>o4i3dales.</pattern>
-<pattern>4o2i3de.</pattern>
-<pattern>4o2i3des.</pattern>
-<pattern>4i2dal.</pattern>
-<pattern>4i2dales.</pattern>
-<pattern>4i3deo.</pattern>
-<pattern>4i3deos.</pattern>
+<pattern>o4i3dea </pattern>
+<pattern>o4i3deas </pattern>
+<pattern>o4i3dal </pattern>
+<pattern>o4i3dales </pattern>
+<pattern>4o2i3de </pattern>
+<pattern>4o2i3des </pattern>
+<pattern>4i2dal </pattern>
+<pattern>4i2dales </pattern>
+<pattern>4i3deo </pattern>
+<pattern>4i3deos </pattern>
 <pattern>cito1h</pattern>
 <pattern>cito1a2</pattern>
 <pattern>cito1e2</pattern>
@@ -1735,16 +1735,16 @@
 <pattern>cnico1í2</pattern>
 <pattern>cnico1ó2</pattern>
 <pattern>cnico1ú2</pattern>
-<pattern>.co2a2</pattern>
-<pattern>.co2e2</pattern>
-<pattern>.co2i2</pattern>
-<pattern>.co3o4</pattern>
-<pattern>.co2u2</pattern>
-<pattern>.co2á2</pattern>
-<pattern>.co2é2</pattern>
-<pattern>.co2í2</pattern>
-<pattern>.co2ó2</pattern>
-<pattern>.co2ú2</pattern>
+<pattern> co2a2</pattern>
+<pattern> co2e2</pattern>
+<pattern> co2i2</pattern>
+<pattern> co3o4</pattern>
+<pattern> co2u2</pattern>
+<pattern> co2á2</pattern>
+<pattern> co2é2</pattern>
+<pattern> co2í2</pattern>
+<pattern> co2ó2</pattern>
+<pattern> co2ú2</pattern>
 <pattern>co4á3gul</pattern>
 <pattern>co4acci</pattern>
 <pattern>co4acti</pattern>
@@ -1816,26 +1816,26 @@
 <pattern>deca1í2</pattern>
 <pattern>deca1ó2</pattern>
 <pattern>deca1ú2</pattern>
-<pattern>4e3dro.</pattern>
-<pattern>4e3dros.</pattern>
-<pattern>4é3drico.</pattern>
-<pattern>4é3dricos.</pattern>
-<pattern>4é3drica.</pattern>
-<pattern>4é3dricas.</pattern>
-<pattern>.de2sa2</pattern>
-<pattern>.de2se2</pattern>
-<pattern>.de2si2</pattern>
-<pattern>.de2so2</pattern>
-<pattern>.de2su2</pattern>
-<pattern>.de2sá2</pattern>
-<pattern>.de2sé2</pattern>
-<pattern>.de2sí2</pattern>
-<pattern>.de2só2</pattern>
-<pattern>.de2sú2</pattern>
+<pattern>4e3dro </pattern>
+<pattern>4e3dros </pattern>
+<pattern>4é3drico </pattern>
+<pattern>4é3dricos </pattern>
+<pattern>4é3drica </pattern>
+<pattern>4é3dricas </pattern>
+<pattern> de2sa2</pattern>
+<pattern> de2se2</pattern>
+<pattern> de2si2</pattern>
+<pattern> de2so2</pattern>
+<pattern> de2su2</pattern>
+<pattern> de2sá2</pattern>
+<pattern> de2sé2</pattern>
+<pattern> de2sí2</pattern>
+<pattern> de2só2</pattern>
+<pattern> de2sú2</pattern>
 <pattern>deca2i3mient</pattern>
 <pattern>decimo1</pattern>
-<pattern>3sa.</pattern>
-<pattern>3sas.</pattern>
+<pattern>3sa </pattern>
+<pattern>3sas </pattern>
 <pattern>de2s3órde</pattern>
 <pattern>de2s3orde</pattern>
 <pattern>de2s3abast</pattern>
@@ -2119,7 +2119,7 @@
 <pattern>de2s3unir</pattern>
 <pattern>de2s3unier</pattern>
 <pattern>de2s3unim</pattern>
-<pattern>.dieci1o2</pattern>
+<pattern> dieci1o2</pattern>
 <pattern>dodeca1h</pattern>
 <pattern>dodeca1a2</pattern>
 <pattern>dodeca1e2</pattern>
@@ -2164,33 +2164,33 @@
 <pattern>ectro1í2</pattern>
 <pattern>ectro1ó2</pattern>
 <pattern>ectro1ú2</pattern>
-<pattern>.en2a2</pattern>
-<pattern>.en2e2</pattern>
-<pattern>.en2i2</pattern>
-<pattern>.en2o2</pattern>
-<pattern>.en2u2</pattern>
-<pattern>.en2á2</pattern>
-<pattern>.en2é2</pattern>
-<pattern>.en2í2</pattern>
-<pattern>.en2ó2</pattern>
-<pattern>.en2ú2</pattern>
-<pattern>.ene3mist</pattern>
-<pattern>.ene3míst</pattern>
-<pattern>.eno3jar</pattern>
-<pattern>.enu3mera</pattern>
-<pattern>.enu3merá</pattern>
-<pattern>.enu3mere</pattern>
-<pattern>4o3lógico.</pattern>
-<pattern>4o3lógica.</pattern>
-<pattern>4o3lógicos.</pattern>
-<pattern>4o3lógicas.</pattern>
-<pattern>4o3lógicamente.</pattern>
-<pattern>4o3logía.</pattern>
-<pattern>4o3logías.</pattern>
-<pattern>4ó3logo.</pattern>
-<pattern>4ó3loga.</pattern>
-<pattern>4ó3logos.</pattern>
-<pattern>4ó3logas.</pattern>
+<pattern> en2a2</pattern>
+<pattern> en2e2</pattern>
+<pattern> en2i2</pattern>
+<pattern> en2o2</pattern>
+<pattern> en2u2</pattern>
+<pattern> en2á2</pattern>
+<pattern> en2é2</pattern>
+<pattern> en2í2</pattern>
+<pattern> en2ó2</pattern>
+<pattern> en2ú2</pattern>
+<pattern> ene3mist</pattern>
+<pattern> ene3míst</pattern>
+<pattern> eno3jar</pattern>
+<pattern> enu3mera</pattern>
+<pattern> enu3merá</pattern>
+<pattern> enu3mere</pattern>
+<pattern>4o3lógico </pattern>
+<pattern>4o3lógica </pattern>
+<pattern>4o3lógicos </pattern>
+<pattern>4o3lógicas </pattern>
+<pattern>4o3lógicamente </pattern>
+<pattern>4o3logía </pattern>
+<pattern>4o3logías </pattern>
+<pattern>4ó3logo </pattern>
+<pattern>4ó3loga </pattern>
+<pattern>4ó3logos </pattern>
+<pattern>4ó3logas </pattern>
 <pattern>endo1h</pattern>
 <pattern>endo1a2</pattern>
 <pattern>endo1e2</pattern>
@@ -2259,8 +2259,8 @@
 <pattern>extra1ó2</pattern>
 <pattern>extra1ú2</pattern>
 <pattern>u4teri</pattern>
-<pattern>.cau5t</pattern>
-<pattern>.deu5t</pattern>
+<pattern> cau5t</pattern>
+<pattern> deu5t</pattern>
 <pattern>fono1h</pattern>
 <pattern>fono1a2</pattern>
 <pattern>fono1e2</pattern>
@@ -2371,8 +2371,8 @@
 <pattern>hemo1í2</pattern>
 <pattern>hemo1ó2</pattern>
 <pattern>hemo1ú2</pattern>
-<pattern>2al.</pattern>
-<pattern>2ales.</pattern>
+<pattern>2al </pattern>
+<pattern>2ales </pattern>
 <pattern>hexa1h</pattern>
 <pattern>hexa1a2</pattern>
 <pattern>hexa1e2</pattern>
@@ -2440,55 +2440,55 @@
 <pattern>icono1í2</pattern>
 <pattern>icono1ó2</pattern>
 <pattern>icono1ú2</pattern>
-<pattern>.i2n2a2</pattern>
-<pattern>.i2n2e2</pattern>
-<pattern>.i2n2i2</pattern>
-<pattern>.i2n2o2</pattern>
-<pattern>.i2n2u2</pattern>
-<pattern>.i2n2á2</pattern>
-<pattern>.i2n2é2</pattern>
-<pattern>.i2n2í2</pattern>
-<pattern>.i2n2ó2</pattern>
-<pattern>.i2n2ú2</pattern>
-<pattern>.in3abord</pattern>
-<pattern>.in3abarc</pattern>
-<pattern>.in3acent</pattern>
-<pattern>.in3aguant</pattern>
-<pattern>.in3adapt</pattern>
-<pattern>.ina3movib</pattern>
-<pattern>.in3analiz</pattern>
-<pattern>.ina3nic</pattern>
-<pattern>.in3anim</pattern>
-<pattern>.iná3nim</pattern>
-<pattern>.in3apel</pattern>
-<pattern>.in3aplic</pattern>
-<pattern>.in3aprens</pattern>
-<pattern>.in3apreci</pattern>
-<pattern>.in3arrug</pattern>
-<pattern>.in3asist</pattern>
-<pattern>.iné3dit</pattern>
-<pattern>.in3efic</pattern>
-<pattern>.in3efici</pattern>
-<pattern>.in3eludi</pattern>
-<pattern>.ine3narr</pattern>
+<pattern> i2n2a2</pattern>
+<pattern> i2n2e2</pattern>
+<pattern> i2n2i2</pattern>
+<pattern> i2n2o2</pattern>
+<pattern> i2n2u2</pattern>
+<pattern> i2n2á2</pattern>
+<pattern> i2n2é2</pattern>
+<pattern> i2n2í2</pattern>
+<pattern> i2n2ó2</pattern>
+<pattern> i2n2ú2</pattern>
+<pattern> in3abord</pattern>
+<pattern> in3abarc</pattern>
+<pattern> in3acent</pattern>
+<pattern> in3aguant</pattern>
+<pattern> in3adapt</pattern>
+<pattern> ina3movib</pattern>
+<pattern> in3analiz</pattern>
+<pattern> ina3nic</pattern>
+<pattern> in3anim</pattern>
+<pattern> iná3nim</pattern>
+<pattern> in3apel</pattern>
+<pattern> in3aplic</pattern>
+<pattern> in3aprens</pattern>
+<pattern> in3apreci</pattern>
+<pattern> in3arrug</pattern>
+<pattern> in3asist</pattern>
+<pattern> iné3dit</pattern>
+<pattern> in3efic</pattern>
+<pattern> in3efici</pattern>
+<pattern> in3eludi</pattern>
+<pattern> ine3narr</pattern>
 <pattern>ini3cia</pattern>
 <pattern>iní3cia</pattern>
 <pattern>ini3ciá</pattern>
 <pattern>ini3cie</pattern>
-<pattern>.rei3na</pattern>
+<pattern> rei3na</pattern>
 <pattern>re3ini3cia</pattern>
 <pattern>re3iní3cia</pattern>
 <pattern>re3ini3ciá</pattern>
 <pattern>re3ini3cie</pattern>
-<pattern>.ini3cuo</pattern>
-<pattern>.ini3cua</pattern>
-<pattern>.ino3cuo</pattern>
-<pattern>.ino3cua</pattern>
-<pattern>.ino3cula</pattern>
-<pattern>.ino3culá</pattern>
-<pattern>.ino3cule</pattern>
-<pattern>.inú3til</pattern>
-<pattern>.inu3tiliz</pattern>
+<pattern> ini3cuo</pattern>
+<pattern> ini3cua</pattern>
+<pattern> ino3cuo</pattern>
+<pattern> ino3cua</pattern>
+<pattern> ino3cula</pattern>
+<pattern> ino3culá</pattern>
+<pattern> ino3cule</pattern>
+<pattern> inú3til</pattern>
+<pattern> inu3tiliz</pattern>
 <pattern>infra1h</pattern>
 <pattern>infra1a2</pattern>
 <pattern>infra1e2</pattern>
@@ -2500,35 +2500,35 @@
 <pattern>infra1í2</pattern>
 <pattern>infra1ó2</pattern>
 <pattern>infra1ú2</pattern>
-<pattern>.inte2r3r</pattern>
-<pattern>.inte2r1a2</pattern>
-<pattern>.inte2r1e2</pattern>
-<pattern>.inte2r1i2</pattern>
-<pattern>.inte2r1o2</pattern>
-<pattern>.inte2r1u2</pattern>
-<pattern>.inte2r1á2</pattern>
-<pattern>.inte2r1é2</pattern>
-<pattern>.inte2r1í2</pattern>
-<pattern>.inte2r1ó2</pattern>
-<pattern>.inte2r1ú2</pattern>
-<pattern>.in3ter2e3sa</pattern>
-<pattern>.in3ter2e3se</pattern>
-<pattern>.in3ter2e3so</pattern>
-<pattern>.in3ter2e3sá</pattern>
-<pattern>.in3ter2e3sé</pattern>
-<pattern>.in3ter2e3só</pattern>
-<pattern>.de3s4in3ter2e3sa</pattern>
-<pattern>.de3s4in3ter2e3se</pattern>
-<pattern>.de3s4in3ter2e3so</pattern>
-<pattern>.de3s4in3ter2e3sá</pattern>
-<pattern>.de3s4in3ter2e3sé</pattern>
-<pattern>.de3s4in3ter2e3só</pattern>
+<pattern> inte2r3r</pattern>
+<pattern> inte2r1a2</pattern>
+<pattern> inte2r1e2</pattern>
+<pattern> inte2r1i2</pattern>
+<pattern> inte2r1o2</pattern>
+<pattern> inte2r1u2</pattern>
+<pattern> inte2r1á2</pattern>
+<pattern> inte2r1é2</pattern>
+<pattern> inte2r1í2</pattern>
+<pattern> inte2r1ó2</pattern>
+<pattern> inte2r1ú2</pattern>
+<pattern> in3ter2e3sa</pattern>
+<pattern> in3ter2e3se</pattern>
+<pattern> in3ter2e3so</pattern>
+<pattern> in3ter2e3sá</pattern>
+<pattern> in3ter2e3sé</pattern>
+<pattern> in3ter2e3só</pattern>
+<pattern> de3s4in3ter2e3sa</pattern>
+<pattern> de3s4in3ter2e3se</pattern>
+<pattern> de3s4in3ter2e3so</pattern>
+<pattern> de3s4in3ter2e3sá</pattern>
+<pattern> de3s4in3ter2e3sé</pattern>
+<pattern> de3s4in3ter2e3só</pattern>
 <pattern>3te3ri3n</pattern>
 <pattern>4te4r5i4nsu</pattern>
-<pattern>.in3te3r4rog</pattern>
-<pattern>.in3te3r4rupc</pattern>
-<pattern>.in3te3r4rupt</pattern>
-<pattern>.in3te3r4rump</pattern>
+<pattern> in3te3r4rog</pattern>
+<pattern> in3te3r4rupc</pattern>
+<pattern> in3te3r4rupt</pattern>
+<pattern> in3te3r4rump</pattern>
 <pattern>intra1h</pattern>
 <pattern>intra1a2</pattern>
 <pattern>intra1e2</pattern>
@@ -2575,7 +2575,7 @@
 <pattern>macro1ú2</pattern>
 <pattern>mal2</pattern>
 <pattern>ma4l3h</pattern>
-<pattern>.ma4l3e4du</pattern>
+<pattern> ma4l3e4du</pattern>
 <pattern>mal3b</pattern>
 <pattern>mal3c</pattern>
 <pattern>mal3d</pattern>
@@ -2593,9 +2593,9 @@
 <pattern>bien3q</pattern>
 <pattern>bien3m</pattern>
 <pattern>bien3t</pattern>
-<pattern>b4ien3do.</pattern>
-<pattern>.su3b4ien</pattern>
-<pattern>b4ien3das.</pattern>
+<pattern>b4ien3do </pattern>
+<pattern> su3b4ien</pattern>
+<pattern>b4ien3das </pattern>
 <pattern>maxi1h</pattern>
 <pattern>maxi1a2</pattern>
 <pattern>maxi1e2</pattern>
@@ -2663,7 +2663,7 @@
 <pattern>mili1ó2</pattern>
 <pattern>mili1ú2</pattern>
 <pattern>familia3ri</pattern>
-<pattern>ia5res.</pattern>
+<pattern>ia5res </pattern>
 <pattern>amili6a</pattern>
 <pattern>a3rio</pattern>
 <pattern>li5área</pattern>
@@ -2678,12 +2678,12 @@
 <pattern>mini1í2</pattern>
 <pattern>mini1ó2</pattern>
 <pattern>mini1ú2</pattern>
-<pattern>2os.</pattern>
-<pattern>2o3so.</pattern>
-<pattern>2o3sos.</pattern>
-<pattern>2o3sa.</pattern>
-<pattern>2o3sas.</pattern>
-<pattern>2o3samente.</pattern>
+<pattern>2os </pattern>
+<pattern>2o3so </pattern>
+<pattern>2o3sos </pattern>
+<pattern>2o3sa </pattern>
+<pattern>2o3sas </pattern>
+<pattern>2o3samente </pattern>
 <pattern>mini4a5tur</pattern>
 <pattern>multi1h</pattern>
 <pattern>multi1a2</pattern>
@@ -2718,10 +2718,10 @@
 <pattern>mono1í2</pattern>
 <pattern>mono1ó2</pattern>
 <pattern>mono1ú2</pattern>
-<pattern>2i3co.</pattern>
-<pattern>2i3cos.</pattern>
-<pattern>2i3ca.</pattern>
-<pattern>2i3cas.</pattern>
+<pattern>2i3co </pattern>
+<pattern>2i3cos </pattern>
+<pattern>2i3ca </pattern>
+<pattern>2i3cas </pattern>
 <pattern>namo1h</pattern>
 <pattern>namo1a2</pattern>
 <pattern>namo1e2</pattern>
@@ -2821,8 +2821,8 @@
 <pattern>omni1í2</pattern>
 <pattern>omni1ó2</pattern>
 <pattern>omni1ú2</pattern>
-<pattern>i2o.</pattern>
-<pattern>i2os.</pattern>
+<pattern>i2o </pattern>
+<pattern>i2os </pattern>
 <pattern>paleo1h</pattern>
 <pattern>paleo1a2</pattern>
 <pattern>paleo1e2</pattern>
@@ -2845,9 +2845,9 @@
 <pattern>para1í2</pattern>
 <pattern>para1ó2</pattern>
 <pattern>para1ú2</pattern>
-<pattern>para2is.</pattern>
-<pattern>aí5so.</pattern>
-<pattern>aí5sos.</pattern>
+<pattern>para2is </pattern>
+<pattern>aí5so </pattern>
+<pattern>aí5sos </pattern>
 <pattern>penta1h</pattern>
 <pattern>penta1a2</pattern>
 <pattern>penta1e2</pattern>
@@ -2900,61 +2900,61 @@
 <pattern>poli4andr</pattern>
 <pattern>poli4antea</pattern>
 <pattern>expoli4</pattern>
-<pattern>.pos2t2a2</pattern>
-<pattern>.pos2t2e2</pattern>
-<pattern>.pos2t2i2</pattern>
-<pattern>.pos2t2o2</pattern>
-<pattern>.pos2t2u2</pattern>
-<pattern>.pos2t2á2</pattern>
-<pattern>.pos2t2é2</pattern>
-<pattern>.pos2t2í2</pattern>
-<pattern>.pos2t2ó2</pattern>
-<pattern>.pos2t2ú2</pattern>
-<pattern>.pos3tin</pattern>
-<pattern>.pos3tín</pattern>
-<pattern>pos3ta.</pattern>
-<pattern>pos3tas.</pattern>
-<pattern>s3te.</pattern>
-<pattern>s3tes.</pattern>
-<pattern>s3tal.</pattern>
-<pattern>s3ta3les.</pattern>
-<pattern>s3ti3lla.</pattern>
-<pattern>s3ti3llas.</pattern>
-<pattern>s3ti3llón.</pattern>
-<pattern>s3ti3llones.</pattern>
-<pattern>.pos3tó3ni</pattern>
-<pattern>.pos3terg</pattern>
-<pattern>.pos3te3ri</pattern>
-<pattern>.pos3ti3go</pattern>
-<pattern>.pos3ti3la</pattern>
-<pattern>.pos3ti3ne</pattern>
-<pattern>.pos3ti3za</pattern>
-<pattern>.pos3ti3zo</pattern>
-<pattern>.pos3tu3ra</pattern>
-<pattern>s3tor.</pattern>
-<pattern>s3tora.</pattern>
-<pattern>s3toras.</pattern>
-<pattern>s3tores.</pattern>
-<pattern>.pos3tu3la</pattern>
-<pattern>.pos3tu3lá</pattern>
-<pattern>.pos3tu3le</pattern>
-<pattern>.pos3tu3lé</pattern>
-<pattern>.post3elec</pattern>
-<pattern>.post3impr</pattern>
-<pattern>.post3ind</pattern>
-<pattern>.post3ope</pattern>
-<pattern>.post3rev</pattern>
-<pattern>.pre2a2</pattern>
-<pattern>.pre2e2</pattern>
-<pattern>.pre2i2</pattern>
-<pattern>.pre2o2</pattern>
-<pattern>.pre2u2</pattern>
-<pattern>.pre2h2</pattern>
-<pattern>.pre2á2</pattern>
-<pattern>.pre2é2</pattern>
-<pattern>.pre2í2</pattern>
-<pattern>.pre2ó2</pattern>
-<pattern>.pre2ú2</pattern>
+<pattern> pos2t2a2</pattern>
+<pattern> pos2t2e2</pattern>
+<pattern> pos2t2i2</pattern>
+<pattern> pos2t2o2</pattern>
+<pattern> pos2t2u2</pattern>
+<pattern> pos2t2á2</pattern>
+<pattern> pos2t2é2</pattern>
+<pattern> pos2t2í2</pattern>
+<pattern> pos2t2ó2</pattern>
+<pattern> pos2t2ú2</pattern>
+<pattern> pos3tin</pattern>
+<pattern> pos3tín</pattern>
+<pattern>pos3ta </pattern>
+<pattern>pos3tas </pattern>
+<pattern>s3te </pattern>
+<pattern>s3tes </pattern>
+<pattern>s3tal </pattern>
+<pattern>s3ta3les </pattern>
+<pattern>s3ti3lla </pattern>
+<pattern>s3ti3llas </pattern>
+<pattern>s3ti3llón </pattern>
+<pattern>s3ti3llones </pattern>
+<pattern> pos3tó3ni</pattern>
+<pattern> pos3terg</pattern>
+<pattern> pos3te3ri</pattern>
+<pattern> pos3ti3go</pattern>
+<pattern> pos3ti3la</pattern>
+<pattern> pos3ti3ne</pattern>
+<pattern> pos3ti3za</pattern>
+<pattern> pos3ti3zo</pattern>
+<pattern> pos3tu3ra</pattern>
+<pattern>s3tor </pattern>
+<pattern>s3tora </pattern>
+<pattern>s3toras </pattern>
+<pattern>s3tores </pattern>
+<pattern> pos3tu3la</pattern>
+<pattern> pos3tu3lá</pattern>
+<pattern> pos3tu3le</pattern>
+<pattern> pos3tu3lé</pattern>
+<pattern> post3elec</pattern>
+<pattern> post3impr</pattern>
+<pattern> post3ind</pattern>
+<pattern> post3ope</pattern>
+<pattern> post3rev</pattern>
+<pattern> pre2a2</pattern>
+<pattern> pre2e2</pattern>
+<pattern> pre2i2</pattern>
+<pattern> pre2o2</pattern>
+<pattern> pre2u2</pattern>
+<pattern> pre2h2</pattern>
+<pattern> pre2á2</pattern>
+<pattern> pre2é2</pattern>
+<pattern> pre2í2</pattern>
+<pattern> pre2ó2</pattern>
+<pattern> pre2ú2</pattern>
 <pattern>pre3elij</pattern>
 <pattern>pre3elig</pattern>
 <pattern>pre3exis</pattern>
@@ -2963,17 +2963,17 @@
 <pattern>preo2cúp</pattern>
 <pattern>pre3olí</pattern>
 <pattern>pre3opin</pattern>
-<pattern>.pro2a2</pattern>
-<pattern>.pro2e2</pattern>
-<pattern>.pro2i2</pattern>
-<pattern>.pro2o2</pattern>
-<pattern>.pro2u2</pattern>
-<pattern>.pro2h2</pattern>
-<pattern>.pro2á2</pattern>
-<pattern>.pro2é2</pattern>
-<pattern>.pro2í2</pattern>
-<pattern>.pro2ó2</pattern>
-<pattern>.pro2ú2</pattern>
+<pattern> pro2a2</pattern>
+<pattern> pro2e2</pattern>
+<pattern> pro2i2</pattern>
+<pattern> pro2o2</pattern>
+<pattern> pro2u2</pattern>
+<pattern> pro2h2</pattern>
+<pattern> pro2á2</pattern>
+<pattern> pro2é2</pattern>
+<pattern> pro2í2</pattern>
+<pattern> pro2ó2</pattern>
+<pattern> pro2ú2</pattern>
 <pattern>proto1h</pattern>
 <pattern>proto1a2</pattern>
 <pattern>proto1e2</pattern>
@@ -3007,45 +3007,45 @@
 <pattern>ranco1í2</pattern>
 <pattern>ranco1ó2</pattern>
 <pattern>ranco1ú2</pattern>
-<pattern>.re2a2</pattern>
-<pattern>.re3e4</pattern>
-<pattern>.re2i2</pattern>
-<pattern>.re2o2</pattern>
-<pattern>.re2u2</pattern>
-<pattern>.re2á2</pattern>
-<pattern>.re2é2</pattern>
-<pattern>.re2í2</pattern>
-<pattern>.re2ó2</pattern>
-<pattern>.re2ú2</pattern>
-<pattern>ea3cio.</pattern>
-<pattern>ea3cios.</pattern>
-<pattern>ea3cia.</pattern>
-<pattern>ea3cias.</pattern>
-<pattern>.re3abr</pattern>
-<pattern>.re3ábr</pattern>
-<pattern>.re3afirm</pattern>
-<pattern>.re3afírm</pattern>
-<pattern>.re3ajust</pattern>
-<pattern>.rea3júst</pattern>
-<pattern>.rea3liza</pattern>
-<pattern>.rea3lizá</pattern>
-<pattern>.rea3líza</pattern>
-<pattern>.re3alim</pattern>
-<pattern>.rea3lism</pattern>
-<pattern>.rea3list</pattern>
-<pattern>.re3anim</pattern>
-<pattern>.re3aním</pattern>
-<pattern>.re3aparec</pattern>
-<pattern>.re3ubica</pattern>
-<pattern>.re3ubíca</pattern>
-<pattern>.reu3mati</pattern>
-<pattern>.reu3máti</pattern>
-<pattern>.re3unir</pattern>
-<pattern>.re3unír</pattern>
-<pattern>.re3usar</pattern>
-<pattern>.re3usár</pattern>
-<pattern>.re3utiliz</pattern>
-<pattern>.re3utilíz</pattern>
+<pattern> re2a2</pattern>
+<pattern> re3e4</pattern>
+<pattern> re2i2</pattern>
+<pattern> re2o2</pattern>
+<pattern> re2u2</pattern>
+<pattern> re2á2</pattern>
+<pattern> re2é2</pattern>
+<pattern> re2í2</pattern>
+<pattern> re2ó2</pattern>
+<pattern> re2ú2</pattern>
+<pattern>ea3cio </pattern>
+<pattern>ea3cios </pattern>
+<pattern>ea3cia </pattern>
+<pattern>ea3cias </pattern>
+<pattern> re3abr</pattern>
+<pattern> re3ábr</pattern>
+<pattern> re3afirm</pattern>
+<pattern> re3afírm</pattern>
+<pattern> re3ajust</pattern>
+<pattern> rea3júst</pattern>
+<pattern> rea3liza</pattern>
+<pattern> rea3lizá</pattern>
+<pattern> rea3líza</pattern>
+<pattern> re3alim</pattern>
+<pattern> rea3lism</pattern>
+<pattern> rea3list</pattern>
+<pattern> re3anim</pattern>
+<pattern> re3aním</pattern>
+<pattern> re3aparec</pattern>
+<pattern> re3ubica</pattern>
+<pattern> re3ubíca</pattern>
+<pattern> reu3mati</pattern>
+<pattern> reu3máti</pattern>
+<pattern> re3unir</pattern>
+<pattern> re3unír</pattern>
+<pattern> re3usar</pattern>
+<pattern> re3usár</pattern>
+<pattern> re3utiliz</pattern>
+<pattern> re3utilíz</pattern>
 <pattern>rmano1h</pattern>
 <pattern>rmano1a2</pattern>
 <pattern>rmano1e2</pattern>
@@ -3101,8 +3101,8 @@
 <pattern>semi1í2</pattern>
 <pattern>semi1ó2</pattern>
 <pattern>semi1ú2</pattern>
-<pattern>i2a.</pattern>
-<pattern>i2as.</pattern>
+<pattern>i2a </pattern>
+<pattern>i2as </pattern>
 <pattern>2ótic</pattern>
 <pattern>emi2o2</pattern>
 <pattern>seudo1h</pattern>
@@ -3116,8 +3116,8 @@
 <pattern>seudo1í2</pattern>
 <pattern>seudo1ó2</pattern>
 <pattern>seudo1ú2</pattern>
-<pattern>o2os.</pattern>
-<pattern>.so3a4s</pattern>
+<pattern>o2os </pattern>
+<pattern> so3a4s</pattern>
 <pattern>socio1h</pattern>
 <pattern>socio1a2</pattern>
 <pattern>socio1e2</pattern>
@@ -3129,50 +3129,50 @@
 <pattern>socio1í2</pattern>
 <pattern>socio1ó2</pattern>
 <pattern>socio1ú2</pattern>
-<pattern>a3rio.</pattern>
-<pattern>a3rios.</pattern>
+<pattern>a3rio </pattern>
+<pattern>a3rios </pattern>
 <pattern>3logía</pattern>
-<pattern>4ón.</pattern>
-<pattern>4ones.</pattern>
-<pattern>4i4er.</pattern>
-<pattern>4o2ico.</pattern>
-<pattern>4o2icos.</pattern>
-<pattern>4o2ica.</pattern>
-<pattern>4o2icas.</pattern>
-<pattern>.su2b2a2</pattern>
-<pattern>.su2b2e2</pattern>
-<pattern>.su2b2i2</pattern>
-<pattern>.su2b2o2</pattern>
-<pattern>.su2b2u2</pattern>
-<pattern>.su2b2á2</pattern>
-<pattern>.su2b2é2</pattern>
-<pattern>.su2b2í2</pattern>
-<pattern>.su2b2ó2</pattern>
-<pattern>.su2b2ú2</pattern>
-<pattern>.sub2i3ll</pattern>
-<pattern>.sub2i3mien</pattern>
-<pattern>.sub3índ</pattern>
-<pattern>.sub3ími</pattern>
-<pattern>.su4b3ray</pattern>
-<pattern>.sub3aflue</pattern>
-<pattern>.sub3arr</pattern>
-<pattern>.sub3enten</pattern>
-<pattern>.sub3estim</pattern>
-<pattern>.sub3estím</pattern>
-<pattern>.sub3ofici</pattern>
-<pattern>.sub3urba</pattern>
-<pattern>.sub3alter</pattern>
-<pattern>.sub3insp</pattern>
-<pattern>.su3bién</pattern>
-<pattern>.su3bir</pattern>
-<pattern>.su3bam</pattern>
-<pattern>.su3bordin</pattern>
-<pattern>.su3bordín</pattern>
-<pattern>.sub3acuá</pattern>
-<pattern>.sub3espe</pattern>
-<pattern>.sub3esta</pattern>
-<pattern>.su3burbi</pattern>
-<pattern>.su4b5rein</pattern>
+<pattern>4ón </pattern>
+<pattern>4ones </pattern>
+<pattern>4i4er </pattern>
+<pattern>4o2ico </pattern>
+<pattern>4o2icos </pattern>
+<pattern>4o2ica </pattern>
+<pattern>4o2icas </pattern>
+<pattern> su2b2a2</pattern>
+<pattern> su2b2e2</pattern>
+<pattern> su2b2i2</pattern>
+<pattern> su2b2o2</pattern>
+<pattern> su2b2u2</pattern>
+<pattern> su2b2á2</pattern>
+<pattern> su2b2é2</pattern>
+<pattern> su2b2í2</pattern>
+<pattern> su2b2ó2</pattern>
+<pattern> su2b2ú2</pattern>
+<pattern> sub2i3ll</pattern>
+<pattern> sub2i3mien</pattern>
+<pattern> sub3índ</pattern>
+<pattern> sub3ími</pattern>
+<pattern> su4b3ray</pattern>
+<pattern> sub3aflue</pattern>
+<pattern> sub3arr</pattern>
+<pattern> sub3enten</pattern>
+<pattern> sub3estim</pattern>
+<pattern> sub3estím</pattern>
+<pattern> sub3ofici</pattern>
+<pattern> sub3urba</pattern>
+<pattern> sub3alter</pattern>
+<pattern> sub3insp</pattern>
+<pattern> su3bién</pattern>
+<pattern> su3bir</pattern>
+<pattern> su3bam</pattern>
+<pattern> su3bordin</pattern>
+<pattern> su3bordín</pattern>
+<pattern> sub3acuá</pattern>
+<pattern> sub3espe</pattern>
+<pattern> sub3esta</pattern>
+<pattern> su3burbi</pattern>
+<pattern> su4b5rein</pattern>
 <pattern>supe2r3r</pattern>
 <pattern>supe2r1a2</pattern>
 <pattern>supe2r1e2</pattern>
@@ -3186,20 +3186,20 @@
 <pattern>supe2r1ú2</pattern>
 <pattern>supe3r4a4r</pattern>
 <pattern>supe3r4á4r</pattern>
-<pattern>supe3r4á3vit.</pattern>
-<pattern>supe3r4á3vits.</pattern>
-<pattern>4a3ción.</pattern>
-<pattern>4a3ciones.</pattern>
-<pattern>4e3rior.</pattern>
-<pattern>4e3riores.</pattern>
-<pattern>4e3riora.</pattern>
-<pattern>4e3rioras.</pattern>
-<pattern>4e3riormente.</pattern>
-<pattern>4e3rioridad.</pattern>
-<pattern>4e3rioridades.</pattern>
-<pattern>4e3ra3ble.</pattern>
-<pattern>4e3ra3bles.</pattern>
-<pattern>4e3ra3blemente.</pattern>
+<pattern>supe3r4á3vit </pattern>
+<pattern>supe3r4á3vits </pattern>
+<pattern>4a3ción </pattern>
+<pattern>4a3ciones </pattern>
+<pattern>4e3rior </pattern>
+<pattern>4e3riores </pattern>
+<pattern>4e3riora </pattern>
+<pattern>4e3rioras </pattern>
+<pattern>4e3riormente </pattern>
+<pattern>4e3rioridad </pattern>
+<pattern>4e3rioridades </pattern>
+<pattern>4e3ra3ble </pattern>
+<pattern>4e3ra3bles </pattern>
+<pattern>4e3ra3blemente </pattern>
 <pattern>pe5r4ante</pattern>
 <pattern>perpon5d6r</pattern>
 <pattern>supra1h</pattern>
@@ -3236,8 +3236,8 @@
 <pattern>tele1í2</pattern>
 <pattern>tele1ó2</pattern>
 <pattern>tele1ú2</pattern>
-<pattern>4ósteo.</pattern>
-<pattern>4ósteos.</pattern>
+<pattern>4ósteo </pattern>
+<pattern>4ósteos </pattern>
 <pattern>termo1h</pattern>
 <pattern>termo1a2</pattern>
 <pattern>termo1e2</pattern>
@@ -3282,8 +3282,8 @@
 <pattern>tropo1í2</pattern>
 <pattern>tropo1ó2</pattern>
 <pattern>tropo1ú2</pattern>
-<pattern>poi3de.</pattern>
-<pattern>poi3des.</pattern>
+<pattern>poi3de </pattern>
+<pattern>poi3des </pattern>
 <pattern>ultra1h</pattern>
 <pattern>ultra1a2</pattern>
 <pattern>ultra1e2</pattern>
@@ -3333,73 +3333,73 @@
 <pattern>trans4ubsta</pattern>
 <pattern>ultra4ísmo</pattern>
 <pattern>wa3s4h</pattern>
-<pattern>.bi1anual</pattern>
-<pattern>.bi1aur</pattern>
-<pattern>.bien1and</pattern>
-<pattern>.bien1apa</pattern>
-<pattern>.bien1ave</pattern>
-<pattern>.bien1est</pattern>
-<pattern>.bien1int</pattern>
-<pattern>.bi1ox</pattern>
-<pattern>.bi1ó2x</pattern>
-<pattern>.bi1un</pattern>
-<pattern>.en1aceit</pattern>
-<pattern>.en1aciy</pattern>
-<pattern>.en1aguach</pattern>
-<pattern>.en1aguaz</pattern>
-<pattern>.en1anch</pattern>
-<pattern>.en1apa</pattern>
-<pattern>.en1arb</pattern>
-<pattern>.en1art</pattern>
-<pattern>.en2artr</pattern>
-<pattern>.en1ej</pattern>
-<pattern>.hepta1e</pattern>
-<pattern>.intra1o</pattern>
-<pattern>.intra1u</pattern>
-<pattern>.mal1acon</pattern>
-<pattern>.mal1acos</pattern>
-<pattern>.mala1e</pattern>
-<pattern>.mal1andant</pattern>
-<pattern>.mal1andanz</pattern>
-<pattern>.mal1est</pattern>
-<pattern>.mal1int</pattern>
-<pattern>.pa4n1a4meri</pattern>
-<pattern>.pa4n1europ</pattern>
-<pattern>.pa4n1afri</pattern>
-<pattern>.pa4n1ópti</pattern>
+<pattern> bi1anual</pattern>
+<pattern> bi1aur</pattern>
+<pattern> bien1and</pattern>
+<pattern> bien1apa</pattern>
+<pattern> bien1ave</pattern>
+<pattern> bien1est</pattern>
+<pattern> bien1int</pattern>
+<pattern> bi1ox</pattern>
+<pattern> bi1ó2x</pattern>
+<pattern> bi1un</pattern>
+<pattern> en1aceit</pattern>
+<pattern> en1aciy</pattern>
+<pattern> en1aguach</pattern>
+<pattern> en1aguaz</pattern>
+<pattern> en1anch</pattern>
+<pattern> en1apa</pattern>
+<pattern> en1arb</pattern>
+<pattern> en1art</pattern>
+<pattern> en2artr</pattern>
+<pattern> en1ej</pattern>
+<pattern> hepta1e</pattern>
+<pattern> intra1o</pattern>
+<pattern> intra1u</pattern>
+<pattern> mal1acon</pattern>
+<pattern> mal1acos</pattern>
+<pattern> mala1e</pattern>
+<pattern> mal1andant</pattern>
+<pattern> mal1andanz</pattern>
+<pattern> mal1est</pattern>
+<pattern> mal1int</pattern>
+<pattern> pa4n1a4meri</pattern>
+<pattern> pa4n1europ</pattern>
+<pattern> pa4n1afri</pattern>
+<pattern> pa4n1ópti</pattern>
 <pattern>3p2sic</pattern>
 <pattern>3p2siq</pattern>
-<pattern>.re3a2eg</pattern>
-<pattern>.re3a2q</pattern>
-<pattern>.re3a2z</pattern>
-<pattern>.re3a2grup</pattern>
-<pattern>.re3i2m</pattern>
-<pattern>.re3inc</pattern>
-<pattern>.re3ing</pattern>
-<pattern>.re3ins</pattern>
-<pattern>.re3int</pattern>
-<pattern>.re3o2b</pattern>
-<pattern>.re1oc</pattern>
-<pattern>.re1oj</pattern>
-<pattern>.re3orga</pattern>
-<pattern>.re1unt</pattern>
-<pattern>.retro1a</pattern>
-<pattern>.su2d1a2fr</pattern>
-<pattern>.su2d1a2me</pattern>
-<pattern>.su2d1est</pattern>
+<pattern> re3a2eg</pattern>
+<pattern> re3a2q</pattern>
+<pattern> re3a2z</pattern>
+<pattern> re3a2grup</pattern>
+<pattern> re3i2m</pattern>
+<pattern> re3inc</pattern>
+<pattern> re3ing</pattern>
+<pattern> re3ins</pattern>
+<pattern> re3int</pattern>
+<pattern> re3o2b</pattern>
+<pattern> re1oc</pattern>
+<pattern> re1oj</pattern>
+<pattern> re3orga</pattern>
+<pattern> re1unt</pattern>
+<pattern> retro1a</pattern>
+<pattern> su2d1a2fr</pattern>
+<pattern> su2d1a2me</pattern>
+<pattern> su2d1est</pattern>
 <pattern>su4d3oes</pattern>
-<pattern>.sur1a2me</pattern>
-<pattern>.sur1est</pattern>
-<pattern>.sur1oes</pattern>
-<pattern>.tele1imp</pattern>
-<pattern>.tele1obj</pattern>
-<pattern>.tra2s1a</pattern>
-<pattern>.tra2s1o</pattern>
-<pattern>.tra2s2oñ</pattern>
-<pattern>.tran2s1alp</pattern>
-<pattern>.tran2s1and</pattern>
-<pattern>.tran2s1atl</pattern>
-<pattern>.tran2s1oce</pattern>
-<pattern>.tran2s1ur</pattern>
-<pattern>.tri1ó2x</pattern>
+<pattern> sur1a2me</pattern>
+<pattern> sur1est</pattern>
+<pattern> sur1oes</pattern>
+<pattern> tele1imp</pattern>
+<pattern> tele1obj</pattern>
+<pattern> tra2s1a</pattern>
+<pattern> tra2s1o</pattern>
+<pattern> tra2s2oñ</pattern>
+<pattern> tran2s1alp</pattern>
+<pattern> tran2s1and</pattern>
+<pattern> tran2s1atl</pattern>
+<pattern> tran2s1oce</pattern>
+<pattern> tran2s1ur</pattern>
+<pattern> tri1ó2x</pattern>
 </HyphenationDescription>
