@@ -1719,7 +1719,9 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
         // If no supported shapes, it will be a blank empty image.
         // Better to let user know that with an unsupported image display (empty
         // square with borders).
-        printf("SVG: got image with zero supported shape.\n");
+        // But commented to not flood koreader's log for books with many such
+        // svg images (crengine would log this at each page change)
+        // printf("SVG: got image with zero supported shape.\n");
         nsvgDelete(image);
         return res;
     }
