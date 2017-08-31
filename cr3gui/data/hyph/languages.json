@@ -16,6 +16,12 @@
         "aliases": ["bul"]
     },
     {
+        "name": "Catalan",
+        "filename": "Catalan.pattern",
+        "language": "ca",
+        "aliases": ["cat"]
+    },
+    {
         "name": "Czech",
         "filename": "Czech_hyphen_(Alan).pdb",
         "language": "cs",
@@ -57,6 +63,13 @@
         "aliases": ["fra"]
     },
     {
+        "name": "Galician",
+        "filename": "Galician.pattern",
+        "language": "gl",
+        "aliases": ["glg"]
+    },
+
+    {
         "name": "German",
         "filename": "German_hyphen_(Alan).pdb",
         "language": "de",
@@ -91,6 +104,12 @@
         "filename": "Italian_hyphen_(Alan).pdb",
         "language": "it",
         "aliases": ["ita"]
+    },
+    {
+        "name": "Norwegian",
+        "filename": "Norwegian.pattern",
+        "language": "no",
+        "aliases": ["nor"]
     },
     {
         "name": "Polish",
@@ -149,6 +168,12 @@
         "filename": "Swedish_hyphen_(Alan).pdb",
         "language": "sv",
         "aliases": ["swe"]
+    },
+    {
+        "name": "Turkish",
+        "filename": "Turkish.pattern",
+        "language": "tr",
+        "aliases": ["tur"]
     },
     {
         "name": "Ukrainian",
