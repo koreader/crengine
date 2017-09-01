@@ -316,7 +316,7 @@ public:
     /// garbage collector frees unused fonts
     virtual void gc() = 0;
     /// returns most similar font
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId = -1) = 0;
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId = -1, bool useBias=false) = 0;
     /// set fallback font face (returns true if specified font is found)
     virtual bool SetFallbackFontFace( lString8 face ) { CR_UNUSED(face); return false; }
     /// get fallback font face (returns empty string if no fallback font is set)
@@ -375,6 +375,8 @@ public:
 
     virtual bool SetAlias(lString8 alias,lString8 facename,int id,bool bold,bool italic){ return false;}
 
+    /// set as preferred font with the given bias to add in CalcMatch algorithm
+    virtual bool SetAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias=true ) { CR_UNUSED(face); return false; }
 };
 
 class LVBaseFont : public LVFont
