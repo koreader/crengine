@@ -1849,11 +1849,14 @@ public:
     virtual bool SetFallbackFontFace( lString8 face ) {
         FONT_MAN_GUARD
         if ( face!=_fallbackFontFace ) {
-            _cache.clearFallbackFonts();
             CRLog::trace("Looking for fallback font %s", face.c_str());
             LVFontCacheItem * item = _cache.findFallback( face, -1 );
-            if ( !item )
+            if ( !item ) {
                 face.clear();
+                // Don't reset previous fallback if this one is not found/valid
+                return false;
+            }
+            _cache.clearFallbackFonts();
             _fallbackFontFace = face;
         }
         return !_fallbackFontFace.empty();
