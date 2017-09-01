@@ -912,13 +912,14 @@ LVFontRef getFont(css_style_rec_t * style, int documentId)
     fw += rend_font_embolden;
     if ( fw>900 )
         fw = 900;
+    // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
         style->font_style==css_fs_italic,
         style->font_family,
         lString8(style->font_name.c_str()),
-        documentId);
+        documentId, true); // useBias=true, so that our preferred font gets used
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }

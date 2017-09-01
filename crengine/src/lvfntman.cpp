@@ -308,6 +308,7 @@ private:
     // for document font: _documentId, _buf, _name
     int               _documentId;
     LVByteArrayRef    _buf;
+    int               _bias;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, css_font_family_t family, const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
     : _size(size)
@@ -319,6 +320,7 @@ public:
     , _index(index)
     , _documentId(documentId)
     , _buf(buf)
+    , _bias(0)
     {
     }
     LVFontDef(const LVFontDef & def)
@@ -331,6 +333,7 @@ public:
     , _index(def._index)
     , _documentId(def._documentId)
     , _buf(def._buf)
+    , _bias(def._bias)
     {
     }
 
@@ -374,11 +377,22 @@ public:
     void setBuf(LVByteArrayRef buf) { _buf = buf; }
     ~LVFontDef() {}
     /// calculates difference between two fonts
-    int CalcMatch( const LVFontDef & def ) const;
+    int CalcMatch( const LVFontDef & def, bool useBias ) const;
     /// difference between fonts for duplicates search
     int CalcDuplicateMatch( const LVFontDef & def ) const;
     /// calc match for fallback font search
     int CalcFallbackMatch( lString8 face, int size ) const;
+
+    bool setBiasIfNameMatch( lString8 facename, int bias, bool clearIfNot=true ) {
+        if (_typeface.compare(facename) == 0) {
+            _bias = bias;
+            return true;
+        }
+        if (clearIfNot) {
+            _bias = 0; // reset bias for other fonts
+        }
+        return false;
+    }
 };
 
 /// font cache item
@@ -408,8 +422,9 @@ public:
     void removeDocumentFonts(int documentId);
     int  length() { return _registered_list.length(); }
     void addInstance( const LVFontDef * def, LVFontRef ref );
+    bool setAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias );
     LVPtrVector< LVFontCacheItem > * getInstances() { return &_instance_list; }
-    LVFontCacheItem * find( const LVFontDef * def );
+    LVFontCacheItem * find( const LVFontDef * def, bool useBias=false );
     LVFontCacheItem * findFallback( lString8 face, int size );
     LVFontCacheItem * findDuplicate( const LVFontDef * def );
     LVFontCacheItem * findDocumentFontDuplicate(int documentId, lString8 name);
@@ -1862,6 +1877,13 @@ public:
         return !_fallbackFontFace.empty();
     }
 
+    /// set as preferred font with the given bias to add in CalcMatch algorithm
+    virtual bool SetAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias ) {
+        FONT_MAN_GUARD
+        return _cache.setAsPreferredFontWithBias(face, bias, clearOthersBias);
+    }
+
+
     /// get fallback font face (returns empty string if no fallback font is set)
     virtual lString8 GetFallbackFontFace() { return _fallbackFontFace; }
 
@@ -2328,7 +2350,7 @@ public:
             return false;
         }
 }
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId)
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId, bool useBias=false)
     {
         FONT_MAN_GUARD
     #if (DEBUG_FONT_MAN==1)
@@ -2356,7 +2378,7 @@ public:
                 weight>400?"bold":"",
                 italic?"italic":"" );
     #endif
-        LVFontCacheItem * item = _cache.find( &def );
+        LVFontCacheItem * item = _cache.find( &def, useBias );
     #if (DEBUG_FONT_MAN==1)
         if ( item && _log ) { //_log &&
             fprintf(_log, "   found item: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s, weightDelta=%d) FontRef=%d\n",
@@ -2369,6 +2391,7 @@ public:
         bool italicize = false;
 
         LVFontDef newDef(*item->getDef());
+        // printf("  got %s\n", newDef.getTypeFace().c_str());
 
         if (!item->getFont().isNull())
         {
@@ -3162,7 +3185,7 @@ int LVFontDef::CalcDuplicateMatch( const LVFontDef & def ) const
     return size_match && weight_match && italic_match && family_match && typeface_match;
 }
 
-int LVFontDef::CalcMatch( const LVFontDef & def ) const
+int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
 {
     if (_documentId != -1 && _documentId != def._documentId)
         return 0;
@@ -3182,12 +3205,17 @@ int LVFontDef::CalcMatch( const LVFontDef & def ) const
         ? 256
         : ( (_family==css_ff_monospace)==(def._family==css_ff_monospace) ? 64 : 0 );
     int typeface_match = (_typeface == def._typeface) ? 256 : 0;
-    return
+    int bias = useBias ? _bias : 0;
+    int score = bias
         + (size_match     * 100)
         + (weight_match   * 5)
         + (italic_match   * 5)
         + (family_match   * 100)
         + (typeface_match * 1000);
+//    printf("### %s (%d) vs %s (%d): size=%d weight=%d italic=%d family=%d typeface=%d bias=%d => %d\n",
+//        _typeface.c_str(), _family, def._typeface.c_str(), def._family,
+//        size_match, weight_match, italic_match, family_match, typeface_match, _bias, score);
+    return score;
 }
 
 int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
@@ -3405,7 +3433,7 @@ LVFontCacheItem * LVFontCache::findFallback( lString8 face, int size )
     return _registered_list[best_index];
 }
 
-LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef )
+LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef, bool useBias )
 {
     int best_index = -1;
     int best_match = -1;
@@ -3423,7 +3451,7 @@ LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef )
             def.setTypeFace(lString8::empty_str);
         for (i=0; i<_instance_list.length(); i++)
         {
-            int match = _instance_list[i]->_def.CalcMatch( def );
+            int match = _instance_list[i]->_def.CalcMatch( def, useBias );
             if (match > best_instance_match)
             {
                 best_instance_match = match;
@@ -3432,7 +3460,7 @@ LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef )
         }
         for (i=0; i<_registered_list.length(); i++)
         {
-            int match = _registered_list[i]->_def.CalcMatch( def );
+            int match = _registered_list[i]->_def.CalcMatch( def, useBias );
             if (match > best_match)
             {
                 best_match = match;
@@ -3445,6 +3473,23 @@ LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef )
     if (best_instance_match >= best_match)
         return _instance_list[best_instance_index];
     return _registered_list[best_index];
+}
+
+bool LVFontCache::setAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias )
+{
+    bool found = false;
+    int i;
+    for (i=0; i<_instance_list.length(); i++)
+    {
+        if (_instance_list[i]->_def.setBiasIfNameMatch( face, bias, clearOthersBias ))
+            found = true;
+    }
+    for (i=0; i<_registered_list.length(); i++)
+    {
+        if (_registered_list[i]->_def.setBiasIfNameMatch( face, bias, clearOthersBias ))
+            found = true;
+    }
+    return found;
 }
 
 void LVFontCache::addInstance( const LVFontDef * def, LVFontRef ref )
