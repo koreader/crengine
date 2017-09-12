@@ -1,0 +1,13 @@
+language: c
+
+sudo: false
+
+cache:
+  apt: true
+
+addons:
+  apt:
+    packages:
+      - jq
+
+script:  .ci/script.sh
