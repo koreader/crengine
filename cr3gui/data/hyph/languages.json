@@ -40,15 +40,15 @@
         "aliases": ["nld"]
     },
     {
+        "name": "English (UK)",
+        "filename": "English_GB_hyphen_(Alan).pdb",
+        "language": "en-GB"
+    },
+    {
         "name": "English (US)",
         "filename": "English_US_hyphen_(Alan).pdb",
         "language": "en-US",
         "aliases": ["en", "eng"]
-    },
-    {
-        "name": "English (UK)",
-        "filename": "English_GB_hyphen_(Alan).pdb",
-        "language": "en-GB"
     },
     {
         "name": "Finnish",
@@ -130,10 +130,9 @@
         "aliases": ["ron"]
     },
     {
-        "name": "Russian",
-        "filename": "Russian_hyphen_(Alan).pdb",
-        "language": "ru",
-        "aliases": ["rus"]
+        "name": "Russian + English (UK)",
+        "filename": "Russian_EnGB_hyphen_(Alan).pdb",
+        "language": "ru,en-GB"
     },
     {
         "name": "Russian + English (US)",
@@ -141,9 +140,10 @@
         "language": "ru,en-US"
     },
     {
-        "name": "Russian + English (UK)",
-        "filename": "Russian_EnGB_hyphen_(Alan).pdb",
-        "language": "ru,en-GB"
+        "name": "Russian",
+        "filename": "Russian_hyphen_(Alan).pdb",
+        "language": "ru",
+        "aliases": ["rus"]
     },
     {
         "name": "Slovak",
@@ -159,7 +159,7 @@
     },
     {
         "name": "Spanish",
-        "filename": "Spanish_hyphen_(Alan).pdb",
+        "filename": "Spanish.pattern",
         "language": "es",
         "aliases": ["spa"]
     },
