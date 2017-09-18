@@ -3,8 +3,7 @@
 # Protect against forgetting to add or remove hyphenation patterns in languages.json
 search_dir=./cr3gui/data/hyph
 file_list=""
-for entry in "$search_dir"/*
-do
+for entry in "$search_dir"/*; do
     if [ -f "$entry" ] && [ ! "$entry" = "$search_dir/languages.json" ]; then
         entry=${entry#*${search_dir}/}
         [ ! "$file_list" = "" ] && file_list="$file_list"$'\n'"$entry" || file_list="$entry"
