@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.04.38"
+#define CACHE_FILE_FORMAT_VERSION "3.04.39k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -3815,10 +3815,10 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
         removeChildren(lastNonEmpty+1, endIndex);
 
         // inner inline
-        /*ldomNode * abox = insertChildElement( firstNonEmpty, LXML_NS_NONE, el_autoBoxing );
+        ldomNode * abox = insertChildElement( firstNonEmpty, LXML_NS_NONE, el_autoBoxing );
         abox->initNodeStyle();
         abox->setRendMethod( erm_final );
-        moveItemsTo( abox, firstNonEmpty+1, lastNonEmpty+1 );*/ //cause crash problem
+        moveItemsTo( abox, firstNonEmpty+1, lastNonEmpty+1 );
         // remove trailing empty
         removeChildren(startIndex, firstNonEmpty-1);
     } else {
@@ -4065,7 +4065,8 @@ void ldomNode::initNodeRendMethod()
                         j++;
                         // j..i are inline
                         if ( j>0 || i<(int)getChildCount()-1 )
-                            autoboxChildren( j, i );
+                            if  ( this->getDocument()->_cacheFile == NULL)
+                                autoboxChildren( j, i );
                         i = j;
                     } else if ( i>0 ) {
                         ldomNode * prev = getChildNode(i-1);
@@ -4073,7 +4074,8 @@ void ldomNode::initNodeRendMethod()
                             // autobox run-in
                             if ( getChildCount()!=2 ) {
                                 CRLog::debug("Autoboxing run-in items");
-                                autoboxChildren( i-1, i );
+                                if  ( this->getDocument()->_cacheFile == NULL)
+                                    autoboxChildren( i-1, i );
                             }
                             i--;
                         }
