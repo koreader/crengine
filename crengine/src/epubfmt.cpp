@@ -813,10 +813,14 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             lString16 content = item->getAttributeValue("content");
             if (name == "cover")
                 coverId = content;
-            else if (name == "calibre:series")
-                m_doc_props->setString(DOC_PROP_SERIES_NAME, content );
-            else if (name == "calibre:series_index")
-                m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content );
+            else if (name == "calibre:series") {
+                PreProcessXmlString(content, 0);
+                m_doc_props->setString(DOC_PROP_SERIES_NAME, content);
+            }
+            else if (name == "calibre:series_index") {
+                PreProcessXmlString(content, 0);
+                m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
+            }
         }
 
         // items
