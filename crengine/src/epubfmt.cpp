@@ -816,7 +816,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             else if (name == "calibre:series")
                 m_doc_props->setString(DOC_PROP_SERIES_NAME, content );
             else if (name == "calibre:series_index")
-                m_doc_props->setInt(DOC_PROP_SERIES_NUMBER, content.atoi() );
+                m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content );
         }
 
         // items
