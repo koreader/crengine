@@ -166,7 +166,7 @@ LVDocView::LVDocView(int bitsPerPixel) :
 			m_callback(NULL), m_swapDone(false), m_drawBufferBits(
 					GRAY_BACKBUFFER_BITS) {
 #if (COLOR_BACKBUFFER==1)
-	m_backgroundColor = 0xFFFFE0;
+	m_backgroundColor = 0xFFFFFF;
 	m_textColor = 0x000060;
 #else
 #if (GRAY_INVERSE==1)
