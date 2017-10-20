@@ -1928,6 +1928,9 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             for (;;)
             {
                 node = node->getParentNode();
+		// prevent segfault due to undefined memory address on Ubuntu 17.10 (due to gcc 7.2.0?)
+                if (!node)
+                    return false;
                 if (node->isNull())
                     return false;
                 if (node->getNodeId() == _id)
