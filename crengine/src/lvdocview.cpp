@@ -167,7 +167,7 @@ LVDocView::LVDocView(int bitsPerPixel) :
 					GRAY_BACKBUFFER_BITS) {
 #if (COLOR_BACKBUFFER==1)
 	m_backgroundColor = 0xFFFFFF;
-	m_textColor = 0x000060;
+	m_textColor = 0x000000;
 #else
 #if (GRAY_INVERSE==1)
 	m_backgroundColor = 0;
