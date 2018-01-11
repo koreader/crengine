@@ -606,7 +606,7 @@ public:
     /// set list of icons to display at left side of header
     void setHeaderIcons( LVRefVec<LVImageSource> icons );
     /// set list of battery icons to display battery state
-    void setBatteryIcons( LVRefVec<LVImageSource> icons );
+    void setBatteryIcons( const LVRefVec<LVImageSource> & icons );
     /// sets page margins
     void setPageMargins( const lvRect & rc );
     /// returns page margins
