@@ -766,14 +766,34 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 //        }
 
         CRPropRef m_doc_props = m_doc->getProps();
-        lString16 author = doc->textFromXPath( cs16("package/metadata/creator"));
+        // lString16 authors = doc->textFromXPath( cs16("package/metadata/creator"));
         lString16 title = doc->textFromXPath( cs16("package/metadata/title"));
         lString16 language = doc->textFromXPath( cs16("package/metadata/language"));
         lString16 description = doc->textFromXPath( cs16("package/metadata/description"));
+        // m_doc_props->setString(DOC_PROP_AUTHORS, authors);
         m_doc_props->setString(DOC_PROP_TITLE, title);
         m_doc_props->setString(DOC_PROP_LANGUAGE, language);
-        m_doc_props->setString(DOC_PROP_AUTHORS, author );
-        m_doc_props->setString(DOC_PROP_DESCRIPTION, description );
+        m_doc_props->setString(DOC_PROP_DESCRIPTION, description);
+
+        // Return possibly multiple <dc:creator> (authors) and <dc:subject> (keywords)
+        // as a single doc_props string with values separated by \n.
+        // (these \n can be replaced on the lua side for the most appropriate display)
+        bool authors_set = false;
+        lString16 authors;
+        for ( int i=1; i<20; i++ ) {
+            ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/creator[") << fmt::decimal(i) << "]");
+            if (!item)
+                break;
+            lString16 author = item->getText();
+            if (authors_set) {
+                authors << "\n" << author;
+            }
+            else {
+                authors << author;
+                authors_set = true;
+            }
+        }
+        m_doc_props->setString(DOC_PROP_AUTHORS, authors);
 
         // There may be multiple <dc:subject> tags, which are usually used for keywords, categories
         bool subjects_set = false;
@@ -784,14 +804,14 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 break;
             lString16 subject = item->getText();
             if (subjects_set) {
-                subjects << "; " << subject;
+                subjects << "\n" << subject;
             }
             else {
                 subjects << subject;
                 subjects_set = true;
             }
         }
-        m_doc_props->setString(DOC_PROP_KEYWORDS, subjects );
+        m_doc_props->setString(DOC_PROP_KEYWORDS, subjects);
 
         for ( int i=1; i<50; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/identifier[") << fmt::decimal(i) << "]");
@@ -804,7 +824,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
-        CRLog::info("Author: %s Title: %s", LCSTR(author), LCSTR(title));
+        CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
         for ( int i=1; i<20; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
