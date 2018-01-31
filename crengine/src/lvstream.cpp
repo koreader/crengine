@@ -4037,12 +4037,14 @@ class LVBlockWriteStream : public LVNamedStream
             , size( block_size ), next(NULL)
         {
             buf = (lUInt8*)malloc( size );
-            if ( !buf ) {
+            if ( buf ) {
+                memset(buf, 0, size);
+    //            modified_start = 0;
+    //            modified_end = size;
+            }
+            else {
                 CRLog::error("buffer allocation failed");
             }
-            memset(buf, 0, size);
-//            modified_start = 0;
-//            modified_end = size;
         }
         ~Block()
         {
@@ -4229,6 +4231,7 @@ class LVBlockWriteStream : public LVNamedStream
         CRLog::trace("creating block %x", (int)p->block_start);
 #endif
         if ( readBlock( p )!=LVERR_OK ) {
+            delete p;
             return LVERR_FAIL;
         }
 #if TRACE_BLOCK_WRITE_STREAM

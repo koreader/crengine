@@ -1304,13 +1304,14 @@ int lString16Collection::add( const lString16 & str )
 }
 void lString16Collection::clear()
 {
-    for (int i=0; i<count; i++)
-    {
-        ((lString16 *)chunks)[i].release();
-    }
-    if (chunks)
+    if (chunks) {
+        for (int i=0; i<count; i++)
+        {
+            ((lString16 *)chunks)[i].release();
+        }
         free(chunks);
-    chunks = NULL;
+        chunks = NULL;
+    }
     count = 0;
     size = 0;
 }
