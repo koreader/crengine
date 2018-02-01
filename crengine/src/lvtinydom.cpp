@@ -5957,7 +5957,7 @@ void ldomXRangeList::split( ldomXRange * r )
 
 #if BUILD_LITE!=1
 
-bool ldomDocument::findText( lString16 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight )
+bool ldomDocument::findText( lString16 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY )
 {
     if ( minY<0 )
         minY = 0;
@@ -5985,7 +5985,7 @@ bool ldomDocument::findText( lString16 pattern, bool caseInsensitive, bool rever
         CRLog::debug("No text found: Range is empty");
         return false;
     }
-    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight );
+    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY );
 }
 
 static bool findText( const lString16 & str, int & pos, const lString16 & pattern )
@@ -5996,7 +5996,7 @@ static bool findText( const lString16 & str, int & pos, const lString16 & patter
     const lChar16 * s1 = str.c_str() + pos;
     const lChar16 * s2 = pattern.c_str();
     int nlen = str.length() - pos - len;
-    for ( int j=0; j<nlen; j++ ) {
+    for ( int j=0; j<=nlen; j++ ) {
         bool matched = true;
         for ( int i=0; i<len; i++ ) {
             if ( s1[i] != s2[i] ) {
@@ -6021,8 +6021,8 @@ static bool findTextRev( const lString16 & str, int & pos, const lString16 & pat
         return false;
     const lChar16 * s1 = str.c_str() + pos;
     const lChar16 * s2 = pattern.c_str();
-    int nlen = pos - len;
-    for ( int j=nlen-1; j>=0; j-- ) {
+    int nlen = pos;
+    for ( int j=nlen; j>=0; j-- ) {
         bool matched = true;
         for ( int i=0; i<len; i++ ) {
             if ( s1[i] != s2[i] ) {
@@ -6039,7 +6039,7 @@ static bool findTextRev( const lString16 & str, int & pos, const lString16 & pat
 }
 
 /// searches for specified text inside range
-bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, bool checkMaxFromStart )
+bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart )
 {
     if ( caseInsensitive )
         pattern.lowercase();
@@ -6060,7 +6060,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
             int offs = _end.getOffset();
 
             if ( firstFoundTextY!=-1 && maxHeight>0 ) {
-                ldomXPointer p( _start.getNode(), offs );
+                ldomXPointer p( _end.getNode(), offs );
                 int currentTextY = p.toPoint().y;
                 if ( currentTextY<firstFoundTextY-maxHeight )
                     return words.length()>0;
@@ -6072,7 +6072,9 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
             while ( ::findTextRev( txt, offs, pattern ) ) {
                 if ( !words.length() && maxHeight>0 ) {
                     ldomXPointer p( _end.getNode(), offs );
-                    firstFoundTextY = p.toPoint().y;
+                    int currentTextY = p.toPoint().y;
+                    if (maxHeightCheckStartY == -1 || currentTextY <= maxHeightCheckStartY)
+                        firstFoundTextY = currentTextY;
                 }
                 words.add( ldomWord(_end.getNode(), offs, offs + pattern.length() ) );
                 offs--;
@@ -6113,10 +6115,12 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
                     ldomXPointer p( _start.getNode(), offs );
                     int currentTextY = p.toPoint().y;
                     if (checkMaxFromStart) {
-						if ( currentTextY>=firstFoundTextY+maxHeight )
-							return words.length()>0;
-					} else
-						firstFoundTextY = currentTextY;
+                        if ( currentTextY>=firstFoundTextY+maxHeight )
+                            return words.length()>0;
+                    } else {
+                        if (maxHeightCheckStartY == -1 || currentTextY >= maxHeightCheckStartY)
+                            firstFoundTextY = currentTextY;
+                    }
                 }
                 words.add( ldomWord(_start.getNode(), offs, offs + pattern.length() ) );
                 offs++;
