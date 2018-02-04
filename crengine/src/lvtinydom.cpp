@@ -6070,7 +6070,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
                 txt.lowercase();
 
             while ( ::findTextRev( txt, offs, pattern ) ) {
-                if ( !words.length() && maxHeight>0 ) {
+                if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _end.getNode(), offs );
                     int currentTextY = p.toPoint().y;
                     if (maxHeightCheckStartY == -1 || currentTextY <= maxHeightCheckStartY)
@@ -6111,7 +6111,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
                 txt.lowercase();
 
             while ( ::findText( txt, offs, pattern ) ) {
-                if ( !words.length() && maxHeight>0 ) {
+                if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _start.getNode(), offs );
                     int currentTextY = p.toPoint().y;
                     if (checkMaxFromStart) {
