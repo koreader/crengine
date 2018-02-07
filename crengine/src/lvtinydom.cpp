@@ -7548,8 +7548,8 @@ lString16 ldomXRange::getRangeText( lChar16 blockDelimiter, int maxTextLen )
     return callback.getText();
 }
 
-/// returns href attribute of <A> element, null string if not found
-lString16 ldomXPointer::getHRef()
+/// returns href attribute of <A> element, plus xpointer of <A> element itself
+lString16 ldomXPointer::getHRef(ldomXPointer & a_xpointer)
 {
     if ( isNull() )
         return lString16::empty_str;
@@ -7560,12 +7560,28 @@ lString16 ldomXPointer::getHRef()
         node = node->getParentNode();
     if ( !node )
         return lString16::empty_str;
+    a_xpointer.setNode(node);
+    a_xpointer.setOffset(0);
     lString16 ref = node->getAttributeValue( LXML_NS_ANY, attr_href );
     if (!ref.empty() && ref[0] != '#')
         ref = DecodeHTMLUrlString(ref);
     return ref;
 }
 
+/// returns href attribute of <A> element, null string if not found
+lString16 ldomXPointer::getHRef()
+{
+    ldomXPointer unused_a_xpointer;
+    return getHRef(unused_a_xpointer);
+}
+
+/// returns href attribute of <A> element, plus xpointer of <A> element itself
+lString16 ldomXRange::getHRef(ldomXPointer & a_xpointer)
+{
+    if ( isNull() )
+        return lString16::empty_str;
+    return _start.getHRef(a_xpointer);
+}
 
 /// returns href attribute of <A> element, null string if not found
 lString16 ldomXRange::getHRef()
