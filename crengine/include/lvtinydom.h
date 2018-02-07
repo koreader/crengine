@@ -1325,6 +1325,8 @@ public:
     }
     /// returns href attribute of <A> element, null string if not found
     lString16 getHRef();
+    /// returns href attribute of <A> element, plus xpointer of <A> element itself
+    lString16 getHRef(ldomXPointer & a_xpointer);
 	/// create a copy of pointer data
 	ldomXPointer * clone()
 	{
@@ -1641,6 +1643,8 @@ public:
     void getRangeWords( LVArray<ldomWord> & list );
     /// returns href attribute of <A> element, null string if not found
     lString16 getHRef();
+    /// returns href attribute of <A> element, plus xpointer of <A> element itself
+    lString16 getHRef(ldomXPointer & a_xpointer);
     /// sets range to nearest word bounds, returns true if success
     static bool getWordRange( ldomXRange & range, ldomXPointer & p );
     /// run callback for each node in range
