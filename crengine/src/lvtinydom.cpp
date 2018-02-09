@@ -19,6 +19,8 @@
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
+// Note: keep this above 1, toggling between compression and no-compression
+// can be done at run time by calling doNotCompressCachedData(bool)
 #define DOC_DATA_COMPRESSION_LEVEL 1 // 0, 1, 3 (0=no compression)
 #endif
 
@@ -106,6 +108,12 @@ static const char CACHE_FILE_MAGIC[] = "CoolReader 3 Cache"
 #endif
                                         "\n";
 
+static const char CACHE_FILE_WITH_UNCOMPRESSED_DATA_MAGIC[] = "CoolReader 3 Cache"
+                                       " File v" CACHE_FILE_FORMAT_VERSION ": "
+                                       "c0"
+                                       "m0"
+                                        "\n";
+
 #define CACHE_FILE_MAGIC_SIZE 40
 
 enum CacheFileBlockType {
@@ -150,6 +158,11 @@ enum CacheFileBlockType {
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
+
+static bool _doNotCompressCachedData = false;
+void doNotCompressCachedData(bool enable) {
+	_doNotCompressCachedData = enable;
+}
 
 static bool _enableCacheFileContentsValidation = (bool)ENABLE_CACHE_FILE_CONTENTS_VALIDATION;
 void enableCacheFileContentsValidation(bool enable) {
@@ -363,7 +376,7 @@ struct SimpleCacheFileHeader
     lUInt32 _dirty;
     SimpleCacheFileHeader( lUInt32 dirtyFlag ) {
         memset( _magic, 0, sizeof(_magic));
-        memcpy( _magic, CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE );
+        memcpy( _magic, _doNotCompressCachedData ? CACHE_FILE_WITH_UNCOMPRESSED_DATA_MAGIC : CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE );
         _dirty = dirtyFlag;
     }
 };
@@ -375,7 +388,7 @@ struct CacheFileHeader : public SimpleCacheFileHeader
     // duplicate of one of index records which contains
     bool validate()
     {
-        if (memcmp(_magic, CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE) != 0) {
+        if (memcmp(_magic, _doNotCompressCachedData ? CACHE_FILE_WITH_UNCOMPRESSED_DATA_MAGIC : CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE) != 0) {
             CRLog::error("CacheFileHeader::validate: magic doesn't match");
             return false;
         }
@@ -889,6 +902,8 @@ bool CacheFile::write( lUInt16 type, lUInt16 dataIndex, const lUInt8 * buf, int 
 #if DOC_DATA_COMPRESSION_LEVEL==0
     compress = false;
 #else
+    if (_doNotCompressCachedData)
+        compress = false;
     if ( compress ) {
         lUInt8 * dstbuf = NULL;
         lUInt32 dstsize = 0;
@@ -2574,7 +2589,7 @@ bool ldomPack( const lUInt8 * buf, int bufsize, lUInt8 * &dstbuf, lUInt32 & dsts
     z.zalloc = Z_NULL;
     z.zfree = Z_NULL;
     z.opaque = Z_NULL;
-    ret = deflateInit( &z, DOC_DATA_COMPRESSION_LEVEL );
+    ret = deflateInit( &z, _doNotCompressCachedData ? 0 : DOC_DATA_COMPRESSION_LEVEL );
     if ( ret != Z_OK )
         return false;
     z.avail_in = bufsize;
