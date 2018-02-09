@@ -2400,4 +2400,7 @@ void runTinyDomUnitTests();
 /// pass true to enable CRC check for
 void enableCacheFileContentsValidation(bool enable);
 
+/// pass false to not compress data in cache files
+void compressCachedData(bool enable);
+
 #endif
