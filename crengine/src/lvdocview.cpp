@@ -105,7 +105,7 @@ static css_font_family_t DEFAULT_FONT_FAMILY = css_ff_sans_serif;
 #endif
 
 #ifndef MAX_STATUS_FONT_SIZE
-#define MAX_STATUS_FONT_SIZE 32
+#define MAX_STATUS_FONT_SIZE 255
 #endif
 
 #if defined(__SYMBIAN32__)
