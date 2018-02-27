@@ -612,15 +612,17 @@ public:
                 if(elem->getStyle()->border_collapse==css_border_collapse)
                 {//simple collapse by disable some borders and eliminate paddings
                     css_style_ref_t style = cell->elem->getStyle();
-                    style->border_style_left = css_border_none;
-                    style->border_style_bottom = css_border_none;
+                    // we should not modify styles directly, as the change in style cache will affect other
+                    // node with same style, and corrupt style cache Hash, invalidating cache reuse
+                    css_style_ref_t newstyle(new css_style_rec_t);
+                    copystyle(style, newstyle);
+                    newstyle->border_style_left = css_border_none;
+                    newstyle->border_style_bottom = css_border_none;
                     if (i==0) {
-                        css_style_ref_t firstrowstyle(new css_style_rec_t);
-                        copystyle(style,firstrowstyle);
-                        firstrowstyle->border_style_top=css_border_none;
-                        cell->elem->setStyle(firstrowstyle);
+                        newstyle->border_style_top=css_border_none;
                     }
-                    else cell->elem->setStyle(style);
+                    // we should no more modify a style after it has been applied to a node with setStyle()
+                    cell->elem->setStyle(newstyle);
                 }
                 else {
                     int n=rows[i]->cells.length();
@@ -1458,14 +1460,17 @@ css_page_break_t getPageBreakBefore( ldomNode * el ) {
         before = style->page_break_before;
         if ( before!=css_pb_auto )
         {
-            css_style_ref_t newstyle( new css_style_rec_t );
-            el->setStyle(newstyle);//can't modify styles directly, as the change in style cache will affect other node with same style
             if(!style.isNull())
             {
-                copystyle(style,el->getStyle());
-                el->getStyle()->page_break_before=css_pb_auto;
-                el->getStyle()->page_break_inside=style->page_break_inside;
-                el->getStyle()->page_break_after=style->page_break_after;
+                // we should not modify styles directly, as the change in style cache will affect other
+                // node with same style, and corrupt style cache Hash, invalidating cache reuse
+                css_style_ref_t newstyle( new css_style_rec_t );
+                copystyle(style, newstyle);
+                newstyle->page_break_before=css_pb_auto;
+                newstyle->page_break_inside=style->page_break_inside;
+                newstyle->page_break_after=style->page_break_after;
+                // we should no more modify a style after it has been applied to a node with setStyle()
+                el->setStyle(newstyle);
             }
             return before;
         }
