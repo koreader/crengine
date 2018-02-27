@@ -13,6 +13,7 @@
 
 #include "../include/lvstyles.h"
 
+// #include <stdio.h>
 
 //DEFINE_NULL_REF( css_style_rec_t )
 
@@ -21,9 +22,15 @@ lUInt32 calcHash(font_ref_t & f)
 {
     if ( !f )
         return 14321;
+    // printf("family %u size %u weight %u italic %u kerning %u bitmap %u baseline %u typeface %u = hash %x\n", (lUInt32)f->getFontFamily(), (lUInt32)f->getSize(), (lUInt32)f->getWeight(), (lUInt32)f->getItalic(), (lUInt32)f->getKerning(), (lUInt32)f->getBitmapMode(), (lUInt32)f->getBaseline(), (lUInt32)f->getTypeFace().getHash(), f->_hash);
     if ( f->_hash )
         return f->_hash;
     lUInt32 v = 31;
+    // Commenting the next line may ensure more stable cache (by avoiding
+    // style hash mismatch), as for some undetermined reason, nodes may be
+    // associated to a same font with all other properties identical except
+    // for the _family which may oscillate between 1 (serif) and 2 (sans_serif)
+    // when we increase or decrease font size (even for a same font_size!)
     v = v * 31 + (lUInt32)f->getFontFamily();
     v = v * 31 + (lUInt32)f->getSize();
     v = v * 31 + (lUInt32)f->getWeight();

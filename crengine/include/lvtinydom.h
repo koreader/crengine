@@ -246,6 +246,7 @@ protected:
     int _maxUncompressedSize;
     int _chunkSize;
     char _type;       /// type, to show in log
+    bool _maxSizeReachedWarned;
     ldomTextStorageChunk * getChunk( lUInt32 address );
 public:
     /// type
@@ -1967,6 +1968,8 @@ private:
     int _page_height;
     int _page_width;
     bool _rendered;
+    bool _just_rendered_from_cache;
+    bool _toc_from_cache_valid;
     ldomXRangeList _selections;
 #endif
 
@@ -2028,6 +2031,8 @@ public:
 
     /// returns pointer to TOC root node
     LVTocItem * getToc() { return &m_toc; }
+
+    bool isTocFromCacheValid() { return _toc_from_cache_valid; }
 
 #if BUILD_LITE!=1
     /// save document formatting parameters after render
@@ -2402,5 +2407,9 @@ void enableCacheFileContentsValidation(bool enable);
 
 /// pass false to not compress data in cache files
 void compressCachedData(bool enable);
+
+/// increase the 4 hardcoded TEXT_CACHE_UNPACKED_SPACE, ELEM_CACHE_UNPACKED_SPACE,
+// RECT_CACHE_UNPACKED_SPACE and STYLE_CACHE_UNPACKED_SPACE by this factor
+void setStorageMaxUncompressedSizeFactor(float factor);
 
 #endif
