@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.04.39k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.01k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -160,6 +160,12 @@ enum CacheFileBlockType {
 static bool _compressCachedData = true;
 void compressCachedData(bool enable) {
 	_compressCachedData = enable;
+}
+
+// default is to use the TEXT_CACHE_UNPACKED_SPACE & co defined above as is
+static float _storageMaxUncompressedSizeFactor = 1;
+void setStorageMaxUncompressedSizeFactor(float factor) {
+	_storageMaxUncompressedSizeFactor = factor;
 }
 
 static bool _enableCacheFileContentsValidation = (bool)ENABLE_CACHE_FILE_CONTENTS_VALIDATION;
@@ -1477,10 +1483,10 @@ tinyNodeCollection::tinyNodeCollection()
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 #endif
-, _textStorage(this, 't', TEXT_CACHE_UNPACKED_SPACE, TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
-, _elemStorage(this, 'e', ELEM_CACHE_UNPACKED_SPACE, ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
-, _rectStorage(this, 'r', RECT_CACHE_UNPACKED_SPACE, RECT_CACHE_CHUNK_SIZE ) // element render rect storage
-, _styleStorage(this, 's', STYLE_CACHE_UNPACKED_SPACE, STYLE_CACHE_CHUNK_SIZE ) // element style info storage
+, _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
+, _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
+, _rectStorage(this, 'r', (int)(RECT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), RECT_CACHE_CHUNK_SIZE ) // element render rect storage
+, _styleStorage(this, 's', (int)(STYLE_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), STYLE_CACHE_CHUNK_SIZE ) // element style info storage
 ,_docProps(LVCreatePropsContainer())
 ,_docFlags(DOC_FLAG_DEFAULTS)
 ,_fontMap(113)
@@ -2263,6 +2269,15 @@ void ldomDataStorageManager::compact( int reservedSpace )
 {
 #if BUILD_LITE!=1
     if ( _uncompressedSize + reservedSpace > _maxUncompressedSize + _maxUncompressedSize/10 ) { // allow +10% overflow
+        if (!_maxSizeReachedWarned) {
+            // Log once to stdout that we reached maxUncompressedSize, so we can know
+            // of this fact and consider it as a possible cause for crengine bugs
+            printf("CRE WARNING: storage for %s reached max allowed uncompressed size (%u > %u)\n",
+                (_type == 't' ? "TEXT NODES" : (_type == 'e' ? "ELEMENTS" : (_type == 'r' ? "RENDERED RECTS" : (_type == 's' ? "ELEMENTS' STYLE DATA" : "OTHER")))),
+                _uncompressedSize, _maxUncompressedSize);
+            printf("             consider setting or increasing 'cre_storage_size_factor'\n");
+            _maxSizeReachedWarned = true; // warn only once
+        }
         // do compacting
         int sumsize = reservedSpace;
         for ( ldomTextStorageChunk * p = _recentChunk; p; p = p->_nextRecent ) {
@@ -2295,6 +2310,7 @@ ldomDataStorageManager::ldomDataStorageManager( tinyNodeCollection * owner, char
 , _maxUncompressedSize(maxUnpackedSize)
 , _chunkSize(chunkSize)
 , _type(type)
+, _maxSizeReachedWarned(false)
 {
 }
 
@@ -2917,6 +2933,8 @@ ldomDocument::ldomDocument()
 , _page_height(0)
 , _page_width(0)
 , _rendered(false)
+, _just_rendered_from_cache(false)
+, _toc_from_cache_valid(false)
 #endif
 , lists(100)
 {
@@ -3364,6 +3382,7 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         _rendered = false;
     }
     if ( !_rendered ) {
+        _toc_from_cache_valid = false;
         pages->clear();
         if ( showCover )
             pages->add( new LVRendPageInfo( _page_height ) );
@@ -8354,6 +8373,8 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
 #endif
     _mapped = true;
     _rendered = true;
+    _just_rendered_from_cache = true;
+    _toc_from_cache_valid = true;
     return true;
 }
 
@@ -8815,9 +8836,11 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                 css_style_ref_t style = buf[j].getStyle();
                 lUInt32 sh = calcHash( style );
                 res = res * 31 + sh;
+                //printf("element %d %d style hash: %x\n", i, j, sh);
                 LVFontRef font = buf[j].getFont();
                 lUInt32 fh = calcHash( font );
                 res = res * 31 + fh;
+                //printf("element %d %d font hash: %x\n", i, j, fh);
 //                if ( maxlog>0 && sh==0 ) {
 //                    style = buf[j].getStyle();
 //                    CRLog::trace("[%06d] : s=%08x f=%08x  res=%08x", offs+j, sh, fh, res);
@@ -9459,19 +9482,30 @@ bool ldomDocument::checkRenderContext()
     if ( styleHash != _hdr.render_style_hash ) {
         CRLog::info("checkRenderContext: Style hash doesn't match %x!=%x", styleHash, _hdr.render_style_hash);
         res = false;
+        if (_just_rendered_from_cache)
+            printf("CRE WARNING: cached rendering is invalid (style hash mismatch): doing full rendering\n");
     } else if ( stylesheetHash != _hdr.stylesheet_hash ) {
         CRLog::info("checkRenderContext: Stylesheet hash doesn't match %x!=%x", stylesheetHash, _hdr.stylesheet_hash);
         res = false;
+        if (_just_rendered_from_cache)
+            printf("CRE WARNING: cached rendering is invalid (stylesheet hash mismatch): doing full rendering\n");
     } else if ( _docFlags != _hdr.render_docflags ) {
         CRLog::info("checkRenderContext: Doc flags don't match %x!=%x", _docFlags, _hdr.render_docflags);
         res = false;
+        if (_just_rendered_from_cache)
+            printf("CRE WARNING: cached rendering is invalid (doc flags mismatch): doing full rendering\n");
     } else if ( dx != (int)_hdr.render_dx ) {
         CRLog::info("checkRenderContext: Width doesn't match %x!=%x", dx, (int)_hdr.render_dx);
         res = false;
+        if (_just_rendered_from_cache)
+            printf("CRE WARNING: cached rendering is invalid (page width mismatch): doing full rendering\n");
     } else if ( dy != (int)_hdr.render_dy ) {
         CRLog::info("checkRenderContext: Page height doesn't match %x!=%x", dy, (int)_hdr.render_dy);
         res = false;
+        if (_just_rendered_from_cache)
+            printf("CRE WARNING: cached rendering is invalid (page height mismatch): doing full rendering\n");
     }
+    _just_rendered_from_cache = false;
     if ( res ) {
 
         //if ( pages->length()==0 ) {
@@ -11665,6 +11699,7 @@ ldomXPointer LVTocItem::getXPointer()
             CRLog::trace("TOC node is not found for path %s", LCSTR(_path) );
         } else {
             CRLog::trace("TOC node is found for path %s", LCSTR(_path) );
+            // CRLog::trace("           gives xpointer: %s", UnicodeToLocal(_position.toString()).c_str());
         }
     }
     return _position;

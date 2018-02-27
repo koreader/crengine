@@ -759,7 +759,10 @@ void dumpSection(ldomNode * elem) {
 LVTocItem * LVDocView::getToc() {
 	if (!m_doc)
 		return NULL;
-	updatePageNumbers(m_doc->getToc());
+        if (!m_doc->isTocFromCacheValid())
+            // Avoid expensive calls to getXPointer() when the toc items' _path
+            // and _page are available and valid when just loaded from cache
+            updatePageNumbers(m_doc->getToc());
 	return m_doc->getToc();
 }
 
