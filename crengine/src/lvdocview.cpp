@@ -759,9 +759,13 @@ void dumpSection(ldomNode * elem) {
 LVTocItem * LVDocView::getToc() {
 	if (!m_doc)
 		return NULL;
+        // When just loaded from cache, TocItems are missing their _position
+        // properties (a XPointer object), but all other properties (_path,
+        // _page, _percent) are valid and enough to display TOC.
+        // Avoid calling updatePageNumbers() in that case (as it is expensive
+        // and would delay book opening when loaded from cache - it will be
+        // called when it is really needed: after next full rendering)
         if (!m_doc->isTocFromCacheValid())
-            // Avoid expensive calls to getXPointer() when the toc items' _path
-            // and _page are available and valid when just loaded from cache
             updatePageNumbers(m_doc->getToc());
 	return m_doc->getToc();
 }
