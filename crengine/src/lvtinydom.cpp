@@ -10516,6 +10516,15 @@ void ldomNode::recurseElementsDeepFirst( void (*pFun)( ldomNode * node ) )
 static void updateRendMethod( ldomNode * node )
 {
     node->initNodeRendMethod();
+    // Also clean up node previous positionnings (they were set while in
+    // a previous page drawing phase), that could otherwise have negative
+    // impact on the coming rendering (noticable with table elements).
+    RenderRectAccessor fmt( node );
+    fmt.setX(0);
+    fmt.setWidth(0);
+    fmt.setY(0);
+    fmt.setHeight(0);
+    fmt.push();
 }
 
 /// init render method for the whole subtree

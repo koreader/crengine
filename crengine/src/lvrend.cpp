@@ -680,21 +680,6 @@ public:
         // calc individual cells dimensions
         for (i=0; i<rows.length(); i++) {
             CCRTableRow * row = rows[i];
-
-            // reset row's Y that was set in previous drawing (and the other X/W/H
-            // while we're at it, although they seem to not be reused for rendering).
-            // Not reseting row Y would mess the splitting of table elements among
-            // different pages in DVM_PAGES view mode, even making some table elements
-            // disappear.
-            // (Their Y would be added to their child TD's Y by ldomNode::getAbsRect(),
-            // which goes thru all parents to add their Y to the considered node Y).
-            RenderRectAccessor rowfmt( row->elem );
-            rowfmt.setX( 0 );
-            rowfmt.setWidth( 0 );
-            rowfmt.setY( 0 );
-            rowfmt.setHeight( 0 );
-            rowfmt.push();
-
             for (j=0; j<rows[i]->cells.length(); j++) {
                 CCRTableCell * cell = rows[i]->cells[j];
                 //int x = cell->col->index;
