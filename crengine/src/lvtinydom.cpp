@@ -1513,10 +1513,10 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 #endif
-, _textStorage(this, 't', TEXT_CACHE_UNPACKED_SPACE, TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
-, _elemStorage(this, 'e', ELEM_CACHE_UNPACKED_SPACE, ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
-, _rectStorage(this, 'r', RECT_CACHE_UNPACKED_SPACE, RECT_CACHE_CHUNK_SIZE ) // element render rect storage
-, _styleStorage(this, 's', STYLE_CACHE_UNPACKED_SPACE, STYLE_CACHE_CHUNK_SIZE ) // element style info storage
+, _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
+, _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
+, _rectStorage(this, 'r', (int)(RECT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), RECT_CACHE_CHUNK_SIZE ) // element render rect storage
+, _styleStorage(this, 's', (int)(STYLE_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), STYLE_CACHE_CHUNK_SIZE ) // element style info storage
 ,_docProps(LVCreatePropsContainer())
 ,_docFlags(v._docFlags)
 ,_stylesheet(v._stylesheet)
