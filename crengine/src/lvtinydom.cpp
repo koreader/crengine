@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.02k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.03k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -2602,26 +2602,38 @@ bool ldomPack( const lUInt8 * buf, int bufsize, lUInt8 * &dstbuf, lUInt32 & dsts
         return false;
     z.avail_in = bufsize;
     z.next_in = (unsigned char *)buf;
-    z.avail_out = PACK_BUF_SIZE;
-    z.next_out = tmp;
-    ret = deflate( &z, Z_FINISH );
-    int have = PACK_BUF_SIZE - z.avail_out;
-    deflateEnd(&z);
-    if ( ret!=Z_STREAM_END || have==0 || have>=PACK_BUF_SIZE || z.avail_in!=0 ) {
-        // some error occured while packing, leave unpacked
-        //setpacked( buf, bufsize );
-        return false;
+    int compressed_size = 0;
+    lUInt8 *compressed_buf = NULL;
+    while (true) {
+        z.avail_out = PACK_BUF_SIZE;
+        z.next_out = tmp;
+        ret = deflate( &z, Z_FINISH );
+        if (ret == Z_STREAM_ERROR) { // some error occured while packing
+            deflateEnd(&z);
+            if (compressed_buf)
+                free(compressed_buf);
+            // printf("deflate() error: %d (%d > %d)\n", ret, bufsize, compressed_size);
+            return false;
+        }
+        int have = PACK_BUF_SIZE - z.avail_out;
+        compressed_buf = (lUInt8 *)realloc(compressed_buf, compressed_size + have);
+        memcpy(compressed_buf + compressed_size, tmp, have );
+        compressed_size += have;
+        if (z.avail_out != 0) // buffer not fully filled = deflate is done
+            break;
+        // printf("deflate() additional call needed (%d > %d)\n", bufsize, compressed_size);
     }
-    dstsize = have;
-    dstbuf = (lUInt8 *)malloc(have);
-    memcpy( dstbuf, tmp, have );
+    deflateEnd(&z);
+    dstsize = compressed_size;
+    dstbuf = compressed_buf;
+    // printf("deflate() done: %d > %d\n", bufsize, compressed_size);
     return true;
 }
 
 /// unpack data from _compbuf to _buf
 bool ldomUnpack( const lUInt8 * compbuf, int compsize, lUInt8 * &dstbuf, lUInt32 & dstsize  )
 {
-    lUInt8 tmp[UNPACK_BUF_SIZE]; // 64K buffer for compressed data
+    lUInt8 tmp[UNPACK_BUF_SIZE]; // 256K buffer for uncompressed data
     int ret;
     z_stream z;
     memset( &z, 0, sizeof(z) );
@@ -2633,18 +2645,32 @@ bool ldomUnpack( const lUInt8 * compbuf, int compsize, lUInt8 * &dstbuf, lUInt32
         return false;
     z.avail_in = compsize;
     z.next_in = (unsigned char *)compbuf;
-    z.avail_out = UNPACK_BUF_SIZE;
-    z.next_out = tmp;
-    ret = inflate( &z, Z_FINISH );
-    int have = UNPACK_BUF_SIZE - z.avail_out;
-    inflateEnd(&z);
-    if ( ret!=Z_STREAM_END || have==0 || have>=UNPACK_BUF_SIZE || z.avail_in!=0 ) {
-        // some error occured while unpacking
-        return false;
+    int uncompressed_size = 0;
+    lUInt8 *uncompressed_buf = NULL;
+    while (true) {
+        z.avail_out = UNPACK_BUF_SIZE;
+        z.next_out = tmp;
+        ret = inflate( &z, Z_SYNC_FLUSH );
+        if (ret != Z_OK && ret != Z_STREAM_END) { // some error occured while unpacking
+            inflateEnd(&z);
+            if (uncompressed_buf)
+                free(uncompressed_buf);
+            // printf("inflate() error: %d (%d > %d)\n", ret, compsize, uncompressed_size);
+            return false;
+        }
+        int have = UNPACK_BUF_SIZE - z.avail_out;
+        uncompressed_buf = (lUInt8 *)realloc(uncompressed_buf, uncompressed_size + have);
+        memcpy(uncompressed_buf + uncompressed_size, tmp, have );
+        uncompressed_size += have;
+        if (ret == Z_STREAM_END) {
+            break;
+        }
+        // printf("inflate() additional call needed (%d > %d)\n", compsize, uncompressed_size);
     }
-    dstsize = have;
-    dstbuf = (lUInt8 *)malloc(have);
-    memcpy( dstbuf, tmp, have );
+    inflateEnd(&z);
+    dstsize = uncompressed_size;
+    dstbuf = uncompressed_buf;
+    // printf("inflate() done %d > %d\n", compsize, uncompressed_size);
     return true;
 }
 
