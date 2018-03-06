@@ -17,9 +17,12 @@ if [ ! "$file_list" = "$file_list_jq" ]; then
     diff <(echo "$file_list") <(echo "$file_list_jq")
 fi
 
-changed_files=( "$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')" )
+# `grep --null` for proper array
+# thanks to https://stackoverflow.com/questions/24890764/store-grep-output-in-array-bash#comment38669444_24890830
+changed_files=( "$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep --null -E '\.([CcHh]|[ch]pp)$')" )
 
 if [ ! -z "${changed_files[0]}" ]; then
     echo "Running cppcheck on ${changed_files[*]}"
-    cppcheck -j 4 --error-exitcode=2 "${changed_files[*]}"
+    # shellcheck disable=SC2086
+    cppcheck -j 4 --error-exitcode=2 "${changed_files[@]}"
 fi
