@@ -8,6 +8,7 @@ cache:
 addons:
   apt:
     packages:
+      - cppcheck
       - jq
 
 script:  .ci/script.sh
