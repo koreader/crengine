@@ -17,9 +17,10 @@ if [ ! "$file_list" = "$file_list_jq" ]; then
     diff <(echo "$file_list") <(echo "$file_list_jq")
 fi
 
-changed_files=( "$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')" )
+changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')"
 
-[ ! -z "${changed_files[0]}" ] && {
-    echo "Running cppcheck on ${changed_files[*]}"
-    cppcheck -j 4 --error-exitcode=2 ${changed_files[*]}
-} || true # lack of C files is not a failure
+if [ ! -z "${changed_files}" ]; then
+    echo "Running cppcheck on ${changed_files}"
+    # shellcheck disable=SC2086
+    cppcheck -j 4 --error-exitcode=2 ${changed_files}
+fi
