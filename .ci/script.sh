@@ -19,7 +19,7 @@ fi
 
 changed_files=( "$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')" )
 
-[ ! -z "${changed_files[0]}" ] && {
+if [ ! -z "${changed_files[0]}" ]; then
     echo "Running cppcheck on ${changed_files[*]}"
-    cppcheck -j 4 --error-exitcode=2 ${changed_files[*]}
-} || true # lack of C files is not a failure
+    cppcheck -j 4 --error-exitcode=2 "${changed_files[*]}"
+fi
