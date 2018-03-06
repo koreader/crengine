@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.03k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.04k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -9728,7 +9728,23 @@ void ldomNode::destroy()
 /// returns index of child node by dataIndex
 int ldomNode::getChildIndex( lUInt32 dataIndex ) const
 {
-    dataIndex &= 0xFFFFFFF0;
+    // was here and twice below: dataIndex &= 0xFFFFFFF0;
+    // The lowest bits of a dataIndex carry properties about the node:
+    //   bit 0: 0 = text node / 1 = element node
+    //   bit 1: 0 = mutable node / 1 = immutable (persistent, cached)
+    // (So, all Text nodes have an even dataIndex, and Element nodes
+    // all have a odd dataIndex.)
+    // This '& 0xFFFFFFF0' was to clear these properties so a same
+    // node can be found if these properties change (mostly useful
+    // with mutable<>persistent).
+    // But text nodes and Element nodes use different independant counters
+    // (see tinyNodeCollection::allocTinyNode(): _elemCount++, _textCount++)
+    // and we may have a text node with dataIndex 8528, and an element
+    // node with dataIndex 8529, that would be confused with each other
+    // if we use 0xFFFFFFF0.
+    // This could cause finding the wrong node, and strange side effects.
+    // With '& 0xFFFFFFF1' keep the lowest bit.
+    dataIndex &= 0xFFFFFFF1;
     ASSERT_NODE_NOT_NULL;
     int parentIndex = -1;
     switch ( TNTYPE ) {
@@ -9736,7 +9752,7 @@ int ldomNode::getChildIndex( lUInt32 dataIndex ) const
         {
             tinyElement * me = NPELEM;
             for ( int i=0; i<me->_children.length(); i++ ) {
-                if ( (me->_children[i] & 0xFFFFFFF0) == dataIndex ) {
+                if ( (me->_children[i] & 0xFFFFFFF1) == dataIndex ) {
                     // found
                     parentIndex = i;
                     break;
@@ -9749,7 +9765,7 @@ int ldomNode::getChildIndex( lUInt32 dataIndex ) const
         {
             ElementDataStorageItem * me = getDocument()->_elemStorage.getElem( _data._pelem_addr );
             for ( int i=0; i<me->childCount; i++ ) {
-                if ( (me->children[i] & 0xFFFFFFF0) == dataIndex ) {
+                if ( (me->children[i] & 0xFFFFFFF1) == dataIndex ) {
                     // found
                     parentIndex = i;
                     break;
