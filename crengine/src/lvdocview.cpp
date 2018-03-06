@@ -2356,8 +2356,21 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
 			return res;
 		ldomXPointer start = m_doc->createXPointer(lvPoint(0, page->start));
 		//ldomXPointer end = m_doc->createXPointer( lvPoint( m_dx+m_dy, page->start + page->height - 1 ) );
-		ldomXPointer end = m_doc->createXPointer(lvPoint(0, page->start
-                                + page->height), 1);
+		// On some pages (eg: that ends with some padding between an
+		// image on this page, and some text on next page), there may
+		// be some area which is rendered "final" without any content,
+		// thus holding no node. We would then get a null 'end' here.
+		// But we can get a xpointer by looking a few pixels back the
+		// height of page.
+		// (This does not seem to happen at start, nor on either side
+		// in scroll mode)
+		// ldomXPointer end = m_doc->createXPointer(lvPoint(0, page->start + page->height), 1);
+		ldomXPointer end;
+		for (int height=page->height; height>0; height--) {
+			end = m_doc->createXPointer(lvPoint(0, page->start + height), 1);
+			if (!end.isNull())
+				break; // we found our end of page xpointer
+		}
 		if (start.isNull() || end.isNull())
 			return res;
 		res = LVRef<ldomXRange> (new ldomXRange(start, end));
