@@ -17,8 +17,11 @@ if [ ! "$file_list" = "$file_list_jq" ]; then
     diff <(echo "$file_list") <(echo "$file_list_jq")
 fi
 
+${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
 echo "bla"
 echo $TRAVIS_BRANCH
+echo $TRAVIS_PULL_REQUEST_BRANCH
 git diff --name-only HEAD...$TRAVIS_BRANCH
+git diff --name-only HEAD...$TRAVIS_PULL_REQUEST_BRANCH
 # Run cppcheck on changed files
 cppcheck -j 4 $(git diff --name-only --diff-filter=AM HEAD...$TRAVIS_BRANCH)
