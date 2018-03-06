@@ -23,5 +23,7 @@ echo $TRAVIS_BRANCH
 echo $TRAVIS_PULL_REQUEST_BRANCH
 git diff --name-only HEAD...$TRAVIS_BRANCH
 git diff --name-only HEAD...$TRAVIS_PULL_REQUEST_BRANCH
+echo "$TRAVIS_COMMIT_RANGE"
+git diff --name-only $TRAVIS_COMMIT_RANGE
 # Run cppcheck on changed files
 cppcheck -j 4 $(git diff --name-only --diff-filter=AM HEAD...$TRAVIS_BRANCH)
