@@ -22,4 +22,4 @@ changed_files=( "$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([Cc
 [ ! -z "${changed_files[0]}" ] && {
     echo "Running cppcheck on ${changed_files[*]}"
     cppcheck -j 4 --error-exitcode=2 ${changed_files[*]}
-}
+} || true # lack of C files is not a failure
