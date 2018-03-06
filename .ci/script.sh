@@ -16,3 +16,6 @@ if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
     diff <(echo "$file_list") <(echo "$file_list_jq")
 fi
+
+# Run cppcheck on changed files
+cppcheck -j 4 $(git diff --name-only)
