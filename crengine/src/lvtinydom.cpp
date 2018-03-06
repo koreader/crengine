@@ -10943,6 +10943,9 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
     case css_lst_square:
         marker = L"\x25A0";
         break;
+    case css_lst_none:
+        marker = L"\x0020";
+        break;
     case css_lst_decimal:
     case css_lst_lower_roman:
     case css_lst_upper_roman:
