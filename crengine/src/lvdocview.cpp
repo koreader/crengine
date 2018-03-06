@@ -2366,8 +2366,8 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
 		// in scroll mode)
 		// ldomXPointer end = m_doc->createXPointer(lvPoint(0, page->start + page->height), 1);
 		ldomXPointer end;
-		for (int i=0; i<page->height; i++) {
-			end = m_doc->createXPointer(lvPoint(0, page->start + page->height - i), 1);
+		for (int height=page->height; height>0; height--) {
+			end = m_doc->createXPointer(lvPoint(0, page->start + height), 1);
 			if (!end.isNull())
 				break; // we found our end of page xpointer
 		}
