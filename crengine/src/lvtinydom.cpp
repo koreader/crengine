@@ -2616,7 +2616,7 @@ bool ldomPack( const lUInt8 * buf, int bufsize, lUInt8 * &dstbuf, lUInt32 & dsts
             return false;
         }
         int have = PACK_BUF_SIZE - z.avail_out;
-        compressed_buf = (lUInt8 *)realloc(compressed_buf, compressed_size + have);
+        compressed_buf = cr_realloc(compressed_buf, compressed_size + have);
         memcpy(compressed_buf + compressed_size, tmp, have );
         compressed_size += have;
         if (z.avail_out != 0) // buffer not fully filled = deflate is done
@@ -2659,7 +2659,7 @@ bool ldomUnpack( const lUInt8 * compbuf, int compsize, lUInt8 * &dstbuf, lUInt32
             return false;
         }
         int have = UNPACK_BUF_SIZE - z.avail_out;
-        uncompressed_buf = (lUInt8 *)realloc(uncompressed_buf, uncompressed_size + have);
+        uncompressed_buf = cr_realloc(uncompressed_buf, uncompressed_size + have);
         memcpy(uncompressed_buf + uncompressed_size, tmp, have );
         uncompressed_size += have;
         if (ret == Z_STREAM_END) {

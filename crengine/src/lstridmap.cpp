@@ -11,6 +11,7 @@
 
 *******************************************************/
 
+#include "../include/lvmemman.h"
 #include "../include/lstridmap.h"
 #include "../include/dtddef.h"
 #include "../include/lvtinydom.h"
@@ -265,8 +266,8 @@ void LDOMNameIdMap::AddItem( LDOMNameIdMapItem * item )
     {
         // reallocate storage
         lUInt16 newsize = item->id+16;
-        m_by_id = (LDOMNameIdMapItem **)realloc( m_by_id, sizeof(LDOMNameIdMapItem *)*newsize );
-        m_by_name = (LDOMNameIdMapItem **)realloc( m_by_name, sizeof(LDOMNameIdMapItem *)*newsize );
+        m_by_id = cr_realloc( m_by_id, newsize );
+        m_by_name = cr_realloc( m_by_name, newsize );
         for (lUInt16 i = m_size; i<newsize; i++)
         {
             m_by_id[i] = NULL;

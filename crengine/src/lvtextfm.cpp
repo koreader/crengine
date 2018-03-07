@@ -82,7 +82,7 @@ formatted_word_t * lvtextAddFormattedWord( formatted_line_t * pline )
     if ( pline->word_count >= size)
     {
         size += FRM_ALLOC_SIZE;
-        pline->words = (formatted_word_t*)realloc( pline->words, sizeof(formatted_word_t)*(size) );
+        pline->words = cr_realloc( pline->words, size );
     }
     return &pline->words[ pline->word_count++ ];
 }
@@ -93,7 +93,7 @@ formatted_line_t * lvtextAddFormattedLine( formatted_text_fragment_t * pbuffer )
     if (pbuffer->frmlinecount >= size)
     {
         size += FRM_ALLOC_SIZE;
-        pbuffer->frmlines = (formatted_line_t**)realloc( pbuffer->frmlines, sizeof(formatted_line_t*)*(size) );
+        pbuffer->frmlines = cr_realloc( pbuffer->frmlines, size );
     }
     return (pbuffer->frmlines[ pbuffer->frmlinecount++ ] = lvtextAllocFormattedLine());
 }
@@ -104,7 +104,7 @@ formatted_line_t * lvtextAddFormattedLineCopy( formatted_text_fragment_t * pbuff
     if ( pbuffer->frmlinecount >= size)
     {
         size += FRM_ALLOC_SIZE;
-        pbuffer->frmlines = (formatted_line_t**)realloc( pbuffer->frmlines, sizeof(formatted_line_t*)*(size) );
+        pbuffer->frmlines = cr_realloc( pbuffer->frmlines, size );
     }
     return (pbuffer->frmlines[ pbuffer->frmlinecount++ ] = lvtextAllocFormattedLineCopy(words, words_count));
 }
@@ -170,7 +170,7 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
     if ( pbuffer->srctextlen >= srctextsize)
     {
         srctextsize += FRM_ALLOC_SIZE;
-        pbuffer->srctext = (src_text_fragment_t*)realloc( pbuffer->srctext, sizeof(src_text_fragment_t)*(srctextsize) );
+        pbuffer->srctext = cr_realloc( pbuffer->srctext, srctextsize );
     }
     src_text_fragment_t * pline = &pbuffer->srctext[ pbuffer->srctextlen++ ];
     pline->t.font = font;
@@ -220,7 +220,7 @@ void lvtextAddSourceObject(
     if ( pbuffer->srctextlen >= srctextsize)
     {
         srctextsize += FRM_ALLOC_SIZE;
-        pbuffer->srctext = (src_text_fragment_t*)realloc( pbuffer->srctext, sizeof(src_text_fragment_t)*(srctextsize) );
+        pbuffer->srctext = cr_realloc( pbuffer->srctext, srctextsize );
     }
     src_text_fragment_t * pline = &pbuffer->srctext[ pbuffer->srctextlen++ ];
     pline->index = (lUInt16)(pbuffer->srctextlen-1);
@@ -351,11 +351,11 @@ public:
             if ( m_length+ITEMS_RESERVED>m_size ) {
                 // realloc
                 m_size = m_length+ITEMS_RESERVED;
-                m_text = (lChar16*)realloc(m_staticBufs ? NULL : m_text, sizeof(lChar16)*m_size);
-                m_flags = (lUInt8*)realloc(m_staticBufs ? NULL : m_flags, sizeof(lUInt8)*m_size);
-                m_charindex = (lUInt16*)realloc(m_staticBufs ? NULL : m_charindex, sizeof(lUInt16)*m_size);
-                m_srcs = (src_text_fragment_t **)realloc(m_staticBufs ? NULL : m_srcs, sizeof(src_text_fragment_t *)*m_size);
-                m_widths = (int*)realloc(m_staticBufs ? NULL : m_widths, sizeof(int)*m_size);
+                m_text = cr_realloc(m_staticBufs ? NULL : m_text, m_size);
+                m_flags = cr_realloc(m_staticBufs ? NULL : m_flags, m_size);
+                m_charindex = cr_realloc(m_staticBufs ? NULL : m_charindex, m_size);
+                m_srcs = cr_realloc(m_staticBufs ? NULL : m_srcs, m_size);
+                m_widths = cr_realloc(m_staticBufs ? NULL : m_widths, m_size);
             }
             m_staticBufs = false;
         } else {
