@@ -219,7 +219,7 @@ public:
     {
         if ( empty() )
             return NULL;
-        return remove( 0 );
+        return remove( (int)0 );
     }
     /// stack-like interface: push item to stack
     void push( T * item )
