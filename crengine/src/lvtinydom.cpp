@@ -1836,6 +1836,8 @@ ldomNode * tinyNodeCollection::allocTinyNode( int type )
         } else {
             // create new item
             _elemCount++;
+            if (_elemCount >= (TNC_PART_COUNT << TNC_PART_SHIFT))
+                crFatalError(1003, "allocTinyNode: can't create any more element nodes (hard limit)");
             ldomNode * part = _elemList[_elemCount >> TNC_PART_SHIFT];
             if ( !part ) {
                 part = (ldomNode*)malloc( sizeof(ldomNode) * TNC_PART_LEN );
@@ -1858,6 +1860,8 @@ ldomNode * tinyNodeCollection::allocTinyNode( int type )
         } else {
             // create new item
             _textCount++;
+            if (_textCount >= (TNC_PART_COUNT << TNC_PART_SHIFT))
+                crFatalError(1003, "allocTinyNode: can't create any more text nodes (hard limit)");
             ldomNode * part = _textList[_textCount >> TNC_PART_SHIFT];
             if ( !part ) {
                 part = (ldomNode*)malloc( sizeof(ldomNode) * TNC_PART_LEN );
