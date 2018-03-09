@@ -220,6 +220,44 @@ public:
             h += FOOTNOTE_MARGIN + footh;
         return h;
     }
+    void SplitLineIfOverflowPage( LVRendLineInfo * line )
+    {
+        // A 'line' is usually a line of text from a paragraph, but
+        // can be an image, or a fully rendered table row (<tr>), and
+        // can have a huge height, possibly overflowing page height.
+        // This line (rendered block) is at start of page. If its
+        // height is greater than page height, we need to split it
+        // and put slices on new pages. We have no knowledge of what
+        // this 'line' contains (text, image...), so we can't really
+        // find a better 'y' to cut at than the page height. We may
+        // then cut in the middle of a text line, and have halves
+        // displayed on different pages (althought it seems crengine
+        // deals with displaying the cut line fully at start of
+        // next page).
+        // Note: this was not tested with footnotes. We don't take
+        // footnotes into account here, so hopefully they would be
+        // displayed with the last slice of an overflowed 'line'.
+
+        // printf("SplitLineIfOverflowPage: line height: %d\n", line->getEnd() - line->getStart());
+        int slice_start = line->getStart();
+        while (line->getEnd() - slice_start > page_h) {
+            // Greater than page height: we need to cut
+            LVRendPageInfo * page = new LVRendPageInfo(slice_start, page_h, page_list->length());
+            // printf("  => Splitted page %d %d>%d (h=%d)\n", page_list->length(), slice_start, slice_start+page_h, page_h);
+            page_list->add(page);
+            slice_start += page_h;
+            lastpageend = slice_start;
+            last = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
+            pageend = last;
+        }
+        if (slice_start != line->getStart()) {
+            // We did cut slices: we need to make a virtual 'line' with the
+            // last slice, and as it fits on a page, use it at start of next
+            // page, to possibly have other lines added after it on this page.
+            next = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
+            pagestart = next;
+        }
+    }
     void AddLine( LVRendLineInfo * line )
     {
         if (pagestart==NULL )
@@ -243,6 +281,7 @@ public:
 //                }
                 AddToList();
                 StartPage(next);
+                SplitLineIfOverflowPage(line);
             }
             else if (flgSplit==RN_SPLIT_ALWAYS)
             {
@@ -254,6 +293,7 @@ public:
                 pageend = last;
                 AddToList();
                 StartPage(line);
+                SplitLineIfOverflowPage(line);
             }
             else if (flgSplit==RN_SPLIT_AUTO)
             {

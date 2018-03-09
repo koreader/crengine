@@ -700,8 +700,15 @@ public:
                         fmt.setWidth( cell->width); //  - cell->padding_left - cell->padding_right
                         fmt.setHeight( cell->height); // - cell->padding_top - cell->padding_bottom
                     } else if ( cell->elem->getRendMethod()!=erm_invisible ) {
+                        // We must use a different context (used by rendering
+                        // functions to record, with context.AddLine(), each
+                        // rendered block's height, to be used for splitting
+                        // blocks among pages, for page-mode display), so that
+                        // sub-renderings (of cells' content) do not add to our
+                        // main context. Their heights will already be accounted
+                        // in their row's height (added to main context below).
                         LVRendPageContext emptycontext( NULL, context.getPageHeight() );
-                        int h = renderBlockElement( context, cell->elem, posx, posy, cell->width-cell->padding_left-cell->padding_right );
+                        int h = renderBlockElement( emptycontext, cell->elem, posx, posy, cell->width-cell->padding_left-cell->padding_right );
                         cell->height = h;
                         fmt.setY( posy ); //cell->row->y - cell->row->y );
                         fmt.setX( cell->col->x+posx );
