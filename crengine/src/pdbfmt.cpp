@@ -674,6 +674,7 @@ public:
         lUInt32 fsize = stream->GetSize();
         PDBHdr hdr;
         PDBRecordEntry entry;
+        memset(&hdr, 0, sizeof(hdr)); // avoid cppcheck warning
         if ( !hdr.read(stream) )
             return false;
         if ( hdr.recordCount==0 )
@@ -715,6 +716,7 @@ public:
             if ( _records[0].size<sizeof(EReaderHeader) )
                 return false;
             EReaderHeader preamble;
+            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream) )
                 return false; // invalid preamble

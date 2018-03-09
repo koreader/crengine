@@ -15,6 +15,7 @@
 #if !defined(__LV_REF_CACHE_H_INCLUDED__)
 #define __LV_REF_CACHE_H_INCLUDED__
 
+#include "lvmemman.h"
 #include "lvref.h"
 #include "lvarray.h"
 
@@ -152,7 +153,7 @@ private:
                 indexsize = size/2;
             else
                 indexsize *= 2;
-            index = (LVRefCacheIndexRec*)realloc( index, sizeof(LVRefCacheIndexRec)*indexsize );
+            index = cr_realloc( index, indexsize );
             for ( int i=nextindex+1; i<indexsize; i++ ) {
                 index[i].item = NULL;
                 index[i].refcount = 0;
@@ -332,7 +333,7 @@ public:
         indexsize = list.length();
         nextindex = indexsize > 0 ? indexsize-1 : 0;
         if ( indexsize ) {
-            index = (LVRefCacheIndexRec*)realloc( index, sizeof(LVRefCacheIndexRec)*indexsize );
+            index = cr_realloc( index, indexsize );
             index[0].item = NULL;
             index[0].refcount=0;
             for ( int i=1; i<indexsize; i++ ) {

@@ -1045,7 +1045,7 @@ lString16 & lString16::pack()
         }
         else
         {
-            pchunk->buf16 = (lChar16 *) realloc( pchunk->buf16, sizeof(lChar16)*(pchunk->len+1) );
+            pchunk->buf16 = cr_realloc( pchunk->buf16, pchunk->len+1 );
             pchunk->size = pchunk->len;
         }
     }
@@ -1222,7 +1222,7 @@ void lString16Collection::reserve(int space)
     if ( count + space > size )
     {
         size = count + space + 64;
-        chunks = (lstring16_chunk_t * *)realloc( chunks, sizeof(lstring16_chunk_t *) * size );
+        chunks = cr_realloc( chunks, size );
     }
 }
 
@@ -1343,7 +1343,7 @@ void lString8Collection::reserve(int space)
     if ( count + space > size )
     {
         size = count + space + 64;
-        chunks = (lstring8_chunk_t * *)realloc( chunks, sizeof(lstring8_chunk_t *) * size );
+        chunks = cr_realloc( chunks, size );
     }
 }
 
@@ -2330,7 +2330,7 @@ lString8 & lString8::pack()
         }
         else
         {
-            pchunk->buf8 = (lChar8 *) realloc( pchunk->buf8, sizeof(lChar8)*(pchunk->len+1) );
+            pchunk->buf8 = cr_realloc( pchunk->buf8, pchunk->len+1 );
             pchunk->size = pchunk->len;
         }
     }

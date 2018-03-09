@@ -49,7 +49,7 @@ public:
     {
         if ( size > _size )
         {
-            _list = (T**)realloc( _list, size * sizeof( T* ));
+            _list = cr_realloc( _list, size );
             for (int i=_size; i<size; i++)
                 _list[i] = NULL;
             _size = size;
@@ -219,7 +219,7 @@ public:
     {
         if ( empty() )
             return NULL;
-        return remove( 0 );
+        return remove( (int)0 );
     }
     /// stack-like interface: push item to stack
     void push( T * item )
@@ -284,7 +284,7 @@ public:
                 free( rows[i] );
             numrows = nrows;
         } else if (nrows>numrows) {
-            rows = (_Ty**) realloc( rows, sizeof(_Ty)*nrows );
+            rows = cr_realloc( rows, nrows );
             for (int i=numrows; i<nrows; i++) {
                 rows[i] = (_Ty*)malloc( sizeof(_Ty*) * ncols );
                 for (int j=0; j<numcols; j++)
@@ -294,7 +294,7 @@ public:
         }
         if (ncols>numcols) {
             for (int i=0; i<numrows; i++) {
-                rows[i] = (_Ty*)realloc( rows[i], sizeof(_Ty) * ncols );
+                rows[i] = cr_realloc( rows[i], ncols );
                 for (int j=numcols; j<ncols; j++)
                     rows[i][j]=fill_elem;
             }
