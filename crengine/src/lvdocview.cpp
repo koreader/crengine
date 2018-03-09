@@ -4653,8 +4653,12 @@ void LVDocView::getCurrentPageLinks(ldomXRangeList & list) {
 						if (_list[i]->getStart().getNode() == elem)
 							return true; // don't add, duplicate found!
 					}
-					ldomNode * node = elem->getChildNode(0);
-					if ( node ) _list.add(new ldomXRange(node));
+					// We ignore <a/> and <a></a> with no content, as we
+					// can't make a ldomXRange out of them
+					if (elem->hasChildren()) {
+						ldomNode * node = elem->getChildNode(0);
+						if ( node ) _list.add(new ldomXRange(node));
+					}
 				}
 				return true;
 			}
