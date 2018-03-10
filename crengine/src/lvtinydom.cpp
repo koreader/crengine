@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.05k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.06k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0003
 
@@ -1432,12 +1432,12 @@ struct ElementDataStorageItem : public DataStorageItemHeader {
     lInt32  childCount;
     lInt32  children[1];
     lUInt16 * attrs() { return (lUInt16 *)(children + childCount); }
-    lxmlAttribute * attr( int index ) { return (lxmlAttribute *)&(((lUInt16 *)(children + childCount))[index*3]); }
-    lUInt16 getAttrValueId( lUInt16 ns, lUInt16 id )
+    lxmlAttribute * attr( int index ) { return (lxmlAttribute *)&(((lUInt16 *)(children + childCount))[index*4]); }
+    lUInt32 getAttrValueId( lUInt16 ns, lUInt16 id )
     {
         lUInt16 * a = attrs();
         for ( int i=0; i<attrCount; i++ ) {
-            lxmlAttribute * attr = (lxmlAttribute *)(&a[i*3]);
+            lxmlAttribute * attr = (lxmlAttribute *)(&a[i*4]);
             if ( !attr->compare( ns, id ) )
                 continue;
             return  attr->index;
@@ -1448,7 +1448,7 @@ struct ElementDataStorageItem : public DataStorageItemHeader {
     {
         lUInt16 * a = attrs();
         for ( int i=0; i<attrCount; i++ ) {
-            lxmlAttribute * attr = (lxmlAttribute *)(&a[i*3]);
+            lxmlAttribute * attr = (lxmlAttribute *)(&a[i*4]);
             if ( attr->compare( ns, id ) )
                 return attr;
         }
@@ -2485,7 +2485,7 @@ int ldomTextStorageChunk::addText( lUInt32 dataIndex, lUInt32 parentIndex, const
 /// adds new element item to buffer, returns offset inside chunk of stored data
 int ldomTextStorageChunk::addElem(lUInt32 dataIndex, lUInt32 parentIndex, int childCount, int attrCount)
 {
-    int itemsize = (sizeof(ElementDataStorageItem) + attrCount*sizeof(lUInt16)*3 + childCount*sizeof(lUInt32) - sizeof(lUInt32) + 15) & 0xFFFFFFF0;
+    int itemsize = (sizeof(ElementDataStorageItem) + attrCount*(sizeof(lUInt16)*2 + sizeof(lUInt32)) + childCount*sizeof(lUInt32) - sizeof(lUInt32) + 15) & 0xFFFFFFF0;
     if ( !_buf ) {
         // create new buffer, if necessary
         _bufsize = _manager->_chunkSize > itemsize ? _manager->_chunkSize : itemsize;
@@ -2751,7 +2751,7 @@ public:
     {
         return _len;
     }
-    lUInt16 get( lUInt16 nsId, lUInt16 attrId ) const
+    lUInt32 get( lUInt16 nsId, lUInt16 attrId ) const
     {
         for (lUInt16 i=0; i<_len; i++)
         {
@@ -2760,7 +2760,7 @@ public:
         }
         return LXML_ATTR_VALUE_NONE;
     }
-    void set( lUInt16 nsId, lUInt16 attrId, lUInt16 valueIndex )
+    void set( lUInt16 nsId, lUInt16 attrId, lUInt32 valueIndex )
     {
         // find existing
         for (lUInt16 i=0; i<_len; i++)
@@ -2779,7 +2779,7 @@ public:
         }
         _list[ _len++ ].setData(nsId, attrId, valueIndex);
     }
-    void add( lUInt16 nsId, lUInt16 attrId, lUInt16 valueIndex )
+    void add( lUInt16 nsId, lUInt16 attrId, lUInt32 valueIndex )
     {
         // find existing
         if (_len>=_size)
@@ -2863,7 +2863,7 @@ lxmlDocBase::~lxmlDocBase()
 {
 }
 
-void lxmlDocBase::onAttributeSet( lUInt16 attrId, lUInt16 valueId, ldomNode * node )
+void lxmlDocBase::onAttributeSet( lUInt16 attrId, lUInt32 valueId, ldomNode * node )
 {
     if ( _idAttrId==0 )
         _idAttrId = _attrNameTable.idByName("id");
@@ -3526,7 +3526,7 @@ static const char * ns_id_map_magic =   "NMSP";
 static const char * node_by_id_map_magic = "NIDM";
 
 typedef struct {
-    lUInt16 key;
+    lUInt32 key;
     lUInt32 value;
 } id_node_map_item;
 
@@ -3563,8 +3563,8 @@ void lxmlDocBase::serializeMaps( SerialBuf & buf )
     buf.putMagic( node_by_id_map_magic );
     lUInt32 cnt = 0;
     {
-        LVHashTable<lUInt16,lInt32>::iterator ii = _idNodeMap.forwardIterator();
-        for ( LVHashTable<lUInt16,lInt32>::pair * p = ii.next(); p!=NULL; p = ii.next() ) {
+        LVHashTable<lUInt32,lInt32>::iterator ii = _idNodeMap.forwardIterator();
+        for ( LVHashTable<lUInt32,lInt32>::pair * p = ii.next(); p!=NULL; p = ii.next() ) {
             cnt++;
         }
     }
@@ -3577,9 +3577,9 @@ void lxmlDocBase::serializeMaps( SerialBuf & buf )
         // sort items before serializing!
         id_node_map_item * array = new id_node_map_item[cnt];
         int i = 0;
-        LVHashTable<lUInt16,lInt32>::iterator ii = _idNodeMap.forwardIterator();
-        for ( LVHashTable<lUInt16,lInt32>::pair * p = ii.next(); p!=NULL; p = ii.next() ) {
-            array[i].key = (lUInt16)p->key;
+        LVHashTable<lUInt32,lInt32>::iterator ii = _idNodeMap.forwardIterator();
+        for ( LVHashTable<lUInt32,lInt32>::pair * p = ii.next(); p!=NULL; p = ii.next() ) {
+            array[i].key = (lUInt32)p->key;
             array[i].value = (lUInt32)p->value;
             i++;
         }
@@ -3645,7 +3645,7 @@ bool lxmlDocBase::deserializeMaps( SerialBuf & buf )
     if ( idmsize < 20000 )
         _idNodeMap.resize( idmsize*2 );
     for ( unsigned i=0; i<idmsize; i++ ) {
-        lUInt16 key;
+        lUInt32 key;
         lUInt32 value;
         buf >> key;
         buf >> value;
@@ -4897,7 +4897,7 @@ ldomXPointer ldomDocument::createXPointer( const lString16 & xPointerStr )
 {
     if ( xPointerStr[0]=='#' ) {
         lString16 id = xPointerStr.substr(1);
-        lUInt16 idid = getAttrValueIndex(id.c_str());
+        lUInt32 idid = getAttrValueIndex(id.c_str());
         lInt32 nodeIndex;
         if ( _idNodeMap.get(idid, nodeIndex) ) {
             ldomNode * node = getTinyNode(nodeIndex);
@@ -10082,7 +10082,7 @@ const lString16 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
 #endif
         // element
         tinyElement * me = NPELEM;
-        lUInt16 valueId = me->_attrs.get( nsid, id );
+        lUInt32 valueId = me->_attrs.get( nsid, id );
         if ( valueId==LXML_ATTR_VALUE_NONE )
             return lString16::empty_str;
         return getDocument()->getAttrValue(valueId);
@@ -10090,7 +10090,7 @@ const lString16 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
     } else {
         // persistent element
         ElementDataStorageItem * me = getDocument()->_elemStorage.getElem( _data._pelem_addr );
-        lUInt16 valueId = me->getAttrValueId( nsid, id );
+        lUInt32 valueId = me->getAttrValueId( nsid, id );
         if ( valueId==LXML_ATTR_VALUE_NONE )
             return lString16::empty_str;
         return getDocument()->getAttrValue(valueId);
@@ -10148,7 +10148,7 @@ bool ldomNode::hasAttribute( lUInt16 nsid, lUInt16 id ) const
 #endif
         // element
         tinyElement * me = NPELEM;
-        lUInt16 valueId = me->_attrs.get( nsid, id );
+        lUInt32 valueId = me->_attrs.get( nsid, id );
         return ( valueId!=LXML_ATTR_VALUE_NONE );
 #if BUILD_LITE!=1
     } else {
@@ -10175,7 +10175,7 @@ void ldomNode::setAttributeValue( lUInt16 nsid, lUInt16 id, const lChar16 * valu
     ASSERT_NODE_NOT_NULL;
     if ( !isElement() )
         return;
-    lUInt16 valueIndex = getDocument()->getAttrValueIndex(value);
+    lUInt32 valueIndex = getDocument()->getAttrValueIndex(value);
 #if BUILD_LITE!=1
     if ( isPersistent() ) {
         // persistent element
@@ -11538,8 +11538,8 @@ LVStreamRef ldomDocument::getObjectImageStream( lString16 refName )
         }
         return ref;
     }
-    lUInt16 refValueId = findAttrValueIndex( refName.c_str() + 1 );
-    if ( refValueId == (lUInt16)-1 ) {
+    lUInt32 refValueId = findAttrValueIndex( refName.c_str() + 1 );
+    if ( refValueId == (lUInt32)-1 ) {
         return ref;
     }
     ldomNode * objnode = getNodeById( refValueId );
@@ -11660,9 +11660,10 @@ ldomNode * ldomNode::persist()
             int i;
             for ( i=0; i<attrCount; i++ ) {
                 const lxmlAttribute * attr = elem->_attrs[i];
-                attrs[i * 3] = attr->nsid;     // namespace
-                attrs[i * 3 + 1] = attr->id;   // id
-                attrs[i * 3 + 2] = attr->index;// value
+                attrs[i * 4] = attr->nsid;     // namespace
+                attrs[i * 4 + 1] = attr->id;   // id
+                attrs[i * 4 + 2] = (lUInt16)(attr->index & 0xFFFF);// value lower 2-bytes
+                attrs[i * 4 + 3] = (lUInt16)(attr->index >> 16);// value higher 2-bytes
             }
             for ( i=0; i<childCount; i++ ) {
                 data->children[i] = elem->_children[i];
