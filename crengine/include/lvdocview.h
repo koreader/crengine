@@ -850,11 +850,11 @@ public:
     /// clear view
     void Clear();
     /// load document from file
-    bool LoadDocument( const char * fname );
+    bool LoadDocument( const char * fname, bool metadataOnly = false );
     /// load document from file
-    bool LoadDocument( const lChar16 * fname );
+    bool LoadDocument( const lChar16 * fname, bool metadataOnly = false );
     /// load document from stream
-    bool LoadDocument( LVStreamRef stream );
+    bool LoadDocument( LVStreamRef stream, bool metadataOnly = false );
 
     /// save last file position
     void savePosition();

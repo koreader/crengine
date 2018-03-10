@@ -3427,7 +3427,7 @@ static void FileToArcProps(CRPropRef props) {
 }
 
 /// load document from file
-bool LVDocView::LoadDocument(const lChar16 * fname) {
+bool LVDocView::LoadDocument(const lChar16 * fname, bool metadataOnly) {
 	if (!fname || !fname[0])
 		return false;
 
@@ -3477,7 +3477,7 @@ bool LVDocView::LoadDocument(const lChar16 * fname) {
 		m_doc_props->setString(DOC_PROP_FILE_NAME, arcItemPathName);
         m_doc_props->setHex(DOC_PROP_FILE_CRC32, stream->getcrc32());
 		// loading document
-		if (LoadDocument(stream)) {
+		if (LoadDocument(stream, metadataOnly)) {
 			m_filename = lString16(fname);
 			m_stream.Clear();
 			return true;
@@ -3523,7 +3523,7 @@ bool LVDocView::LoadDocument(const lChar16 * fname) {
 			(int) stream->GetSize()));
     m_doc_props->setHex(DOC_PROP_FILE_CRC32, stream->getcrc32());
 
-	if (LoadDocument(stream)) {
+	if (LoadDocument(stream, metadataOnly)) {
 		m_filename = lString16(fname);
 		m_stream.Clear();
 
@@ -3675,7 +3675,7 @@ void LVDocView::createDefaultDocument(lString16 title, lString16 message) {
 }
 
 /// load document from stream
-bool LVDocView::LoadDocument(LVStreamRef stream) {
+bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 
 
 	m_swapDone = false;
@@ -3749,7 +3749,7 @@ bool LVDocView::LoadDocument(LVStreamRef stream) {
 			if ( m_callback )
                 m_callback->OnLoadFileFormatDetected(doc_format_epub);
             updateDocStyleSheet();
-            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this );
+            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this, metadataOnly );
 			if ( !res ) {
 				setDocFormat( doc_format_none );
                 createDefaultDocument( cs16("ERROR: Error reading EPUB format"), cs16("Cannot open document") );
@@ -4385,10 +4385,10 @@ void LVDocView::swapToCache() {
     m_swapDone = true;
 }
 
-bool LVDocView::LoadDocument(const char * fname) {
+bool LVDocView::LoadDocument(const char * fname, bool metadataOnly) {
 	if (!fname || !fname[0])
 		return false;
-	return LoadDocument(LocalToUnicode(lString8(fname)).c_str());
+	return LoadDocument(LocalToUnicode(lString8(fname)).c_str(), metadataOnly);
 }
 
 /// returns XPointer to middle paragraph of current page

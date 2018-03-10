@@ -703,7 +703,7 @@ public:
     }
 };
 
-bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback, CacheLoadingCallback * formatCallback )
+bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback, CacheLoadingCallback * formatCallback, bool metadataOnly )
 {
     LVContainerRef arc = LVOpenArchieve( stream );
     if ( arc.isNull() )
@@ -921,6 +921,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     if ( spineItems.length()==0 )
         return false;
 
+    if (metadataOnly)
+        return true; // no need for more work
 
 #if BUILD_LITE!=1
     if ( m_doc->openFromCache(formatCallback) ) {
