@@ -9,9 +9,9 @@
 extern const unsigned char * cr_gamma_tables[GAMMA_LEVELS];
 // gamma correction levels table 0..56
 extern const double cr_gamma_levels[GAMMA_LEVELS];
-// corrects gamma for value 0..255, gamma_index must be 0..56 (28 means no correction)
+// corrects gamma for value 0..255, gamma_index must be 0..56 (15 means no correction)
 inline unsigned char cr_correct_gamma( unsigned char value, int gamma_index ) { return cr_gamma_tables[gamma_index][value]; } 
-// corrects gamma for byte buffer; gamma_index must be 0..56 (28 means no correction)
+// corrects gamma for byte buffer; gamma_index must be 0..56 (15 means no correction)
 void cr_correct_gamma_buf( unsigned char * buf, int size, int gamma_index );
 
 
@@ -879,7 +879,7 @@ const double cr_gamma_levels[GAMMA_LEVELS] = {
     15.000000,
 };
 
-// corrects gamma for byte buffer; gamma_index must be 0..56 (28 means no correction)
+// corrects gamma for byte buffer; gamma_index must be 0..56 (15 means no correction)
 void cr_correct_gamma_buf( unsigned char * buf, int size, int gamma_index ) {
     const unsigned char * table = cr_gamma_tables[gamma_index];
     for ( int i=0; i<size; i++ )
