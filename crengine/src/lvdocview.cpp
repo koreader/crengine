@@ -2811,7 +2811,7 @@ bool LVDocView::goLink(lString16 link, bool savePos) {
 		return false; // only internal links supported (started with #)
 	}
 	link = link.substr(1, link.length() - 1);
-	lUInt16 id = m_doc->getAttrValueIndex(link.c_str());
+	lUInt32 id = m_doc->getAttrValueIndex(link.c_str());
 	ldomNode * dest = m_doc->getNodeById(id);
 	if (!dest)
 		return false;

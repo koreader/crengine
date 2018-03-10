@@ -62,7 +62,7 @@
 
 #define LXML_NS_NONE 0       ///< no namespace specified
 #define LXML_NS_ANY  0xFFFF  ///< any namespace can be specified
-#define LXML_ATTR_VALUE_NONE  0xFFFF  ///< attribute not found
+#define LXML_ATTR_VALUE_NONE  0xFFFFFFFF  ///< attribute not found
 
 #define DOC_STRING_HASH_SIZE  256
 #define RESERVED_DOC_SPACE    4096
@@ -959,21 +959,21 @@ public:
     lUInt16 getAttrNameIndex( const lChar8 * name );
 
     /// helper: returns attribute value
-    inline const lString16 & getAttrValue( lUInt16 index ) const
+    inline const lString16 & getAttrValue( lUInt32 index ) const
     {
         return _attrValueTable[index];
     }
 
     /// helper: returns attribute value index
-    inline lUInt16 getAttrValueIndex( const lChar16 * value )
+    inline lUInt32 getAttrValueIndex( const lChar16 * value )
     {
-        return (lUInt16)_attrValueTable.add( value );
+        return (lUInt32)_attrValueTable.add( value );
     }
 
-    /// helper: returns attribute value index, 0xffff if not found
-    inline lUInt16 findAttrValueIndex( const lChar16 * value )
+    /// helper: returns attribute value index, 0xffffffff if not found
+    inline lUInt32 findAttrValueIndex( const lChar16 * value )
     {
-        return (lUInt16)_attrValueTable.find( value );
+        return (lUInt32)_attrValueTable.find( value );
     }
 
     /// Get element name by id
@@ -1048,10 +1048,10 @@ public:
     }
 #endif
 
-    void onAttributeSet( lUInt16 attrId, lUInt16 valueId, ldomNode * node );
+    void onAttributeSet( lUInt16 attrId, lUInt32 valueId, ldomNode * node );
 
     /// get element by id attribute value code
-    inline ldomNode * getNodeById( lUInt16 attrValueId )
+    inline ldomNode * getNodeById( lUInt32 attrValueId )
     {
         return getTinyNode( _idNodeMap.get( attrValueId ) );
     }
@@ -1059,7 +1059,7 @@ public:
     /// get element by id attribute value
     inline ldomNode * getElementById( const lChar16 * id )
     {
-        lUInt16 attrValueId = getAttrValueIndex( id );
+        lUInt32 attrValueId = getAttrValueIndex( id );
         ldomNode * node = getNodeById( attrValueId );
         return node;
     }
@@ -1114,7 +1114,7 @@ protected:
     lUInt16       _nextUnknownAttrId;    // Next Id for unknown attribute
     lUInt16       _nextUnknownNsId;      // Next Id for unknown namespace
     lString16HashedCollection _attrValueTable;
-    LVHashTable<lUInt16,lInt32> _idNodeMap; // id to data index map
+    LVHashTable<lUInt32,lInt32> _idNodeMap; // id to data index map
     LVHashTable<lString16,LVImageSourceRef> _urlImageMap; // url to image source map
     lUInt16 _idAttrId; // Id for "id" attribute name
     lUInt16 _nameAttrId; // Id for "name" attribute name
@@ -1139,12 +1139,12 @@ struct lxmlAttribute
     //
     lUInt16 nsid;
     lUInt16 id;
-    lUInt16 index;
+    lUInt32 index;
     inline bool compare( lUInt16 nsId, lUInt16 attrId )
     {
         return (nsId == nsid || nsId == LXML_NS_ANY) && (id == attrId);
     }
-    inline void setData( lUInt16 nsId, lUInt16 attrId, lUInt16 valueIndex )
+    inline void setData( lUInt16 nsId, lUInt16 attrId, lUInt32 valueIndex )
     {
         nsid = nsId;
         id = attrId;
