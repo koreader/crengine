@@ -22,5 +22,5 @@ changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh
 if [ ! -z "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
     # shellcheck disable=SC2086
-    cppcheck -j 4 --error-exitcode=2 ${changed_files}
+    cppcheck -j 4 --error-exitcode=2 --quiet ${changed_files}
 fi
