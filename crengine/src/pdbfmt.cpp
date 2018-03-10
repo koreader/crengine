@@ -754,6 +754,7 @@ public:
                 contentFormat = doc_format_pdb;
 
             MobiPreamble preamble;
+            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream, _mobiExtraDataFlags) )
                 return false; // invalid preamble
@@ -850,6 +851,7 @@ public:
             if ( _records[0].size<sizeof(PalmDocPreamble) )
                 return false;
             PalmDocPreamble preamble;
+            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream) )
                 return false; // invalid preamble
