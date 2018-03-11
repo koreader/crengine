@@ -1,4 +1,4 @@
-language: c
+language: cpp
 
 sudo: false
 
@@ -7,7 +7,10 @@ cache:
 
 addons:
   apt:
+    sources:
+      - llvm-toolchain-trusty-5.0
     packages:
+      - clang-tidy-5.0
       - cppcheck
       - jq
 

@@ -23,4 +23,6 @@ if [ ! -z "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
     # shellcheck disable=SC2086
     cppcheck -j 4 --error-exitcode=2 --quiet ${changed_files}
+    echo "Running clang-tidy on ${changed_files}"
+    clang-tidy ${changed_files} -- -Icrengine/include
 fi
