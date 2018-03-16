@@ -842,6 +842,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
             }
         }
+        if (metadataOnly && coverId.empty())
+            return true; // no cover to look for, no need for more work
 
         // items
         for ( int i=1; i<50000; i++ ) {
@@ -865,6 +867,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                             m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
                         }
                     }
+                    if (metadataOnly)
+                        return true; // coverId found, no need for more work
                 }
                 EpubItem * epubItem = new EpubItem;
                 epubItem->href = href;
