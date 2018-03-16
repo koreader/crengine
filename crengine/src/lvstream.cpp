@@ -2458,6 +2458,8 @@ public:
         lUInt32 packSize = hdr.getPackSize();
         lUInt32 unpSize = hdr.getUnpSize();
         if ( packSize==0 && unpSize==0 ) {
+            // Can happen when local header does not carry these sizes
+            // Use the ones provided that come from zip central directory
             packSize = srcPackSize;
             unpSize = srcUnpSize;
         }
@@ -2466,16 +2468,16 @@ public:
         if (hdr.getMethod() == 0)
         {
             // store method, copy as is
-            if ( hdr.getPackSize() != hdr.getUnpSize() )
+            if ( packSize != unpSize )
                 return NULL;
-            LVStreamFragment * fragment = new LVStreamFragment( stream, pos, hdr.getPackSize());
+            LVStreamFragment * fragment = new LVStreamFragment( stream, pos, packSize);
             fragment->SetName( name.c_str() );
             return fragment;
         }
         else if (hdr.getMethod() == 8)
         {
             // deflate
-            LVStreamRef srcStream( new LVStreamFragment( stream, pos, hdr.getPackSize()) );
+            LVStreamRef srcStream( new LVStreamFragment( stream, pos, packSize) );
             LVZipDecodeStream * res = new LVZipDecodeStream( srcStream, pos,
                 packSize, unpSize, hdr.getCRC() );
             res->SetName( name.c_str() );
