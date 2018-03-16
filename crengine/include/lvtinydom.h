@@ -397,6 +397,7 @@ protected:
     img_scaling_options_t _imgScalingOptions;
     int  _minSpaceCondensingPercent;
 
+    lUInt32 _nodeStyleHash;
 
     int calcFinalBlocks();
     void dropStyles();

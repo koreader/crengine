@@ -1482,6 +1482,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _maperror(false)
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
+, _nodeStyleHash(0)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -1512,6 +1513,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _maperror(false)
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
+, _nodeStyleHash(0)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -1621,6 +1623,7 @@ void tinyNodeCollection::clearNodeStyle( lUInt32 dataIndex )
     _fonts.release( info._fontIndex );
     info._fontIndex = info._styleIndex = 0;
     _styleStorage.setStyleData( dataIndex, &info );
+    _nodeStyleHash = 0;
 }
 
 void tinyNodeCollection::setNodeStyleIndex( lUInt32 dataIndex, lUInt16 index )
@@ -1630,6 +1633,7 @@ void tinyNodeCollection::setNodeStyleIndex( lUInt32 dataIndex, lUInt16 index )
     if ( info._styleIndex!=index ) {
         info._styleIndex = index;
         _styleStorage.setStyleData( dataIndex, &info );
+        _nodeStyleHash = 0;
     }
 }
 
@@ -1640,6 +1644,7 @@ void tinyNodeCollection::setNodeFontIndex( lUInt32 dataIndex, lUInt16 index )
     if ( info._fontIndex!=index ) {
         info._fontIndex = index;
         _styleStorage.setStyleData( dataIndex, &info );
+        _nodeStyleHash = 0;
     }
 }
 
@@ -1681,6 +1686,7 @@ void tinyNodeCollection::setNodeStyle( lUInt32 dataIndex, css_style_ref_t & v )
     }
 #endif
     _styleStorage.setStyleData( dataIndex, &info );
+    _nodeStyleHash = 0;
 }
 
 void tinyNodeCollection::setNodeFont( lUInt32 dataIndex, font_ref_t & v )
@@ -1689,6 +1695,7 @@ void tinyNodeCollection::setNodeFont( lUInt32 dataIndex, font_ref_t & v )
     _styleStorage.getStyleData( dataIndex, &info );
     _fonts.cache( info._fontIndex, v );
     _styleStorage.setStyleData( dataIndex, &info );
+    _nodeStyleHash = 0;
 }
 
 lUInt16 tinyNodeCollection::getNodeFontIndex( lUInt32 dataIndex )
@@ -1874,6 +1881,7 @@ ldomNode * tinyNodeCollection::allocTinyNode( int type )
         }
         _itemCount++;
     }
+    _nodeStyleHash = 0;
     return res;
 }
 
@@ -1898,6 +1906,7 @@ void tinyNodeCollection::recycleTinyNode( lUInt32 index )
         _textNextFree = index;
         _itemCount--;
     }
+    _nodeStyleHash = 0;
 }
 
 tinyNodeCollection::~tinyNodeCollection()
@@ -3287,6 +3296,7 @@ void tinyNodeCollection::dropStyles()
             }
         }
     }
+    _nodeStyleHash = 0;
 }
 
 int tinyNodeCollection::calcFinalBlocks()
@@ -8882,42 +8892,54 @@ bool tinyNodeCollection::loadStylesData()
 
 lUInt32 tinyNodeCollection::calcStyleHash()
 {
+    CRLog::debug("calcStyleHash start");
 //    int maxlog = 20;
     int count = ((_elemCount+TNC_PART_LEN-1) >> TNC_PART_SHIFT);
     lUInt32 res = 0; //_elemCount;
     lUInt32 globalHash = calcGlobalSettingsHash(getFontContextDocIndex());
     lUInt32 docFlags = getDocFlags();
     //CRLog::info("Calculating style hash...  elemCount=%d, globalHash=%08x, docFlags=%08x", _elemCount, globalHash, docFlags);
-    for ( int i=0; i<count; i++ ) {
-        int offs = i*TNC_PART_LEN;
-        int sz = TNC_PART_LEN;
-        if ( offs + sz > _elemCount+1 ) {
-            sz = _elemCount+1 - offs;
-        }
-        ldomNode * buf = _elemList[i];
-        for ( int j=0; j<sz; j++ ) {
-            if ( buf[j].isElement() ) {
-                css_style_ref_t style = buf[j].getStyle();
-                lUInt32 sh = calcHash( style );
-                res = res * 31 + sh;
-                //printf("element %d %d style hash: %x\n", i, j, sh);
-                LVFontRef font = buf[j].getFont();
-                lUInt32 fh = calcHash( font );
-                res = res * 31 + fh;
-                //printf("element %d %d font hash: %x\n", i, j, fh);
-//                if ( maxlog>0 && sh==0 ) {
-//                    style = buf[j].getStyle();
-//                    CRLog::trace("[%06d] : s=%08x f=%08x  res=%08x", offs+j, sh, fh, res);
-//                    maxlog--;
-//                }
+    if (_nodeStyleHash) {
+        // Re-use saved _nodeStyleHash if it has not been invalidated,
+        // as the following loop can be expensive
+        res = _nodeStyleHash;
+        CRLog::debug("  using saved _nodeStyleHash");
+    }
+    else {
+        CRLog::debug("  CALCULATING _nodeStyleHash");
+        for ( int i=0; i<count; i++ ) {
+            int offs = i*TNC_PART_LEN;
+            int sz = TNC_PART_LEN;
+            if ( offs + sz > _elemCount+1 ) {
+                sz = _elemCount+1 - offs;
+            }
+            ldomNode * buf = _elemList[i];
+            for ( int j=0; j<sz; j++ ) {
+                if ( buf[j].isElement() ) {
+                    css_style_ref_t style = buf[j].getStyle();
+                    lUInt32 sh = calcHash( style );
+                    res = res * 31 + sh;
+                    //printf("element %d %d style hash: %x\n", i, j, sh);
+                    LVFontRef font = buf[j].getFont();
+                    lUInt32 fh = calcHash( font );
+                    res = res * 31 + fh;
+                    //printf("element %d %d font hash: %x\n", i, j, fh);
+//                    if ( maxlog>0 && sh==0 ) {
+//                        style = buf[j].getStyle();
+//                        CRLog::trace("[%06d] : s=%08x f=%08x  res=%08x", offs+j, sh, fh, res);
+//                        maxlog--;
+//                    }
+                }
             }
         }
+        _nodeStyleHash = res;
     }
     CRLog::info("Calculating style hash...  elemCount=%d, globalHash=%08x, docFlags=%08x, nodeStyleHash=%08x", _elemCount, globalHash, docFlags, res);
     res = res * 31 + _imgScalingOptions.getHash();
     res = res * 31 + _minSpaceCondensingPercent;
     res = (res * 31 + globalHash) * 31 + docFlags;
 //    CRLog::info("Calculated style hash = %08x", res);
+    CRLog::debug("calcStyleHash done");
     return res;
 }
 
@@ -9046,6 +9068,7 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
     delete list;
 //    getRootNode()->setFont( _def_font );
 //    getRootNode()->setStyle( _def_style );
+    _nodeStyleHash = 0;
     return res;
 }
 
@@ -9517,6 +9540,7 @@ void ldomDocument::updateRenderContext()
 {
     int dx = _page_width;
     int dy = _page_height;
+    _nodeStyleHash = 0; // force recalculation by calcStyleHash()
     lUInt32 styleHash = calcStyleHash();
     lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //calcStyleHash( getRootNode(), styleHash );
