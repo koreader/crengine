@@ -23,6 +23,12 @@ if [ ! -z "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
     # shellcheck disable=SC2086
     cppcheck -j 4 --error-exitcode=2 --quiet ${changed_files}
+
+    # ignore header files in clang-tidy for now
+    # @TODO rename to *.hpp (or *.hxx)?
+    # see https://github.com/koreader/crengine/pull/130#issuecomment-373823848
+    changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([Cc]|[c]pp)$')"
     echo "Running clang-tidy on ${changed_files}"
+    # shellcheck disable=SC2086
     clang-tidy ${changed_files} -- -Icrengine/include
 fi
