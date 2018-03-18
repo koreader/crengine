@@ -390,6 +390,7 @@ protected:
     /// final block cache
     CVRendBlockCache _renderedBlockCache;
     CacheFile * _cacheFile;
+    bool _cacheFileStale;
     bool _mapped;
     bool _maperror;
     int  _mapSavingStage;
@@ -460,7 +461,7 @@ public:
     }
 
     /// add named BLOB data to document
-    bool addBlob(lString16 name, const lUInt8 * data, int size) { return _blobCache.addBlob(data, size, name); }
+    bool addBlob(lString16 name, const lUInt8 * data, int size) { _cacheFileStale = true ; return _blobCache.addBlob(data, size, name); }
     /// get BLOB by name
     LVStreamRef getBlob(lString16 name) { return _blobCache.getBlob(name); }
 
@@ -516,6 +517,8 @@ public:
     /// returns doc properties collection
     void setProps( CRPropRef props ) { _docProps = props; }
 
+    /// set cache file stale flag
+    void setCacheFileStale( bool stale ) { _cacheFileStale = stale; }
 
     /// minimize memory consumption
     void compact();
