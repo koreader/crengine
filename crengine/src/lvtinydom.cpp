@@ -1478,6 +1478,7 @@ tinyNodeCollection::tinyNodeCollection()
 #if BUILD_LITE!=1
 , _renderedBlockCache( 32 )
 , _cacheFile(NULL)
+, _cacheFileStale(true)
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
@@ -1509,6 +1510,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 #if BUILD_LITE!=1
 , _renderedBlockCache( 32 )
 , _cacheFile(NULL)
+, _cacheFileStale(true)
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
@@ -1612,6 +1614,7 @@ bool tinyNodeCollection::createCacheFile()
     _rectStorage.setCache( f );
     _styleStorage.setCache( f );
     _blobCache.setCacheFile( f );
+    setCacheFileStale(true);
     return true;
 }
 
@@ -2291,6 +2294,7 @@ void ldomDataStorageManager::compact( int reservedSpace )
             printf("             consider setting or increasing 'cre_storage_size_factor'\n");
             _maxSizeReachedWarned = true; // warn only once
         }
+        _owner->setCacheFileStale(true); // we may write: consider cache file stale
         // do compacting
         int sumsize = reservedSpace;
         for ( ldomTextStorageChunk * p = _recentChunk; p; p = p->_nextRecent ) {
@@ -3423,6 +3427,7 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         _rendered = false;
     }
     if ( !_rendered ) {
+        setCacheFileStale(true); // new rendering: cache file will be updated
         _toc_from_cache_valid = false;
         pages->clear();
         if ( showCover )
@@ -8430,6 +8435,7 @@ void ldomDocument::clear()
 #if BUILD_LITE!=1
 bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
 {
+    setCacheFileStale(true);
     if ( !openCacheFile() ) {
         CRLog::info("Cannot open document from cache. Need to read fully");
         clear();
@@ -8449,6 +8455,7 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
     _rendered = true;
     _just_rendered_from_cache = true;
     _toc_from_cache_valid = true;
+    setCacheFileStale(false);
     return true;
 }
 
@@ -8615,6 +8622,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
     }
 
     CRLog::trace("ldomDocument::saveChanges(timeout=%d stage=%d)", maxTime.interval(), _mapSavingStage);
+    setCacheFileStale(true);
 
     switch (_mapSavingStage) {
     default:
@@ -8805,6 +8813,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         // fall through
     case 13:
         _mapSavingStage = 13;
+        setCacheFileStale(false);
     }
     CRLog::trace("ldomDocument::saveChanges() - done");
     return CR_DONE;
@@ -9107,6 +9116,12 @@ ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime)
 {
     if ( !_cacheFile || !_mapped )
         return CR_DONE;
+
+    if ( !_cacheFileStale) {
+        CRLog::info("No change, cache file update not needed");
+        return CR_DONE;
+    }
+    CRLog::info("Updating cache file");
 
     ContinuousOperationResult res = saveChanges(maxTime);
     if ( res==CR_ERROR )
