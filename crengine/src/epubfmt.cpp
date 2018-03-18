@@ -755,6 +755,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
     // reading content stream
     {
+        CRLog::debug("Parsing opf");
         ldomDocument * doc = LVParseXMLStream( content_stream );
         if ( !doc )
             return false;
@@ -824,6 +825,29 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
+#if BUILD_LITE!=1
+        // If there is a cache file, it contains the fully built DOM document
+        // made from the multiple html fragments in the epub, and also
+        // m_doc_props which has been serialized.
+        // No need to do all the below work, except if we are only
+        // requesting metadata (parsing some bits from the EPUB is still
+        // less expensive than loading the full cache file).
+        // We had to wait till here to do that, to not miss font mangling
+        // key if any.
+        if (!metadataOnly) {
+            CRLog::debug("Trying loading from cache");
+            if ( m_doc->openFromCache(formatCallback) ) {
+                CRLog::debug("Loaded from cache");
+                if ( progressCallback ) {
+                    progressCallback->OnLoadFileEnd( );
+                }
+                delete doc;
+                return true;
+            }
+            CRLog::debug("Not loaded from cache, parsing epub content");
+        }
+#endif
+
         CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
         for ( int i=1; i<20; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
@@ -842,10 +866,14 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
             }
         }
-        if (metadataOnly && coverId.empty())
-            return true; // no cover to look for, no need for more work
+        if (metadataOnly && coverId.empty()) {
+            // no cover to look for, no need for more work
+            delete doc;
+            return true;
+        }
 
         // items
+        CRLog::debug("opf: reading items");
         for ( int i=1; i<50000; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
             if ( !item )
@@ -867,8 +895,11 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                             m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
                         }
                     }
-                    if (metadataOnly)
-                        return true; // coverId found, no need for more work
+                    if (metadataOnly) {
+                        // coverId found, no need for more work
+                        delete doc;
+                        return true;
+                    }
                 }
                 EpubItem * epubItem = new EpubItem;
                 epubItem->href = href;
@@ -896,9 +927,11 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 }
             }
         }
+        CRLog::debug("opf: reading items done.");
 
         // spine == itemrefs
         if ( epubItems.length()>0 ) {
+            CRLog::debug("opf: reading spine");
             ldomNode * spine = doc->nodeFromXPath( cs16("package/spine") );
             if ( spine ) {
 
@@ -918,8 +951,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     }
                 }
             }
+            CRLog::debug("opf: reading spine done");
         }
         delete doc;
+        CRLog::debug("opf: closed");
     }
 
     if ( spineItems.length()==0 )
@@ -927,15 +962,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
     if (metadataOnly)
         return true; // no need for more work
-
-#if BUILD_LITE!=1
-    if ( m_doc->openFromCache(formatCallback) ) {
-        if ( progressCallback ) {
-            progressCallback->OnLoadFileEnd( );
-        }
-        return true;
-    }
-#endif
 
     lUInt32 saveFlags = m_doc->getDocFlags();
     m_doc->setDocFlags( saveFlags );
