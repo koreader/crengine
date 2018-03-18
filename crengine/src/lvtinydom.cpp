@@ -8903,10 +8903,9 @@ lUInt32 tinyNodeCollection::calcStyleHash()
         // Re-use saved _nodeStyleHash if it has not been invalidated,
         // as the following loop can be expensive
         res = _nodeStyleHash;
-        CRLog::debug("  using saved _nodeStyleHash");
+        CRLog::debug("  using saved _nodeStyleHash %x", res);
     }
     else {
-        CRLog::debug("  CALCULATING _nodeStyleHash");
         for ( int i=0; i<count; i++ ) {
             int offs = i*TNC_PART_LEN;
             int sz = TNC_PART_LEN;
@@ -8932,6 +8931,7 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                 }
             }
         }
+        CRLog::debug("  COMPUTED _nodeStyleHash %x", res);
         _nodeStyleHash = res;
     }
     CRLog::info("Calculating style hash...  elemCount=%d, globalHash=%08x, docFlags=%08x, nodeStyleHash=%08x", _elemCount, globalHash, docFlags, res);
