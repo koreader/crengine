@@ -11033,6 +11033,8 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
             ldomNode * parent = getParentNode();
             counterValue = 0;
             // See if parent has a 'start' attribute that overrides this 0
+            // https://www.w3.org/TR/html5/grouping-content.html#the-ol-element
+            // "The start attribute, if present, must be a valid integer giving the ordinal value of the first list item."
             lString16 value = parent->getAttributeValue(attr_start);
             if ( !value.empty() ) {
                 int ivalue;
@@ -11058,6 +11060,8 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
                 }
                 // See if it has a 'value' attribute that overrides
                 // the incremented value
+                // https://www.w3.org/TR/html5/grouping-content.html#the-li-element
+                // "The value attribute, if present, must be a valid integer giving the ordinal value of the list item.
                 lString16 value = child->getAttributeValue(attr_value);
                 if ( !value.empty() ) {
                         int ivalue;
