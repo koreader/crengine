@@ -11032,6 +11032,13 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
             // calculate counter
             ldomNode * parent = getParentNode();
             counterValue = 0;
+            // See if parent has a 'start' attribute that overrides this 0
+            lString16 value = parent->getAttributeValue(attr_start);
+            if ( !value.empty() ) {
+                int ivalue;
+                if (value.atoi(ivalue))
+                    counterValue = ivalue - 1;
+            }
             for (int i = 0; i < parent->getChildCount(); i++) {
                 ldomNode * child = parent->getChildNode(i);
                 css_style_ref_t cs = child->getStyle();
@@ -11049,6 +11056,14 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
                     // do nothing
                     ;
                 }
+                // See if it has a 'value' attribute that overrides
+                // the incremented value
+                lString16 value = child->getAttributeValue(attr_value);
+                if ( !value.empty() ) {
+                        int ivalue;
+                        if (value.atoi(ivalue))
+                        counterValue = ivalue;
+                }
                 if ( child==this )
                     break;
             }
@@ -11058,7 +11073,7 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
         static const char * lower_roman[] = {"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix",
                                              "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix",
                                          "xx", "xxi", "xxii", "xxiii"};
-        if (counterValue > 0) {
+        if (counterValue > 0 || st == css_lst_decimal) {
             switch (st) {
             case css_lst_decimal:
                 marker = lString16::itoa(counterValue);
