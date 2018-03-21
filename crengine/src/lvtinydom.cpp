@@ -11058,10 +11058,9 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
                     // do nothing
                     ;
                 }
-                // See if it has a 'value' attribute that overrides
-                // the incremented value
+                // See if it has a 'value' attribute that overrides the incremented value
                 // https://www.w3.org/TR/html5/grouping-content.html#the-li-element
-                // "The value attribute, if present, must be a valid integer giving the ordinal value of the list item.
+                // "The value attribute, if present, must be a valid integer giving the ordinal value of the list item."
                 lString16 value = child->getAttributeValue(attr_value);
                 if ( !value.empty() ) {
                         int ivalue;
