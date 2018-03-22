@@ -9405,6 +9405,21 @@ public:
     {
         lString16 fn = makeFileName( filename, crc, docFlags );
         CRLog::debug("ldomDocCache::openExisting(%s)", LCSTR(fn));
+        // Try filename with ".keep" extension (that a user can manually add
+        // to a .cr3 cache file, for it to no more be maintained by crengine
+        // in its index, thus not subject to _maxSize enforcement, so sure
+        // to not be deleted by crengine)
+        lString16 fnkeep = (_cacheDir+fn+".keep");
+        if ( LVFileExists(fnkeep) ) {
+            LVStreamRef stream = LVOpenFileStream( fnkeep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
+            if ( !stream.isNull() ) {
+                CRLog::info( "ldomDocCache::openExisting - opening user renamed cache file %s", UnicodeToUtf8(fnkeep).c_str() );
+#if ENABLED_BLOCK_WRITE_CACHE
+                stream = LVCreateBlockWriteStream( stream, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
+#endif
+                return stream;
+            }
+        }
         LVStreamRef res;
         if ( findFileIndex( fn ) < 0 ) {
             CRLog::error( "ldomDocCache::openExisting - File %s is not found in cache index", UnicodeToUtf8(fn).c_str() );
@@ -9440,6 +9455,24 @@ public:
         lString16 fn = makeFileName( filename, crc, docFlags );
         LVStreamRef res;
         lString16 pathname( _cacheDir+fn );
+        // If this cache filename exists with a ".keep" extension (manually
+        // added by the user), and we were going to create a new one (because
+        // this .keep is invalid, or cache file format version has changed),
+        // remove it and create the new one with this same .keep extension,
+        // so it stays (as wished by the user) not maintained by crengine.
+        lString16 fnkeep = (pathname+".keep");
+        if ( LVFileExists(fnkeep) ) {
+            LVDeleteFile( pathname ); // delete .cr3 if any
+            LVDeleteFile( fnkeep ); // delete invalid .cr3.keep
+            LVStreamRef stream = LVOpenFileStream( fnkeep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
+            if ( !stream.isNull() ) {
+                CRLog::info( "ldomDocCache::createNew - re-creating user renamed cache file %s", UnicodeToUtf8(fnkeep).c_str() );
+#if ENABLED_BLOCK_WRITE_CACHE
+                stream = LVCreateBlockWriteStream( stream, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
+#endif
+                return stream;
+            }
+        }
         if ( findFileIndex( pathname ) >= 0 )
             LVDeleteFile( pathname );
         reserve( fileSize/10 );
