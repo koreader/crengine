@@ -3276,9 +3276,9 @@ void LVDocView::SetRotateAngle( cr_rotate_angle_t angle )
 void LVDocView::Resize(int dx, int dy) {
 	//LVCHECKPOINT("Resize");
 	CRLog::trace("LVDocView:Resize(%dx%d)", dx, dy);
-	if (dx < 80 || dx > 3000)
+	if (dx < 80 || dx > 32767)
 		dx = 80;
-	if (dy < 80 || dy > 3000)
+	if (dy < 80 || dy > 32767)
 		dy = 80;
 #if CR_INTERNAL_PAGE_ORIENTATION==1
 	if ( m_rotateAngle==CR_ROTATE_ANGLE_90 || m_rotateAngle==CR_ROTATE_ANGLE_270 ) {
