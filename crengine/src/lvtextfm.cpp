@@ -777,7 +777,7 @@ public:
                     if ( vertical_align )  {                         //if (vertical_align && node->getAttributeValue("","class")=="duokan-footnote") // apply to duokan-footnote
                         ldomNode *node=(ldomNode*)para->object;
                         LVFont *font=(LVFont*)para->t.font;
-                        if (!node->getText().empty()) {
+                        if (!node->isNull() && !node->getText().empty()) {
                             if ( vertical_align == LTEXT_VALIGN_SUB ) {
                                 int fh=font->getHeight();
                                 word->y +=  fh*0.3333;
