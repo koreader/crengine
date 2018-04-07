@@ -4978,34 +4978,34 @@ static int decodeHex( lChar16 ch )
     return -1;
 }
 
-static lChar16 decodeHTMLChar( const lChar16 * s )
+static lChar8 decodeHTMLChar( const lChar16 * s )
 {
     if (s[0] == '%') {
         int d1 = decodeHex( s[1] );
         if (d1 >= 0) {
             int d2 = decodeHex( s[2] );
             if (d2 >= 0) {
-                return (lChar16)(d1*16 + d2);
+                return (lChar8)(d1*16 + d2);
             }
         }
     }
     return 0;
 }
 
-/// decodes path like "file%20name" to "file name"
+/// decodes path like "file%20name%C3%A7" to "file nameç"
 lString16 DecodeHTMLUrlString( lString16 s )
 {
     const lChar16 * str = s.c_str();
     for ( int i=0; str[i]; i++ ) {
         if ( str[i]=='%'  ) {
-            lChar16 ch = decodeHTMLChar( str + i );
+            lChar8 ch = decodeHTMLChar( str + i );
             if ( ch==0 ) {
                 continue;
             }
             // HTML encoded char found
-            lString16 res;
+            lString8 res;
             res.reserve(s.length());
-            res.append(str, i);
+            res.append(UnicodeToUtf8(str, i));
             res.append(1, ch);
             i+=3;
 
@@ -5014,16 +5014,16 @@ lString16 DecodeHTMLUrlString( lString16 s )
                 if ( str[i]=='%'  ) {
                     ch = decodeHTMLChar( str + i );
                     if ( ch==0 ) {
-                        res.append(1, str[i]);
+                        res.append(1, (lChar8)str[i]);
                         continue;
                     }
                     res.append(1, ch);
                     i+=2;
                 } else {
-                    res.append(1, str[i]);
+                    res.append(1, (lChar8)str[i]);
                 }
             }
-            return res;
+            return Utf8ToUnicode(res);
         }
     }
     return s;
