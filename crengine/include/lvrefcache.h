@@ -236,13 +236,34 @@ public:
     bool cache( lUInt16 &indexholder, ref_t & style)
     {
         int newindex = cache( style );
+        // printf("newindex: %d  /  provided indexholder: %d\n", newindex, (int)indexholder);
         if ( indexholder != newindex ) {
             release( indexholder );
             indexholder = (lUInt16)newindex;
             return true;
-        } else {
-            release( indexholder );
+        } else { // indexholder == newindex
+            // Here, we want to decrement the refcount that has been incremented
+            // by the above call "newindex = cache( style )", as it returned the
+            // same index as the already referenced one.
+            // In normal cases, when the item is already present in the cache
+            // and referenced once, we are here with refcount=2, and we want to
+            // put it back to refcount=1, as it should be.
+            // In rare cases for some yet undertermined reason or bug, we may
+            // have been called with a non-0 indexholder, but not previously
+            // present in the cache, and we get the same value for newindex:
+            // the cache item refcount is then 1. And we want it to stay 1 (as
+            // it's really referenced once) so the value/pointer are not freed,
+            // and some segmentation fault is avoided later.
+            // So, we just don't release it if the refcount is 1 (we were
+            // asked to cache something: so don't drop it!)
+            // printf("released: refcount for %d = %d\n", indexholder, this->index[indexholder].refcount);
+            if (this->index[indexholder].refcount > 1)
+                release( indexholder );
             return false;
+            // This returned boolean seems not used anywhere, so it's not
+            // clear whether we should return true or false when the
+            // item was not in the cache, and thus created - but the
+            // indexholder (althought not existing) stayed unchanged.
         }
     }
 
