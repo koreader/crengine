@@ -15,7 +15,7 @@
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.07k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0003
+#define FORMATTING_VERSION_ID 0x0004
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
