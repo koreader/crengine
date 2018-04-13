@@ -65,7 +65,7 @@ class TexHyph : public HyphMethod
     TexPattern * table[PATTERN_HASH_SIZE];
     lUInt32 _hash;
 public:
-    int larger_overflowed_word;
+    int largest_overflowed_word;
     bool match( const lChar16 * str, char * mask );
     virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
     void addPattern( TexPattern * pattern );
@@ -146,8 +146,8 @@ bool HyphMan::activateDictionaryFromStream( LVStreamRef stream )
         delete method;
         return false;
     }
-    if (method->larger_overflowed_word)
-        printf("CRE WARNING: hyph dict from stream: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", MAX_PATTERN_SIZE, method->larger_overflowed_word);
+    if (method->largest_overflowed_word)
+        printf("CRE WARNING: hyph dict from stream: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", MAX_PATTERN_SIZE, method->largest_overflowed_word);
     CRLog::debug("Dictionary is loaded successfully. Activating.");
     HyphMan::_method = method;
     if ( HyphMan::_dictList->find(lString16(HYPH_DICT_ID_DICTIONARY))==NULL ) {
@@ -211,8 +211,8 @@ bool HyphDictionary::activate()
             delete method;
             return false;
         }
-        if (method->larger_overflowed_word)
-            printf("CRE WARNING: %s: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", UnicodeToUtf8(_filename).c_str(), MAX_PATTERN_SIZE, method->larger_overflowed_word);
+        if (method->largest_overflowed_word)
+            printf("CRE WARNING: %s: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", UnicodeToUtf8(_filename).c_str(), MAX_PATTERN_SIZE, method->largest_overflowed_word);
         HyphMan::_method = method;
 	}
 	HyphMan::_selectedDictionary = this;
@@ -525,7 +525,7 @@ TexHyph::TexHyph()
 {
     memset( table, 0, sizeof(table) );
     _hash = 123456;
-    larger_overflowed_word = 0;
+    largest_overflowed_word = 0;
 }
 
 TexHyph::~TexHyph()
@@ -600,8 +600,8 @@ bool TexHyph::load( LVStreamRef stream )
                 if (pattern->overflowed) {
                     // don't use truncated words
                     CRLog::warn("Pattern overflowed (%d > %d) and ignored: '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(lString16(pattern->word)));
-                    if (pattern->overflowed > larger_overflowed_word)
-                        larger_overflowed_word = pattern->overflowed;
+                    if (pattern->overflowed > largest_overflowed_word)
+                        largest_overflowed_word = pattern->overflowed;
                 }
                 else {
                     addPattern( pattern );
@@ -637,8 +637,8 @@ bool TexHyph::load( LVStreamRef stream )
                 if (pattern->overflowed) {
                     // don't use truncated words
                     CRLog::warn("Pattern overflowed (%d > %d) and ignored: '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(lString16(pattern->word)));
-                    if (pattern->overflowed > larger_overflowed_word)
-                        larger_overflowed_word = pattern->overflowed;
+                    if (pattern->overflowed > largest_overflowed_word)
+                        largest_overflowed_word = pattern->overflowed;
                 }
                 else {
                     addPattern( pattern );
@@ -669,8 +669,8 @@ bool TexHyph::load( LVStreamRef stream )
             if (pattern->overflowed) {
                 // don't use truncated words
                 CRLog::warn("Pattern overflowed (%d > %d) and ignored: (%s) '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(data[i]), LCSTR(lString16(pattern->word)));
-                if (pattern->overflowed > larger_overflowed_word)
-                    larger_overflowed_word = pattern->overflowed;
+                if (pattern->overflowed > largest_overflowed_word)
+                    largest_overflowed_word = pattern->overflowed;
             }
             else {
                 addPattern( pattern );
