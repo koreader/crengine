@@ -55,6 +55,8 @@ HyphDictionary * HyphMan::_selectedDictionary = NULL;
 
 HyphDictionaryList * HyphMan::_dictList = NULL;
 
+// MAX_PATTERN_SIZE is actually the max size of a word (pattern stripped
+// from all the numbers that give the quality of a split after previous char)
 #define MAX_PATTERN_SIZE  9
 #define PATTERN_HASH_SIZE 16384
 class TexPattern;
@@ -63,6 +65,7 @@ class TexHyph : public HyphMethod
     TexPattern * table[PATTERN_HASH_SIZE];
     lUInt32 _hash;
 public:
+    int largest_overflowed_word;
     bool match( const lChar16 * str, char * mask );
     virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
     void addPattern( TexPattern * pattern );
@@ -143,6 +146,8 @@ bool HyphMan::activateDictionaryFromStream( LVStreamRef stream )
         delete method;
         return false;
     }
+    if (method->largest_overflowed_word)
+        printf("CRE WARNING: hyph dict from stream: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", MAX_PATTERN_SIZE, method->largest_overflowed_word);
     CRLog::debug("Dictionary is loaded successfully. Activating.");
     HyphMan::_method = method;
     if ( HyphMan::_dictList->find(lString16(HYPH_DICT_ID_DICTIONARY))==NULL ) {
@@ -206,6 +211,8 @@ bool HyphDictionary::activate()
             delete method;
             return false;
         }
+        if (method->largest_overflowed_word)
+            printf("CRE WARNING: %s: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", UnicodeToUtf8(_filename).c_str(), MAX_PATTERN_SIZE, method->largest_overflowed_word);
         HyphMan::_method = method;
 	}
 	HyphMan::_selectedDictionary = this;
@@ -342,8 +349,9 @@ static int isCorrectHyphFile(LVStream * stream)
 
 class TexPattern {
 public:
-    lChar16 word[MAX_PATTERN_SIZE];
-    char attr[MAX_PATTERN_SIZE+1];
+    lChar16 word[MAX_PATTERN_SIZE+1];
+    char attr[MAX_PATTERN_SIZE+2];
+    int overflowed; // 0, or size of complete word if larger than MAX_PATTERN_SIZE
     TexPattern * next;
 
     int cmp( TexPattern * v )
@@ -412,28 +420,51 @@ public:
 
     TexPattern( const lString16 &s ) : next( NULL )
     {
+        overflowed = 0;
         memset( word, 0, sizeof(word) );
         memset( attr, '0', sizeof(attr) );
         attr[sizeof(attr)-1] = 0;
         int n = 0;
-        for ( int i=0; i<(int)s.length() && n<MAX_PATTERN_SIZE; i++ ) {
+        for ( int i=0; i<(int)s.length(); i++ ) {
             lChar16 ch = s[i];
+            if (n > MAX_PATTERN_SIZE) {
+                if ( ch<'0' || ch>'9' ) {
+                    overflowed = n++;
+                }
+                continue;
+            }
             if ( ch>='0' && ch<='9' ) {
                 attr[n] = (char)ch;
 //                if (n>0)
 //                    attr[n-1] = (char)ch;
             } else {
-                word[n++] = ch;
+                if (n == MAX_PATTERN_SIZE) { // we previously reached max word size
+                    // Let the last 0 (string termination) in
+                    // word[MAX_PATTERN_SIZE] and mark it as overflowed
+                    overflowed = n++;
+                }
+                else {
+                    word[n++] = ch;
+                }
             }
-            if (i==(int)s.length()-1)
-                attr[n+1] = 0;
         }
+        // if n==MAX_PATTERN_SIZE (or >), attr[MAX_PATTERN_SIZE] is either the
+        // memset '0', or a 0-9 we got on next iteration, and
+        // attr[MAX_PATTERN_SIZE+1] is the 0 set by attr[sizeof(attr)-1] = 0
+        if (n < MAX_PATTERN_SIZE)
+            attr[n+1] = 0;
+
+        if (overflowed)
+            overflowed = overflowed + 1; // convert counter to number of things counted
     }
 
     TexPattern( const unsigned char * s, int sz, const lChar16 * charMap )
     {
-        if ( sz >= MAX_PATTERN_SIZE )
-            sz = MAX_PATTERN_SIZE - 1;
+        overflowed = 0;
+        if ( sz > MAX_PATTERN_SIZE ) {
+            overflowed = sz;
+            sz = MAX_PATTERN_SIZE;
+        }
         memset( word, 0, sizeof(word) );
         memset( attr, 0, sizeof(attr) );
         for ( int i=0; i<sz; i++ )
@@ -495,6 +526,7 @@ TexHyph::TexHyph()
 {
     memset( table, 0, sizeof(table) );
     _hash = 123456;
+    largest_overflowed_word = 0;
 }
 
 TexHyph::~TexHyph()
@@ -566,8 +598,16 @@ bool TexHyph::load( LVStreamRef stream )
 #if DUMP_PATTERNS==1
                 CRLog::debug("Pattern: '%s' - %s", LCSTR(lString16(pattern->word)), pattern->attr );
 #endif
-                addPattern( pattern );
-                patternCount++;
+                if (pattern->overflowed) {
+                    // don't use truncated words
+                    CRLog::warn("Pattern overflowed (%d > %d) and ignored: '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(lString16(pattern->word)));
+                    if (pattern->overflowed > largest_overflowed_word)
+                        largest_overflowed_word = pattern->overflowed;
+                }
+                else {
+                    addPattern( pattern );
+                    patternCount++;
+                }
             }
         }
 
@@ -595,8 +635,16 @@ bool TexHyph::load( LVStreamRef stream )
 #if DUMP_PATTERNS==1
                 CRLog::debug("Pattern: '%s' - %s", LCSTR(lString16(pattern->word)), pattern->attr);
 #endif
-                addPattern( pattern );
-                patternCount++;
+                if (pattern->overflowed) {
+                    // don't use truncated words
+                    CRLog::warn("Pattern overflowed (%d > %d) and ignored: '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(lString16(pattern->word)));
+                    if (pattern->overflowed > largest_overflowed_word)
+                        largest_overflowed_word = pattern->overflowed;
+                }
+                else {
+                    addPattern( pattern );
+                    patternCount++;
+                }
                 p += sz + sz + 1;
             }
         }
@@ -619,8 +667,16 @@ bool TexHyph::load( LVStreamRef stream )
 #if DUMP_PATTERNS==1
             CRLog::debug("Pattern: (%s) '%s' - %s", LCSTR(data[i]), LCSTR(lString16(pattern->word)), pattern->attr);
 #endif
-            addPattern( pattern );
-            patternCount++;
+            if (pattern->overflowed) {
+                // don't use truncated words
+                CRLog::warn("Pattern overflowed (%d > %d) and ignored: (%s) '%s'", pattern->overflowed, MAX_PATTERN_SIZE, LCSTR(data[i]), LCSTR(lString16(pattern->word)));
+                if (pattern->overflowed > largest_overflowed_word)
+                    largest_overflowed_word = pattern->overflowed;
+            }
+            else {
+                addPattern( pattern );
+                patternCount++;
+            }
         }
         return patternCount>0;
     }
