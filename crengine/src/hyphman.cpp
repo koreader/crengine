@@ -453,8 +453,9 @@ public:
         // attr[MAX_PATTERN_SIZE+1] is the 0 set by attr[sizeof(attr)-1] = 0
         if (n < MAX_PATTERN_SIZE)
             attr[n+1] = 0;
+
         if (overflowed)
-            overflowed = overflowed + 1; // convert index to word size
+            overflowed = overflowed + 1; // convert counter to number of things counted
     }
 
     TexPattern( const unsigned char * s, int sz, const lChar16 * charMap )
