@@ -10825,6 +10825,22 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
             return this;
         return NULL;
     }
+    if (!direction && pt.x != 0) {
+        // We shouldn't do the following if we are given a direction
+        // (full text search) as we may get locked on some page.
+        // We also don't need to do it if pt.x=0, which is often used
+        // to get current page top or range xpointers.
+        // We are given a x>0 when tap/hold to highlight text or find
+        // a link, and checking x vs fmt.x and width allows for doing
+        // that correctly in 2nd+ table cells.
+        // (No need to check if ( pt.x < fmt.getX() ): we probably
+        // meet the multiple elements that can be formatted on a same
+        // line in the order they appear as children of their parent,
+        // we can simply just ignore those who end before our pt.x)
+        if ( pt.x >= fmt.getX() + fmt.getWidth() ) {
+            return NULL;
+        }
+    }
     if ( enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item ) {
         return this;
     }
