@@ -20,7 +20,7 @@ fi
 mapfile -t pattern_files < <( git ls-files cr3gui/data/hyph/*.pattern )
 for pattern in "${pattern_files[@]}"; do
     echo "Running xmllint on ${pattern}"
-    xmllint "$pattern" >/dev/null
+    xmllint "$pattern" >/dev/null || exit
 done
 
 changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')"
