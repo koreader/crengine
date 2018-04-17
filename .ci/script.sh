@@ -15,6 +15,7 @@ file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@non
 if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
     diff <(echo "$file_list") <(echo "$file_list_jq")
+    exit 1
 fi
 
 mapfile -t pattern_files < <( git ls-files cr3gui/data/hyph/*.pattern )
