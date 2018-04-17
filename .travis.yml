@@ -13,5 +13,7 @@ addons:
       - clang-tidy-5.0
       - cppcheck
       - jq
+      # provides xmllint
+      - libxml2-utils
 
 script:  .ci/script.sh
