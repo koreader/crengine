@@ -5,13 +5,11 @@
 
 % Encoding: UTF-8
 % Source: nohyphbx.tex (2012-05-18)
-%------------------------------------------------------------------------------
 %
 % TeX hyphenation patterns for Norwegian
 %
 % version of 2012-05-18
 % Patterns of January 25, 2005, with later additions and changes
-%
 % Copyright (C) 2004, 2005 Rune Kleveland, Ole Michael Selberg.
 % Copying and distribution of this file, with or without modification,
 % is permitted in any medium without royalty provided the copyright
@@ -28,7 +26,7 @@
 %
 % In Kleveland's nohyphb.tex there were 26017 patterns. The present
 % version of the revised nohyphbx.tex with UTF-8 encoding, which has
-% been renamed hyph-no.tex, contains 27448 patterns --- plus
+% been renamed hyph-no.tex, contains 27448 patterns plus
 % 108 exceptions in the \hyphenation-list.
 %
 % Changes from the CTAN version of 2007-02-07: 299 new patterns.
@@ -46,10 +44,10 @@
 %
 % Notes on other Norwegian hyphenation pattern files, from Dag Langmyhr,
 % tex-live mail of 29 Jun 2005 11:26:21 +0200.
-% nohyph.tex -- manually created by Ivar Aavatsmark and others;
+% nohyph.tex  manually created by Ivar Aavatsmark and others;
 %   hyphenate according to pre-1973 rules; no longer recommended for use.
 %   (Sometimes also known as nohyph1.tex.)
-% nohyph2.tex -- created by Dag and a student; the present file,
+% nohyph2.tex  created by Dag and a student; the present file,
 %   nohyphbx.tex, is more extensive and is recommended.
 %
 -->

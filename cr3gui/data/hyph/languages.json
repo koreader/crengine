@@ -71,7 +71,7 @@
 
     {
         "name": "German",
-        "filename": "German_hyphen_(Alan).pdb",
+        "filename": "German.pattern",
         "language": "de",
         "aliases": ["deu"]
     },
