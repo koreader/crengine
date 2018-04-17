@@ -86,25 +86,25 @@ class AlgoHyph;
 /// hyphenation manager
 class HyphMan
 {
-	friend class HyphDictionary;
-	friend class TexHyph;
-	friend class AlgoHyph;
+    friend class HyphDictionary;
+    friend class TexHyph;
+    friend class AlgoHyph;
     static HyphMethod * _method;
-	static HyphDictionary * _selectedDictionary;
-	static HyphDictionaryList * _dictList;
-        static int _LeftHyphenMin;
-        static int _RightHyphenMin;
+    static HyphDictionary * _selectedDictionary;
+    static HyphDictionaryList * _dictList;
+    static int _LeftHyphenMin;
+    static int _RightHyphenMin;
 public:
-	static void uninit();
+    static void uninit();
     static bool activateDictionaryFromStream( LVStreamRef stream );
-	static HyphDictionaryList * getDictList() { return _dictList; }
+    static HyphDictionaryList * getDictList() { return _dictList; }
     static bool activateDictionary( lString16 id ) { return _dictList->activate(id); }
     static bool initDictionaries(lString16 dir, bool clear = true);
-	static HyphDictionary * getSelectedDictionary() { return _selectedDictionary; }
-	static int getLeftHyphenMin() { return _LeftHyphenMin; }
-	static int getRightHyphenMin() { return _RightHyphenMin; }
-	static bool setLeftHyphenMin( int left_hyphen_min );
-	static bool setRightHyphenMin( int right_hyphen_min );
+    static HyphDictionary * getSelectedDictionary() { return _selectedDictionary; }
+    static int getLeftHyphenMin() { return _LeftHyphenMin; }
+    static int getRightHyphenMin() { return _RightHyphenMin; }
+    static bool setLeftHyphenMin( int left_hyphen_min );
+    static bool setRightHyphenMin( int right_hyphen_min );
 
     HyphMan();
     ~HyphMan();
