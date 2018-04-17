@@ -17,6 +17,9 @@ if [ ! "$file_list" = "$file_list_jq" ]; then
     diff <(echo "$file_list") <(echo "$file_list_jq")
 fi
 
+# test if pattern files are valid XML
+xmllint $(git ls-files cr3gui/data/hyph/*.pattern) >/dev/null
+
 changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')"
 
 if [ ! -z "${changed_files}" ]; then
