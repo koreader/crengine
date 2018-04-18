@@ -50,6 +50,12 @@
 
 #endif
 
+// min value supported by algorithms is 2 (max is arbitrary 10)
+#define HYPH_MIN_HYPHEN_MIN 2
+#define HYPH_MAX_HYPHEN_MIN 10
+
+int HyphMan::_LeftHyphenMin = HYPH_MIN_HYPHEN_MIN;
+int HyphMan::_RightHyphenMin = HYPH_MIN_HYPHEN_MIN;
 
 HyphDictionary * HyphMan::_selectedDictionary = NULL;
 
@@ -174,6 +180,22 @@ bool HyphMan::initDictionaries(lString16 dir, bool clear)
 		_dictList->activate( lString16(HYPH_DICT_ID_ALGORITHM) );
 		return false;
 	}
+}
+
+bool HyphMan::setLeftHyphenMin( int left_hyphen_min ) {
+    if (left_hyphen_min >= HYPH_MIN_HYPHEN_MIN && left_hyphen_min <= HYPH_MAX_HYPHEN_MIN) {
+        HyphMan::_LeftHyphenMin = left_hyphen_min;
+        return true;
+    }
+    return false;
+}
+
+bool HyphMan::setRightHyphenMin( int right_hyphen_min ) {
+    if (right_hyphen_min >= HYPH_MIN_HYPHEN_MIN && right_hyphen_min <= HYPH_MAX_HYPHEN_MIN) {
+        HyphMan::_RightHyphenMin = right_hyphen_min;
+        return true;
+    }
+    return false;
 }
 
 bool HyphDictionary::activate()
@@ -790,6 +812,10 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
     bool res = false;
     int p=0;
     for ( p=len-3; p>=1; p-- ) {
+        if (p < HyphMan::_LeftHyphenMin - 1)
+            continue;
+        if (p > len - HyphMan::_RightHyphenMin - 1)
+            continue;
         // hyphenate
         //00010030100
         int nw = widths[p]+hyphCharWidth;
@@ -820,6 +846,10 @@ bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8
         // now look over word, placing hyphens
         if ( end-start > MIN_WORD_LEN_TO_HYPHEN ) { // word must be long enough
             for (i=start;i<end-MIN_WORD_LEN_TO_HYPHEN;++i) {
+                if (i-start < HyphMan::_LeftHyphenMin - 1)
+                    continue;
+                if (end-i < HyphMan::_RightHyphenMin + 1)
+                    continue;
                 if ( widths[i] > maxWidth )
                     break;
                 if ( chprops[i] & CH_PROP_VOWEL ) {

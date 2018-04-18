@@ -310,6 +310,8 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     if ( gFlgFloatingPunctuationEnabled )
         hash = hash * 75 + 1761;
     hash = hash * 31 + (HyphMan::getSelectedDictionary()!=NULL ? HyphMan::getSelectedDictionary()->getHash() : 123 );
+    hash = hash * 31 + HyphMan::getLeftHyphenMin();
+    hash = hash * 31 + HyphMan::getRightHyphenMin();
     return hash;
 }
 

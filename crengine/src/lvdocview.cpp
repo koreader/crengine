@@ -5887,6 +5887,18 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                     REQUEST_RENDER("propsApply hyphenation dict")
                 }
             }
+        } else if (name == PROP_HYPHENATION_LEFT_HYPHEN_MIN) {
+            int leftHyphenMin = props->getIntDef(PROP_HYPHENATION_LEFT_HYPHEN_MIN, 2);
+            if (HyphMan::getLeftHyphenMin() != leftHyphenMin) {
+                HyphMan::setLeftHyphenMin(leftHyphenMin);
+                REQUEST_RENDER("propsApply hyphenation left_hyphen_min")
+            }
+        } else if (name == PROP_HYPHENATION_RIGHT_HYPHEN_MIN) {
+            int rightHyphenMin = props->getIntDef(PROP_HYPHENATION_RIGHT_HYPHEN_MIN, 2);
+            if (HyphMan::getRightHyphenMin() != rightHyphenMin) {
+                HyphMan::setRightHyphenMin(rightHyphenMin);
+                REQUEST_RENDER("propsApply hyphenation right_hyphen_min")
+            }
 #endif
         } else if (name == PROP_INTERLINE_SPACE) {
             int interlineSpace = props->getIntDef(PROP_INTERLINE_SPACE,

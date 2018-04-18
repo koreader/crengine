@@ -47,6 +47,8 @@
 #define PROP_SHOW_BATTERY_PERCENT    "window.status.battery.percent"
 #define PROP_FONT_KERNING_ENABLED    "font.kerning.enabled"
 #define PROP_LANDSCAPE_PAGES         "window.landscape.pages"
+#define PROP_HYPHENATION_LEFT_HYPHEN_MIN "crengine.hyphenation.left.hyphen.min"
+#define PROP_HYPHENATION_RIGHT_HYPHEN_MIN "crengine.hyphenation.right.hyphen.min"
 #define PROP_HYPHENATION_DICT        "crengine.hyphenation.directory"
 #define PROP_HYPHENATION_DICT_VALUE_NONE "@none"
 #define PROP_HYPHENATION_DICT_VALUE_ALGORITHM "@algorithm"
