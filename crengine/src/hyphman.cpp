@@ -169,7 +169,6 @@ bool HyphMan::initDictionaries(lString16 dir, bool clear)
         _dictList = new HyphDictionaryList();
     if (_dictList->open(dir, clear)) {
 		if ( !_dictList->activate( lString16(DEF_HYPHENATION_DICT) ) )
-	    	if ( !_dictList->activate( lString16(DEF_HYPHENATION_DICT2) ) )
     			_dictList->activate( lString16(HYPH_DICT_ID_ALGORITHM) );
 		return true;
 	} else {
