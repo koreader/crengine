@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20180417 
+% 20180418 
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -13,23 +13,23 @@
 % to be part of words so we get rid of all the rules that were ignored by the 
 % crengine and adding some rules to take exceptions into account.
 %
-% lines 1729 to 1734 :
+% lines 1759 to 1765 :
 % special patterns to take into account some words with simple quote inside them
 % which are considered two words by crengine
 % jusqu'à, aux, etc. aujourd'hui. prud'homme, prud'hommal, rock'n roll, 
 % entr'ouvrir,entr'apercevoir, etc. presqu'île.
-% note : au-jour-d'hui and pru-d'homme won't works.
+% note : au-jour-d'hui and pru-d'homme won't work if min right length is > 1
 %
-% lines 1741 to 1856 (disabled by default)
+% lines 1766 to 1881 (disabled by default)
 % special patterns which override the rules to not hyphen the 
 % last syllabe of a word when it's a mute one.
 % Only works if minrighthyph is at 2 and improve the spacing between words.
 % Only uncomment if you prefer better spacing and not care much about rules :)
 %
-%lines 1866 to 1870 (disabled by default)
+%lines 1882 to 1885 (disabled by default)
 % special patterns which override the rules that say one cannot hyphen after
 % cul- (which mean ass) and con- (which mean cunt) at the beginning of a word.
-% Only uncomment if you don't have to read the text aloud.
+% Only uncomment if you don't have to read the text aloud ;-)
 % 
 -->
 <HyphenationDescription>
@@ -1881,7 +1881,6 @@
 -->
 <!-- let's override rude syllabes
 <pattern> con5</pattern>
-<pattern> con4s5</pattern>
 <pattern> cul5</pattern>
 -->
 </HyphenationDescription>
