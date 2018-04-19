@@ -5888,13 +5888,13 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 }
             }
         } else if (name == PROP_HYPHENATION_LEFT_HYPHEN_MIN) {
-            int leftHyphenMin = props->getIntDef(PROP_HYPHENATION_LEFT_HYPHEN_MIN, 2);
+            int leftHyphenMin = props->getIntDef(PROP_HYPHENATION_LEFT_HYPHEN_MIN, HYPH_DEFAULT_HYPHEN_MIN);
             if (HyphMan::getLeftHyphenMin() != leftHyphenMin) {
                 HyphMan::setLeftHyphenMin(leftHyphenMin);
                 REQUEST_RENDER("propsApply hyphenation left_hyphen_min")
             }
         } else if (name == PROP_HYPHENATION_RIGHT_HYPHEN_MIN) {
-            int rightHyphenMin = props->getIntDef(PROP_HYPHENATION_RIGHT_HYPHEN_MIN, 2);
+            int rightHyphenMin = props->getIntDef(PROP_HYPHENATION_RIGHT_HYPHEN_MIN, HYPH_DEFAULT_HYPHEN_MIN);
             if (HyphMan::getRightHyphenMin() != rightHyphenMin) {
                 HyphMan::setRightHyphenMin(rightHyphenMin);
                 REQUEST_RENDER("propsApply hyphenation right_hyphen_min")

@@ -29,6 +29,11 @@ public:
 #define WORD_LENGTH   64
 #define MAX_REAL_WORD 24
 
+// min value supported by algorithms is 1 (max is arbitrary 10)
+// value enforced by algorithm previously was 2, so it's the default
+#define HYPH_DEFAULT_HYPHEN_MIN 2
+#define HYPH_MIN_HYPHEN_MIN 1
+#define HYPH_MAX_HYPHEN_MIN 10
 
 enum HyphDictType
 {
@@ -75,8 +80,7 @@ public:
 	bool activate( lString16 id );
 };
 
-#define DEF_HYPHENATION_DICT "Russian_EnUS_hyphen_(Alan).pdb"
-#define DEF_HYPHENATION_DICT2 "ru.pattern"
+#define DEF_HYPHENATION_DICT "English_US_hyphen_(Alan).pdb"
 
 class HyphDictionary;
 class HyphDictionaryList;

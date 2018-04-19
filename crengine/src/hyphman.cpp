@@ -50,12 +50,8 @@
 
 #endif
 
-// min value supported by algorithms is 2 (max is arbitrary 10)
-#define HYPH_MIN_HYPHEN_MIN 2
-#define HYPH_MAX_HYPHEN_MIN 10
-
-int HyphMan::_LeftHyphenMin = HYPH_MIN_HYPHEN_MIN;
-int HyphMan::_RightHyphenMin = HYPH_MIN_HYPHEN_MIN;
+int HyphMan::_LeftHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
+int HyphMan::_RightHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
 
 HyphDictionary * HyphMan::_selectedDictionary = NULL;
 
@@ -173,7 +169,6 @@ bool HyphMan::initDictionaries(lString16 dir, bool clear)
         _dictList = new HyphDictionaryList();
     if (_dictList->open(dir, clear)) {
 		if ( !_dictList->activate( lString16(DEF_HYPHENATION_DICT) ) )
-	    	if ( !_dictList->activate( lString16(DEF_HYPHENATION_DICT2) ) )
     			_dictList->activate( lString16(HYPH_DICT_ID_ALGORITHM) );
 		return true;
 	} else {
@@ -811,7 +806,7 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
 
     bool res = false;
     int p=0;
-    for ( p=len-3; p>=1; p-- ) {
+    for ( p=len-2; p>=0; p-- ) {
         if (p < HyphMan::_LeftHyphenMin - 1)
             continue;
         if (p > len - HyphMan::_RightHyphenMin - 1)
