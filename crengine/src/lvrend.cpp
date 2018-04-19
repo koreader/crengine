@@ -1662,6 +1662,55 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
             x += margin_left;
         y += margin_top;
 
+        // Support style 'width:' attribute, for specific elements only: solely <HR> for now.
+        // As crengine does not support many fancy display: styles, and each HTML block
+        // elements is rendered as a crengine blockElement (an independant full width slice,
+        // with possibly some margin/padding/indentation/border, of the document height),
+        // we don't want to waste reading width with blank areas (as we are not sure
+        // the content producer intended them because of crengine limitations).
+        css_length_t style_width = enode->getStyle()->width;
+        if (style_width.type != css_val_unspecified) {
+            // printf("style_width.type: %d (%d)\n", style_width.value, style_width.type);
+
+            bool apply_style_width = false; // Don't apply width by default
+            bool style_width_pct_em_only = true; // only apply if width is in '%' or in 'em'
+            int  style_width_alignment = 0; // 0: left aligned / 1: centered / 2: right aligned
+            // Uncomment for testing alternate defaults:
+            // apply_style_width = true;        // apply width to all elements (except table elements)
+            // style_width_pct_em_only = false; // accept any kind of unit
+
+            if (enode->getNodeId() == el_hr) { // <HR>
+                apply_style_width = true;
+                style_width_alignment = 1; // <hr> are auto-centered
+                style_width_pct_em_only = false; // width for <hr> is safe, whether px or %
+            }
+
+            if (apply_style_width && enode->getStyle()->display >= css_d_table ) {
+                // table elements are managed elsewhere: we'd rather not mess with the table
+                // layout algorithm by applying styles width here (even if this algorithm
+                // is not perfect, it looks like applying width here does not make it better).
+                apply_style_width = false;
+            }
+            if (apply_style_width && style_width_pct_em_only) {
+                if (style_width.type != css_val_percent && style_width.type != css_val_em) {
+                    apply_style_width = false;
+                }
+            }
+            if (apply_style_width) {
+                int style_width_px = lengthToPx( style_width, width, em );
+                if (style_width_px && style_width_px < width) { // ignore if greater than our given width
+                    // printf("style_width: %dps at ~y=%d\n", style_width_px, y);
+                    if (style_width_alignment == 1) { // centered
+                        x += (width - style_width_px)/2;
+                    }
+                    else if (style_width_alignment == 2) { // right aligned
+                        x += (width - style_width_px);
+                    }
+                    width = style_width_px;
+                }
+            }
+        }
+
         bool flgSplit = false;
         width -= margin_left + margin_right;
         int h = 0;
