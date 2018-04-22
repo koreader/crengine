@@ -5038,11 +5038,17 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
 }
 
 /// returns coordinates of pointer inside formatted document
-lvPoint ldomXPointer::toPoint() const
+lvPoint ldomXPointer::toPoint(bool use_getRectEx) const
 {
     lvRect rc;
-    if ( !getRect( rc ) )
-        return lvPoint(-1, -1);
+    if (use_getRectEx) {
+        if ( !getRectEx( rc ) )
+            return lvPoint(-1, -1);
+    }
+    else {
+        if ( !getRect( rc ) )
+            return lvPoint(-1, -1);
+    }
     return rc.topLeft();
 }
 
