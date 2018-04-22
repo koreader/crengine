@@ -1314,9 +1314,10 @@ public:
 #if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
     bool getRect(lvRect & rect) const;
+    /// returns caret rectangle for pointer inside formatted document considering paddings and borders
     bool getRectEx(lvRect & rect) const;
     /// returns coordinates of pointer inside formatted document
-    lvPoint toPoint() const;
+    lvPoint toPoint( bool use_getRectEx=false ) const;
 #endif
     /// converts to string
 	lString16 toString();
