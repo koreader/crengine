@@ -1883,4 +1883,11 @@
 <pattern> con5</pattern>
 <pattern> cul5</pattern>
 -->
+<!-- rules to take care of some exceptions introduced by right 1 
+but needed by crengine no quote pattern -->
+<pattern>d2s </pattern>
+<pattern>f2s </pattern>
+<pattern>g2s </pattern>
+<pattern>m2s </pattern>
+<pattern>n2x </pattern>
 </HyphenationDescription>
