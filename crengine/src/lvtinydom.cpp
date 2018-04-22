@@ -4937,7 +4937,7 @@ ldomNode * ldomXPointer::getFinalNode() const
     for (;;) {
         if ( !node )
             return NULL;
-        if ( node->getRendMethod()==erm_final || node->getRendMethod()==erm_list_item )
+        if ( node->getRendMethod()==erm_final || node->getRendMethod()==erm_list_item || node->getRendMethod() == erm_table_caption )
             return node;
         node = node->getParentNode();
     }
@@ -4969,7 +4969,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
     pt.y -= rc.top+measureBorder(finalNode,0)+lengthToPx(finalNode->getStyle()->padding[2],rc.height(),finalNode->getFont()->getSize());//add offset for borders,paddings
     //if ( !r )
     //    return ptr;
-    if ( finalNode->getRendMethod() != erm_final && finalNode->getRendMethod() !=  erm_list_item) {
+    if ( finalNode->getRendMethod() != erm_final && finalNode->getRendMethod() != erm_list_item && finalNode->getRendMethod() != erm_table_caption ) {
         // not final, use as is
         if ( pt.y < (rc.bottom + rc.top) / 2 )
             return ldomXPointer( finalNode, 0 );
@@ -5065,7 +5065,7 @@ bool ldomXPointer::getRect(lvRect & rect) const
     ldomNode * mainNode = p->getDocument()->getRootNode();
     for ( ; p; p = p->getParentNode() ) {
         int rm = p->getRendMethod();
-        if ( rm == erm_final || rm == erm_list_item ) {
+        if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
             finalNode = p; // found final block
         } else if ( p->getRendMethod() == erm_invisible ) {
             return false; // invisible !!!
@@ -5268,7 +5268,7 @@ bool ldomXPointer::getRectEx(lvRect & rect) const
     ldomNode * mainNode = p->getDocument()->getRootNode();
     for ( ; p; p = p->getParentNode() ) {
         int rm = p->getRendMethod();
-        if ( rm == erm_final || rm == erm_list_item ) {
+        if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
             finalNode = p; // found final block
         } else if ( p->getRendMethod() == erm_invisible ) {
             return false; // invisible !!!
@@ -10818,12 +10818,12 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
         return NULL;
     }
     if ( pt.y < fmt.getY() - top_margin) {
-        if ( direction>0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item) )
+        if ( direction>0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption) )
             return this;
         return NULL;
     }
     if ( pt.y >= fmt.getY() + fmt.getHeight() + bottom_margin ) {
-        if ( direction<0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item) )
+        if ( direction<0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption) )
             return this;
         return NULL;
     }
@@ -10843,7 +10843,7 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
             return NULL;
         }
     }
-    if ( enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item ) {
+    if ( enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption ) {
         return this;
     }
     int count = getChildCount();
