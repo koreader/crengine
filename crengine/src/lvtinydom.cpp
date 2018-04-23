@@ -4222,14 +4222,35 @@ bool ldomNode::applyNodeStylesheet()
 {
 #ifndef DISABLE_STYLESHEET_REL
     CRLog::trace("ldomNode::applyNodeStylesheet()");
-    if ( !getDocument()->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ||// internal styles are disabled
-          getNodeId() != el_DocFragment )
+    if ( !getDocument()->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ) // internal styles are disabled
         return false;
-
-    if ( getDocument()->getContainer().isNull() )
-        return false;
-
     bool stylesheetChanged = false;
+
+    // Here, we apply internal stylesheets that have been saved as attribute or
+    // child element by the HTML parser for EPUB or plain HTML documents.
+
+    // For pure .html documents (not for .html embedded in a .epub), the
+    // content of the first <head><style> element has been put as the value
+    // of an added attribute to the <body> element:
+    //     <body StyleSheetText="css content">
+    if ( getNodeId()==el_body && hasAttribute(attr_StyleSheetText) ) {
+        getDocument()->_stylesheet.push();
+        CRLog::trace("parsing body StyleSheetText attr content:\n%s\n", UnicodeToLocal(getAttributeValue(attr_StyleSheetText)).c_str());
+        stylesheetChanged = getDocument()->parseStyleSheet(L"", getAttributeValue(attr_StyleSheetText));
+        if ( !stylesheetChanged )
+            getDocument()->_stylesheet.pop();
+        return stylesheetChanged;
+    }
+
+    // For epub documents, for each included .html in the epub
+    // - the first css link has been put as the value of an added attribute
+    // to the <DocFragment> element:
+    //     <DocFragment StyleSheet="path to css file">
+    // - the content of the first <head><style> element has been into
+    // an added child element: <DocFragment><stylesheet>css content</stylesheet>
+    if ( getNodeId() != el_DocFragment || getDocument()->getContainer().isNull() )
+        return false;
+
     if ( hasAttribute(attr_StyleSheet) ) {
         getDocument()->_stylesheet.push();
         stylesheetChanged = getDocument()->parseStyleSheet(getAttributeValue(attr_StyleSheet));
@@ -8060,6 +8081,10 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
 //        lStr_lowercase( const_cast<lChar16 *>(nsname), lStr_len(nsname) );
 //    lStr_lowercase( const_cast<lChar16 *>(tagname), lStr_len(tagname) );
 
+    if ( tagname[0] == 's' && !lStr_cmp(tagname, "style") && _currNode && _currNode->getElement()->isNodeName("head") ) {
+        _inHeadStyle = true;
+    }
+
     // Patch for bad LIB.RU books - BR delimited paragraphs in "Fine HTML" format
     if ((tagname[0] == 'b' && tagname[1] == 'r' && tagname[2] == 0)
         || (tagname[0] == 'd' && tagname[1] == 'd' && tagname[2] == 0)) {
@@ -8085,6 +8110,12 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
 void ldomDocumentWriterFilter::OnTagBody()
 {
     _tagBodyCalled = true;
+
+    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") && !_headStyleText.empty() ) {
+        OnAttribute(L"", L"StyleSheetText", lString16(_headStyleText).c_str());
+        CRLog::trace("added BODY StyleSheetText attribute with HEAD>STYLE content");
+    }
+
     if ( _currNode ) {
         _currNode->onBodyEnter();
     }
@@ -8250,6 +8281,12 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
 /// called on text
 void ldomDocumentWriterFilter::OnText( const lChar16 * text, int len, lUInt32 flags )
 {
+    if (_inHeadStyle) {
+        _headStyleText << lString16(text);
+        _inHeadStyle = false;
+        return;
+    }
+
     //logfile << "lxmlDocumentWriter::OnText() fpos=" << fpos;
     if (_currNode)
     {
@@ -8326,7 +8363,9 @@ ldomDocumentWriterFilter::ldomDocumentWriterFilter(ldomDocument * document, bool
 , _styleAttrId(0)
 , _classAttrId(0)
 , _tagBodyCalled(true)
+, _inHeadStyle(false)
 {
+    _headStyleText.clear();
     lUInt16 i;
     for ( i=0; i<MAX_ELEMENT_TYPE_ID; i++ )
         _rules[i] = NULL;
@@ -10710,6 +10749,8 @@ static void updateStyleDataRecursive( ldomNode * node )
         return;
     bool styleSheetChanged = false;
     if ( node->getNodeId()==el_DocFragment )
+        styleSheetChanged = node->applyNodeStylesheet();
+    else if ( node->getNodeId()==el_body && node->hasAttribute(attr_StyleSheetText)) // head style for pure HTML doc
         styleSheetChanged = node->applyNodeStylesheet();
     node->initNodeStyle();
     int n = node->getChildCount();
