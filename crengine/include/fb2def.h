@@ -191,7 +191,6 @@ XS_ATTR( title )
 XS_ATTR( subtitle )
 XS_ATTR( suptitle )
 XS_ATTR( start )
-XS_ATTR( StyleSheetText )
 
 XS_END_ATTRS
 

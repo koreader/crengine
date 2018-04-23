@@ -4224,34 +4224,26 @@ bool ldomNode::applyNodeStylesheet()
     CRLog::trace("ldomNode::applyNodeStylesheet()");
     if ( !getDocument()->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ) // internal styles are disabled
         return false;
-    bool stylesheetChanged = false;
+
+    if ( getNodeId() != el_DocFragment && getNodeId() != el_body )
+        return false;
+    if ( getNodeId() == el_DocFragment && getDocument()->getContainer().isNull() )
+        return false;
 
     // Here, we apply internal stylesheets that have been saved as attribute or
     // child element by the HTML parser for EPUB or plain HTML documents.
 
-    // For pure .html documents (not for .html embedded in a .epub), the
-    // content of the first <head><style> element has been put as the value
-    // of an added attribute to the <body> element:
-    //     <body StyleSheetText="css content">
-    if ( getNodeId()==el_body && hasAttribute(attr_StyleSheetText) ) {
-        getDocument()->_stylesheet.push();
-        CRLog::trace("parsing body StyleSheetText attr content:\n%s\n", UnicodeToLocal(getAttributeValue(attr_StyleSheetText)).c_str());
-        stylesheetChanged = getDocument()->parseStyleSheet(L"", getAttributeValue(attr_StyleSheetText));
-        if ( !stylesheetChanged )
-            getDocument()->_stylesheet.pop();
-        return stylesheetChanged;
-    }
-
-    // For epub documents, for each included .html in the epub
-    // - the first css link has been put as the value of an added attribute
-    // to the <DocFragment> element:
+    // For epub documents, for each included .html in the epub, a css file link may
+    // have been put as the value of an added attribute to the <DocFragment> element:
     //     <DocFragment StyleSheet="path to css file">
-    // - the content of the first <head><style> element has been into
-    // an added child element: <DocFragment><stylesheet>css content</stylesheet>
-    if ( getNodeId() != el_DocFragment || getDocument()->getContainer().isNull() )
-        return false;
+    // For epub and html documents, the content of the first <head><style> element
+    // has been put into an added child element:
+    //     <DocFragment><stylesheet>css content</stylesheet>
+    //     <body><stylesheet>css content</stylesheet>
 
-    if ( hasAttribute(attr_StyleSheet) ) {
+    bool stylesheetChanged = false;
+
+    if ( getNodeId() == el_DocFragment && hasAttribute(attr_StyleSheet) ) {
         getDocument()->_stylesheet.push();
         stylesheetChanged = getDocument()->parseStyleSheet(getAttributeValue(attr_StyleSheet));
         if ( !stylesheetChanged )
@@ -8110,14 +8102,21 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
 void ldomDocumentWriterFilter::OnTagBody()
 {
     _tagBodyCalled = true;
-
-    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") && !_headStyleText.empty() ) {
-        OnAttribute(L"", L"StyleSheetText", lString16(_headStyleText).c_str());
-        CRLog::trace("added BODY StyleSheetText attribute with HEAD>STYLE content");
-    }
-
     if ( _currNode ) {
         _currNode->onBodyEnter();
+    }
+
+    // needs to be done after previous statement to not mess parser state
+    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") && !_headStyleText.empty() ) {
+        // Adds <head><style> content as <body> first child element.
+        // It will not be displayed thanks to fb2def.h:
+        //   XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
+        OnTagOpen(L"", L"stylesheet");
+        OnTagBody();
+        OnText(_headStyleText.c_str(), _headStyleText.length(), 0);
+        OnTagClose(L"", L"stylesheet");
+        CRLog::trace("added BODY>stylesheet child element with HEAD>STYLE content");
+        _headStyleText.clear();
     }
 }
 
@@ -10748,10 +10747,12 @@ static void updateStyleDataRecursive( ldomNode * node )
     if ( !node->isElement() )
         return;
     bool styleSheetChanged = false;
-    if ( node->getNodeId()==el_DocFragment )
+
+    // DocFragment (for epub) and body (for html) may hold some stylesheet
+    // as first child or a link to stylesheet file in attribute
+    if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body )
         styleSheetChanged = node->applyNodeStylesheet();
-    else if ( node->getNodeId()==el_body && node->hasAttribute(attr_StyleSheetText)) // head style for pure HTML doc
-        styleSheetChanged = node->applyNodeStylesheet();
+
     node->initNodeStyle();
     int n = node->getChildCount();
     for ( int i=0; i<n; i++ ) {
