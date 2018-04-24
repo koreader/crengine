@@ -2244,6 +2244,8 @@ protected:
     lUInt16 _classAttrId;
     lUInt16 * _rules[MAX_ELEMENT_TYPE_ID];
     bool _tagBodyCalled;
+    bool _inHeadStyle;
+    lString16 _headStyleText;
     virtual void AutoClose( lUInt16 tag_id, bool open );
     virtual void ElementCloseHandler( ldomNode * elem );
     virtual void appendStyle( const lChar16 * style );
