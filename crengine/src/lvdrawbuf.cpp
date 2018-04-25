@@ -2540,6 +2540,15 @@ void LVColorDrawBuf::DrawOnTop( LVDrawBuf * buf, int x, int y)
                         dst++;
                         src++;
                     }
+                } else if (bpp == 16) {
+                    lUInt16 * dst = ((lUInt16 *)buf->GetScanLine(y + yy)) + x;
+                    for (int xx=0; xx < _dx; xx++) {
+                        if (x + xx >= clip.left && x + xx < clip.right) {
+                            if(src!=0) *dst = rgb888to565(*src);
+                        }
+                        dst++;
+                        src++;
+                    }
                 } else if (bpp == 32) {
                     lUInt32 * dst = ((lUInt32 *)buf->GetScanLine(y + yy)) + x;
                     for (int xx = 0; xx < _dx; xx++) {
