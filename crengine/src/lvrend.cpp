@@ -2362,15 +2362,18 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
     if (!style->background_image.empty()) {
         lString16 filename = lString16(style->background_image.c_str());
         {//url("path") to path
-            if (filename.lowercase().startsWith("url")) filename = filename.substr(3);
+            if (lString16(filename).lowercase().startsWith("url")) filename = filename.substr(3);
             filename.trim();
-            if (filename.lowercase().startsWith("(")) filename = filename.substr(1);
-            if (filename.lowercase().endsWith(")")) filename = filename.substr(0, filename.length() - 1);
+            if (filename.startsWith("(")) filename = filename.substr(1);
+            if (filename.endsWith(")")) filename = filename.substr(0, filename.length() - 1);
             filename.trim();
-            if (filename.lowercase().startsWith("\"")) filename = filename.substr(1);
-            if (filename.lowercase().endsWith("\"")) filename = filename.substr(0, filename.length() - 1);
+            if (filename.startsWith("\"")) filename = filename.substr(1);
+            if (filename.endsWith("\"")) filename = filename.substr(0, filename.length() - 1);
             filename.trim();
-            if (filename.lowercase().startsWith("../")) filename = filename.substr(3);
+            // This is probably wrong: we should have resolved the path at
+            // stylesheet parsing time (but the current code does not).
+            // Here, all files relative path information is no more accessible.
+            if (filename.startsWith("../")) filename = filename.substr(3);
         }
         LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filename);
         if (!img.isNull()) {

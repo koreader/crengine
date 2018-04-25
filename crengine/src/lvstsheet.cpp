@@ -245,7 +245,7 @@ static css_decl_code parse_property_name( const char * & res )
     const char * str = res;
     for (int i=1; css_decl_name[i]; i++)
     {
-        if (substr_compare( css_decl_name[i], str ))
+        if (substr_icompare( css_decl_name[i], str )) // css property case should not matter (eg: "Font-Weight:")
         {
             // found!
             skip_spaces(str);
@@ -266,7 +266,7 @@ static int parse_name( const char * & str, const char * * names, int def_value )
 {
     for (int i=0; names[i]; i++)
     {
-        if (substr_compare( names[i], str ))
+        if (substr_icompare( names[i], str )) // css named value case should not matter (eg: "BOLD")
         {
             // found!
             return i;
@@ -288,7 +288,8 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
 {
     value.type = css_val_unspecified;
     skip_spaces( str );
-    if ( substr_compare( "inherited", str ) )
+    // Here and below: named values and unit case should not matter
+    if ( substr_icompare( "inherited", str ) )
     {
         value.type = css_val_inherited;
         value.value = 0;
@@ -296,12 +297,12 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
     }
     if ( is_font_size ) {
         // Approximate the (usually uneven) gaps between named sizes.
-        if ( substr_compare( "smaller", str ) ) {
+        if ( substr_icompare( "smaller", str ) ) {
             value.type = css_val_percent;
             value.value = 80;
             return true;
         }
-        else if ( substr_compare( "larger", str ) ) {
+        else if ( substr_icompare( "larger", str ) ) {
             value.type = css_val_percent;
             value.value = 125;
             return true;
@@ -332,23 +333,23 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
             str++;
         }
     }
-    if ( substr_compare( "em", str ) )
+    if ( substr_icompare( "em", str ) )
         value.type = css_val_em;
-    else if ( substr_compare( "pt", str ) )
+    else if ( substr_icompare( "pt", str ) )
         value.type = css_val_pt;
-    else if ( substr_compare( "ex", str ) )
+    else if ( substr_icompare( "ex", str ) )
         value.type = css_val_ex;
-    else if ( substr_compare( "px", str ) )
+    else if ( substr_icompare( "px", str ) )
         value.type = css_val_px;
-    else if ( substr_compare( "in", str ) )
+    else if ( substr_icompare( "in", str ) )
         value.type = css_val_in;
-    else if ( substr_compare( "cm", str ) )
+    else if ( substr_icompare( "cm", str ) )
         value.type = css_val_cm;
-    else if ( substr_compare( "mm", str ) )
+    else if ( substr_icompare( "mm", str ) )
         value.type = css_val_mm;
-    else if ( substr_compare( "pc", str ) )
+    else if ( substr_icompare( "pc", str ) )
         value.type = css_val_pc;
-    else if ( substr_compare( "%", str ) )
+    else if ( substr_icompare( "%", str ) )
         value.type = css_val_percent;
     else if (n == 0 && frac == 0)
         value.type = css_val_px;
@@ -2015,7 +2016,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         // todo
         {
             lString16 val = node->getAttributeValue(attr_class);
-            val.lowercase();
+            // val.lowercase(); // className should be case sensitive
 //            if ( val.length() != _value.length() )
 //                return false;
             //CRLog::trace("attr_class: %s %s", LCSTR(val), LCSTR(_value) );
@@ -2114,7 +2115,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         skip_spaces( str );
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         lString16 s( attrvalue );
-        s.lowercase();
+        // s.lowercase(); // className should be case sensitive
         rule->setAttr(attr_class, s);
         return rule;
     } else if ( *str=='#' ) {
