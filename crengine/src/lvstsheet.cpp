@@ -827,9 +827,7 @@ static const char * css_bc_names[]={
 
 bool LVCssDeclaration::parse( const char * &decl )
 {
-    #define MAX_DECL_SIZE 512
-    int buf[MAX_DECL_SIZE];
-    int buf_pos = 0;
+    SerialBuf buf(512, true);
 
     if ( !decl )
         return false;
@@ -945,9 +943,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                             len.value = -len.value;
                         }
                         // save result
-                        buf[ buf_pos++ ] = prop_code;
-                        buf[ buf_pos++ ] = len.type;
-                        buf[ buf_pos++ ] = len.value;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) len.type;
+                        buf<<(lUInt32) len.value;
                     }
                 }
                 break;
@@ -973,27 +971,27 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf[buf_pos++] = prop_code;
+                    buf<<(lUInt32) prop_code;
                     switch (n1) {
                         case 0:
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 1;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 1;
                             break;
                         case 1:
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 3;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 3;
                             break;
                         case 2:
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 5;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 5;
                             break;
                         case 3:
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 3;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 3;
                             break;
                         case 4:
-                            buf[buf_pos++] = css_val_inherited;
-                            buf[buf_pos++] = 0;
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
                             break;
                         default:break;
                     }
@@ -1006,9 +1004,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                     css_length_t len;
                     if ( parse_number_value( decl, len, prop_code==cssd_font_size ) )
                     {
-                        buf[ buf_pos++ ] = prop_code;
-                        buf[ buf_pos++ ] = len.type;
-                        buf[ buf_pos++ ] = len.value;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) len.type;
+                        buf<<(lUInt32) len.value;
                     }
                 }
                 break;
@@ -1019,41 +1017,41 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf[buf_pos++] = prop_code;
+                    buf<<(lUInt32) prop_code;
                     switch (n1) {
                         case 0:
                             for (int i = 0; i < 4; ++i)
                             {
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 1;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 1;
                             }
                             break;
                         case 1:
                             for (int i = 0; i < 4; ++i)
                             {
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 3;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 3;
                             }
                             break;
                         case 2:
                             for (int i = 0; i < 4; ++i)
                             {
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 5;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 5;
                             }
                             break;
                         case 3:
                             for (int i = 0; i < 4; ++i)
                             {
-                            buf[buf_pos++] = css_val_px;
-                            buf[buf_pos++] = 3;
+                            buf<<(lUInt32) css_val_px;
+                            buf<<(lUInt32) 3;
                             }
                             break;
                         case 4:
                             for (int i = 0; i < 4; ++i)
                             {
-                            buf[buf_pos++] = css_val_inherited;
-                            buf[buf_pos++] = 0;
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
                             break;
                             }
                         default:break;
@@ -1077,11 +1075,11 @@ bool LVCssDeclaration::parse( const char * &decl )
 			    case 2: len[2] = len[0]; /* fall through */
 			    case 3: len[3] = len[1];
 			}
-			buf[ buf_pos++ ] = prop_code;
+			buf<<(lUInt32) prop_code;
 			for (i = 0; i < 4; ++i)
 			{
-			    buf[ buf_pos++ ] = len[i].type;
-			    buf[ buf_pos++ ] = len[i].value;
+			    buf<<(lUInt32) len[i].type;
+			    buf<<(lUInt32) len[i].value;
 			}
 		    }
 		}
@@ -1096,9 +1094,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                 css_length_t len;
                 if ( parse_color_value( decl, len ) )
                 {
-                    buf[ buf_pos++ ] = prop_code;
-                    buf[ buf_pos++ ] = len.type;
-                    buf[ buf_pos++ ] = len.value;
+                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) len.type;
+                    buf<<(lUInt32) len.value;
                 }
             }
                 break;
@@ -1117,11 +1115,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                         case 2: len[2] = len[0]; /* fall through */
                         case 3: len[3] = len[1];
                     }
-                    buf[ buf_pos++ ] = prop_code;
+                    buf<<(lUInt32) prop_code;
                     for (i = 0; i < 4; ++i)
                     {
-                        buf[ buf_pos++ ] = len[i].type;
-                        buf[ buf_pos++ ] = len[i].value;
+                        buf<<(lUInt32) len[i].type;
+                        buf<<(lUInt32) len[i].value;
                     }
                 }
             }
@@ -1157,38 +1155,38 @@ bool LVCssDeclaration::parse( const char * &decl )
                 switch (sum) {
                     case 1:
                     {
-                        buf[buf_pos++] = prop_code;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n1;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n1;
                     }
                         break;
                     case 2:
                     {
-                        buf[buf_pos++] = prop_code;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n2;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n2;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n2;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n2;
                     }
                     break;
                     case 3:
                     {
-                        buf[buf_pos++] = prop_code;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n2;
-                        buf[buf_pos++] = n3;
-                        buf[buf_pos++] = n2;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n2;
+                        buf<<(lUInt32) n3;
+                        buf<<(lUInt32) n2;
                     }
                     break;
                     case 4:
                     {
-                        buf[buf_pos++] = prop_code;
-                        buf[buf_pos++] = n1;
-                        buf[buf_pos++] = n2;
-                        buf[buf_pos++] = n3;
-                        buf[buf_pos++] = n4;
+                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) n1;
+                        buf<<(lUInt32) n2;
+                        buf<<(lUInt32) n3;
+                        buf<<(lUInt32) n4;
                     }
                     break;
                     default:break;
@@ -1399,26 +1397,26 @@ bool LVCssDeclaration::parse( const char * &decl )
                     {
                         if (n1 != -1)
                         {
-                            buf[buf_pos++] = cssd_border_top_style;
-                            buf[buf_pos++] = n1;
-                            buf[buf_pos++] = cssd_border_right_style;
-                            buf[buf_pos++] = n1;
-                            buf[buf_pos++] = cssd_border_bottom_style;
-                            buf[buf_pos++] = n1;
-                            buf[buf_pos++] = cssd_border_left_style;
-                            buf[buf_pos++] = n1;
+                            buf<<(lUInt32) cssd_border_top_style;
+                            buf<<(lUInt32) n1;
+                            buf<<(lUInt32) cssd_border_right_style;
+                            buf<<(lUInt32) n1;
+                            buf<<(lUInt32) cssd_border_bottom_style;
+                            buf<<(lUInt32) n1;
+                            buf<<(lUInt32) cssd_border_left_style;
+                            buf<<(lUInt32) n1;
                             if (n2 != -1) {
-                                buf[buf_pos++] = cssd_border_color;
+                                buf<<(lUInt32) cssd_border_color;
                                 for (int i = 0; i < 4; i++) {
-                                    buf[buf_pos++] = color.type;
-                                    buf[buf_pos++] = color.value;
+                                    buf<<(lUInt32) color.type;
+                                    buf<<(lUInt32) color.value;
                                 }
                             }
                             if (n3 != -1) {
-                                buf[buf_pos++] = cssd_border_width;
+                                buf<<(lUInt32) cssd_border_width;
                                 for (int i = 0; i < 4; i++) {
-                                    buf[buf_pos++] = width.type;
-                                    buf[buf_pos++] = width.value;
+                                    buf<<(lUInt32) width.type;
+                                    buf<<(lUInt32) width.value;
                                 }
                             }
                         }
@@ -1427,44 +1425,44 @@ bool LVCssDeclaration::parse( const char * &decl )
                     if (n1 != -1) {
                         switch (prop_code){
                             case cssd_border_top:
-                                buf[buf_pos++] = cssd_border_top_style;
-                                buf[buf_pos++] = n1;
+                                buf<<(lUInt32) cssd_border_top_style;
+                                buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_right:
-                                buf[buf_pos++] = cssd_border_right_style;
-                                buf[buf_pos++] = n1;
+                                buf<<(lUInt32) cssd_border_right_style;
+                                buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_bottom:
-                                buf[buf_pos++] = cssd_border_bottom_style;
-                                buf[buf_pos++] = n1;
+                                buf<<(lUInt32) cssd_border_bottom_style;
+                                buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_left:
-                                buf[buf_pos++] = cssd_border_left_style;
-                                buf[buf_pos++] = n1;
+                                buf<<(lUInt32) cssd_border_left_style;
+                                buf<<(lUInt32) n1;
                                 break;
                             default:break;
                         }
                         if (n2 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf[buf_pos++] = cssd_border_top_color;
-                                    buf[buf_pos++] = color.type;
-                                    buf[buf_pos++] = color.value;
+                                    buf<<(lUInt32) cssd_border_top_color;
+                                    buf<<(lUInt32) color.type;
+                                    buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_right:
-                                    buf[buf_pos++] = cssd_border_right_color;
-                                    buf[buf_pos++] = color.type;
-                                    buf[buf_pos++] = color.value;
+                                    buf<<(lUInt32) cssd_border_right_color;
+                                    buf<<(lUInt32) color.type;
+                                    buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf[buf_pos++] = cssd_border_bottom_color;
-                                    buf[buf_pos++] = color.type;
-                                    buf[buf_pos++] = color.value;
+                                    buf<<(lUInt32) cssd_border_bottom_color;
+                                    buf<<(lUInt32) color.type;
+                                    buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_left:
-                                    buf[buf_pos++] = cssd_border_left_color;
-                                    buf[buf_pos++] = color.type;
-                                    buf[buf_pos++] = color.value;
+                                    buf<<(lUInt32) cssd_border_left_color;
+                                    buf<<(lUInt32) color.type;
+                                    buf<<(lUInt32) color.value;
                                     break;
                                 default:break;
                             }
@@ -1473,24 +1471,24 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (n3 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf[buf_pos++] = cssd_border_top_width;
-                                    buf[buf_pos++] = width.type;
-                                    buf[buf_pos++] = width.value;
+                                    buf<<(lUInt32) cssd_border_top_width;
+                                    buf<<(lUInt32) width.type;
+                                    buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_right:
-                                    buf[buf_pos++] = cssd_border_right_width;
-                                    buf[buf_pos++] = width.type;
-                                    buf[buf_pos++] = width.value;
+                                    buf<<(lUInt32) cssd_border_right_width;
+                                    buf<<(lUInt32) width.type;
+                                    buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf[buf_pos++] = cssd_border_bottom_width;
-                                    buf[buf_pos++] = width.type;
-                                    buf[buf_pos++] = width.value;
+                                    buf<<(lUInt32) cssd_border_bottom_width;
+                                    buf<<(lUInt32) width.type;
+                                    buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_left:
-                                    buf[buf_pos++] = cssd_border_left_width;
-                                    buf[buf_pos++] = width.type;
-                                    buf[buf_pos++] = width.value;
+                                    buf<<(lUInt32) cssd_border_left_width;
+                                    buf<<(lUInt32) width.type;
+                                    buf<<(lUInt32) width.value;
                                     break;
                                 default:break;
                             }
@@ -1500,7 +1498,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
             case cssd_background_image:
             {
-                buf[buf_pos++] = prop_code;
+                buf<<(lUInt32) prop_code;
                 lString8 str;
                 const char *tmp=decl;
                 int len=0;
@@ -1509,9 +1507,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                 str.append(decl,len);
                 str.trim();
                 len=str.length();
-                buf[buf_pos++]=str.length();
+                buf<<(lUInt32) str.length();
                 for(int i=0;i<len;i++)
-                    buf[buf_pos++]=str[i];
+                    buf<<(lUInt32) str[i];
             }
                 break;
             case cssd_background_repeat:
@@ -1537,9 +1535,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                 css_length_t color;
                 if (parse_color_value(decl, color))
                 {
-                    buf[buf_pos++]=cssd_background_color;
-                    buf[buf_pos++]=color.type;
-                    buf[buf_pos++]=color.value;
+                    buf<<(lUInt32) cssd_background_color;
+                    buf<<(lUInt32) color.type;
+                    buf<<(lUInt32) color.value;
                 }
                 lString8 str;
                 const char *tmp=decl;
@@ -1552,7 +1550,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 skip_spaces(tmp);
                 int offset=len-str.length();//offset for removed spaces
                 if (Utf8ToUnicode(str).lowercase().startsWith("url")) {
-                    buf[buf_pos++]=cssd_background_image;
+                    buf<<(lUInt32) cssd_background_image;
                     len=0;
                     while (*tmp && *tmp !=';' && *tmp!='}'&&*tmp!=')')
                     {tmp++;len++;}
@@ -1560,16 +1558,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                     str.clear();
                     str.append(decl,len);
                     str.trim();
-                    buf[buf_pos++] = str.length();
+                    buf<<(lUInt32) str.length();
                     for (int i = 0; i < str.length(); i++)
-                        buf[buf_pos++] = str[i];
+                        buf<<(lUInt32) str[i];
                     decl+=len;
                     skip_spaces(decl);
                     int repeat=parse_name(decl,css_bg_repeat_names,-1);
                     if(repeat!=-1)
                     {
-                        buf[buf_pos++]=cssd_background_repeat;
-                        buf[buf_pos++]=repeat;
+                        buf<<(lUInt32) cssd_background_repeat;
+                        buf<<(lUInt32) repeat;
                         skip_spaces(decl);
                     }
                     int position=parse_name(decl,css_bg_position_names,-1);
@@ -1584,8 +1582,8 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (position==23) position=9;
                         if (position==24) position=10;
                         if (position==25) position=11;
-                        buf[buf_pos++]=cssd_background_position;
-                        buf[buf_pos++]=position;
+                        buf<<(lUInt32) cssd_background_position;
+                        buf<<(lUInt32) position;
                     }
                 }
 
@@ -1602,11 +1600,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                 {
                     if (i==1) len[1] = len[0];
 
-                    buf[ buf_pos++ ] = prop_code;
+                    buf<<(lUInt32) prop_code;
                     for (i = 0; i < 2; ++i)
                     {
-                        buf[ buf_pos++ ] = len[i].type;
-                        buf[ buf_pos++ ] = len[i].value;
+                        buf<<(lUInt32) len[i].type;
+                        buf<<(lUInt32) len[i].value;
                     }
                 }
             }
@@ -1622,8 +1620,8 @@ bool LVCssDeclaration::parse( const char * &decl )
             if ( n!= -1)
             {
                 // add enum property
-                buf[buf_pos++] = prop_code;
-                buf[buf_pos++] = n;
+                buf<<(lUInt32) prop_code;
+                buf<<(lUInt32) n;
             }
             if (!strValue.empty())
             {
@@ -1631,10 +1629,10 @@ bool LVCssDeclaration::parse( const char * &decl )
                 if (prop_code==cssd_font_family)
                 {
                     // font names
-                    buf[buf_pos++] = cssd_font_names;
-                    buf[buf_pos++] = strValue.length();
+                    buf<<(lUInt32) cssd_font_names;
+                    buf<<(lUInt32) strValue.length();
                     for (int i=0; i < strValue.length(); i++)
-                        buf[buf_pos++] = strValue[i];
+                        buf<<(lUInt32) strValue[i];
                 }
             }
         }
@@ -1646,12 +1644,17 @@ bool LVCssDeclaration::parse( const char * &decl )
     }
 
     // store parsed result
-    if (buf_pos)
+    if (buf.pos())
     {
-        buf[buf_pos++] = cssd_stop; // add end marker
-        _data = new int[buf_pos];
-        for (int i=0; i<buf_pos; i++)
-            _data[i] = buf[i];
+        buf<<(lUInt32) cssd_stop; // add end marker
+        int sz = buf.pos()/4;
+        _data = new int[sz];
+        // Could that cause problem with different endianess?
+        buf.copyTo( (lUInt8*)_data, buf.pos() );
+        // Alternative:
+        //   buf.setPos(0);
+        //   for (int i=0; i<sz; i++)
+        //      buf >> _data[i];
     }
 
     // skip }
