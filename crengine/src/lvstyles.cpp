@@ -47,7 +47,10 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((lUInt32)rec.display * 31
+        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((
+           (lUInt32)(rec.important>>32)) * 31
+         + (lUInt32)(rec.important&0xFFFFFFFFULL)) * 31
+         + (lUInt32)rec.display * 31
          + (lUInt32)rec.white_space) * 31
          + (lUInt32)rec.text_align) * 31
          + (lUInt32)rec.text_align_last) * 31
@@ -103,6 +106,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
 bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
 {
     return 
+           r1.important == r2.important &&
            r1.display == r2.display &&
            r1.white_space == r2.white_space &&
            r1.text_align == r2.text_align &&
@@ -282,11 +286,14 @@ static const char * style_magic = "CR3STYLE";
 #define ST_GET_LEN(v) { lUInt8 t; buf >> t; lInt32 val; buf >> val; v.type = (css_value_type_t)t; v.value = val; if (buf.error()) return false; }
 #define ST_PUT_LEN4(v) ST_PUT_LEN(v[0]);ST_PUT_LEN(v[1]);ST_PUT_LEN(v[2]);ST_PUT_LEN(v[3]);
 #define ST_GET_LEN4(v) ST_GET_LEN(v[0]);ST_GET_LEN(v[1]);ST_GET_LEN(v[2]);ST_GET_LEN(v[3]);
+#define ST_PUT_UI64(v) buf << (lUInt32)(v>>32) << (lUInt32)(v&0xFFFFFFFFULL)
+#define ST_GET_UI64(v) { lUInt32 t; buf >> t; v = (lUInt64)(t)<<32; buf >> t; v += t; if (buf.error()) return false; }
 bool css_style_rec_t::serialize( SerialBuf & buf )
 {
     if ( buf.error() )
         return false;
     buf.putMagic(style_magic);
+    ST_PUT_UI64(important);         //    lUInt64              important;
     ST_PUT_ENUM(display);           //    css_display_t        display;
     ST_PUT_ENUM(white_space);       //    css_white_space_t    white_space;
     ST_PUT_ENUM(text_align);        //    css_text_align_t     text_align;
@@ -336,6 +343,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     if ( buf.error() )
         return false;
     buf.putMagic(style_magic);
+    ST_GET_UI64(important);                                 //    lUInt64              important;
     ST_GET_ENUM(css_display_t, display);                    //    css_display_t        display;
     ST_GET_ENUM(css_white_space_t, white_space);            //    css_white_space_t    white_space;
     ST_GET_ENUM(css_text_align_t, text_align);              //    css_text_align_t     text_align;
@@ -377,7 +385,9 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_LEN(border_spacing[1]);
     lUInt32 hash = 0;
     buf >> hash;
+    // printf("imp: %llx oldhash: %lx ", important, hash);
     lUInt32 newhash = calcHash(*this);
+    // printf("newhash: %lx\n", newhash);
     if ( hash!=newhash )
         buf.seterror();
     return !buf.error();

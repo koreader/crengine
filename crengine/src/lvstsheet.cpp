@@ -21,6 +21,9 @@
 // define to dump all tokens
 //#define DUMP_CSS_PARSING
 
+#define IMPORTANT_DECL_ADD ((lUInt32)0x80000000U) // | to prop_code
+#define IMPORTANT_DECL_DEL ((lUInt32)0x7FFFFFFFU) // & to prop_code
+
 enum css_decl_code {
     cssd_unknown,
     cssd_display,
@@ -273,6 +276,16 @@ static int parse_name( const char * & str, const char * * names, int def_value )
         }
     }
     return def_value;
+}
+
+static lUInt32 parse_important( const char *str ) // does not advance the original *str
+{
+    skip_spaces( str );
+    if (substr_icompare( "!important", str )) {
+        // returns directly what should be | to prop_code
+        return IMPORTANT_DECL_ADD;
+    }
+    return 0;
 }
 
 static bool next_property( const char * & str )
@@ -841,6 +854,7 @@ bool LVCssDeclaration::parse( const char * &decl )
         css_decl_code prop_code = parse_property_name( decl );
         skip_spaces( decl );
         lString8 strValue;
+        int parsed_important = 0; // for !important that may be parsed along the way
         if (prop_code != cssd_unknown)
         {
             // parsed ok
@@ -912,6 +926,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                                 // remove family name from font list
                                 list.erase( i, 1 );
                             }
+                            if ( substr_icompare( "!important", name ) ) {
+                                // !important may be caught by splitPropertyValueList()
+                                list.erase( i, 1 );
+                                parsed_important = IMPORTANT_DECL_ADD;
+                            }
                         }
                         strValue = joinPropertyValueList( list );
                     }
@@ -943,7 +962,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                             len.value = -len.value;
                         }
                         // save result
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
@@ -971,7 +990,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) (prop_code | parse_important(str));
                     switch (n1) {
                         case 0:
                             buf<<(lUInt32) css_val_px;
@@ -1004,7 +1023,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     css_length_t len;
                     if ( parse_number_value( decl, len, prop_code==cssd_font_size ) )
                     {
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
@@ -1017,7 +1036,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) (prop_code | parse_important(str));
                     switch (n1) {
                         case 0:
                             for (int i = 0; i < 4; ++i)
@@ -1075,7 +1094,7 @@ bool LVCssDeclaration::parse( const char * &decl )
 			    case 2: len[2] = len[0]; /* fall through */
 			    case 3: len[3] = len[1];
 			}
-			buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
 			for (i = 0; i < 4; ++i)
 			{
 			    buf<<(lUInt32) len[i].type;
@@ -1094,7 +1113,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 css_length_t len;
                 if ( parse_color_value( decl, len ) )
                 {
-                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) (prop_code | parse_important(decl));
                     buf<<(lUInt32) len.type;
                     buf<<(lUInt32) len.value;
                 }
@@ -1115,7 +1134,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         case 2: len[2] = len[0]; /* fall through */
                         case 3: len[3] = len[1];
                     }
-                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) (prop_code | parse_important(decl));
                     for (i = 0; i < 4; ++i)
                     {
                         buf<<(lUInt32) len[i].type;
@@ -1155,7 +1174,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 switch (sum) {
                     case 1:
                     {
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n1;
@@ -1164,7 +1183,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         break;
                     case 2:
                     {
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n1;
@@ -1173,7 +1192,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
                     case 3:
                     {
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n3;
@@ -1182,7 +1201,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
                     case 4:
                     {
-                        buf<<(lUInt32) prop_code;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n3;
@@ -1278,6 +1297,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                                         }
                                     }
                                 }
+                                parsed_important = parse_important(str2);
                             }
                         }
                         else{
@@ -1315,11 +1335,13 @@ bool LVCssDeclaration::parse( const char * &decl )
                                 skip_spaces(str2);
                                 n1 = parse_name(str1, css_bst_names, -1);
                                 if(parse_color_value(str1,color)) n2=1;
+                                parsed_important = parse_important(str1);
                             }
                             else{
                                 n2=1;
                                 skip_spaces(str2);
                                 n1 = parse_name(str2, css_bst_names, -1);
+                                parsed_important = parse_important(str2);
                             }
                         }
                     }
@@ -1391,29 +1413,30 @@ bool LVCssDeclaration::parse( const char * &decl )
                             skip_spaces(str1);
                             n1 = parse_name(str1, css_bst_names, -1);
                         }
+                        parsed_important = parse_important(str1);
                     }
 
                     if (prop_code==cssd_border)
                     {
                         if (n1 != -1)
                         {
-                            buf<<(lUInt32) cssd_border_top_style;
+                            buf<<(lUInt32) (cssd_border_top_style | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) cssd_border_right_style;
+                            buf<<(lUInt32) (cssd_border_right_style | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) cssd_border_bottom_style;
+                            buf<<(lUInt32) (cssd_border_bottom_style | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) cssd_border_left_style;
+                            buf<<(lUInt32) (cssd_border_left_style | parsed_important);
                             buf<<(lUInt32) n1;
                             if (n2 != -1) {
-                                buf<<(lUInt32) cssd_border_color;
+                                buf<<(lUInt32) (cssd_border_color | parsed_important);
                                 for (int i = 0; i < 4; i++) {
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                 }
                             }
                             if (n3 != -1) {
-                                buf<<(lUInt32) cssd_border_width;
+                                buf<<(lUInt32) (cssd_border_width | parsed_important);
                                 for (int i = 0; i < 4; i++) {
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
@@ -1425,19 +1448,19 @@ bool LVCssDeclaration::parse( const char * &decl )
                     if (n1 != -1) {
                         switch (prop_code){
                             case cssd_border_top:
-                                buf<<(lUInt32) cssd_border_top_style;
+                                buf<<(lUInt32) (cssd_border_top_style | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_right:
-                                buf<<(lUInt32) cssd_border_right_style;
+                                buf<<(lUInt32) (cssd_border_right_style | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_bottom:
-                                buf<<(lUInt32) cssd_border_bottom_style;
+                                buf<<(lUInt32) (cssd_border_bottom_style | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_left:
-                                buf<<(lUInt32) cssd_border_left_style;
+                                buf<<(lUInt32) (cssd_border_left_style | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             default:break;
@@ -1445,22 +1468,22 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (n2 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf<<(lUInt32) cssd_border_top_color;
+                                    buf<<(lUInt32) (cssd_border_top_color | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_right:
-                                    buf<<(lUInt32) cssd_border_right_color;
+                                    buf<<(lUInt32) (cssd_border_right_color | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf<<(lUInt32) cssd_border_bottom_color;
+                                    buf<<(lUInt32) (cssd_border_bottom_color | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_left:
-                                    buf<<(lUInt32) cssd_border_left_color;
+                                    buf<<(lUInt32) (cssd_border_left_color | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
@@ -1471,22 +1494,22 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (n3 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf<<(lUInt32) cssd_border_top_width;
+                                    buf<<(lUInt32) (cssd_border_top_width | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_right:
-                                    buf<<(lUInt32) cssd_border_right_width;
+                                    buf<<(lUInt32) (cssd_border_right_width | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf<<(lUInt32) cssd_border_bottom_width;
+                                    buf<<(lUInt32) (cssd_border_bottom_width | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_left:
-                                    buf<<(lUInt32) cssd_border_left_width;
+                                    buf<<(lUInt32) (cssd_border_left_width | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
@@ -1498,15 +1521,15 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
             case cssd_background_image:
             {
-                buf<<(lUInt32) prop_code;
                 lString8 str;
                 const char *tmp=decl;
                 int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}')
+                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!')
                 {tmp++;len++;}
                 str.append(decl,len);
                 str.trim();
                 len=str.length();
+                buf<<(lUInt32) (prop_code | parse_important(tmp));
                 buf<<(lUInt32) str.length();
                 for(int i=0;i<len;i++)
                     buf<<(lUInt32) str[i];
@@ -1533,16 +1556,11 @@ bool LVCssDeclaration::parse( const char * &decl )
             case cssd_background:
             {
                 css_length_t color;
-                if (parse_color_value(decl, color))
-                {
-                    buf<<(lUInt32) cssd_background_color;
-                    buf<<(lUInt32) color.type;
-                    buf<<(lUInt32) color.value;
-                }
+                bool has_color = parse_color_value(decl, color);
                 lString8 str;
                 const char *tmp=decl;
                 int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}')
+                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!')
                 {tmp++;len++;}
                 str.append(decl,len);
                 tmp=str.c_str();
@@ -1550,7 +1568,6 @@ bool LVCssDeclaration::parse( const char * &decl )
                 skip_spaces(tmp);
                 int offset=len-str.length();//offset for removed spaces
                 if (Utf8ToUnicode(str).lowercase().startsWith("url")) {
-                    buf<<(lUInt32) cssd_background_image;
                     len=0;
                     while (*tmp && *tmp !=';' && *tmp!='}'&&*tmp!=')')
                     {tmp++;len++;}
@@ -1558,16 +1575,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                     str.clear();
                     str.append(decl,len);
                     str.trim();
-                    buf<<(lUInt32) str.length();
-                    for (int i = 0; i < str.length(); i++)
-                        buf<<(lUInt32) str[i];
                     decl+=len;
                     skip_spaces(decl);
                     int repeat=parse_name(decl,css_bg_repeat_names,-1);
                     if(repeat!=-1)
                     {
-                        buf<<(lUInt32) cssd_background_repeat;
-                        buf<<(lUInt32) repeat;
                         skip_spaces(decl);
                     }
                     int position=parse_name(decl,css_bg_position_names,-1);
@@ -1582,9 +1594,29 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (position==23) position=9;
                         if (position==24) position=10;
                         if (position==25) position=11;
-                        buf<<(lUInt32) cssd_background_position;
+                    }
+                    parsed_important = parse_important(decl);
+                    buf<<(lUInt32) (cssd_background_image | parsed_important);
+                    buf<<(lUInt32) str.length();
+                    for (int i = 0; i < str.length(); i++)
+                        buf<<(lUInt32) str[i];
+                    if(repeat!=-1) {
+                        buf<<(lUInt32) (cssd_background_repeat | parsed_important);
+                        buf<<(lUInt32) repeat;
+                    }
+                    if (position!=-1) {
+                        buf<<(lUInt32) (cssd_background_position | parsed_important);
                         buf<<(lUInt32) position;
                     }
+                }
+                else { // no url, only color
+                    decl+=len;
+                    parsed_important = parse_important(decl);
+                }
+                if (has_color) {
+                    buf<<(lUInt32) (cssd_background_color | parsed_important);
+                    buf<<(lUInt32) color.type;
+                    buf<<(lUInt32) color.value;
                 }
 
             }
@@ -1600,7 +1632,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 {
                     if (i==1) len[1] = len[0];
 
-                    buf<<(lUInt32) prop_code;
+                    buf<<(lUInt32) (prop_code | parse_important(decl));
                     for (i = 0; i < 2; ++i)
                     {
                         buf<<(lUInt32) len[i].type;
@@ -1620,7 +1652,7 @@ bool LVCssDeclaration::parse( const char * &decl )
             if ( n!= -1)
             {
                 // add enum property
-                buf<<(lUInt32) prop_code;
+                buf<<(lUInt32) (prop_code | parsed_important | parse_important(decl));
                 buf<<(lUInt32) n;
             }
             if (!strValue.empty())
@@ -1629,7 +1661,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 if (prop_code==cssd_font_family)
                 {
                     // font names
-                    buf<<(lUInt32) cssd_font_names;
+                    buf<<(lUInt32) (cssd_font_names | parsed_important | parse_important(decl));
                     buf<<(lUInt32) strValue.length();
                     for (int i=0; i < strValue.length(); i++)
                         buf<<(lUInt32) strValue[i];
@@ -1682,46 +1714,49 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
     int * p = _data;
     for (;;)
     {
-        switch (*p++)
+        int prop_code = *p++;
+        bool is_important = prop_code & IMPORTANT_DECL_ADD;
+        prop_code = prop_code & IMPORTANT_DECL_DEL;
+        switch (prop_code)
         {
         case cssd_display:
-            style->display = (css_display_t) *p++;
+            style->Apply( (css_display_t) *p++, &style->display, imp_bit_display, is_important );
             break;
         case cssd_white_space:
-            style->white_space = (css_white_space_t) *p++;
+            style->Apply( (css_white_space_t) *p++, &style->white_space, imp_bit_white_space, is_important );
             break;
         case cssd_text_align:
-            style->text_align = (css_text_align_t) *p++;
+            style->Apply( (css_text_align_t) *p++, &style->text_align, imp_bit_text_align, is_important );
             break;
         case cssd_text_align_last:
-            style->text_align_last = (css_text_align_t) *p++;
+            style->Apply( (css_text_align_t) *p++, &style->text_align_last, imp_bit_text_align_last, is_important );
             break;
         case cssd_text_decoration:
-            style->text_decoration = (css_text_decoration_t) *p++;
+            style->Apply( (css_text_decoration_t) *p++, &style->text_decoration, imp_bit_text_decoration, is_important );
             break;
         case cssd_hyphenate:
-            style->hyphenate = (css_hyphenate_t) *p++;
+            style->Apply( (css_hyphenate_t) *p++, &style->hyphenate, imp_bit_hyphenate, is_important );
             break;
         case cssd_list_style_type:
-            style->list_style_type = (css_list_style_type_t) *p++;
+            style->Apply( (css_list_style_type_t) *p++, &style->list_style_type, imp_bit_list_style_type, is_important );
             break;
         case cssd_list_style_position:
-            style->list_style_position = (css_list_style_position_t) *p++;
+            style->Apply( (css_list_style_position_t) *p++, &style->list_style_position, imp_bit_list_style_position, is_important );
             break;
         case cssd_page_break_before:
-            style->page_break_before = (css_page_break_t) *p++;
+            style->Apply( (css_page_break_t) *p++, &style->page_break_before, imp_bit_page_break_before, is_important );
             break;
         case cssd_page_break_after:
-            style->page_break_after = (css_page_break_t) *p++;
+            style->Apply( (css_page_break_t) *p++, &style->page_break_after, imp_bit_page_break_after, is_important );
             break;
         case cssd_page_break_inside:
-            style->page_break_inside = (css_page_break_t) *p++;
+            style->Apply( (css_page_break_t) *p++, &style->page_break_inside, imp_bit_page_break_inside, is_important );
             break;
         case cssd_vertical_align:
-            style->vertical_align = (css_vertical_align_t) *p++;
+            style->Apply( (css_vertical_align_t) *p++, &style->vertical_align, imp_bit_vertical_align, is_important );
             break;
         case cssd_font_family:
-            style->font_family = (css_font_family_t) *p++;
+            style->Apply( (css_font_family_t) *p++, &style->font_family, imp_bit_font_family, is_important );
             break;
         case cssd_font_names:
             {
@@ -1731,128 +1766,128 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                 for (int i=0; i<len; i++)
                     names << (lChar8)(*p++);
                 names.pack();
-                style->font_name = names;
+                style->Apply( names, &style->font_name, imp_bit_font_name, is_important );
             }
             break;
         case cssd_font_style:
-            style->font_style = (css_font_style_t) *p++;
+            style->Apply( (css_font_style_t) *p++, &style->font_style, imp_bit_font_style, is_important );
             break;
         case cssd_font_weight:
-            style->font_weight = (css_font_weight_t) *p++;
+            style->Apply( (css_font_weight_t) *p++, &style->font_weight, imp_bit_font_weight, is_important );
             break;
         case cssd_font_size:
-            style->font_size = read_length( p );
+            style->Apply( read_length(p), &style->font_size, imp_bit_font_size, is_important );
             break;
         case cssd_text_indent:
-            style->text_indent = read_length( p );
+            style->Apply( read_length(p), &style->text_indent, imp_bit_text_indent, is_important );
             break;
         case cssd_line_height:
-            style->line_height = read_length( p );
+            style->Apply( read_length(p), &style->line_height, imp_bit_line_height, is_important );
             break;
         case cssd_letter_spacing:
-            style->letter_spacing = read_length( p );
+            style->Apply( read_length(p), &style->letter_spacing, imp_bit_letter_spacing, is_important );
             break;
         case cssd_color:
-            style->color = read_length( p );
+            style->Apply( read_length(p), &style->color, imp_bit_color, is_important );
             break;
         case cssd_background_color:
-            style->background_color = read_length( p );
+            style->Apply( read_length(p), &style->background_color, imp_bit_background_color, is_important );
             break;
         case cssd_width:
-            style->width = read_length( p );
+            style->Apply( read_length(p), &style->width, imp_bit_width, is_important );
             break;
         case cssd_height:
-            style->height = read_length( p );
+            style->Apply( read_length(p), &style->height, imp_bit_height, is_important );
             break;
         case cssd_margin_left:
-            style->margin[0] = read_length( p );
+            style->Apply( read_length(p), &style->margin[0], imp_bit_margin_left, is_important );
             break;
         case cssd_margin_right:
-            style->margin[1] = read_length( p );
+            style->Apply( read_length(p), &style->margin[1], imp_bit_margin_right, is_important );
             break;
         case cssd_margin_top:
-            style->margin[2] = read_length( p );
+            style->Apply( read_length(p), &style->margin[2], imp_bit_margin_top, is_important );
             break;
         case cssd_margin_bottom:
-            style->margin[3] = read_length( p );
+            style->Apply( read_length(p), &style->margin[3], imp_bit_margin_bottom, is_important );
             break;
         case cssd_margin:
-            style->margin[2] = read_length( p );
-            style->margin[1] = read_length( p );
-            style->margin[3] = read_length( p );
-            style->margin[0] = read_length( p );
+            style->Apply( read_length(p), &style->margin[2], imp_bit_margin_top, is_important );
+            style->Apply( read_length(p), &style->margin[1], imp_bit_margin_right, is_important );
+            style->Apply( read_length(p), &style->margin[3], imp_bit_margin_bottom, is_important );
+            style->Apply( read_length(p), &style->margin[0], imp_bit_margin_left, is_important );
             break;
         case cssd_padding_left:
-            style->padding[0] = read_length( p );
+            style->Apply( read_length(p), &style->padding[0], imp_bit_padding_left, is_important );
             break;
         case cssd_padding_right:
-            style->padding[1] = read_length( p );
+            style->Apply( read_length(p), &style->padding[1], imp_bit_padding_right, is_important );
             break;
         case cssd_padding_top:
-            style->padding[2] = read_length( p );
+            style->Apply( read_length(p), &style->padding[2], imp_bit_padding_top, is_important );
             break;
         case cssd_padding_bottom:
-            style->padding[3] = read_length( p );
+            style->Apply( read_length(p), &style->padding[3], imp_bit_padding_bottom, is_important );
             break;
         case cssd_padding:
-            style->padding[2] = read_length( p );
-            style->padding[1] = read_length( p );
-            style->padding[3] = read_length( p );
-            style->padding[0] = read_length( p );
+            style->Apply( read_length(p), &style->padding[2], imp_bit_padding_top, is_important );
+            style->Apply( read_length(p), &style->padding[1], imp_bit_padding_right, is_important );
+            style->Apply( read_length(p), &style->padding[3], imp_bit_padding_bottom, is_important );
+            style->Apply( read_length(p), &style->padding[0], imp_bit_padding_left, is_important );
             break;
         case cssd_border_top_color:
-            style->border_color[0]=read_length(p);
+            style->Apply( read_length(p), &style->border_color[0], imp_bit_border_color_top, is_important );
             break;
         case cssd_border_right_color:
-            style->border_color[1]=read_length(p);
+            style->Apply( read_length(p), &style->border_color[1], imp_bit_border_color_right, is_important );
             break;
         case cssd_border_bottom_color:
-            style->border_color[2]=read_length(p);
+            style->Apply( read_length(p), &style->border_color[2], imp_bit_border_color_bottom, is_important );
             break;
         case cssd_border_left_color:
-            style->border_color[3]=read_length(p);
+            style->Apply( read_length(p), &style->border_color[3], imp_bit_border_color_left, is_important );
             break;
         case cssd_border_top_width:
-            style->border_width[0]=read_length(p);
+            style->Apply( read_length(p), &style->border_width[0], imp_bit_border_width_top, is_important );
             break;
         case cssd_border_right_width:
-            style->border_width[1]=read_length(p);
+            style->Apply( read_length(p), &style->border_width[1], imp_bit_border_width_right, is_important );
             break;
         case cssd_border_bottom_width:
-            style->border_width[2]=read_length(p);
+            style->Apply( read_length(p), &style->border_width[2], imp_bit_border_width_bottom, is_important );
             break;
         case cssd_border_left_width:
-            style->border_width[3]=read_length(p);
+            style->Apply( read_length(p), &style->border_width[3], imp_bit_border_width_left, is_important );
             break;
         case cssd_border_top_style:
-            style->border_style_top=(css_border_style_type_t) *p++;
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_top, imp_bit_border_style_top, is_important );
             break;
         case cssd_border_right_style:
-            style->border_style_right=(css_border_style_type_t) *p++;
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_right, imp_bit_border_style_right, is_important );
             break;
         case cssd_border_bottom_style:
-            style->border_style_bottom=(css_border_style_type_t) *p++;
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_bottom, imp_bit_border_style_bottom, is_important );
             break;
         case cssd_border_left_style:
-            style->border_style_left=(css_border_style_type_t) *p++;
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_left, imp_bit_border_style_left, is_important );
             break;
         case cssd_border_color:
-            style->border_color[0]=read_length(p);
-            style->border_color[1]=read_length(p);
-            style->border_color[2]=read_length(p);
-            style->border_color[3]=read_length(p);
+            style->Apply( read_length(p), &style->border_color[0], imp_bit_border_color_top, is_important );
+            style->Apply( read_length(p), &style->border_color[1], imp_bit_border_color_right, is_important );
+            style->Apply( read_length(p), &style->border_color[2], imp_bit_border_color_bottom, is_important );
+            style->Apply( read_length(p), &style->border_color[3], imp_bit_border_color_left, is_important );
             break;
         case cssd_border_width:
-            style->border_width[0]=read_length(p);
-            style->border_width[1]=read_length(p);
-            style->border_width[2]=read_length(p);
-            style->border_width[3]=read_length(p);
+            style->Apply( read_length(p), &style->border_width[0], imp_bit_border_width_top, is_important );
+            style->Apply( read_length(p), &style->border_width[1], imp_bit_border_width_right, is_important );
+            style->Apply( read_length(p), &style->border_width[2], imp_bit_border_width_bottom, is_important );
+            style->Apply( read_length(p), &style->border_width[3], imp_bit_border_width_left, is_important );
             break;
         case cssd_border_style:
-            style->border_style_top=(css_border_style_type_t) *p++;
-            style->border_style_right=(css_border_style_type_t) *p++;
-            style->border_style_bottom=(css_border_style_type_t) *p++;
-            style->border_style_left=(css_border_style_type_t) *p++;
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_top, imp_bit_border_style_top, is_important );
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_right, imp_bit_border_style_right, is_important );
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_bottom, imp_bit_border_style_bottom, is_important );
+            style->Apply( (css_border_style_type_t) *p++, &style->border_style_left, imp_bit_border_style_left, is_important );
             break;
         case cssd_background_image:
         {
@@ -1862,24 +1897,24 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                 for (int i=0; i<l; i++)
                     imagefile << (lChar8)(*p++);
                 imagefile.pack();
-                style->background_image = imagefile;
+                style->Apply( imagefile, &style->background_image, imp_bit_background_image, is_important );
         }
             break;
         case cssd_background_repeat:
-            style->background_repeat=(css_background_repeat_value_t) *p++;
+            style->Apply( (css_background_repeat_value_t) *p++, &style->background_repeat, imp_bit_background_repeat, is_important );
             break;
         case cssd_background_attachment:
-            style->background_attachment=(css_background_attachment_value_t) *p++;
+            style->Apply( (css_background_attachment_value_t) *p++, &style->background_attachment, imp_bit_background_attachment, is_important );
             break;
         case cssd_background_position:
-            style->background_position=(css_background_position_value_t) *p++;
+            style->Apply( (css_background_position_value_t) *p++, &style->background_position, imp_bit_background_position, is_important );
             break;
         case cssd_border_spacing:
-            style->border_spacing[0]=read_length(p);
-            style->border_spacing[1]=read_length(p);
+            style->Apply( read_length(p), &style->border_spacing[0], imp_bit_border_spacing_h, is_important );
+            style->Apply( read_length(p), &style->border_spacing[1], imp_bit_border_spacing_v, is_important );
             break;
         case cssd_border_collapse:
-            style->border_collapse=(css_border_collapse_value_t) *p++;
+            style->Apply( (css_border_collapse_value_t) *p++, &style->border_collapse, imp_bit_border_collapse, is_important );
             break;
         case cssd_stop:
             return;
