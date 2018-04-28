@@ -20,6 +20,62 @@
 #include "lvtextfm.h"
 #include "lvfntman.h"
 
+/* bit position (in 'lUInt64 important' bitmap) of each css_style_rec_tag
+ * properties to flag its '!important' status */
+enum css_style_rec_important_bit : lUInt64 {
+    imp_bit_display               = 1ULL << 0,
+    imp_bit_white_space           = 1ULL << 1,
+    imp_bit_text_align            = 1ULL << 2,
+    imp_bit_text_align_last       = 1ULL << 3,
+    imp_bit_text_decoration       = 1ULL << 4,
+    imp_bit_vertical_align        = 1ULL << 5,
+    imp_bit_font_family           = 1ULL << 6,
+    imp_bit_font_name             = 1ULL << 7,
+    imp_bit_font_size             = 1ULL << 8,
+    imp_bit_font_style            = 1ULL << 9,
+    imp_bit_font_weight           = 1ULL << 10,
+    imp_bit_text_indent           = 1ULL << 11,
+    imp_bit_line_height           = 1ULL << 12,
+    imp_bit_width                 = 1ULL << 13,
+    imp_bit_height                = 1ULL << 14,
+    imp_bit_margin_left           = 1ULL << 15,
+    imp_bit_margin_right          = 1ULL << 16,
+    imp_bit_margin_top            = 1ULL << 17,
+    imp_bit_margin_bottom         = 1ULL << 18,
+    imp_bit_padding_left          = 1ULL << 19,
+    imp_bit_padding_right         = 1ULL << 20,
+    imp_bit_padding_top           = 1ULL << 21,
+    imp_bit_padding_bottom        = 1ULL << 22,
+    imp_bit_color                 = 1ULL << 23,
+    imp_bit_background_color      = 1ULL << 24,
+    imp_bit_letter_spacing        = 1ULL << 25,
+    imp_bit_page_break_before     = 1ULL << 26,
+    imp_bit_page_break_after      = 1ULL << 27,
+    imp_bit_page_break_inside     = 1ULL << 28,
+    imp_bit_hyphenate             = 1ULL << 29,
+    imp_bit_list_style_type       = 1ULL << 30,
+    imp_bit_list_style_position   = 1ULL << 31,
+    imp_bit_border_style_top      = 1ULL << 32,
+    imp_bit_border_style_bottom   = 1ULL << 33,
+    imp_bit_border_style_right    = 1ULL << 34,
+    imp_bit_border_style_left     = 1ULL << 35,
+    imp_bit_border_width_top      = 1ULL << 36,
+    imp_bit_border_width_right    = 1ULL << 37,
+    imp_bit_border_width_bottom   = 1ULL << 38,
+    imp_bit_border_width_left     = 1ULL << 39,
+    imp_bit_border_color_top      = 1ULL << 40,
+    imp_bit_border_color_right    = 1ULL << 41,
+    imp_bit_border_color_bottom   = 1ULL << 42,
+    imp_bit_border_color_left     = 1ULL << 43,
+    imp_bit_background_image      = 1ULL << 44,
+    imp_bit_background_repeat     = 1ULL << 45,
+    imp_bit_background_attachment = 1ULL << 46,
+    imp_bit_background_position   = 1ULL << 47,
+    imp_bit_border_collapse       = 1ULL << 48,
+    imp_bit_border_spacing_h      = 1ULL << 49,
+    imp_bit_border_spacing_v      = 1ULL << 50
+};
+
 /**
     \brief Element style record.
 
@@ -28,6 +84,10 @@
 typedef struct css_style_rec_tag {
     int                  refCount; // for reference counting
     lUInt32              hash; // cache calculated hash value here
+    lUInt64              important; // bitmap for !important (used only by LVCssDeclaration)
+                                    // we have currently below 51 css properties
+                                    // lvstsheet knows about 66, which are mapped to these 51
+                                    // update bits above if you add new properties below
     css_display_t        display;
     css_white_space_t    white_space;
     css_text_align_t     text_align;
@@ -58,8 +118,8 @@ typedef struct css_style_rec_tag {
     css_border_style_type_t border_style_bottom;
     css_border_style_type_t border_style_right;
     css_border_style_type_t border_style_left;
-    css_length_t border_width[4];
-    css_length_t border_color[4];
+    css_length_t border_width[4]; ///< border-top-width, -right-, -bottom-, -left-
+    css_length_t border_color[4]; ///< border-top-color, -right-, -bottom-, -left-
     lString8 background_image;
     css_background_repeat_value_t background_repeat;
     css_background_attachment_value_t background_attachment;
@@ -69,6 +129,7 @@ typedef struct css_style_rec_tag {
     css_style_rec_tag()
     : refCount(0)
     , hash(0)
+    , important(0)
     , display( css_d_inherit )
     , white_space(css_ws_inherit)
     , text_align(css_ta_inherit)
@@ -107,6 +168,18 @@ typedef struct css_style_rec_tag {
     int getRefCount() { return refCount; }
     bool serialize( SerialBuf & buf );
     bool deserialize( SerialBuf & buf );
+    //  important bitmap management
+    bool isImportant( css_style_rec_important_bit bit ) { return important & bit; }
+    void setImportant( css_style_rec_important_bit bit ) { important |= bit; }
+    // apply value to field if important bit not yet set, then set it if is_important
+    template <typename T> inline void Apply( T value, T *field, css_style_rec_important_bit bit, bool is_important ) {
+        if ( !(important & bit) || is_important ) {
+            // important flag not previously set, or coming value has '!important' and
+            // should override previous important
+            *field = value; // apply
+            if (is_important) important |= bit; // update important flag
+        }
+    };
 } css_style_rec_t;
 
 /// style record reference type
