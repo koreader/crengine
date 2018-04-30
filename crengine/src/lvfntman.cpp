@@ -485,6 +485,18 @@ public:
         }
         list.sort();
     }
+    virtual void getFontFileNameList(lString16Collection &list)
+    {
+        list.clear();
+        for ( int i=0; i<_registered_list.length(); i++ ) {
+            if (_registered_list[i]->getDef()->getDocumentId() == -1) {
+                lString16 name = Utf8ToUnicode(_registered_list[i]->getDef()->getName());
+                if (!list.contains(name))
+                    list.add(name);
+            }
+        }
+        list.sort();
+    }
     virtual void clearFallbackFonts()
     {
         LVPtrVector< LVFontCacheItem > * fonts = getInstances();
@@ -2698,8 +2710,14 @@ public:
         _cache.getFaceList( list );
     }
 
-	bool SetAlias(lString8 alias,lString8 facename,int id,bool bold,bool italic)
+    /// returns registered font files
+    virtual void getFontFileNameList( lString16Collection & list )
+    {
+        FONT_MAN_GUARD
+        _cache.getFontFileNameList(list);
+    }
 
+	bool SetAlias(lString8 alias,lString8 facename,int id,bool bold,bool italic)
 {
     FONT_MAN_GUARD
     lString8 fontname=lString8("\0");
@@ -3394,6 +3412,12 @@ public:
         }
         return res;
     }
+    /// returns registered font files
+    virtual void getFontFileNameList( lString16Collection & list )
+    {
+        FONT_MAN_GUARD
+        _cache.getFontFileNameList(list);
+    }
     virtual bool Init( lString8 path )
     {
         _path = path;
@@ -3551,6 +3575,12 @@ public:
     virtual void getFaceList( lString16Collection & list )
     {
         _cache.getFaceList(list);
+    }
+    /// returns registered font files
+    virtual void getFontFileNameList( lString16Collection & list )
+    {
+        FONT_MAN_GUARD
+        _cache.getFontFileNameList(list);
     }
 };
 
