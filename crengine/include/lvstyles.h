@@ -146,7 +146,7 @@ typedef struct css_style_rec_tag {
     , height(css_val_unspecified, 0)
     , color(css_val_inherited, 0)
     , background_color(css_val_unspecified, 0)
-    , letter_spacing(css_val_unspecified, 0)
+    , letter_spacing(css_val_inherited, 0)
     , page_break_before(css_pb_auto)
     , page_break_after(css_pb_auto)
     , page_break_inside(css_pb_auto)
