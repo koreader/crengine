@@ -1972,25 +1972,24 @@ lUInt32 LVCssSelectorRule::getWeight() {
 
     // declaration from a style="" attribute (a) are always applied last,
     // and don't have a selector here.
-    switch (_type)
-    {
-    case cssrt_id:            // E#id
-        return 1 << 16;
-        break;
-    case cssrt_attrset:       // E[foo]
-    case cssrt_attreq:        // E[foo="value"]
-    case cssrt_attrhas:       // E[foo~="value"]
-    case cssrt_attrstarts:    // E[foo|="value"]
-    case cssrt_class:         // E.class
-        return 1 << 8;
-        break;
-    case cssrt_parent:        // E > F
-    case cssrt_ancessor:      // E F
-    case cssrt_predecessor:   // E + F
-        return 1;
-        break;
-    case cssrt_universal:     // *
-        return 0;
+    switch (_type) {
+        case cssrt_id:            // E#id
+            return 1 << 16;
+            break;
+        case cssrt_attrset:       // E[foo]
+        case cssrt_attreq:        // E[foo="value"]
+        case cssrt_attrhas:       // E[foo~="value"]
+        case cssrt_attrstarts:    // E[foo|="value"]
+        case cssrt_class:         // E.class
+            return 1 << 8;
+            break;
+        case cssrt_parent:        // E > F
+        case cssrt_ancessor:      // E F
+        case cssrt_predecessor:   // E + F
+            return 1;
+            break;
+        case cssrt_universal:     // *
+            return 0;
     }
     return 0;
 }
@@ -2480,6 +2479,7 @@ lUInt32 LVCssSelector::getHash()
         hash = hash * 31 + ruleHash;
     }
     hash = hash * 31 + nextHash;
+    hash = hash * 31 + _specificity;
     if (!_decl.isNull())
         hash = hash * 31 + _decl->getHash();
     return hash;
