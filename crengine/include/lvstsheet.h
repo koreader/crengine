@@ -110,9 +110,10 @@ class LVCssSelectorRule
     lUInt16 _attrid;
     LVCssSelectorRule * _next;
     lString16 _value;
+    lUInt32 _weight; // weight to add to LVCssSelector specificity
 public:
     LVCssSelectorRule(LVCssSelectorRuleType type)
-    : _type(type), _id(0), _attrid(0), _next(NULL)
+    : _type(type), _id(0), _attrid(0), _next(NULL), _weight(0)
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
@@ -123,6 +124,7 @@ public:
     /// check condition for node
     bool check( const ldomNode * & node );
     lUInt32 getHash();
+    lUInt32 getWeight();
 };
 
 /** \brief simple CSS selector
