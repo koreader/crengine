@@ -22,7 +22,8 @@
 
 /* bit position (in 'lUInt64 important' bitmap) of each css_style_rec_tag
  * properties to flag its '!important' status */
-enum css_style_rec_important_bit : lUInt64 {
+// enum css_style_rec_important_bit : lUInt64 {  <= disliked by clang
+enum css_style_rec_important_bit {
     imp_bit_display               = 1ULL << 0,
     imp_bit_white_space           = 1ULL << 1,
     imp_bit_text_align            = 1ULL << 2,
