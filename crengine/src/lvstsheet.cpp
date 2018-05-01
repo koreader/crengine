@@ -1946,6 +1946,54 @@ static bool parse_ident( const char * &str, char * ident )
     return true;
 }
 
+lUInt32 LVCssSelectorRule::getWeight() {
+    /* Each LVCssSelectorRule will add its own weight to
+       its LVCssSelector container specifity.
+
+    Following https://www.w3.org/TR/CSS2/cascade.html#specificity
+
+    A selector's specificity is calculated as follows:
+
+    - count 1 if the declaration is from is a 'style' attribute rather
+    than a rule with a selector, 0 otherwise (= a) (In HTML, values
+    of an element's "style" attribute are style sheet rules. These
+    rules have no selectors, so a=1, b=0, c=0, and d=0.)
+    - count the number of ID attributes in the selector (= b) => 1 << 16
+    - count the number of other attributes and pseudo-classes in the
+    selector (= c) => 1 << 8
+    - count the number of element names and pseudo-elements in the
+    selector (= d) => 1
+
+    The specificity is based only on the form of the selector. In
+    particular, a selector of the form "[id=p33]" is counted as an
+    attribute selector (a=0, b=0, c=1, d=0), even if the id attribute is
+    defined as an "ID" in the source document's DTD.
+    */
+
+    // declaration from a style="" attribute (a) are always applied last,
+    // and don't have a selector here.
+    switch (_type) {
+        case cssrt_id:            // E#id
+            return 1 << 16;
+            break;
+        case cssrt_attrset:       // E[foo]
+        case cssrt_attreq:        // E[foo="value"]
+        case cssrt_attrhas:       // E[foo~="value"]
+        case cssrt_attrstarts:    // E[foo|="value"]
+        case cssrt_class:         // E.class
+            return 1 << 8;
+            break;
+        case cssrt_parent:        // E > F
+        case cssrt_ancessor:      // E F
+        case cssrt_predecessor:   // E + F
+            return 1;
+            break;
+        case cssrt_universal:     // *
+            return 0;
+    }
+    return 0;
+}
+
 bool LVCssSelectorRule::check( const ldomNode * & node )
 {
     if (node->isNull() || node->isRoot())
@@ -2269,6 +2317,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 return false;
             insertRuleStart( rule ); //insertRuleAfterStart
             //insertRuleAfterStart( rule ); //insertRuleAfterStart
+            _specificity += rule->getWeight();
 
             /*
             if ( _id!=0 ) {
@@ -2290,6 +2339,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_parent);
             rule->setId(_id);
             insertRuleStart( rule );
+            _specificity += rule->getWeight();
             _id=0;
             continue;
         }
@@ -2299,6 +2349,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predecessor);
             rule->setId(_id);
             insertRuleStart( rule );
+            _specificity += rule->getWeight();
             _id=0;
             continue;
         }
@@ -2307,6 +2358,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_ancessor);
             rule->setId(_id);
             insertRuleStart( rule );
+            _specificity += rule->getWeight();
             _id=0;
             continue;
         }
@@ -2427,6 +2479,7 @@ lUInt32 LVCssSelector::getHash()
         hash = hash * 31 + ruleHash;
     }
     hash = hash * 31 + nextHash;
+    hash = hash * 31 + _specificity;
     if (!_decl.isNull())
         hash = hash * 31 + _decl->getHash();
     return hash;

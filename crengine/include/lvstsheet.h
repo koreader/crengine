@@ -123,6 +123,7 @@ public:
     /// check condition for node
     bool check( const ldomNode * & node );
     lUInt32 getHash();
+    lUInt32 getWeight();
 };
 
 /** \brief simple CSS selector
