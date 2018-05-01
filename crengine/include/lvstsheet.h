@@ -110,10 +110,9 @@ class LVCssSelectorRule
     lUInt16 _attrid;
     LVCssSelectorRule * _next;
     lString16 _value;
-    lUInt32 _weight; // weight to add to LVCssSelector specificity
 public:
     LVCssSelectorRule(LVCssSelectorRuleType type)
-    : _type(type), _id(0), _attrid(0), _next(NULL), _weight(0)
+    : _type(type), _id(0), _attrid(0), _next(NULL)
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
