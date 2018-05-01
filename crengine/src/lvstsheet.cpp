@@ -302,7 +302,7 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
     value.type = css_val_unspecified;
     skip_spaces( str );
     // Here and below: named values and unit case should not matter
-    if ( substr_icompare( "inherited", str ) )
+    if ( substr_icompare( "inherit", str ) )
     {
         value.type = css_val_inherited;
         value.value = 0;
@@ -541,7 +541,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
 {
     value.type = css_val_unspecified;
     skip_spaces( str );
-    if ( substr_compare( "inherited", str ) )
+    if ( substr_compare( "inherit", str ) )
     {
         value.type = css_val_inherited;
         value.value = 0;
