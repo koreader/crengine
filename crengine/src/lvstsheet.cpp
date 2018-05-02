@@ -1972,6 +1972,9 @@ lUInt32 LVCssSelectorRule::getWeight() {
 
     // declaration from a style="" attribute (a) are always applied last,
     // and don't have a selector here.
+    // LVCssSelector._specificity will be added 1 by LVCssSelector when it
+    // has itself an elementName  // E
+    //
     switch (_type) {
         case cssrt_id:            // E#id
             return 1 << 16;
@@ -2300,6 +2303,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             if (!parse_ident( str, ident ))
                 return false;
             _id = doc->getElementNameIndex( lString16(ident).c_str() );
+            _specificity += 1; // we have an element: this adds 1 to specificity
             skip_spaces( str );
         }
         else
