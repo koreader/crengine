@@ -55,6 +55,8 @@
 #endif
 
 #define MAX_LINE_CHARS 2048
+#define MAX_LINE_WIDTH 2048
+#define MAX_LETTER_SPACING MAX_LINE_WIDTH/2
 
 
 //DEFINE_NULL_REF( LVFont )
@@ -1086,8 +1088,13 @@ public:
 #if (ALLOW_KERNING==1)
         int use_kerning = _allowKerning && FT_HAS_KERNING( _face );
 #endif
-        if ( letter_spacing<0 || letter_spacing>50 )
+        if ( letter_spacing < 0 )
+        {
             letter_spacing = 0;
+        } else if ( letter_spacing > MAX_LETTER_SPACING )
+        {
+            letter_spacing = MAX_LETTER_SPACING;
+        }
 
         //int i;
 
@@ -1197,7 +1204,7 @@ public:
                         text, len,
                         widths,
                         flags,
-                        2048, // max_width,
+                        MAX_LINE_WIDTH,
                         L' ',  // def_char
                         0
                      );
@@ -1356,8 +1363,13 @@ public:
         FONT_GUARD
         if ( len <= 0 || _face==NULL )
             return;
-        if ( letter_spacing<0 || letter_spacing>50 )
+        if ( letter_spacing < 0 )
+        {
             letter_spacing = 0;
+        } else if ( letter_spacing > MAX_LETTER_SPACING )
+        {
+            letter_spacing = MAX_LETTER_SPACING;
+        }
         lvRect clip;
         buf->GetClipRect( &clip );
         updateTransform();
@@ -1580,7 +1592,7 @@ public:
                         text, len,
                         widths,
                         flags,
-                        2048, // max_width,
+                        MAX_LINE_WIDTH,
                         L' ',  // def_char
                         0
                      );
@@ -1743,8 +1755,13 @@ public:
     {
         if ( len <= 0 )
             return;
-        if ( letter_spacing<0 || letter_spacing>50 )
+        if ( letter_spacing < 0 )
+        {
             letter_spacing = 0;
+        } else if ( letter_spacing > MAX_LETTER_SPACING )
+        {
+            letter_spacing = MAX_LETTER_SPACING;
+        }
         lvRect clip;
         buf->GetClipRect( &clip );
         if ( y + _height < clip.top || y >= clip.bottom )
@@ -3364,7 +3381,7 @@ lUInt32 LBitmapFont::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    2048, // max_width,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
@@ -3753,7 +3770,7 @@ lUInt32 LVWin32DrawFont::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    2048, // max_width,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
@@ -3772,7 +3789,7 @@ lUInt16 LVWin32DrawFont::measureText(
                     int max_width,
                     lChar16 def_char,
                     int letter_spacing,
-					bool allow_hyphenation
+                    bool allow_hyphenation
                  )
 {
     if (_hfont==NULL)
@@ -4112,7 +4129,7 @@ lUInt32 LVWin32Font::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    2048, // max_width,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
