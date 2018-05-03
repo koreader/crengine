@@ -72,7 +72,7 @@ XS_TAG1T( blockquote )
 XS_TAG1I( em )
 XS_TAG1I( q )
 XS_TAG1I( span )
-XS_TAG1I( br )
+XS_TAG1( br )
 
 XS_TAG1D( title, true, css_d_block, css_ws_normal )
 

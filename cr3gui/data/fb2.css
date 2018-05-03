@@ -6,6 +6,8 @@ empty-line { height: 1em }
 
 hr { height: 1px; background-color: #808080; margin-top: 0.5em; margin-bottom: 0.5em; /* 2px */ }
 
+br + br { margin-top: 1em; }
+
 a { display: inline; text-decoration: underline; }
 a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 
