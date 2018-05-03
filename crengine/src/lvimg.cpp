@@ -1195,7 +1195,7 @@ int LVGifImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
             break;
         case '!': // extension record
             {
-                if (p[1]==0xf9 && (p[3]&1!=0))
+                if ( p[1]==0xf9 && ( (p[3]&1)!=0 ) )
                 {
                     m_transparent_color = p[6];
                     defined_transparent_color = true;

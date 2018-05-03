@@ -15,6 +15,8 @@ title {
    margin-bottom: 1em 
    }
 
+br + br { margin-top: 1em; }
+
 emphasis, i { font-style: italic }
 
 strong, b { font-weight: bold }

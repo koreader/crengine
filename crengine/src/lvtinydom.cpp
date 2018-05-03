@@ -13,7 +13,7 @@
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.08k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.09k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0004
 
@@ -8077,14 +8077,16 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
         _inHeadStyle = true;
     }
 
-    // Patch for bad LIB.RU books - BR delimited paragraphs in "Fine HTML" format
-    if ((tagname[0] == 'b' && tagname[1] == 'r' && tagname[2] == 0)
-        || (tagname[0] == 'd' && tagname[1] == 'd' && tagname[2] == 0)) {
-        // substitute to P
-        tagname = L"p";
-        _libRuParagraphStart = true; // to trim leading &nbsp;
-    } else {
-        _libRuParagraphStart = false;
+    if ( _libRuDocumentDetected ) {
+        // Patch for bad LIB.RU books - BR delimited paragraphs in "Fine HTML" format
+        if ((tagname[0] == 'b' && tagname[1] == 'r' && tagname[2] == 0)
+            || (tagname[0] == 'd' && tagname[1] == 'd' && tagname[2] == 0)) {
+            // substitute to P
+            tagname = L"p";
+            _libRuParagraphStart = true; // to trim leading &nbsp;
+        } else {
+            _libRuParagraphStart = false;
+        }
     }
 
     lUInt16 id = _document->getElementNameIndex(tagname);
