@@ -11,6 +11,29 @@
 
 *******************************************************/
 
+
+/// Change this in case of incompatible changes in XML parsing or DOM
+// building that could result in XPATHs being different than previously
+// (this could make saved bookmarks and highlights, made with a previous
+// version, not found in the DOM built with a newer version.
+// Users of this library can request the old behaviour by setting
+// gDOMVersionRequested to an older version to request the old (possibly
+// buggy) behaviour.
+#define DOM_VERSION_CURRENT 20180503
+
+// Changes:
+// 20100101 to 20180502: historical version
+//
+// 20180503: fixed <BR> that were previously converted to <P> because
+// of a fix for "bad LIB.RU books" being applied in any case. This
+// could prevent the style of the container to be applied on HTML
+// sub-parts after a <BR>, or the style of <P> (with text-indent) to
+// be applied after a <BR>.
+
+extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
+int gDOMVersionRequested     = DOM_VERSION_CURRENT;
+
+
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.09k"
@@ -8077,7 +8100,10 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
         _inHeadStyle = true;
     }
 
-    if ( _libRuDocumentDetected ) {
+    // Fixed 20180503: this was done previously in any case, but now only
+    // if _libRuDocumentDetected. We still allow the old behaviour if
+    // requested to keep previously recorded XPATHs valid.
+    if ( _libRuDocumentDetected || gDOMVersionRequested < 20180503) {
         // Patch for bad LIB.RU books - BR delimited paragraphs in "Fine HTML" format
         if ((tagname[0] == 'b' && tagname[1] == 'r' && tagname[2] == 0)
             || (tagname[0] == 'd' && tagname[1] == 'd' && tagname[2] == 0)) {

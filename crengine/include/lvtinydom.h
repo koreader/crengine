@@ -40,6 +40,11 @@
 #include "props.h"
 #include "bookformats.h"
 
+// Allows for requesting older DOM building code (including bugs NOT fixed)
+extern const int gDOMVersionCurrent;
+extern int gDOMVersionRequested;
+
+
 #define LXML_NO_DATA       0 ///< to mark data storage record as empty
 #define LXML_ELEMENT_NODE  1 ///< element node
 #define LXML_TEXT_NODE     2 ///< text node
