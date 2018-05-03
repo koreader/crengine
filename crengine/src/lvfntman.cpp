@@ -55,7 +55,8 @@
 #endif
 
 #define MAX_LINE_CHARS 2048
-#define MAX_LETTER_SPACING MAX_LINE_CHARS/2
+#define MAX_LINE_WIDTH 2048
+#define MAX_LETTER_SPACING MAX_LINE_WIDTH/2
 
 
 //DEFINE_NULL_REF( LVFont )
@@ -1203,7 +1204,7 @@ public:
                         text, len,
                         widths,
                         flags,
-                        MAX_LINE_CHARS,
+                        MAX_LINE_WIDTH,
                         L' ',  // def_char
                         0
                      );
@@ -1591,7 +1592,7 @@ public:
                         text, len,
                         widths,
                         flags,
-                        MAX_LINE_CHARS,
+                        MAX_LINE_WIDTH,
                         L' ',  // def_char
                         0
                      );
@@ -3380,7 +3381,7 @@ lUInt32 LBitmapFont::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    MAX_LINE_CHARS,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
@@ -3769,7 +3770,7 @@ lUInt32 LVWin32DrawFont::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    MAX_LINE_CHARS,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
@@ -4128,7 +4129,7 @@ lUInt32 LVWin32Font::getTextWidth( const lChar16 * text, int len )
                     text, len,
                     widths,
                     flags,
-                    MAX_LINE_CHARS,
+                    MAX_LINE_WIDTH,
                     L' '  // def_char
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
