@@ -5681,6 +5681,8 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 
     for (int i=0; def_style_macros[i*2]; i++)
         props->setStringDef(def_style_macros[i * 2], def_style_macros[i * 2 + 1]);
+
+    props->setIntDef(PROP_DOM_VERSION, gDOMVersionCurrent);
 }
 
 #define H_MARGIN 8
@@ -5948,6 +5950,8 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_PAGE_VIEW_MODE) {
             bool value = props->getBoolDef(PROP_CACHE_VALIDATION_ENABLED, true);
             enableCacheFileContentsValidation(value);
+        } else if (name == PROP_DOM_VERSION) {
+            gDOMVersionRequested = props->getIntDef(PROP_DOM_VERSION, gDOMVersionCurrent);
         } else {
 
             // unknown property, adding to list of unknown properties
