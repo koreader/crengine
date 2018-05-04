@@ -59,7 +59,8 @@ HyphDictionaryList * HyphMan::_dictList = NULL;
 
 // MAX_PATTERN_SIZE is actually the max size of a word (pattern stripped
 // from all the numbers that give the quality of a split after previous char)
-#define MAX_PATTERN_SIZE  16
+// (35 is needed for German.pattern)
+#define MAX_PATTERN_SIZE  35
 #define PATTERN_HASH_SIZE 16384
 class TexPattern;
 class TexHyph : public HyphMethod
