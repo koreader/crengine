@@ -8116,6 +8116,11 @@ void ldomDocumentWriterFilter::OnTagBody()
         OnText(_headStyleText.c_str(), _headStyleText.length(), 0);
         OnTagClose(L"", L"stylesheet");
         CRLog::trace("added BODY>stylesheet child element with HEAD>STYLE content");
+        // We add the head style content to current stylesheet, just like it is done for
+        // EPUB in ldomDocumentWriter::OnTagClose(). This is just to change the
+        // stylesheet hash, so that a new rendering is triggered (it will parse again the
+        // stylesheets, and will take into account the one we just set in this element).
+        _document->parseStyleSheet(lString16(), _headStyleText);
         _headStyleText.clear();
     }
 }
