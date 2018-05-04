@@ -3948,6 +3948,7 @@ static const char * AC_DL[] = {"dl", "dt", "p", NULL};
 static const char * AC_DT[] = {"dt", "dt", "dd", "p", NULL};
 static const char * AC_BR[] = {"br", NULL};
 static const char * AC_HR[] = {"hr", NULL};
+static const char * AC_WBR[] = {"wbr", NULL};
 static const char * AC_PARAM[] = {"param", "param", NULL};
 static const char * AC_IMG[]= {"img", NULL};
 static const char * AC_TD[] = {"td", "td", "th", NULL};
@@ -3961,6 +3962,13 @@ static const char * AC_TBODY[] = {"tbody", "tr", "thead", "tfoot", "tbody", NULL
 static const char * AC_OPTION[] = {"option", "option", NULL};
 static const char * AC_PRE[] = {"pre", "pre", NULL};
 static const char * AC_INPUT[] = {"input", NULL};
+static const char * AC_AREA[] = {"area", NULL};
+static const char * AC_BASE[] = {"base", NULL};
+static const char * AC_EMBED[] = {"embed", NULL};
+static const char * AC_LINK[] = {"link", NULL};
+static const char * AC_META[] = {"meta", NULL};
+static const char * AC_SOURCE[] = {"source", NULL};
+static const char * AC_TRACK[] = {"track", NULL};
 const char * *
 HTML_AUTOCLOSE_TABLE[] = {
     AC_INPUT,
@@ -3979,8 +3987,16 @@ HTML_AUTOCLOSE_TABLE[] = {
     AC_COL,
     AC_BR,
     AC_HR,
+    AC_WBR,
     AC_PARAM,
     AC_IMG,
+    AC_AREA,
+    AC_BASE,
+    AC_EMBED,
+    AC_LINK,
+    AC_META,
+    AC_SOURCE,
+    AC_TRACK,
     AC_DIV,
     AC_THEAD,
     AC_TFOOT,
