@@ -94,6 +94,7 @@ enum LVCssSelectorRuleType
     cssrt_parent,        // E > F
     cssrt_ancessor,      // E F
     cssrt_predecessor,   // E + F
+    cssrt_predsibling,   // E ~ F
     cssrt_attrset,       // E[foo]
     cssrt_attreq,        // E[foo="value"]
     cssrt_attrhas,       // E[foo~="value"]

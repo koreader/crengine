@@ -1989,6 +1989,7 @@ lUInt32 LVCssSelectorRule::getWeight() {
         case cssrt_parent:        // E > F
         case cssrt_ancessor:      // E F
         case cssrt_predecessor:   // E + F
+        case cssrt_predsibling:   // E ~ F
             return 1;
             break;
         case cssrt_universal:     // *
@@ -2029,18 +2030,26 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_predecessor:   // E + F
+    case cssrt_predsibling:   // E ~ F (preceding sibling)
         //
         {
             int index = node->getNodeIndex();
             // while
             if (index>0) {
-                ldomNode * elem = node->getParentNode()->getChildElementNode(index-1, _id);
-                if ( elem ) {
-                    node = elem;
-                    //CRLog::trace("+ selector: found pred element");
-                    return true;
+                ldomNode * parent = node->getParentNode();
+                for (int i=index-1; i>=0; i--) {
+                    ldomNode * elem = parent->getChildElementNode(i);
+                    // we get NULL when a child is a text node, that we should ignore
+                    if ( elem ) { // this is an element node
+                        if (elem->getNodeId() == _id) {
+                            node = elem;
+                            return true;
+                        }
+                        if (_type == cssrt_predecessor) {
+                            return false;
+                        }
+                    }
                 }
-                //index--;
             }
             return false;
         }
@@ -2296,13 +2305,17 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             _id = 0;
         }
+        else if ( *str == '#' ) // node Id follows
+        {
+            _id = 0; // (elementName internal id)
+        }
         else if ( css_is_alpha( *str ) )
         {
             // ident
             char ident[64];
             if (!parse_ident( str, ident ))
                 return false;
-            _id = doc->getElementNameIndex( lString16(ident).c_str() );
+            _id = doc->getElementNameIndex( lString16(ident).lowercase().c_str() );
             _specificity += 1; // we have an element: this adds 1 to specificity
             skip_spaces( str );
         }
@@ -2351,6 +2364,16 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predecessor);
+            rule->setId(_id);
+            insertRuleStart( rule );
+            _specificity += rule->getWeight();
+            _id=0;
+            continue;
+        }
+        else if (*str == '~')
+        {
+            str++;
+            LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predsibling);
             rule->setId(_id);
             insertRuleStart( rule );
             _specificity += rule->getWeight();
