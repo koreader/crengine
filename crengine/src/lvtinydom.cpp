@@ -8314,7 +8314,7 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
 void ldomDocumentWriterFilter::OnText( const lChar16 * text, int len, lUInt32 flags )
 {
     if (_inHeadStyle) {
-        _headStyleText << lString16(text);
+        _headStyleText << lString16(text, len);
         _inHeadStyle = false;
         return;
     }

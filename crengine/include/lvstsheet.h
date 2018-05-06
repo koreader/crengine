@@ -88,6 +88,36 @@ public:
 
 typedef LVRef<LVCssDeclaration> LVCssDeclRef;
 
+// See https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
+enum LVCssSelectorPseudoClass
+{
+    csspc_first_child,      // :first-child
+    csspc_first_of_type,    // :first-of-type
+    csspc_last_child,       // :last-child
+    csspc_last_of_type,     // :last-of-type
+    csspc_nth_child,        // :nth-child(even), :nth-child(3n+4)
+    csspc_nth_of_type,      // :nth-of-type()
+    csspc_nth_last_child,   // :nth-last-child()
+    csspc_nth_last_of_type, // :nth-last-of-type()
+    csspc_only_child,       // :only-child
+    csspc_only_of_type,     // :only-of-type
+};
+
+static const char * css_pseudo_classes[] =
+{
+    "first-child",
+    "first-of-type",
+    "last-child",
+    "last-of-type",
+    "nth-child",
+    "nth-of-type",
+    "nth-last-child",
+    "nth-last-of-type",
+    "only-child",
+    "only-of-type",
+    NULL
+};
+
 enum LVCssSelectorRuleType
 {
     cssrt_universal,     // *
@@ -100,7 +130,8 @@ enum LVCssSelectorRuleType
     cssrt_attrhas,       // E[foo~="value"]
     cssrt_attrstarts,    // E[foo|="value"]
     cssrt_id,            // E#id
-    cssrt_class          // E.class
+    cssrt_class,         // E.class
+    cssrt_pseudoclass    // E:pseudo-class, E:pseudo-class(value)
 };
 
 class LVCssSelectorRule
