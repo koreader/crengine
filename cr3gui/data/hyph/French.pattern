@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20180418 
+% 20180506 
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -26,9 +26,9 @@
 % Only works if minrighthyph is at 2 and improve the spacing between words.
 % Only uncomment if you prefer better spacing and not care much about rules :)
 %
-%lines 1882 to 1885 (disabled by default)
+%lines 1882 to 1884 (disabled by default)
 % special patterns which override the rules that say one cannot hyphen after
-% cul- (which mean ass) and con- (which mean cunt) at the beginning of a word.
+% con- (which mean cunt) at the beginning of a word.
 % Only uncomment if you don't have to read the text aloud ;-)
 % 
 -->
@@ -128,7 +128,6 @@
 <pattern> as2ta</pattern>
 <pattern>as1t2r</pattern>
 <pattern>a2s3t1ro</pattern>
-<pattern> au5jour5d</pattern>
 <pattern>au1me</pattern>
 <pattern>au2ment </pattern>
 <pattern>a1vi</pattern>
@@ -1881,7 +1880,6 @@
 -->
 <!-- let's override rude syllabes
 <pattern> con5</pattern>
-<pattern> cul5</pattern>
 -->
 <!-- rules to take care of some exceptions introduced by right 1 
 but needed by crengine no quote pattern -->
@@ -1890,4 +1888,7 @@ but needed by crengine no quote pattern -->
 <pattern>g2s </pattern>
 <pattern>m2s </pattern>
 <pattern>n2x </pattern>
+<!-- other rules -->
+<pattern> dé3s2i5r </pattern>
+<pattern> dé3s2i5rs </pattern>
 </HyphenationDescription>
