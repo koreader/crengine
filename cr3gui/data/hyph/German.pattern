@@ -1,39 +1,7 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-UTF-8
-####################################################################################
-# This is the hyphenation file "hyph_de_DE dic" of the German dictionary           #
-# according to the reform of 2006-08-01	(i e  reformed or new spelling)            #
-#                                                                                  #
-# Language: German (de DE)                                                         #
-#                                                                                  #
-# Version:  2017-01-12                                                             #
-#           New: using the COMPOUND feature for improved hyphenation               #
-#           New: list with over 69,000 words and compounds by Karl Zeiler          #
-#                                                                                  #
-# Origin:   Based on the TeX hyphenation tables	"dehyphn tex", revision level 31   #
-#           http://www ctan org/tex-archive/language/hyphenation/dehyphn tex       #
-#           The TeX hyphenation tables are released under the LaTeX Project        #
-#           Public License (LPPL)                                                  #
-#                                                                                  #
-# License:  OpenOffice org Adaptions of this package are licensed under the        #
-#           GNU Lesser General Public License (LGPL 2 or later) and are under      #
-#           Copyright by                                                           #
-#                                                                                  #
-# Authors:  conversion author: Marco Huggenberger <marco@by-night ch>              #
-#           revised conversion: Daniel Naber <naber@danielnaber de>                #
-#           improvements: Karl Zeiler <karl zeiler@t-online de>                    #
-#                                                                                  #
-# Please note, this dictionary is based on syllable matching patterns              #
-# and thus should be suitable under other variations of German                     #
-#                                                                                  #
-# HYPH de DE hyph_de_DE                                                            #
-# HYPH de AT hyph_de_AT                                                            #
-# HYPH de CH hyph_de_CH                                                            #
-####################################################################################
-
-COMPOUNDLEFTHYPHENMIN 2
-COMPOUNDRIGHTHYPHENMIN 2
+  converted from :
+  https://extensions.openoffice.org/project/dict-de_DE_frami
 -->
 <HyphenationDescription>
 <pattern>da1her</pattern>
@@ -39816,7 +39784,7 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>milz1brand1aus1lösend</pattern>
 <pattern>milz1brand1aus1lösende</pattern>
 <pattern>milz1brand1er1reger</pattern>
-<pattern>milz1ent1zündung </pattern>
+<pattern>milz1ent1zündung</pattern>
 <pattern>milz1ent1zündungs1</pattern>
 <pattern>mime</pattern>
 <pattern>mimen</pattern>
@@ -69161,12 +69129,6 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>zyprisch</pattern>
 <pattern>zyprische</pattern>
 <pattern>zyprischer</pattern>
-<pattern></pattern>
-<pattern>NOHYPHEN -,'</pattern>
-<pattern>1-1</pattern>
-<pattern>1'1</pattern>
-<pattern></pattern>
-<pattern>NEXTLEVEL</pattern>
 <pattern> aa6l</pattern>
 <pattern> 6a1ba</pattern>
 <pattern> ab3a4s</pattern>
@@ -71653,7 +71615,7 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>her6z5er</pattern>
 <pattern>he1sp2</pattern>
 <pattern>he4s1pe</pattern>
-<pattern>he1st </pattern>
+<pattern>he1st</pattern>
 <pattern>he2s1te</pattern>
 <pattern>he1ta6</pattern>
 <pattern>het5am</pattern>
@@ -71966,7 +71928,7 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>i1d</pattern>
 <pattern>id3a6r1m</pattern>
 <pattern>i1de</pattern>
-<pattern>3i2de3al </pattern>
+<pattern>3i2de3al</pattern>
 <pattern>ide8na</pattern>
 <pattern>3i2deol</pattern>
 <pattern>ide5rö8</pattern>
@@ -74126,7 +74088,7 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>pä8nu</pattern>
 <pattern>1pärc</pattern>
 <pattern>1pärk</pattern>
-<pattern>8pärl </pattern>
+<pattern>8pärl</pattern>
 <pattern>pät5h</pattern>
 <pattern>pä2t1s</pattern>
 <pattern>qu6</pattern>
@@ -76797,7 +76759,7 @@ COMPOUNDRIGHTHYPHENMIN 2
 <pattern>tes1t</pattern>
 <pattern>ti1v</pattern>
 <pattern>ti2v5er1i</pattern>
-<pattern>ti2v5er1z	</pattern>
+<pattern>ti2v5er1z</pattern>
 <pattern>ti6v5r</pattern>
 <pattern>tive1r</pattern>
 <pattern>tivere1r</pattern>
