@@ -1984,6 +1984,7 @@ lUInt32 LVCssSelectorRule::getWeight() {
         case cssrt_attrhas:       // E[foo~="value"]
         case cssrt_attrstarts:    // E[foo|="value"]
         case cssrt_class:         // E.class
+        case cssrt_pseudoclass:   // E:pseudo-class
             return 1 << 8;
             break;
         case cssrt_parent:        // E > F
@@ -2010,7 +2011,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             node = node->getParentNode();
             if (node->isNull())
                 return false;
-            return node->getNodeId() == _id;
+            // If _id=0, we are the parent and we match
+            if (!_id || node->getNodeId() == _id)
+                return true;
+            return false;
         }
         break;
     case cssrt_ancessor:      // E F
@@ -2024,7 +2028,12 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                     return false;
                 if (node->isNull())
                     return false;
-                if (node->getNodeId() == _id)
+                // If _id=0 (no element to match against), we are in a
+                // non-deterministic rule, and we would need to iterate
+                // thru each parent to start checking next rules from,
+                // which we can't do. So, if no _id, start from direct
+                // parent (ie: '.cls F' will be like '.cls > F')
+                if (!_id || node->getNodeId() == _id)
                     return true;
             }
         }
@@ -2034,7 +2043,6 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         //
         {
             int index = node->getNodeIndex();
-            // while
             if (index>0) {
                 ldomNode * parent = node->getParentNode();
                 for (int i=index-1; i>=0; i--) {
@@ -2115,25 +2123,116 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         {
             lString16 val = node->getAttributeValue(attr_class);
             // val.lowercase(); // className should be case sensitive
-//            if ( val.length() != _value.length() )
-//                return false;
+            // if ( val.length() != _value.length() )
+            //     return false;
             //CRLog::trace("attr_class: %s %s", LCSTR(val), LCSTR(_value) );
-        /*As I have eliminated leading and ending spaces in the attribute value, any space in
-         *val means there are more than one classes */
-        int pos = val.pos(_value);
-        if (val.pos(" ") != -1 && pos != -1) {
-            int len = _value.length();
-            if (pos + len == val.length() || //in the end
-                val.at(pos + len) == L' ')      //in the beginning or in the middle
-                return true;
-            else
-                return false;
+            /*As I have eliminated leading and ending spaces in the attribute value, any space in
+             *val means there are more than one classes */
+            int pos = val.pos(_value);
+            if (val.pos(" ") != -1 && pos != -1) {
+                int len = _value.length();
+                if (pos + len == val.length() || //in the end
+                    val.at(pos + len) == L' ')      //in the beginning or in the middle
+                    return true;
+                else
+                    return false;
         }
             return val == _value;
         }
         break;
     case cssrt_universal:     // *
         return true;
+    case cssrt_pseudoclass:   // E:pseudo-class
+        {
+            int nodeId = node->getNodeId();
+            int index = node->getNodeIndex();
+            ldomNode * parent = node->getParentNode();
+            switch (_attrid) {
+                case csspc_first_child:
+                case csspc_first_of_type:
+                {
+                    if (index>0) {
+                        for (int i=index-1; i>=0; i--) {
+                            ldomNode * elem = parent->getChildElementNode(i);
+                            if ( elem ) // child before us
+                                if (_attrid == csspc_first_child || elem->getNodeId() == nodeId)
+                                    return false;
+                        }
+                    }
+                    return true;
+                }
+                break;
+                case csspc_last_child:
+                case csspc_last_of_type:
+                {
+                    for (int i=index+1; i<parent->getChildCount(); i++) {
+                        ldomNode * elem = parent->getChildElementNode(i);
+                        if ( elem ) // child after us
+                            if (_attrid == csspc_last_child || elem->getNodeId() == nodeId)
+                                return false;
+                    }
+                    return true;
+                }
+                break;
+                case csspc_nth_child:
+                case csspc_nth_of_type:
+                {
+                    int n = 0;
+                    for (int i=0; i<index; i++) {
+                        ldomNode * elem = parent->getChildElementNode(i);
+                        if ( elem )
+                            if (_attrid == csspc_nth_child || elem->getNodeId() == nodeId)
+                                n++;
+                    }
+                    n++; // this is our position
+                    if (_value == "even" && (n % 2)==0)
+                        return true;
+                    if (_value == "odd" && (n % 2)==1)
+                        return true;
+                    // other values ( 5, 5n3...) not supported (yet)
+                    return false;
+                }
+                break;
+                case csspc_nth_last_child:
+                case csspc_nth_last_of_type:
+                {
+                    int n = 0;
+                    for (int i=parent->getChildCount()-1; i>index; i--) {
+                        ldomNode * elem = parent->getChildElementNode(i);
+                        if ( elem )
+                            if (_attrid == csspc_nth_last_child || elem->getNodeId() == nodeId)
+                                n++;
+                    }
+                    n++; // this is our position
+                    if (_value == "even" && (n % 2)==0)
+                        return true;
+                    if (_value == "odd" && (n % 2)==1)
+                        return true;
+                    // other values ( 5, 5n3...) not supported (yet)
+                    return false;
+                }
+                break;
+                case csspc_only_child:
+                case csspc_only_of_type:
+                {
+                    int n = 0;
+                    for (int i=0; i<parent->getChildCount(); i++) {
+                        ldomNode * elem = parent->getChildElementNode(i);
+                        if ( elem )
+                            if (_attrid == csspc_only_child || elem->getNodeId() == nodeId) {
+                                n++;
+                                if (n > 1)
+                                    break;
+                            }
+                    }
+                    if (n > 1)
+                        return false;
+                    return true;
+                }
+                break;
+            }
+        }
+        return false;
     }
     return true;
 }
@@ -2157,7 +2256,7 @@ bool LVCssSelector::check( const ldomNode * node ) const
     return true;
 }
 
-bool parse_attr_value( const char * &str, char * buf )
+bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
 {
     int pos = 0;
     skip_spaces( str );
@@ -2176,19 +2275,19 @@ bool parse_attr_value( const char * &str, char * buf )
         buf[pos] = 0;
         str += pos+1;
         skip_spaces( str );
-        if (*str != ']')
+        if (*str != stop_char)
             return false;
         str++;
         return true;
     }
     else
     {
-        for ( ; str[pos] && str[pos]!=' ' && str[pos]!='\t' && str[pos]!=']'; pos++)
+        for ( ; str[pos] && str[pos]!=' ' && str[pos]!='\t' && str[pos]!=stop_char; pos++)
         {
             if (pos>=64)
                 return false;
         }
-        if (str[pos]!=']')
+        if (str[pos]!=stop_char)
             return false;
         for (int i=0; i<pos; i++)
             buf[i] = str[i];
@@ -2226,6 +2325,29 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
         lString16 s( attrvalue );
         rule->setAttr(attr_id, s);
+        return rule;
+    } else if ( *str==':' ) {
+        // E:pseudo-class (eg: E:first-child)
+        str++;
+        skip_spaces( str );
+        if (*str==':')   // pseudo element (double ::, eg: E::first-line) are not supported
+            return NULL;
+        int n = parse_name( str, css_pseudo_classes, -1 );
+        if (n == -1) // not one of out supported pseudo classes
+            return NULL;
+        attrvalue[0] = 0;
+        if (*str=='(') { // parse () content
+            str++;
+            if ( !parse_attr_value( str, attrvalue, ')') )
+                return NULL;
+            // we don't parse the value here, it may have specific meaning
+            // per pseudo-class type
+        }
+        skip_spaces( str );
+        LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
+        lString16 s( attrvalue );
+        rule->setAttr(n, s);
+        // printf("made pseudo class rule %d with %s\n", n, UnicodeToLocal(s).c_str());
         return rule;
     } else if (*str != '[')
         return NULL;
@@ -2327,7 +2449,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             return true;
         // one or more attribute rules
         bool attr_rule = false;
-        while ( *str == '[' || *str=='.' || *str=='#' )
+        while ( *str == '[' || *str=='.' || *str=='#' || *str==':' )
         {
             LVCssSelectorRule * rule = parse_attr( str, doc );
             if (!rule)
