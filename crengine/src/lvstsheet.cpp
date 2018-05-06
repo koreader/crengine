@@ -2437,7 +2437,14 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             char ident[64];
             if (!parse_ident( str, ident ))
                 return false;
-            _id = doc->getElementNameIndex( lString16(ident).lowercase().c_str() );
+            // All element names have been lowercased by HTMLParser (except
+            // a few ones that are added explicitely by crengine): we need
+            // to lowercase them here too to expect a match.
+            lString16 element(ident);
+            if (element != "DocFragment" && element != "autoBoxing" && element != "FictionBook" ) {
+                element = element.lowercase();
+            }
+            _id = doc->getElementNameIndex( element.c_str() );
             _specificity += 1; // we have an element: this adds 1 to specificity
             skip_spaces( str );
         }
