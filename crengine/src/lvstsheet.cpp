@@ -2003,12 +2003,21 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
 {
     if (node->isNull() || node->isRoot())
         return false;
+    // For most checks, while navigating nodes, we must ignore sibling text nodes.
+    // We also ignore <autoBoxing> (crengine internal block element, inserted
+    // for rendering purpose) when looking at parent(s).
+    // TODO: for cssrt_predecessor and cssrt_pseudoclass, we should
+    // also deal with <autoBoxing> nodes when navigating siblings,
+    // by iterating up and down the autoBoxing nodes met on our path while
+    // under real parent. These could take wront decisions in the meantime...
     switch (_type)
     {
     case cssrt_parent:        // E > F
         //
         {
             node = node->getParentNode();
+            while (node && !node->isNull() && node->getNodeId() == el_autoBoxing)
+                node = node->getParentNode();
             if (node->isNull())
                 return false;
             // If _id=0, we are the parent and we match
@@ -2028,6 +2037,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                     return false;
                 if (node->isNull())
                     return false;
+                if (node->getNodeId() == el_autoBoxing)
+                    continue;
                 // If _id=0 (no element to match against), we are in a
                 // non-deterministic rule, and we would need to iterate
                 // thru each parent to start checking next rules from,
@@ -2049,7 +2060,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                     ldomNode * elem = parent->getChildElementNode(i);
                     // we get NULL when a child is a text node, that we should ignore
                     if ( elem ) { // this is an element node
-                        if (elem->getNodeId() == _id) {
+                        // If _id=0 (no element to match against), same as above
+                        if (!_id || elem->getNodeId() == _id) {
                             node = elem;
                             return true;
                         }
