@@ -53,8 +53,6 @@ p { text-align: justify; text-indent: 1.2em; margin-top:0em; margin-bottom: 0em 
 
 hr { height: 2px; background-color: #808080; margin-top: 0.5em; margin-bottom: 0.5em }
 
-br + br { margin-top: 1em; }
-
 sub { vertical-align: sub; font-size: 70% }
 sup { vertical-align: super; font-size: 70% }
 sup img{display:inline}

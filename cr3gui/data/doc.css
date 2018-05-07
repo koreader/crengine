@@ -205,8 +205,6 @@ hr {
    margin-bottom: 0.5em 
    }
 
-br + br { margin-top: 1em; }
-
 a { 
    display:inline; 
    text-decoration: underline;  
