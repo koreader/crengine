@@ -479,8 +479,13 @@ public:
     }
     virtual void clearFallbackFonts()
     {
+        LVPtrVector< LVFontCacheItem > * fonts = getInstances();
+        for ( int i=0; i<fonts->length(); i++ ) {
+            fonts->get(i)->getFont()->setFallbackFont(LVFontRef());
+        }
         for ( int i=0; i<_registered_list.length(); i++ ) {
-            _registered_list[i]->getFont()->setFallbackFont(LVFontRef());
+            if (!_registered_list[i]->getFont().isNull())
+                _registered_list[i]->getFont()->setFallbackFont(LVFontRef());
         }
     }
     LVFontCache( )
@@ -779,9 +784,11 @@ public:
 
     // fallback font support
     /// set fallback font for this font
-    void setFallbackFont( LVFontRef font ) {
+    virtual void setFallbackFont( LVFontRef font ) {
         _fallbackFont = font;
         _fallbackFontIsSet = !font.isNull();
+        _glyph_cache.clear();
+        _wcache.clear();
     }
 
     /// get fallback font for this font
