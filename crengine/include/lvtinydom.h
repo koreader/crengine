@@ -1318,11 +1318,11 @@ public:
 	}
 #if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
-    bool getRect(lvRect & rect) const;
+    bool getRect(lvRect & rect, bool extended=false) const;
     /// returns caret rectangle for pointer inside formatted document considering paddings and borders
-    bool getRectEx(lvRect & rect) const;
+    bool getRectEx(lvRect & rect) const { return getRect(rect, true); };
     /// returns coordinates of pointer inside formatted document
-    lvPoint toPoint( bool use_getRectEx=false ) const;
+    lvPoint toPoint( bool extended=false ) const;
 #endif
     /// converts to string
 	lString16 toString();
