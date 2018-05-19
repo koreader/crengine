@@ -25,7 +25,8 @@ enum css_display_t {
     css_d_inherit,
     css_d_inline,
     css_d_block,
-    css_d_list_item, 
+    css_d_list_item,        // display: list-item
+    css_d_list_item_block,  // display: -cr-list-item-block
     css_d_run_in, 
     css_d_compact, 
     css_d_marker, 
