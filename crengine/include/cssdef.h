@@ -26,6 +26,7 @@ enum css_display_t {
     css_d_inline,
     css_d_block,
     css_d_list_item, 
+    css_d_list_item_block,
     css_d_run_in, 
     css_d_compact, 
     css_d_marker, 

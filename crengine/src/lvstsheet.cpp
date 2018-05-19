@@ -595,6 +595,7 @@ static const char * css_d_names[] =
     "inline",
     "block",
     "list-item", 
+    "list-item-block", // non-standard, for alternative rendering of list items
     "run-in", 
     "compact", 
     "marker", 

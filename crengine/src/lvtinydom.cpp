@@ -36,7 +36,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.10k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.11k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0004
 
@@ -3764,6 +3764,7 @@ static bool isBlockNode( ldomNode * node )
     {
     case css_d_block:
     case css_d_list_item:
+    case css_d_list_item_block:
     case css_d_table:
     case css_d_table_row:
     case css_d_inline_table:
@@ -4120,6 +4121,7 @@ void ldomNode::initNodeRendMethod()
             switch ( d )
             {
             case css_d_block:
+            case css_d_list_item_block:
             case css_d_inline:
             case css_d_run_in:
                 setRendMethod( erm_final );
@@ -7460,6 +7462,7 @@ public:
         case css_d_inherit:
         case css_d_block:
         case css_d_list_item:
+        case css_d_list_item_block:
         case css_d_compact:
         case css_d_marker:
         case css_d_table:
