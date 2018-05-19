@@ -36,7 +36,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.11k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.12k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0004
 
@@ -423,6 +423,7 @@ struct CacheFileHeader : public SimpleCacheFileHeader
         }
         if ( _dirty!=0 ) {
             CRLog::error("CacheFileHeader::validate: dirty flag is set");
+            printf("CRE WARNING: ignoring cache file (marked as dirty)\n");
             return false;
         }
         return true;
@@ -1504,11 +1505,14 @@ tinyNodeCollection::tinyNodeCollection()
 , _renderedBlockCache( 32 )
 , _cacheFile(NULL)
 , _cacheFileStale(true)
+, _cacheFileLeaveAsDirty(false)
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 , _nodeStyleHash(0)
+, _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
+, _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -1536,11 +1540,14 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _renderedBlockCache( 32 )
 , _cacheFile(NULL)
 , _cacheFileStale(true)
+, _cacheFileLeaveAsDirty(false)
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 , _nodeStyleHash(0)
+, _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
+, _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -3476,6 +3483,20 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         updateRenderContext();
         _pagesData.reset();
         pages->serialize( _pagesData );
+
+        if ( _nodeDisplayStyleHashInitial == NODE_DISPLAY_STYLE_HASH_UNITIALIZED ) {
+            // If _nodeDisplayStyleHashInitial has not been initialized from its
+            // former value from the cache file, we use the one computed (just
+            // above in updateRenderContext()) after the first full rendering
+            // (which has applied styles and created the needed autoBoxing nodes
+            // in the DOM). It is coherent with the DOM built up to now.
+            _nodeDisplayStyleHashInitial = _nodeDisplayStyleHash;
+            CRLog::info("Initializing _nodeDisplayStyleHashInitial after first rendering: %x", _nodeDisplayStyleHashInitial);
+            // We also save it directly into DocFileHeader _hdr (normally,
+            // updateRenderContext() does this, but doing it here avoids
+            // a call and an expensive CalcStyleHash)
+            _hdr.node_displaystyle_hash = _nodeDisplayStyleHashInitial;
+        }
 
         if ( callback ) {
             callback->OnFormatEnd();
@@ -8243,7 +8264,7 @@ bool lxmlDocBase::DocFileHeader::serialize( SerialBuf & hdrbuf )
     int start = hdrbuf.pos();
     hdrbuf.putMagic( doc_file_magic );
     //CRLog::trace("Serializing render data: %d %d %d %d", render_dx, render_dy, render_docflags, render_style_hash);
-    hdrbuf << render_dx << render_dy << render_docflags << render_style_hash << stylesheet_hash;
+    hdrbuf << render_dx << render_dy << render_docflags << render_style_hash << stylesheet_hash << node_displaystyle_hash;
 
     hdrbuf.putCRC( hdrbuf.pos() - start );
 
@@ -8270,7 +8291,7 @@ bool lxmlDocBase::DocFileHeader::deserialize( SerialBuf & hdrbuf )
         CRLog::error("Swap file Magic signature doesn't match");
         return false;
     }
-    hdrbuf >> render_dx >> render_dy >> render_docflags >> render_style_hash >> stylesheet_hash;
+    hdrbuf >> render_dx >> render_dy >> render_docflags >> render_style_hash >> stylesheet_hash >> node_displaystyle_hash;
     //CRLog::trace("Deserialized render data: %d %d %d %d", render_dx, render_dy, render_docflags, render_style_hash);
     hdrbuf.checkCRC( hdrbuf.pos() - start );
     if ( hdrbuf.error() ) {
@@ -8340,6 +8361,11 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
     _rendered = true;
     _just_rendered_from_cache = true;
     _toc_from_cache_valid = true;
+    // Use cached node_displaystyle_hash as _nodeDisplayStyleHashInitial, as it
+    // should be in sync with the DOM stored in the cache
+    _nodeDisplayStyleHashInitial = _hdr.node_displaystyle_hash;
+    CRLog::info("Initializing _nodeDisplayStyleHashInitial from cache file: %x", _nodeDisplayStyleHashInitial);
+
     setCacheFileStale(false);
     return true;
 }
@@ -8424,8 +8450,8 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             return false;
         }
         _hdr = h;
-        CRLog::info("Loaded render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x",
-                _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy);
+        CRLog::info("Loaded render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x, nodeDisplayStyleHash=%x",
+                _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
     }
 
     CRLog::trace("ldomDocument::loadCacheFileContent() - node data");
@@ -8644,8 +8670,8 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
                 return CR_ERROR;
             }
         }
-        CRLog::info("Saving render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x",
-                    _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy);
+        CRLog::info("Saving render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x, nodeDisplayStyleHash=%x",
+                    _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
 
 
         CRLog::trace("ldomDocument::saveChanges() - TOC");
@@ -8800,6 +8826,14 @@ lUInt32 tinyNodeCollection::calcStyleHash()
         CRLog::debug("  using saved _nodeStyleHash %x", res);
     }
     else {
+        // We also compute _nodeDisplayStyleHash from each node style->display. It
+        // may not change as often as _nodeStyleHash, but if it does, it means
+        // some nodes switched between 'block' and 'inline', and that some autoBoxing
+        // that may have been added should no more be in the DOM for a correct
+        // rendering: in that case, the user will have to reload the document, and
+        // we should invalidate the cache so a new correct DOM is build on load.
+        _nodeDisplayStyleHash = 0;
+
         for ( int i=0; i<count; i++ ) {
             int offs = i*TNC_PART_LEN;
             int sz = TNC_PART_LEN;
@@ -8812,6 +8846,9 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                     css_style_ref_t style = buf[j].getStyle();
                     lUInt32 sh = calcHash( style );
                     res = res * 31 + sh;
+                    if (!style.isNull()) {
+                        _nodeDisplayStyleHash = _nodeDisplayStyleHash * 31 + style.get()->display;
+                    }
                     //printf("element %d %d style hash: %x\n", i, j, sh);
                     LVFontRef font = buf[j].getFont();
                     lUInt32 fh = calcHash( font );
@@ -8827,6 +8864,7 @@ lUInt32 tinyNodeCollection::calcStyleHash()
         }
         CRLog::debug("  COMPUTED _nodeStyleHash %x", res);
         _nodeStyleHash = res;
+        CRLog::debug("  COMPUTED _nodeDisplayStyleHash %x (initial: %x)", _nodeDisplayStyleHash, _nodeDisplayStyleHashInitial);
     }
     CRLog::info("Calculating style hash...  elemCount=%d, globalHash=%08x, docFlags=%08x, nodeStyleHash=%08x", _elemCount, globalHash, docFlags, res);
     res = res * 31 + _imgScalingOptions.getHash();
@@ -9001,6 +9039,12 @@ ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime)
 {
     if ( !_cacheFile || !_mapped )
         return CR_DONE;
+
+    if ( _cacheFileLeaveAsDirty ) {
+        CRLog::info("requested to set cache file as dirty without any update");
+        _cacheFile->setDirtyFlag(true);
+        return CR_DONE;
+    }
 
     if ( !_cacheFileStale) {
         CRLog::info("No change, cache file update not needed");
@@ -9482,8 +9526,9 @@ void ldomDocument::updateRenderContext()
     _hdr.render_dx = dx;
     _hdr.render_dy = dy;
     _hdr.render_docflags = _docFlags;
-    CRLog::info("Updating render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x",
-                _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy);
+    _hdr.node_displaystyle_hash = _nodeDisplayStyleHashInitial; // we keep using the initial one
+    CRLog::info("Updating render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x, nodeDisplayStyleHash=%x",
+                _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
 }
 
 /// check document formatting parameters before render - whether we need to reformat; returns false if render is necessary
@@ -9526,6 +9571,8 @@ bool ldomDocument::checkRenderContext()
         if (_just_rendered_from_cache)
             printf("CRE WARNING: cached rendering is invalid (page height mismatch): doing full rendering\n");
     }
+    // no need to check for _nodeDisplayStyleHash != _hdr.node_displaystyle_hash:
+    // this is implicitely done by styleHash != _hdr.render_style_hash (whose _nodeDisplayStyleHash is a subset)
     _just_rendered_from_cache = false;
     if ( res ) {
 
