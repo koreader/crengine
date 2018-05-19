@@ -102,6 +102,8 @@ extern int gDOMVersionRequested;
 
 #define DEF_MIN_SPACE_CONDENSING_PERCENT 50
 
+#define NODE_DISPLAY_STYLE_HASH_UNITIALIZED 0xFFFFFFFF
+
 //#if BUILD_LITE!=1
 /// final block cache
 typedef LVRef<LFormattedText> LFormattedTextRef;
@@ -396,6 +398,7 @@ protected:
     CVRendBlockCache _renderedBlockCache;
     CacheFile * _cacheFile;
     bool _cacheFileStale;
+    bool _cacheFileLeaveAsDirty;
     bool _mapped;
     bool _maperror;
     int  _mapSavingStage;
@@ -404,6 +407,8 @@ protected:
     int  _minSpaceCondensingPercent;
 
     lUInt32 _nodeStyleHash;
+    lUInt32 _nodeDisplayStyleHash;
+    lUInt32 _nodeDisplayStyleHashInitial;
 
     int calcFinalBlocks();
     void dropStyles();
@@ -524,6 +529,17 @@ public:
 
     /// set cache file stale flag
     void setCacheFileStale( bool stale ) { _cacheFileStale = stale; }
+
+    /// is built (and cached) DOM possibly invalid (can happen when some nodes have changed display style)
+    bool isBuiltDomStale() {
+        return _nodeDisplayStyleHashInitial != NODE_DISPLAY_STYLE_HASH_UNITIALIZED &&
+                _nodeDisplayStyleHash != _nodeDisplayStyleHashInitial;
+    }
+
+    /// if a cache file is in use
+    bool hasCacheFile() { return _cacheFile != NULL; }
+    /// set cache file as dirty, so it's not re-used on next load
+    void invalidateCacheFile() { _cacheFileLeaveAsDirty = true; };
 
     /// minimize memory consumption
     void compact();
@@ -1105,10 +1121,12 @@ protected:
         lUInt32 render_docflags;
         lUInt32 render_style_hash;
         lUInt32 stylesheet_hash;
+        lUInt32 node_displaystyle_hash;
         bool serialize( SerialBuf & buf );
         bool deserialize( SerialBuf & buf );
         DocFileHeader()
-            : render_dx(0), render_dy(0), render_docflags(0), render_style_hash(0), stylesheet_hash(0)
+            : render_dx(0), render_dy(0), render_docflags(0), render_style_hash(0), stylesheet_hash(0),
+                node_displaystyle_hash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
         {
         }
     };
