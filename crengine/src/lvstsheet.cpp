@@ -594,8 +594,8 @@ static const char * css_d_names[] =
     "inherit",
     "inline",
     "block",
-    "list-item", 
-    "-cr-list-item-block", // non-standard, for alternative rendering of list items
+    "list-item",           // crengine rendering of list items as final : css_d_list_item
+    "-cr-list-item-block", // non-standard, for alternative rendering of list items : css_d_list_item_block
     "run-in", 
     "compact", 
     "marker", 
