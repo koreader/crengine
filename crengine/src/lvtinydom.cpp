@@ -448,6 +448,7 @@ class CacheFile
     int _size;
     bool _indexChanged;
     bool _dirty;
+    lString16 _cachePath;
     LVStreamRef _stream; // file stream
     LVPtrVector<CacheFileItem, true> _index; // full file block index
     LVPtrVector<CacheFileItem, false> _freeIndex; // free file block index
@@ -515,12 +516,18 @@ public:
     void setAutoSyncSize(int sz) {
         _stream->setAutoSyncSize(sz);
     }
+    void setCachePath(const lString16 cachePath) {
+        _cachePath = cachePath;
+    }
+    const lString16 getCachePath() {
+        return _cachePath;
+    }
 };
 
 
 // create uninitialized cache file, call open or create to initialize
 CacheFile::CacheFile()
-: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _map(1024)
+: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _map(1024), _cachePath(lString16::empty_str)
 {
 }
 
@@ -1582,7 +1589,8 @@ bool tinyNodeCollection::openCacheFile()
 
     CRLog::info("ldomDocument::openCacheFile() - looking for cache file", UnicodeToUtf8(fname).c_str() );
 
-    LVStreamRef map = ldomDocCache::openExisting( fname, crc, getPersistenceFlags() );
+    lString16 cache_path;
+    LVStreamRef map = ldomDocCache::openExisting( fname, crc, getPersistenceFlags(), cache_path );
     if ( map.isNull() ) {
         delete f;
         return false;
@@ -1594,6 +1602,7 @@ bool tinyNodeCollection::openCacheFile()
         return false;
     }
     CRLog::info("ldomDocument::openCacheFile() - index read successfully", UnicodeToUtf8(fname).c_str() );
+    f->setCachePath(cache_path);
     _cacheFile = f;
     _textStorage.setCache( f );
     _elemStorage.setCache( f );
@@ -1629,7 +1638,8 @@ bool tinyNodeCollection::createCacheFile()
 
     CRLog::info("ldomDocument::createCacheFile() - initialized swapping of document %s to cache file", UnicodeToUtf8(fname).c_str() );
 
-    LVStreamRef map = ldomDocCache::createNew( fname, crc, getPersistenceFlags(), sz );
+    lString16 cache_path;
+    LVStreamRef map = ldomDocCache::createNew( fname, crc, getPersistenceFlags(), sz, cache_path );
     if ( map.isNull() ) {
         delete f;
         return false;
@@ -1639,6 +1649,7 @@ bool tinyNodeCollection::createCacheFile()
         delete f;
         return false;
     }
+    f->setCachePath(cache_path);
     _cacheFile = f;
     _mapped = true;
     _textStorage.setCache( f );
@@ -1648,6 +1659,10 @@ bool tinyNodeCollection::createCacheFile()
     _blobCache.setCacheFile( f );
     setCacheFileStale(true);
     return true;
+}
+
+lString16 tinyNodeCollection::getCacheFilePath() {
+    return _cacheFile != NULL ? _cacheFile->getCachePath() : lString16::empty_str;
 }
 
 void tinyNodeCollection::clearNodeStyle( lUInt32 dataIndex )
@@ -9330,7 +9345,7 @@ public:
     }
 
     /// open existing cache file stream
-    LVStreamRef openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags )
+    LVStreamRef openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags, lString16 &cachePath )
     {
         lString16 fn = makeFileName( filename, crc, docFlags );
         CRLog::debug("ldomDocCache::openExisting(%s)", LCSTR(fn));
@@ -9338,11 +9353,12 @@ public:
         // to a .cr3 cache file, for it to no more be maintained by crengine
         // in its index, thus not subject to _maxSize enforcement, so sure
         // to not be deleted by crengine)
-        lString16 fnkeep = (_cacheDir+fn+".keep");
-        if ( LVFileExists(fnkeep) ) {
-            LVStreamRef stream = LVOpenFileStream( fnkeep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
+        lString16 fn_keep = _cacheDir + fn + ".keep";
+        if ( LVFileExists(fn_keep) ) {
+            LVStreamRef stream = LVOpenFileStream( fn_keep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
             if ( !stream.isNull() ) {
-                CRLog::info( "ldomDocCache::openExisting - opening user renamed cache file %s", UnicodeToUtf8(fnkeep).c_str() );
+                CRLog::info( "ldomDocCache::openExisting - opening user renamed cache file %s", UnicodeToUtf8(fn_keep).c_str() );
+                cachePath = fn_keep;
 #if ENABLED_BLOCK_WRITE_CACHE
                 stream = LVCreateBlockWriteStream( stream, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
 #endif
@@ -9354,11 +9370,13 @@ public:
             CRLog::error( "ldomDocCache::openExisting - File %s is not found in cache index", UnicodeToUtf8(fn).c_str() );
             return res;
         }
-        res = LVOpenFileStream( (_cacheDir+fn).c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
+        lString16 pathname = _cacheDir + fn;
+        res = LVOpenFileStream( pathname.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
         if ( !res ) {
             CRLog::error( "ldomDocCache::openExisting - File %s is listed in cache index, but cannot be opened", UnicodeToUtf8(fn).c_str() );
             return res;
         }
+        cachePath = pathname;
 
 #if ENABLED_BLOCK_WRITE_CACHE
         res = LVCreateBlockWriteStream( res, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
@@ -9366,7 +9384,7 @@ public:
 
         LVStreamRef stream2 = LVOpenFileStream( (_cacheDir + fn + "_c").c_str(), LVOM_APPEND );
         if ( !stream2 ) {
-            CRLog::error( "ldomDocCache::createNew - file %s is cannot be created", UnicodeToUtf8(fn).c_str() );
+            CRLog::error( "ldomDocCache::openExisting - file %s is cannot be created", UnicodeToUtf8(fn).c_str() );
             return stream2;
         }
         res = LVCreateCompareTestStream(res, stream2);
@@ -9379,23 +9397,24 @@ public:
     }
 
     /// create new cache file
-    LVStreamRef createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize )
+    LVStreamRef createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize, lString16 &cachePath )
     {
         lString16 fn = makeFileName( filename, crc, docFlags );
         LVStreamRef res;
-        lString16 pathname( _cacheDir+fn );
+        lString16 pathname = _cacheDir + fn;
         // If this cache filename exists with a ".keep" extension (manually
         // added by the user), and we were going to create a new one (because
         // this .keep is invalid, or cache file format version has changed),
         // remove it and create the new one with this same .keep extension,
         // so it stays (as wished by the user) not maintained by crengine.
-        lString16 fnkeep = (pathname+".keep");
-        if ( LVFileExists(fnkeep) ) {
+        lString16 fn_keep = pathname + ".keep";
+        if ( LVFileExists( fn_keep ) ) {
             LVDeleteFile( pathname ); // delete .cr3 if any
-            LVDeleteFile( fnkeep ); // delete invalid .cr3.keep
-            LVStreamRef stream = LVOpenFileStream( fnkeep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
+            LVDeleteFile( fn_keep ); // delete invalid .cr3.keep
+            LVStreamRef stream = LVOpenFileStream( fn_keep.c_str(), LVOM_APPEND|LVOM_FLAG_SYNC );
             if ( !stream.isNull() ) {
-                CRLog::info( "ldomDocCache::createNew - re-creating user renamed cache file %s", UnicodeToUtf8(fnkeep).c_str() );
+                CRLog::info( "ldomDocCache::createNew - re-creating user renamed cache file %s", UnicodeToUtf8(fn_keep).c_str() );
+                cachePath = fn_keep;
 #if ENABLED_BLOCK_WRITE_CACHE
                 stream = LVCreateBlockWriteStream( stream, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
 #endif
@@ -9412,6 +9431,7 @@ public:
             CRLog::error( "ldomDocCache::createNew - file %s is cannot be created", UnicodeToUtf8(fn).c_str() );
             return res;
         }
+        cachePath = pathname;
 #if ENABLED_BLOCK_WRITE_CACHE
         res = LVCreateBlockWriteStream( res, WRITE_CACHE_BLOCK_SIZE, WRITE_CACHE_BLOCK_COUNT );
 #if TEST_BLOCK_STREAM
@@ -9458,19 +9478,19 @@ bool ldomDocCache::close()
 }
 
 /// open existing cache file stream
-LVStreamRef ldomDocCache::openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags )
+LVStreamRef ldomDocCache::openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags, lString16 &cachePath )
 {
     if ( !_cacheInstance )
         return LVStreamRef();
-    return _cacheInstance->openExisting( filename, crc, docFlags );
+    return _cacheInstance->openExisting( filename, crc, docFlags, cachePath );
 }
 
 /// create new cache file
-LVStreamRef ldomDocCache::createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize )
+LVStreamRef ldomDocCache::createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize, lString16 &cachePath )
 {
     if ( !_cacheInstance )
         return LVStreamRef();
-    return _cacheInstance->createNew( filename, crc, docFlags, fileSize );
+    return _cacheInstance->createNew( filename, crc, docFlags, fileSize, cachePath );
 }
 
 /// delete all cache files

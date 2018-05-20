@@ -540,6 +540,8 @@ public:
     bool hasCacheFile() { return _cacheFile != NULL; }
     /// set cache file as dirty, so it's not re-used on next load
     void invalidateCacheFile() { _cacheFileLeaveAsDirty = true; };
+    /// get cache file full path
+    lString16 getCacheFilePath();
 
     /// minimize memory consumption
     void compact();
@@ -2417,9 +2419,9 @@ class ldomDocCache
 {
 public:
     /// open existing cache file stream
-    static LVStreamRef openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags );
+    static LVStreamRef openExisting( lString16 filename, lUInt32 crc, lUInt32 docFlags, lString16 &cachePath );
     /// create new cache file
-    static LVStreamRef createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize );
+    static LVStreamRef createNew( lString16 filename, lUInt32 crc, lUInt32 docFlags, lUInt32 fileSize, lString16 &cachePath );
     /// init document cache
     static bool init( lString16 cacheDir, lvsize_t maxSize );
     /// close document cache manager
