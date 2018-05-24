@@ -131,7 +131,7 @@ typedef struct css_style_rec_tag {
     : refCount(0)
     , hash(0)
     , important(0)
-    , display( css_d_inherit )
+    , display( css_d_inline )
     , white_space(css_ws_inherit)
     , text_align(css_ta_inherit)
     , text_align_last(css_ta_inherit)

@@ -594,8 +594,8 @@ static const char * css_d_names[] =
     "inherit",
     "inline",
     "block",
-    "list-item",           // crengine rendering of list items as final : css_d_list_item
-    "-cr-list-item-block", // non-standard, for alternative rendering of list items : css_d_list_item_block
+    "-cr-list-item-final", // non-standard, legacy crengine rendering of list items as final: css_d_list_item
+    "list-item",           // correct rendering of list items as block: css_d_list_item_block
     "run-in", 
     "compact", 
     "marker", 
@@ -864,6 +864,9 @@ bool LVCssDeclaration::parse( const char * &decl )
             {
             case cssd_display:
                 n = parse_name( decl, css_d_names, -1 );
+                if (gDOMVersionRequested < 20180524 && n == 4) { // css_d_list_item_block
+                    n = 3; // use css_d_list_item (legacy rendering of list-item)
+                }
                 break;
             case cssd_white_space:
                 n = parse_name( decl, css_ws_names, -1 );

@@ -80,6 +80,4 @@
 #define PROP_IMG_SCALING_ZOOMOUT_BLOCK_MODE "crengine.image.scaling.zoomout.block.mode"
 #define PROP_IMG_SCALING_ZOOMOUT_BLOCK_SCALE "crengine.image.scaling.zoomout.block.scale"
 
-#define PROP_DOM_VERSION             "crengine.dom.version"
-
 #endif // LVDOCVIEWPROPS_H

@@ -19,7 +19,7 @@
 // Users of this library can request the old behaviour by setting
 // gDOMVersionRequested to an older version to request the old (possibly
 // buggy) behaviour.
-#define DOM_VERSION_CURRENT 20180503
+#define DOM_VERSION_CURRENT 20180524
 
 // Changes:
 // 20100101 to 20180502: historical version
@@ -29,6 +29,15 @@
 // could prevent the style of the container to be applied on HTML
 // sub-parts after a <BR>, or the style of <P> (with text-indent) to
 // be applied after a <BR>.
+//
+// 20180524: changed default rendering of:
+//   <li> (and css 'display:list-item') from css_d_list_item to css_d_list_item_block
+//   <cite> from css_d_block to css_d_inline
+// Changed also the default display: value for base elements (and so
+// for unknown elements) from css_d_inherit to css_d_inline, and disable
+// inheritance for the display: property, as per specs.
+// See https://developer.mozilla.org/en-US/docs/Web/CSS/display
+// (Initial value: inline; Inherited: no)
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 int gDOMVersionRequested     = DOM_VERSION_CURRENT;
@@ -36,7 +45,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.12k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.13k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0004
 
