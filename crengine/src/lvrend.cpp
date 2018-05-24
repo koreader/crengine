@@ -2687,7 +2687,6 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     int list_marker_width;
                     lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
                     lUInt32 h = txform->Format( (lUInt16)width, (lUInt16)page_height );
-                    // XXX en full screen, le marker est drawé dans la marge du bas (?)
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
@@ -2866,6 +2865,14 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     {
         pstyle->display = type_ptr->display;
         pstyle->white_space = type_ptr->white_space;
+        if (gDOMVersionRequested < 20180524) { // revert what was fixed 20180524
+            if (enode->getNodeId() == el_cite) {
+                pstyle->display = css_d_block; // otherwise correctly set to css_d_inline
+            }
+            if (enode->getNodeId() == el_li) {
+                pstyle->display = css_d_list_item; // otherwise correctly set to css_d_list_item_block
+            }
+        }
     }
 
     int baseFontSize = enode->getDocument()->getDefaultFont()->getSize();

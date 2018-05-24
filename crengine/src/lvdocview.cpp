@@ -4059,9 +4059,14 @@ void LVDocView::createEmptyDocument() {
     m_doc->setMinSpaceCondensingPercent(m_props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, 50));
 
     m_doc->setContainer(m_container);
-	m_doc->setNodeTypes(fb2_elem_table);
-	m_doc->setAttributeTypes(fb2_attr_table);
-	m_doc->setNameSpaceTypes(fb2_ns_table);
+    // This sets the element names default style (display, whitespace)
+    // as defined in fb2def.h (createEmptyDocument() is called for all
+    // document formats, so FB2 and HTML starts with the fb2def.h styles.
+    // They are then updated with the <format>.css files, but they get back
+    // these original styles when one selects "Clear all external styles".
+    m_doc->setNodeTypes(fb2_elem_table);
+    m_doc->setAttributeTypes(fb2_attr_table);
+    m_doc->setNameSpaceTypes(fb2_ns_table);
 }
 
 /// format of document from cache is known
@@ -5681,8 +5686,6 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 
     for (int i=0; def_style_macros[i*2]; i++)
         props->setStringDef(def_style_macros[i * 2], def_style_macros[i * 2 + 1]);
-
-    props->setIntDef(PROP_DOM_VERSION, gDOMVersionCurrent);
 }
 
 #define H_MARGIN 8
@@ -5950,8 +5953,6 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_PAGE_VIEW_MODE) {
             bool value = props->getBoolDef(PROP_CACHE_VALIDATION_ENABLED, true);
             enableCacheFileContentsValidation(value);
-        } else if (name == PROP_DOM_VERSION) {
-            gDOMVersionRequested = props->getIntDef(PROP_DOM_VERSION, gDOMVersionCurrent);
         } else {
 
             // unknown property, adding to list of unknown properties
