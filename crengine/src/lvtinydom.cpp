@@ -33,6 +33,11 @@
 // 20180524: changed default rendering of:
 //   <li> (and css 'display:list-item') from css_d_list_item to css_d_list_item_block
 //   <cite> from css_d_block to css_d_inline
+// Changed also the default display: value for base elements (and so
+// for unknown elements) from css_d_inherit to css_d_inline, and disable
+// inheritance for the display: property, as per specs.
+// See https://developer.mozilla.org/en-US/docs/Web/CSS/display
+// (Initial value: inline; Inherited: no)
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 int gDOMVersionRequested     = DOM_VERSION_CURRENT;

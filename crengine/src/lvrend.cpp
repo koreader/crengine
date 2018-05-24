@@ -2855,6 +2855,13 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();
 
+    if (gDOMVersionRequested < 20180524) {
+        // The display property initial value has been changed from css_d_inherit
+        // to css_d_inline (as per spec, and so that an unknown element does not
+        // become block when contained in a P, and inline when contained in a SPAN)
+        pstyle->display = css_d_inherit;
+    }
+
 //    if ( parent_style.isNull() ) {
 //        CRLog::error("parent style is null!!!");
 //    }
@@ -2938,7 +2945,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         //parent_style->text_align = css_ta_center;
     //}
 
-    UPDATE_STYLE_FIELD( display, css_d_inherit );
+    if (gDOMVersionRequested < 20180524) { // display should not be inherited
+        UPDATE_STYLE_FIELD( display, css_d_inherit );
+    }
     UPDATE_STYLE_FIELD( white_space, css_ws_inherit );
     UPDATE_STYLE_FIELD( text_align, css_ta_inherit );
     UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
