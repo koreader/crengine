@@ -103,11 +103,17 @@ big { font-size: 130%; }
    display: block; 
    white-space: pre; 
    text-align: left; 
-   font-family: "Courier New", "Courier", monospace; 
+   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
    margin-top: 0.5em; 
    margin-bottom: 0.5em; 
   /* background-color: #BFBFBF; */ 
-} 
+}
+
+code {
+   white-space: pre;
+   text-align: left;
+   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
+}
 
 nobr { display: inline; hyphenate: none; white-space: nowrap; } 
 
