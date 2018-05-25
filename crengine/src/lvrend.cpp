@@ -2879,6 +2879,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             if (enode->getNodeId() == el_li) {
                 pstyle->display = css_d_list_item; // otherwise correctly set to css_d_list_item_block
             }
+            if (enode->getNodeId() == el_style) {
+                pstyle->display = css_d_inline; // otherwise correctly set to css_d_none (hidden)
+            }
         }
     }
 

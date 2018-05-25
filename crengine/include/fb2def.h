@@ -29,8 +29,10 @@
 //=====================================================
 XS_BEGIN_TAGS
 
+// Internal element for block rendering
 XS_TAG1T( autoBoxing )
 
+// Mix of HTML / FB2 elements
 XS_TAG2( xml, "?xml" )
 XS_TAG2( xml_stylesheet, "?xml-stylesheet" )
 XS_TAG1( FictionBook )
@@ -52,7 +54,7 @@ XS_TAG1D( form, true, css_d_none, css_ws_normal )
 XS_TAG1D( binary, true, css_d_none, css_ws_normal )
 XS_TAG2T( text_author, "text-author" )
 
-//epub
+// Classic HTML / EPUB elements
 XS_TAG1T( div )
 XS_TAG1( svg )
 XS_TAG1( dl )
@@ -83,7 +85,7 @@ XS_TAG1I( i )
 XS_TAG1I( strikethrough )
 XS_TAG1I( sub )
 XS_TAG1I( sup )
-XS_TAG1I( style )
+XS_TAG1D( style, true, css_d_none, css_ws_normal )
 XS_TAG1I( strong )
 XS_TAG1I( emphasis )
 XS_TAG1D( code, true, css_d_inline, css_ws_pre )
@@ -106,7 +108,8 @@ XS_TAG1D( tfoot, false, css_d_table_footer_group, css_ws_normal )
 XS_TAG1D( th, true, css_d_table_cell, css_ws_normal )
 XS_TAG1D( td, true, css_d_table_cell, css_ws_normal )
 
-XS_TAG1I( cite )
+// The following are FB2 block elements
+XS_TAG1I( cite ) // conflict between HTML (inline) and FB2 (block): default here to inline (fb2.css puts it back to block)
 XS_TAG1T( v )
 XS_TAG1( stanza )
 XS_TAG1( epigraph )
@@ -147,6 +150,7 @@ XS_TAG1T( isbn )
 XS_TAG1T( nickname )
 XS_TAG1T( keywords )
 
+// Internal element for EPUB, containing each individual HTML file
 XS_TAG1( DocFragment )
 
 XS_END_TAGS

@@ -26,6 +26,7 @@ poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0px }
 text-author { font-weight: bold; font-style: italic; margin-left: 5%}
 epigraph { margin-left: 15%; margin-right: 1em; text-align: left; text-indent: 1em; font-style: italic; margin-top: 15px; margin-bottom: 25px }
 cite { display: block; font-style: italic; margin-left: 5%; margin-right: 5%; text-align: justify; margin-top: 20px; margin-bottom: 20px }
+style { display: inline; }
 
 title p, subtitle p, h1 p, h2 p, h3 p, h4 p, h5 p, h6 p { 
 	text-align: center; 

@@ -32,7 +32,8 @@
 //
 // 20180524: changed default rendering of:
 //   <li> (and css 'display:list-item') from css_d_list_item to css_d_list_item_block
-//   <cite> from css_d_block to css_d_inline
+//   <cite> from css_d_block to css_d_inline (inline in HTML, block in FB2, ensured by fb2.css)
+//   <style> from css_d_inline to css_d_none (invisible in HTML)
 // Changed also the default display: value for base elements (and so
 // for unknown elements) from css_d_inherit to css_d_inline, and disable
 // inheritance for the display: property, as per specs.
