@@ -4440,8 +4440,24 @@ ldomXPointer LVDocView::getBookmark() {
 	ldomXPointer ptr;
 	if (m_doc) {
 		if (isPageMode()) {
-			if (_page >= 0 && _page < m_pages.length())
-				ptr = m_doc->createXPointer(lvPoint(0, m_pages[_page]->start));
+			if (_page >= 0 && _page < m_pages.length()) {
+				// In some edge cases, getting the xpointer for y=m_pages[_page]->start
+				// could resolve back to the previous page. We need to check for that
+				// and increase y until we find a coherent one.
+				LVRendPageInfo * page = m_pages[_page];
+				bool found = false;
+				for (int y = page->start; y < page->start + page->height; y++) {
+					ptr = m_doc->createXPointer(lvPoint(0, y));
+					lvPoint pt = ptr.toPoint();
+					if (pt.y >= page->start) {
+						// valid, resolves back to same page
+						found = true;
+						break;
+					}
+				}
+				if (!found) // fallback to the one for page->start, even if not good
+					ptr = m_doc->createXPointer(lvPoint(0, page->start));
+			}
 		} else {
 			ptr = m_doc->createXPointer(lvPoint(0, _pos));
 		}
