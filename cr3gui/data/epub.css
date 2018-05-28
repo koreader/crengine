@@ -32,7 +32,7 @@ head, form, script {
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
-    display: block;
+    display: block; /* default in fb2def.h, past and present */
     margin-top: 0.7em;
     margin-bottom: 0.5em;
     font-weight: bold;
@@ -58,7 +58,7 @@ h5 { font-size: 110%; }
 
 /* Block elements */
 div {
-    display: block;
+    display: block; /* default in fb2def.h, past and present */
     margin: 1px;
 }
 p {
@@ -75,10 +75,16 @@ hr {
 }
 
 /* Images */
+/* inline in fb2def.h, past and present */
 img {
     text-align: center;
     text-indent: 0;
     display: block;
+    /* should it really be block and centered when standalone?
+     * or inline as img are everywhere else, and publisher would
+     * have to wrap it in <div> to block/center it
+     * Note that if block, lvrend.cpp displays the title="" content
+     * under the image */
 }
 sup img { display: inline; }
 sub img { display: inline; }
@@ -86,6 +92,8 @@ a img   { display: inline; }
 p img   { display: inline; }
 
 /* Lists */
+/* display: are the default in fb2def.h, past and present, but
+ * useful to see here to know which are classic containers or not */
 li {
     display: list-item;
     text-indent: 0;
@@ -106,13 +114,13 @@ dl {
     margin-left: 0;
 }
 dt {
-    display: block;
+    display: block; /* default in fb2def.h, past and present */
     margin-left: 0;
     margin-top: 0.3em;
     font-weight: bold;
 }
 dd {
-    display: block;
+    display: block; /* default in fb2def.h, past and present */
     margin-left: 1.3em;
 }
 
@@ -138,8 +146,8 @@ table caption {
 
 /* Monospace block and inline elements */
 pre {
-    display: block;
-    white-space: pre;
+    display: block;   /* default in fb2def.h, past and present */
+    white-space: pre; /* default in fb2def.h, past and present */
     text-align: left;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
     margin-top: 0.5em;
@@ -147,14 +155,17 @@ pre {
     /* background-color: #BFBFBF; */
 }
 code {
-    white-space: pre;
+    white-space: pre; /* default in fb2def.h, past and present */
     text-align: left;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
 }
 
 /* Inline elements */
+/* Now, all elements default to inline. Before 20180524, they
+ * defaulted to 'inherit' and only those specified as 'inline'
+ * in fb2def.h and this stylesheet were inline */
 span {
-    display: inline;
+    display: inline; /* default in fb2def.h, past and present */
 }
 
 sub {
@@ -174,12 +185,12 @@ u                       { text-decoration: underline; }
 del, s, strike,         { text-decoration: line-through; }
 
 a {
-    display: inline;
+    display: inline; /* default in fb2def.h, past and present */
     text-decoration: underline;
     color: gray;
 }
 
-nobr {
+nobr { /* does that really exist? needed ? */
     display: inline;
     hyphenate: none;
     white-space: nowrap;
