@@ -92,6 +92,7 @@ enum css_decl_code {
     cssd_background_position,
     cssd_border_collapse,
     cssd_border_spacing,
+    cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_stop
 };
 
@@ -163,6 +164,7 @@ static const char * css_decl_name[] = {
     "background-position",
     "border-collapse",
     "border-spacing",
+    "-cr-ignore-if-dom-version-greater-or-equal",
     NULL
 };
 
@@ -295,6 +297,20 @@ static bool next_property( const char * & str )
     if (*str == ';')
         str++;
     return skip_spaces( str );
+}
+
+static bool parse_integer( const char * & str, int & value)
+{
+    skip_spaces( str );
+    if (*str<'0' || *str>'9') {
+        return false; // not a number
+    }
+    value = 0;
+    while (*str>='0' && *str<='9') {
+        value = value*10 + (*str - '0');
+        str++;
+    }
+    return true;
 }
 
 static bool parse_number_value( const char * & str, css_length_t & value, bool is_font_size=false )
@@ -862,6 +878,20 @@ bool LVCssDeclaration::parse( const char * &decl )
             int n = -1;
             switch ( prop_code )
             {
+            // non standard property to ignore declaration depending on gDOMVersionRequested
+            case cssd_cr_ignore_if_dom_version_greater_or_equal:
+                {
+                    int dom_version;
+                    if ( parse_integer( decl, dom_version ) ) {
+                        if ( gDOMVersionRequested >= dom_version ) {
+                            return false; // ignore the whole declaration
+                        }
+                    }
+                    else { // ignore the whole declaration too if not an integer
+                        return false;
+                    }
+                }
+                break;
             case cssd_display:
                 n = parse_name( decl, css_d_names, -1 );
                 if (gDOMVersionRequested < 20180524 && n == 4) { // css_d_list_item_block

@@ -19,7 +19,7 @@
 // Users of this library can request the old behaviour by setting
 // gDOMVersionRequested to an older version to request the old (possibly
 // buggy) behaviour.
-#define DOM_VERSION_CURRENT 20180524
+#define DOM_VERSION_CURRENT 20180528
 
 // Changes:
 // 20100101 to 20180502: historical version
@@ -39,6 +39,12 @@
 // inheritance for the display: property, as per specs.
 // See https://developer.mozilla.org/en-US/docs/Web/CSS/display
 // (Initial value: inline; Inherited: no)
+//
+// 20180528: clean epub.css from class name based declarations
+//   added support for style property -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+//   to ignore the whole declaration with newer gDOMVersionRequested.
+//   Use it to keep class name based declarations that involve display:
+//   so to not break previous DOM
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 int gDOMVersionRequested     = DOM_VERSION_CURRENT;
