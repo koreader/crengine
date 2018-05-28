@@ -1,5 +1,22 @@
+/* Styles are applied to each node by src/lvrend.cpp setNodeStyle(),
+ * on each rendering and re-rendering, recursively, with the following flow:
+ * 1) All nodes default style starts with the constructor values
+ * for css_style_rec_tag() in include/lvstyles.h.
+ * (Some other initial values for the root element style are set in
+ * src/lvtinydom.cpp ldomDocument::setRenderProps())
+ * 2) Known elements default styles for display: and white-space: are
+ * then set according to the definitions in include/fb2def.h and the
+ * macros in include/dtddef.h.
+ * 3) This (or some other) "external" stylesheet and possible style tweaks
+ * declarations are applied to each node if the selector match.
+ * 4) Embedded/internal stylesheet are applied
+ * 5) Then, styles inheritance is applied and propagate some styles from
+ * the parent node (what is inherited and how inheritance takes place is
+ * at the end of src/lvrend.cpp setNodeStyle())
+ */
+
 body {
-    text-indent: 0px;
+    text-indent: 0;
     margin: 0;
     text-align: justify;
 }
@@ -20,7 +37,7 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 0.5em;
     font-weight: bold;
     text-align: center;
-    text-indent: 0px;
+    text-indent: 0;
     hyphenate: none;
     adobe-hyphenate: none;
 }
@@ -47,8 +64,8 @@ div {
 p {
     text-align: justify;
     text-indent: 1.2em;
-    margin-top: 0em;
-    margin-bottom: 0em;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 hr {
     height: 2px;
@@ -60,7 +77,7 @@ hr {
 /* Images */
 img {
     text-align: center;
-    text-indent: 0px;
+    text-indent: 0;
     display: block;
 }
 sup img { display: inline; }
@@ -71,7 +88,7 @@ p img   { display: inline; }
 /* Lists */
 li {
     display: list-item;
-    text-indent: 0em;
+    text-indent: 0;
 }
 ul {
     display: block;
@@ -86,11 +103,11 @@ ol {
 
 /* Definitions */
 dl {
-    margin-left: 0em;
+    margin-left: 0;
 }
 dt {
     display: block;
-    margin-left: 0em;
+    margin-left: 0;
     margin-top: 0.3em;
     font-weight: bold;
 }
@@ -105,7 +122,7 @@ table {
     margin: 3px;
 }
 td, th {
-    text-indent: 0px;
+    text-indent: 0;
     padding: 3px;
 }
 th {
@@ -114,7 +131,7 @@ th {
     background-color: #DDD;
 }
 table caption {
-    text-indent: 0px;
+    text-indent: 0;
     padding: 4px;
     background-color: #EEE;
 }
