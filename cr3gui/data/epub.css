@@ -1,38 +1,20 @@
-/* Styles are applied to each node by src/lvrend.cpp setNodeStyle(),
- * on each rendering and re-rendering, recursively, with the following flow:
- * 1) All nodes default style starts with the constructor values
- * for css_style_rec_tag() in include/lvstyles.h.
- * (Some other initial values for the root element style are set in
- * src/lvtinydom.cpp ldomDocument::setRenderProps())
- * 2) Known elements default styles for display: and white-space: are
- * then set according to the definitions in include/fb2def.h and the
- * macros in include/dtddef.h.
- * 3) This (or some other) "external" stylesheet and possible style tweaks
- * declarations are applied to each node if the selector match.
- * 4) Embedded/internal stylesheet are applied
- * 5) Then, styles inheritance is applied and propagate some styles from
- * the parent node (what is inherited and how inheritance takes place is
- * at the end of src/lvrend.cpp setNodeStyle())
- */
-
 body {
     text-indent: 0;
     margin: 0;
     text-align: justify;
 }
+
+head, form, script {
+    display: none;
+}
+
 /* EPUB container of each individual HTML file */
 DocFragment {
     page-break-before: always;
 }
 
-/* style is now 'display: none' too, but was 'inline' previously - managed by lvrend.cpp */
-head, form, script {
-    display: none;
-}
-
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
-    display: block; /* default in fb2def.h, past and present */
     margin-top: 0.7em;
     margin-bottom: 0.5em;
     font-weight: bold;
@@ -58,7 +40,6 @@ h5 { font-size: 110%; }
 
 /* Block elements */
 div {
-    display: block; /* default in fb2def.h, past and present */
     margin: 1px;
 }
 p {
@@ -74,39 +55,18 @@ hr {
     margin-bottom: 0.5em;
 }
 
-/* Images */
-/* inline in fb2def.h, past and present */
-img {
-    text-align: center;
-    text-indent: 0;
-    display: block;
-    /* should it really be block and centered when standalone?
-     * or inline as img are everywhere else, and publisher would
-     * have to wrap it in <div> to block/center it
-     * Note that if block, lvrend.cpp displays the title="" content
-     * under the image */
-}
-sup img { display: inline; }
-sub img { display: inline; }
-a img   { display: inline; }
-p img   { display: inline; }
-
 /* Lists */
-/* display: are the default in fb2def.h, past and present, but
- * useful to see here to know which are classic containers or not */
-li {
-    display: list-item;
-    text-indent: 0;
-}
 ul {
-    display: block;
     list-style-type: disc;
     margin-left: 1em;
 }
 ol {
-    display: block;
     list-style-type: decimal;
     margin-left: 1em;
+}
+li {
+    display: list-item;
+    text-indent: 0;
 }
 
 /* Definitions */
@@ -114,13 +74,11 @@ dl {
     margin-left: 0;
 }
 dt {
-    display: block; /* default in fb2def.h, past and present */
     margin-left: 0;
     margin-top: 0.3em;
     font-weight: bold;
 }
 dd {
-    display: block; /* default in fb2def.h, past and present */
     margin-left: 1.3em;
 }
 
@@ -146,79 +104,67 @@ table caption {
 
 /* Monospace block and inline elements */
 pre {
-    display: block;   /* default in fb2def.h, past and present */
-    white-space: pre; /* default in fb2def.h, past and present */
-    text-align: left;
+    white-space: pre;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
+    text-align: left;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
     /* background-color: #BFBFBF; */
 }
 code {
-    white-space: pre; /* default in fb2def.h, past and present */
-    text-align: left;
+    white-space: pre;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
 }
 
-/* Inline elements */
-/* Now, all elements default to inline. Before 20180524, they
- * defaulted to 'inherit' and only those specified as 'inline'
- * in fb2def.h and this stylesheet were inline */
-span {
-    display: inline; /* default in fb2def.h, past and present */
-}
-
-sub {
-    vertical-align: sub;
-    font-size: 70%;
-}
-sup {
-    vertical-align: super;
-    font-size: 70%;
-}
-
+/* Inline elements (all unknown elements default now to display: inline) */
+sup                     { font-size: 70%; vertical-align: super; }
+sub                     { font-size: 70%; vertical-align: sub; }
 small                   { font-size: 80%; }
 big                     { font-size: 130%; }
 b, strong               { font-weight: bold; }
 i, em, dfn, var, cite   { font-style: italic; }
 u                       { text-decoration: underline; }
-del, s, strike,         { text-decoration: line-through; }
+del, s, strike          { text-decoration: line-through; }
+a                       { text-decoration: underline; color: gray; }
 
-a {
-    display: inline; /* default in fb2def.h, past and present */
-    text-decoration: underline;
-    color: gray;
-}
-
-nobr { /* does that really exist? needed ? */
+nobr {
     display: inline;
     hyphenate: none;
     white-space: nowrap;
 }
 
 
-/* Old element or className base selectors involving display: that
- * we need to support for older gDOMVersionRequested */
+
+/* Old element or className based selectors involving display: that
+ * we need to support for older gDOMVersionRequested
+ * DO NOT MODIFY BELOW to not break past highlights */
+
+/* Images are now inline by default, and no more block with exceptions.
+ * Note that when 'block', lvrend.cpp displays the title="" content
+ * under the image */
+img {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    text-align: center;
+    text-indent: 0;
+    display: block;
+}
+sup img { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
+sub img { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
+a img   { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
+p img   { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
+p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; } /* non html */
+
+/* With dom_version < 20180528, unknown elements defaulted to 'display: inherit'
+ * These ones here were explicitely set to inline (and some others not
+ * specified here were also set to inline in fb2def.h */
+b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: inline;
+}
 
 .title, .title1, .title2, .title3, .title4, .title5, .subtitle {
     -cr-ignore-if-dom-version-greater-or-equal: 20180528;
     display: block;
 }
-b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code {
-    /* with dom_version < 20180528, elements default to display: inherit
-     * these ones were explicitely set to inline */
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: inline;
-}
-p image {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: inline;
-}
-.fb2_info {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: block;
-}
-.code {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: block;
-}
+.fb2_info { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
+.code     { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
