@@ -98,75 +98,19 @@ dd { display: block; margin-left: 1.3em; }
  * we need to support for older gDOMVersionRequested */
 
 .title, .title1, .title2, .title3, .title4, .title5, .subtitle { 
+        -cr-ignore-if-dom-version-greater-or-equal: 20180528;
 	display: block; 
 }
 b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code { 
+    /* with dom_version < 20180528, elements default to display: inherit
+     * these ones were explicitely set to inline */
+   -cr-ignore-if-dom-version-greater-or-equal: 20180528;
    display: inline; 
 } 
-p image { display: inline }
-.fb2_info { display: block; }
+p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline }
+.fb2_info { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
 .code { 
+   -cr-ignore-if-dom-version-greater-or-equal: 20180528;
    display: block; 
-}
-
-
-/* Old element or className base selectors NOT involving display: that
- * we don't need to support even on previously opened documents */
-
-*.justindent { text-align: justify; text-indent: 1.3em; margin-top:0em; margin-bottom: 0em }
-
-.title, .title1, .title2, .title3, .title4, .title5, .subtitle { 
-	margin-top: 0.7em; 
-	margin-bottom: 0.5em; 
-	font-weight: bold; 
-	text-align: center; 
-	text-indent: 0px;
-	hyphenate: none; 
-	adobe-hyphenate: none;
-} 
-.title, .title1, .title2, .title3 { 
-	page-break-before: always; 
-	page-break-inside: avoid; 
-	page-break-after: avoid; 
-}
-.subtitle, .title4, .title5 { 
-	page-break-inside: avoid; 
-	page-break-after: avoid; 
-}
-.title  { font-size: 150% }
-.title1 { font-size: 140% }
-.title2 { font-size: 130%; }
-.title3 { font-size: 120%; }
-.title4 { font-size: 110%; }
-.subtitle { 
-	font-style: italic; 
-	margin-top: 0.5em; 
-	margin-bottom: 0.3em 
-}
-.section_image { text-align: center; }
-.coverpage { text-align: center; }
-
-.empty-line { height: 1em }
-
-.citation p { text-align: left; text-indent: 0px }
-.epigraph p { text-align: left; text-indent: 0px }
-.v { text-align: left; text-align-last: right; text-indent: 1em hanging }
-
-.stanza + .stanza { margin-top: 1em; }
-.stanza { margin-left: 15%; text-align: left; font-style: italic  }
-.poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0px }
-.epigraph_author { font-weight: bold; font-style: italic; margin-left: 15%; }
-.citation_author { font-weight: bold; font-style: italic; margin-left: 15%; margin-right: 10%; }
-.epigraph { margin-left: 15%; margin-right: 1em; margin-top: 15px; margin-bottom: 25px; text-align: left; text-indent: 1em; font-style: italic }
-.citation { font-style: italic; margin-left: 5%; margin-right: 5%; margin-top: 20px; margin-bottom: 20px; text-align: justify; }
-
-.fb2_info { page-break-before: always; }
-
-.code { 
-   white-space: pre; 
-   text-align: left; 
-   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
-   margin-top: 0.5em; 
-   margin-bottom: 0.5em; 
 }
 
