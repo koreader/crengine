@@ -3,9 +3,17 @@ body {
     margin: 0;
     text-align: justify;
 }
+/* EPUB container of each individual HTML file */
 DocFragment {
     page-break-before: always;
 }
+
+/* style is now 'display: none' too, but was 'inline' previously - managed by lvrend.cpp */
+head, form, script {
+    display: none;
+}
+
+/* Headings */
 h1, h2, h3, h4, h5, h6 {
     display: block;
     margin-top: 0.7em;
@@ -25,30 +33,16 @@ h4, h5, h6 {
     page-break-inside: avoid;
     page-break-after: avoid;
 }
-h1 {
-    font-size: 150%;
-}
-h2 {
-    font-size: 140%;
-}
-h3 {
-    font-size: 130%;
-}
-h4 {
-    font-size: 120%;
-}
-h5 {
-    font-size: 110%;
-}
-img {
-    text-align: center;
-    text-indent: 0px;
+h1 { font-size: 150%; }
+h2 { font-size: 140%; }
+h3 { font-size: 130%; }
+h4 { font-size: 120%; }
+h5 { font-size: 110%; }
+
+/* Block elements */
+div {
     display: block;
-}
-a {
-    display: inline;
-    text-decoration: underline;
-    color: gray;
+    margin: 1px;
 }
 p {
     text-align: justify;
@@ -62,26 +56,19 @@ hr {
     margin-top: 0.5em;
     margin-bottom: 0.5em;
 }
-sub {
-    vertical-align: sub;
-    font-size: 70%;
+
+/* Images */
+img {
+    text-align: center;
+    text-indent: 0px;
+    display: block;
 }
-sup {
-    vertical-align: super;
-    font-size: 70%;
-}
-sup img {
-    display: inline;
-}
-sub img {
-    display: inline;
-}
-a img {
-    display: inline;
-}
-p img {
-    display: inline;
-}
+sup img { display: inline; }
+sub img { display: inline; }
+a img   { display: inline; }
+p img   { display: inline; }
+
+/* Lists */
 li {
     display: list-item;
     text-indent: 0em;
@@ -96,13 +83,23 @@ ol {
     list-style-type: decimal;
     margin-left: 1em;
 }
-div {
+
+/* Definitions */
+dl {
+    margin-left: 0em;
+}
+dt {
     display: block;
-    margin: 1px;
+    margin-left: 0em;
+    margin-top: 0.3em;
+    font-weight: bold;
 }
-span {
-    display: inline;
+dd {
+    display: block;
+    margin-left: 1.3em;
 }
+
+/* Tables */
 table {
     font-size: 80%;
     margin: 3px;
@@ -121,27 +118,8 @@ table caption {
     padding: 4px;
     background-color: #EEE;
 }
-head, form, script {
-    display: none;
-}
-b, strong {
-    font-weight: bold;
-}
-i, em, dfn, var, cite {
-    font-style: italic;
-}
-u {
-    text-decoration: underline;
-}
-del, s, strike, strikethrough {
-    text-decoration: line-through;
-}
-small {
-    font-size: 80%;
-}
-big {
-    font-size: 130%;
-}
+
+/* Monospace block and inline elements */
 pre {
     display: block;
     white-space: pre;
@@ -156,24 +134,40 @@ code {
     text-align: left;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
 }
+
+/* Inline elements */
+span {
+    display: inline;
+}
+
+sub {
+    vertical-align: sub;
+    font-size: 70%;
+}
+sup {
+    vertical-align: super;
+    font-size: 70%;
+}
+
+small                   { font-size: 80%; }
+big                     { font-size: 130%; }
+b, strong               { font-weight: bold; }
+i, em, dfn, var, cite   { font-style: italic; }
+u                       { text-decoration: underline; }
+del, s, strike,         { text-decoration: line-through; }
+
+a {
+    display: inline;
+    text-decoration: underline;
+    color: gray;
+}
+
 nobr {
     display: inline;
     hyphenate: none;
     white-space: nowrap;
 }
-dl {
-    margin-left: 0em;
-}
-dt {
-    display: block;
-    margin-left: 0em;
-    margin-top: 0.3em;
-    font-weight: bold;
-}
-dd {
-    display: block;
-    margin-left: 1.3em;
-}
+
 
 /* Old element or className base selectors involving display: that
  * we need to support for older gDOMVersionRequested */
