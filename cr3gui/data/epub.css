@@ -1,116 +1,202 @@
-body { 
-	text-indent: 0px; 
-	margin: 0; 
-	text-align: justify; 
-} 
-
-DocFragment { page-break-before: always }
-
-h1, h2, h3, h4, h5, h6 { 
-	display: block; 
-	margin-top: 0.7em; 
-	margin-bottom: 0.5em; 
-	font-weight: bold; 
-	text-align: center; 
-	text-indent: 0px;
-	hyphenate: none; 
-	adobe-hyphenate: none;
-} 
-h1, h2, h3 { 
-	page-break-before: always; 
-	page-break-inside: avoid; 
-	page-break-after: avoid; 
+body {
+    text-indent: 0px;
+    margin: 0;
+    text-align: justify;
 }
-h4, h5, h6 { 
-	page-break-inside: avoid; 
-	page-break-after: avoid; 
+DocFragment {
+    page-break-before: always;
 }
-h1 { font-size: 150% }
-h2 { font-size: 140% }
-h3 { font-size: 130%; }
-h4 { font-size: 120%; }
-h5 { font-size: 110%; }
-
-img { 
-	text-align: center; 
-	text-indent: 0px; 
-	display: block; 
+h1, h2, h3, h4, h5, h6 {
+    display: block;
+    margin-top: 0.7em;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+    text-align: center;
+    text-indent: 0px;
+    hyphenate: none;
+    adobe-hyphenate: none;
 }
-
-a { display:inline; text-decoration: underline; color: gray; }
-p { text-align: justify; text-indent: 1.2em; margin-top:0em; margin-bottom: 0em }
-
-hr { height: 2px; background-color: #808080; margin-top: 0.5em; margin-bottom: 0.5em }
-
-sub { vertical-align: sub; font-size: 70% }
-sup { vertical-align: super; font-size: 70% }
-sup img{display:inline}
-sub img{display:inline}
-a img{display:inline}
-p img{display:inline}
-
-li { display: list-item; text-indent: 0em;  }
-ul { display: block; list-style-type: disc; margin-left: 1em }
-ol { display: block; list-style-type: decimal; margin-left: 1em }
-
-div { display: block;margin:1px; }
-span { display: inline }
-
-
-table { font-size: 80% ; margin:3px;}
-td, th { text-indent: 0px; padding: 3px }
-th {  font-weight: bold; text-align: center; background-color: #DDD  }
-table caption { text-indent: 0px; padding: 4px; background-color: #EEE }
-
-head, form, script { display: none; } 
-
-b, strong { font-weight: bold; } 
-i, em, dfn, var, cite { font-style: italic; } 
-u { text-decoration: underline; } 
-del, s, strike, strikethrough { text-decoration: line-through; } 
-small { font-size: 80%; } 
-big { font-size: 130%; } 
-
-pre { 
-   display: block; 
-   white-space: pre; 
-   text-align: left; 
-   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
-   margin-top: 0.5em; 
-   margin-bottom: 0.5em; 
-  /* background-color: #BFBFBF; */ 
+h1, h2, h3 {
+    page-break-before: always;
+    page-break-inside: avoid;
+    page-break-after: avoid;
 }
-
+h4, h5, h6 {
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+h1 {
+    font-size: 150%;
+}
+h2 {
+    font-size: 140%;
+}
+h3 {
+    font-size: 130%;
+}
+h4 {
+    font-size: 120%;
+}
+h5 {
+    font-size: 110%;
+}
+img {
+    text-align: center;
+    text-indent: 0px;
+    display: block;
+}
+a {
+    display: inline;
+    text-decoration: underline;
+    color: gray;
+}
+p {
+    text-align: justify;
+    text-indent: 1.2em;
+    margin-top: 0em;
+    margin-bottom: 0em;
+}
+hr {
+    height: 2px;
+    background-color: #808080;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+}
+sub {
+    vertical-align: sub;
+    font-size: 70%;
+}
+sup {
+    vertical-align: super;
+    font-size: 70%;
+}
+sup img {
+    display: inline;
+}
+sub img {
+    display: inline;
+}
+a img {
+    display: inline;
+}
+p img {
+    display: inline;
+}
+li {
+    display: list-item;
+    text-indent: 0em;
+}
+ul {
+    display: block;
+    list-style-type: disc;
+    margin-left: 1em;
+}
+ol {
+    display: block;
+    list-style-type: decimal;
+    margin-left: 1em;
+}
+div {
+    display: block;
+    margin: 1px;
+}
+span {
+    display: inline;
+}
+table {
+    font-size: 80%;
+    margin: 3px;
+}
+td, th {
+    text-indent: 0px;
+    padding: 3px;
+}
+th {
+    font-weight: bold;
+    text-align: center;
+    background-color: #DDD;
+}
+table caption {
+    text-indent: 0px;
+    padding: 4px;
+    background-color: #EEE;
+}
+head, form, script {
+    display: none;
+}
+b, strong {
+    font-weight: bold;
+}
+i, em, dfn, var, cite {
+    font-style: italic;
+}
+u {
+    text-decoration: underline;
+}
+del, s, strike, strikethrough {
+    text-decoration: line-through;
+}
+small {
+    font-size: 80%;
+}
+big {
+    font-size: 130%;
+}
+pre {
+    display: block;
+    white-space: pre;
+    text-align: left;
+    font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    /* background-color: #BFBFBF; */
+}
 code {
-   white-space: pre;
-   text-align: left;
-   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
+    white-space: pre;
+    text-align: left;
+    font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
 }
-
-nobr { display: inline; hyphenate: none; white-space: nowrap; } 
-
-dl { margin-left: 0em; } 
-dt { display: block; margin-left: 0em; margin-top:0.3em; font-weight: bold; } 
-dd { display: block; margin-left: 1.3em; } 
-
+nobr {
+    display: inline;
+    hyphenate: none;
+    white-space: nowrap;
+}
+dl {
+    margin-left: 0em;
+}
+dt {
+    display: block;
+    margin-left: 0em;
+    margin-top: 0.3em;
+    font-weight: bold;
+}
+dd {
+    display: block;
+    margin-left: 1.3em;
+}
 
 /* Old element or className base selectors involving display: that
  * we need to support for older gDOMVersionRequested */
 
-.title, .title1, .title2, .title3, .title4, .title5, .subtitle { 
-        -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-	display: block; 
+.title, .title1, .title2, .title3, .title4, .title5, .subtitle {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: block;
 }
-b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code { 
+b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code {
     /* with dom_version < 20180528, elements default to display: inherit
      * these ones were explicitely set to inline */
-   -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-   display: inline; 
-} 
-p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline }
-.fb2_info { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
-.code { 
-   -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-   display: block; 
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: inline;
 }
-
+p image {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: inline;
+}
+.fb2_info {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: block;
+}
+.code {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: block;
+}
