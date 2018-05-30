@@ -2872,15 +2872,28 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     {
         pstyle->display = type_ptr->display;
         pstyle->white_space = type_ptr->white_space;
-        if (gDOMVersionRequested < 20180524) { // revert what was fixed 20180524
-            if (enode->getNodeId() == el_cite) {
-                pstyle->display = css_d_block; // otherwise correctly set to css_d_inline
+
+        // Account for backward incompatible changes in fb2def.h
+        if (gDOMVersionRequested < 20180528) { // revert what was changed 20180528
+            if (enode->getNodeId() == el_form) {
+                pstyle->display = css_d_none; // otherwise shown as block, as it may have textual content
             }
-            if (enode->getNodeId() == el_li) {
-                pstyle->display = css_d_list_item; // otherwise correctly set to css_d_list_item_block
+            if (enode->getNodeId() >= el_address && enode->getNodeId() <= el_xmp) { // newly added block elements
+                pstyle->display = css_d_inline; // previously unknown and shown as inline
+                if (gDOMVersionRequested < 20180524) {
+                    pstyle->display = css_d_inherit; // previously unknown and display: inherit
+                }
             }
-            if (enode->getNodeId() == el_style) {
-                pstyle->display = css_d_inline; // otherwise correctly set to css_d_none (hidden)
+            if (gDOMVersionRequested < 20180524) { // revert what was fixed 20180524
+                if (enode->getNodeId() == el_cite) {
+                    pstyle->display = css_d_block; // otherwise correctly set to css_d_inline
+                }
+                if (enode->getNodeId() == el_li) {
+                    pstyle->display = css_d_list_item; // otherwise correctly set to css_d_list_item_block
+                }
+                if (enode->getNodeId() == el_style) {
+                    pstyle->display = css_d_inline; // otherwise correctly set to css_d_none (hidden)
+                }
             }
         }
     }
