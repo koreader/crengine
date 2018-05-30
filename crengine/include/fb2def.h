@@ -43,12 +43,12 @@ XS_TAG1( head )
 XS_TAG1D( title, true, css_d_block, css_ws_normal )
 XS_TAG1D( style, true, css_d_none, css_ws_normal )
 XS_TAG1T( body )
-XS_TAG1( param )
+XS_TAG1( param ) /* quite obsolete, child of <object>... was there, let's keep it */
 
 // Block elements
-XS_TAG1( hr )
-XS_TAG1( svg )
-XS_TAG1D( form, true, css_d_none, css_ws_normal ) /* not displayed */
+XS_TAG1T( hr )
+XS_TAG1T( svg )
+XS_TAG1T( form )
 XS_TAG1D( pre, true, css_d_block, css_ws_pre )
 XS_TAG1T( blockquote )
 XS_TAG1T( div )
@@ -59,16 +59,16 @@ XS_TAG1T( h4 )
 XS_TAG1T( h5 )
 XS_TAG1T( h6 )
 XS_TAG1T( p )
-XS_TAG1( output )  /* can contain text nodes in HTML, not in FB2 */
-XS_TAG1( section ) /* can contain text nodes in HTML, not in FB2 */
+XS_TAG1T( output )
+XS_TAG1T( section )
 
 // Lists
-XS_TAG1( ol )
-XS_TAG1( ul )
+XS_TAG1T( ol )
+XS_TAG1T( ul )
 XS_TAG1D( li, true, css_d_list_item_block, css_ws_inherit )
 
 // Definitions
-XS_TAG1( dl )
+XS_TAG1T( dl )
 XS_TAG1T( dt )
 XS_TAG1T( dd )
 
