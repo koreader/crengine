@@ -4,7 +4,7 @@ body {
     text-align: justify;
 }
 
-head, form, script {
+head, script {
     display: none;
 }
 
@@ -160,6 +160,11 @@ p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline;
 b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code {
     -cr-ignore-if-dom-version-greater-or-equal: 20180528;
     display: inline;
+}
+
+form {
+    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
+    display: none;
 }
 
 .title, .title1, .title2, .title3, .title4, .title5, .subtitle {
