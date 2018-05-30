@@ -2878,6 +2878,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             if (enode->getNodeId() == el_form) {
                 pstyle->display = css_d_none; // otherwise shown as block, as it may have textual content
             }
+            if (enode->getNodeId() == el_code) {
+                pstyle->white_space = css_ws_pre; // otherwise white-space: normal, as browsers do
+            }
             if (enode->getNodeId() >= el_address && enode->getNodeId() <= el_xmp) { // newly added block elements
                 pstyle->display = css_d_inline; // previously unknown and shown as inline
                 if (gDOMVersionRequested < 20180524) {
