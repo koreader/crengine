@@ -80,7 +80,7 @@ XS_TAG1T( nav )
 XS_TAG1T( noscript )
 XS_TAG1T( video ) // no support for video, but keep it block
 // Additional obsoleted block elements
-XS_TAG1T( center ) // no centering is done, but this is a block element
+XS_TAG1T( center )
 XS_TAG1T( dir )    // similar to "ul"
 XS_TAG1T( menu )   // similar to "ul"
 XS_TAG1D( xmp, true, css_d_block, css_ws_pre ) // similar to "pre"
@@ -113,7 +113,7 @@ XS_TAG1I( a )
 XS_TAG1I( b )
 XS_TAG1I( br )
 XS_TAG1I( cite ) // conflict between HTML (inline) and FB2 (block): default here to inline (fb2.css puts it back to block)
-XS_TAG1D( code, true, css_d_inline, css_ws_pre )
+XS_TAG1I( code ) // should not be css_ws_pre according to specs
 XS_TAG1I( em )
 XS_TAG1I( emphasis )
 XS_TAG1I( i )

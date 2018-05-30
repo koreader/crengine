@@ -52,6 +52,7 @@
 //   such child text nodes).
 //   Also no more hide the <form> element content, as it may contain
 //   textual information.
+//   Also change <code> from 'white-space: pre' to 'normal', like browsers do
 //   Added missing block elements from HTML specs so they are correctly
 //   displayed as 'block' instead of the new default of 'inline'.
 
@@ -3807,6 +3808,10 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
         if ( id==el_hr || id==el_ul || id==el_ol || id==el_dl ||
                 id==el_output || id==el_section || id==el_svg ) {
             _allowText = false;
+        }
+        // <code> was white-space: pre
+        if ( id==el_code ) {
+            _flags |= TXTFLG_PRE;
         }
     }
 
