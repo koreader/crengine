@@ -103,7 +103,7 @@ table caption {
 }
 
 /* Monospace block and inline elements */
-pre {
+pre, xmp {
     white-space: pre;
     font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
     text-align: left;

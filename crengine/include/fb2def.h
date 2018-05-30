@@ -62,6 +62,29 @@ XS_TAG1T( p )
 XS_TAG1T( output )
 XS_TAG1T( section )
 
+// Keep this block starting with "address" and ending with "xmp" as we
+// are using: if (id >= el_address && id <= el_xmp) in lvrend.cpp
+// Additional semantic block elements
+XS_TAG1T( address )
+XS_TAG1T( article )
+XS_TAG1T( aside )
+XS_TAG1T( canvas ) // no support for canvas, but keep it block
+XS_TAG1T( fieldset )
+XS_TAG1T( figcaption )
+XS_TAG1T( figure )
+XS_TAG1T( footer )
+XS_TAG1T( header )
+XS_TAG1T( hgroup )
+XS_TAG1T( main )
+XS_TAG1T( nav )
+XS_TAG1T( noscript )
+XS_TAG1T( video ) // no support for video, but keep it block
+// Additional obsoleted block elements
+XS_TAG1T( center ) // no centering is done, but this is a block element
+XS_TAG1T( dir )    // similar to "ul"
+XS_TAG1T( menu )   // similar to "ul"
+XS_TAG1D( xmp, true, css_d_block, css_ws_pre ) // similar to "pre"
+
 // Lists
 XS_TAG1T( ol )
 XS_TAG1T( ul )

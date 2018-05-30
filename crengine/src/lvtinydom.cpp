@@ -45,6 +45,15 @@
 //   to ignore the whole declaration with newer gDOMVersionRequested.
 //   Use it to keep class name based declarations that involve display:
 //   so to not break previous DOM
+// Also: fb2def.h updates
+//   Changed some elements from XS_TAG1 to XS_TAG1T (<hr>, <ul>, <ol>,
+//   <dl>, <output>, <section>, <svg>), so any text node direct child is
+//   now displayed instead of just being dropped (all browsers do display
+//   such child text nodes).
+//   Also no more hide the <form> element content, as it may contain
+//   textual information.
+//   Added missing block elements from HTML specs so they are correctly
+//   displayed as 'block' instead of the new default of 'inline'.
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 int gDOMVersionRequested     = DOM_VERSION_CURRENT;
@@ -52,7 +61,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.14k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.15k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0004
 
@@ -3789,7 +3798,18 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     if ( (_typeDef && _typeDef->white_space==css_ws_pre) || (_parent && _parent->getFlags()&TXTFLG_PRE) )
         _flags |= TXTFLG_PRE;
     _isSection = (id==el_section);
+
+    // Default (for elements not specified in fb2def.h) is to allow text
+    // (except for the root node which must have children)
     _allowText = _typeDef ? _typeDef->allow_text : (_parent?true:false);
+    if (gDOMVersionRequested < 20180528) { // revert what was changed 20180528
+        // <hr>, <ul>, <ol>, <dl>, <output>, <section>, <svg> didn't allow text
+        if ( id==el_hr || id==el_ul || id==el_ol || id==el_dl ||
+                id==el_output || id==el_section || id==el_svg ) {
+            _allowText = false;
+        }
+    }
+
     if (_parent)
         _element = _parent->getElement()->insertChildElement( (lUInt32)-1, nsid, id );
     else
