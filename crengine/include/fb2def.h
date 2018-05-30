@@ -31,72 +31,48 @@ XS_BEGIN_TAGS
 
 // Internal element for block rendering
 XS_TAG1T( autoBoxing )
+// Internal element for EPUB, containing each individual HTML file
+XS_TAG1( DocFragment )
 
-// Mix of HTML / FB2 elements
 XS_TAG2( xml, "?xml" )
 XS_TAG2( xml_stylesheet, "?xml-stylesheet" )
-XS_TAG1( FictionBook )
-XS_TAG1D( genre, true, css_d_none, css_ws_normal )
-XS_TAG1( annotation )
-XS_TAG1T( id )
-XS_TAG1T( version )
-XS_TAG1( output )
-XS_TAG1( part )
-XS_TAG1( param )
-XS_TAG1T( body )
-XS_TAG1T( p )
-XS_TAG1( coverpage )
-XS_TAG1OBJ( image )
-XS_TAG1OBJ( img )
-XS_TAG1T( lang )
-XS_TAG1( section )
-XS_TAG1D( form, true, css_d_none, css_ws_normal )
-XS_TAG1D( binary, true, css_d_none, css_ws_normal )
-XS_TAG2T( text_author, "text-author" )
 
 // Classic HTML / EPUB elements
-XS_TAG1T( div )
+XS_TAG1( html )
+XS_TAG1( head )
+XS_TAG1D( title, true, css_d_block, css_ws_normal )
+XS_TAG1D( style, true, css_d_none, css_ws_normal )
+XS_TAG1T( body )
+XS_TAG1( param )
+
+// Block elements
+XS_TAG1( hr )
 XS_TAG1( svg )
-XS_TAG1( dl )
-XS_TAG1T( dt )
-XS_TAG1T( dd )
-XS_TAG1( ol )
-XS_TAG1( ul )
-XS_TAG1D( li, true, css_d_list_item_block, css_ws_inherit )
+XS_TAG1D( form, true, css_d_none, css_ws_normal ) /* not displayed */
+XS_TAG1D( pre, true, css_d_block, css_ws_pre )
+XS_TAG1T( blockquote )
+XS_TAG1T( div )
 XS_TAG1T( h1 )
 XS_TAG1T( h2 )
 XS_TAG1T( h3 )
 XS_TAG1T( h4 )
 XS_TAG1T( h5 )
 XS_TAG1T( h6 )
-XS_TAG1D( pre, true, css_d_block, css_ws_pre )
-XS_TAG1T( blockquote )
-XS_TAG1I( em )
-XS_TAG1I( q )
-XS_TAG1I( span )
-XS_TAG1I( br )
+XS_TAG1T( p )
+XS_TAG1( output )  /* can contain text nodes in HTML, not in FB2 */
+XS_TAG1( section ) /* can contain text nodes in HTML, not in FB2 */
 
-XS_TAG1D( title, true, css_d_block, css_ws_normal )
+// Lists
+XS_TAG1( ol )
+XS_TAG1( ul )
+XS_TAG1D( li, true, css_d_list_item_block, css_ws_inherit )
 
-XS_TAG1I( b )
-XS_TAG1I( i )
+// Definitions
+XS_TAG1( dl )
+XS_TAG1T( dt )
+XS_TAG1T( dd )
 
-// type="styleType"
-XS_TAG1I( strikethrough )
-XS_TAG1I( sub )
-XS_TAG1I( sup )
-XS_TAG1D( style, true, css_d_none, css_ws_normal )
-XS_TAG1I( strong )
-XS_TAG1I( emphasis )
-XS_TAG1D( code, true, css_d_inline, css_ws_pre )
-XS_TAG1I( a )
-
-XS_TAG1( html )
-XS_TAG1( head )
-
-XS_TAG1( hr )
-
-// table
+// Tables
 XS_TAG1D( table, false, css_d_table, css_ws_normal )
 XS_TAG1D( caption, true, css_d_table_caption, css_ws_normal )
 XS_TAG1D( col, false, css_d_table_column, css_ws_normal )
@@ -108,50 +84,69 @@ XS_TAG1D( tfoot, false, css_d_table_footer_group, css_ws_normal )
 XS_TAG1D( th, true, css_d_table_cell, css_ws_normal )
 XS_TAG1D( td, true, css_d_table_cell, css_ws_normal )
 
-// The following are FB2 block elements
+// Inline elements
+XS_TAG1OBJ( img ) /* inline and specific handling as 'object' */
+XS_TAG1I( a )
+XS_TAG1I( b )
+XS_TAG1I( br )
 XS_TAG1I( cite ) // conflict between HTML (inline) and FB2 (block): default here to inline (fb2.css puts it back to block)
-XS_TAG1T( v )
-XS_TAG1( stanza )
-XS_TAG1( epigraph )
-XS_TAG1T( subtitle )
-XS_TAG1( poem )
-XS_TAG2( empty_line, "empty-line" )
+XS_TAG1D( code, true, css_d_inline, css_ws_pre )
+XS_TAG1I( em )
+XS_TAG1I( emphasis )
+XS_TAG1I( i )
+XS_TAG1I( q )
+XS_TAG1I( span )
+XS_TAG1I( strong )
+XS_TAG1I( sub )
+XS_TAG1I( sup )
 
-XS_TAG1T( history )
+
+// FB2 elements
+XS_TAG1( FictionBook )
+XS_TAG1( annotation )
 XS_TAG1( author )
-XS_TAG1T( date )
-XS_TAG1T( year )
-XS_TAG1T( sequence )
-
-XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
+XS_TAG1( coverpage )
+XS_TAG1( epigraph )
+XS_TAG1( part )
+XS_TAG1( poem )
+XS_TAG1( stanza )
+XS_TAG1D( binary, true, css_d_none, css_ws_normal )
 XS_TAG1D( description, false, css_d_none, css_ws_normal )
-XS_TAG2( title_info, "title-info" )
-XS_TAG2( src_title_info, "src-title-info" )
-XS_TAG2( document_info, "document-info" )
-XS_TAG2( publish_info, "publish-info" )
-XS_TAG2T( custom_info, "custom-info" )
-
-// type="xs:string"
-XS_TAG2T( home_page, "home-page" )
-XS_TAG2T( src_url, "src-url" )
-XS_TAG1T( email )
-
-// type="textFieldType"
-XS_TAG2T( book_title, "book-title" )
-XS_TAG2T( program_used, "program-used" )
-XS_TAG2I( first_name, "first-name" )
-XS_TAG2I( middle_name, "middle-name" )
-XS_TAG2I( last_name, "last-name" )
-XS_TAG2T( src_ocr, "src-ocr" )
-XS_TAG2T( book_name, "book-name" )
-XS_TAG1T( publisher )
+XS_TAG1D( genre, true, css_d_none, css_ws_normal )
+XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
+XS_TAG1I( strikethrough )
+XS_TAG1OBJ( image )
 XS_TAG1T( city )
+XS_TAG1T( date )
+XS_TAG1T( email )
+XS_TAG1T( history )
+XS_TAG1T( id )
 XS_TAG1T( isbn )
-XS_TAG1T( nickname )
 XS_TAG1T( keywords )
-
-// Internal element for EPUB, containing each individual HTML file
-XS_TAG1( DocFragment )
+XS_TAG1T( lang )
+XS_TAG1T( nickname )
+XS_TAG1T( publisher )
+XS_TAG1T( sequence )
+XS_TAG1T( subtitle )
+XS_TAG1T( v )
+XS_TAG1T( version )
+XS_TAG1T( year )
+XS_TAG2( document_info, "document-info" )
+XS_TAG2( empty_line, "empty-line" )
+XS_TAG2( publish_info, "publish-info" )
+XS_TAG2( src_title_info, "src-title-info" )
+XS_TAG2( title_info, "title-info" )
+XS_TAG2I( first_name, "first-name" )
+XS_TAG2I( last_name, "last-name" )
+XS_TAG2I( middle_name, "middle-name" )
+XS_TAG2T( book_name, "book-name" )
+XS_TAG2T( book_title, "book-title" )
+XS_TAG2T( custom_info, "custom-info" )
+XS_TAG2T( home_page, "home-page" )
+XS_TAG2T( program_used, "program-used" )
+XS_TAG2T( src_ocr, "src-ocr" )
+XS_TAG2T( src_url, "src-url" )
+XS_TAG2T( text_author, "text-author" )
 
 XS_END_TAGS
 
