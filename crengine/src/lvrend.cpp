@@ -1649,7 +1649,7 @@ int measureBorder(ldomNode *enode,int border) {
                 css_length_t bw = enode->getStyle()->border_width[0];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
                 int topBorderwidth = lengthToPx(bw, width, em);
-                topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH; // default value if no width specified
+                topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
                 return topBorderwidth;}
             else if (border==1){
                 bool hasrightBorder = (enode->getStyle()->border_style_right >= css_border_solid &&
