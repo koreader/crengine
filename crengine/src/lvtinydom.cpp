@@ -4011,6 +4011,8 @@ static void resetRendMethodToInline( ldomNode * node )
     // hide other nodes)
     if (node->getStyle()->display != css_d_none)
         node->setRendMethod(erm_inline);
+    if (gDOMVersionRequested < 20180528) // do that in all cases
+        node->setRendMethod(erm_inline);
 }
 
 static void resetRendMethodToInvisible( ldomNode * node )
