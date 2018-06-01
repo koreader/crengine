@@ -158,6 +158,12 @@ typedef struct css_style_rec_tag {
     , border_style_bottom(css_border_none)
     , border_style_right(css_border_none)
     , border_style_left(css_border_none)
+    , border_width{
+        css_length_t(css_val_unspecified, 0),
+        css_length_t(css_val_unspecified, 0),
+        css_length_t(css_val_unspecified, 0),
+        css_length_t(css_val_unspecified, 0)
+        }
     , background_repeat(css_background_r_none)
     , background_attachment(css_background_a_none)
     , background_position(css_background_p_none)

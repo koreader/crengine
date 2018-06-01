@@ -1642,30 +1642,38 @@ int measureBorder(ldomNode *enode,int border) {
         if (border==0){
                 bool hastopBorder = (enode->getStyle()->border_style_top >= css_border_solid &&
                                      enode->getStyle()->border_style_top <= css_border_outset);
-                int topBorderwidth = lengthToPx(enode->getStyle()->border_width[0], width, em);
-                topBorderwidth = topBorderwidth != 0 ? topBorderwidth : 2;
-                topBorderwidth = hastopBorder?topBorderwidth:0;
+                if (!hastopBorder) return 0;
+                css_length_t bw = enode->getStyle()->border_width[0];
+                if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
+                int topBorderwidth = lengthToPx(bw, width, em);
+                topBorderwidth = topBorderwidth != 0 ? topBorderwidth : 2; // default value of 2px if not specified
                 return topBorderwidth;}
             else if (border==1){
                 bool hasrightBorder = (enode->getStyle()->border_style_right >= css_border_solid &&
                                        enode->getStyle()->border_style_right <= css_border_outset);
-                int rightBorderwidth = lengthToPx(enode->getStyle()->border_width[1], width, em);
+                if (!hasrightBorder) return 0;
+                css_length_t bw = enode->getStyle()->border_width[1];
+                if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                int rightBorderwidth = lengthToPx(bw, width, em);
                 rightBorderwidth = rightBorderwidth != 0 ? rightBorderwidth : 2;
-                rightBorderwidth = hasrightBorder?rightBorderwidth:0;
                 return rightBorderwidth;}
             else if (border ==2){
                 bool hasbottomBorder = (enode->getStyle()->border_style_bottom >= css_border_solid &&
                                         enode->getStyle()->border_style_bottom <= css_border_outset);
-                int bottomBorderwidth = lengthToPx(enode->getStyle()->border_width[2], width, em);
+                if (!hasbottomBorder) return 0;
+                css_length_t bw = enode->getStyle()->border_width[2];
+                if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                int bottomBorderwidth = lengthToPx(bw, width, em);
                 bottomBorderwidth = bottomBorderwidth != 0 ? bottomBorderwidth : 2;
-                bottomBorderwidth = hasbottomBorder?bottomBorderwidth:0;
                 return bottomBorderwidth;}
             else if (border==3){
                 bool hasleftBorder = (enode->getStyle()->border_style_left >= css_border_solid &&
                                       enode->getStyle()->border_style_left <= css_border_outset);
-                int leftBorderwidth = lengthToPx(enode->getStyle()->border_width[3], width, em);
+                if (!hasleftBorder) return 0;
+                css_length_t bw = enode->getStyle()->border_width[3];
+                if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                int leftBorderwidth = lengthToPx(bw, width, em);
                 leftBorderwidth = leftBorderwidth != 0 ? leftBorderwidth : 2;
-                leftBorderwidth = hasleftBorder?leftBorderwidth:0;
                 return leftBorderwidth;}
            else return 0;
         }
@@ -2060,6 +2068,17 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
     bool hasrightBorder = (enode->getStyle()->border_style_right >=css_border_solid&&enode->getStyle()->border_style_right<=css_border_outset);
     bool hasbottomBorder = (enode->getStyle()->border_style_bottom >=css_border_solid&&enode->getStyle()->border_style_bottom<=css_border_outset);
     bool hasleftBorder = (enode->getStyle()->border_style_left >=css_border_solid&&enode->getStyle()->border_style_left<=css_border_outset);
+
+    // check for explicit 'border-width: 0' which means no border
+    css_length_t bw;
+    bw = enode->getStyle()->border_width[0];
+    hastopBorder = hastopBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
+    bw = enode->getStyle()->border_width[1];
+    hasrightBorder = hasrightBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
+    bw = enode->getStyle()->border_width[2];
+    hasbottomBorder = hasbottomBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
+    bw = enode->getStyle()->border_width[3];
+    hasleftBorder = hasleftBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
 
     if (hasbottomBorder or hasleftBorder or hasrightBorder or hastopBorder) {
         lUInt32 shadecolor=0x555555;
