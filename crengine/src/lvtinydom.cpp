@@ -4006,7 +4006,11 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
 #if BUILD_LITE!=1
 static void resetRendMethodToInline( ldomNode * node )
 {
-    node->setRendMethod(erm_inline);
+    // we shouldn't reset to inline (visible) if display: none
+    // (using node->getRendMethod() != erm_invisible seems too greedy and may
+    // hide other nodes)
+    if (node->getStyle()->display != css_d_none)
+        node->setRendMethod(erm_inline);
 }
 
 static void resetRendMethodToInvisible( ldomNode * node )

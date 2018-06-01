@@ -1077,6 +1077,7 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 //=======================================================================
 void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h )
 {
+    int txform_src_count = txform->GetSrcCount(); // to track if we added lines to txform
     if ( enode->isElement() )
     {
         lvdom_element_render_method rm = enode->getRendMethod();
@@ -1348,9 +1349,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 //            txform->AddSourceLine( L"\n", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT,
 //                line_h, 0, enode, 0, 0 );
         } else {
-            if (!(enode->getStyle()->display == css_d_inline && enode->getText8(0, 0).trim().empty() &&
-                  enode->getParentNode()->getFirstChild() == enode))
-            baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+            // 'baseflags' carries information about text alignment, and
+            // clearing newline flag would remove it. This information is
+            // only useful on the first source line added (with AddSourceLine)
+            // so don't clear it if we hadn't added anything
+            if (txform->GetSrcCount() > txform_src_count)
+                baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
         }
         //baseflags &= ~LTEXT_RUNIN_FLAG;
     }
@@ -1861,11 +1865,6 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         int list_marker_width;
                         lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
                         list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                        if (cnt==0) {
-                            // if there aren't children ensure this node is still formatted with
-                            // room for the list marker
-                            y += list_marker_height;
-                        }
                         if ( enode->getStyle()->list_style_position == css_lsp_outside )
                             // When list_style_position = outside, we have to shift the whole block
                             // to the right and reduce the available width, which is done
@@ -1875,6 +1874,8 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                             // When list_style_position = inside, we need to let renderFinalBlock()
                             // know there is a marker to prepend when rendering the first of our
                             // children (or grand-children, depth first) that is erm_final
+                            // (caveat: the marker will not be shown if any of the first children
+                            // is erm_invisible)
                             ldomNode * tmpnode = enode;
                             while ( tmpnode->hasChildren() ) {
                                 tmpnode = tmpnode->getChildNode( 0 );
@@ -1895,19 +1896,21 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         }
                     }
 
+                    int block_height = 0;
                     for (int i=0; i<cnt; i++)
                     {
                         ldomNode * child = enode->getChildNode( i );
                         //fmt.push();
                         int h = renderBlockElement( context, child, padding_left + list_marker_padding, y,
                             width - padding_left - padding_right - list_marker_padding );
-                        if (list_marker_height && i==0 && list_marker_height > h) {
-                            y += list_marker_height;
-                        }
-                        else {
-                            y += h;
-                        }
+                        y += h;
+                        block_height += h;
                     }
+                    // ensure there's enough height to fully display the list marker
+                    if (list_marker_height && list_marker_height > block_height) {
+                        y += list_marker_height - block_height;
+                    }
+
                     int st_y = lengthToPx( enode->getStyle()->height, em, em );
                     if ( y < st_y )
                         y = st_y;
