@@ -829,6 +829,8 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
 bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
 {
     lUInt16 chprops[WORD_LENGTH];
+    if ( len > WORD_LENGTH-2 )
+        len = WORD_LENGTH - 2;
     lStr_getCharProps( str, len, chprops );
     int start, end, i, j;
     #define MIN_WORD_LEN_TO_HYPHEN 2
