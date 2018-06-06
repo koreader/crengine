@@ -347,6 +347,8 @@ public:
 
 #define STATIC_BUFS_SIZE 8192
 #define ITEMS_RESERVED 16
+        // We start with static buffers, but When m_length exceeds STATIC_BUFS_SIZE,
+        // we switch to dynamic buffers and we keep using them (realloc'ating when needed).
         if ( !m_staticBufs || m_length>STATIC_BUFS_SIZE-1 ) {
             if ( m_length+ITEMS_RESERVED>m_size ) {
                 // realloc
@@ -372,7 +374,16 @@ public:
             m_widths = m_static_widths;
             m_staticBufs = true;
         }
-        memset( m_flags, 0, sizeof(lUInt8)*m_length );
+        // There's probably a bug elsewhere that makes some code go look further than
+        // m_length and cause a segfault. memset()'ing all buffers on their full
+        // allocated size to 0 seems to avoid these occasional segfaults. But just
+        // setting zero to the slot just after [0..m_length-1] seems enough (and is
+        // less expensive than full memset)
+        memset( m_flags, 0, sizeof(lUInt8) * (m_length+1) );
+        m_text[m_length] = 0;
+        m_charindex[m_length] = 0;
+        m_srcs[m_length] = NULL;
+        m_widths[m_length] = 0;
         pos = 0;
     }
 
