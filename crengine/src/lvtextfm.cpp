@@ -344,13 +344,25 @@ public:
         m_length = pos;
 
         TR("allocate(%d)", m_length);
+        // We start with static buffers, but when m_length reaches STATIC_BUFS_SIZE,
+        // we switch to dynamic buffers and we keep using them (realloc'ating when
+        // needed).
+        // The code in this file will fill these buffers with m_length items, so
+        // from index [0] to [m_length-1], and read them back.
+        // Willingly or not (bug?), this code may also access the buffer one slot
+        // further [m_length], and we need to set this slot to zero to avoid
+        // a segfault. So, we need to reserve this additional slot when
+        // allocating dynamic buffers, or checking if the static buffers can be
+        // used.
+        // (memset()'ing all buffers on their full allocated size to 0 would work
+        // too, but there's a small performance hit when doing so. Just setting
+        // to zero the additional slot seems enough, as all previous slots seems
+        // to be correctly filled.)
 
 #define STATIC_BUFS_SIZE 8192
 #define ITEMS_RESERVED 16
-        // We start with static buffers, but When m_length exceeds STATIC_BUFS_SIZE,
-        // we switch to dynamic buffers and we keep using them (realloc'ating when needed).
-        if ( !m_staticBufs || m_length>STATIC_BUFS_SIZE-1 ) {
-            if ( m_length+ITEMS_RESERVED>m_size ) {
+        if ( !m_staticBufs || m_length > STATIC_BUFS_SIZE-1 ) {
+            if ( m_length > m_size-1 ) {
                 // realloc
                 m_size = m_length+ITEMS_RESERVED;
                 m_text = cr_realloc(m_staticBufs ? NULL : m_text, m_size);
@@ -374,17 +386,17 @@ public:
             m_widths = m_static_widths;
             m_staticBufs = true;
         }
-        // There's probably a bug elsewhere that makes some code go look further than
-        // m_length and cause a segfault. memset()'ing all buffers on their full
-        // allocated size to 0 seems to avoid these occasional segfaults. But just
-        // setting zero to the slot just after [0..m_length-1] seems enough (and is
-        // less expensive than full memset)
-        memset( m_flags, 0, sizeof(lUInt8) * (m_length+1) );
+        memset( m_flags, 0, sizeof(lUInt8)*m_length ); // starts with all flags set to zero
+        pos = 0;
+
+        // We set to zero the additional slot that the code may peek at (with
+        // the checks against m_length we did, we know this slow is allocated).
+        // (This can be removed if we find this was a bug and can fix it)
+        m_flags[m_length] = 0;
         m_text[m_length] = 0;
         m_charindex[m_length] = 0;
         m_srcs[m_length] = NULL;
         m_widths[m_length] = 0;
-        pos = 0;
     }
 
     /// copy text of current paragraph to buffers
