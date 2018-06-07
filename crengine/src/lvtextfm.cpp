@@ -361,8 +361,9 @@ public:
 
 #define STATIC_BUFS_SIZE 8192
 #define ITEMS_RESERVED 16
-        if ( !m_staticBufs || m_length > STATIC_BUFS_SIZE-1 ) {
-            if ( m_length > m_size-1 ) {
+        // "m_length+1" to keep room for the additional slot to be zero'ed
+        if ( !m_staticBufs || m_length+1 > STATIC_BUFS_SIZE ) {
+            if ( m_length+1 > m_size ) {
                 // realloc
                 m_size = m_length+ITEMS_RESERVED;
                 m_text = cr_realloc(m_staticBufs ? NULL : m_text, m_size);
