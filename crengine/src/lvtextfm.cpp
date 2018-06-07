@@ -344,11 +344,26 @@ public:
         m_length = pos;
 
         TR("allocate(%d)", m_length);
+        // We start with static buffers, but when m_length reaches STATIC_BUFS_SIZE,
+        // we switch to dynamic buffers and we keep using them (realloc'ating when
+        // needed).
+        // The code in this file will fill these buffers with m_length items, so
+        // from index [0] to [m_length-1], and read them back.
+        // Willingly or not (bug?), this code may also access the buffer one slot
+        // further at [m_length], and we need to set this slot to zero to avoid
+        // a segfault. So, we need to reserve this additional slot when
+        // allocating dynamic buffers, or checking if the static buffers can be
+        // used.
+        // (memset()'ing all buffers on their full allocated size to 0 would work
+        // too, but there's a small performance hit when doing so. Just setting
+        // to zero the additional slot seems enough, as all previous slots seems
+        // to be correctly filled.)
 
 #define STATIC_BUFS_SIZE 8192
 #define ITEMS_RESERVED 16
-        if ( !m_staticBufs || m_length>STATIC_BUFS_SIZE-1 ) {
-            if ( m_length+ITEMS_RESERVED>m_size ) {
+        // "m_length+1" to keep room for the additional slot to be zero'ed
+        if ( !m_staticBufs || m_length+1 > STATIC_BUFS_SIZE ) {
+            if ( m_length+1 > m_size ) {
                 // realloc
                 m_size = m_length+ITEMS_RESERVED;
                 m_text = cr_realloc(m_staticBufs ? NULL : m_text, m_size);
@@ -372,8 +387,17 @@ public:
             m_widths = m_static_widths;
             m_staticBufs = true;
         }
-        memset( m_flags, 0, sizeof(lUInt8)*m_length );
+        memset( m_flags, 0, sizeof(lUInt8)*m_length ); // start with all flags set to zero
         pos = 0;
+
+        // We set to zero the additional slot that the code may peek at (with
+        // the checks against m_length we did, we know this slot is allocated).
+        // (This can be removed if we find this was a bug and can fix it)
+        m_flags[m_length] = 0;
+        m_text[m_length] = 0;
+        m_charindex[m_length] = 0;
+        m_srcs[m_length] = NULL;
+        m_widths[m_length] = 0;
     }
 
     /// copy text of current paragraph to buffers
