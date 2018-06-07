@@ -350,7 +350,7 @@ public:
         // The code in this file will fill these buffers with m_length items, so
         // from index [0] to [m_length-1], and read them back.
         // Willingly or not (bug?), this code may also access the buffer one slot
-        // further [m_length], and we need to set this slot to zero to avoid
+        // further at [m_length], and we need to set this slot to zero to avoid
         // a segfault. So, we need to reserve this additional slot when
         // allocating dynamic buffers, or checking if the static buffers can be
         // used.
@@ -386,11 +386,11 @@ public:
             m_widths = m_static_widths;
             m_staticBufs = true;
         }
-        memset( m_flags, 0, sizeof(lUInt8)*m_length ); // starts with all flags set to zero
+        memset( m_flags, 0, sizeof(lUInt8)*m_length ); // start with all flags set to zero
         pos = 0;
 
         // We set to zero the additional slot that the code may peek at (with
-        // the checks against m_length we did, we know this slow is allocated).
+        // the checks against m_length we did, we know this slot is allocated).
         // (This can be removed if we find this was a bug and can fix it)
         m_flags[m_length] = 0;
         m_text[m_length] = 0;
