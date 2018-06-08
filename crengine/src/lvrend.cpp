@@ -1419,6 +1419,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             } else {
             }
             */
+            /* removal of leading spaces is now managed directly by lvtextfm
             //int offs = 0;
             if ( txform->GetSrcCount()==0 && style->white_space!=css_ws_pre ) {
                 // clear leading spaces for first text of paragraph
@@ -1430,10 +1431,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     //offs = i;
                 }
             }
-            if ( txt.length()>0 )
+            */
+            if ( txt.length()>0 ) {
                 txform->AddSourceLine( txt.c_str(), txt.length(), cl, bgcl, font, baseflags | tflags,
                     line_h, ident, enode, 0, letter_spacing );
-            baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+                baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+            }
         }
     }
     else

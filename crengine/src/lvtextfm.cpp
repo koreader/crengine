@@ -405,6 +405,7 @@ public:
     {
         int pos = 0;
         int i;
+        bool at_start = true;
         for ( i=start; i<end; i++ ) {
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
             if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
@@ -419,6 +420,18 @@ public:
                 if ( i==0 || (src->flags & LTEXT_FLAG_NEWLINE) )
                     m_flags[pos] = LCHAR_MANDATORY_NEWLINE;
                 for ( int k=0; k<len; k++ ) {
+                    if (at_start && !(src->flags & LTEXT_FLAG_PREFORMATTED)) {
+                        // On non-pre paragraphs, flag the first space chars
+                        // so we can discard them later (with the way we use
+                        // the XML Parser, it will have already stripped
+                        // multiple spaces, so we'll never be flagging more
+                        // than one here - but let's stay generic).
+                        lChar16 ch = m_text[pos];
+                        if ( ch == ' ' )
+                            m_flags[pos] = LCHAR_IS_LEADING_SPACE;
+                        else
+                            at_start = false;
+                    }
                     m_charindex[pos] = k;
                     m_srcs[pos] = src;
 //                    lChar16 ch = m_text[pos];
@@ -427,6 +440,7 @@ public:
                     pos++;
                 }
             }
+            at_start = false;
         }
         TR("%s", LCSTR(lString16(m_text, m_length)));
     }
@@ -588,7 +602,22 @@ public:
                         len = newlen;
                     }
 
+                    // Deal with chars flagged as leading spaces:
+                    // make each zero-width, so they are not accounted
+                    // in the words width and position calculation.
+                    // widths[k] being cumulative, we have to substract
+                    // the original widths that are zero'ed from all
+                    // subsequents widths[k].
+                    int width_removed = 0;
                     for ( int k=0; k<len; k++ ) {
+                        if ( m_flags[start + k] & LCHAR_IS_LEADING_SPACE) {
+                            width_removed += widths[k];
+                            widths[k] = 0; // make it zero width
+                            flags[k] = 0; // remove SPACE/WRAP/... flags
+                        }
+                        else {
+                            widths[k] -= width_removed;
+                        }
                         m_widths[start + k] = lastWidth + widths[k];
                         m_flags[start + k] |= flags[k];
                     }
@@ -1091,8 +1120,31 @@ public:
             return;
         }
 
+        // Count the number of leading space that we should ignore below.
+        // If there is no other content than these leading spaces, we
+        // should keep them as they carry empty new lines information.
+        int leading_spaces = 0;
+        bool has_content = false;
+        for ( int i=0; i<m_length; i++ ) {
+            if ( m_flags[i] & LCHAR_IS_LEADING_SPACE ) {
+                leading_spaces++;
+            }
+            else {
+                has_content = true;
+                break;
+            }
+        }
+        if (!has_content) // no text content: keep the spaces
+            leading_spaces = 0;
+
         for (;pos<m_length;) {
             int x = indent >=0 ? (pos==0 ? indent : 0) : (pos==0 ? 0 : -indent);
+            bool is_first_line = pos == 0;
+            // no more check for pos==0 beyond here: we can discard these leading spaces
+            pos += leading_spaces;
+            // reset leading_spaces as it's of no use anymore (and should not
+            // be used on next paragraph lines)
+            leading_spaces = 0;
             int w0 = pos>0 ? m_widths[pos-1] : 0;
             int i;
             int lastNormalWrap = -1;
@@ -1243,7 +1295,7 @@ public:
                 m_widths[lastnonspace] += dw;
             }
             if (endp>m_length) endp=m_length;
-            addLine(pos, endp, x + firstCharMargin, para, interval, pos==0, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace);
+            addLine(pos, endp, x + firstCharMargin, para, interval, is_first_line, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace);
             pos = wrapPos + 1;
         }
     }
