@@ -41,12 +41,16 @@
     },
     {
         "name": "English (UK)",
-        "filename": "English_GB_hyphen_(Alan).pdb",
+        "filename": "English_GB.pattern",
+        "left_hyphen_min": 2,
+        "right_hyphen_min":2,
         "language": "en-GB"
     },
     {
         "name": "English (US)",
-        "filename": "English_US_hyphen_(Alan).pdb",
+        "filename": "English_US.pattern",
+        "left_hyphen_min": 2,
+        "right_hyphen_min":2,
         "language": "en-US",
         "aliases": ["en", "eng"]
     },
@@ -59,8 +63,10 @@
     {
         "name": "French",
         "filename": "French.pattern",
+        "left_hyphen_min": 2,
+        "right_hyphen_min":1,
         "language": "fr",
-        "aliases": ["fra"]
+        "aliases": ["fra", "fre"]
     },
     {
         "name": "Galician",
