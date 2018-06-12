@@ -80,7 +80,7 @@ public:
 	bool activate( lString16 id );
 };
 
-#define DEF_HYPHENATION_DICT "English_US_hyphen_(Alan).pdb"
+#define DEF_HYPHENATION_DICT "English_US.pattern"
 
 class HyphDictionary;
 class HyphDictionaryList;
