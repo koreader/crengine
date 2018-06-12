@@ -152,6 +152,9 @@ public:
     {
     }
 
+    // The final list of pages can be listed by changing some '#if 0' to '#if 1'
+    // in lvdocview.cpp LVDocView::Render()
+
     unsigned CalcSplitFlag( int flg1, int flg2 )
     {
         if (flg1==RN_SPLIT_AVOID || flg2==RN_SPLIT_AVOID)
@@ -251,11 +254,10 @@ public:
             pageend = last;
         }
         if (slice_start != line->getStart()) {
-            // We did cut slices: we need to make a virtual 'line' with the
-            // last slice, and as it fits on a page, use it at start of next
-            // page, to possibly have other lines added after it on this page.
-            next = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
-            pagestart = next;
+            // We did cut slices: we made a virtual 'line' with the last slice,
+            // and as it fits on a page, use it at start of next page, to
+            // possibly have other lines added after it on this page.
+            StartPage(last);
         }
     }
     void AddLine( LVRendLineInfo * line )
