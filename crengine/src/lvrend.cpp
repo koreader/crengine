@@ -1737,10 +1737,16 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         int margin_right = lengthToPx( enode->getStyle()->margin[1], width, em ) + DEBUG_TREE_DRAW;
         int margin_top = lengthToPx( enode->getStyle()->margin[2], width, em ) + DEBUG_TREE_DRAW;
         int margin_bottom = lengthToPx( enode->getStyle()->margin[3], width, em ) + DEBUG_TREE_DRAW;
-        int padding_left = lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
-        int padding_right = lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
-        int padding_top = lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
-        int padding_bottom = lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,2);
+        int border_top = measureBorder(enode,0);
+        int border_bottom = measureBorder(enode,2);
+        int padding_left = lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,3);
+        int padding_right = lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,1);
+        int padding_top = lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW + border_top;
+        int padding_bottom = lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW + border_bottom;
+        // If there is a border at top/bottom, the AddLine(padding), which adds the room
+        // for the border too, should avoid a page break between the node and its border
+        int padding_top_split_flag = border_top ? RN_SPLIT_AFTER_AVOID : 0;
+        int padding_bottom_split_flag = border_bottom ? RN_SPLIT_BEFORE_AVOID : 0;
 
         //margin_left += 50;
         //margin_right += 50;
@@ -1867,7 +1873,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     if (margin_top>0)
                         context.AddLine(r.top - margin_top, r.top, pagebreakhelper(enode,width));
                     if (padding_top>0)
-                        context.AddLine(r.top,r.top+padding_top,pagebreakhelper(enode,width));
+                        context.AddLine(r.top,r.top+padding_top,pagebreakhelper(enode,width)|padding_top_split_flag);
 
                     // List item marker rendering when css_d_list_item_block
                     int list_marker_padding = 0; // set to non-zero when list-style-position = outside
@@ -1932,7 +1938,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     lvRect rect;
                     enode->getAbsRect(rect);
                     if(padding_bottom>0)
-                        context.AddLine(y+rect.top,y+rect.top+padding_bottom,margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER);
+                        context.AddLine(y+rect.top,y+rect.top+padding_bottom,(margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER)|padding_bottom_split_flag);
                     if(margin_bottom>0)
                         context.AddLine(y+rect.top+padding_bottom,y+rect.top+padding_bottom+margin_bottom,CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER);
                     if ( isFootNoteBody )
@@ -1998,7 +2004,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 if (margin_top>0)
                         context.AddLine(rect.top-margin_top,rect.top,pagebreakhelper(enode,width));
                 if (padding_top>0)
-                        context.AddLine(rect.top,rect.top+padding_top,pagebreakhelper(enode,width));
+                        context.AddLine(rect.top,rect.top+padding_top,pagebreakhelper(enode,width)|padding_top_split_flag);
                 css_page_break_t before, inside, after;
                 //before = inside = after = css_pb_auto;
                 before = getPageBreakBefore( enode );
@@ -2028,7 +2034,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         line_flags |= break_inside << RN_SPLIT_AFTER;
                     context.AddLine(rect.top+line->y+padding_top, rect.top+line->y+line->height+padding_top, line_flags);
                     if(padding_bottom>0&&i==count-1)
-                        context.AddLine(rect.bottom-padding_bottom,rect.bottom,margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER);
+                        context.AddLine(rect.bottom-padding_bottom,rect.bottom,(margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER)|padding_bottom_split_flag);
                     if(margin_bottom>0&&i==count-1)
                         context.AddLine(rect.bottom,rect.bottom+margin_bottom,CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER);
                     // footnote links analysis
