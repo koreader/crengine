@@ -152,6 +152,9 @@ public:
     {
     }
 
+    // The final list of pages can be listed by changing some '#if 0' to '#if 1'
+    // in lvdocview.cpp LVDocView::Render()
+
     unsigned CalcSplitFlag( int flg1, int flg2 )
     {
         if (flg1==RN_SPLIT_AVOID || flg2==RN_SPLIT_AVOID)
@@ -251,11 +254,10 @@ public:
             pageend = last;
         }
         if (slice_start != line->getStart()) {
-            // We did cut slices: we need to make a virtual 'line' with the
-            // last slice, and as it fits on a page, use it at start of next
-            // page, to possibly have other lines added after it on this page.
-            next = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
-            pagestart = next;
+            // We did cut slices: we made a virtual 'line' with the last slice,
+            // and as it fits on a page, use it at start of next page, to
+            // possibly have other lines added after it on this page.
+            StartPage(last);
         }
     }
     void AddLine( LVRendLineInfo * line )
@@ -271,10 +273,26 @@ public:
             unsigned flgSplit = CalcSplitFlag( last->getSplitAfter(), line->getSplitBefore() );
             //bool flgFit = currentHeight( next ? next : line ) <= page_h;
             bool flgFit = currentHeight( line ) <= page_h;
+
+            if (!flgFit && flgSplit==RN_SPLIT_AVOID && pageend && next) {
+                // This new line doesn't fit, but split should be avoided between
+                // last and this line - and we have a previous line where a split
+                // is allowed (pageend and next were reset on StartPage(),
+                // and were only updated below when flgSplit==RN_SPLIT_AUTO)
+                // Let AddToList() use current pagestart and pageend,
+                // and StartPage on 'next'.
+                AddToList();
+                StartPage(next);
+                // Recompute flgFit (if it still doesn't fit, it will be
+                // splitted below)
+                flgFit = currentHeight( line ) <= page_h;
+            }
+
             if (!flgFit)
             {
-            // doesn't fit
-            // split
+            // Doesn't fit, but split is allowed (or mandatory) between
+            // last and this line - or we don't have a previous line
+            // where split is allowed: split between last and this line
 //                if ( !next || !pageend) {
                     next = line;
                     pageend = last;

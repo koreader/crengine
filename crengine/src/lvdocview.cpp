@@ -2489,6 +2489,14 @@ void LVDocView::Render(int dx, int dy, LVRendPageList * pages) {
                 m_font, m_def_interline_space, m_props);
 
 #if 0
+                // For debugging lvpagesplitter.cpp (small books)
+                for (int i=0; i<m_pages.length(); i++) {
+                    printf("%4d:   %7d .. %-7d [%d]\n", i, m_pages[i]->start, m_pages[i]->start+m_pages[i]->height, m_pages[i]->height);
+                }
+#endif
+
+#if 0
+                // For debugging lvpagesplitter.cpp (larger books)
 		FILE * f = fopen("pagelist.log", "wt");
 		if (f) {
 			for (int i=0; i<m_pages.length(); i++)
