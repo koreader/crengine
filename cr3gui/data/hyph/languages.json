@@ -33,7 +33,7 @@
     },
     {
         "name": "Danish",
-        "filename": "Danish.pdb",
+        "filename": "Danish.pattern",
         "language": "da",
         "aliases": ["dan"]
     },
