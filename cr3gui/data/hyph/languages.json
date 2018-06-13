@@ -60,7 +60,7 @@
     },
     {
         "name": "Finnish",
-        "filename": "Finnish_hyphen_(Alan).pdb",
+        "filename": "Finnish.pattern",
         "language": "fi",
         "aliases": ["fin"]
     },
