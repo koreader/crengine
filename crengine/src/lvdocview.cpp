@@ -863,7 +863,9 @@ void LVDocView::updatePageNumbers(LVTocItem * item) {
 	} else {
 		//CRLog::error("Page position is not found for path %s", LCSTR(item->getPath()) );
 		// unknown position
-		item->_page = -1;
+                // Don't update _page of root toc item, as it carries the alternative TOC flag
+                if (item->_level > 0)
+                    item->_page = -1;
 		item->_percent = -1;
 	}
 	for (int i = 0; i < item->getChildCount(); i++) {

@@ -1917,8 +1917,12 @@ public:
     }
     void clear() { _children.clear(); }
     // root node constructor
-    LVTocItem( ldomDocument * doc ) : _parent(NULL), _doc(doc), _level(0), _index(0) { }
+    LVTocItem( ldomDocument * doc ) : _parent(NULL), _doc(doc), _level(0), _index(0), _page(0) { }
     ~LVTocItem() { clear(); }
+
+    /// For use on the root toc item only (_page, otherwise unused, can be used to store this flag)
+    void setAlternativeTocFlag() { if (_level==0) _page = 1; }
+    bool hasAlternativeTocFlag() { return _level==0 && _page==1; }
 };
 
 
@@ -2063,6 +2067,9 @@ public:
 
     /// returns pointer to TOC root node
     LVTocItem * getToc() { return &m_toc; }
+    /// build alternative TOC from document heading elements (H1 to H6)
+    void buildAlternativeToc();
+    bool isTocAlternativeToc() { return m_toc.hasAlternativeTocFlag(); }
 
     bool isTocFromCacheValid() { return _toc_from_cache_valid; }
 

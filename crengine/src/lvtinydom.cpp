@@ -11987,7 +11987,61 @@ bool LVTocItem::deserialize( ldomDocument * doc, SerialBuf & buf )
 //}
 
 
+static void makeTocFromHeadings( ldomNode * node )
+{
+    int level = 0;
+    // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
+    if ( node->getNodeId() < el_h1 || node->getNodeId() > el_h6 )
+        return;
+    level = node->getNodeId() - el_h1 + 1;
+    lString16 title = node->getText(' ');
+    ldomXPointer xp = ldomXPointer(node, 0);
+    LVTocItem * root = node->getDocument()->getToc();
+    LVTocItem * parent = root;
+    // Find adequate parent, or create intermediates
+    int plevel = 1;
+    while (plevel < level) {
+        int nbc = parent->getChildCount();
+        if (nbc) { // use the latest children
+            parent = parent->getChild(nbc-1);
+        }
+        else {
+            // If we'd like to stick it to the last parent found, even if
+            // of wrong level, just do: break;
+            // But it is cleaner to create intermediate(s)
+            parent = parent->addChild(L"", xp, lString16::empty_str);
+        }
+        plevel++;
+    }
+    LVTocItem * tocItem = parent->addChild(title, xp, lString16::empty_str);
+}
 
+static void makeTocFromDocFragments( ldomNode * node )
+{
+    if ( node->getNodeId() != el_DocFragment )
+        return;
+    // No title, and only level 1 with DocFragments
+    ldomXPointer xp = ldomXPointer(node, 0);
+    LVTocItem * root = node->getDocument()->getToc();
+    LVTocItem * tocItem = root->addChild(L"", xp, lString16::empty_str);
+}
+
+void ldomDocument::buildAlternativeToc()
+{
+    m_toc.clear();
+    getRootNode()->recurseElements(makeTocFromHeadings);
+    // If no heading found, fall back to gathering DocFraments
+    if ( !m_toc.getChildCount() )
+        getRootNode()->recurseElements(makeTocFromDocFragments);
+    // m_toc.setAlternativeTocFlag() uses the root toc item _page property
+    // (never used for the root node) to store the fact this is an
+    // alternatve TOC. This info can then be serialized to cache and
+    // retrieved without any additional work or space overhead.
+    m_toc.setAlternativeTocFlag();
+    // cache file will have to be updated with the alt TOC
+    setCacheFileStale(true);
+    _toc_from_cache_valid = false; // to force update of page numbers
+}
 
 
 #if 0 && defined(_DEBUG)
