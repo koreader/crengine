@@ -25,7 +25,9 @@
     },
     {
         "name": "Czech",
-        "filename": "Czech_hyphen_(Alan).pdb",
+        "filename": "Czech.pattern",
+        "left_hyphen_min": 2,
+        "right_hyphen_min":2,
         "language": "cs",
         "aliases": ["ces"]
     },
