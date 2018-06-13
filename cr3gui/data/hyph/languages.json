@@ -11,7 +11,9 @@
     },
     {
         "name": "Bulgarian",
-        "filename": "Bulgarian_hyphen_(Alan).pdb",
+        "filename": "Bulgarian.pattern",
+        "left_hyphen_min": 2,
+        "right_hyphen_min":2,
         "language": "bg",
         "aliases": ["bul"]
     },
