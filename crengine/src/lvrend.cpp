@@ -2131,9 +2131,9 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y),
                     leftpoint2=lvPoint(x0+doc_x,y0+doc_y+0.5*topBorderwidth),
                     leftpoint3=lvPoint(x0+doc_x,doc_y+y0+topBorderwidth),
-                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0),
-                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+0.5*topBorderwidth),
-                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+topBorderwidth);
+                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0),
+                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+0.5*topBorderwidth),
+                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+topBorderwidth);
             double leftrate=1,rightrate=1;
             if (left==0) {
                 leftpoint1.x=x0+doc_x;
@@ -2145,11 +2145,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             }else leftBorderwidth=0;
             leftrate=(double)leftBorderwidth/(double)topBorderwidth;
             if (right==0) {
-                rightpoint1.x=x0+doc_x+fmt.getWidth();
+                rightpoint1.x=x0+doc_x+fmt.getWidth()-1;
                 rightpoint1.y=doc_y+y0;
-                rightpoint2.x=x0+doc_x+fmt.getWidth()-0.5*rightBorderwidth;
+                rightpoint2.x=x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth;
                 rightpoint2.y=doc_y+y0+0.5*topBorderwidth;
-                rightpoint3.x=x0+doc_x+fmt.getWidth()-rightBorderwidth;
+                rightpoint3.x=x0+doc_x+fmt.getWidth()-1-rightBorderwidth;
                 rightpoint3.y=doc_y+y0+topBorderwidth;
             } else rightBorderwidth=0;
             rightrate=(double)rightBorderwidth/(double)topBorderwidth;
@@ -2233,12 +2233,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             down=(hasbottomBorder)?0:1;
             up=(enode->getStyle()->border_style_top==css_border_dotted||enode->getStyle()->border_style_top==css_border_dashed)?1:up;
             down=(enode->getStyle()->border_style_bottom==css_border_dotted||enode->getStyle()->border_style_bottom==css_border_dashed)?1:down;
-            lvPoint toppoint1=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0),
-                    toppoint2=lvPoint(x0+doc_x+fmt.getWidth()-0.5*rightBorderwidth,doc_y+y0),
-                    toppoint3=lvPoint(x0+doc_x+fmt.getWidth()-rightBorderwidth,doc_y+y0),
-                    bottompoint1=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+fmt.getHeight()),
-                    bottompoint2=lvPoint(x0+doc_x+fmt.getWidth()-0.5*rightBorderwidth,doc_y+y0+fmt.getHeight()),
-                    bottompoint3=lvPoint(x0+doc_x+fmt.getWidth()-rightBorderwidth,doc_y+y0+fmt.getHeight());
+            lvPoint toppoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0),
+                    toppoint2=lvPoint(x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth,doc_y+y0),
+                    toppoint3=lvPoint(x0+doc_x+fmt.getWidth()-1-rightBorderwidth,doc_y+y0),
+                    bottompoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1),
+                    bottompoint2=lvPoint(x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth,doc_y+y0+fmt.getHeight()-1),
+                    bottompoint3=lvPoint(x0+doc_x+fmt.getWidth()-1-rightBorderwidth,doc_y+y0+fmt.getHeight()-1);
             double toprate=1,bottomrate=1;
             if (up==0) {
                 toppoint3.y=doc_y+y0+topBorderwidth;
@@ -2246,8 +2246,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             } else topBorderwidth=0;
             toprate=(double)topBorderwidth/(double)rightBorderwidth;
             if (down==0) {
-                bottompoint3.y=y0+doc_y+fmt.getHeight()-bottomBorderwidth;
-                bottompoint2.y=y0+doc_y+fmt.getHeight()-0.5*bottomBorderwidth;
+                bottompoint3.y=y0+doc_y+fmt.getHeight()-1-bottomBorderwidth;
+                bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
             } else bottomBorderwidth=0;
             bottomrate=(double)bottomBorderwidth/(double)rightBorderwidth;
             switch (enode->getStyle()->border_style_right){
@@ -2340,12 +2340,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             right=(hasrightBorder)?0:1;
             left=(enode->getStyle()->border_style_left==css_border_dotted||enode->getStyle()->border_style_left==css_border_dashed)?1:left;
             right=(enode->getStyle()->border_style_right==css_border_dotted||enode->getStyle()->border_style_right==css_border_dashed)?1:right;
-            lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y+fmt.getHeight()),
-                    leftpoint2=lvPoint(x0+doc_x,y0+doc_y-0.5*bottomBorderwidth+fmt.getHeight()),
-                    leftpoint3=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-bottomBorderwidth),
-                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+fmt.getHeight()),
-                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+fmt.getHeight()-0.5*bottomBorderwidth),
-                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth(),doc_y+y0+fmt.getHeight()-bottomBorderwidth);
+            lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y+fmt.getHeight()-1),
+                    leftpoint2=lvPoint(x0+doc_x,y0+doc_y-0.5*bottomBorderwidth+fmt.getHeight()-1),
+                    leftpoint3=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-1-bottomBorderwidth),
+                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1),
+                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1-0.5*bottomBorderwidth),
+                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1-bottomBorderwidth);
             double leftrate=1,rightrate=1;
             if (left==0) {
                 leftpoint3.x=x0+doc_x+leftBorderwidth;
@@ -2353,8 +2353,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             }else leftBorderwidth=0;
             leftrate=(double)leftBorderwidth/(double)bottomBorderwidth;
             if (right==0) {
-                rightpoint3.x=x0+doc_x+fmt.getWidth()-rightBorderwidth;
-                rightpoint2.x=x0+doc_x+fmt.getWidth()-0.5*rightBorderwidth;
+                rightpoint3.x=x0+doc_x+fmt.getWidth()-1-rightBorderwidth;
+                rightpoint2.x=x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth;
             } else rightBorderwidth=0;
             rightrate=(double)rightBorderwidth/(double)bottomBorderwidth;
             switch (enode->getStyle()->border_style_bottom){
@@ -2439,9 +2439,9 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             lvPoint toppoint1=lvPoint(x0+doc_x,doc_y+y0),
                     toppoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0),
                     toppoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0),
-                    bottompoint1=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()),
-                    bottompoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0+fmt.getHeight()),
-                    bottompoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0+fmt.getHeight());
+                    bottompoint1=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-1),
+                    bottompoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0+fmt.getHeight()-1),
+                    bottompoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0+fmt.getHeight()-1);
             double toprate=1,bottomrate=1;
             if (up==0) {
                 toppoint3.y=doc_y+y0+topBorderwidth;
@@ -2449,8 +2449,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             } else topBorderwidth=0;
             toprate=(double)topBorderwidth/(double)leftBorderwidth;
             if (down==0) {
-                bottompoint3.y=y0+doc_y+fmt.getHeight()-bottomBorderwidth;
-                bottompoint2.y=y0+doc_y+fmt.getHeight()-0.5*bottomBorderwidth;
+                bottompoint3.y=y0+doc_y+fmt.getHeight()-1-bottomBorderwidth;
+                bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
             } else bottomBorderwidth=0;
             bottomrate=(double)bottomBorderwidth/(double)leftBorderwidth;
             switch (enode->getStyle()->border_style_left){
