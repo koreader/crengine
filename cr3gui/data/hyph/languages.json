@@ -10,6 +10,11 @@
         "language": "-"
     },
     {
+        "name": "Soft-hyphens only",
+        "filename": "@softhyphens",
+        "language": "-"
+    },
+    {
         "name": "Bulgarian",
         "filename": "Bulgarian.pattern",
         "language": "bg",

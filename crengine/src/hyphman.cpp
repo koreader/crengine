@@ -86,6 +86,13 @@ public:
     virtual ~AlgoHyph();
 };
 
+class SoftHyphensHyph : public HyphMethod
+{
+public:
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
+    virtual ~SoftHyphensHyph();
+};
+
 class NoHyph : public HyphMethod
 {
 public:
@@ -99,6 +106,7 @@ public:
 
 static NoHyph NO_HYPH;
 static AlgoHyph ALGO_HYPH;
+static SoftHyphensHyph SOFTHYPHENS_HYPH;
 
 HyphMethod * HyphMan::_method = &NO_HYPH;
 
@@ -127,7 +135,7 @@ void HyphMan::uninit()
 		delete _dictList;
     _dictList = NULL;
 	_selectedDictionary = NULL;
-    if ( HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &NO_HYPH )
+    if ( HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &NO_HYPH && HyphMan::_method != &SOFTHYPHENS_HYPH )
             delete HyphMan::_method;
     _method = &NO_HYPH;
 }
@@ -137,7 +145,7 @@ bool HyphMan::activateDictionaryFromStream( LVStreamRef stream )
     if ( stream.isNull() )
         return false;
     CRLog::trace("remove old hyphenation method");
-    if ( HyphMan::_method != &NO_HYPH && HyphMan::_method != &ALGO_HYPH && HyphMan::_method ) {
+    if ( HyphMan::_method != &NO_HYPH && HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &SOFTHYPHENS_HYPH && HyphMan::_method ) {
         delete HyphMan::_method;
         HyphMan::_method = &NO_HYPH;
     }
@@ -201,19 +209,26 @@ bool HyphDictionary::activate()
 	if ( getType() == HDT_ALGORITHM ) {
 		CRLog::info("Turn on algorythmic hyphenation" );
         if ( HyphMan::_method != &ALGO_HYPH ) {
-            if ( HyphMan::_method != &NO_HYPH )
+            if ( HyphMan::_method != &SOFTHYPHENS_HYPH && HyphMan::_method != &NO_HYPH )
                 delete HyphMan::_method;
             HyphMan::_method = &ALGO_HYPH;
+        }
+	} else if ( getType() == HDT_SOFTHYPHENS ) {
+		CRLog::info("Turn on soft-hyphens hyphenation" );
+        if ( HyphMan::_method != &SOFTHYPHENS_HYPH ) {
+            if ( HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &NO_HYPH )
+                delete HyphMan::_method;
+            HyphMan::_method = &SOFTHYPHENS_HYPH;
         }
 	} else if ( getType() == HDT_NONE ) {
 		CRLog::info("Disabling hyphenation" );
         if ( HyphMan::_method != &NO_HYPH ) {
-            if ( HyphMan::_method != &ALGO_HYPH )
+            if ( HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &SOFTHYPHENS_HYPH )
                 delete HyphMan::_method;
             HyphMan::_method = &NO_HYPH;
         }
 	} else if ( getType() == HDT_DICT_ALAN || getType() == HDT_DICT_TEX ) {
-        if ( HyphMan::_method != &NO_HYPH && HyphMan::_method != &ALGO_HYPH ) {
+        if ( HyphMan::_method != &NO_HYPH && HyphMan::_method != &ALGO_HYPH && HyphMan::_method != &SOFTHYPHENS_HYPH ) {
             delete HyphMan::_method;
             HyphMan::_method = &NO_HYPH;
         }
@@ -253,7 +268,10 @@ void HyphDictionaryList::addDefault()
 		_list.add( new HyphDictionary( HDT_NONE, _16("[No Hyphenation]"), lString16(HYPH_DICT_ID_NONE), lString16(HYPH_DICT_ID_NONE) ) );
 	}
 	if ( !find( lString16( HYPH_DICT_ID_ALGORITHM ) ) ) {
-		_list.add( new HyphDictionary( HDT_ALGORITHM, _16("[Algorythmic Hyphenation]"), lString16(HYPH_DICT_ID_ALGORITHM), lString16(HYPH_DICT_ID_ALGORITHM) ) );
+		_list.add( new HyphDictionary( HDT_ALGORITHM, _16("[Algorithmic Hyphenation]"), lString16(HYPH_DICT_ID_ALGORITHM), lString16(HYPH_DICT_ID_ALGORITHM) ) );
+	}
+	if ( !find( lString16( HYPH_DICT_ID_SOFTHYPHENS ) ) ) {
+		_list.add( new HyphDictionary( HDT_SOFTHYPHENS, _16("[Soft-hyphens Hyphenation]"), lString16(HYPH_DICT_ID_SOFTHYPHENS), lString16(HYPH_DICT_ID_SOFTHYPHENS) ) );
 	}
 		
 }
@@ -329,6 +347,34 @@ HyphMan::HyphMan()
 }
 
 HyphMan::~HyphMan()
+{
+}
+
+// Used by SoftHyphensHyph::hyphenate(), but also as a first step
+// by TexHyph::hyphenate() and AlgoHyph::hyphenate() too: if
+// soft hyphens found in provided word, trust and use them; don't
+// do the regular patterns and algorithm matching (mostly because
+// making these ignore and skip soft-hyphens looks quite hard).
+static bool softhyphens_hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+{
+    bool soft_hyphens_found = false;
+    for ( int i = 0; i<len; i++ ) {
+        if ( widths[i] + hyphCharWidth > maxWidth )
+            break;
+        if ( str[i] == UNICODE_SOFT_HYPHEN_CODE ) {
+            flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            soft_hyphens_found = true;
+        }
+    }
+    return soft_hyphens_found;
+}
+
+bool SoftHyphensHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+{
+    return softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth);
+}
+
+SoftHyphensHyph::~SoftHyphensHyph()
 {
 }
 
@@ -754,6 +800,8 @@ bool TexHyph::match( const lChar16 * str, char * mask )
 
 bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
 {
+    if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth) )
+        return true;
     if ( len<=3 )
         return false;
     if ( len>=WORD_LENGTH )
@@ -828,6 +876,8 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
 
 bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
 {
+    if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth) )
+        return true;
     lUInt16 chprops[WORD_LENGTH];
     if ( len > WORD_LENGTH-2 )
         len = WORD_LENGTH - 2;

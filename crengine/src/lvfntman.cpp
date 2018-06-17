@@ -747,14 +747,15 @@ static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 48   30
 };
 
+// removed, as soft hyphens are now exclusively handled by hyphman:
+//      (ch==UNICODE_SOFT_HYPHEN_CODE?LCHAR_ALLOW_WRAP_AFTER:
 #define GET_CHAR_FLAGS(ch) \
      (ch<48?char_flags[ch]: \
-        (ch==UNICODE_SOFT_HYPHEN_CODE?LCHAR_ALLOW_WRAP_AFTER: \
         (ch==UNICODE_NO_BREAK_SPACE?LCHAR_IS_SPACE: \
         (ch==UNICODE_HYPHEN?LCHAR_DEPRECATED_WRAP_AFTER: \
         (ch==UNICODE_ZERO_WIDTH_SPACE?LCHAR_ALLOW_WRAP_AFTER: \
         (ch==UNICODE_THIN_SPACE?LCHAR_ALLOW_WRAP_AFTER: \
-         0))))))
+         0)))))
 
 class LVFreeTypeFace : public LVFont
 {
@@ -1114,6 +1115,14 @@ public:
         for ( nchars=0; nchars<len; nchars++) {
             lChar16 ch = text[nchars];
             bool isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
+            if (isHyphen) {
+                // do just what would be done below if zero width (no change
+                // in prev_width), and don't get involved in kerning
+                flags[nchars] = 0; // no LCHAR_ALLOW_WRAP_AFTER, will be dealt with by hyphenate()
+                widths[nchars] = prev_width;
+                lastFitChar = nchars + 1;
+                continue;
+            }
             FT_UInt ch_glyph_index = (FT_UInt)-1;
             int kerning = 0;
 #if (ALLOW_KERNING==1)
@@ -1397,16 +1406,17 @@ public:
         bool isHyphen = false;
         int x0 = x;
         for ( i=0; i<=len; i++) {
-            if ( i==len && (!addHyphen || isHyphen) )
+            if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
                 ch = text[i];
                 if ( ch=='\t' )
                     ch = ' ';
-                isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE) && (i<len-1);
+                // don't draw any soft hyphens inside text string
+                isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
             } else {
                 ch = UNICODE_SOFT_HYPHEN_CODE;
-                isHyphen = 0;
+                isHyphen = false; // an hyphen, but not one to not draw
             }
             FT_UInt ch_glyph_index = getCharIndex( ch, def_char );
             int kerning = 0;
@@ -1428,7 +1438,7 @@ public:
                     _glyph_cache.get( ch );
             if ( !item )
                 continue;
-            if ( (item && !isHyphen) || i>=len-1 ) { // avoid soft hyphens inside text string
+            if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
                 int w = item->advance + (kerning >> 6);
                 buf->Draw( x + (kerning>>6) + item->origin_x,
                     y + _baseline - item->origin_y,
@@ -1784,11 +1794,11 @@ public:
         bool isHyphen = false;
         int x0 = x;
         for ( i=0; i<=len; i++) {
-            if ( i==len && (!addHyphen || isHyphen) )
+            if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
                 ch = text[i];
-                isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE) && (i<len-1);
+                isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
             } else {
                 ch = UNICODE_SOFT_HYPHEN_CODE;
                 isHyphen = 0;
@@ -1799,7 +1809,7 @@ public:
             if ( item ) {
                 // avoid soft hyphens inside text string
                 w = item->advance;
-                if ( item->bmp_width && item->bmp_height && (!isHyphen || i>=len-1) ) {
+                if ( item->bmp_width && item->bmp_height && (!isHyphen || i==len) ) {
                     buf->Draw( x + item->origin_x,
                         y + _baseline - item->origin_y,
                         item->bmp,

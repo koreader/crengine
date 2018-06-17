@@ -39,6 +39,7 @@ enum HyphDictType
 {
 	HDT_NONE,      // disable hyphenation
 	HDT_ALGORITHM, // universal
+	HDT_SOFTHYPHENS, // from soft hyphens in text
 	HDT_DICT_ALAN, // tex/alreader
     HDT_DICT_TEX   // tex/fbreader
 };
@@ -63,6 +64,7 @@ public:
 
 #define HYPH_DICT_ID_NONE L"@none"
 #define HYPH_DICT_ID_ALGORITHM L"@algorithm"
+#define HYPH_DICT_ID_SOFTHYPHENS L"@softhyphens"
 #define HYPH_DICT_ID_DICTIONARY L"@dictionary"
 
 
@@ -86,6 +88,7 @@ class HyphDictionary;
 class HyphDictionaryList;
 class TexHyph;
 class AlgoHyph;
+class SoftHyphensHyph;
 
 /// hyphenation manager
 class HyphMan
@@ -93,6 +96,7 @@ class HyphMan
     friend class HyphDictionary;
     friend class TexHyph;
     friend class AlgoHyph;
+    friend class SoftHyphensHyph;
     static HyphMethod * _method;
     static HyphDictionary * _selectedDictionary;
     static HyphDictionaryList * _dictList;
