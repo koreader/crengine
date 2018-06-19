@@ -135,7 +135,7 @@
     },
     {
         "name": "Romanian",
-        "filename": "Roman_hyphen_(Alan).pdb",
+        "filename": "Roman.pattern",
         "language": "ro",
         "aliases": ["ron"]
     },
