@@ -105,7 +105,7 @@
     },
     {
         "name": "Irish",
-        "filename": "Irish_hyphen_(Alan).pdb",
+        "filename": "Irish.pattern",
         "language": "ga",
         "aliases": ["gle"]
     },
