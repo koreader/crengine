@@ -93,7 +93,7 @@
     },
     {
         "name": "Hungarian",
-        "filename": "Hungarian_hyphen_(Alan).pdb",
+        "filename": "Hungarian.pattern",
         "language": "hu",
         "aliases": ["hun"]
     },
