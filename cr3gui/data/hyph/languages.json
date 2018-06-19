@@ -175,7 +175,7 @@
     },
     {
         "name": "Swedish",
-        "filename": "Swedish_hyphen_(Alan).pdb",
+        "filename": "Swedish.pattern",
         "language": "sv",
         "aliases": ["swe"]
     },
