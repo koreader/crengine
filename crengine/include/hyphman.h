@@ -35,6 +35,9 @@ public:
 #define HYPH_MIN_HYPHEN_MIN 1
 #define HYPH_MAX_HYPHEN_MIN 10
 
+// Don't trust soft-hyphens when using dict or algo methods
+#define HYPH_DEFAULT_TRUST_SOFT_HYPHENS 0
+
 enum HyphDictType
 {
 	HDT_NONE,      // disable hyphenation
@@ -102,6 +105,7 @@ class HyphMan
     static HyphDictionaryList * _dictList;
     static int _LeftHyphenMin;
     static int _RightHyphenMin;
+    static int _TrustSoftHyphens;
 public:
     static void uninit();
     static bool activateDictionaryFromStream( LVStreamRef stream );
@@ -113,6 +117,8 @@ public:
     static int getRightHyphenMin() { return _RightHyphenMin; }
     static bool setLeftHyphenMin( int left_hyphen_min );
     static bool setRightHyphenMin( int right_hyphen_min );
+    static int getTrustSoftHyphens() { return _TrustSoftHyphens; }
+    static bool setTrustSoftHyphens( int trust_soft_hyphen );
 
     HyphMan();
     ~HyphMan();

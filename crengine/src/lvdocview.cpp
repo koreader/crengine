@@ -5930,6 +5930,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 HyphMan::setRightHyphenMin(rightHyphenMin);
                 REQUEST_RENDER("propsApply hyphenation right_hyphen_min")
             }
+        } else if (name == PROP_HYPHENATION_TRUST_SOFT_HYPHENS) {
+            int trustSoftHyphens = props->getIntDef(PROP_HYPHENATION_TRUST_SOFT_HYPHENS, HYPH_DEFAULT_TRUST_SOFT_HYPHENS);
+            if (HyphMan::getTrustSoftHyphens() != trustSoftHyphens) {
+                HyphMan::setTrustSoftHyphens(trustSoftHyphens);
+                REQUEST_RENDER("propsApply hyphenation trust_soft_hyphens")
+            }
 #endif
         } else if (name == PROP_INTERLINE_SPACE) {
             int interlineSpace = props->getIntDef(PROP_INTERLINE_SPACE,

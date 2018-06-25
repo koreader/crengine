@@ -361,6 +361,7 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     hash = hash * 31 + (HyphMan::getSelectedDictionary()!=NULL ? HyphMan::getSelectedDictionary()->getHash() : 123 );
     hash = hash * 31 + HyphMan::getLeftHyphenMin();
     hash = hash * 31 + HyphMan::getRightHyphenMin();
+    hash = hash * 31 + HyphMan::getTrustSoftHyphens();
     return hash;
 }
 

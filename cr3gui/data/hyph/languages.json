@@ -5,13 +5,14 @@
         "language": "-"
     },
     {
-        "name": "Algorithm",
-        "filename": "@algorithm",
-        "language": "-"
-    },
-    {
         "name": "Soft-hyphens only",
         "filename": "@softhyphens",
+        "language": "-",
+        "separator": true
+    },
+    {
+        "name": "Algorithm",
+        "filename": "@algorithm",
         "language": "-"
     },
     {
