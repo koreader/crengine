@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
 % 201800612
+% This file is the default hyph pattern for crengine and is harcoded in include/hyphman.h:L83
+% If one should rename or delete this file, please update the relevant line
+% https://github.com/koreader/crengine/blob/9e2cb90edb580688e97f42c3a3397702dc2081bd/crengine/include/hyphman.h#L83
 -->
 <HyphenationDescription>
 <pattern> ach4</pattern>

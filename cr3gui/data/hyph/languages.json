@@ -11,7 +11,7 @@
     },
     {
         "name": "Bulgarian",
-        "filename": "Bulgarian_hyphen_(Alan).pdb",
+        "filename": "Bulgarian.pattern",
         "language": "bg",
         "aliases": ["bul"]
     },
@@ -23,13 +23,13 @@
     },
     {
         "name": "Czech",
-        "filename": "Czech_hyphen_(Alan).pdb",
+        "filename": "Czech.pattern",
         "language": "cs",
         "aliases": ["ces"]
     },
     {
         "name": "Danish",
-        "filename": "Danish_hyphen_(Alan).pdb",
+        "filename": "Danish.pattern",
         "language": "da",
         "aliases": ["dan"]
     },
@@ -42,21 +42,17 @@
     {
         "name": "English (UK)",
         "filename": "English_GB.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "en-GB"
     },
     {
         "name": "English (US)",
         "filename": "English_US.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "en-US",
         "aliases": ["en", "eng"]
     },
     {
         "name": "Finnish",
-        "filename": "Finnish_hyphen_(Alan).pdb",
+        "filename": "Finnish.pattern",
         "language": "fi",
         "aliases": ["fin"]
     },
@@ -89,25 +85,25 @@
     },
     {
         "name": "Hungarian",
-        "filename": "Hungarian_hyphen_(Alan).pdb",
+        "filename": "Hungarian.pattern",
         "language": "hu",
         "aliases": ["hun"]
     },
     {
         "name": "Icelandic",
-        "filename": "Icelandic_hyphen_(Alan).pdb",
+        "filename": "Icelandic.pattern",
         "language": "is",
         "aliases": ["isl"]
     },
     {
         "name": "Irish",
-        "filename": "Irish_hyphen_(Alan).pdb",
+        "filename": "Irish.pattern",
         "language": "ga",
         "aliases": ["gle"]
     },
     {
         "name": "Italian",
-        "filename": "Italian_hyphen_(Alan).pdb",
+        "filename": "Italian.pattern",
         "language": "it",
         "aliases": ["ita"]
     },
@@ -125,41 +121,41 @@
     },
     {
         "name": "Portuguese",
-        "filename": "Portuguese_hyphen_(Alan).pdb",
+        "filename": "Portuguese.pattern",
         "language": "pt",
         "aliases": ["por"]
     },
     {
         "name": "Romanian",
-        "filename": "Roman_hyphen_(Alan).pdb",
+        "filename": "Roman.pattern",
         "language": "ro",
         "aliases": ["ron"]
     },
     {
         "name": "Russian + English (UK)",
-        "filename": "Russian_EnGB_hyphen_(Alan).pdb",
+        "filename": "Russian_EnGB.pattern",
         "language": "ru,en-GB"
     },
     {
         "name": "Russian + English (US)",
-        "filename": "Russian_EnUS_hyphen_(Alan).pdb",
+        "filename": "Russian_EnUS.pattern",
         "language": "ru,en-US"
     },
     {
         "name": "Russian",
-        "filename": "Russian_hyphen_(Alan).pdb",
+        "filename": "Russian.pattern",
         "language": "ru",
         "aliases": ["rus"]
     },
     {
         "name": "Slovak",
-        "filename": "Slovak_hyphen_(Alan).pdb",
+        "filename": "Slovak.pattern",
         "language": "sk",
         "aliases": ["slk"]
     },
     {
         "name": "Slovenian",
-        "filename": "Slovenian_hyphen_(Alan).pdb",
+        "filename": "Slovenian.pattern",
         "language": "sl",
         "aliases": ["slv"]
     },
@@ -171,7 +167,7 @@
     },
     {
         "name": "Swedish",
-        "filename": "Swedish_hyphen_(Alan).pdb",
+        "filename": "Swedish.pattern",
         "language": "sv",
         "aliases": ["swe"]
     },
@@ -183,7 +179,7 @@
     },
     {
         "name": "Ukrainian",
-        "filename": "Ukrain_hyphen_(Alan).pdb",
+        "filename": "Ukrain.pattern",
         "language": "uk",
         "aliases": ["ukr"]
     }
