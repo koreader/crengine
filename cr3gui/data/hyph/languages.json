@@ -12,8 +12,6 @@
     {
         "name": "Bulgarian",
         "filename": "Bulgarian.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "bg",
         "aliases": ["bul"]
     },
@@ -26,8 +24,6 @@
     {
         "name": "Czech",
         "filename": "Czech.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "cs",
         "aliases": ["ces"]
     },
@@ -46,15 +42,11 @@
     {
         "name": "English (UK)",
         "filename": "English_GB.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "en-GB"
     },
     {
         "name": "English (US)",
         "filename": "English_US.pattern",
-        "left_hyphen_min": 2,
-        "right_hyphen_min":2,
         "language": "en-US",
         "aliases": ["en", "eng"]
     },
