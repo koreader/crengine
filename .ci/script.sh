@@ -12,7 +12,7 @@ for entry in "$search_dir"/*; do
     fi
 done
 
-file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm')
+file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
 
 if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"

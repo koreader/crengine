@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.15k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0005
+#define FORMATTING_VERSION_ID 0x0006
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -361,6 +361,7 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     hash = hash * 31 + (HyphMan::getSelectedDictionary()!=NULL ? HyphMan::getSelectedDictionary()->getHash() : 123 );
     hash = hash * 31 + HyphMan::getLeftHyphenMin();
     hash = hash * 31 + HyphMan::getRightHyphenMin();
+    hash = hash * 31 + HyphMan::getTrustSoftHyphens();
     return hash;
 }
 
@@ -5992,7 +5993,7 @@ bool ldomDocument::findText( lString16 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY );
 }
 
-static bool findText( const lString16 & str, int & pos, const lString16 & pattern )
+static bool findText( const lString16 & str, int & pos, int & endpos, const lString16 & pattern )
 {
     int len = pattern.length();
     if ( pos < 0 || pos + len > (int)str.length() )
@@ -6002,21 +6003,27 @@ static bool findText( const lString16 & str, int & pos, const lString16 & patter
     int nlen = str.length() - pos - len;
     for ( int j=0; j<=nlen; j++ ) {
         bool matched = true;
+        int nsofthyphens = 0; // There can be soft-hyphen in str, but not in pattern
         for ( int i=0; i<len; i++ ) {
-            if ( s1[i] != s2[i] ) {
+            while ( i+nsofthyphens < nlen && s1[i+nsofthyphens] == UNICODE_SOFT_HYPHEN_CODE ) {
+                nsofthyphens += 1;
+            }
+            if ( s1[i+nsofthyphens] != s2[i] ) {
                 matched = false;
                 break;
             }
         }
-        if ( matched )
+        if ( matched ) {
+            endpos = pos + len + nsofthyphens;
             return true;
+        }
         s1++;
         pos++;
     }
     return false;
 }
 
-static bool findTextRev( const lString16 & str, int & pos, const lString16 & pattern )
+static bool findTextRev( const lString16 & str, int & pos, int & endpos, const lString16 & pattern )
 {
     int len = pattern.length();
     if ( pos+len>(int)str.length() )
@@ -6028,14 +6035,20 @@ static bool findTextRev( const lString16 & str, int & pos, const lString16 & pat
     int nlen = pos;
     for ( int j=nlen; j>=0; j-- ) {
         bool matched = true;
+        int nsofthyphens = 0; // There can be soft-hyphen in str, but not in pattern
         for ( int i=0; i<len; i++ ) {
-            if ( s1[i] != s2[i] ) {
+            while ( i+nsofthyphens < nlen && s1[i+nsofthyphens] == UNICODE_SOFT_HYPHEN_CODE ) {
+                nsofthyphens += 1;
+            }
+            if ( s1[i+nsofthyphens] != s2[i] ) {
                 matched = false;
                 break;
             }
         }
-        if ( matched )
+        if ( matched ) {
+            endpos = pos + len + nsofthyphens;
             return true;
+        }
         s1--;
         pos--;
     }
@@ -6062,6 +6075,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
 
             lString16 txt = _end.getNode()->getText();
             int offs = _end.getOffset();
+            int endpos;
 
             if ( firstFoundTextY!=-1 && maxHeight>0 ) {
                 ldomXPointer p( _end.getNode(), offs );
@@ -6073,14 +6087,14 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findTextRev( txt, offs, pattern ) ) {
+            while ( ::findTextRev( txt, offs, endpos, pattern ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _end.getNode(), offs );
                     int currentTextY = p.toPoint().y;
                     if (maxHeightCheckStartY == -1 || currentTextY <= maxHeightCheckStartY)
                         firstFoundTextY = currentTextY;
                 }
-                words.add( ldomWord(_end.getNode(), offs, offs + pattern.length() ) );
+                words.add( ldomWord(_end.getNode(), offs, endpos ) );
                 offs--;
             }
             if ( !_end.prevVisibleText() )
@@ -6101,6 +6115,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
 		}
         while ( !isNull() ) {
             int offs = _start.getOffset();
+            int endpos;
 
             if ( firstFoundTextY!=-1 && maxHeight>0 ) {
                 ldomXPointer p( _start.getNode(), offs );
@@ -6114,7 +6129,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findText( txt, offs, pattern ) ) {
+            while ( ::findText( txt, offs, endpos, pattern ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _start.getNode(), offs );
                     int currentTextY = p.toPoint().y;
@@ -6126,7 +6141,7 @@ bool ldomXRange::findText( lString16 pattern, bool caseInsensitive, bool reverse
                             firstFoundTextY = currentTextY;
                     }
                 }
-                words.add( ldomWord(_start.getNode(), offs, offs + pattern.length() ) );
+                words.add( ldomWord(_start.getNode(), offs, endpos ) );
                 offs++;
             }
             if ( !_start.nextVisibleText() )
@@ -6587,6 +6602,7 @@ inline bool IsWordSeparator( lChar16 ch )
     if (ch >= 0x61 && ch <= 0x7A) return false; // lowercase ascii letters
     if (ch >= 0x41 && ch <= 0x5A) return false; // uppercase ascii letters
     if (ch >= 0x30 && ch <= 0x39) return false; // digits
+    if (ch == 0xAD ) return false; // soft-hyphen, considered now as part of word
     // All other below 0xC0 are word separators:
     //   < 0x30 space, !"#$%&'()*+,-./
     //   < 0x41 :;<=>?@
@@ -7219,7 +7235,7 @@ public:
         for ( int i=nodeRange->getStart().getOffset(); i <= len; i++ ) {
             // int alpha = lGetCharProps(text[i]) & CH_PROP_ALPHA;
             // Also allow digits (years, page numbers) to be considered words
-            int alpha = lGetCharProps(text[i]) & (CH_PROP_ALPHA|CH_PROP_DIGIT);
+            int alpha = lGetCharProps(text[i]) & (CH_PROP_ALPHA|CH_PROP_DIGIT|CH_PROP_HYPHEN);
             if (alpha && beginOfWord<0 ) {
                 beginOfWord = i;
             }
@@ -7583,7 +7599,7 @@ lString16 ldomXRange::getRangeText( lChar16 blockDelimiter, int maxTextLen )
 {
     ldomTextCollector callback( blockDelimiter, maxTextLen );
     forEach( &callback );
-    return callback.getText();
+    return removeSoftHyphens( callback.getText() );
 }
 
 /// returns href attribute of <A> element, plus xpointer of <A> element itself
@@ -11994,7 +12010,7 @@ static void makeTocFromHeadings( ldomNode * node )
     if ( node->getNodeId() < el_h1 || node->getNodeId() > el_h6 )
         return;
     level = node->getNodeId() - el_h1 + 1;
-    lString16 title = node->getText(' ');
+    lString16 title = removeSoftHyphens( node->getText(' ') );
     ldomXPointer xp = ldomXPointer(node, 0);
     LVTocItem * root = node->getDocument()->getToc();
     LVTocItem * parent = root;

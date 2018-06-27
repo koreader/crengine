@@ -3398,7 +3398,7 @@ CH_PROP_SIGN,  // 00A9
 CH_PROP_SIGN,  // 00AA
 CH_PROP_SIGN,  // 00AB
 CH_PROP_SIGN,  // 00AC
-CH_PROP_SIGN,  // 00AD
+CH_PROP_HYPHEN,// 00AD soft-hyphen (UNICODE_SOFT_HYPHEN_CODE)
 CH_PROP_SIGN,  // 00AE
 CH_PROP_SIGN,  // 00AF
 // 0x00A0:
@@ -4182,6 +4182,10 @@ void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int
 {
     int hwStart, hwEnd;
 
+    // 20180615: don't split anymore on UNICODE_SOFT_HYPHEN_CODE, consider
+    // it like an alpha char of zero width not drawn.
+    // Only hyphenation code will care about it
+
 //    // skip spaces
 //    for (hwStart=pos-1; hwStart>0; hwStart--)
 //    {
@@ -4207,7 +4211,7 @@ void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int
     {
         lChar16 ch = str[hwStart];
         lUInt16 props = getCharProp(ch);
-        if ( props & CH_PROP_ALPHA )
+        if ( props & CH_PROP_ALPHA || props & CH_PROP_HYPHEN )
             break;
     }
     if ( hwStart<0 ) {
@@ -4221,7 +4225,7 @@ void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int
     {
         lChar16 ch = str[hwStart];
         //int lastAlpha = -1;
-        if (getCharProp(ch) & CH_PROP_ALPHA) {
+        if ( getCharProp(ch) & CH_PROP_ALPHA || getCharProp(ch) & CH_PROP_HYPHEN ) {
             //lastAlpha = hwStart;
         } else {
             hwStart++;
@@ -4236,10 +4240,10 @@ void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int
     for (hwEnd=hwStart+1; hwEnd<sz; hwEnd++) // 20080404
     {
         lChar16 ch = str[hwEnd];
-        if (!(getCharProp(ch) & CH_PROP_ALPHA))
+        if (!(getCharProp(ch) & CH_PROP_ALPHA) && !(getCharProp(ch) & CH_PROP_HYPHEN))
             break;
         ch = str[hwEnd-1];
-        if ( (ch==' ' || ch==UNICODE_SOFT_HYPHEN_CODE) )
+        if ( ch==' ' ) // || ch==UNICODE_SOFT_HYPHEN_CODE) )
             break;
     }
     start = hwStart;
@@ -5043,6 +5047,30 @@ void limitStringSize(lString16 & str, int maxSize) {
 	int split = lastSpace > 0 ? lastSpace : maxSize;
 	str = str.substr(0, split);
     str += "...";
+}
+
+/// remove soft-hyphens from string
+lString16 removeSoftHyphens( lString16 s )
+{
+    lChar16 hyphen = lChar16(UNICODE_SOFT_HYPHEN_CODE);
+    int start = 0;
+    while (true) {
+        int p = -1;
+        int len = s.length();
+        for (int i = start; i < len; i++) {
+            if (s[i] == hyphen) {
+                p = i;
+                break;
+            }
+        }
+        if (p == -1)
+            break;
+        start = p;
+        lString16 s1 = s.substr( 0, p );
+        lString16 s2 = p < len-1 ? s.substr( p+1, len-p-1 ) : lString16::empty_str;
+        s = s1 + s2;
+    }
+    return s;
 }
 
 

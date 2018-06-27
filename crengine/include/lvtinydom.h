@@ -1769,7 +1769,7 @@ public:
     ldomWordEx( ldomWord & word )
         :  _word(word), _mark(word), _range(word)
     {
-        _text = _word.getText();
+        _text = removeSoftHyphens( _word.getText() );
     }
     ldomWord & getWord() { return _word; }
     ldomXRange & getRange() { return _range; }
