@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.15k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0006
+#define FORMATTING_VERSION_ID 0x0007
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -362,6 +362,8 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     hash = hash * 31 + HyphMan::getLeftHyphenMin();
     hash = hash * 31 + HyphMan::getRightHyphenMin();
     hash = hash * 31 + HyphMan::getTrustSoftHyphens();
+    hash = hash * 31 + gRenderDPI;
+    hash = hash * 31 + gRootFontSize;
     return hash;
 }
 
@@ -3302,7 +3304,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->list_style_position = css_lsp_outside;
     s->vertical_align = css_va_baseline;
     s->font_family = def_font->getFontFamily();
-    s->font_size.type = css_val_px;
+    s->font_size.type = css_val_screen_px; // we use this type, as we got the real font size from FontManager
     s->font_size.value = def_font->getSize();
     s->font_name = def_font->getTypeFace();
     s->font_weight = css_fw_400;
@@ -3310,7 +3312,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_indent.type = css_val_px;
     s->text_indent.value = 0;
     s->line_height.type = css_val_percent;
-    s->line_height.value = def_interline_space;
+    s->line_height.value = def_interline_space << 8;
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
     if ( _last_docflags != getDocFlags() ) {
@@ -12294,14 +12296,14 @@ void runBasicTinyDomUnitTests()
         style1->vertical_align = css_va_baseline;
         style1->font_family = css_ff_sans_serif;
         style1->font_size.type = css_val_px;
-        style1->font_size.value = 24;
+        style1->font_size.value = 24 << 8;
         style1->font_name = cs8("Arial");
         style1->font_weight = css_fw_400;
         style1->font_style = css_fs_normal;
         style1->text_indent.type = css_val_px;
         style1->text_indent.value = 0;
         style1->line_height.type = css_val_percent;
-        style1->line_height.value = 100;
+        style1->line_height.value = 100 << 8;
 
         css_style_ref_t style2;
         style2 = css_style_ref_t( new css_style_rec_t );
@@ -12321,14 +12323,14 @@ void runBasicTinyDomUnitTests()
         style2->vertical_align = css_va_baseline;
         style2->font_family = css_ff_sans_serif;
         style2->font_size.type = css_val_px;
-        style2->font_size.value = 24;
+        style2->font_size.value = 24 << 8;
         style2->font_name = cs8("Arial");
         style2->font_weight = css_fw_400;
         style2->font_style = css_fs_normal;
         style2->text_indent.type = css_val_px;
         style2->text_indent.value = 0;
         style2->line_height.type = css_val_percent;
-        style2->line_height.value = 100;
+        style2->line_height.value = 100 << 8;
 
         css_style_ref_t style3;
         style3 = css_style_ref_t( new css_style_rec_t );
@@ -12348,14 +12350,14 @@ void runBasicTinyDomUnitTests()
         style3->vertical_align = css_va_baseline;
         style3->font_family = css_ff_sans_serif;
         style3->font_size.type = css_val_px;
-        style3->font_size.value = 24;
+        style3->font_size.value = 24 << 8;
         style3->font_name = cs8("Arial");
         style3->font_weight = css_fw_400;
         style3->font_style = css_fs_normal;
         style3->text_indent.type = css_val_px;
         style3->text_indent.value = 0;
         style3->line_height.type = css_val_percent;
-        style3->line_height.value = 100;
+        style3->line_height.value = 100 << 8;
 
         el1->setStyle(style1);
         css_style_ref_t s1 = el1->getStyle();

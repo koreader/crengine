@@ -18,6 +18,17 @@
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
 
+int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
+bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
+int gRootFontSize = 24; // will be reset as soon as font size is set
+
+int scaleForRenderDPI( int value ) {
+    // if gRenderDPI == 0 or 96, use value as is (1px = 1px)
+    if (gRenderDPI && gRenderDPI != BASE_CSS_DPI) {
+        value = value * gRenderDPI / BASE_CSS_DPI;
+    }
+    return value;
+}
 
 //#define DEBUG_TREE_DRAW 3
 // define to non-zero (1..5) to see block bounds
@@ -71,9 +82,7 @@ simpleLogFile logfile;
 
 #endif
 
-int measureBorder(ldomNode *enode,int border);
 // prototypes
-int lengthToPx( css_length_t val, int base_px, int base_em );
 void copystyle( css_style_ref_t sourcestyle, css_style_ref_t deststyle );
 css_page_break_t getPageBreakBefore( ldomNode * el );
 int CssPageBreak2Flags( css_page_break_t prop );
@@ -906,9 +915,19 @@ int LVRendGetFontEmbolden()
 
 LVFontRef getFont(css_style_rec_t * style, int documentId)
 {
-    int sz = style->font_size.value;
-    if ( style->font_size.type != css_val_px && style->font_size.type != css_val_percent )
-        sz >>= 8;
+    int sz;
+    if ( style->font_size.type == css_val_em || style->font_size.type == css_val_ex ||
+            style->font_size.type == css_val_percent ) {
+        // font_size.type can't be em/ex/%, it should have been converted to px
+        // or screen_px while in setNodeStyle().
+        printf("CRE WARNING: getFont: %d of unit %d\n", style->font_size.value>>8, style->font_size.type);
+        sz = style->font_size.value >> 8; // set some value anyway
+    }
+    else {
+        // We still need to convert other absolute units to px.
+        // (we pass 0 as base_em and base_px, as these would not be used).
+        sz = lengthToPx(style->font_size, 0, 0);
+    }
     if ( sz < 8 )
         sz = 8;
     if ( sz > 340 )
@@ -985,29 +1004,81 @@ int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
     return flg;
 }
 
+// Convert CSS value (type + number value) to screen px
 int lengthToPx( css_length_t val, int base_px, int base_em )
 {
+    if (val.type == css_val_screen_px) { // use value as is
+        return val.value;
+    }
+
+    // base_px is usually the width of the container element
+    // base_em is usually the font size of the parent element
+    int px = 0; // returned screen px
+    bool ensure_non_zero = true; // return at least 1px if val.value is non-zero
+    // Previously, we didn't, so don't ensure non-zero if gRenderDPI=0
+    if (!gRenderDPI) ensure_non_zero = false;
+
+    // Scale style value according to gRenderDPI (no scale if 96 or 0)
+    // we do that early to not lose precision
+    int value = scaleForRenderDPI(val.value);
+
+    // value for all units is stored *256 to not lose fractional part
     switch( val.type )
     {
+    /* absolute value, most often seen */
     case css_val_px:
-        // nothing to do
-        return val.value;
-    case css_val_ex: // not implemented: treat as em
-    case css_val_em: // value = em*256
-        return ( (base_em * val.value) >> 8 );
+        // round it to closest int
+        px = (value + 0x7F) >> 8;
+        break;
+
+    /* relative values */
+    /* We should use val.value (not scaled by gRenderDPI) here */
+    case css_val_em: // value = em*256 (font size of the current element)
+        px = (base_em * val.value) >> 8;
+        break;
     case css_val_percent:
-        return ( (base_px * val.value) / 100 );
-    case css_val_unspecified:
-    case css_val_in: // 2.54 cm
-    case css_val_cm:
-    case css_val_mm:
-    case css_val_pt: // 1/72 in
-    case css_val_pc: // 12 pt
+        px = ( base_px * val.value / 100 ) >> 8;
+        break;
+    case css_val_ex: // value = ex*512 (approximated with base_em, 1ex =~ 0.5em in many fonts)
+        px = (base_em * val.value) >> 9;
+        break;
+
+    case css_val_rem: // value = rem*256 (font size of the root element)
+        px = (gRootFontSize * val.value) >> 8;
+        break;
+
+    /* absolute value, less often used - value = unit*256 */
+    /* (previously treated by crengine as 0, which we still do if gRenderDPI=0) */
+    case css_val_in: // 2.54 cm   1in = 96px
+        if (gRenderDPI)
+            px = (96 * value ) >> 8;
+        break;
+    case css_val_cm: //        2.54cm = 96px
+        if (gRenderDPI)
+            px = (int)(96 * value / 2.54) >> 8;
+        break;
+    case css_val_mm: //        25.4mm = 96px
+        if (gRenderDPI)
+            px = (int)(96 * value / 25.4) >> 8;
+        break;
+    case css_val_pt: // 1/72 in  72pt = 96px
+        if (gRenderDPI)
+            px = 96 * value / 72 >> 8;
+        break;
+    case css_val_pc: // 12 pt     6pc = 96px
+        if (gRenderDPI)
+            px = 96 * value / 6 >> 8;
+        break;
+
+    case css_val_unspecified: // XXX shouldn't that be treated as px, for convenience?
     case css_val_inherited:
     default:
-        // not supported: treat as 0
-        return 0;
+        px = 0;
+        ensure_non_zero = false;
     }
+    if (!px && val.value && ensure_non_zero)
+        px = 1;
+    return px;
 }
 
 void SplitLines( const lString16 & str, lString16Collection & lines )
@@ -1087,39 +1158,45 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         //fmt = &fmt2;
         int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
         int width = fmt->getWidth();
+        int em = enode->getFont()->getSize();
         css_style_rec_t * style = enode->getStyle().get();
         if ((flags & LTEXT_FLAG_NEWLINE) && rm != erm_inline)
         {
-            css_length_t len = style->text_indent;
-            switch( len.type )
-            {
-            case css_val_percent:
-                ident = width * len.value / 100;
-                break;
-            case css_val_px:
-                ident = len.value;
-                break;
-            case css_val_em:
-                ident = len.value * enode->getFont()->getSize() / 256;
-                break;
-            default:
-                ident = 0;
-                break;
+            ident = lengthToPx(style->text_indent, width, em);
+
+            // line-height may be a bit tricky, so let's fallback
+            // to the original behaviour when gRenderDPI = 0
+            if (gRenderDPI) {
+                // line_h is named 'interval' in lvtextfm.cpp, and described as:
+                //   *16 (16=normal, 32=double)
+                // so both % and em should be related to the value '16'
+                // line_height can be a number without unit, and it behaves as "em"
+                css_length_t line_height = css_length_t(
+                    style->line_height.type == css_val_unspecified ? css_val_em : style->line_height.type,
+                    style->line_height.value);
+                line_h = lengthToPx(line_height, 16, 16);
+                // line_height should never be css_val_inherited as spreadParent
+                // had updated it with its parent value, which could be the root
+                // element value, which is a value in % (90, 100 or 120), so we
+                // always got a valid style->line_height, and there is no need
+                // to keep the provided line_h like the original computation does
             }
-            len = style->line_height;
-            switch( len.type )
-            {
-            case css_val_percent:
-                line_h = len.value * 16 / 100;
-                break;
-            case css_val_px:
-                line_h = len.value * 16 / enode->getFont()->getHeight();
-                break;
-            case css_val_em:
-                line_h = len.value * 16 / 256;
-                break;
-            default:
-                break;
+            else { // original crengine computation
+                css_length_t len = style->line_height;
+                switch( len.type )
+                {
+                case css_val_percent:
+                    line_h = len.value * 16 / 100 >> 8;
+                    break;
+                case css_val_px:
+                    line_h = len.value * 16 / enode->getFont()->getHeight() >> 8;
+                    break;
+                case css_val_em:
+                    line_h = len.value * 16 / 256;
+                    break;
+                default:
+                    break;
+                }
             }
         }
         // save flags
@@ -1388,22 +1465,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     bgcl=0xFFFFFFFF;
 
             lInt8 letter_spacing;
-            css_length_t len = style->letter_spacing;
-            switch( len.type )
-            {
-            case css_val_percent:
-                letter_spacing = (lInt8)(font->getSize() * len.value / 100);
-                break;
-            case css_val_px:
-                letter_spacing = (lInt8)(len.value);
-                break;
-            case css_val_em:
-                letter_spacing = (lInt8)(len.value * font->getSize() / 256);
-                break;
-            default:
-                letter_spacing = 0;
-                break;
-            }
+            // % is not supported for letter_spacing by Firefox, but crengine
+            // did support it, by relating it to font size, so let's use em
+            // in place of width
+            int em = font->getSize();
+            letter_spacing = lengthToPx(style->letter_spacing, em, em);
             /*
             if ( baseflags & LTEXT_FLAG_PREFORMATTED ) {
                 int flags = baseflags | tflags;
@@ -1651,6 +1717,8 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hastopBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[0];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
+                // We need to get the container width only for css_val_percent
+                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int topBorderwidth = lengthToPx(bw, width, em);
                 topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
                 return topBorderwidth;}
@@ -1660,6 +1728,7 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasrightBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[1];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int rightBorderwidth = lengthToPx(bw, width, em);
                 rightBorderwidth = rightBorderwidth != 0 ? rightBorderwidth : DEFAULT_BORDER_WIDTH;
                 return rightBorderwidth;}
@@ -1669,6 +1738,7 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasbottomBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[2];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int bottomBorderwidth = lengthToPx(bw, width, em);
                 bottomBorderwidth = bottomBorderwidth != 0 ? bottomBorderwidth : DEFAULT_BORDER_WIDTH;
                 return bottomBorderwidth;}
@@ -1678,6 +1748,7 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasleftBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[3];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
+                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int leftBorderwidth = lengthToPx(bw, width, em);
                 leftBorderwidth = leftBorderwidth != 0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
                 return leftBorderwidth;}
@@ -2846,6 +2917,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
     }
 }
 
+/* Not used anywhere: not updated for absolute length units and *256
 void convertLengthToPx( css_length_t & val, int base_px, int base_em )
 {
     switch( val.type )
@@ -2875,6 +2947,7 @@ void convertLengthToPx( css_length_t & val, int base_px, int base_em )
         break;
     }
 }
+*/
 
 inline void spreadParent( css_length_t & val, css_length_t & parent_val )
 {
@@ -2935,7 +3008,8 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
-    int baseFontSize = enode->getDocument()->getDefaultFont()->getSize();
+    // not used (could be used for 'rem', but we have it in gRootFontSize)
+    // int baseFontSize = enode->getDocument()->getDefaultFont()->getSize();
 
     //////////////////////////////////////////////////////
     // apply style sheet
@@ -2970,25 +3044,21 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         case css_val_inherited: \
             pstyle->fld = parent_style->fld; \
             break; \
+        /* relative values to parent style */\
         case css_val_percent: \
             pstyle->fld.type = parent_style->fld.type; \
-            pstyle->fld.value = parent_style->fld.value * pstyle->fld.value / 100; \
-            break; \
-        case css_val_px: \
-            /*no need to change*/\
-            break; \
-        case css_val_pt: \
-            /*treat as px*/\
-            pstyle->fld.type = css_val_px; \
-            pstyle->fld.value = pstyle->fld.value/256; \
+            pstyle->fld.value = parent_style->fld.value * pstyle->fld.value / 100 / 256; \
             break; \
         case css_val_em: \
-            pstyle->fld.type = css_val_px; \
+            pstyle->fld.type = parent_style->fld.type; \
             pstyle->fld.value = parent_style->font_size.value * pstyle->fld.value / 256; \
             break; \
+        case css_val_ex: \
+            pstyle->fld.type = parent_style->fld.type; \
+            pstyle->fld.value = parent_style->font_size.value * pstyle->fld.value / 512; \
+            break; \
         default: \
-            pstyle->fld.type = css_val_px; \
-            pstyle->fld.value = 0; \
+            /* absolute values, no need to relate to parent style */\
             break; \
         }
 
@@ -3018,7 +3088,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->font_name = parent_font.get()->getTypeFace();
     }
     UPDATE_STYLE_FIELD( font_family, css_ff_inherit );
-    UPDATE_LEN_FIELD( font_size );
+    //UPDATE_LEN_FIELD( font_size ); // this is done below
     //UPDATE_LEN_FIELD( text_indent );
     spreadParent( pstyle->text_indent, parent_style->text_indent );
     switch( pstyle->font_weight )
@@ -3058,31 +3128,41 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         break;
     }
     switch( pstyle->font_size.type )
-    {
+    { // ordered here as most likely to be met
     case css_val_inherited:
         pstyle->font_size = parent_style->font_size;
         break;
+    case css_val_screen_px:
     case css_val_px:
-        // nothing to do
+        // absolute size, nothing to do
         break;
-    case css_val_ex: // not implemented: treat as em
-    case css_val_em: // value = em*256
-        pstyle->font_size.type = css_val_px;
+    case css_val_em: // value = em*256 ; 256 = 1em = x1
+        pstyle->font_size.type = parent_style->font_size.type;
         pstyle->font_size.value = parent_style->font_size.value * pstyle->font_size.value / 256;
         break;
-    case css_val_percent:
-        pstyle->font_size.type = css_val_px;
-        pstyle->font_size.value = parent_style->font_size.value * pstyle->font_size.value / 100;
+    case css_val_ex: // value = ex*256 ; 512 = 2ex = 1em = x1
+        pstyle->font_size.type = parent_style->font_size.type;
+        pstyle->font_size.value = parent_style->font_size.value * pstyle->font_size.value / 512;
         break;
-    case css_val_unspecified:
-    case css_val_in: // 2.54 cm
+    case css_val_percent: // value = percent number ; 100 = 100% => x1
+        pstyle->font_size.type = parent_style->font_size.type;
+        pstyle->font_size.value = parent_style->font_size.value * pstyle->font_size.value / 100 / 256;
+        break;
+    case css_val_rem:
+        // not relative to parent, nothing to do
+        break;
+    case css_val_in:
     case css_val_cm:
     case css_val_mm:
-    case css_val_pt: // 1/72 in
-    case css_val_pc: // 12 pt
-    case css_val_color: // 12 pt
+    case css_val_pt:
+    case css_val_pc:
+        // absolute size, nothing to do
+        break;
+    case css_val_unspecified:
+    case css_val_color:
         // not supported: use inherited value
         pstyle->font_size = parent_style->font_size;
+        // printf("CRE WARNING: font-size css_val_unspecified or color, fallback to inherited\n");
         break;
     }
     // line_height

@@ -49,6 +49,15 @@ void LVRendSetFontEmbolden( int addWidth=STYLE_FONT_EMBOLD_MODE_EMBOLD );
 /// get global document font style embolden mode
 int LVRendGetFontEmbolden();
 
-#endif
 int measureBorder(ldomNode *enode,int border);
 int lengthToPx( css_length_t val, int base_px, int base_em );
+int scaleForRenderDPI( int value );
+
+#define BASE_CSS_DPI 96 // at 96 dpi, 1 css px = 1 screen px
+#define DEF_RENDER_DPI 96
+#define DEF_RENDER_SCALE_FONT_WITH_DPI 0
+extern int gRenderDPI;
+extern bool gRenderScaleFontWithDPI;
+extern int gRootFontSize;;
+
+#endif

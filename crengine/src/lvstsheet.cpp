@@ -328,12 +328,12 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         // Approximate the (usually uneven) gaps between named sizes.
         if ( substr_icompare( "smaller", str ) ) {
             value.type = css_val_percent;
-            value.value = 80;
+            value.value = 80 << 8;
             return true;
         }
         else if ( substr_icompare( "larger", str ) ) {
             value.type = css_val_percent;
-            value.value = 125;
+            value.value = 125 << 8;
             return true;
         }
     }
@@ -368,6 +368,8 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         value.type = css_val_pt;
     else if ( substr_icompare( "ex", str ) )
         value.type = css_val_ex;
+    else if ( substr_icompare( "rem", str ) )
+        value.type = css_val_rem;
     else if ( substr_icompare( "px", str ) )
         value.type = css_val_px;
     else if ( substr_icompare( "in", str ) )
@@ -382,12 +384,10 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         value.type = css_val_percent;
     else if (n == 0 && frac == 0)
         value.type = css_val_px;
-    else
-        return false;
-    if ( value.type == css_val_px || value.type == css_val_percent )
-        value.value = n;                               // normal
-    else
-        value.value = n * 256 + 256 * frac / frac_div; // *256
+    // allow unspecified unit (for line-height)
+    // else
+    //    return false;
+    value.value = n * 256 + 256 * frac / frac_div; // *256
     return true;
 }
 
