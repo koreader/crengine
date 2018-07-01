@@ -158,20 +158,24 @@ enum css_list_style_position_t {
     css_lsp_outside
 };
 
-/// css length value types
+/// css length value types, see:
+//  https://developer.mozilla.org/en-US/docs/Web/CSS/length
+//  https://www.w3.org/Style/Examples/007/units.en.html
 enum css_value_type_t {
     css_val_inherited,
     css_val_unspecified,
-    css_val_px,
-    css_val_em,
-    css_val_ex,
-    css_val_in, // 2.54 cm
-    css_val_cm,
-    css_val_mm,
-    css_val_pt, // 1/72 in
-    css_val_pc, // 12 pt
+    css_val_px,  // css px (1 css px = 1 screen px at 96 DPI)
+    css_val_em,  // relative to font size of the current element
+    css_val_ex,  // 1ex =~ 0.5em in many fonts (https://developer.mozilla.org/en-US/docs/Web/CSS/length)
+    css_val_rem, // 'root em', relative to font-size of the root element (typically <html>)
+    css_val_in,  // 2.54 cm   1in = 96 css px
+    css_val_cm,  //        2.54cm = 96 css px
+    css_val_mm,  //        25.4mm = 96 css px
+    css_val_pt,  // 1/72 in  72pt = 96 css px
+    css_val_pc,  // 12 pt     6pc = 96 css px
     css_val_percent,
-    css_val_color
+    css_val_color,
+    css_val_screen_px  // screen px, for already scaled values
 };
 
 /// css border style values
@@ -229,16 +233,17 @@ enum css_border_collapse_value_t{
 /// css length value
 typedef struct css_length_tag {
     css_value_type_t type;  ///< type of value
-    int         value;      ///< value (*256 for all types except % and px)
+    int         value;      ///< value: *256 for all types (to allow for fractional px and %), except css_val_screen_px
+                            // allow for values -/+ 524288.0 (32bits -8 for fraction -4 for pack -1 for sign)
     css_length_tag()
-        : type (css_val_px), value (0)
+        : type (css_val_screen_px), value (0)
     {
     }
     css_length_tag( int px_value )
-        : type (css_val_px), value (px_value)
+        : type (css_val_screen_px), value (px_value)
     {
     }
-    css_length_tag(css_value_type_t n_type, int n_value)
+    css_length_tag(css_value_type_t n_type, int n_value) // expects caller to do << 8
         : type(n_type), value(n_value)
     {
     }

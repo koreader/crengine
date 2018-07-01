@@ -259,6 +259,10 @@ void LFormattedText::AddSourceObject(
     lInt16 width = (lUInt16)img->GetWidth();
     lInt16 height = (lUInt16)img->GetHeight();
 
+    // Scale image native size according to gRenderDPI
+    width = scaleForRenderDPI(width);
+    height = scaleForRenderDPI(height);
+
     css_style_ref_t style = node->getStyle();
     int w = 0, h = 0;
     int em = node->getFont()->getSize();
@@ -266,7 +270,7 @@ void LFormattedText::AddSourceObject(
     if ((nodename.lowercase().compare("sub")==0
                 || nodename.lowercase().compare("sup")==0)
             && (style->font_size.type==css_val_percent)) {
-        em = em*100/style->font_size.value;
+        em = em * 100 * 256 / style->font_size.value ; // value is %*256
     }
     w = lengthToPx(style->width, 100, em);
     h = lengthToPx(style->height, 100, em);
@@ -275,13 +279,13 @@ void LFormattedText::AddSourceObject(
 
     if ( w*h==0 ) {
         if ( w==0 ) {
-            if ( h==0 ) {
+            if ( h==0 ) { // use image native size
                 h = height;
                 w = width;
-            } else {
+            } else { // use style height, keep aspect ratio
                 w = width*h/height;
             }
-        } else if ( h==0 ) {
+        } else if ( h==0 ) { // use style width, keep aspect ratio
             h = w*height/width;
             if (h == 0) h = height;
         }

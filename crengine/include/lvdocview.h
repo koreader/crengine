@@ -258,7 +258,8 @@ private:
     ldomXPointer _posBookmark; // bookmark for current position
 
     int m_battery_state;
-    int m_font_size;
+    int m_requested_font_size;
+    int m_font_size; // = m_requested_font_size, possibly scaled according to DPI
     int m_status_font_size;
     int m_def_interline_space;
     LVArray<int> m_font_sizes;
@@ -809,6 +810,10 @@ public:
     void ZoomFont( int delta );
     /// retrieves current base font size
     int  getFontSize() { return m_font_size; }
+    /// retrieves requested font size (before scaling for DPI)
+    int  getRequestedFontSize() { return m_requested_font_size; }
+    /// scale font size according to gRenderDPI
+    int scaleFontSizeForDPI( int fontSize );
     /// sets new base font size
     void setFontSize( int newSize );
     /// retrieves current status bar font size

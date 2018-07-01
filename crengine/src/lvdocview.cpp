@@ -128,11 +128,11 @@ LVDocView::LVDocView(int bitsPerPixel) :
 	m_bitsPerPixel(bitsPerPixel), m_dx(400), m_dy(200), _pos(0), _page(0),
 			_posIsSet(false), m_battery_state(CR_BATTERY_STATE_NO_BATTERY)
 #if (LBOOK==1)
-			, m_font_size(32)
+			, m_requested_font_size(32)
 #elif defined(__SYMBIAN32__)
-			, m_font_size(30)
+			, m_requested_font_size(30)
 #else
-			, m_font_size(24)
+			, m_requested_font_size(24)
 #endif
 			, m_status_font_size(INFO_FONT_SIZE),
 			m_def_interline_space(100),
@@ -188,6 +188,8 @@ LVDocView::LVDocView(int bitsPerPixel) :
     createDefaultDocument(cs16("No document"), lString16(
 			L"Welcome to CoolReader! Please select file to open"));
 
+    m_font_size = scaleFontSizeForDPI(m_requested_font_size);
+    gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
     m_font = fontMan->GetFont(m_font_size, 400, false, DEFAULT_FONT_FAMILY,
 			m_defaultFontFace);
 	m_infoFont = fontMan->GetFont(m_status_font_size, 700, false,
@@ -2442,6 +2444,8 @@ void LVDocView::setRenderProps(int dx, int dy) {
 				- getPageHeaderHeight();
 
 	lString8 fontName = lString8(DEFAULT_FONT_NAME);
+	m_font_size = scaleFontSizeForDPI(m_requested_font_size);
+	gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
 	m_font = fontMan->GetFont(m_font_size, 400 + LVRendGetFontEmbolden(),
 			false, DEFAULT_FONT_FAMILY, m_defaultFontFace);
 	//m_font = LVCreateFontTransform( m_font, LVFONT_TRANSFORM_EMBOLDEN );
@@ -3175,16 +3179,29 @@ void LVDocView::setStatusFontSize(int newSize) {
 	//goToBookmark(_posBookmark);
 }
 
+int LVDocView::scaleFontSizeForDPI(int fontSize) {
+    if (gRenderScaleFontWithDPI) {
+        fontSize = scaleForRenderDPI(fontSize);
+        fontSize = findBestFit(m_font_sizes, fontSize);
+    }
+    return fontSize;
+}
+
 void LVDocView::setFontSize(int newSize) {
-	LVLock lock(getMutex());
-	int oldSize = m_font_size;
-	m_font_size = findBestFit(m_font_sizes, newSize);
-	if (oldSize != newSize) {
-		propsGetCurrent()->setInt(PROP_FONT_SIZE, m_font_size);
-        CRLog::debug("New font size: %d requested: %d", m_font_size, newSize);
+    LVLock lock(getMutex());
+
+    // We don't scale m_requested_font_size itself, so font size and gRenderDPI
+    // can be changed independantly.
+    int oldSize = m_requested_font_size;
+    if (oldSize != newSize) {
+        m_requested_font_size = findBestFit(m_font_sizes, newSize);
+        propsGetCurrent()->setInt(PROP_FONT_SIZE, m_requested_font_size);
+        m_font_size = scaleFontSizeForDPI(m_requested_font_size);
+        gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
+        CRLog::debug("New requested font size: %d (asked: %d)", m_requested_font_size, newSize);
         REQUEST_RENDER("setFontSize")
-	}
-	//goToBookmark(_posBookmark);
+    }
+    //goToBookmark(_posBookmark);
 }
 
 void LVDocView::setDefaultFontFace(const lString8 & newFace) {
@@ -3207,11 +3224,11 @@ void LVDocView::ZoomFont(int delta) {
 	if (m_font.isNull())
 		return;
 #if 1
-	int sz = m_font_size;
+	int sz = m_requested_font_size;
 	for (int i = 0; i < 15; i++) {
 		sz += delta;
 		int nsz = findBestFit(m_font_sizes, sz, m_font_sizes_cyclic);
-		if (nsz != m_font_size) {
+		if (nsz != m_requested_font_size) {
 			setFontSize(nsz);
 			return;
 		}
@@ -3229,7 +3246,7 @@ void LVDocView::ZoomFont(int delta) {
 		{
 			// found!
 			//ldomXPointer bm = getBookmark();
-			m_font_size = nfnt->getHeight();
+			m_requested_font_size = nfnt->getHeight();
 			Render();
 			goToBookmark(_posBookmark);
 			return;
@@ -5708,6 +5725,9 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
         p = 100;
     props->setInt(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, p);
 
+    props->setIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI); // 96 dpi
+    props->setIntDef(PROP_RENDER_SCALE_FONT_WITH_DPI, DEF_RENDER_SCALE_FONT_WITH_DPI); // no scale
+
     props->setIntDef(PROP_FILE_PROPS_FONT_SIZE, 22);
 
     for (int i=0; def_style_macros[i*2]; i++)
@@ -5891,7 +5911,7 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_FONT_SIZE) {
             int fontSize = props->getIntDef(PROP_FONT_SIZE, m_font_sizes[0]);
             setFontSize(fontSize);//cr_font_sizes
-            value = lString16::itoa(m_font_size);
+            value = lString16::itoa(m_requested_font_size);
         } else if (name == PROP_STATUS_FONT_SIZE) {
             int fontSize = props->getIntDef(PROP_STATUS_FONT_SIZE,
                                             INFO_FONT_SIZE);
@@ -5965,6 +5985,18 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if ( gFlgFloatingPunctuationEnabled != value ) {
                 gFlgFloatingPunctuationEnabled = value;
                 REQUEST_RENDER("propsApply floating punct")
+            }
+        } else if (name == PROP_RENDER_DPI) {
+            int value = props->getIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI);
+            if ( gRenderDPI != value ) {
+                gRenderDPI = value;
+                REQUEST_RENDER("propsApply render dpi")
+            }
+        } else if (name == PROP_RENDER_SCALE_FONT_WITH_DPI) {
+            int value = props->getIntDef(PROP_RENDER_SCALE_FONT_WITH_DPI, DEF_RENDER_SCALE_FONT_WITH_DPI);
+            if ( gRenderScaleFontWithDPI != value ) {
+                gRenderScaleFontWithDPI = value;
+                REQUEST_RENDER("propsApply render scale font with dpi")
             }
         } else if (name == PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT) {
             int value = props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT);
