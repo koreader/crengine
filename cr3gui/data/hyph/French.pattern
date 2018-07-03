@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20180506 
+% 20180703
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -26,11 +26,7 @@
 % Only works if minrighthyph is at 2 and improve the spacing between words.
 % Only uncomment if you prefer better spacing and not care much about rules :)
 %
-%lines 1882 to 1884 (disabled by default)
-% special patterns which override the rules that say one cannot hyphen after
-% con- (which mean cunt) at the beginning of a word.
-% Only uncomment if you don't have to read the text aloud ;-)
-% 
+% end of file : special corrections to deal with some cases met during reading.
 -->
 <HyphenationDescription>
 <pattern> a4</pattern>
@@ -1878,9 +1874,6 @@
 <pattern>5zent </pattern>
 <pattern>5zes </pattern>
 -->
-<!-- let's override rude syllabes
-<pattern> con5</pattern>
--->
 <!-- rules to take care of some exceptions introduced by right 1 
 but needed by crengine no quote pattern -->
 <pattern>d2s </pattern>
@@ -1889,6 +1882,7 @@ but needed by crengine no quote pattern -->
 <pattern>m2s </pattern>
 <pattern>n2x </pattern>
 <!-- other rules -->
-<pattern> dé3s2i5r </pattern>
-<pattern> dé3s2i5rs </pattern>
+<pattern> dé3s5i2r </pattern>
+<pattern> dé3s5i2rs </pattern>
+<pattern> souf5f6le</pattern>
 </HyphenationDescription>
