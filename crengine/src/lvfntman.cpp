@@ -2365,8 +2365,16 @@ public:
                 if ( face->face_flags & FT_FACE_FLAG_FIXED_WIDTH )
                     fontFamily = css_ff_monospace;
                 lString8 familyName(!facename.empty() ? facename : ::familyName(face));
+                // We don't need this here and in other places below: all fonts (except
+                // monospaces) will be marked as sans-serif, and elements with
+                // style {font-family:serif;} will use the default font too.
+                // (we don't ship any Times, and someone having unluckily such
+                // a font among his would see it used for {font-family:serif;}
+                // elements instead of his default font)
+                /*
                 if ( familyName=="Times" || familyName=="Times New Roman" )
                     fontFamily = css_ff_serif;
+                */
 
                 bool boldFlag = !facename.empty() ? bold : (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
                 bool italicFlag = !facename.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
@@ -2636,8 +2644,10 @@ public:
             if ( face->face_flags & FT_FACE_FLAG_FIXED_WIDTH )
                 fontFamily = css_ff_monospace;
             lString8 familyName(!faceName.empty() ? faceName : ::familyName(face));
+            /*
             if ( familyName=="Times" || familyName=="Times New Roman" )
                 fontFamily = css_ff_serif;
+            */
 
             bool boldFlag = !faceName.empty() ? bold : (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
@@ -2734,8 +2744,10 @@ public:
             if ( face->face_flags & FT_FACE_FLAG_FIXED_WIDTH )
                 fontFamily = css_ff_monospace;
             lString8 familyName( ::familyName(face) );
+            /*
             if ( familyName=="Times" || familyName=="Times New Roman" )
                 fontFamily = css_ff_serif;
+            */
 
             LVFontDef def(
                 fname,
@@ -2833,8 +2845,10 @@ public:
             if ( face->face_flags & FT_FACE_FLAG_FIXED_WIDTH )
                 fontFamily = css_ff_monospace;
             lString8 familyName( ::familyName(face) );
+            /*
             if ( familyName=="Times" || familyName=="Times New Roman" )
                 fontFamily = css_ff_serif;
+            */
 
             LVFontDef def(
                 name,
