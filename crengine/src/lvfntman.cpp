@@ -2500,6 +2500,12 @@ public:
 
         //printf("going to load font file %s\n", fname.c_str());
         bool loaded = false;
+        // Use the family of the font we found in the cache (it may be different
+        // from the requested family).
+        // Assigning the requested familly to this new font could be wrong, and
+        // may cause a style or font mismatch when loading from cache, forcing a
+        // full re-rendering).
+        family = item->getDef()->getFamily();
         if (item->getDef()->getBuf().isNull())
             loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize );
         else

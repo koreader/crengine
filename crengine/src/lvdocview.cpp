@@ -149,6 +149,7 @@ LVDocView::LVDocView(int bitsPerPixel) :
 			 */
 			, m_stream(NULL), m_doc(NULL), m_stylesheet(def_stylesheet),
             m_backgroundTiled(true),
+            m_stylesheetNeedsUpdate(true),
             m_highlightBookmarks(1),
 			m_pageMargins(DEFAULT_PAGE_MARGIN,
 					DEFAULT_PAGE_MARGIN / 2 /*+ INFO_FONT_SIZE + 4 */,
@@ -488,11 +489,15 @@ void LVDocView::setStyleSheet(lString8 css_text) {
     REQUEST_RENDER("setStyleSheet")
 
     m_stylesheet = css_text;
+    m_stylesheetNeedsUpdate = true;
 }
 
 void LVDocView::updateDocStyleSheet() {
+    if (!m_stylesheetNeedsUpdate)
+        return;
     CRPropRef p = m_props->getSubProps("styles.");
     m_doc->setStyleSheet(substituteCssMacros(m_stylesheet, p).c_str(), true);
+    m_stylesheetNeedsUpdate = false;
 }
 
 void LVDocView::Clear() {
