@@ -493,7 +493,8 @@ void LVDocView::setStyleSheet(lString8 css_text) {
 }
 
 void LVDocView::updateDocStyleSheet() {
-    if (!m_stylesheetNeedsUpdate)
+    // Don't skip this when document is not yet rendered (or is being re-rendered)
+    if (m_is_rendered && !m_stylesheetNeedsUpdate)
         return;
     CRPropRef p = m_props->getSubProps("styles.");
     m_doc->setStyleSheet(substituteCssMacros(m_stylesheet, p).c_str(), true);
