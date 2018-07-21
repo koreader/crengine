@@ -1571,6 +1571,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->text_align = source->text_align ;
     dest->text_align_last = source->text_align_last ;
     dest->text_decoration = source->text_decoration ;
+    dest->text_transform = source->text_transform ;
     dest->list_style_type = source->list_style_type ;
     dest->list_style_position = source->list_style_position ;
     dest->hyphenate = source->hyphenate ;
