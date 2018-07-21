@@ -28,14 +28,20 @@
 #define UNICODE_NB_HYPHEN   0x2011
 #define UNICODE_CJK_IDEOGRAPHS_BEGIN 0x3041
 #define UNICODE_CJK_IDEOGRAPHS_END 0x02CEAF
+#define UNICODE_CJK_IDEOGRAPHIC_SPACE 0x3000
 #define UNICODE_CJK_PUNCTUATION_BEGIN 0x3000
 #define UNICODE_CJK_PUNCTUATION_END 0x303F
 #define UNICODE_GENERAL_PUNCTUATION_BEGIN 0x2000
 #define UNICODE_GENERAL_PUNCTUATION_END 0x206F
 #define UNICODE_ZERO_WIDTH_NO_BREAK_SPACE 0xfeff
+// These may be wrong as this block contain katakana and hangul
+// letters, as well as ascii full-width chars:
 #define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN 0xFF01
 #define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END 0xFFEE
 
+#define UNICODE_ASCII_FULL_WIDTH_BEGIN 0xFF01
+#define UNICODE_ASCII_FULL_WIDTH_END 0xFF5E
+#define UNICODE_ASCII_FULL_WIDTH_OFFSET 0xFEE0 // substract or add to convert to/from ASCII
 
 
 /// strlen for lChar16
@@ -76,6 +82,10 @@ int    lStr_cmp(const lChar8 * str1, const lChar8 * str2);
 void lStr_uppercase( lChar16 * str, int len );
 /// convert string to lowercase
 void lStr_lowercase( lChar16 * str, int len );
+/// convert string to be capitalized
+void lStr_capitalize( lChar16 * str, int len );
+/// convert string to use full width chars
+void lStr_fullWidthChars( lChar16 * str, int len );
 /// calculates CRC32 for buffer contents
 lUInt32 lStr_crc32( lUInt32 prevValue, const void * buf, int size );
 
@@ -109,6 +119,8 @@ void lStr_getCharProps( const lChar16 * str, int sz, lUInt16 * props );
 lUInt16 lGetCharProps( lChar16 ch );
 /// find alpha sequence bounds
 void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int & end );
+// is char a word separator
+bool lStr_isWordSeparator( lChar16 ch );
 
 
 // must be power of 2
@@ -524,6 +536,10 @@ public:
     lString16 & uppercase();
     /// make string lowercase
     lString16 & lowercase();
+    /// make string capitalized
+    lString16 & capitalize();
+    /// make string use full width chars
+    lString16 & fullWidthChars();
     /// compare with another string
     int compare(const lString16& str) const { return lStr_cmp(pchunk->buf16, str.pchunk->buf16); }
     /// compare subrange with another string

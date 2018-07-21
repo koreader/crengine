@@ -62,7 +62,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.15k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.16k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0007
 
@@ -3290,6 +3290,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_align = css_ta_left;
     s->text_align_last = css_ta_left;
     s->text_decoration = css_td_none;
+    s->text_transform = css_tt_none;
     s->hyphenate = css_hyph_auto;
     s->color.type = css_val_unspecified;
     s->color.value = 0x000000;
@@ -5147,6 +5148,26 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 lUInt8 flg[512];
 
                 lString16 str = node->getText();
+                // We need to transform the node text as it had been when
+                // rendered (the transform may change chars widths) for the
+                // XPointer offset to be correct
+                switch ( node->getParentNode()->getStyle()->text_transform ) {
+                    case css_tt_uppercase:
+                        str.uppercase();
+                        break;
+                    case css_tt_lowercase:
+                        str.lowercase();
+                        break;
+                    case css_tt_capitalize:
+                        str.capitalize();
+                        break;
+                    case css_tt_full_width:
+                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
+                        break;
+                    default:
+                        break;
+                }
+
                 font->measureText( str.c_str()+word->t.start, word->t.len, width, flg, word->width+50, '?', src->letter_spacing);
                 for ( int i=0; i<word->t.len; i++ ) {
                     int xx = ( i>0 ) ? (width[i-1] + width[i])/2 : width[i]/2;
@@ -5334,6 +5355,25 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         lUInt16 w[512];
                         lUInt8 flg[512];
                         lString16 str = node->getText();
+                        // We need to transform the node text as it had been when
+                        // rendered (the transform may change chars widths) for the
+                        // rect to be correct
+                        switch ( node->getParentNode()->getStyle()->text_transform ) {
+                            case css_tt_uppercase:
+                                str.uppercase();
+                                break;
+                            case css_tt_lowercase:
+                                str.lowercase();
+                                break;
+                            case css_tt_capitalize:
+                                str.capitalize();
+                                break;
+                            case css_tt_full_width:
+                                // str.fullWidthChars(); // disabled for now in lvrend.cpp
+                                break;
+                            default:
+                                break;
+                        }
                         font->measureText(
                             str.c_str()+word->t.start,
                             offset - word->t.start,
@@ -6600,35 +6640,7 @@ inline bool IsUnicodeSpaceOrNull( lChar16 ch )
 // For better accuracy than IsUnicodeSpace for detecting words
 inline bool IsWordSeparator( lChar16 ch )
 {
-    // ASCII letters and digits are NOT word separators
-    if (ch >= 0x61 && ch <= 0x7A) return false; // lowercase ascii letters
-    if (ch >= 0x41 && ch <= 0x5A) return false; // uppercase ascii letters
-    if (ch >= 0x30 && ch <= 0x39) return false; // digits
-    if (ch == 0xAD ) return false; // soft-hyphen, considered now as part of word
-    // All other below 0xC0 are word separators:
-    //   < 0x30 space, !"#$%&'()*+,-./
-    //   < 0x41 :;<=>?@
-    //   < 0x61 [\]^_`
-    //   < 0xC0 {|}~ and control characters and other signs
-    if (ch < 0xC0 ) return true;
-    // 0xC0 to 0xFF, except 0xD7 and 0xF7, are latin accentuated letters.
-    // Above 0xFF are other alphabets. Let's consider all above 0xC0 unicode
-    // characters as letters, except the adequately named PUNCTUATION ranges.
-    // There may be exceptions in some alphabets, that we can individually
-    // add here :
-    if (ch == 0xD7 ) return true;  // multiplication sign
-    if (ch == 0xF7 ) return true;  // division sign
-    // this one includes em-dash & friends, and other quotation marks
-    if (ch>=UNICODE_GENERAL_PUNCTUATION_BEGIN && ch<=UNICODE_GENERAL_PUNCTUATION_END) return true;
-    // CJK puncutation
-    if (ch>=UNICODE_CJK_PUNCTUATION_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_END) return true;
-    if (ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) return true;
-    // Some others(from https://www.cs.tut.fi/~jkorpela/chars/spaces.html)
-    if (ch == 0x1680 ) return true;  // OGHAM SPACE MARK
-    if (ch == 0x180E ) return true;  // MONGOLIAN VOWEL SEPARATOR
-    if (ch == 0xFEFF ) return true;  // ZERO WIDTH NO-BREAK SPACE
-    // All others are considered part of a word, thus not word separators
-    return false;
+    return lStr_isWordSeparator(ch);
 }
 
 inline bool IsWordSeparatorOrNull( lChar16 ch )
@@ -12285,6 +12297,7 @@ void runBasicTinyDomUnitTests()
         style1->text_align = css_ta_left;
         style1->text_align_last = css_ta_left;
         style1->text_decoration = css_td_none;
+        style1->text_transform = css_tt_none;
         style1->hyphenate = css_hyph_auto;
         style1->color.type = css_val_unspecified;
         style1->color.value = 0x000000;
@@ -12312,6 +12325,7 @@ void runBasicTinyDomUnitTests()
         style2->text_align = css_ta_left;
         style2->text_align_last = css_ta_left;
         style2->text_decoration = css_td_none;
+        style2->text_transform = css_tt_none;
         style2->hyphenate = css_hyph_auto;
         style2->color.type = css_val_unspecified;
         style2->color.value = 0x000000;
@@ -12339,6 +12353,7 @@ void runBasicTinyDomUnitTests()
         style3->text_align = css_ta_right;
         style3->text_align_last = css_ta_left;
         style3->text_decoration = css_td_none;
+        style3->text_transform = css_tt_none;
         style3->hyphenate = css_hyph_auto;
         style3->color.type = css_val_unspecified;
         style3->color.value = 0x000000;
