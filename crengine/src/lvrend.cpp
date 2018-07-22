@@ -3041,6 +3041,25 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
+    // Firefox resets text-align: to 'left' for table (eg: <center><table>
+    // doesnn't have its cells' content centered, not even justified if body
+    // has "text-align: justify"), while crengine would make them centered.
+    // So, we dont wan't table to starts with css_ta_inherit. We could use
+    // css_ta_left (as Firefox), but it's best in our context to use the
+    // value set to the (or current DocFragment's) BODY node, which starts
+    // with css_ta_left but may be set to css_ta_justify by our epub.css.
+    if (enode->getNodeId() == el_table) {
+        // To do as Firefox:
+        // pstyle->text_align = css_ta_left;
+        // But we'd rather use the BODY value:
+        ldomNode * body = enode->getParentNode();
+        while ( body != NULL && body->getNodeId()!=el_body )
+            body = body->getParentNode();
+        if ( body ) {
+            pstyle->text_align = body->getStyle()->text_align;
+        }
+    }
+
     // not used (could be used for 'rem', but we have it in gRootFontSize)
     // int baseFontSize = enode->getDocument()->getDefaultFont()->getSize();
 
@@ -3204,23 +3223,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     spreadParent( pstyle->line_height, parent_style->line_height );
     spreadParent( pstyle->color, parent_style->color );
     spreadParent( pstyle->background_color, parent_style->background_color );
-
-    // Firefox resets text-align: to 'left' for table (eg: <center><table>
-    // doesnn't have its cells' content centered, not even justified if body
-    // has "text-align: justify"), while crengine would make them centered.
-    // We'd rather do the same as Firefox.
-    if (enode->getNodeId() == el_table) {
-        pstyle->text_align = css_ta_left;
-        /*
-        // If we'd rather use the same text-align set for <body>
-        ldomNode * body = enode->getParentNode();
-        while ( body != NULL && body->getNodeId()!=el_body )
-            body = body->getParentNode();
-        if ( body ) {
-            pstyle->text_align = body->getStyle()->text_align;
-        }
-        */
-    }
 
     // set calculated style
     //enode->getDocument()->cacheStyle( style );
