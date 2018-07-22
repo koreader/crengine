@@ -41,7 +41,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((
            (lUInt32)(rec.important>>32)) * 31
          + (lUInt32)(rec.important&0xFFFFFFFFULL)) * 31
          + (lUInt32)rec.display * 31
@@ -49,6 +49,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.text_align) * 31
          + (lUInt32)rec.text_align_last) * 31
          + (lUInt32)rec.text_decoration) * 31
+         + (lUInt32)rec.text_transform) * 31
          + (lUInt32)rec.hyphenate) * 31
          + (lUInt32)rec.list_style_type) * 31
          + (lUInt32)rec.letter_spacing.pack()) * 31
@@ -106,6 +107,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.text_align == r2.text_align &&
            r1.text_align_last == r2.text_align_last &&
            r1.text_decoration == r2.text_decoration &&
+           r1.text_transform == r2.text_transform &&
            r1.list_style_type == r2.list_style_type &&
            r1.list_style_position == r2.list_style_position &&
            r1.hyphenate == r2.hyphenate &&
@@ -293,6 +295,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(text_align);        //    css_text_align_t     text_align;
     ST_PUT_ENUM(text_align_last);   //    css_text_align_t     text_align_last;
     ST_PUT_ENUM(text_decoration);   //    css_text_decoration_t text_decoration;
+    ST_PUT_ENUM(text_transform);    //    css_text_transform_t text_transform;
     ST_PUT_ENUM(vertical_align);    //    css_vertical_align_t vertical_align;
     ST_PUT_ENUM(font_family);       //    css_font_family_t    font_family;
     buf << font_name;               //    lString8             font_name;
@@ -343,6 +346,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_text_align_t, text_align);              //    css_text_align_t     text_align;
     ST_GET_ENUM(css_text_align_t, text_align_last);         //    css_text_align_t     text_align_last;
     ST_GET_ENUM(css_text_decoration_t, text_decoration);    //    css_text_decoration_t text_decoration;
+    ST_GET_ENUM(css_text_transform_t, text_transform);      //    css_text_transform_t text_transform;
     ST_GET_ENUM(css_vertical_align_t, vertical_align);      //    css_vertical_align_t vertical_align;
     ST_GET_ENUM(css_font_family_t, font_family);            //    css_font_family_t    font_family;
     buf >> font_name;                                       //    lString8             font_name;

@@ -84,6 +84,16 @@ enum css_text_decoration_t {
     css_td_blink = 5
 };
 
+/// text-transform property values
+enum css_text_transform_t {
+    css_tt_inherit = 0,
+    css_tt_none = 1,
+    css_tt_uppercase = 2,
+    css_tt_lowercase = 3,
+    css_tt_capitalize = 4,
+    css_tt_full_width = 5
+};
+
 /// hyphenate property values
 enum css_hyphenate_t {
     css_hyph_inherit = 0,
@@ -230,6 +240,7 @@ enum css_border_collapse_value_t{
     css_border_c_inherit,
     css_border_c_none
 };
+
 /// css length value
 typedef struct css_length_tag {
     css_value_type_t type;  ///< type of value

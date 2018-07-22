@@ -31,6 +31,7 @@ enum css_decl_code {
     cssd_text_align,
     cssd_text_align_last,
     cssd_text_decoration,
+    cssd_text_transform,
     cssd_hyphenate, // hyphenate
     cssd_hyphenate2, // -webkit-hyphens
     cssd_hyphenate3, // adobe-hyphenate
@@ -103,6 +104,7 @@ static const char * css_decl_name[] = {
     "text-align",
     "text-align-last",
     "text-decoration",
+    "text-transform",
     "hyphenate",
     "-webkit-hyphens",
     "adobe-hyphenate",
@@ -659,6 +661,17 @@ static const char * css_td_names[] =
     NULL
 };
 
+static const char * css_tt_names[] =
+{
+    "inherit",
+    "none",
+    "uppercase",
+    "lowercase",
+    "capitalize",
+    "full-width",
+    NULL
+};
+
 static const char * css_hyph_names[] = 
 {
     "inherit",
@@ -909,6 +922,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                 break;
             case cssd_text_decoration:
                 n = parse_name( decl, css_td_names, -1 );
+                break;
+            case cssd_text_transform:
+                n = parse_name( decl, css_tt_names, -1 );
                 break;
             case cssd_hyphenate:
             case cssd_hyphenate2:
@@ -1767,6 +1783,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_text_decoration:
             style->Apply( (css_text_decoration_t) *p++, &style->text_decoration, imp_bit_text_decoration, is_important );
+            break;
+        case cssd_text_transform:
+            style->Apply( (css_text_transform_t) *p++, &style->text_transform, imp_bit_text_transform, is_important );
             break;
         case cssd_hyphenate:
             style->Apply( (css_hyphenate_t) *p++, &style->hyphenate, imp_bit_hyphenate, is_important );
@@ -2837,6 +2856,10 @@ bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file )
             return false;
         p++;
     }
+    // Remove trailing ';' at end of "@import url(..);"
+    skip_spaces( p );
+    if ( *p==';' )
+        p++;
     if ( import_file.empty() )
         return false;
     str = p;

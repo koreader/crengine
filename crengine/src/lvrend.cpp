@@ -1464,6 +1464,24 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         lInt32(bgcl))
                     bgcl=0xFFFFFFFF;
 
+            switch (style->text_transform) {
+            case css_tt_uppercase:
+                txt.uppercase();
+                break;
+            case css_tt_lowercase:
+                txt.lowercase();
+                break;
+            case css_tt_capitalize:
+                txt.capitalize();
+                break;
+            case css_tt_full_width:
+                // txt.fullWidthChars(); // disabled for now (may change CJK rendering)
+                break;
+            case css_tt_none:
+            case css_tt_inherit:
+                break;
+            }
+
             lInt8 letter_spacing;
             // % is not supported for letter_spacing by Firefox, but crengine
             // did support it, by relating it to font size, so let's use em
@@ -1553,6 +1571,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->text_align = source->text_align ;
     dest->text_align_last = source->text_align_last ;
     dest->text_decoration = source->text_decoration ;
+    dest->text_transform = source->text_transform ;
     dest->list_style_type = source->list_style_type ;
     dest->list_style_position = source->list_style_position ;
     dest->hyphenate = source->hyphenate ;
@@ -3074,6 +3093,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( white_space, css_ws_inherit );
     UPDATE_STYLE_FIELD( text_align, css_ta_inherit );
     UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
+    UPDATE_STYLE_FIELD( text_transform, css_tt_inherit );
     UPDATE_STYLE_FIELD( hyphenate, css_hyph_inherit );
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );

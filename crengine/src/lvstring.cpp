@@ -2553,6 +2553,18 @@ lString16 & lString16::lowercase()
     return *this;
 }
 
+lString16 & lString16::capitalize()
+{
+    lStr_capitalize( modify(), length() );
+    return *this;
+}
+
+lString16 & lString16::fullWidthChars()
+{
+    lStr_fullWidthChars( modify(), length() );
+    return *this;
+}
+
 void lStr_uppercase( lChar16 * str, int len )
 {
     for ( int i=0; i<len; i++ ) {
@@ -2600,6 +2612,50 @@ void lStr_lowercase( lChar16 * str, int len )
                 str[i] = ch & (~8);
             }
         }
+    }
+}
+
+void lStr_fullWidthChars( lChar16 * str, int len )
+{
+    for ( int i=0; i<len; i++ ) {
+        lChar16 ch = str[i];
+        if ( ch>=0x21 && ch<=0x7E ) {
+            // full-width versions of ascii chars 0x21-0x7E are at 0xFF01-0Xff5E
+            str[i] = ch + UNICODE_ASCII_FULL_WIDTH_OFFSET;
+        } else if ( ch==0x20 ) {
+            str[i] = UNICODE_CJK_IDEOGRAPHIC_SPACE; // full-width space
+        }
+    }
+}
+
+void lStr_capitalize( lChar16 * str, int len )
+{
+    bool prev_is_word_sep = true; // first char of string will be capitalized
+    for ( int i=0; i<len; i++ ) {
+        lChar16 ch = str[i];
+        if (prev_is_word_sep) {
+            // as done as in lStr_uppercase()
+            if ( ch>='a' && ch<='z' ) {
+                str[i] = ch - 0x20;
+            } else if ( ch>=0xE0 && ch<=0xFF ) {
+                str[i] = ch - 0x20;
+            } else if ( ch>=0x430 && ch<=0x44F ) {
+                str[i] = ch - 0x20;
+            } else if ( ch>=0x3b0 && ch<=0x3cF ) {
+                str[i] = ch - 0x20;
+            } else if ( (ch >> 8)==0x1F ) { // greek
+                lChar16 n = ch & 255;
+                if (n<0x70) {
+                    str[i] = ch | 8;
+                } else if (n<0x80) {
+
+                } else if (n<0xF0) {
+                    str[i] = ch | 8;
+                }
+            }
+        }
+        // update prev_is_word_sep for next char
+        prev_is_word_sep = lStr_isWordSeparator(ch);
     }
 }
 
@@ -4175,6 +4231,39 @@ void lStr_getCharProps( const lChar16 * str, int sz, lUInt16 * props )
         lChar16 ch = str[i];
         props[i] = getCharProp(ch);
     }
+}
+
+bool lStr_isWordSeparator( lChar16 ch )
+{
+    // ASCII letters and digits are NOT word separators
+    if (ch >= 0x61 && ch <= 0x7A) return false; // lowercase ascii letters
+    if (ch >= 0x41 && ch <= 0x5A) return false; // uppercase ascii letters
+    if (ch >= 0x30 && ch <= 0x39) return false; // digits
+    if (ch == 0xAD ) return false; // soft-hyphen, considered now as part of word
+    // All other below 0xC0 are word separators:
+    //   < 0x30 space, !"#$%&'()*+,-./
+    //   < 0x41 :;<=>?@
+    //   < 0x61 [\]^_`
+    //   < 0xC0 {|}~ and control characters and other signs
+    if (ch < 0xC0 ) return true;
+    // 0xC0 to 0xFF, except 0xD7 and 0xF7, are latin accentuated letters.
+    // Above 0xFF are other alphabets. Let's consider all above 0xC0 unicode
+    // characters as letters, except the adequately named PUNCTUATION ranges.
+    // There may be exceptions in some alphabets, that we can individually
+    // add here :
+    if (ch == 0xD7 ) return true;  // multiplication sign
+    if (ch == 0xF7 ) return true;  // division sign
+    // this one includes em-dash & friends, and other quotation marks
+    if (ch>=UNICODE_GENERAL_PUNCTUATION_BEGIN && ch<=UNICODE_GENERAL_PUNCTUATION_END) return true;
+    // CJK puncutation
+    if (ch>=UNICODE_CJK_PUNCTUATION_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_END) return true;
+    if (ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) return true;
+    // Some others(from https://www.cs.tut.fi/~jkorpela/chars/spaces.html)
+    if (ch == 0x1680 ) return true;  // OGHAM SPACE MARK
+    if (ch == 0x180E ) return true;  // MONGOLIAN VOWEL SEPARATOR
+    if (ch == 0xFEFF ) return true;  // ZERO WIDTH NO-BREAK SPACE
+    // All others are considered part of a word, thus not word separators
+    return false;
 }
 
 /// find alpha sequence bounds
