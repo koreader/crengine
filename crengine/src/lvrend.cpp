@@ -3042,7 +3042,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     }
 
     // Firefox resets text-align: to 'left' for table (eg: <center><table>
-    // doesnn't have its cells' content centered, not even justified if body
+    // doesn't have its cells' content centered, not even justified if body
     // has "text-align: justify"), while crengine would make them centered.
     // So, we dont wan't table to starts with css_ta_inherit. We could use
     // css_ta_left (as Firefox), but it's best in our context to use the
