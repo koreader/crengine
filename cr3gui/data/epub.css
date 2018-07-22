@@ -87,6 +87,9 @@ table {
     font-size: 80%;
     margin: 3px;
 }
+table table { /* stop imbricated tables from getting smaller */
+    font-size: 100%;
+}
 td, th {
     text-indent: 0;
     padding: 3px;
