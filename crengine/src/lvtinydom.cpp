@@ -4192,7 +4192,7 @@ void ldomNode::initNodeRendMethod()
         recurseElements( resetRendMethodToInline );
         setRendMethod(erm_runin);
     } else if ( d==css_d_list_item ) {
-        // list item
+        // list item (no more used, obsolete rendering method)
         setRendMethod(erm_list_item);
     } else if (d == css_d_table) {
         // table
@@ -6938,7 +6938,7 @@ ldomNode * ldomXPointerEx::getThisBlockNode()
         case erm_block:
         case erm_final:
         case erm_mixed:
-        case erm_list_item:
+        case erm_list_item: // no more used (obsolete rendering method)
         case erm_table:
         case erm_table_row_group:
         case erm_table_row:

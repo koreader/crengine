@@ -311,7 +311,7 @@ public:
                         colindex++;
                     }
                     break;
-                case erm_list_item:
+                case erm_list_item:     // no more used (obsolete rendering method)
                 case erm_block:         // render as block element (render as containing other elements)
                 case erm_final:         // final element: render the whole it's content as single render block
                 case erm_mixed:         // block and inline elements are mixed: autobox inline portions of nodes; TODO
@@ -1241,7 +1241,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
         }
 
-        if ( rm==erm_list_item ) {
+        if ( rm==erm_list_item ) { // no more used (obsolete rendering method)
             // put item number/marker to list
             lString16 marker;
             int marker_width = 0;
@@ -1283,7 +1283,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 
         // List item marker rendering when css_d_list_item_block and list-style-position = inside:
         // render the marker if any, and continue rendering text on same line
-        if ( style->display == css_d_list_item_block && style->list_style_position == css_lsp_inside ) {
+        // Rendering hack: we do that too when list-style-position = outside AND text-align "right"
+        // or "center", as this will draw the marker at the near left of the text (otherwise,
+        // the marker would be drawn on the far left of the whole available width, which is ugly.
+        if ( style->display == css_d_list_item_block && ( style->list_style_position == css_lsp_inside ||
+                (style->list_style_position == css_lsp_outside &&
+                    (style->text_align == css_ta_center || style->text_align == css_ta_right)) ) ) {
             // list_item_block rendered as final (containing only text and inline elements)
             int marker_width;
             lString16 marker = renderListItemMarker( enode, marker_width, txform, line_h, flags );
@@ -1975,11 +1980,14 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         int list_marker_width;
                         lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
                         list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                        if ( enode->getStyle()->list_style_position == css_lsp_outside )
+                        if ( enode->getStyle()->list_style_position == css_lsp_outside &&
+                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the whole block
                             // to the right and reduce the available width, which is done
                             // below when calling renderBlockElement() for each child
+                            // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
                             list_marker_padding = list_marker_width;
+                        }
                         else {
                             // When list_style_position = inside, we need to let renderFinalBlock()
                             // know there is a marker to prepend when rendering the first of our
@@ -2036,14 +2044,16 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     return y + margin_top + margin_bottom + padding_bottom; // return block height
                 }
                 break;
-            case erm_list_item:
+            case erm_list_item: // no more used (obsolete rendering method)
             case erm_final:
             case erm_table_cell:
                 {
 
                     if ( enode->getStyle()->display == css_d_list_item_block ) {
                         // list_item_block rendered as final (containing only text and inline elements)
-                        if ( enode->getStyle()->list_style_position == css_lsp_outside ) {
+                        // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
+                        if ( enode->getStyle()->list_style_position == css_lsp_outside &&
+                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
                             int list_marker_width;
@@ -2802,9 +2812,11 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as block (containing text and block elements)
+                // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
                 // (if list-style-position = inside, drawing is managed by renderFinalBlock())
                 if ( enode->getStyle()->display == css_d_list_item_block &&
-                        enode->getStyle()->list_style_position == css_lsp_outside ) {
+                        enode->getStyle()->list_style_position == css_lsp_outside &&
+                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
                     // We already adjusted all children blocks' left-padding and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
@@ -2846,16 +2858,18 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                  DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
             	}
             break;
-        case erm_list_item:
+        case erm_list_item: // no more used (obsolete rendering method)
         case erm_final:
         case erm_table_caption:
             {
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as final (containing only text and inline elements)
+                // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
                 // (if list-style-position = inside, drawing is managed by renderFinalBlock())
                 if ( enode->getStyle()->display == css_d_list_item_block &&
-                        enode->getStyle()->list_style_position == css_lsp_outside ) {
+                        enode->getStyle()->list_style_position == css_lsp_outside &&
+                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
                     // We already adjusted our block X and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made on the left of
                     // this node.
@@ -3024,6 +3038,25 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                     pstyle->display = css_d_inline; // otherwise correctly set to css_d_none (hidden)
                 }
             }
+        }
+    }
+
+    // Firefox resets text-align: to 'left' for table (eg: <center><table>
+    // doesn't have its cells' content centered, not even justified if body
+    // has "text-align: justify"), while crengine would make them centered.
+    // So, we dont wan't table to starts with css_ta_inherit. We could use
+    // css_ta_left (as Firefox), but it's best in our context to use the
+    // value set to the (or current DocFragment's) BODY node, which starts
+    // with css_ta_left but may be set to css_ta_justify by our epub.css.
+    if (enode->getNodeId() == el_table) {
+        // To do as Firefox:
+        // pstyle->text_align = css_ta_left;
+        // But we'd rather use the BODY value:
+        ldomNode * body = enode->getParentNode();
+        while ( body != NULL && body->getNodeId()!=el_body )
+            body = body->getParentNode();
+        if ( body ) {
+            pstyle->text_align = body->getStyle()->text_align;
         }
     }
 
