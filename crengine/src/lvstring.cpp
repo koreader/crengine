@@ -3331,7 +3331,12 @@ lString8  UnicodeToTranslit( const lString16 & str )
 }
 
 
-
+// Note:
+// CH_PROP_UPPER and CH_PROP_LOWER make out CH_PROP_ALPHA, which is,
+// with CH_PROP_CONSONANT, CH_PROP_VOWEL and CH_PROP_ALPHA_SIGN,
+// used only for detecting a word candidate to hyphenation.
+// CH_PROP_PUNCT and CH_PROP_DASH are used each once in some obscure places.
+// Others seem not used anywhere: CH_PROP_SIGN, CH_PROP_DIGIT, CH_PROP_SPACE
 static lUInt16 char_props[] = {
 // 0x0000:
 0,0,0,0, 0,0,0,0, CH_PROP_SPACE,CH_PROP_SPACE,CH_PROP_SPACE,0, CH_PROP_SPACE,CH_PROP_SPACE,0,0,
@@ -3364,12 +3369,12 @@ CH_PROP_DIGIT, // '6'
 CH_PROP_DIGIT, // '7'
 CH_PROP_DIGIT, // '8'
 CH_PROP_DIGIT, // '9'
-CH_PROP_DIGIT, // ':'
-CH_PROP_DIGIT, // ';'
-CH_PROP_DIGIT, // '<'
-CH_PROP_DIGIT, // '='
-CH_PROP_DIGIT, // '>'
-CH_PROP_DIGIT, // '?'
+CH_PROP_PUNCT, // ':'
+CH_PROP_PUNCT, // ';'
+CH_PROP_SIGN,  // '<'
+CH_PROP_SIGN,  // '='
+CH_PROP_SIGN,  // '>'
+CH_PROP_PUNCT, // '?'
 // 0x0040:
 CH_PROP_SIGN,  // '@'
 CH_PROP_UPPER | CH_PROP_VOWEL,     // 'A'
@@ -3405,32 +3410,32 @@ CH_PROP_SIGN, // '^'
 CH_PROP_SIGN, // '_'
 // 0x0060:
 CH_PROP_SIGN,  // '`'
-CH_PROP_UPPER | CH_PROP_VOWEL,     // 'a'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'b'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'c'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'd'
-CH_PROP_UPPER | CH_PROP_VOWEL, // 'e'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'f'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'g'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'h'
-CH_PROP_UPPER | CH_PROP_VOWEL, // 'i'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'j'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'k'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'l'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'm'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'n'
-CH_PROP_UPPER | CH_PROP_VOWEL, // 'o'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'p'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'q'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'r'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 's'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 't'
-CH_PROP_UPPER | CH_PROP_VOWEL, // 'u'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'v'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'w'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'x'
-CH_PROP_UPPER | CH_PROP_VOWEL, // 'y'
-CH_PROP_UPPER | CH_PROP_CONSONANT, // 'z'
+CH_PROP_LOWER | CH_PROP_VOWEL,     // 'a'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'b'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'c'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'd'
+CH_PROP_LOWER | CH_PROP_VOWEL, // 'e'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'f'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'g'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'h'
+CH_PROP_LOWER | CH_PROP_VOWEL, // 'i'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'j'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'k'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'l'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'm'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'n'
+CH_PROP_LOWER | CH_PROP_VOWEL, // 'o'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'p'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'q'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'r'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 's'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 't'
+CH_PROP_LOWER | CH_PROP_VOWEL, // 'u'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'v'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'w'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'x'
+CH_PROP_LOWER | CH_PROP_VOWEL, // 'y'
+CH_PROP_LOWER | CH_PROP_CONSONANT, // 'z'
 CH_PROP_SIGN, // '{'
 CH_PROP_SIGN, // '|'
 CH_PROP_SIGN, // '}'
@@ -4274,6 +4279,10 @@ void lStr_findWordBounds( const lChar16 * str, int sz, int pos, int & start, int
     // 20180615: don't split anymore on UNICODE_SOFT_HYPHEN_CODE, consider
     // it like an alpha char of zero width not drawn.
     // Only hyphenation code will care about it
+    // We don't use lStr_isWordSeparator() here, but we exclusively look
+    // for ALPHA chars or soft-hyphens, as this function is and should
+    // only be used before calling hyphenate() to find a real word to
+    // give to the hyphenation algorithms.
 
 //    // skip spaces
 //    for (hwStart=pos-1; hwStart>0; hwStart--)
