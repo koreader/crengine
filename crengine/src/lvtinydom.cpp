@@ -5193,6 +5193,11 @@ lvPoint ldomXPointer::toPoint(bool extended) const
 
 /// returns caret rectangle for pointer inside formatted document
 // (with extended=true, consider paddings and borders)
+// Note that extended / ldomXPointer::getRectEx() is only used (by cre.cpp)
+// when dealing with hyphenated words, getting each char width, char by char.
+// So we return the char width (and no more the word width) of the char
+// pointed to by this XPointer (unlike ldomXRange::getRectEx() which deals
+// with a range between 2 XPointers).
 bool ldomXPointer::getRect(lvRect & rect, bool extended) const
 {
     //CRLog::trace("ldomXPointer::getRect()");
@@ -5342,7 +5347,10 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended)
-                            rect.right = rect.left + word->width;
+                            if (word->flags == LTEXT_WORD_IS_OBJECT)
+                                rect.right = rect.left + word->width; // width of image
+                            else
+                                rect.right = rect.left + 1; // not the right word: no char width
                         else
                             rect.right = rect.left + 1;
                         rect.bottom = rect.top + frmline->height;
@@ -5376,7 +5384,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         }
                         font->measureText(
                             str.c_str()+word->t.start,
-                            offset - word->t.start,
+                            word->t.len,
                             w,
                             flg,
                             word->width+50,
@@ -5386,8 +5394,16 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         rect.left = word->x + chx + rc.left + frmline->x;
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
-                        if (extended)
-                            rect.right = rect.left + word->width;
+                        if (extended) { // get width of char at offset
+                            int chw = w[ offset - word->t.start ] - chx;
+                            if ( offset == word->t.start + word->t.len - 1
+                                    && word->flags | LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) {
+                                // if offset is the end of word, and this word has
+                                // been hyphenated, includes the hyphen width
+                                chw += font->getHyphenWidth();
+                            }
+                            rect.right = rect.left + chw;
+                        }
                         else
                             rect.right = rect.left + 1;
                         rect.bottom = rect.top + frmline->height;
@@ -5398,7 +5414,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended)
-                            rect.right = rect.left + word->width;
+                            rect.right = rect.left + 1; // not the right word: no char width
                         else
                             rect.right = rect.left + 1;
                         rect.bottom = rect.top + frmline->height;
@@ -7249,15 +7265,18 @@ public:
         for ( int i=nodeRange->getStart().getOffset(); i <= len; i++ ) {
             // int alpha = lGetCharProps(text[i]) & CH_PROP_ALPHA;
             // Also allow digits (years, page numbers) to be considered words
-            int alpha = lGetCharProps(text[i]) & (CH_PROP_ALPHA|CH_PROP_DIGIT|CH_PROP_HYPHEN);
+            // int alpha = lGetCharProps(text[i]) & (CH_PROP_ALPHA|CH_PROP_DIGIT|CH_PROP_HYPHEN);
+            // We use lStr_isWordSeparator() as the other word finding/skipping functions do,
+            // so they all share the same notion of what a word is.
+            int alpha = !lStr_isWordSeparator(text[i]); // alpha, number, CJK char
             if (alpha && beginOfWord<0 ) {
                 beginOfWord = i;
             }
-            if ( !alpha && beginOfWord>=0) {
+            if ( !alpha && beginOfWord>=0) { // space, punctuation, sign, paren...
                 _list.add( ldomWord( node, beginOfWord, i ) );
                 beginOfWord = -1;
             }
-            if (lGetCharProps(text[i]) == CH_PROP_CJK && i < len) {
+            if (lGetCharProps(text[i]) == CH_PROP_CJK && i < len) { // a CJK char makes its own word
                 _list.add( ldomWord( node, i, i+1 ) );
                 beginOfWord = -1;
             }

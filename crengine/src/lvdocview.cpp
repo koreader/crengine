@@ -2250,7 +2250,7 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 	return false;
 }
 
-/// converts point from documsnt to window coordinates, returns true if success
+/// converts point from document to window coordinates, returns true if success
 bool LVDocView::docToWindowPoint(lvPoint & pt) {
 	LVLock lock(getMutex());
     CHECK_RENDER("docToWindowPoint()")
@@ -2273,6 +2273,12 @@ bool LVDocView::docToWindowPoint(lvPoint & pt) {
                 }
                 if (index >= 0) {
                     int x = pt.x + m_pageRects[index].left + m_pageMargins.left;
+                    // We shouldn't get x ouside page width as we never crop on the
+                    // width: if we do (if bug somewhere else), force it to be at the
+                    // far right (this helps not discarding some highlights rects)
+                    if (x >= m_pageRects[index].right - m_pageMargins.right) {
+                        x = m_pageRects[index].right - m_pageMargins.right - 1;
+                    }
                     if (x < m_pageRects[index].right - m_pageMargins.right) {
                         pt.x = x;
                         pt.y = pt.y + getPageHeaderHeight() + m_pageMargins.top - m_pages[page + index]->start;
