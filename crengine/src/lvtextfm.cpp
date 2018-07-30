@@ -409,7 +409,8 @@ public:
     {
         int pos = 0;
         int i;
-        bool at_start = true;
+        bool prev_was_space = true; // start with true, to get rid of all leading spaces
+        int last_non_space_pos = -1; // to get rid of all trailing spaces
         for ( i=start; i<end; i++ ) {
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
             if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
@@ -417,25 +418,97 @@ public:
                 m_flags[pos] = LCHAR_IS_OBJECT | LCHAR_ALLOW_WRAP_AFTER;
                 m_srcs[pos] = src;
                 m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
+                last_non_space_pos = pos;
                 pos++;
             } else {
                 int len = src->t.len;
                 lStr_ncpy( m_text+pos, src->t.text, len );
                 if ( i==0 || (src->flags & LTEXT_FLAG_NEWLINE) )
                     m_flags[pos] = LCHAR_MANDATORY_NEWLINE;
+
+                // On non PRE-formatted text, our XML parser have already removed
+                // consecutive spaces, \t, \r and \n in each single text node
+                // (inside and at boundaries), keeping only (if any) one leading
+                // space and one trailing space.
+                // These text nodes were simply appended (by lvrend) as is into
+                // the src_text_fragment_t->t.text that we are processing here.
+                // It may happen then that we, here, do get consecutive spaces, eg with:
+                //   "<div> Some <span> text </span> and <span> </span> even more. </div>"
+                // which would give us here:
+                //   " Some  text  and   even more "
+                //
+                // https://www.w3.org/TR/css-text-3/#white-space-processing states, for
+                // non-PRE paragraphs:
+                // (a "segment break" is just a \n in the HTML source)
+                //   (a) A sequence of segment breaks and other white space between two Chinese,
+                //       Japanese, or Yi characters collapses into nothing.
+                // (So it looks like CJY is CJK minus K - with Korean, if there is a
+                // space between K chars, it should be kept.)
+                //   (b) A zero width space before or after a white space sequence containing a
+                //       segment break causes the entire sequence of white space to collapse
+                //       into a zero width space.
+                //   (c) Otherwise, consecutive white space collapses into a single space.
+                //
+                // For now, we only implement (c).
+                // (b) can't really be implemented, as we don't know at this point
+                // if there was a segment break or not, as any would have already been
+                // converted to a space.
+                // (a) is not implemented, but some notes and comments are below (may be
+                // not too much bothering for CJK users if nothing was done to fix that?)
+                //
+                // It also states:
+                //     Any space immediately following another collapsible space - even one
+                //     outside the boundary of the inline containing that space, provided both
+                //     spaces are within the same inline formatting context - is collapsed to
+                //     have zero advance width. (It is invisible, but retains its soft wrap
+                //     opportunity, if any.)
+                // (lvtextfm actually deals with a single "inline formatting context", what
+                // crengine calls a "final block".)
+                //
+                // It also states:
+                //     - A sequence of collapsible spaces at the beginning of a line is removed.
+                //     - A sequence of collapsible spaces at the end of a line is removed.
+                //
+                // The specs don't say which, among the consecutive collapsible spaces, to
+                // keep, so let's keep the first one (they may have different width,
+                // eg with: <big> some </big> <small> text </small> )
+                //
+                // Note: we can't "remove" any char: m_text, src_text_fragment_t->t.text
+                // and the ldomNode text node own text need all to be in-sync: a shift
+                // because of a removed char in any of them will cause wrong XPointers
+                // and Rects (displaced highlights, etc...)
+                // We can just "replace" a char (only in m_text, gone after this paragraph
+                // processing) or flag (in m_flags for the time of paragraph processing,
+                // in word->flags if needed later for drawing).
+
+                bool preformatted = (src->flags & LTEXT_FLAG_PREFORMATTED);
                 for ( int k=0; k<len; k++ ) {
-                    if (at_start && !(src->flags & LTEXT_FLAG_PREFORMATTED)) {
-                        // On non-pre paragraphs, flag the first space chars
-                        // so we can discard them later (with the way we use
-                        // the XML Parser, it will have already stripped
-                        // multiple spaces, so we'll never be flagging more
-                        // than one here - but let's stay generic).
-                        lChar16 ch = m_text[pos];
-                        if ( ch == ' ' )
-                            m_flags[pos] = LCHAR_IS_LEADING_SPACE;
-                        else
-                            at_start = false;
+                    bool is_space = (m_text[pos] == ' ');
+                    if ( is_space && prev_was_space && !preformatted ) {
+                        // On non-pre paragraphs, flag spaces following a space
+                        // so we can discard them later.
+                        m_flags[pos] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
+                        // m_text[pos] = '_'; // uncomment when debugging
+                        // (We can replace the char to see it in printf() (m_text is not the
+                        // text that is drawn, it's measured but we correct the measure
+                        // by setting a zero width, it's just used here for analysis.
+                        // But best to let it as-is except for debugging)
                     }
+                    if ( !is_space || preformatted ) // don't strip traling spaces if pre
+                        last_non_space_pos = pos;
+                    prev_was_space = is_space;
+
+                    /* non-optimized implementation of "(a) A sequence of segment breaks
+                     * and other white space between two Chinese, Japanese, or Yi characters
+                     * collapses into nothing", not excluding Korea chars
+                     * (to be tested/optimized by a CJK dev)
+                    if ( ch == ' ' && k>0 && k<len-1
+                            && (isCJKIdeograph(m_text[pos-1]) || isCJKIdeograph(m_text[pos+1])) ) {
+                        m_flags[pos] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
+                        // m_text[pos] = '_';
+                    }
+                    */
+
                     m_charindex[pos] = k;
                     m_srcs[pos] = src;
 //                    lChar16 ch = m_text[pos];
@@ -444,7 +517,14 @@ public:
                     pos++;
                 }
             }
-            at_start = false;
+        }
+        // Also flag as collapsed all spaces at the end of text
+        pos = pos-1; // get back last pos++
+        if (last_non_space_pos >= 0 && last_non_space_pos+1 <= pos) {
+            for ( int k=last_non_space_pos+1; k<=pos; k++ ) {
+                m_flags[k] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
+                // m_text[k] = '='; // uncomment when debugging
+            }
         }
         TR("%s", LCSTR(lString16(m_text, m_length)));
     }
@@ -606,24 +686,33 @@ public:
                         len = newlen;
                     }
 
-                    // Deal with chars flagged as leading spaces:
+                    // Deal with chars flagged as collapsed spaces:
                     // make each zero-width, so they are not accounted
                     // in the words width and position calculation.
-                    // widths[k] being cumulative, we have to substract
-                    // the original widths that are zero'ed from all
-                    // subsequents widths[k].
-                    int width_removed = 0;
+                    // Note: widths[] (obtained from lastFont->measureText)
+                    // and the m_widths[] we build have cumulative widths
+                    // (width[k] is the length of the rendered text from
+                    // chars 0 to k included)
+                    int cumulative_width_removed = 0;
+                    int prev_orig_measured_width = 0;
+                    int char_width = 0; // current single char width
                     for ( int k=0; k<len; k++ ) {
-                        if ( m_flags[start + k] & LCHAR_IS_LEADING_SPACE) {
-                            width_removed += widths[k];
-                            widths[k] = 0; // make it zero width
+                        // printf("%c %x f=%d w=%d\n", m_text[start+k], m_text[start+k], flags[k], widths[k]);
+                        char_width = widths[k] - prev_orig_measured_width;
+                        prev_orig_measured_width = widths[k];
+                        if ( m_flags[start + k] & LCHAR_IS_COLLAPSED_SPACE) {
+                            cumulative_width_removed += char_width;
+                            // make it zero width: same cumulative width as previous char's
+                            widths[k] = k>0 ? widths[k-1] : 0;
                             flags[k] = 0; // remove SPACE/WRAP/... flags
                         }
                         else {
-                            widths[k] -= width_removed;
+                            // remove, from the measured cumulative width, what we previously removed
+                            widths[k] -= cumulative_width_removed;
                         }
                         m_widths[start + k] = lastWidth + widths[k];
                         m_flags[start + k] |= flags[k];
+                        // printf("  => w=%d\n", m_widths[start + k]);
                     }
 
 //                    // debug dump
@@ -681,7 +770,7 @@ public:
 #define MIN_WORD_LEN_TO_HYPHENATE 4
 #define MAX_WORD_SIZE 64
 
-    /// align line
+    /// align line: add or reduce widths of spaces to achieve desired text alignment
     void alignLine( formatted_line_t * frmline, int width, int alignment ) {
         if ( frmline->x + frmline->width > width ) {
             // line is too wide
@@ -752,8 +841,9 @@ public:
             }
         }
     }
+
     /// split line into words, add space for width alignment
-    void addLine( int start, int end, int x, src_text_fragment_t * para, int interval, bool first, bool last, bool preFormattedOnly, bool needReduceSpace )
+    void addLine( int start, int end, int x, src_text_fragment_t * para, int interval, bool first, bool last, bool preFormattedOnly, bool needReduceSpace, bool isLastPara )
     {
         int maxWidth = m_pbuffer->width;
         //int w0 = start>0 ? m_widths[start-1] : 0;
@@ -770,7 +860,7 @@ public:
 
         bool visualAlignmentEnabled = gFlgFloatingPunctuationEnabled!=0 && (align == LTEXT_ALIGN_WIDTH || align == LTEXT_ALIGN_RIGHT ||align==LTEXT_ALIGN_LEFT);
 
-        bool splitBySpaces = (align == LTEXT_ALIGN_WIDTH) || needReduceSpace;
+        bool splitBySpaces = (align == LTEXT_ALIGN_WIDTH) || needReduceSpace; // always true with current code
 
         if ( last && !first ) {
             int last_align = (para->flags>>16) & LTEXT_FLAG_NEWLINE;
@@ -783,11 +873,33 @@ public:
             for ( int i=start; i<end; i++ )
                 if ( !((m_flags[i] & LCHAR_IS_SPACE) && !(m_flags[i] & LCHAR_IS_OBJECT)) )
                     lastnonspace = i;
+                // This "!( SPACE && !OBJECT)" looks wrong, as an OBJECT can't be also a SPACE,
+                // and it feels it's a parens error and should be "(!SPACE && !OBJECT)", but with
+                // that, we'll be ignoring multiple stuck OBJECTs at end of line.
+                // So, not touching it...
         }
 
         formatted_line_t * frmline =  lvtextAddFormattedLine( m_pbuffer );
         frmline->y = m_y;
         frmline->x = x;
+
+        if ( preFormattedOnly && (start == end) ) {
+            // Specific for preformatted text when consecutive \n\n:
+            // start == end, and we have no source text to point to,
+            // but we should draw en empty line (we can't just simply
+            // increase m_y and m_pbuffer->height, we need to have
+            // a frmline as Draw() loops thru these lines - a frmline
+            // with no word will do).
+            src_text_fragment_t * srcline = m_srcs[start];
+            LVFont * font = (LVFont*)srcline->t.font;
+            int fh = font->getHeight();
+            int fhWithInterval = (fh * interval) >> 4; // font height + interline space
+            frmline->height = (lUInt16) fhWithInterval;
+            m_y += frmline->height;
+            m_pbuffer->height = m_y;
+            return;
+        }
+
         src_text_fragment_t * lastSrc = m_srcs[start];
         int wstart = start;
         bool lastIsSpace = false;
@@ -796,18 +908,100 @@ public:
         bool isSpace = false;
         //bool nextIsSpace = false;
         bool space = false;
-        for ( int i=start; i<=end; i++ ) {
+        for ( int i=start; i<=end; i++ ) { // loop thru each char
             src_text_fragment_t * newSrc = i<end ? m_srcs[i] : NULL;
             if ( i<end ) {
                 //isObject = (m_flags[i] & LCHAR_IS_OBJECT)!=0;
-                isSpace = (m_flags[i] & LCHAR_IS_SPACE)!=0;
+                isSpace = (m_flags[i] & LCHAR_IS_SPACE)!=0; // current char is a space
                 //nextIsSpace = i<end-1 && (m_flags[i+1] & LCHAR_IS_SPACE);
                 space = splitBySpaces && lastIsSpace && !isSpace && i<lastnonspace;
+                // /\ previous char was a space, current char is not a space
             } else {
                 lastWord = true;
             }
+
+            // This loop goes thru each char, and create a new word when it meets:
+            // - a non-space char that follows a space (this non-space char will be
+            //   the first char of next word).
+            // - a char from a different text node (eg: "<span>first</span>next")
+            // - a CJK char (whether or not preceded by a space): each becomes a word
+            // - the end of text, which makes the last word
+            //
+            // It so grabs all spaces (0 or 1 with our XML parser) following
+            // the current real word, and includes it in the word. So a word
+            // includes its following space if any, but should not start with
+            // a space. The trailing space is needed for the word processing
+            // code below to properly set flags and guess the amount of spaces
+            // that can be increased or reduced for proper alignment.
+            // Also, these words being then stacked to each other to build the
+            // line, the ending space should be kept to be drawn and seen
+            // between each word (some words may not be separated by space when
+            // from different text nodes or CJK).
+            // Note: a "word" in our current context is just a unit of text that
+            // should be rendered together, and can be moved on the x-axis for
+            // alignment purpose (the 2 french words "qu'autrefois" make a
+            // single "word" here, the single word "quelconque", if hyphentaded
+            // as "quel-conque" will make one "word" on this line and another
+            // "word" on the next line.
+            //
+            // In a sequence of collapsing spaces, only the first was kept as
+            // a LCHAR_IS_SPACE. The following ones were flagged as
+            // LCHAR_IS_COLLAPSED_SPACE, and thus are not LCHAR_IS_SPACE.
+            // With the algorithm described just above, these collapsed spaces
+            // can then only be at the start of a word.
+            // Their calculated width has been made to 0, but the drawing code
+            // (LFormattedText::Draw() below) will use the original srctext text
+            // to draw the string: we can't override this original text (it is
+            // made read-only with the use of 'const') to replace the space with
+            // a zero-width char (which may not be zero-width in a monospace font).
+            // So, we need to adjust each word start index to get rid of the
+            // collapsed spaces.
+            //
+            // Note: if we were to make a space between 2 CJY chars a collapsed
+            // space, we would have it at the end of each word, which may
+            // be fine without additional work needed (not verified):
+            // having a zero-width, it would not change the width of the
+            // CJKchar/word, and would not affect the next CJKchar/word position.
+            // It would be drawn as a space, but the next CJKchar would override
+            // it when it is drawn next.
+
             if ( i>wstart && (newSrc!=lastSrc || space || lastWord || isCJKIdeograph(m_text[i])) ) {
-                // create and add new word
+                // New HTML source node, space met just before, last word, or CJK char:
+                // create and add new word with chars from wstart to i-1
+
+                // Remove any collapsed space at start of word: they
+                // may have a zero width and not influence positionning,
+                // but they will be drawn as a space by Draw(). We need
+                // to increment the start index into the src_text_fragment_t
+                // for Draw() to start rendering the text from this position.
+                while (wstart < i) {
+                    if ( !(m_flags[wstart] & LCHAR_IS_COLLAPSED_SPACE) )
+                        break;
+                    // printf("_"); // to see when we remove one, before the TR() below
+                    wstart++;
+                }
+                if (wstart == i) { // word is only collapsed spaces
+                    // No need to create it.
+                    // Except if it is the last word, and we have not yet added any:
+                    // we need a word for the line to have a height (frmline->height)
+                    // so that the following line is one line below the empty line we
+                    // made (eg, when <br/><br/>)
+                    // However, we don't do that if it would be the last empty line in
+                    // the last paragraph (paragraphs here are just sections of the final
+                    // block cut by <BR>): most browsers don't display the line break
+                    // implied by the BR when we have: "<div>some text<br/> </div>more text"
+                    // or "<div>some text<br/> <span> </span> </div>more text".
+                    if (lastWord && frmline->word_count == 0 && !isLastPara) {
+                        wstart--; // make a single word with a single collapsed space
+                    }
+                    else {
+                        // no word made, get ready for next loop
+                        lastSrc = newSrc;
+                        lastIsSpace = isSpace;
+                        continue;
+                    }
+                }
+
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
                 src_text_fragment_t * srcline = m_srcs[wstart];
                 int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
@@ -859,6 +1053,9 @@ public:
                     //frmline->width += width;
                 } else {
                     // word
+                    // wstart points to the previous first non-space char
+                    // i points to a non-space char that will be in next word
+                    // i-1 may be a space, or not (when different html tag/text nodes stuck to each other)
                     src_text_fragment_t * srcline = m_srcs[wstart];
                     LVFont * font = (LVFont*)srcline->t.font;
                     int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
@@ -895,12 +1092,14 @@ public:
                         word->min_width = word->width;
                         word->flags |= LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER;
                     }
-                    if ( m_flags[i-1] & LCHAR_IS_SPACE) {
+                    if ( m_flags[i-1] & LCHAR_IS_SPACE) { // Current word ends with a space
                         // condition for "- " at beginning of paragraph
                         if ( wstart!=0 || word->t.len!=2 || !(lGetCharProps(m_text[wstart]) & CH_PROP_DASH) ) {
                             // condition for double nbsp after run-in footnote title
                             if ( !(word->t.len>=2 && m_text[i-1]==UNICODE_NO_BREAK_SPACE && m_text[i-2]==UNICODE_NO_BREAK_SPACE)
                                     && !( m_text[i]==UNICODE_NO_BREAK_SPACE && m_text[i+1]==UNICODE_NO_BREAK_SPACE) ) {
+                                // Each word ending with a space (except for the 2 conditions above)
+                                // can have its width reduced by a fraction of this space width.
                                 word->flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                                 int dw = getMaxCondensedSpaceTruncation(i-1);
                                 if (dw>0) {
@@ -909,24 +1108,29 @@ public:
                             }
                         }
                         if ( !visualAlignmentEnabled && lastWord ) {
+                            // If last word of line, remove any trailing space from word's width
                             word->width = m_widths[i>1 ? i-2 : 0] - (wstart>0 ? m_widths[wstart-1] : 0);
                             word->min_width = word->width;
                         }
                     } else if ( frmline->word_count>1 && m_flags[wstart] & LCHAR_IS_SPACE ) {
+                        // Current word starts with a space (looks like this should not happen):
+                        // we can increase the space between previous word and this one if needed
                         //if ( word->t.len<2 || m_text[i-1]!=UNICODE_NO_BREAK_SPACE || m_text[i-2]!=UNICODE_NO_BREAK_SPACE)
 //                        if ( m_text[wstart]==UNICODE_NO_BREAK_SPACE && m_text[wstart+1]==UNICODE_NO_BREAK_SPACE)
 //                            CRLog::trace("Double nbsp text[-1]=%04x", m_text[wstart-1]);
 //                        else
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                     } else if (frmline->word_count>1 && isCJKIdeograph(m_text[i])) {
+                        // Current word is a CJK char: we can increase the space
+                        // between previous word and this one if needed
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                     }
                     if ( m_flags[i-1] & LCHAR_ALLOW_WRAP_AFTER )
-                        word->flags |= LTEXT_WORD_CAN_BREAK_LINE_AFTER;
+                        word->flags |= LTEXT_WORD_CAN_BREAK_LINE_AFTER; // not used anywhere
                     if ( word->t.start==0 && srcline->flags & LTEXT_IS_LINK )
-                        word->flags |= LTEXT_WORD_IS_LINK_START;
+                        word->flags |= LTEXT_WORD_IS_LINK_START; // for footnotes (not used by koreader)
 
-                    if ( visualAlignmentEnabled && lastWord ) {
+                    if ( visualAlignmentEnabled && lastWord ) { // if floating punctuation enabled
                         int endp = i-1;
                         int lastc = m_text[endp];
                         int wAlign = font->getVisualAligmentWidth();
@@ -1056,7 +1260,7 @@ public:
     }
 
     /// Split paragraph into lines
-    void processParagraph( int start, int end )
+    void processParagraph( int start, int end, bool isLastPara )
     {
         TR("processParagraph(%d, %d)", start, end);
 
@@ -1124,31 +1328,8 @@ public:
             return;
         }
 
-        // Count the number of leading space that we should ignore below.
-        // If there is no other content than these leading spaces, we
-        // should keep them as they carry empty new lines information.
-        int leading_spaces = 0;
-        bool has_content = false;
-        for ( int i=0; i<m_length; i++ ) {
-            if ( m_flags[i] & LCHAR_IS_LEADING_SPACE ) {
-                leading_spaces++;
-            }
-            else {
-                has_content = true;
-                break;
-            }
-        }
-        if (!has_content) // no text content: keep the spaces
-            leading_spaces = 0;
-
-        for (;pos<m_length;) {
+        for (;pos<m_length;) { // each loop makes a line
             int x = indent >=0 ? (pos==0 ? indent : 0) : (pos==0 ? 0 : -indent);
-            bool is_first_line = pos == 0;
-            // no more check for pos==0 beyond here: we can discard these leading spaces
-            pos += leading_spaces;
-            // reset leading_spaces as it's of no use anymore (and should not
-            // be used on next paragraph lines)
-            leading_spaces = 0;
             int w0 = pos>0 ? m_widths[pos-1] : 0;
             int i;
             int lastNormalWrap = -1;
@@ -1165,6 +1346,7 @@ public:
             	if (fnt) firstCharMargin -= fnt->getCharWidth(m_text[pos]);
             	firstCharMargin = (x + firstCharMargin) > 0 ? firstCharMargin : 0;
             }
+            // find candidates where end of line is possible
             for ( i=pos; i<m_length; i++ ) {
                 if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - firstCharMargin)
                     break;
@@ -1177,6 +1359,10 @@ public:
                 //   https://github.com/buggins/coolreader/commit/e2a1cf3306b6b083467d77d99dad751dc3aa07d9
                 // to the next if:
                 //  || lGetCharProps(m_text[i]) == 0
+                //
+                // No need to bother with LCHAR_IS_COLLAPSED_SPACE, they have zero width
+                // and so will be taken here. They carry LCHAR_ALLOW_WRAP_AFTER just like
+                // a space, so they will set lastNormalWrap.
                 if ((flags & LCHAR_ALLOW_WRAP_AFTER) || i==m_length-1 || isCJKIdeograph(m_text[i]))
                     lastNormalWrap = i;
                 else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER )
@@ -1184,6 +1370,7 @@ public:
                 else if ( flags & LCHAR_ALLOW_HYPH_WRAP_AFTER )
                     lastHyphWrap = i;
                 if (m_pbuffer->min_space_condensing_percent!=100 && i<m_length-1 && (m_flags[i] & LCHAR_IS_SPACE) && (i==m_length-1 || !(m_flags[i + 1] & LCHAR_IS_SPACE))) {
+                    // Each space not followed by a space is candidate for space condensing
                     int dw = getMaxCondensedSpaceTruncation(i);
                     if ( dw>0 )
                         spaceReduceWidth += dw;
@@ -1199,6 +1386,8 @@ public:
             if ( deprecatedWrapWidth>normalWrapWidth && unusedPercent>3 ) {
                 lastNormalWrap = lastDeprecatedWrap;
             }
+            // If, with normal wrapping, more than 5% of line is occupied by
+            // spaces, try to find a word (after where we stopped) to hyphenate
             if ( lastMandatoryWrap<0 && lastNormalWrap<m_length-1 && unusedPercent > 5 && !(m_srcs[wordpos]->flags & LTEXT_SRC_IS_OBJECT) && (m_srcs[wordpos]->flags & LTEXT_HYPHENATE) ) {
                 // hyphenate word
                 int start, end;
@@ -1241,6 +1430,7 @@ public:
                     }
                 }
             }
+            // Find best position to end this line
             int wrapPos = lastHyphWrap;
             if ( lastMandatoryWrap>=0 )
                 wrapPos = lastMandatoryWrap;
@@ -1274,7 +1464,7 @@ public:
                 for (int epos = endp; epos>=start; epos--, upSkipCount++) {
                    if ( !isCJKPunctuation(*(m_text + epos)) ) break;
                    //CRLog::trace("up skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
-				}
+                }
                 if (downSkipCount <= upSkipCount && downSkipCount <= 2 && visualAlignmentEnabled) {
                    endp += downSkipCount;
                    wrapPos += downSkipCount;
@@ -1286,12 +1476,17 @@ public:
                    //CRLog::trace("finally up skip punctuations %d", upSkipCount);
                 }
             }
+            // Best position to end this line found.
             int lastnonspace = endp-1;
             for ( int k=endp-1; k>=start; k-- ) {
                 if ( !((m_flags[k] & LCHAR_IS_SPACE) && !(m_flags[k] & LCHAR_IS_OBJECT)) ) {
                     lastnonspace = k;
                     break;
                 }
+                // This "!( SPACE && !OBJECT)" looks wrong, as an OBJECT can't be also a SPACE,
+                // and it feels it's a parens error and should be "(!SPACE && !OBJECT)", but with
+                // that, we'll be ignoring multiple stuck OBJECTs at end of line.
+                // So, not touching it...
             }
             int dw = lastnonspace>=start ? getAdditionalCharWidth(lastnonspace, lastnonspace+1) : 0;
             if (dw) {
@@ -1299,7 +1494,7 @@ public:
                 m_widths[lastnonspace] += dw;
             }
             if (endp>m_length) endp=m_length;
-            addLine(pos, endp, x + firstCharMargin, para, interval, is_first_line, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace);
+            addLine(pos, endp, x + firstCharMargin, para, interval, pos==0, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace, isLastPara);
             pos = wrapPos + 1;
         }
     }
@@ -1319,8 +1514,10 @@ public:
 //        TR("============================");
         bool prevRunIn = m_pbuffer->srctextlen>0 && (m_pbuffer->srctext[0].flags & LTEXT_RUNIN_FLAG);
         for ( i=1; i<=m_pbuffer->srctextlen; i++ ) {
-            if ( (i==m_pbuffer->srctextlen) || ((m_pbuffer->srctext[i].flags & LTEXT_FLAG_NEWLINE) && !prevRunIn) ) {
-                processParagraph( start, i );
+            // Split on LTEXT_FLAG_NEWLINE, mostly set when <BR/> met
+            bool isLastPara = (i == m_pbuffer->srctextlen);
+            if ( isLastPara || ((m_pbuffer->srctext[i].flags & LTEXT_FLAG_NEWLINE) && !prevRunIn) ) {
+                processParagraph( start, i, isLastPara );
                 start = i;
             }
             prevRunIn = (i<m_pbuffer->srctextlen) && (m_pbuffer->srctext[i].flags & LTEXT_RUNIN_FLAG);
