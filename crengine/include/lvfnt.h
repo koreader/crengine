@@ -222,7 +222,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
 #define LCHAR_IS_EOL               16 ///< flag: this char is CR or LF
 #define LCHAR_IS_OBJECT            32 ///< flag: this char is object or image
 #define LCHAR_MANDATORY_NEWLINE    64 ///< flag: this char must start with new line
-#define LCHAR_IS_LEADING_SPACE    128 ///< flag: this char is a space at start of non-pre paragraph (and can be stripped)
+#define LCHAR_IS_COLLAPSED_SPACE  128 ///< flag: this char is a space that should not be displayed
 
 /** \brief returns true if character is unicode space 
     \param code is character

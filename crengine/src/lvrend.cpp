@@ -1407,6 +1407,19 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         //***********************************
         baseflags = f; // to allow blocks in one level with inlines
         if ( enode->getNodeId()==el_br ) {
+            if (baseflags & LTEXT_FLAG_NEWLINE) {
+                // We meet a <BR/>, but no text node were met before (or it
+                // would have cleared the newline flag).
+                // Output a single space so that a blank line can be made,
+                // as wanted by a <BR/>.
+                // (This makes consecutive and stuck <br><br><br> work)
+                LVFont * font = enode->getFont().get();
+                txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT, line_h);
+                // baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+                // No need to clear the flag, as we set it just below
+                // (any LTEXT_ALIGN_* set implies LTEXT_FLAG_NEWLINE)
+
+            }
             // use the same alignment
             //baseflags |= LTEXT_ALIGN_LEFT;
             switch (style->text_align) {
