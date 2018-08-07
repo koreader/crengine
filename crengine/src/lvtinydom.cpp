@@ -4524,8 +4524,8 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
         // link node
         if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("link") &&
              _currNode->getElement()->getParentNode() && _currNode->getElement()->getParentNode()->isNodeName("head") &&
-             _currNode->getElement()->getAttributeValue("rel") == "stylesheet" &&
-             _currNode->getElement()->getAttributeValue("type") == "text/css" ) {
+             lString16(_currNode->getElement()->getAttributeValue("rel")).lowercase() == L"stylesheet" &&
+             lString16(_currNode->getElement()->getAttributeValue("type")).lowercase() == L"text/css" ) {
             lString16 href = _currNode->getElement()->getAttributeValue("href");
             lString16 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
@@ -7839,10 +7839,10 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar16 * nsname, const lCha
         }
     } else {
         if ( styleDetectionState ) {
-            if ( !lStr_cmp(attrname, "rel") && !lStr_cmp(attrvalue, "stylesheet") )
+            if ( !lStr_cmp(attrname, "rel") && lString16(attrvalue).lowercase() == L"stylesheet" )
                 styleDetectionState |= 2;
             else if ( !lStr_cmp(attrname, "type") ) {
-                if ( !lStr_cmp(attrvalue, "text/css") )
+                if ( lString16(attrvalue).lowercase() == L"text/css")
                     styleDetectionState |= 4;
                 else
                     styleDetectionState = 0;  // text/css type supported only
@@ -8158,13 +8158,14 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar16 * nsname, const lChar1
     //CRLog::trace("OnAttribute(%s, %s)", LCSTR(lString16(attrname)), LCSTR(lString16(attrvalue)));
 
     if ( !lStr_cmp(attrname, "align") ) {
-        if ( !lStr_cmp(attrvalue, "justify") )
+        lString16 align = lString16(attrvalue).lowercase();
+        if ( align == L"justify")
             appendStyle( L"text-align: justify" );
-        else if ( !lStr_cmp(attrvalue, "left") )
+        else if ( align == L"left")
             appendStyle( L"text-align: left" );
-        else if ( !lStr_cmp(attrvalue, "right") )
+        else if ( align == L"right")
             appendStyle( L"text-align: right" );
-        else if ( !lStr_cmp(attrvalue, "center") )
+        else if ( align == L"center")
             appendStyle( L"text-align: center" );
        return;
     }
@@ -8199,8 +8200,8 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
         // link node
         if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("link") &&
              _currNode->getElement()->getParentNode() && _currNode->getElement()->getParentNode()->isNodeName("head") &&
-             _currNode->getElement()->getAttributeValue("rel") == "stylesheet" &&
-             _currNode->getElement()->getAttributeValue("type") == "text/css" ) {
+             lString16(_currNode->getElement()->getAttributeValue("rel")).lowercase() == L"stylesheet" &&
+             lString16(_currNode->getElement()->getAttributeValue("type")).lowercase() == L"text/css" ) {
             lString16 href = _currNode->getElement()->getAttributeValue("href");
             lString16 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
