@@ -3934,6 +3934,10 @@ void ldomElementWriter::onBodyEnter()
 //            crFatalError();
 //        }
         _isBlock = isBlockNode(_element);
+        // If initNodeStyle() has set "white-space: pre", update _flags
+        if ( _element->getStyle()->white_space == css_ws_pre) {
+            _flags |= TXTFLG_PRE;
+        }
     } else {
     }
     if ( _isSection ) {
@@ -4533,6 +4537,7 @@ void ldomDocumentWriter::OnTagBody()
         // onBodyEnter \/, for any body {} css declaration to be available
         // as this onBodyEnter will apply the current _stylesheet to this BODY node.
         _currNode->onBodyEnter();
+        _flags = _currNode->getFlags(); // _flags may have been updated (if white-space: pre)
         // And only after this we can add the <stylesheet> as a first child
         // element of this BODY node. It will not be displayed thanks to fb2def.h:
         //   XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
@@ -4544,6 +4549,7 @@ void ldomDocumentWriter::OnTagBody()
     }
     else if ( _currNode ) { // for all other tags (including BODY when no style)
         _currNode->onBodyEnter();
+        _flags = _currNode->getFlags(); // _flags may have been updated (if white-space: pre)
     }
 }
 
@@ -9109,6 +9115,11 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                     res = res * 31 + sh;
                     if (!style.isNull()) {
                         _nodeDisplayStyleHash = _nodeDisplayStyleHash * 31 + style.get()->display;
+                        // Also accounts in this hash if this node is "white_space: pre"
+                        // If white_space change from/to "pre" to/from any other value,
+                        // the document will need to be reloaded so that the HTML text parts
+                        // are parsed according the the PRE/not-PRE rules
+                        if (style.get()->white_space == css_ws_pre) _nodeDisplayStyleHash += 29;
                     }
                     //printf("element %d %d style hash: %x\n", i, j, sh);
                     LVFontRef font = buf[j].getFont();
