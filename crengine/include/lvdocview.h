@@ -888,7 +888,7 @@ public:
     void setRenderProps( int dx, int dy );
 
     /// Constructor
-    LVDocView( int bitsPerPixel=-1 );
+    LVDocView( int bitsPerPixel=-1, bool noDefaultDocument=false );
     /// Destructor
     virtual ~LVDocView();
 };
