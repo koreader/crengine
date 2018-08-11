@@ -2223,6 +2223,9 @@ protected:
     lUInt16 _stopTagId;
     //============================
     lUInt32 _flags;
+    bool _inHeadStyle;
+    lString16 _headStyleText;
+    lString16Collection _stylesheetLinks;
     virtual void ElementCloseHandler( ldomNode * node ) { node->persist(); }
 public:
     /// returns flags
@@ -2276,8 +2279,6 @@ protected:
     lUInt16 _classAttrId;
     lUInt16 * _rules[MAX_ELEMENT_TYPE_ID];
     bool _tagBodyCalled;
-    bool _inHeadStyle;
-    lString16 _headStyleText;
     virtual void AutoClose( lUInt16 tag_id, bool open );
     virtual void ElementCloseHandler( ldomNode * elem );
     virtual void appendStyle( const lChar16 * style );
