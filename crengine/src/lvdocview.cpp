@@ -124,7 +124,7 @@ static css_font_family_t DEFAULT_FONT_FAMILY = css_ff_sans_serif;
 
 static int def_font_sizes[] = { 18, 20, 22, 24, 29, 33, 39, 44 };
 
-LVDocView::LVDocView(int bitsPerPixel) :
+LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 	m_bitsPerPixel(bitsPerPixel), m_dx(400), m_dy(200), _pos(0), _page(0),
 			_posIsSet(false), m_battery_state(CR_BATTERY_STATE_NO_BATTERY)
 #if (LBOOK==1)
@@ -186,8 +186,10 @@ LVDocView::LVDocView(int bitsPerPixel) :
 	propsUpdateDefaults( m_props);
 
 	//m_drawbuf.Clear(m_backgroundColor);
-    createDefaultDocument(cs16("No document"), lString16(
-			L"Welcome to CoolReader! Please select file to open"));
+
+    if (!noDefaultDocument)
+        createDefaultDocument(cs16("No document"), lString16(
+                    L"Welcome to CoolReader! Please select file to open"));
 
     m_font_size = scaleFontSizeForDPI(m_requested_font_size);
     gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
@@ -227,7 +229,8 @@ void LVDocView::setTextFormatOptions(txt_format_t fmt) {
 	if (m_text_format == fmt)
 		return; // no change
 	m_props->setBool(PROP_TXT_OPTION_PREFORMATTED, (fmt == txt_format_pre));
-	m_doc->setDocFlag(DOC_FLAG_PREFORMATTED_TEXT, (fmt == txt_format_pre));
+	if (m_doc) // not when noDefaultDocument=true
+		m_doc->setDocFlag(DOC_FLAG_PREFORMATTED_TEXT, (fmt == txt_format_pre));
 	if (getDocFormat() == doc_format_txt) {
 		requestReload();
 		CRLog::trace(
@@ -540,6 +543,8 @@ void LVDocView::clearImageCache() {
 
 /// invalidate formatted data, request render
 void LVDocView::requestRender() {
+	if (!m_doc) // nothing to render when noDefaultDocument=true
+		return;
 	m_is_rendered = false;
 	clearImageCache();
 	m_doc->clearRendBlockCache();
@@ -5982,15 +5987,18 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
 #endif
         } else if (name == PROP_EMBEDDED_STYLES) {
             bool value = props->getBoolDef(PROP_EMBEDDED_STYLES, true);
-            getDocument()->setDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES, value);
+            if (m_doc) // not when noDefaultDocument=true
+                getDocument()->setDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES, value);
             REQUEST_RENDER("propsApply embedded styles")
         } else if (name == PROP_EMBEDDED_FONTS) {
             bool value = props->getBoolDef(PROP_EMBEDDED_FONTS, true);
-            getDocument()->setDocFlag(DOC_FLAG_ENABLE_DOC_FONTS, value);
+            if (m_doc) // not when noDefaultDocument=true
+                getDocument()->setDocFlag(DOC_FLAG_ENABLE_DOC_FONTS, value);
             REQUEST_RENDER("propsApply doc fonts")
         } else if (name == PROP_FOOTNOTES) {
             bool value = props->getBoolDef(PROP_FOOTNOTES, true);
-            getDocument()->setDocFlag(DOC_FLAG_ENABLE_FOOTNOTES, value);
+            if (m_doc) // not when noDefaultDocument=true
+                getDocument()->setDocFlag(DOC_FLAG_ENABLE_FOOTNOTES, value);
             REQUEST_RENDER("propsApply footnotes")
         } else if (name == PROP_FLOATING_PUNCTUATION) {
             bool value = props->getBoolDef(PROP_FLOATING_PUNCTUATION, true);
@@ -6012,8 +6020,9 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             }
         } else if (name == PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT) {
             int value = props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT);
-            if (getDocument()->setMinSpaceCondensingPercent(value))
-                REQUEST_RENDER("propsApply condensing percent")
+            if (m_doc) // not when noDefaultDocument=true
+                if (getDocument()->setMinSpaceCondensingPercent(value))
+                    REQUEST_RENDER("propsApply condensing percent")
         } else if (name == PROP_HIGHLIGHT_COMMENT_BOOKMARKS) {
             int value = props->getIntDef(PROP_HIGHLIGHT_COMMENT_BOOKMARKS, highlight_mode_underline);
             if (m_highlightBookmarks != value) {
