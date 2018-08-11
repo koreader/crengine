@@ -452,7 +452,7 @@ struct CacheFileHeader : public SimpleCacheFileHeader
         }
         if ( _dirty!=0 ) {
             CRLog::error("CacheFileHeader::validate: dirty flag is set");
-            printf("CRE WARNING: ignoring cache file (marked as dirty)\n");
+            printf("CRE: ignoring cache file (marked as dirty)\n");
             return false;
         }
         return true;
@@ -3402,6 +3402,8 @@ int tinyNodeCollection::calcFinalBlocks()
     return cnt;
 }
 
+// This is mostly only useful for FB2 stylesheet, as we no more set
+// anything in _docStylesheetFileName
 void ldomDocument::applyDocumentStyleSheet()
 {
     if ( !getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ) {
@@ -3466,6 +3468,11 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
 //    }
 
     if ( !checkRenderContext() ) {
+        if ( _nodeDisplayStyleHashInitial == NODE_DISPLAY_STYLE_HASH_UNITIALIZED ) { // happen when just loaded
+            // For knowing/debugging cases when node styles set up during loading
+            // is invalid (should happen now only when EPUB has embedded fonts)
+            printf("CRE: document loaded, but styles re-init needed (possible epub with embedded fonts)\n");
+        }
         CRLog::info("rendering context is changed - full render required...");
         CRLog::trace("init format data...");
         //CRLog::trace("validate 1...");
@@ -4345,13 +4352,16 @@ bool ldomNode::applyNodeStylesheet()
     // Here, we apply internal stylesheets that have been saved as attribute or
     // child element by the HTML parser for EPUB or plain HTML documents.
 
-    // For epub documents, for each included .html in the epub, a css file link may
-    // have been put as the value of an added attribute to the <DocFragment> element:
+    // For epub documents, for each included .html in the epub, the first css
+    // file link may have been put as the value of an added attribute to
+    // the <DocFragment> element:
     //     <DocFragment StyleSheet="path to css file">
-    // For epub and html documents, the content of the first <head><style> element
-    // has been put into an added child element:
-    //     <DocFragment><stylesheet>css content</stylesheet>
-    //     <body><stylesheet>css content</stylesheet>
+    //
+    // For epub and html documents, the content of one or more <head><style>
+    // elements, as well as all (only the 2nd++ for epub) linked css files,
+    // with @import url(), have been put into an added child element:
+    //     <DocFragment><stylesheet>css content</stylesheet><body>...</body></DocFragment>
+    //     <body><stylesheet>css content</stylesheet>...</body>
 
     bool stylesheetChanged = false;
 
@@ -4386,9 +4396,13 @@ void ldomElementWriter::addAttribute( lUInt16 nsid, lUInt16 id, const wchar_t * 
 {
     getElement()->setAttributeValue(nsid, id, value);
 #if BUILD_LITE!=1
+    /* This is now done by ldomDocumentFragmentWriter::OnTagOpen() directly,
+     * as we need to do it too for <DocFragment><stylesheet> tag, and not
+     * only for <DocFragment StyleSheet="path_to_css_1st_file"> attribute.
     if ( id==attr_StyleSheet ) {
         _stylesheetIsSet = _element->applyNodeStylesheet();
     }
+    */
 #endif
 }
 
@@ -4442,6 +4456,10 @@ ldomElementWriter::~ldomElementWriter()
 
 /////////////////////////////////////////////////////////////////
 /// ldomDocumentWriter
+// Used to parse expected XHTML (possibly made by crengine or helpers) for
+// formats: FB2, RTF, WORD, plain text, PDB(txt)
+// Used for EPUB to build a single document, but driven by ldomDocumentFragmentWriter
+// for each individual HTML files in the EPUB.
 
 // overrides
 void ldomDocumentWriter::OnStart(LVFileFormatParser * parser)
@@ -4467,10 +4485,64 @@ void ldomDocumentWriter::OnStop()
 }
 
 /// called after > of opening tag (when entering tag body)
+// Note to avoid confusion: all tags HAVE a body (their content), so this
+// is called on all tags.
+// But in this, we do some specifics for tags that ARE a <BODY> tag.
 void ldomDocumentWriter::OnTagBody()
 {
-    // init element style
-    if ( _currNode ) {
+    // Specific if we meet the <BODY> tag and we have styles to apply and
+    // store in the DOM
+    // (This can't happen with EPUBs: the ldomDocumentFragmentWriter that
+    // drives this ldomDocumentWriter has parsed the HEAD STYLEs and LINKs
+    // of each individual HTML file, and we see from them only their BODY:
+    // _headStyleText and _stylesheetLinks are then empty. Styles for EPUB
+    // are handled in :OnTagOpen() when being a DocFragment and meeting
+    // the BODY.)
+    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") &&
+            ( !_headStyleText.empty() || _stylesheetLinks.length() > 0 ) ) {
+        // If we're BODY, and we have meet styles in the previous HEAD
+        // (links to css files or <STYLE> content), we need to save them
+        // in an added <body><stylesheet> element so they are in the DOM
+        // and saved in the cache, and found again when loading from cache
+        // and applied again when a re-rendering is needed.
+
+        // Make out an aggregated single stylesheet text.
+        // @import's need to be first in the final stylesheet text
+        lString16 imports;
+        for (int i = 0; i < _stylesheetLinks.length(); i++) {
+            lString16 import("@import url(\"");
+            import << _stylesheetLinks.at(i);
+            import << "\");\n";
+            imports << import;
+        }
+        lString16 styleText = imports + _headStyleText.c_str();
+        _stylesheetLinks.clear();
+        _headStyleText.clear();
+
+        // It's only at this point that we push() the previous stylesheet state
+        // and apply the combined style text we made to the document:
+        if ( _document->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ) {
+            _document->getStyleSheet()->push();
+            _popStyleOnFinish = true; // superclass ~ldomDocumentWriter() will do the ->pop()
+            _document->parseStyleSheet(lString16(), styleText);
+            // printf("applied: %s\n", LCSTR(styleText));
+            // apply any FB2 stylesheet too, so it's removed too when pop()
+            _document->applyDocumentStyleSheet();
+        }
+        // We needed to add that /\ to the _document->_stylesheet before this
+        // onBodyEnter \/, for any body {} css declaration to be available
+        // as this onBodyEnter will apply the current _stylesheet to this BODY node.
+        _currNode->onBodyEnter();
+        // And only after this we can add the <stylesheet> as a first child
+        // element of this BODY node. It will not be displayed thanks to fb2def.h:
+        //   XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
+        OnTagOpen(L"", L"stylesheet");
+        OnTagBody();
+        OnText(styleText.c_str(), styleText.length(), 0);
+        OnTagClose(L"", L"stylesheet");
+        CRLog::trace("added BODY>stylesheet child element with HEAD>STYLE&LINKS content");
+    }
+    else if ( _currNode ) { // for all other tags (including BODY when no style)
         _currNode->onBodyEnter();
     }
 }
@@ -4481,6 +4553,21 @@ ldomNode * ldomDocumentWriter::OnTagOpen( const lChar16 * nsname, const lChar16 
     //CRLog::trace("OnTagOpen(%s)", UnicodeToUtf8(lString16(tagname)).c_str());
     lUInt16 id = _document->getElementNameIndex(tagname);
     lUInt16 nsid = (nsname && nsname[0]) ? _document->getNsNameIndex(nsname) : 0;
+
+    // Set a flag for OnText to accumulate the content of any <HEAD><STYLE>
+    if ( tagname[0] == 's' && !lStr_cmp(tagname, "style") && _currNode && _currNode->getElement()->isNodeName("head") ) {
+        _inHeadStyle = true;
+    }
+
+    // For EPUB, when ldomDocumentWriter is driven by ldomDocumentFragmentWriter:
+    // if we see a BODY coming and we are a DocFragment, its time to apply the
+    // styles set to the DocFragment before switching to BODY (so the styles can
+    // be applied to BODY)
+    if (id == el_body && _currNode->_element->getNodeId() == el_DocFragment) {
+        _currNode->_stylesheetIsSet = _currNode->getElement()->applyNodeStylesheet();
+        // _stylesheetIsSet will be used to pop() the stylesheet when
+        // leaving/destroying this DocFragment ldomElementWriter
+    }
 
     //if ( id==_stopTagId ) {
         //CRLog::trace("stop tag found, stopping...");
@@ -4500,7 +4587,11 @@ ldomDocumentWriter::~ldomDocumentWriter()
 #if BUILD_LITE!=1
     if ( _document->isDefStyleSet() ) {
         if ( _popStyleOnFinish )
+            // pop any added styles to the original stylesheet so we get
+            // the original one back and avoid a stylesheet hash mismatch
             _document->getStyleSheet()->pop();
+        // Not sure why we would do that at end of parsing, but ok: it's
+        // not recursive, so not expensive:
         _document->getRootNode()->initNodeStyle();
         _document->getRootNode()->initNodeFont();
         //if ( !_document->validateDocument() )
@@ -4520,7 +4611,11 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
         //logfile << " !c-err!\n";
         return;
     }
-    if (tagname[0] == 'l' && _currNode && !lStr_cmp(tagname, "link") ) {
+
+    // Parse <link rel="stylesheet">, put the css file link in _stylesheetLinks.
+    // They will be added to <body><stylesheet> when we meet <BODY>
+    // (duplicated in ldomDocumentWriterFilter::OnTagClose)
+    if (tagname[0] == 'l' && _currNode && !lStr_cmp(tagname, "link")) {
         // link node
         if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("link") &&
              _currNode->getElement()->getParentNode() && _currNode->getElement()->getParentNode()->isNodeName("head") &&
@@ -4529,11 +4624,14 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
             lString16 href = _currNode->getElement()->getAttributeValue("href");
             lString16 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
-            _document->setDocStylesheetFileName(stylesheetFile);
-            _document->applyDocumentStyleSheet();
+            // We no more apply it immediately: it will be when <BODY> is met
+            // _document->setDocStylesheetFileName(stylesheetFile);
+            // _document->applyDocumentStyleSheet();
+            _stylesheetLinks.add(stylesheetFile);
         }
     }
 
+    /* This is now dealt with in :OnTagBody(), just before creating this <stylesheet> tag
     bool isStyleSheetTag = !lStr_cmp(tagname, "stylesheet");
     if ( isStyleSheetTag ) {
         ldomNode *parentNode = _currNode->getElement()->getParentNode();
@@ -4543,6 +4641,7 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
             isStyleSheetTag = false;
         }
     }
+    */
 
     lUInt16 id = _document->getElementNameIndex(tagname);
     //lUInt16 nsid = (nsname && nsname[0]) ? _document->getNsNameIndex(nsname) : 0;
@@ -4557,6 +4656,7 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
         _parser->Stop();
     }
 
+    /* This is now dealt with in :OnTagBody(), just before creating this <stylesheet> tag
     if ( isStyleSheetTag ) {
         //CRLog::trace("</stylesheet> found");
 #if BUILD_LITE!=1
@@ -4568,6 +4668,8 @@ void ldomDocumentWriter::OnTagClose( const lChar16 *, const lChar16 * tagname )
         }
 #endif
     }
+    */
+
     //logfile << " !c!\n";
 }
 
@@ -4584,6 +4686,14 @@ void ldomDocumentWriter::OnAttribute( const lChar16 * nsname, const lChar16 * at
 void ldomDocumentWriter::OnText( const lChar16 * text, int len, lUInt32 flags )
 {
     //logfile << "ldomDocumentWriter::OnText() fpos=" << fpos;
+
+    // Accumulate <HEAD><STYLE> content
+    if (_inHeadStyle) {
+        _headStyleText << lString16(text, len);
+        _inHeadStyle = false;
+        return;
+    }
+
     if (_currNode)
     {
         if ( (_flags & XML_FLAG_NO_SPACE_TEXT)
@@ -4600,8 +4710,10 @@ void ldomDocumentWriter::OnEncoding( const lChar16 *, const lChar16 *)
 }
 
 ldomDocumentWriter::ldomDocumentWriter(ldomDocument * document, bool headerOnly)
-    : _document(document), _currNode(NULL), _errFlag(false), _headerOnly(headerOnly), _popStyleOnFinish(false), _flags(0)
+    : _document(document), _currNode(NULL), _errFlag(false), _headerOnly(headerOnly), _popStyleOnFinish(false), _flags(0), _inHeadStyle(false)
 {
+    _headStyleText.clear();
+    _stylesheetLinks.clear();
     _stopTagId = 0xFFFE;
     IS_FIRST_BODY = true;
 
@@ -7755,6 +7867,11 @@ static lString16 escapeDocPath( lString16 path )
 }
 #endif
 
+/////////////////////////////////////////////////////////////////
+/// ldomDocumentFragmentWriter
+// Used for EPUB with each individual HTML files in the EPUB,
+// drives ldomDocumentWriter to build one single document from them.
+
 lString16 ldomDocumentFragmentWriter::convertId( lString16 id )
 {
     if ( !codeBasePrefix.empty() ) {
@@ -7877,19 +7994,42 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar16 * nsname, const 
         if ( !lStr_cmp(tagname, "style") )
             headStyleState = 1;
     }
-    if ( !insideTag && baseTag==tagname ) {
+
+    // When meeting the <body> of each of an EPUB's embedded HTML files,
+    // we will insert into parent (the ldomDocumentWriter that makes out a single
+    // document) a <DocFragment> wrapping that <body>. It may end up as:
+    //
+    //   <DocFragment StyleSheet="OEBPS/Styles/main.css" id="_doc_fragment_2">
+    //     <stylesheet href="OEBPS/Text/">
+    //       @import url("../Styles/other.css");
+    //       @import url(path_to_3rd_css_file)
+    //       here is <HEAD><STYLE> content
+    //     </stylesheet>
+    //     <body>
+    //       here is original <BODY> content
+    //     </body>
+    //   </DocFragment>
+    //
+    // (Why one css file link in an attribute and others in the tag?
+    // I suppose it's because attribute values are hashed and stored only
+    // once, so it saves space in the DOM/cache for documents with many
+    // fragments and a single CSS link, which is the most usual case.)
+
+    if ( !insideTag && baseTag==tagname ) { // with EPUBs: baseTag="body"
         insideTag = true;
-        if ( !baseTagReplacement.empty() ) {
-            baseElement = parent->OnTagOpen(L"", baseTagReplacement.c_str());
+        if ( !baseTagReplacement.empty() ) { // with EPUBs: baseTagReplacement="DocFragment"
+            baseElement = parent->OnTagOpen(L"", baseTagReplacement.c_str()); // start <DocFragment
             lastBaseElement = baseElement;
             if ( !stylesheetFile.empty() ) {
+                // add attribute <DocFragment StyleSheet="path_to_css_1st_file"
                 parent->OnAttribute(L"", L"StyleSheet", stylesheetFile.c_str() );
                 CRLog::debug("Setting StyleSheet attribute to %s for document fragment", LCSTR(stylesheetFile) );
             }
-            if ( !codeBasePrefix.empty() )
+            if ( !codeBasePrefix.empty() ) // add attribute <DocFragment id="..html_file_name"
                 parent->OnAttribute(L"", L"id", codeBasePrefix.c_str() );
-            parent->OnTagBody();
+            parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {
+                // add stylesheet element as child of <DocFragment>: <stylesheet href="...">
                 parent->OnTagOpen(L"", L"stylesheet");
                 parent->OnAttribute(L"", L"href", codeBase.c_str() );
                 lString16 imports;
@@ -7901,11 +8041,24 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar16 * nsname, const 
                 }
                 stylesheetLinks.clear();
                 lString16 styleText = imports + headStyleText.c_str();
+                // Add it to <DocFragment><stylesheet>, so it becomes:
+                //   <stylesheet href="...">
+                //     @import url(path_to_css_2nd_file)
+                //     @import url(path_to_css_3rd_file)
+                //     here is <HEAD><STYLE> content
+                //   </stylesheet>
                 parent->OnTagBody();
                 parent->OnText(styleText.c_str(), styleText.length(), 0);
                 parent->OnTagClose(L"", L"stylesheet");
+                // done with <DocFragment><stylesheet>...</stylesheet>
             }
-            // add base tag, too (e.g., in CSS, styles are often defined for body tag"
+            // Finally, create <body> and go on.
+            // The styles we have just set via <stylesheet> element and
+            // StyleSheet= attribute will be applied by this OnTagOpen("body")
+            // (including those that may apply to body itself), push()'ing
+            // the previous stylesheet state, that will be pop()'ed when the
+            // ldomElementWriter for DocFragment is left/destroyed (by onBodyExit(),
+            // because this OnTagOpen has set to it _stylesheetIsSet).
             parent->OnTagOpen(L"", baseTag.c_str());
             parent->OnTagBody();
             return baseElement;
@@ -7950,6 +8103,10 @@ void ldomDocumentFragmentWriter::OnTagBody()
 
 
 
+/////////////////////////////////////////////////////////////////
+/// ldomDocumentWriterFilter
+// Used to parse loosy HTML in formats: HTML, CHM, PDB(html)
+
 /** \brief callback object to fill DOM tree
 
     To be used with XML parser as callback object.
@@ -7976,8 +8133,10 @@ void ldomDocumentWriterFilter::appendStyle( const lChar16 * style )
     if ( _styleAttrId==0 ) {
         _styleAttrId = _document->getAttrNameIndex(L"style");
     }
-    if (!_document->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES))
-        return; // disabled
+    // Append to the style attribute even if embedded styles are disabled
+    // at loading time, otherwise it won't be there if we enable them later
+    // if (!_document->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES))
+    //     return; // disabled
 
     lString16 oldStyle = node->getAttributeValue(_styleAttrId);
     if ( !oldStyle.empty() && oldStyle.at(oldStyle.length()-1)!=';' )
@@ -8034,6 +8193,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
 //        lStr_lowercase( const_cast<lChar16 *>(nsname), lStr_len(nsname) );
 //    lStr_lowercase( const_cast<lChar16 *>(tagname), lStr_len(tagname) );
 
+    // Set a flag for OnText to accumulate the content of any <HEAD><STYLE>
     if ( tagname[0] == 's' && !lStr_cmp(tagname, "style") && _currNode && _currNode->getElement()->isNodeName("head") ) {
         _inHeadStyle = true;
     }
@@ -8065,30 +8225,16 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
     return _currNode->getElement();
 }
 
+/// called after > of opening tag (when entering tag body)
+// Note to avoid confusion: all tags HAVE a body (their content), so this
+// is called on all tags.
 void ldomDocumentWriterFilter::OnTagBody()
 {
     _tagBodyCalled = true;
-    if ( _currNode ) {
-        _currNode->onBodyEnter();
-    }
 
-    // needs to be done after previous statement to not mess parser state
-    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") && !_headStyleText.empty() ) {
-        // Adds <head><style> content as <body> first child element.
-        // It will not be displayed thanks to fb2def.h:
-        //   XS_TAG1D( stylesheet, true, css_d_none, css_ws_normal )
-        OnTagOpen(L"", L"stylesheet");
-        OnTagBody();
-        OnText(_headStyleText.c_str(), _headStyleText.length(), 0);
-        OnTagClose(L"", L"stylesheet");
-        CRLog::trace("added BODY>stylesheet child element with HEAD>STYLE content");
-        // We add the head style content to current stylesheet, just like it is done for
-        // EPUB in ldomDocumentWriter::OnTagClose(). This is just to change the
-        // stylesheet hash, so that a new rendering is triggered (it will parse again the
-        // stylesheets, and will take into account the one we just set in this element).
-        _document->parseStyleSheet(lString16(), _headStyleText);
-        _headStyleText.clear();
-    }
+    // Some specific handling for the <BODY> tag to deal with HEAD STYLE and
+    // LINK is done in super class (ldomDocumentWriter)
+    ldomDocumentWriter::OnTagBody();
 }
 
 bool isRightAligned(ldomNode * node) {
@@ -8195,7 +8341,9 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
         return;
     }
 
-
+    // Parse <link rel="stylesheet">, put the css file link in _stylesheetLinks,
+    // they will be added to <body><stylesheet> when we meet <BODY>
+    // (duplicated in ldomDocumentWriter::OnTagClose)
     if (tagname[0] == 'l' && _currNode && !lStr_cmp(tagname, "link")) {
         // link node
         if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("link") &&
@@ -8205,8 +8353,10 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
             lString16 href = _currNode->getElement()->getAttributeValue("href");
             lString16 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
-            _document->setDocStylesheetFileName(stylesheetFile);
-            _document->applyDocumentStyleSheet();
+            // We no more apply it immediately: it will be when <BODY> is met
+            // _document->setDocStylesheetFileName(stylesheetFile);
+            // _document->applyDocumentStyleSheet();
+            _stylesheetLinks.add(stylesheetFile);
         }
     }
 
@@ -8252,6 +8402,7 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
 /// called on text
 void ldomDocumentWriterFilter::OnText( const lChar16 * text, int len, lUInt32 flags )
 {
+    // Accumulate <HEAD><STYLE> content
     if (_inHeadStyle) {
         _headStyleText << lString16(text, len);
         _inHeadStyle = false;
@@ -8334,9 +8485,7 @@ ldomDocumentWriterFilter::ldomDocumentWriterFilter(ldomDocument * document, bool
 , _styleAttrId(0)
 , _classAttrId(0)
 , _tagBodyCalled(true)
-, _inHeadStyle(false)
 {
-    _headStyleText.clear();
     lUInt16 i;
     for ( i=0; i<MAX_ELEMENT_TYPE_ID; i++ )
         _rules[i] = NULL;
@@ -9654,6 +9803,10 @@ bool ldomDocument::checkRenderContext()
     bool res = true;
     ldomNode * node = getRootNode();
     if (node != NULL && node->getFont().isNull()) {
+        // This may happen when epubfmt.cpp has called forceReinitStyles()
+        // because the EPUB contains embedded fonts: a full nodes styles
+        // re-init is needed to use the new fonts (only available at end
+        // of loading)
         CRLog::info("checkRenderContext: style is not set for root node");
         res = false;
     }
