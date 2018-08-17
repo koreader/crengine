@@ -164,6 +164,12 @@ enum hinting_mode_t {
     HINTING_MODE_AUTOHINT
 };
 
+enum kerning_mode_t {
+    KERNING_MODE_DISABLED,
+    KERNING_MODE_FREETYPE,
+    KERNING_MODE_HARFBUZZ
+};
+
 
 /** \brief base class for fonts
 
@@ -269,10 +275,10 @@ public:
     /// set bitmap mode (true=monochrome bitmap, false=antialiased)
     virtual void setBitmapMode( bool ) { }
 
-    /// get kerning mode: true==ON, false=OFF
-    virtual bool getKerning() const { return false; }
-    /// get kerning mode: true==ON, false=OFF
-    virtual void setKerning( bool ) { }
+    /// sets current kerning mode
+    virtual void setKerningMode( kerning_mode_t /*mode*/ ) { }
+    /// returns current kerning mode
+    virtual kerning_mode_t getKerningMode() const { return KERNING_MODE_DISABLED; }
 
     /// sets current hinting mode
     virtual void setHintingMode(hinting_mode_t /*mode*/) { }
@@ -286,7 +292,8 @@ public:
     virtual ~LVFont() { }
 
     virtual bool kerningEnabled() { return false; }
-    virtual int getKerningOffset(lChar16 ch1, lChar16 ch2, lChar16 def_char) { CR_UNUSED3(ch1,ch2,def_char); return 0; }
+    // Obsolete:
+    // virtual int getKerningOffset(lChar16 ch1, lChar16 ch2, lChar16 def_char) { CR_UNUSED3(ch1,ch2,def_char); return 0; }
 
     /// set fallback font for this font
     virtual void setFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
@@ -344,7 +351,7 @@ class LVFontManager
 {
 protected:
     int _antialiasMode;
-    bool _allowKerning;
+    kerning_mode_t _kerningMode;
     hinting_mode_t _hintingMode;
 public:
     /// garbage collector frees unused fonts
@@ -379,13 +386,13 @@ public:
     /// set antialiasing mode
     virtual void SetAntialiasMode( int mode ) { _antialiasMode = mode; gc(); clearGlyphCache(); }
 
+    /// get kerning mode
+    virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
-    virtual bool getKerning() { return _allowKerning; }
-    /// get kerning mode: true==ON, false=OFF
-    virtual void setKerning( bool kerningEnabled ) { _allowKerning = kerningEnabled; gc(); clearGlyphCache(); }
+    virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
 
     /// constructor
-    LVFontManager() : _antialiasMode(font_aa_all), _allowKerning(false), _hintingMode(HINTING_MODE_AUTOHINT) { }
+    LVFontManager() : _antialiasMode(font_aa_all), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT) { }
     /// destructor
     virtual ~LVFontManager() { }
     /// returns available typefaces
