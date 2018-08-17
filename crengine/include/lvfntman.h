@@ -285,6 +285,9 @@ public:
     /// returns current hinting mode
     virtual hinting_mode_t  getHintingMode() const { return HINTING_MODE_AUTOHINT; }
 
+    /// clear cache
+    virtual void clearCache() { }
+
     /// returns true if font is empty
     virtual bool IsNull() const = 0;
     virtual bool operator ! () const = 0;
