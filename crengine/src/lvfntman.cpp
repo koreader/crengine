@@ -73,7 +73,7 @@ inline int myabs(int n) { return n < 0 ? -n : n; }
 LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
-static int gammaIndex = GAMMA_LEVELS/2;
+static int gammaIndex = GAMMA_NO_CORRECTION_INDEX;
 
 /// returns first found face from passed list, or return face for font found by family only
 lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
@@ -599,7 +599,7 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
 #endif
             memcpy( item->bmp, bitmap->buffer, w*h );
             // correct gamma
-            if ( gammaIndex!=GAMMA_LEVELS/2 )
+            if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
                 cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
     }
     item->origin_x =   (lInt8)slot->bitmap_left;
@@ -639,7 +639,7 @@ static LVFontGlyphIndexCacheItem * newItem(lUInt32 index, FT_GlyphSlot slot )
 	} else {
 			memcpy( item->bmp, bitmap->buffer, w*h );
 			// correct gamma
-			if ( gammaIndex!=GAMMA_LEVELS/2 )
+			if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
 				cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
 	}
 	item->origin_x =   (lInt8)slot->bitmap_left;
