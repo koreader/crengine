@@ -122,6 +122,7 @@ void LVFontManager::SetGammaIndex( int index ) {
         CRLog::trace("FontManager gamma index changed from %d to %d", gammaIndex, index);
         gammaIndex = index;
         gammaLevel = cr_gamma_levels[index];
+        gc();
         clearGlyphCache();
     }
 }
@@ -148,6 +149,7 @@ void LVFontManager::SetGamma( double gamma ) {
     }
     if ( gammaIndex!=oldGammaIndex ) {
         CRLog::trace("FontManager gamma index changed from %d to %d", oldGammaIndex, gammaIndex);
+        gc();
         clearGlyphCache();
     }
 }
@@ -840,8 +842,7 @@ public:
     virtual void setFallbackFont( LVFontRef font ) {
         _fallbackFont = font;
         _fallbackFontIsSet = !font.isNull();
-        _glyph_cache.clear();
-        _wcache.clear();
+        clearCache();
     }
 
     /// get fallback font for this font
@@ -2178,6 +2179,9 @@ public:
     /// get kerning mode
     virtual void setKerningMode( kerning_mode_t mode ) { _baseFont->setKerningMode( mode ); }
 
+    /// clear cache
+    virtual void clearCache() { _baseFont->clearCache(); }
+
     /// returns true if font is empty
     virtual bool IsNull() const
     {
@@ -2349,6 +2353,14 @@ public:
     {
         FONT_MAN_GUARD
         _globalCache.clear();
+#if USE_HARFBUZZ==1
+        // needs to clear each font _glyph_cache2 (for Gamma change, which
+        // does not call any individual font method)
+        LVPtrVector< LVFontCacheItem > * fonts = _cache.getInstances();
+        for ( int i=0; i<fonts->length(); i++ ) {
+            fonts->get(i)->getFont()->clearCache();
+        }
+#endif
     }
 
     virtual int GetFontCount()
