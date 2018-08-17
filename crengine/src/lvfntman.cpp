@@ -1260,8 +1260,15 @@ public:
             register uint32_t cluster;
             register uint32_t prev_cluster = 0;
             for (i = 0; i < glyph_count; i++) {
+                // Note: we use 'cluster' as an index similar to 'i' in 'text'
+                // but the docs warn about this, as it may be wrong with some "level"
+                // see https://harfbuzz.github.io/clusters.html for details
+                // But it seems to work in our case
                 cluster = glyph_info[i].cluster;
                 register lChar16 ch = text[cluster];
+                // It seems each soft-hyphen is in its own cluster, of width 0,
+                // so HarfBuzz must already deal correctly with soft-hyphens.
+                // No need to do what we do in the Freetype alternative code below.
                 register bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
                 flags[cluster] = GET_CHAR_FLAGS(ch); //calcCharFlags( ch );
                 register hb_codepoint_t ch_glyph_index = glyph_info[i].codepoint;
@@ -1285,6 +1292,8 @@ public:
                     widths[cluster] = prev_width + w + letter_spacing;
                 }
                 for (j = prev_cluster + 1; j < cluster; j++) {
+                    // fill flags and widths for chars skipped (because they are part of a
+                    // ligature and are accounted in the previous cluster)
                     flags[j] = GET_CHAR_FLAGS(text[j]);
                     widths[j] = prev_width;		// for chars replaced by ligature
                 }
@@ -1637,9 +1646,10 @@ public:
             // fill HarfBuzz buffer with filtering
             for (i = 0; i < len; i++) {
                 ch = text[i];
-                bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE) && (i < len - 1);
-                if (!isHyphen) {		// avoid soft hyphens inside text string
-                    // Also replaced any chars to similar if not glyph not found
+                // don't draw any soft hyphens inside text string
+                bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
+                if (!isHyphen) { // skip any soft-hyphen
+                    // Also replace any chars to similar if glyph not found
                     hb_buffer_add(_hb_buffer, (hb_codepoint_t)filterChar(ch), i);
                     len_new++;
                 }
