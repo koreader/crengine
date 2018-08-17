@@ -3,6 +3,7 @@
 // to rebuild, run crengine/Tools/GammaGen/gen.sh
 // 
 #define GAMMA_LEVELS 57
+#define GAMMA_NO_CORRECTION_INDEX 15
 
 
 // gamma correction tables, 0..56
