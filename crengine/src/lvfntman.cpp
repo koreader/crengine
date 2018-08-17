@@ -558,8 +558,8 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
 {
     FONT_LOCAL_GLYPH_CACHE_GUARD
     FT_Bitmap*  bitmap = &slot->bitmap;
-    lUInt8 w = (lUInt8)(bitmap->width);
-    lUInt8 h = (lUInt8)(bitmap->rows);
+    int w = bitmap->width;
+    int h = bitmap->rows;
     LVFontGlyphCacheItem * item = LVFontGlyphCacheItem::newItem(local_cache, ch, w, h );
     if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
         lUInt8 mask = 0x80;
@@ -602,9 +602,9 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
             if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
                 cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
     }
-    item->origin_x =   (lInt8)slot->bitmap_left;
-    item->origin_y =   (lInt8)slot->bitmap_top;
-    item->advance =    (lUInt8)(myabs(slot->metrics.horiAdvance) >> 6);
+    item->origin_x =   (lInt16)slot->bitmap_left;
+    item->origin_y =   (lInt16)slot->bitmap_top;
+    item->advance =    (lUInt16)(myabs(slot->metrics.horiAdvance) >> 6);
     return item;
 }
 
@@ -613,8 +613,8 @@ static LVFontGlyphIndexCacheItem * newItem(lUInt32 index, FT_GlyphSlot slot )
 {
 	FONT_LOCAL_GLYPH_CACHE_GUARD
 	FT_Bitmap*  bitmap = &slot->bitmap;
-	lUInt8 w = (lUInt8)(bitmap->width);
-	lUInt8 h = (lUInt8)(bitmap->rows);
+	int w = bitmap->width;
+	int h = bitmap->rows;
 	LVFontGlyphIndexCacheItem* item = LVFontGlyphIndexCacheItem::newItem(index, w, h );
 	if (!item)
 		return 0;
@@ -642,9 +642,9 @@ static LVFontGlyphIndexCacheItem * newItem(lUInt32 index, FT_GlyphSlot slot )
 			if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
 				cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
 	}
-	item->origin_x =   (lInt8)slot->bitmap_left;
-	item->origin_y =   (lInt8)slot->bitmap_top;
-	item->advance =    (lUInt8)(myabs(slot->metrics.horiAdvance) >> 6);
+	item->origin_x =   (lInt16)slot->bitmap_left;
+	item->origin_y =   (lInt16)slot->bitmap_top;
+	item->advance =    (lUInt16)(myabs(slot->metrics.horiAdvance) >> 6);
 	return item;
 }
 #endif
