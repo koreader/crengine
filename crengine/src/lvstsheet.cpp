@@ -32,10 +32,11 @@ enum css_decl_code {
     cssd_text_align_last,
     cssd_text_decoration,
     cssd_text_transform,
-    cssd_hyphenate, // hyphenate
-    cssd_hyphenate2, // -webkit-hyphens
-    cssd_hyphenate3, // adobe-hyphenate
-    cssd_hyphenate4, // adobe-text-layout
+    cssd_hyphenate,  // hyphens (proper css property name)
+    cssd_hyphenate2, // -webkit-hyphens (used by authors as an alternative to adobe-hyphenate)
+    cssd_hyphenate3, // adobe-hyphenate (used by late Adobe RMSDK)
+    cssd_hyphenate4, // adobe-text-layout (used by earlier Adobe RMSDK)
+    cssd_hyphenate5, // hyphenate (fb2? used in obsoleted css files))
     cssd_color,
     cssd_border_top_color,
     cssd_border_right_color,
@@ -105,10 +106,11 @@ static const char * css_decl_name[] = {
     "text-align-last",
     "text-decoration",
     "text-transform",
-    "hyphenate",
+    "hyphens",
     "-webkit-hyphens",
     "adobe-hyphenate",
     "adobe-text-layout",
+    "hyphenate",
     "color",
     "border-top-color",
     "border-right-color",
@@ -672,6 +674,16 @@ static const char * css_tt_names[] =
     NULL
 };
 
+// All these css_hyph_names* should map original properties in this order:
+//  1st value: inherit
+//  2nd value: no hyphenation
+//  3rd value: use the hyphenation method set to HyphMan
+// See https://github.com/readium/readium-css/blob/master/docs/CSS21-epub_compat.md
+// for documentation about the obscure properties.
+//
+// For "hyphens:", "hyphenate:" (fb2? also used by obsoleted css files)
+// No support for "hyphens: manual" (this would involve toggling the hyphenation
+// method from what it is set to SoftHyphensHyph locally)
 static const char * css_hyph_names[] = 
 {
     "inherit",
@@ -679,7 +691,7 @@ static const char * css_hyph_names[] =
     "auto",
     NULL
 };
-
+// For "adobe-text-layout:" (for documents made for Adobe RMSDK)
 static const char * css_hyph_names2[] =
 {
     "inherit",
@@ -687,12 +699,12 @@ static const char * css_hyph_names2[] =
     "optimizeQuality",
     NULL
 };
-
+// For "adobe-hyphenate:"
 static const char * css_hyph_names3[] =
 {
     "inherit",
     "none",
-    "explicit",
+    "explicit", // this may wrong, as it's supposed to be like "hyphens: manual"
     NULL
 };
 
@@ -930,6 +942,7 @@ bool LVCssDeclaration::parse( const char * &decl )
             case cssd_hyphenate2:
             case cssd_hyphenate3:
             case cssd_hyphenate4:
+            case cssd_hyphenate5:
             	prop_code = cssd_hyphenate;
                 n = parse_name( decl, css_hyph_names, -1 );
                 if ( n==-1 )
