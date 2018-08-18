@@ -3734,7 +3734,7 @@ void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
 }
 
 #if (USE_BITMAP_FONTS==1)
-bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0 )
+bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char )
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -3793,7 +3793,7 @@ int LBitmapFont::getHeight() const
     const lvfont_header_t * hdr = lvfontGetHeader( m_font );
     return hdr->fontHeight;
 }
-bool LBitmapFont::getGlyphImage(lUInt32 code, lUInt8 * buf, lChar16 def_char=0)
+bool LBitmapFont::getGlyphImage(lUInt32 code, lUInt8 * buf, lChar16 def_char)
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
