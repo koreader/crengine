@@ -993,16 +993,19 @@ public:
             if (_hb_font)
                 hb_font_destroy(_hb_font);
             _hb_font = hb_ft_font_create(_face, NULL);
-            if (!_hb_font)
+            if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
-            // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
-            int flags = FT_LOAD_DEFAULT;
-            flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
-            if (_hintingMode == HINTING_MODE_AUTOHINT)
-                flags |= FT_LOAD_FORCE_AUTOHINT;
-            else if (_hintingMode == HINTING_MODE_DISABLED)
-                flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
-            hb_ft_font_set_load_flags(_hb_font, flags);
+            } else {
+                // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
+                int flags = FT_LOAD_DEFAULT;
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                    flags |= FT_LOAD_FORCE_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_DISABLED) {
+                    flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+                }
+                hb_ft_font_set_load_flags(_hb_font, flags);
+            }
         }
 #endif
         if (error) {
@@ -1080,16 +1083,19 @@ public:
             if (_hb_font)
                 hb_font_destroy(_hb_font);
             _hb_font = hb_ft_font_create(_face, NULL);
-            if (!_hb_font)
+            if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
-            // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
-            int flags = FT_LOAD_DEFAULT;
-            flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
-            if (_hintingMode == HINTING_MODE_AUTOHINT)
-                flags |= FT_LOAD_FORCE_AUTOHINT;
-            else if (_hintingMode == HINTING_MODE_DISABLED)
-                flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
-            hb_ft_font_set_load_flags(_hb_font, flags);
+            } else {
+                // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
+                int flags = FT_LOAD_DEFAULT;
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                    flags |= FT_LOAD_FORCE_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_DISABLED) {
+                    flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+                }
+                hb_ft_font_set_load_flags(_hb_font, flags);
+            }
         }
 #endif
         if (error) {
