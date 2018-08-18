@@ -468,10 +468,17 @@ public:
     virtual lUInt32 getTextWidth(
                         const lChar16 * text, int len
         );
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0);
     /// returns font baseline offset
     virtual int getBaseline();
     /// returns font height
     virtual int getHeight() const;
+    /// returns font character size
+    virtual int getSize() const;
+    /// returns font weight
+    virtual int getWeight() const;
+    /// returns italic flag
+    virtual int getItalic() const;
     
     virtual bool getGlyphImage(lUInt32 code, lUInt8 * buf, lChar16 def_char=0 );
     

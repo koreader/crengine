@@ -3293,7 +3293,7 @@ public:
         filename << name;
         return filename;
     }
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId)
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId, bool useBias=false)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
@@ -3302,7 +3302,8 @@ public:
             italic,
             family,
             typeface,
-            documentId
+            documentId,
+            useBias
         );
         //fprintf( _log, "GetFont: %s %d %s %s\n",
         //    typeface.c_str(),
@@ -3733,7 +3734,7 @@ void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
 }
 
 #if (USE_BITMAP_FONTS==1)
-bool LBitmapFont::getGlyphInfo( lUInt16 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0 )
+bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0 )
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -3792,7 +3793,7 @@ int LBitmapFont::getHeight() const
     const lvfont_header_t * hdr = lvfontGetHeader( m_font );
     return hdr->fontHeight;
 }
-bool LBitmapFont::getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0)
+bool LBitmapFont::getGlyphImage(lUInt32 code, lUInt8 * buf, lChar16 def_char=0)
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -3806,7 +3807,7 @@ bool LBitmapFont::getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0)
 int LBitmapFont::LoadFromFile( const char * fname )
 {
     Clear();
-    int res = (void*)lvfontOpen( fname, &m_font )!=NULL;
+    int res = lvfontOpen( fname, &m_font );
     if (!res)
         return 0;
     lvfont_header_t * hdr = (lvfont_header_t*) m_font;
