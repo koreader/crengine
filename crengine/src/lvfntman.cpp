@@ -992,9 +992,20 @@ public:
         if (FT_Err_Ok == error) {
             if (_hb_font)
                 hb_font_destroy(_hb_font);
-            _hb_font = hb_ft_font_create(_face, 0);
-            if (!_hb_font)
+            _hb_font = hb_ft_font_create(_face, NULL);
+            if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
+            } else {
+                // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
+                int flags = FT_LOAD_DEFAULT;
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                    flags |= FT_LOAD_FORCE_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_DISABLED) {
+                    flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+                }
+                hb_ft_font_set_load_flags(_hb_font, flags);
+            }
         }
 #endif
         if (error) {
@@ -1071,9 +1082,20 @@ public:
         if (FT_Err_Ok == error) {
             if (_hb_font)
                 hb_font_destroy(_hb_font);
-            _hb_font = hb_ft_font_create(_face, 0);
-            if (!_hb_font)
+            _hb_font = hb_ft_font_create(_face, NULL);
+            if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
+            } else {
+                // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
+                int flags = FT_LOAD_DEFAULT;
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                    flags |= FT_LOAD_FORCE_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_DISABLED) {
+                    flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+                }
+                hb_ft_font_set_load_flags(_hb_font, flags);
+            }
         }
 #endif
         if (error) {
@@ -3277,7 +3299,7 @@ public:
         filename << name;
         return filename;
     }
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId)
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId, bool useBias=false)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
@@ -3286,7 +3308,8 @@ public:
             italic,
             family,
             typeface,
-            documentId
+            documentId,
+            useBias
         );
         //fprintf( _log, "GetFont: %s %d %s %s\n",
         //    typeface.c_str(),
@@ -3717,7 +3740,7 @@ void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
 }
 
 #if (USE_BITMAP_FONTS==1)
-bool LBitmapFont::getGlyphInfo( lUInt16 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0 )
+bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char )
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -3776,7 +3799,7 @@ int LBitmapFont::getHeight() const
     const lvfont_header_t * hdr = lvfontGetHeader( m_font );
     return hdr->fontHeight;
 }
-bool LBitmapFont::getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0)
+bool LBitmapFont::getGlyphImage(lUInt32 code, lUInt8 * buf, lChar16 def_char)
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -3790,7 +3813,7 @@ bool LBitmapFont::getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0)
 int LBitmapFont::LoadFromFile( const char * fname )
 {
     Clear();
-    int res = (void*)lvfontOpen( fname, &m_font )!=NULL;
+    int res = lvfontOpen( fname, &m_font );
     if (!res)
         return 0;
     lvfont_header_t * hdr = (lvfont_header_t*) m_font;
