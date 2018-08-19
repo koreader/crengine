@@ -996,6 +996,8 @@ public:
             if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
             } else {
+                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
+                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
@@ -1005,6 +1007,7 @@ public:
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
+                */
             }
         }
 #endif
@@ -1086,6 +1089,8 @@ public:
             if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
             } else {
+                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
+                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
@@ -1095,6 +1100,7 @@ public:
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
+                */
             }
         }
 #endif
