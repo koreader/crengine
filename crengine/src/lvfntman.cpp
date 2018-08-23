@@ -996,15 +996,20 @@ public:
             if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
             } else {
+                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
+                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
-                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                    flags |= FT_LOAD_NO_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_AUTOHINT) {
                     flags |= FT_LOAD_FORCE_AUTOHINT;
                 } else if (_hintingMode == HINTING_MODE_DISABLED) {
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
+                */
             }
         }
 #endif
@@ -1086,15 +1091,20 @@ public:
             if (!_hb_font) {
                 error = FT_Err_Invalid_Argument;
             } else {
+                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
+                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
-                if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                    flags |= FT_LOAD_NO_AUTOHINT;
+                } else if (_hintingMode == HINTING_MODE_AUTOHINT) {
                     flags |= FT_LOAD_FORCE_AUTOHINT;
                 } else if (_hintingMode == HINTING_MODE_DISABLED) {
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
+                */
             }
         }
 #endif
@@ -1182,10 +1192,13 @@ public:
         }
         int flags = FT_LOAD_DEFAULT;
         flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
-        if (_hintingMode == HINTING_MODE_AUTOHINT)
+        if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+            flags |= FT_LOAD_NO_AUTOHINT;
+        } else if (_hintingMode == HINTING_MODE_AUTOHINT) {
             flags |= FT_LOAD_FORCE_AUTOHINT;
-        else if (_hintingMode == HINTING_MODE_DISABLED)
+        } else if (_hintingMode == HINTING_MODE_DISABLED) {
             flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+        }
         updateTransform();
         int error = FT_Load_Glyph(
             _face,          /* handle to face object */
@@ -1497,11 +1510,14 @@ public:
         LVFontGlyphCacheItem * item = _glyph_cache.get( ch );
         if ( !item ) {
 
-            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : (FT_LOAD_TARGET_MONO) ); //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
-            if (_hintingMode == HINTING_MODE_AUTOHINT)
+            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO ); //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
+            if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                rend_flags |= FT_LOAD_NO_AUTOHINT;
+            } else if (_hintingMode == HINTING_MODE_AUTOHINT) {
                 rend_flags |= FT_LOAD_FORCE_AUTOHINT;
-            else if (_hintingMode == HINTING_MODE_DISABLED)
+            } else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
             /* load glyph image into the slot (erase previous one) */
 
             updateTransform();
@@ -1526,11 +1542,14 @@ public:
         //if (it == _glyph_cache2.end()) {
         if (!_glyph_cache2.get(index, item)) {
             // glyph not found in cache, rendering...
-            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : (FT_LOAD_TARGET_MONO) ); //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
-            if (_hintingMode == HINTING_MODE_AUTOHINT)
+            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO ); //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
+            if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                rend_flags |= FT_LOAD_NO_AUTOHINT;
+            } else if (_hintingMode == HINTING_MODE_AUTOHINT) {
                 rend_flags |= FT_LOAD_FORCE_AUTOHINT;
-            else if (_hintingMode == HINTING_MODE_DISABLED)
+            } else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
             /* load glyph image into the slot (erase previous one) */
 
             updateTransform();
