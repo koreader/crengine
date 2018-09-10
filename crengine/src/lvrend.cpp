@@ -1974,14 +1974,19 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 
 
                     // recurse all sub-blocks for blocks
+                    int pb_flag;
                     int y = padding_top;
                     int cnt = enode->getChildCount();
                     lvRect r;
                     enode->getAbsRect(r);
+                    pb_flag = pagebreakhelper(enode,width);
                     if (margin_top>0)
-                        context.AddLine(r.top - margin_top, r.top, pagebreakhelper(enode,width));
+                        context.AddLine(r.top-margin_top, r.top, pb_flag);
                     if (padding_top>0)
-                        context.AddLine(r.top,r.top+padding_top,pagebreakhelper(enode,width)|padding_top_split_flag);
+                        context.AddLine(r.top, r.top+padding_top, pb_flag|padding_top_split_flag);
+                    if (margin_top==0 && padding_top==0 && pb_flag)
+                        // If no margin or padding to carry pb_flag, add an empty line
+                        context.AddLine(r.top, r.top, pb_flag);
 
                     // List item marker rendering when css_d_list_item_block
                     int list_marker_padding = 0; // set to non-zero when list-style-position = outside
@@ -2048,10 +2053,14 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     fmt.setHeight( y + padding_bottom ); //+ margin_top + margin_bottom ); //???
                     lvRect rect;
                     enode->getAbsRect(rect);
+                    pb_flag = CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER;
                     if(padding_bottom>0)
-                        context.AddLine(y+rect.top,y+rect.top+padding_bottom,(margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER)|padding_bottom_split_flag);
+                        context.AddLine(y+rect.top, y+rect.top+padding_bottom, (margin_bottom>0?RN_SPLIT_AFTER_AUTO:pb_flag)|padding_bottom_split_flag);
                     if(margin_bottom>0)
-                        context.AddLine(y+rect.top+padding_bottom,y+rect.top+padding_bottom+margin_bottom,CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER);
+                        context.AddLine(y+rect.top+padding_bottom, y+rect.top+padding_bottom+margin_bottom, pb_flag);
+                    if (margin_bottom==0 && padding_bottom==0 && pb_flag)
+                        // If no margin or padding to carry pb_flag, add an empty line
+                        context.AddLine(y+rect.top, y+rect.top, pb_flag);
                     if ( isFootNoteBody )
                         context.leaveFootNote();
                     return y + margin_top + margin_bottom + padding_bottom; // return block height
