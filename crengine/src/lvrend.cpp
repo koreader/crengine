@@ -173,6 +173,7 @@ public:
     int width;
     int percent;
     int txtlen;
+    int min_width;
     int nrows;
     int x;      // sum of previous col widths
     LVPtrVector<CCRTableCell, false> cells;
@@ -182,6 +183,7 @@ public:
     , width(0)
     , percent(0)
     , txtlen(0)
+    , min_width(0)
     , nrows(0)
     , x(0) // sum of previous col widths
     , elem( NULL )
@@ -483,9 +485,24 @@ public:
                 int txtlen = txt.length();
                 txtlen=cell->elem->getFont()->getTextWidth(txt.c_str(),txtlen);//use actuall string width to calculate
                 //txtlen = (txtlen+(cell->colspan-1))/(cell->colspan + 1);
+                // Note: txtlen can be quite innacurate (it's the length of the cell's
+                // content as plain text, not taking into account padding or
+                // text-indent, or font size variations in children elements).
+
+                int min_width = 8; // min width if no text (so we can see empty columns used as separator)
+                if (txtlen > 0) {
+                    // Ensure a 1.2em minimal width (from the cell font size, which might
+                    // still be not enough if children elements have another font size)
+                    // (2em is too large if cells in a column contain all a single char)
+                    min_width = 1.2 * cell->elem->getFont()->getSize();
+                    // add it txtlen too, to account a bit for possible padding or text-indent
+                    txtlen += min_width;
+                }
                 for (int x=0; x<cell->colspan; x++) {
                     if ( txtlen > cols[x0+x]->txtlen )
                         cols[x0+x]->txtlen = txtlen;
+                    if ( min_width > cols[x0+x]->min_width )
+                        cols[x0+x]->min_width = min_width;
                 }
             }
         }
@@ -560,12 +577,22 @@ public:
         for (i=0; i<cols.length(); i++) {
             if (cols[i]->width==0) {
                 cols[i]->width = cols[i]->txtlen * restwidth / sumtext;
+                // This has distributed width according to each column longest
+                // plain text, which may make some column really small if other
+                // columns have really long text.
+                // So, when no width= specified for a cell, give it a minimum width of
+                // half of what it would be if all no-width cells were splitted equally.
+                // (this may be decreased again below if max txtlen is smaller than that)
+                int preferedMinWidth = restwidth / nrest / 2;
+                if (cols[i]->width < preferedMinWidth) {
+                    cols[i]->width = preferedMinWidth;
+                }
                 sumwidth += cols[i]->width;
                 nwidth++;
             }
-            if (cols[i]->width<8) { // extend too small cols!
-                int delta = 8 - cols[i]->width;
-                cols[i]->width+=delta;
+            if (cols[i]->width < cols[i]->min_width) { // extend too small cols!
+                int delta = cols[i]->min_width - cols[i]->width;
+                cols[i]->width += delta;
                 sumwidth += delta;
             }
         }
@@ -578,24 +605,44 @@ public:
             }
             sumwidth = newsumwidth;
         }
-        // distribute rest of width between all cols
+        // distribute rest of width between all cols that can benefit from more
         int rw=0;
+        int dist_nb_cols = 0;
         for (int x=0; x<cols.length(); x++) {
-            if (cols[x]->width>cols[x]->txtlen)
-            {
-                rw+=(cols[x]->width-cols[x]->txtlen);
-                cols[x]->width=cols[x]->txtlen;
+            // Adjust it further down to the measured txtlen (which might
+            // be quite innacurate, see above)
+            int needed_width = cols[x]->min_width;
+            if (cols[x]->txtlen > needed_width) {
+                needed_width = cols[x]->txtlen;
+            }
+            if (cols[x]->width > needed_width) {
+                rw += (cols[x]->width - needed_width);
+                cols[x]->width = needed_width;
+                // min_width is no more needed: use it as a flag so we don't
+                // redistribute width to this column
+                cols[x]->min_width = -1;
+            }
+            else { // candidate to get more width
+                dist_nb_cols += 1;
             }
         }
         int restw = fullWidth - sumwidth+rw;
-        if (restw>0 && cols.length()>0) {
-            int a = restw / cols.length();
-            int b = restw % cols.length();
+        bool dist_all_cols = false;
+        if (dist_nb_cols == 0) {
+            // if only small columns, redistribute to all
+            dist_all_cols = true;
+            dist_nb_cols = cols.length();
+        }
+        if (restw>0 && dist_nb_cols>0) {
+            int a = restw / dist_nb_cols;
+            int b = restw % dist_nb_cols;
             for (i=0; i<cols.length(); i++) {
-                cols[i]->width += a;
-                if (b>0) {
-                    cols[i]->width ++;
-                    b--;
+                if (dist_all_cols || cols[i]->min_width >= 0) {
+                    cols[i]->width += a;
+                    if (b>0) {
+                        cols[i]->width ++;
+                        b--;
+                    }
                 }
             }
         }
