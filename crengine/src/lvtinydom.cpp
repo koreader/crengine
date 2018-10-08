@@ -6985,13 +6985,13 @@ bool ldomXPointerEx::thisVisibleWordEnd(bool thisBlockOnly)
     if ( _data->getOffset() >= textLen )
         return false;
     // skip spaces
-    while ( _data->getOffset()<textLen && IsUnicodeSpace(text[ _data->getOffset() ]) ) {
+    while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
         _data->addOffset(1);
         //moved = true;
     }
     // skip non-spaces
     while ( _data->getOffset()<textLen ) {
-        if ( IsUnicodeSpace(text[ _data->getOffset() ]) )
+        if ( IsWordSeparator(text[ _data->getOffset() ]) )
             break;
         moved = true;
         _data->addOffset(1);
