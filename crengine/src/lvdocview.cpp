@@ -4765,12 +4765,27 @@ void LVDocView::getCurrentPageLinks(ldomXRangeList & list) {
 		// search for links
 		class LinkKeeper: public ldomNodeCallback {
 			ldomXRangeList &_list;
+			bool check_first_text_node_parents_done = false;
 		public:
 			LinkKeeper(ldomXRangeList & list) :
 				_list(list) {
 			}
 			/// called for each found text fragment in range
-			virtual void onText(ldomXRange *) {
+			virtual void onText(ldomXRange * r) {
+				if (check_first_text_node_parents_done)
+					return;
+				// For the first text node, look at its parents
+				// as one might be a <A>
+				ldomNode * node = r->getStart().getNode();
+				while ( node && !node->isElement() )
+					node = node->getParentNode();
+				while ( node && node->getNodeId() != el_a )
+					node = node->getParentNode();
+				if ( node ) { // <a> parent of first text node found
+					ldomXPointerEx xp = ldomXPointerEx(node, 0);
+					onElement( &xp );
+				}
+				check_first_text_node_parents_done = true;
 			}
 			/// called for each found node in range
 			virtual bool onElement(ldomXPointerEx * ptr) {
@@ -4783,10 +4798,10 @@ void LVDocView::getCurrentPageLinks(ldomXRangeList & list) {
 					}
 					// We ignore <a/> and <a></a> with no content, as we
 					// can't make a ldomXRange out of them
-					if (elem->hasChildren()) {
-						ldomNode * node = elem->getChildNode(0);
-						if ( node ) _list.add(new ldomXRange(node));
-					}
+					// We also want all the <a> content, so we use a ldomXRange()
+					// extended to include its deepest text child
+					if (elem->hasChildren())
+						_list.add(new ldomXRange(elem, true));
 				}
 				return true;
 			}
