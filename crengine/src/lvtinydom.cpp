@@ -3218,6 +3218,373 @@ static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
     }
 }
 
+// Extended version of previous function for displaying selection HTML, with tunable output
+#define WRITENODEEX_TEXT_UNESCAPED               0x0001 ///< let &, < and > unescaped in text nodes (makes HTML invalid)
+#define WRITENODEEX_TEXT_MARK_NODE_BOUNDARIES    0x0002 ///< mark start and end of text nodes (useful when indented)
+#define WRITENODEEX_UNUSED_1                     0x0004 ///<
+#define WRITENODEEX_UNUSED_2                     0x0008 ///<
+#define WRITENODEEX_INDENT_NEWLINE               0x0010 ///< indent newlines according to node level
+#define WRITENODEEX_NEWLINE_BLOCK_NODES          0x0020 ///< start only nodes rendered as block/final on a new line,
+                                                        ///  so inline elements and text nodes are stuck together
+#define WRITENODEEX_NEWLINE_ALL_NODES            0x0040 ///< start all nodes on a new line
+#define WRITENODEEX_UNUSED_3                     0x0080 ///<
+#define WRITENODEEX_NB_SKIPPED_CHARS             0x0100 ///< show number of skipped chars in text nodes: (...43...)
+#define WRITENODEEX_NB_SKIPPED_NODES             0x0200 ///< show number of skipped sibling nodes: [...17...]
+#define WRITENODEEX_UNUSED_4                     0x0400 ///<
+#define WRITENODEEX_UNUSED_5                     0x0800 ///<
+#define WRITENODEEX_GET_CSS_FILES                0x1000 ///< ensure css files that apply to initial node are returned
+                                                        ///  in &cssFiles (needed when not starting from root node)
+#define WRITENODEEX_INCLUDE_STYLESHEET_ELEMENT   0x2000 ///< includes crengine <stylesheet> element in HTML
+                                                        ///  (not done if outside of sub-tree)
+#define WRITENODEEX_COMPUTED_STYLES_AS_ATTR      0x4000 ///< set style='' from computed styles (not implemented)
+
+#define WNEFLAG(x) ( wflags & WRITENODEEX_##x )
+
+static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection & cssFiles, int wflags=0,
+    ldomXPointerEx startXP=ldomXPointerEx(), ldomXPointerEx endXP=ldomXPointerEx(), int indentBaseLevel=-1)
+{
+    bool isStartNode = false;
+    bool isEndNode = false;
+    bool isAfterStart = false;
+    bool isBeforeEnd = false;
+    bool containsStart = false;
+    bool containsEnd = false;
+
+    if ( !startXP.isNull() && !endXP.isNull() ) {
+        ldomXPointerEx currentEXP = ldomXPointerEx(node, 0);
+        // Use start (offset=0) of text node for comparisons, but keep original XPointers
+        ldomXPointerEx startEXP = ldomXPointerEx( startXP );
+        startEXP.setOffset(0);
+        ldomXPointerEx endEXP = ldomXPointerEx( endXP );
+        endEXP.setOffset(0);
+        if (currentEXP == startEXP)
+            isStartNode = true;
+        if (currentEXP == endEXP)
+            isEndNode = true;
+        if ( currentEXP.compare( startEXP ) >= 0 ) {
+            isAfterStart = true;
+        }
+        if ( currentEXP.compare( endEXP ) <= 0 ) {
+            isBeforeEnd = true;
+        }
+        ldomNode *tmp;
+        tmp = startXP.getNode();
+        while (tmp) {
+            if (tmp == node) {
+                containsStart = true;
+                break;
+            }
+            tmp = tmp->getParentNode();
+        }
+        tmp = endXP.getNode();
+        while (tmp) {
+            if (tmp == node) {
+                containsEnd = true;
+                break;
+            }
+            tmp = tmp->getParentNode();
+        }
+    }
+    else {
+        containsStart = true;
+        containsEnd = true;
+        isAfterStart = true;
+        isBeforeEnd = true;
+        // but not isStartNode nor isEndNode, as these use startXP and endXP
+    }
+
+    bool isInitialNode = false;
+    if (indentBaseLevel < 0) { // initial call (recursive ones will have it >=0)
+        indentBaseLevel = node->getNodeLevel();
+        isInitialNode = true;
+    }
+    int level = node->getNodeLevel();
+    if ( node->isText() && isAfterStart && isBeforeEnd ) {
+        bool doNewLine =  WNEFLAG(NEWLINE_ALL_NODES);
+        bool doIndent = doNewLine && WNEFLAG(INDENT_NEWLINE);
+        lString16 txt = node->getText();
+        lString8 prefix = lString8::empty_str;
+        lString8 suffix = lString8::empty_str;
+
+        if ( isEndNode ) {
+            // show the number of chars not written after selection "(...n...)"
+            int nodeLength = endXP.getText().length();
+            int endOffset = endXP.getOffset();
+            if (endOffset < nodeLength) {
+                txt = txt.substr(0, endOffset);
+                if ( WNEFLAG(NB_SKIPPED_CHARS) )
+                    suffix << "(…" << lString8().appendDecimal(nodeLength-endOffset) << "…)";
+            }
+        }
+        if ( WNEFLAG(TEXT_MARK_NODE_BOUNDARIES) ) {
+            // We use non-ordinary chars to mark start and end of text
+            // node, which can help noticing spaces at start or end
+            // when NEWLINE_ALL_NODES and INDENT_NEWLINE are used.
+            // Some candidates chars are:
+            //   Greyish, discreet, but may be confused with parenthesis:
+            //     prefix << "⟨"; // U+27E8 Mathematical Left Angle Bracket
+            //     suffix << "⟩"; // U+27E9 Mathematical Right Angle Bracket
+            //   Greyish, a bit less discreet, but won't be confused with any other casual char:
+            //     prefix << "⟪"; // U+27EA Mathematical Left Double Angle Bracket
+            //     suffix << "⟫"; // U+27EB Mathematical Right Double Angle Bracket
+            //   A bit too dark, but won't be confused with any other casual char:
+            //     prefix << "⎛"; // U+239B Left Parenthesis Upper Hook
+            //     suffix << "⎠"; // U+23A0 Right Parenthesis Lower Hook (may have too much leading space)
+            prefix << "⟪"; // U+27EA Mathematical Left Double Angle Bracket
+            suffix << "⟫"; // U+27EB Mathematical Right Double Angle Bracket
+        }
+        if ( isStartNode ) {
+            // show the number of chars not written before selection "(...n...)"
+            int offset = startXP.getOffset();
+            if (offset > 0) {
+                txt = txt.substr(offset);
+                if ( WNEFLAG(NB_SKIPPED_CHARS) )
+                    prefix << "(…" << lString8().appendDecimal(offset) << "…)";
+            }
+            if ( WNEFLAG(NB_SKIPPED_NODES) ) {
+                // show the number of sibling nodes not written before selection "[...n..]"
+                int nbIgnoredPrecedingSiblings = node->getNodeIndex();
+                if (nbIgnoredPrecedingSiblings) {
+                    if (doIndent)
+                        for ( int i=indentBaseLevel; i<level; i++ )
+                            *stream << "  ";
+                    *stream << "[…" << lString8().appendDecimal(nbIgnoredPrecedingSiblings) << "…]";
+                    if (doNewLine)
+                        *stream << "\n";
+                }
+            }
+        }
+        if (doIndent)
+            for ( int i=indentBaseLevel; i<level; i++ )
+                *stream << "  ";
+        if ( ! WNEFLAG(TEXT_UNESCAPED) ) {
+            // Use a temporary char we're not likely to find in the DOM
+            // (see https://en.wikipedia.org/wiki/Specials_(Unicode_block) )
+            // for 2-steps '&' replacement (to avoid infinite loop or the
+            // need for more complicated code)
+            while ( txt.replace( cs16("&"), cs16(L"\xFFFF") ) ) ;
+            while ( txt.replace( cs16(L"\xFFFF"), cs16("&amp;") ) ) ;
+            while ( txt.replace( cs16("<"), cs16("&lt;") ) ) ;
+            while ( txt.replace( cs16(">"), cs16("&gt;") ) ) ;
+        }
+        *stream << prefix << UnicodeToUtf8(txt) << suffix;
+        if (doNewLine)
+            *stream << "\n";
+        if ( isEndNode && WNEFLAG(NB_SKIPPED_NODES) ) {
+            // show the number of sibling nodes not written after selection "[...n..]"
+            ldomNode * parent = node->getParentNode();
+            int nbIgnoredFollowingSiblings = parent ? (parent->getChildCount() - 1 - node->getNodeIndex()) : 0;
+            if (nbIgnoredFollowingSiblings) {
+                if (doIndent)
+                    for ( int i=indentBaseLevel; i<level; i++ )
+                        *stream << "  ";
+                *stream << "[…" << lString8().appendDecimal(nbIgnoredFollowingSiblings) << "…]";
+                if (doNewLine)
+                    *stream << "\n";
+            }
+        }
+    }
+    else if ( node->isElement() ) {
+        lString8 elemName = UnicodeToUtf8(node->getNodeName());
+        lString8 elemNsName = UnicodeToUtf8(node->getNodeNsName());
+        // Write elements that are between start and end, but also those that
+        // are parents of start and end nodes
+        bool toWrite = (isAfterStart && isBeforeEnd) || containsStart || containsEnd;
+        bool isStylesheetTag = false;
+        if ( node->getNodeId() == el_stylesheet ) {
+            toWrite = false;
+            if ( WNEFLAG(INCLUDE_STYLESHEET_ELEMENT) ) {
+                // We may meet a <stylesheet> tag that is not between startXP and endXP and
+                // does not contain any of them, but its parent (body or DocFragment) does.
+                // Write it if requested, as it's useful when inspecting HTML.
+                toWrite = true;
+                isStylesheetTag = true; // for specific parsing and writting
+            }
+        }
+        if ( ! toWrite )
+            return;
+
+        bool doNewLineBeforeStartTag = false;
+        bool doNewLineAfterStartTag = false;
+        bool doNewLineBeforeEndTag = false; // always stays false, newline done by child elements
+        bool doNewLineAfterEndTag = false;
+        bool doIndentBeforeStartTag = false;
+        bool doIndentBeforeEndTag = false;
+        if ( WNEFLAG(NEWLINE_ALL_NODES) ) {
+            doNewLineBeforeStartTag = true;
+            doNewLineAfterStartTag = true;
+            // doNewLineBeforeEndTag = false; // done by child elements
+            doNewLineAfterEndTag = true;
+            doIndentBeforeStartTag = WNEFLAG(INDENT_NEWLINE);
+            doIndentBeforeEndTag = WNEFLAG(INDENT_NEWLINE);
+        }
+        else if ( WNEFLAG(NEWLINE_BLOCK_NODES) ) {
+            // We consider block elements according to crengine decision for their
+            // rendering method, which gives us a visual hint of it.
+            lvdom_element_render_method rm = node->getRendMethod();
+            // Text and inline nodes stay stuck together, but not all others
+            if (rm != erm_inline) {
+                doNewLineBeforeStartTag = true;
+                doNewLineAfterStartTag = true;
+                // doNewLineBeforeEndTag = false; // done by child elements
+                doNewLineAfterEndTag = true;
+                doIndentBeforeStartTag = WNEFLAG(INDENT_NEWLINE);
+                doIndentBeforeEndTag = WNEFLAG(INDENT_NEWLINE);
+                if (rm == erm_final) {
+                    // Nodes with rend method erm_final contain only text and inline nodes.
+                    // We want these erm_final indented, but not their content
+                    doNewLineAfterStartTag = false;
+                    doIndentBeforeEndTag = false;
+                }
+            }
+            // Do something specific when erm_invisible ?
+        }
+
+        if ( containsStart && WNEFLAG(NB_SKIPPED_NODES) ) {
+            // Previous siblings did not contain startXP: show how many they are
+            int nbIgnoredPrecedingSiblings = node->getNodeIndex();
+            if (nbIgnoredPrecedingSiblings && WNEFLAG(INCLUDE_STYLESHEET_ELEMENT) &&
+                    node->getParentNode()->getFirstChild()->isElement() &&
+                    node->getParentNode()->getFirstChild()->getNodeId() == el_stylesheet) {
+                nbIgnoredPrecedingSiblings--; // we have written the <stylesheet> tag
+            }
+            if (nbIgnoredPrecedingSiblings) {
+                if (doIndentBeforeStartTag)
+                    for ( int i=indentBaseLevel; i<level; i++ )
+                        *stream << "  ";
+                *stream << "[…" << lString8().appendDecimal(nbIgnoredPrecedingSiblings) << "…]";
+                if (doNewLineBeforeStartTag)
+                    *stream << "\n";
+            }
+        }
+        if (doIndentBeforeStartTag)
+            for ( int i=indentBaseLevel; i<level; i++ )
+                *stream << "  ";
+        if ( elemName.empty() ) // should not happen (except for the root node, that we hopefully skipped)
+            elemName = elemNsName + "???";
+        if ( !elemNsName.empty() )
+            elemName = elemNsName + ":" + elemName;
+        *stream << "<" << elemName;
+        for ( int i=0; i<(int)node->getAttrCount(); i++ ) {
+            const lxmlAttribute * attr = node->getAttribute(i);
+            if (attr) {
+                lString8 attrName( UnicodeToUtf8(node->getDocument()->getAttrName(attr->id)) );
+                lString8 nsName( UnicodeToUtf8(node->getDocument()->getNsName(attr->nsid)) );
+                lString8 attrValue( UnicodeToUtf8(node->getDocument()->getAttrValue(attr->index)) );
+                *stream << " ";
+                if ( nsName.length() > 0 )
+                    *stream << nsName << ":";
+                *stream << attrName << "=\"" << attrValue << "\"";
+                if ( attrName == "StyleSheet" ) { // gather linked css files
+                    lString16 cssFile = node->getDocument()->getAttrValue(attr->index);
+                    if (!cssFiles.contains(cssFile))
+                        cssFiles.add(cssFile);
+                }
+            }
+        }
+        if ( node->getChildCount() == 0 ) {
+            if ( elemName[0] == '?' )
+                *stream << "?>";
+            else
+                *stream << "/>";
+            if (doNewLineAfterEndTag)
+                *stream << "\n";
+        }
+        else {
+            *stream << ">";
+            if (doNewLineAfterStartTag)
+                *stream << "\n";
+            if ( ! isStylesheetTag ) {
+                for ( int i=0; i<(int)node->getChildCount(); i++ ) {
+                    writeNodeEx( stream, node->getChildNode(i), cssFiles, wflags, startXP, endXP, indentBaseLevel );
+                }
+            }
+            else {
+                // We need to parse the stylesheet tag text to extract css files path.
+                // We write its content without indentation and add a \n for readability.
+                lString8 txt = node->getText8();
+                int txtlen = txt.length();
+                if (txtlen && txt.substr(txtlen-1) != "\n") {
+                    txt << "\n";
+                }
+                *stream << txt;
+                // Parse @import'ed files to gather linked css files (we don't really need to
+                // do recursive parsing of @import, which are very rare, we just want to get
+                // the 2nd++ linked css files that were put there by crengine).
+                const char * s = txt.c_str();
+                while (true) {
+                    lString8 import_file;
+                    if ( ! LVProcessStyleSheetImport( s, import_file ) ) {
+                        break;
+                    }
+                    lString16 cssFile = LVCombinePaths( node->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
+                    if ( !cssFile.empty() && !cssFiles.contains(cssFile) ) {
+                        cssFiles.add(cssFile);
+                    }
+                }
+            }
+            if (doNewLineBeforeEndTag)
+                *stream << "\n";
+            if (doIndentBeforeEndTag)
+                for ( int i=indentBaseLevel; i<level; i++ )
+                    *stream << "  ";
+            *stream << "</" << elemName << ">";
+            if (doNewLineAfterEndTag)
+                *stream << "\n";
+        }
+        if ( containsEnd && WNEFLAG(NB_SKIPPED_NODES) ) {
+            // Next siblings will not contain endXP and won't be written: show how many they are
+            ldomNode * parent = node->getParentNode();
+            int nbIgnoredFollowingSiblings = parent ? (parent->getChildCount() - 1 - node->getNodeIndex()) : 0;
+            if (nbIgnoredFollowingSiblings) {
+                if (doIndentBeforeEndTag)
+                    for ( int i=indentBaseLevel; i<level; i++ )
+                        *stream << "  ";
+                *stream << "[…" << lString8().appendDecimal(nbIgnoredFollowingSiblings) << "…]";
+                if (doNewLineAfterEndTag)
+                    *stream << "\n";
+            }
+        }
+        if ( isInitialNode && cssFiles.length()==0 && WNEFLAG(GET_CSS_FILES) ) {
+            // We have gathered CSS files as we walked the DOM, which we usually
+            // do from the root node if we want CSS files.
+            // In case we started from an inner node, and we are requested for
+            // CSS files - but we have none - walk the DOM back to gather them.
+            ldomNode *pnode = node->getParentNode();
+            for ( ; !pnode->isRoot(); pnode = pnode->getParentNode() ) {
+                if ( pnode->getNodeId() == el_DocFragment || pnode->getNodeId() == el_body ) {
+                    // The CSS file in StyleSheet="" attribute was the first one seen by
+                    // crengine, so add it first to cssFiles
+                    if (pnode->hasAttribute(attr_StyleSheet) ) {
+                        lString16 cssFile = pnode->getAttributeValue(attr_StyleSheet);
+                        if (!cssFiles.contains(cssFile))
+                            cssFiles.add(cssFile);
+                    }
+                    // And then the CSS files in @import in the <stylesheet> element
+                    if ( pnode->getChildCount() > 0 ) {
+                        ldomNode *styleNode = pnode->getFirstChild();
+                        if ( styleNode && styleNode->getNodeId()==el_stylesheet ) {
+                            // Do as done above
+                            lString8 txt = pnode->getText8();
+                            const char * s = txt.c_str();
+                            while (true) {
+                                lString8 import_file;
+                                if ( ! LVProcessStyleSheetImport( s, import_file ) ) {
+                                    break;
+                                }
+                                lString16 cssFile = LVCombinePaths( pnode->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
+                                if ( !cssFile.empty() && !cssFiles.contains(cssFile) ) {
+                                    cssFiles.add(cssFile);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 bool ldomDocument::saveToStream( LVStreamRef stream, const char *, bool treeLayout )
 {
     //CRLog::trace("ldomDocument::saveToStream()");
@@ -6663,11 +7030,67 @@ ldomNode * ldomXRange::getNearestCommonParent()
         ;
     while ( start.getLevel() < end.getLevel() && end.parent() )
         ;
+    /*
     while ( start.getIndex()!=end.getIndex() && start.parent() && end.parent() )
         ;
     if ( start.getNode()==end.getNode() )
         return start.getNode();
     return NULL;
+    */
+    // This above seems wrong: we could have start and end on the same level,
+    // but in different parent nodes, with still the same index among these
+    // different parent nodes' children.
+    // Best to check for node identity, till we find the same parent,
+    // or the root node
+    while ( start.getNode()!=end.getNode() && start.parent() && end.parent() )
+        ;
+    return start.getNode();
+}
+
+/// returns HTML (serialized from the DOM, may be different from the source HTML)
+/// puts the paths of the linked css files met into the provided lString16Collection cssFiles
+lString8 ldomXPointer::getHtml(lString16Collection & cssFiles, int wflags)
+{
+    if ( isNull() )
+        return lString8::empty_str;
+    ldomNode * startNode = getNode();
+    LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+    writeNodeEx( stream.get(), startNode, cssFiles, wflags );
+    int size = stream->GetSize();
+    LVArray<char> buf( size+1, '\0' );
+    stream->Seek(0, LVSEEK_SET, NULL);
+    stream->Read( buf.get(), size, NULL );
+    buf[size] = 0;
+    lString8 html = lString8( buf.get() );
+    return html;
+}
+
+/// returns HTML (serialized from the DOM, may be different from the source HTML)
+/// puts the paths of the linked css files met into the provided lString16Collection cssFiles
+lString8 ldomXRange::getHtml(lString16Collection & cssFiles, int wflags, bool fromRootNode)
+{
+    if ( isNull() )
+        return lString8::empty_str;
+    sort();
+    ldomNode * startNode;
+    if (fromRootNode) {
+        startNode = getStart().getNode()->getDocument()->getRootNode();
+        if (startNode->getChildCount() == 1) // start HTML with first child (<body>)
+            startNode = startNode->getFirstChild();
+    }
+    else {
+        // We need to start from the nearest common parent, to get balanced HTML
+        startNode = getNearestCommonParent();
+    }
+    LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+    writeNodeEx( stream.get(), startNode, cssFiles, wflags, getStart(), getEnd() );
+    int size = stream->GetSize();
+    LVArray<char> buf( size+1, '\0' );
+    stream->Seek(0, LVSEEK_SET, NULL);
+    stream->Read( buf.get(), size, NULL );
+    buf[size] = 0;
+    lString8 html = lString8( buf.get() );
+    return html;
 }
 
 /// searches path for element with specific id, returns level at which element is founs, 0 if not found

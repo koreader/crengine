@@ -767,6 +767,10 @@ public:
     /// export to WOL format
     bool exportWolFile( LVStream * stream, bool flgGray, int levels );
 
+    /// get a stream for reading to document internal file (path inside the ZIP for EPUBs,
+    /// path relative to document directory for non-container documents like HTML)
+    LVStreamRef getDocumentFileStream( lString16 filePath );
+
     /// draws page to image buffer
     void drawPageTo( LVDrawBuf * drawBuf, LVRendPageInfo & page, lvRect * pageRect, int pageCount, int basePage);
     /// draws coverpage to image buffer

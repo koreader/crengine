@@ -886,6 +886,20 @@ void LVDocView::updatePageNumbers(LVTocItem * item) {
 	}
 }
 
+/// get a stream for reading to document internal file (path inside the ZIP for EPUBs,
+/// path relative to document directory for non-container documents like HTML)
+LVStreamRef LVDocView::getDocumentFileStream( lString16 filePath ) {
+    if ( !filePath.empty() ) {
+        LVContainerRef cont = m_doc->getContainer();
+        if ( cont.isNull() ) // no real container
+            cont = m_container; // consider document directory as the container
+        LVStreamRef stream = cont->OpenStream(filePath.c_str(), LVOM_READ);
+        // if failure, a NULL stream is returned
+        return stream;
+    }
+    return LVStreamRef(); // not found: return NULL ref
+}
+
 /// returns cover page image stream, if any
 LVStreamRef LVDocView::getCoverPageImageStream() {
     lString16 fileName;

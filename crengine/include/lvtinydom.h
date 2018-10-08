@@ -1369,6 +1369,11 @@ public:
     inline bool isElement() const { return !isNull() && getNode()->isElement(); }
     /// returns true if current node is element
     inline bool isText() const { return !isNull() && getNode()->isText(); }
+    /// returns HTML (serialized from the DOM, may be different from the source HTML)
+    lString8 getHtml( lString16Collection & cssFiles, int wflags=0 );
+    lString8 getHtml( int wflags=0 ) {
+        lString16Collection cssFiles; return getHtml(cssFiles, wflags);
+    };
 };
 
 #define MAX_DOM_LEVEL 64
@@ -1697,6 +1702,11 @@ public:
 #endif
     /// returns nearest common element for start and end points
     ldomNode * getNearestCommonParent();
+    /// returns HTML (serialized from the DOM, may be different from the source HTML)
+    lString8 getHtml( lString16Collection & cssFiles, int wflags=0, bool fromRootNode=false );
+    lString8 getHtml( int wflags=0, bool fromRootNode=false ) {
+        lString16Collection cssFiles; return getHtml(cssFiles, wflags, fromRootNode);
+    };
 
     /// searches for specified text inside range
     bool findText( lString16 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false );
