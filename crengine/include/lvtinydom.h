@@ -1698,7 +1698,13 @@ public:
     void forEach( ldomNodeCallback * callback );
 #if BUILD_LITE!=1
     /// returns rectangle (in doc coordinates) for range. Returns true if found.
-    bool getRectEx( lvRect & rect );
+    bool getRectEx( lvRect & rect, bool & isSingleLine );
+    bool getRectEx( lvRect & rect ) {
+        bool isSingleLine; return getRectEx(rect, isSingleLine);
+    };
+    // returns multiple segments rects (one for each text line)
+    // that the ldomXRange spans on the page.
+    void getSegmentRects( LVArray<lvRect> & rects );
 #endif
     /// returns nearest common element for start and end points
     ldomNode * getNearestCommonParent();
