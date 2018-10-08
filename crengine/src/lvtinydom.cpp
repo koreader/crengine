@@ -5482,7 +5482,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                     // found word from same src line
                     if ( word->flags == LTEXT_WORD_IS_OBJECT
                             || word->src_text_index > srcIndex
-                            || offset <= word->t.start ) {
+                            || (!extended && offset <= word->t.start)
+                            || (extended && offset < word->t.start)
+                            // if extended, and offset = word->t.start, we want to
+                            // measure the first char, which is done in the next else
+                            ) {
                         // before this word
                         rect.left = word->x + rc.left + frmline->x;
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
@@ -5504,6 +5508,22 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                         lUInt16 w[512];
                         lUInt8 flg[512];
                         lString16 str = node->getText();
+                        // With "|| (extended && offset < word->t.start)" added to the first if
+                        // above, we may now be here with: offset = word->t.start = 0
+                        // and a node->getText() returning THE lString16::empty_str:
+                        // font->measureText() would segfault on it because its just a dummy
+                        // pointer. Not really sure why that happens.
+                        // It happens when node is the <a> in:
+                        //     <div><span> <a id="someId"/>Anciens </span> <b>...
+                        // and offset=0, word->t.start=0, word->t.len=8 .
+                        // We can just do as in the first 'if'.
+                        if (offset == word->t.start && str.empty()) {
+                            rect.left = word->x + rc.left + frmline->x;
+                            rect.top = rc.top + frmline->y;
+                            rect.right = rect.left + 1;
+                            rect.bottom = rect.top + frmline->height;
+                            return true;
+                        }
                         // We need to transform the node text as it had been when
                         // rendered (the transform may change chars widths) for the
                         // rect to be correct
@@ -5531,19 +5551,29 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                             word->width+50,
                             '?',
                             txtform->GetSrcInfo(srcIndex)->letter_spacing);
-                        int chx = w[ offset - word->t.start - 1 ];
+                        // chx is the width of previous chars in the word
+                        int chx = (offset > word->t.start) ? w[ offset - word->t.start - 1 ] : 0;
                         rect.left = word->x + chx + rc.left + frmline->x;
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended) { // get width of char at offset
-                            int chw = w[ offset - word->t.start ] - chx;
-                            if ( offset == word->t.start + word->t.len - 1
-                                    && word->flags | LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) {
-                                // if offset is the end of word, and this word has
-                                // been hyphenated, includes the hyphen width
-                                chw += font->getHyphenWidth();
+                            if (offset == word->t.start && word->t.len == 1) {
+                                // With CJK chars, the measured width seems
+                                // less correct than the one measured while
+                                // making words. So use the calculated word
+                                // width for one-char-long words instead
+                                rect.right = rect.left + word->width;
                             }
-                            rect.right = rect.left + chw;
+                            else {
+                                int chw = w[ offset - word->t.start ] - chx;
+                                if ( offset == word->t.start + word->t.len - 1
+                                        && word->flags | LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) {
+                                    // if offset is the end of word, and this word has
+                                    // been hyphenated, includes the hyphen width
+                                    chw += font->getHyphenWidth();
+                                }
+                                rect.right = rect.left + chw;
+                            }
                         }
                         else
                             rect.right = rect.left + 1;
