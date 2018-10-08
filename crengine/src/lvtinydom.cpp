@@ -6892,8 +6892,11 @@ void ldomXRangeList::splitText( ldomMarkedTextList &dst, ldomNode * textNodeToSp
 }
 
 /// returns rectangle (in doc coordinates) for range. Returns true if found.
-bool ldomXRange::getRectEx( lvRect & rect )
+// Note that this works correctly only when start and end are in the
+// same text node.
+bool ldomXRange::getRectEx( lvRect & rect, bool & isSingleLine )
 {
+    isSingleLine = false;
     if ( isNull() )
         return false;
     // get start and end rects
@@ -6920,6 +6923,7 @@ bool ldomXRange::getRectEx( lvRect & rect )
         rect.top = rc1.top;
         rect.right = rc2.right;
         rect.bottom = rc2.bottom;
+        isSingleLine = true;
         return !rect.isEmpty();
     }
     // on different lines
@@ -6930,6 +6934,247 @@ bool ldomXRange::getRectEx( lvRect & rect )
     rect.top = rc1.top;
     rect.bottom = rc2.bottom;
     return !rect.isEmpty();
+}
+
+// Returns the multiple segments (rectangle for each text line) that
+// this ldomXRange spans on the page.
+// The text content from S to E on this page will push 4 segments:
+//   ......
+//   ...S==
+//   ======
+//   ======
+//   ==E..
+//   ......
+void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
+{
+    bool go_on = true;
+    int lcount = 1;
+    lvRect lineStartRect = lvRect();
+    lvRect nodeStartRect = lvRect();
+    lvRect curCharRect = lvRect();
+    lvRect prevCharRect = lvRect();
+    ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
+
+    // We process range text node by text node (I thought rects' y-coordinates
+    // comparisons were valid only for a same text node, but it seems all
+    // text on a line get the same .top and .bottom, even if they have a
+    // smaller font size - but using ldomXRange.getRectEx() on multiple
+    // text nodes gives wrong rects for the last chars on a line...)
+
+    // Note: the range end offset is NOT part of the range (it points to the
+    // char after, or last char + 1 if it includes the whole text node text)
+    ldomXPointerEx rangeEnd = getEnd();
+    ldomXPointerEx curPos = ldomXPointerEx( getStart() ); // copy, will change
+    if (!curPos.isText()) // we only deal with text nodes: get the first
+        go_on = curPos.nextText();
+
+    while (go_on) { // new line or new/continued text node
+        // We may have (empty or not if not yet pushed) from previous iteration:
+        // lineStartRect : char rect for first char of line, even if from another text node
+        // nodeStartRect : char rect of current char at curPos (calculated but not included
+        //   in previous line), that is now the start of the line
+        // The curPos.getRectEx(charRect) we use returns a rect for a single char, with
+        // the width of the char. We then "extend" it to the char at end of line (or end
+        // of range) to make a segment that we add to the provided &rects.
+
+        if (!curPos || curPos.isNull() || curPos.compare(rangeEnd) >= 0) {
+            // no more text node, or after end of range: we're done
+            go_on = false;
+            break;
+        }
+
+        ldomNode *curFinalNode = curPos.getFinalNode();
+        if (curFinalNode != prevFinalNode) {
+            // Force a new segment if we're crossing final nodes, that is, when
+            // we're no more in the same inline context (so we get a new segment
+            // for each table cells that may happen to be rendered on the same line)
+            if (! lineStartRect.isEmpty()) {
+                rects.add( lineStartRect );
+                lineStartRect = lvRect(); // reset
+            }
+            prevFinalNode = curFinalNode;
+        }
+
+        int startOffset = curPos.getOffset();
+        lString16 nodeText = curPos.getText();
+        int textLen = nodeText.length();
+
+        if (startOffset == 0) { // new text node
+            nodeStartRect = lvRect(); // reset
+            if (textLen == 0) { // empty text node (not sure that can happen)
+                go_on = curPos.nextText();
+                continue;
+            }
+        }
+        // Skip space at start of node or at start of new line
+        // (the XML parser made sure we always have a single space
+        // at boundaries)
+        if (nodeText[startOffset] == ' ') {
+            startOffset += 1;
+            nodeStartRect = lvRect(); // reset
+        }
+        if (startOffset >= textLen) { // no more text in this node (or single space node)
+            go_on = curPos.nextText();
+            nodeStartRect = lvRect(); // reset
+            continue;
+        }
+        curPos.setOffset(startOffset);
+        if (nodeStartRect.isEmpty()) { // otherwise, we re-use the one left from previous loop
+            // getRectEx() seems to fail on a single no-break-space, but we
+            // are not supposed to see a no-br space at start of line.
+            // Anyway, try next chars if first one(s) fails
+            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect)) {
+                // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
+                startOffset++;
+                curPos.setOffset(startOffset);
+                nodeStartRect = lvRect(); // reset
+            }
+            // last try with the last char (startOffset = textLen-1):
+            if (!curPos.getRectEx(nodeStartRect)) {
+                // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
+                // getRectEx() returns false when a node is invisible, so we just
+                // go processing next text node on failure (it may fail for other
+                // reasons that we won't notice, except for may be holes in the
+                // highlighting)
+                go_on = curPos.nextText(); // skip this text node
+                nodeStartRect = lvRect(); // reset
+                continue;
+            }
+        }
+        if (lineStartRect.isEmpty()) {
+            lineStartRect = nodeStartRect; // re-use the one already computed
+        }
+        // This would help noticing a line-feed-back-to-start-of-line:
+        //   else if (nodeStartRect.left < lineStartRect.right)
+        // but it makes a 2-lines-tall single segment if text-indent is larger
+        // than previous line end.
+        // So, use .top comparison
+        else if (nodeStartRect.top > lineStartRect.top) {
+            // We ended last node on a line, but a new node starts (or previous
+            // one continues) on a different line.
+            // And we have a not-yet-added lineStartRect: add it as it is
+            rects.add( lineStartRect );
+            lineStartRect = nodeStartRect; // start line on current node
+        }
+
+        // 1) Look if text node contains end of range (probably the case
+        // when only a few words are highlighted)
+        if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
+            curCharRect = lvRect();
+            curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
+            if (curPos.getOffset() == textLen-1) {
+                // There is proably a bug with getRectEx() and getting the width
+                // of the last char of a text node: the rect.right overflows the
+                // real char width on the right and may mess highlighting.
+                // Best to use in this case ldomXRange:getRectEx() which
+                // uses ldomXPointer:getRect() non-extended, while still
+                // dealing with margins and borders (unlike standalone
+                // ldomXPointer:getRect() non-extended)
+                ldomXPointerEx endPos = curPos;
+                endPos.setOffset(textLen);
+                if (!ldomXRange(curPos, endPos).getRectEx(curCharRect)) {
+                    // printf("#### xRange.getRectEx(textLen=%d) failed\n", textLen);
+                    go_on = curPos.nextText(); // skip this text node
+                    nodeStartRect = lvRect(); // reset
+                    continue;
+                }
+                curCharRect.right -= 1; // ldomXRange:getRectEx() overflows 1px
+            }
+            else {
+                if (!curPos.getRectEx(curCharRect)) {
+                    // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
+                    go_on = curPos.nextText(); // skip this text node
+                    nodeStartRect = lvRect(); // reset
+                    continue;
+                }
+            }
+            if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
+                // (Two offsets in a same text node with the same tops are on the same line)
+                lineStartRect.extend(curCharRect);
+                // lineStartRect will be added after loop exit
+                go_on = false;
+                break; // we're done
+            }
+        }
+
+        // 2) Look if the full text node is contained on the line
+        // Ignore (possibly collapsed) space at end of text node
+        curPos.setOffset(nodeText[textLen-1] == ' ' ? textLen-2 : textLen-1 );
+        curCharRect = lvRect();
+        if (curPos.getOffset() == textLen-1) {
+            // There is proably a bug with getRectEx() and getting the width
+            // of the last char of a text node: see above for why this trick.
+            ldomXPointerEx endPos = curPos;
+            endPos.setOffset(textLen);
+            if (!ldomXRange(curPos, endPos).getRectEx(curCharRect)) {
+                // printf("#### xRange.getRectEx(textLen=%d) failed\n", textLen);
+                go_on = curPos.nextText(); // skip this text node
+                nodeStartRect = lvRect(); // reset
+                continue;
+            }
+            curCharRect.right -= 1; // ldomXRange:getRectEx() overflows 1px
+        }
+        else {
+            if (!curPos.getRectEx(curCharRect)) {
+                // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
+                go_on = curPos.nextText(); // skip this text node
+                nodeStartRect = lvRect(); // reset
+                continue;
+            }
+        }
+        if (curCharRect.top == nodeStartRect.top) {
+            // Extend line up to the end of this node, but don't add it yet,
+            // lineStartRect can still be extended with (parts of) next text nodes
+            lineStartRect.extend(curCharRect);
+            nodeStartRect  = lvRect(); // reset
+            go_on = curPos.nextText(); // go processing next text node
+            continue;
+        }
+
+        // 3) Current text node's end is not on our line:
+        // scan it char by char to see where it changes line
+        // (we could use binary search to reduce the number of iterations)
+        curPos.setOffset(startOffset);
+        prevCharRect = nodeStartRect;
+        for (int i=startOffset+1; i<=textLen-1; i++) {
+            // skip spaces and soft-hyphens
+            lChar16 c = nodeText[i];
+            if (c == ' ' || c == 0x00AD)
+                continue;
+            curPos.setOffset(i);
+            curCharRect = lvRect(); // reset
+            if (!curPos.getRectEx(curCharRect)) {
+                // printf("#### curPos.getRectEx(char=%d) failed\n", i);
+                // Can happen with non-break-space and may be others,
+                // just try with next char
+                continue;
+            }
+            if (curPos.compare(rangeEnd) >= 0) {
+                // should not happen, we should have dealt with it as 1)
+                // printf("??????????? curPos.getRectEx(char=%d) end of range\n", i);
+                go_on = false;        // don't break yet, need to add what we met before
+                curCharRect.top = -1; // force adding prevCharRect
+            }
+            if (curCharRect.top != nodeStartRect.top) { // no more on the same line
+                if ( ! prevCharRect.isEmpty() ) { // (should never be empty)
+                    // We got previously a rect on this line: it's the end of line
+                    lineStartRect.extend(prevCharRect);
+                    rects.add( lineStartRect );
+                }
+                // Continue with this text node, but on a new line
+                nodeStartRect = curCharRect;
+                lineStartRect = lvRect(); // reset
+                break; // break for (i<textLen) loop
+            }
+            prevCharRect = curCharRect; // still on the line: candidate for end of line
+            if (! go_on)
+                break; // we're done
+        }
+    }
+    // Add any lineStartRect not yet added
+    if (! lineStartRect.isEmpty()) {
+        rects.add( lineStartRect );
+    }
 }
 
 /// sets range to nearest word bounds, returns true if success
