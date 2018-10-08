@@ -329,8 +329,45 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         return true;
     }
     if ( is_font_size ) {
+        // Absolute-size keywords, based on the default font size (which is medium)
+        // Factors as suggested in https://drafts.csswg.org/css-fonts-3/#absolute-size-value
+        if ( substr_icompare( "medium", str ) ) {
+            value.type = css_val_rem;
+            value.value = 256;
+            return true;
+        }
+        else if ( substr_icompare( "small", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 8/9);
+            return true;
+        }
+        else if ( substr_icompare( "x-small", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 3/4);
+            return true;
+        }
+        else if ( substr_icompare( "xx-small", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 3/5);
+            return true;
+        }
+        else if ( substr_icompare( "large", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 6/5);
+            return true;
+        }
+        else if ( substr_icompare( "x-large", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 3/2);
+            return true;
+        }
+        else if ( substr_icompare( "xx-large", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 2);
+            return true;
+        }
         // Approximate the (usually uneven) gaps between named sizes.
-        if ( substr_icompare( "smaller", str ) ) {
+        else if ( substr_icompare( "smaller", str ) ) {
             value.type = css_val_percent;
             value.value = 80 << 8;
             return true;
