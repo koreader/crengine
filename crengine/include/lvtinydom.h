@@ -1263,6 +1263,8 @@ public:
 #if BUILD_LITE!=1
     /// return parent final node, if found
     ldomNode * getFinalNode() const;
+    /// return true is this node is a final node
+    bool isFinalNode() const;
 #endif
     /// returns offset within node
 	inline int getOffset() const { return _data->getOffset(); }
@@ -1530,6 +1532,13 @@ public:
     void recurseElements( void (*pFun)( ldomXPointerEx & node ) );
     /// calls specified function recursively for all nodes of DOM tree
     void recurseNodes( void (*pFun)( ldomXPointerEx & node ) );
+
+    /// move to next sibling or parent's next sibling
+    bool nextOuterElement();
+    /// move to (end of) last and deepest child node descendant of current node
+    bool lastInnerNode( bool toTextEnd=false );
+    /// move to (end of) last and deepest child text node descendant of current node
+    bool lastInnerTextNode( bool toTextEnd=false );
 };
 
 class ldomXRange;
@@ -1622,7 +1631,7 @@ public:
     /// create intersection of two ranges
     ldomXRange( const ldomXRange & v1,  const ldomXRange & v2 );
     /// copy constructor of full node range
-    ldomXRange( ldomNode * p );
+    ldomXRange( ldomNode * p, bool fitEndToLastInnerChild=false );
     /// copy assignment
     ldomXRange & operator = ( const ldomXRange & v )
     {
