@@ -5209,6 +5209,17 @@ ldomNode * ldomXPointer::getFinalNode() const
     }
 }
 
+/// return true is this node is a final node
+bool ldomXPointer::isFinalNode() const
+{
+    ldomNode * node = getNode();
+    if ( !node )
+        return false;
+    if ( node->getRendMethod()==erm_final || node->getRendMethod()==erm_list_item || node->getRendMethod() == erm_table_caption )
+        return true;
+    return false;
+}
+
 /// create xpointer from doc point
 ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool strictBounds )
 {
@@ -5952,6 +5963,52 @@ bool ldomXPointerEx::prevSiblingElement()
     return false;
 }
 
+/// move to next sibling or parent's next sibling
+bool ldomXPointerEx::nextOuterElement()
+{
+    if ( !ensureElement() )
+        return false;
+    for (;;) {
+        if ( nextSiblingElement() )
+            return true;
+        if ( !parent() )
+            return false;
+    }
+}
+
+/// move to (end of) last and deepest child node descendant of current node
+bool ldomXPointerEx::lastInnerNode(bool toTextEnd)
+{
+    if ( !getNode() )
+        return false;
+    while ( lastChild() ) {}
+    if ( isText() && toTextEnd ) {
+        setOffset(getNode()->getText().length());
+    }
+    return true;
+}
+
+/// move to (end of) last and deepest child text node descendant of current node
+bool ldomXPointerEx::lastInnerTextNode(bool toTextEnd)
+{
+    if ( !getNode() )
+        return false;
+    if ( isText() ) {
+        if (toTextEnd)
+            setOffset(getNode()->getText().length());
+        return true;
+    }
+    if ( lastChild() ) {
+        do {
+            if (lastInnerTextNode(toTextEnd))
+                return true;
+        } while ( prevSibling() );
+        parent();
+    }
+    return false;
+
+}
+
 /// move to parent
 bool ldomXPointerEx::parent()
 {
@@ -6059,9 +6116,42 @@ ldomXRangeList::ldomXRangeList( ldomXRangeList & srcList, ldomXRange & filter )
 }
 
 /// copy constructor of full node range
-ldomXRange::ldomXRange( ldomNode * p )
+ldomXRange::ldomXRange( ldomNode * p, bool fitEndToLastInnerChild )
 : _start( p, 0 ), _end( p, p->isText() ? p->getText().length() : p->getChildCount() ), _flags(1)
 {
+    // Note: the above initialization seems wrong: for a non-text
+    // node, offset seems of no-use, and setting it to the number
+    // of children wouldn't matter (and if the original aim was to
+    // extend end to include the last child, the range would ignore
+    // this last child descendants).
+    // The following change might well be the right behaviour expected
+    // from ldomXRange(ldomNode) and fixing a bug, but let's keep
+    // this "fixed" behaviour an option
+    if (fitEndToLastInnerChild && !p->isText()) {
+        // Update _end to point to the last deepest inner child node,
+        // and to the end of its text if it is a text npde.
+        ldomXPointerEx tmp = _start;
+        if (tmp.lastInnerNode(true)) {
+            _end = tmp;
+        }
+    }
+    // Note: code that walks or compare a ldomXRange may include or
+    // exclude the _end: most often, it's excluded.
+    // If it is a text node, the end points to text.length(), so after the
+    // last char, and it then includes the last char.
+    // If it is a non-text node, we could choose to include or exclude it
+    // in XPointers comparisons. Including it would have the node included,
+    // but not its children (because a child is after its parent in
+    // comparisons), which feels strange.
+    // So, excluding it looks like the sanest choice.
+    // But then, with fitEndToLastInnerChild, if that last inner child
+    // is a <IMG> node, it will be the _end, but won't then be included
+    // in the range... The proper way to include it then would be to use
+    // ldomXPointerEx::nextOuterElement(), but this is just a trick (it
+    // would fail if that node is the last in the document, and
+    // getNearestParent() would move up unnecessary ancestors...)
+    // So, better check the functions that we use to see how they would
+    // cope with that case.
 }
 
 static const ldomXPointerEx & _max( const ldomXPointerEx & v1,  const ldomXPointerEx & v2 )
