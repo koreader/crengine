@@ -1359,11 +1359,36 @@ public:
                 //   https://github.com/buggins/coolreader/commit/e2a1cf3306b6b083467d77d99dad751dc3aa07d9
                 // to the next if:
                 //  || lGetCharProps(m_text[i]) == 0
+                // but this does not look right, as any other unicode char would allow wrap.
                 //
                 // No need to bother with LCHAR_IS_COLLAPSED_SPACE, they have zero width
                 // and so will be taken here. They carry LCHAR_ALLOW_WRAP_AFTER just like
                 // a space, so they will set lastNormalWrap.
-                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || i==m_length-1 || isCJKIdeograph(m_text[i]))
+                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || isCJKIdeograph(m_text[i])) {
+                    // Need to check if previous and next non-space char request a wrap on
+                    // this space (or CJK char) to be avoided
+                    bool avoidWrap = false;
+                    // Look first at following char(s)
+                    for (int j = i+1; j < m_length; j++) {
+                        if ( !(m_flags[j] & LCHAR_ALLOW_WRAP_AFTER) ) { // not another (collapsible) space
+                            avoidWrap = lGetCharProps(m_text[j]) & CH_PROP_AVOID_WRAP_BEFORE;
+                            break;
+                        }
+                    }
+                    if (!avoidWrap) { // Look at preceding char(s)
+                        for (int j = i-1; j >= 0; j--) {
+                            if ( !(m_flags[j] & LCHAR_ALLOW_WRAP_AFTER) ) { // not another (collapsible) space
+                                avoidWrap = lGetCharProps(m_text[j]) & CH_PROP_AVOID_WRAP_AFTER;
+                                break;
+                            }
+                        }
+                    }
+                    if (!avoidWrap)
+                        lastNormalWrap = i;
+                    // We could use lastDeprecatedWrap, but it then get too much real chances to be used:
+                    // else lastDeprecatedWrap = i;
+                }
+                else if ( i==m_length-1 )
                     lastNormalWrap = i;
                 else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER )
                     lastDeprecatedWrap = i;
