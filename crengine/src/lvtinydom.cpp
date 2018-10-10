@@ -7616,6 +7616,16 @@ inline bool canWrapWordAfter( lChar16 ch ) {
     return ch>=0x2e80 && ch<0x2CEAF;
 }
 
+bool ldomXPointerEx::isVisibleWordChar() {
+    if ( isNull() )
+        return false;
+    if ( !isText() || !isVisible() )
+        return false;
+    ldomNode * node = getNode();
+    lString16 text = node->getText();
+    return !IsWordSeparator(text[_data->getOffset()]);
+}
+
 /// move to previous visible word beginning
 bool ldomXPointerEx::prevVisibleWordStart( bool thisBlockOnly )
 {

@@ -1480,6 +1480,8 @@ public:
     bool prevVisibleFinal();
     /// returns true if current node is visible element or text
     bool isVisible();
+    // returns true if text node char at offset is part of a word
+    bool isVisibleWordChar();
     /// move to next text node
     bool nextText( bool thisBlockOnly = false );
     /// move to previous text node
