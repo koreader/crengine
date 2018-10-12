@@ -2515,12 +2515,6 @@ void LVDocView::setRenderProps(int dx, int dy) {
 	updateLayout();
 	m_showCover = !getCoverPageImage().isNull();
 
-	if (dx == 0)
-		dx = m_pageRects[0].width() - m_pageMargins.left - m_pageMargins.right;
-	if (dy == 0)
-		dy = m_pageRects[0].height() - m_pageMargins.top - m_pageMargins.bottom
-				- getPageHeaderHeight();
-
 	lString8 fontName = lString8(DEFAULT_FONT_NAME);
 	m_font_size = scaleFontSizeForDPI(m_requested_font_size);
 	gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
@@ -2531,6 +2525,12 @@ void LVDocView::setRenderProps(int dx, int dy) {
 			DEFAULT_FONT_FAMILY, m_statusFontFace);
 	if (!m_font || !m_infoFont)
 		return;
+
+	if (dx == 0)
+		dx = m_pageRects[0].width() - m_pageMargins.left - m_pageMargins.right;
+	if (dy == 0)
+		dy = m_pageRects[0].height() - m_pageMargins.top - m_pageMargins.bottom
+				- getPageHeaderHeight();
 
     updateDocStyleSheet();
 
