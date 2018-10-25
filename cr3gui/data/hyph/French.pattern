@@ -1881,6 +1881,7 @@ but needed by crengine no quote pattern -->
 <pattern>g2s </pattern>
 <pattern>m2s </pattern>
 <pattern>n2x </pattern>
+<pattern>o2s </pattern>
 <!-- other rules -->
 <pattern> dé3s5i2r </pattern>
 <pattern> dé3s5i2rs </pattern>
