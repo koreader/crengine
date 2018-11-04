@@ -745,10 +745,12 @@ public:
                 if ( i==y ) {
                     //upper left corner of cell
 
+                    // If last cell of a row and border_collapse: increase cell width (whether final or block)
+                    if (border_collapse&&j==rows[i]->cells.length()-1) cell->width+=measureBorder(cell->elem,1);
+
                     RenderRectAccessor fmt( cell->elem );
                     if ( cell->elem->getRendMethod()==erm_final ) {
                         LFormattedTextRef txform;
-                        if (border_collapse&&j==rows[i]->cells.length()-1) cell->width+=measureBorder(cell->elem,1);
                         int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - cell->padding_left - cell->padding_right-delta-bsp_h*(100+100/n)/100);
                         cell->height = h + cell->padding_top + cell->padding_bottom+measureBorder(cell->elem,0)+measureBorder(cell->elem,2);
                         fmt.setY( posy +table_padding_top+bsp_v); //cell->padding_top ); //cell->row->y - cell->row->y );
