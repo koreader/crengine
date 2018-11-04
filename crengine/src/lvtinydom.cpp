@@ -3545,13 +3545,13 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                     *stream << "\n";
             }
         }
-        if ( isInitialNode && cssFiles.length()==0 && WNEFLAG(GET_CSS_FILES) ) {
+        if ( isInitialNode && cssFiles.length()==0 && WNEFLAG(GET_CSS_FILES) && !node->isRoot() ) {
             // We have gathered CSS files as we walked the DOM, which we usually
             // do from the root node if we want CSS files.
             // In case we started from an inner node, and we are requested for
             // CSS files - but we have none - walk the DOM back to gather them.
             ldomNode *pnode = node->getParentNode();
-            for ( ; !pnode->isRoot(); pnode = pnode->getParentNode() ) {
+            for ( ; pnode && !pnode->isNull() && !pnode->isRoot(); pnode = pnode->getParentNode() ) {
                 if ( pnode->getNodeId() == el_DocFragment || pnode->getNodeId() == el_body ) {
                     // The CSS file in StyleSheet="" attribute was the first one seen by
                     // crengine, so add it first to cssFiles
