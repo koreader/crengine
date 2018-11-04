@@ -96,7 +96,7 @@ typedef struct css_style_rec_tag {
     css_text_align_t     text_align_last;
     css_text_decoration_t text_decoration;
     css_text_transform_t text_transform;
-    css_vertical_align_t vertical_align;
+    css_length_t         vertical_align;
     css_font_family_t    font_family;
     lString8             font_name;
     css_length_t         font_size;
@@ -139,7 +139,7 @@ typedef struct css_style_rec_tag {
     , text_align_last(css_ta_inherit)
     , text_decoration (css_td_inherit)
     , text_transform (css_tt_inherit)
-    , vertical_align(css_va_inherit)
+    , vertical_align(css_val_unspecified, css_va_baseline)
     , font_family(css_ff_inherit)
     , font_size(css_val_inherited, 0)
     , font_style(css_fs_inherit)

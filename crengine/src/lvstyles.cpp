@@ -56,7 +56,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.letter_spacing.pack()) * 31
          + (lUInt32)rec.list_style_position) * 31
          + (lUInt32)(rec.page_break_before | (rec.page_break_after<<4) | (rec.page_break_inside<<8))) * 31
-         + (lUInt32)rec.vertical_align) * 31
+         + (lUInt32)rec.vertical_align.pack()) * 31
          + (lUInt32)rec.font_size.type) * 31
          + (lUInt32)rec.font_size.value) * 31
          + (lUInt32)rec.font_style) * 31
@@ -297,7 +297,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(text_align_last);   //    css_text_align_t     text_align_last;
     ST_PUT_ENUM(text_decoration);   //    css_text_decoration_t text_decoration;
     ST_PUT_ENUM(text_transform);    //    css_text_transform_t text_transform;
-    ST_PUT_ENUM(vertical_align);    //    css_vertical_align_t vertical_align;
+    ST_PUT_LEN(vertical_align);     //    css_length_t         vertical_align;
     ST_PUT_ENUM(font_family);       //    css_font_family_t    font_family;
     buf << font_name;               //    lString8             font_name;
     ST_PUT_LEN(font_size);          //    css_length_t         font_size;
@@ -348,7 +348,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_text_align_t, text_align_last);         //    css_text_align_t     text_align_last;
     ST_GET_ENUM(css_text_decoration_t, text_decoration);    //    css_text_decoration_t text_decoration;
     ST_GET_ENUM(css_text_transform_t, text_transform);      //    css_text_transform_t text_transform;
-    ST_GET_ENUM(css_vertical_align_t, vertical_align);      //    css_vertical_align_t vertical_align;
+    ST_GET_LEN(vertical_align);                             //    css_length_t         vertical_align;
     ST_GET_ENUM(css_font_family_t, font_family);            //    css_font_family_t    font_family;
     buf >> font_name;                                       //    lString8             font_name;
     ST_GET_LEN(font_size);                                  //    css_length_t         font_size;

@@ -1003,7 +1003,31 @@ bool LVCssDeclaration::parse( const char * &decl )
                 n = parse_name( decl, css_lsp_names, -1 );
                 break;
             case cssd_vertical_align:
-                n = parse_name( decl, css_va_names, -1 );
+                {
+                    css_length_t len;
+                    int n1 = parse_name( decl, css_va_names, -1 );
+                    if (n1 != -1) {
+                        len.type = css_val_unspecified;
+                        len.value = n1;
+                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) len.type;
+                        buf<<(lUInt32) len.value;
+                    }
+                    else {
+                        bool negative = false;
+                        if ( *decl == '-' ) {
+                            decl++;
+                            negative = true;
+                        }
+                        if ( parse_number_value( decl, len ) ) {
+                            if ( negative )
+                                len.value = -len.value;
+                            buf<<(lUInt32) (prop_code | parse_important(decl));
+                            buf<<(lUInt32) len.type;
+                            buf<<(lUInt32) len.value;
+                        }
+                    }
+                }
                 break;
             case cssd_font_family:
                 {
@@ -1856,7 +1880,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             style->Apply( (css_page_break_t) *p++, &style->page_break_inside, imp_bit_page_break_inside, is_important );
             break;
         case cssd_vertical_align:
-            style->Apply( (css_vertical_align_t) *p++, &style->vertical_align, imp_bit_vertical_align, is_important );
+            style->Apply( read_length(p), &style->vertical_align, imp_bit_vertical_align, is_important );
             break;
         case cssd_font_family:
             style->Apply( (css_font_family_t) *p++, &style->font_family, imp_bit_font_family, is_important );
