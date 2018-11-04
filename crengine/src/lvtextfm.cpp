@@ -902,6 +902,12 @@ public:
         }
 
         src_text_fragment_t * lastSrc = m_srcs[start];
+        // Ignore space at start of line (this rarely happens, as line
+        // splitting discards the space on which a split is made - but it
+        // can happen in other rare wrap cases like lastDeprecatedWrap)
+        if ( (m_flags[start] & LCHAR_IS_SPACE) && !(lastSrc->flags & LTEXT_FLAG_PREFORMATTED) ) {
+            start++;
+        }
         int wstart = start;
         bool lastIsSpace = false;
         bool lastWord = false;
@@ -1388,6 +1394,8 @@ public:
                         lastNormalWrap = i;
                     // We could use lastDeprecatedWrap, but it then get too much real chances to be used:
                     // else lastDeprecatedWrap = i;
+                    // Note that a wrap can happen AFTER a '-' (that has CH_PROP_AVOID_WRAP_AFTER)
+                    // when lastDeprecatedWrap is prefered below.
                 }
                 else if ( i==m_length-1 )
                     lastNormalWrap = i;
