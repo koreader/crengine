@@ -42,11 +42,15 @@ extern "C" {
 #define LTEXT_FLAG_NEWLINE     0x0007  /**< \brief new line flags mask */
 #define LTEXT_FLAG_OWNTEXT     0x0008  /**< \brief store local copy of text instead of pointer */
 
-#define LTEXT_VALIGN_MASK      0x0070  /**< \brief vertical align flags mask */
-#define LTEXT_VALIGN_BASELINE  0x0000  /**< \brief baseline vertical align */
-#define LTEXT_VALIGN_SUB       0x0010  /**< \brief subscript */
-#define LTEXT_VALIGN_SUPER     0x0020  /**< \brief superscript */
-#define LTEXT_VALIGN_MIDDLE    0x0040  /**< \brief middle */
+#define LTEXT_VALIGN_MASK           0x0070  /**< \brief vertical align flags mask */
+#define LTEXT_VALIGN_BASELINE       0x0000  /**< \brief baseline vertical align */
+#define LTEXT_VALIGN_SUB            0x0010  /**< \brief subscript */
+#define LTEXT_VALIGN_SUPER          0x0020  /**< \brief superscript */
+#define LTEXT_VALIGN_MIDDLE         0x0030  /**< \brief middle */
+#define LTEXT_VALIGN_BOTTOM         0x0040  /**< \brief bottom */
+#define LTEXT_VALIGN_TEXT_BOTTOM    0x0050  /**< \brief text-bottom */
+#define LTEXT_VALIGN_TOP            0x0060  /**< \brief top */
+#define LTEXT_VALIGN_TEXT_TOP       0x0070  /**< \brief text-top */
 
 #define LTEXT_TD_UNDERLINE     0x0100  /**< \brief underlined text */
 #define LTEXT_TD_OVERLINE      0x0200  /**< \brief overlined text */
@@ -68,6 +72,7 @@ typedef struct
 {
     void *          object;   /**< \brief pointer to object which represents source */
     lInt16          margin;   /**< \brief first line margin */
+    lInt16          valign_dy; /* drift y from baseline */
     lUInt8          interval; /**< \brief line interval, *16 (16=normal, 32=double) */
     lInt8           letter_spacing; /**< \brief additional letter spacing, pixels */
     lUInt32         color;    /**< \brief color */
@@ -178,6 +183,10 @@ typedef struct
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
+                         // Each line box starts with a zero-width inline box (called "strut") with
+                         // the element's font and line height properties:
+   lUInt16               strut_height;   /**< strut height */
+   lUInt16               strut_baseline; /**< strut baseline */
    lInt32                img_zoom_in_mode_block; /**< can zoom in block images: 0=disabled, 1=integer scale, 2=free scale */
    lInt32                img_zoom_in_scale_block; /**< max scale for block images zoom in: 1, 2, 3 */
    lInt32                img_zoom_in_mode_inline; /**< can zoom in inline images: 0=disabled, 1=integer scale, 2=free scale */
@@ -217,6 +226,7 @@ void lvtextAddSourceLine(
    lUInt32         bgcolor,  /* background color */
    lUInt32         flags,    /* flags */
    lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
+   lInt16          valign_dy,/* drift y from baseline */
    lUInt16         margin,   /* first line margin */
    void *          object,   /* pointer to custom object */
    lUInt16         offset,    /* offset from node/object start to start of line */
@@ -231,9 +241,10 @@ void lvtextAddSourceObject(
    formatted_text_fragment_t * pbuffer,
    lInt16         width,
    lInt16         height,
-   lUInt32         flags,    /* flags */
-   lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
-   lUInt16         margin,   /* first line margin */
+   lUInt32         flags,     /* flags */
+   lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+   lInt16          valign_dy, /* drift y from baseline */
+   lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
    lInt8           letter_spacing
                          );
@@ -255,6 +266,12 @@ private:
 public:
     formatted_text_fragment_t * GetBuffer() { return m_pbuffer; }
 
+    /// set strut height and baseline (line boxes starting minimal values)
+    void setStrut(lUInt16 height, lUInt16 baseline) {
+        m_pbuffer->strut_height = height;
+        m_pbuffer->strut_baseline = baseline;
+    }
+
     /// set image scaling options
     void setImageScalingOptions( img_scaling_options_t * options );
 
@@ -272,9 +289,10 @@ public:
     }
 
     void AddSourceObject(
-                lUInt16         flags,    /* flags */
-                lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
-                lUInt16         margin,   /* first line margin */
+                lUInt16         flags,     /* flags */
+                lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+                lInt16          valign_dy, /* drift y from baseline */
+                lUInt16         margin,    /* first line margin */
                 void *          object,    /* pointer to custom object */
                 lInt8           letter_spacing=0
          );
@@ -284,9 +302,10 @@ public:
            lUInt32         len,         /* number of chars in text, 0 for auto(strlen) */
            lUInt32         color,       /* text color */
            lUInt32         bgcolor,     /* background color */
-           LVFont          * font,        /* font to draw string */
+           LVFont          * font,      /* font to draw string */
            lUInt32         flags=LTEXT_ALIGN_LEFT|LTEXT_FLAG_OWNTEXT,
            lUInt8          interval=16, /* interline space, *16 (16=single, 32=double) */
+           lInt16          valign_dy=0, /* drift y from baseline */
            lUInt16         margin=0,    /* first line margin */
            void *          object=NULL,
            lUInt32         offset=0,
@@ -296,7 +315,7 @@ public:
         lvtextAddSourceLine(m_pbuffer, 
             font,  //font->GetHandle()
             text, len, color, bgcolor, 
-            flags, interval, margin, object, (lUInt16)offset, letter_spacing );
+            flags, interval, valign_dy, margin, object, (lUInt16)offset, letter_spacing );
     }
 
     lUInt32 Format(lUInt16 width, lUInt16 page_height);

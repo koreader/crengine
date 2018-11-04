@@ -313,7 +313,7 @@ public:
                         colindex++;
                     }
                     break;
-                case erm_list_item:     // no more used (obsolete rendering method)
+                case erm_list_item:     // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
                 case erm_block:         // render as block element (render as containing other elements)
                 case erm_final:         // final element: render the whole it's content as single render block
                 case erm_mixed:         // block and inline elements are mixed: autobox inline portions of nodes; TODO
@@ -1185,7 +1185,7 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
         lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
         marker += "\t";
         if ( txform ) {
-            txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0);
+            txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, 0);
         }
     }
     return marker;
@@ -1195,22 +1195,32 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 //=======================================================================
 // Render final block
 //=======================================================================
-void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h )
+void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy )
 {
     int txform_src_count = txform->GetSrcCount(); // to track if we added lines to txform
-    if ( enode->isElement() )
-    {
+    if ( enode->isElement() ) {
         lvdom_element_render_method rm = enode->getRendMethod();
         if ( rm == erm_invisible )
             return; // don't draw invisible
+        bool is_object = false;
+        const css_elem_def_props_t * ntype = enode->getElementTypePtr();
+        if ( ntype && ntype->is_object )
+            is_object = true;
         //RenderRectAccessor fmt2( enode );
         //fmt = &fmt2;
+
+        // About styleToTextFmtFlags:
+        // - with inline nodes, it only updates LTEXT_FLAG_PREFORMATTED flag when css_ws_pre
+        // - with block nodes (so, only with the first "final" node, and not when
+        // recursing its children which are inline), it will set horitontal alignment flags
         int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
         int width = fmt->getWidth();
         int em = enode->getFont()->getSize();
         css_style_rec_t * style = enode->getStyle().get();
-        if ((flags & LTEXT_FLAG_NEWLINE) && rm != erm_inline)
-        {
+        if ((flags & LTEXT_FLAG_NEWLINE) && rm != erm_inline) {
+            // Non-inline node in a final block: this is the top and single 'final' node:
+            // get text-indent (mispelled 'ident' here and elsewhere) and line-height
+            // that will apply to the full final block
             ident = lengthToPx(style->text_indent, width, em);
 
             // line-height may be a bit tricky, so let's fallback
@@ -1247,40 +1257,203 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     break;
                 }
             }
+            // We set the LFormattedText strut_height and strut_baseline
+            // with the values from this "final" node. All lines made out from
+            // children will have a minimal height and baseline set to these.
+            // See https://www.w3.org/TR/CSS2/visudet.html#line-height
+            //   The minimum height consists of a minimum height above
+            //   the baseline and a minimum depth below it, exactly as if
+            //   each line box starts with a zero-width inline box with the
+            //   element's font and line height properties. We call that
+            //   imaginary box a "strut."
+            // and https://iamvdo.me/en/blog/css-font-metrics-line-height-and-vertical-align
+            int fh = enode->getFont()->getHeight();
+            int fb = enode->getFont()->getBaseline();
+            int f_line_h = (fh * line_h) >> 4; // font height + interline space
+            int f_half_leading = (f_line_h - fh) /2;
+            txform->setStrut(f_line_h, fb + f_half_leading);
         }
-        // save flags
-        int f = flags;
-        // vertical alignment flags
-        switch (style->vertical_align)
-        {
-        case css_va_sub:
-            flags |= LTEXT_VALIGN_SUB;
-            break;
-        case css_va_super:
-            flags |= LTEXT_VALIGN_SUPER;
-            break;
-        case css_va_middle:
-            flags |= LTEXT_VALIGN_MIDDLE;
-            break;
-        case css_va_baseline:
-        default:
-            break;
+        // save flags: will be re-inited to that when we meet a <BR/>
+        int final_block_flags = flags;
+
+        // Now, process styles that may differ between inline nodes, and
+        // are needed to display any children text node.
+
+        // Vertical alignment flags & y-drift from main baseline.
+        // valign_dy is all that is needed for text nodes, but we need
+        // a LTEXT_VALIGN_* flag for objects (images), as their height
+        // is not known here, and only computed in lvtextfm.cpp.
+        //
+        // Texts in quotes from https://www.w3.org/TR/CSS2/visudet.html#line-height
+        //
+        // We update valign_dy, so it is passed to all children and used
+        // as a base for their own vertical align computations.
+        // There are a few vertical-align named values that need a special
+        // processing for images (their current font is the parent font, and
+        // of no use for vertical-alignement).
+        css_length_t vertical_align = style->vertical_align;
+        if ( (vertical_align.type == css_val_unspecified && vertical_align.value == css_va_baseline) ||
+              vertical_align.value == 0 ) {
+            // "Align the baseline of the box with the baseline of the parent box.
+            //  If the box does not have a baseline, align the bottom margin edge with
+            //  the parent's baseline."
+            // This is the default behaviour in lvtextfm.cpp: no valign_dy or flags
+            // change needed: keep the existing ones (parent's y drift related to
+            // the line box main baseline)
+        }
+        else {
+            // We need current and parent nodes font metrics for most computations.
+            // A few misc notes:
+            //   - Freetype includes any "line gap" from the font metrics
+            //   in the ascender (the part above the baseline).
+            //   - getBaseline() gives the distance from the top to the baseline (so,
+            //   ascender + line gap)
+            //   - the descender font value is added to baseline to make height
+            //   - getHeight() is usually larger than getSize(), and
+            //   getSize() is often nearer to getBaseline().
+            //   See: https://iamvdo.me/en/blog/css-font-metrics-line-height-and-vertical-align
+            //   Some examples with various fonts at various sizes:
+            //     size=9  height=11 baseline=8
+            //     size=11 height=15 baseline=11
+            //     size=13 height=16 baseline=13
+            //     size=19 height=23 baseline=18
+            //     size=23 height=31 baseline=24
+            //     size=26 height=31 baseline=25
+            //   - Freetype has no function to give us font subscript, superscript, x-height
+            //   and related values, so we have to approximate them from height and baseline.
+            int fh = enode->getFont()->getHeight();
+            int fb = enode->getFont()->getBaseline();
+            int f_line_h = (fh * line_h) >> 4; // font height + interline space
+            int f_half_leading = (f_line_h - fh) /2;
+            // Use the current font values if no parent (should not happen thus) to
+            // avoid the need for if-checks below
+            int pem = em;
+            int pfh = fh;
+            int pfb = fb;
+            int pf_line_h = f_line_h;
+            int pf_half_leading = f_half_leading;
+            ldomNode *parent = enode->getParentNode();
+            if (parent && !parent->isNull()) {
+                pem = parent->getFont()->getSize();
+                pfh = parent->getFont()->getHeight();
+                pfb = parent->getFont()->getBaseline();
+                pf_line_h = (pfh * line_h) >> 4; // font height + interline space
+                pf_half_leading = (pf_line_h - pfh) /2;
+            }
+            if (vertical_align.type == css_val_unspecified) { // named values
+                switch (style->vertical_align.value) {
+                    case css_va_sub:
+                        // "Lower the baseline of the box to the proper position for subscripts
+                        //  of the parent's box."
+                        // Use a fraction of the height below the baseline only
+                        // 3/5 looks perfect with some fonts, 5/5 looks perfect with
+                        // some others, so use 4/5 (which is not the finest with some
+                        // fonts, but a sane middle ground)
+                        valign_dy += (pfh - pfb)*4/5;
+                        flags |= LTEXT_VALIGN_SUB;
+                        break;
+                    case css_va_super:
+                        // "Raise the baseline of the box to the proper position for superscripts
+                        //  of the parent's box."
+                        // 1/4 of the font height looks alright with most fonts (we could also
+                        // use a fraction of 'baseline' only, the height above the baseline)
+                        valign_dy -= pfh / 4;
+                        flags |= LTEXT_VALIGN_SUPER;
+                        break;
+                    case css_va_middle:
+                        // "Align the vertical midpoint of the box with the baseline of the parent box
+                        //  plus half the x-height of the parent."
+                        // For CSS lengths, we approximate 'ex' with 1/2 'em'. Let's do the same here.
+                        // (Firefox falls back to 0.56 x ascender for x-height:
+                        //   valign_dy -= 0.56 * pfb / 2;  but this looks a little too low)
+                        if (is_object)
+                            valign_dy -= pem/4; // y for middle of image (lvtextfm.cpp will now from flags)
+                        else {
+                            valign_dy += fb - fh/2; // move down current middle point to baseline
+                            valign_dy -= pem/4; // move up by half of parent ex
+                            // This looks different from Firefox rendering, but actually a bit a
+                            // better "middle" to me:
+                            // valign_dy -= pem/2 - em/2;
+                        }
+                        flags |= LTEXT_VALIGN_MIDDLE;
+                        break;
+                    case css_va_text_bottom:
+                        // "Align the bottom of the box with the bottom of the parent's content area"
+                        // With valign_dy=0, they are centered on the baseline. We want
+                        // them centered on their bottom line
+                        if (is_object)
+                            valign_dy += (pfh - pfb);
+                        else
+                            valign_dy += (pfh - pfb) - (fh - fb);
+                        flags |= LTEXT_VALIGN_TEXT_BOTTOM;
+                        break;
+                    case css_va_text_top:
+                        // "Align the top of the box with the top of the parent's content area"
+                        // With valign_dy=0, they are centered on the baseline. We want
+                        // them centered on their top line
+                        if (is_object)
+                            valign_dy -= pfb; // y for top of image (lvtextfm.cpp will now from flags)
+                        else
+                            valign_dy -= pfb - fb;
+                        flags |= LTEXT_VALIGN_TEXT_TOP;
+                        break;
+                    case css_va_bottom:
+                        // "Align the bottom of the aligned subtree with the bottom of the line box"
+                        // This should most probably be re-computed once a full line has been laid
+                        // out, which would need us to do this in lvtextfm.cpp, and we would need to
+                        // go back words when the last word has been laid out...
+                        // We go the easy way by just aligning to our parent bottom, so just
+                        // as css_va_text_bottom + half_leading
+                        if (is_object)
+                            valign_dy += (pfh - pfb + pf_half_leading);
+                        else
+                            valign_dy += (pfh - pfb + pf_half_leading) - (fh - fb + f_half_leading);
+                        flags |= LTEXT_VALIGN_BOTTOM;
+                        break;
+                    case css_va_top:
+                        // "Align the top of the aligned subtree with the top of the line box."
+                        // We go the easy way by just aligning to our parent top, so just
+                        // as css_va_text_top + half_leading
+                        if (is_object)
+                            valign_dy -= (pfb + pf_half_leading); // y for top of image
+                        else
+                            valign_dy -= (pfb + pf_half_leading) - (fb + f_half_leading);
+                        flags |= LTEXT_VALIGN_TOP;
+                        break;
+                    case css_va_baseline:
+                    default:
+                        break;
+                }
+            }
+            else {
+                // "<percentage> Raise (positive value) or lower (negative value) the box by this
+                //  distance (a percentage of the 'line-height' value).
+                //  <length> Raise (positive value) or lower (negative value) the box by this distance"
+                // No mention if the base for 'em' should be the current font, or
+                // the parent font, and if we should use ->getHeight() or ->getSize().
+                // But using the current font size looks correct and similar when
+                // comparing to Firefox rendering.
+                int base_em = em; // use current font ->getSize()
+                int base_pct = (fh * line_h) >> 4; // font height + interline space (as in lvtextfm.cpp)
+                // positive values push text up, so reduce dy
+                valign_dy -= lengthToPx(vertical_align, base_pct, base_em);
+            }
         }
         switch ( style->text_decoration ) {
-        case css_td_underline:
-            flags |= LTEXT_TD_UNDERLINE;
-            break;
-        case css_td_overline:
-            flags |= LTEXT_TD_OVERLINE;
-            break;
-        case css_td_line_through:
-            flags |= LTEXT_TD_LINE_THROUGH;
-            break;
-        case css_td_blink:
-            flags |= LTEXT_TD_BLINK;
-            break;
-        default:
-            break;
+            case css_td_underline:
+                flags |= LTEXT_TD_UNDERLINE;
+                break;
+            case css_td_overline:
+                flags |= LTEXT_TD_OVERLINE;
+                break;
+            case css_td_line_through:
+                flags |= LTEXT_TD_LINE_THROUGH;
+                break;
+            case css_td_blink:
+                flags |= LTEXT_TD_BLINK;
+                break;
+            default:
+                break;
         }
         switch ( style->hyphenate ) {
             case css_hyph_auto:
@@ -1290,7 +1463,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
         }
 
-        if ( rm==erm_list_item ) { // no more used (obsolete rendering method)
+        if ( rm==erm_list_item ) { // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
             // put item number/marker to list
             lString16 marker;
             int marker_width = 0;
@@ -1324,7 +1497,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 if ( sp==css_lsp_outside )
                     margin = -marker_width;
                 marker += "\t";
-                txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h,
+                txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy,
                                         margin, NULL );
                 flags &= ~LTEXT_FLAG_NEWLINE;
             }
@@ -1363,20 +1536,13 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             }
         }
 
-        const css_elem_def_props_t * ntype = enode->getElementTypePtr();
-//        if ( ntype ) {
-//            CRLog::trace("Node %s is Object ?  %d", LCSTR(enode->getNodeName()), ntype->is_object );
-//        } else {
-//            CRLog::trace("Node %s (%d) has no css_elem_def_props_t", LCSTR(enode->getNodeName()), enode->getNodeId() );
-//        }
-        if ( ntype && ntype->is_object )
-        {
+        if ( is_object ) { // object element, like <IMG>
 #ifdef DEBUG_DUMP_ENABLED
             logfile << "+OBJECT ";
 #endif
-            // object element, like <IMG>
             bool isBlock = style->display == css_d_block;
             if ( isBlock ) {
+                // If block image, forget any current flags and start from baseflags (?)
                 int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
                 //txform->AddSourceLine(L"title", 5, 0x000000, 0xffffff, font, baseflags, interval, margin, NULL, 0, 0);
                 LVFont * font = enode->getFont().get();
@@ -1390,30 +1556,31 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     lString16Collection lines;
                     lines.parse(title, cs16("\\n"), true);
                     for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, NULL );
+                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, NULL );
                 }
-                txform->AddSourceObject(flags, line_h, ident, enode );
+                txform->AddSourceObject(flags, line_h, valign_dy, ident, enode );
                 title = enode->getAttributeValue(attr_subtitle);
                 if ( !title.empty() ) {
                     lString16Collection lines;
                     lines.parse(title, cs16("\\n"), true);
                     for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, NULL );
+                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, NULL );
                 }
                 title = enode->getAttributeValue(attr_title);
                 if ( !title.empty() ) {
                     lString16Collection lines;
                     lines.parse(title, cs16("\\n"), true);
                     for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, NULL );
+                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, NULL );
                 }
-            } else {
-                txform->AddSourceObject(baseflags, line_h, ident, enode );
+            } else { // inline image
+                // We use the flags computed previously (and not baseflags) as they
+                // carry vertical alignment
+                txform->AddSourceObject(flags, line_h, valign_dy, ident, enode );
                 baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
             }
         }
-        else
-        {
+        else { // non-IMG element: render children (elements or text nodes)
             int cnt = enode->getChildCount();
 #ifdef DEBUG_DUMP_ENABLED
             logfile << "+BLOCK [" << cnt << "]";
@@ -1425,8 +1592,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             for (int i=0; i<cnt; i++)
             {
                 ldomNode * child = enode->getChildNode( i );
-                renderFinalBlock( child, txform, fmt, flags, ident, line_h );
+                renderFinalBlock( child, txform, fmt, flags, ident, line_h, valign_dy );
             }
+            // Note: CSS "display: run-in" is no longer used with our epub.css (it is
+            // used with older css files for "body[name="notes"] section title", either
+            // for crengine internal footnotes displaying, or some FB2 features)
             if ( thisIsRunIn ) {
                 // append space to run-in object
                 LVFont * font = enode->getFont().get();
@@ -1434,7 +1604,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
                 lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
                 lChar16 delimiter[] = {UNICODE_NO_BREAK_SPACE, UNICODE_NO_BREAK_SPACE}; //160
-                txform->AddSourceLine( delimiter, sizeof(delimiter)/sizeof(lChar16), cl, bgcl, font, LTEXT_FLAG_OWNTEXT | LTEXT_RUNIN_FLAG, line_h, 0, NULL );
+                txform->AddSourceLine( delimiter, sizeof(delimiter)/sizeof(lChar16), cl, bgcl, font, LTEXT_FLAG_OWNTEXT | LTEXT_RUNIN_FLAG, line_h, valign_dy, 0, NULL );
                 flags &= ~LTEXT_RUNIN_FLAG;
             }
         }
@@ -1454,7 +1624,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 
         // restore flags
         //***********************************
-        baseflags = f; // to allow blocks in one level with inlines
+        baseflags = final_block_flags; // to allow blocks in one level with inlines
         if ( enode->getNodeId()==el_br ) {
             if (baseflags & LTEXT_FLAG_NEWLINE) {
                 // We meet a <BR/>, but no text node were met before (or it
@@ -1463,13 +1633,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // as wanted by a <BR/>.
                 // (This makes consecutive and stuck <br><br><br> work)
                 LVFont * font = enode->getFont().get();
-                txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT, line_h);
+                txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
                 // baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
                 // No need to clear the flag, as we set it just below
                 // (any LTEXT_ALIGN_* set implies LTEXT_FLAG_NEWLINE)
 
             }
-            // use the same alignment
+            // Re-set the newline and aligment flag for what's coming
+            // after this <BR/>
             //baseflags |= LTEXT_ALIGN_LEFT;
             switch (style->text_align) {
             case css_ta_left:
@@ -1502,8 +1673,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         }
         //baseflags &= ~LTEXT_RUNIN_FLAG;
     }
-    else if ( enode->isText() )
-    {
+    else if ( enode->isText() ) {
         // text nodes
         lString16 txt = enode->getText();
         if ( !txt.empty() )
@@ -1585,13 +1755,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             */
             if ( txt.length()>0 ) {
                 txform->AddSourceLine( txt.c_str(), txt.length(), cl, bgcl, font, baseflags | tflags,
-                    line_h, ident, enode, 0, letter_spacing );
+                    line_h, valign_dy, ident, enode, 0, letter_spacing );
                 baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
             }
         }
     }
-    else
-    {
+    else {
         crFatalError();
     }
 }
@@ -2120,7 +2289,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     return y + margin_top + margin_bottom + padding_bottom; // return block height
                 }
                 break;
-            case erm_list_item: // no more used (obsolete rendering method)
+            case erm_list_item: // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
             case erm_final:
             case erm_table_cell:
                 {
@@ -2934,7 +3103,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                  DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
             	}
             break;
-        case erm_list_item: // no more used (obsolete rendering method)
+        case erm_list_item: // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
         case erm_final:
         case erm_table_caption:
             {
@@ -3206,10 +3375,12 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( hyphenate, css_hyph_inherit );
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );
-    UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit );
-    UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );
-    UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit );
-    UPDATE_STYLE_FIELD( vertical_align, css_va_inherit );
+    UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit ); // These are not inherited per CSS specs,
+    UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );  // investigate why they are here (might be
+    UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit ); // for processing reasons)
+    // vertical_align is not inherited per CSS specs: we fixed its propagation
+    // to children with the use of 'valign_dy'
+    // UPDATE_STYLE_FIELD( vertical_align, css_va_inherit );
     UPDATE_STYLE_FIELD( font_style, css_fs_inherit );
     UPDATE_STYLE_FIELD( font_weight, css_fw_inherit );
     if ( pstyle->font_family == css_ff_inherit ) {

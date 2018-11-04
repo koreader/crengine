@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.17k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x000C
+#define FORMATTING_VERSION_ID 0x000D
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -3693,7 +3693,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->page_break_inside = css_pb_auto;
     s->list_style_type = css_lst_disc;
     s->list_style_position = css_lsp_outside;
-    s->vertical_align = css_va_baseline;
+    s->vertical_align.type = css_val_unspecified;
+    s->vertical_align.value = css_va_baseline;
     s->font_family = def_font->getFontFamily();
     s->font_size.type = css_val_screen_px; // we use this type, as we got the real font size from FontManager
     s->font_size.value = def_font->getSize();
@@ -13340,7 +13341,8 @@ void runBasicTinyDomUnitTests()
         style1->page_break_before = css_pb_auto;
         style1->page_break_after = css_pb_auto;
         style1->page_break_inside = css_pb_auto;
-        style1->vertical_align = css_va_baseline;
+        style1->vertical_align.type = css_val_unspecified;
+        style1->vertical_align.value = css_va_baseline;
         style1->font_family = css_ff_sans_serif;
         style1->font_size.type = css_val_px;
         style1->font_size.value = 24 << 8;
@@ -13368,7 +13370,8 @@ void runBasicTinyDomUnitTests()
         style2->page_break_before = css_pb_auto;
         style2->page_break_after = css_pb_auto;
         style2->page_break_inside = css_pb_auto;
-        style2->vertical_align = css_va_baseline;
+        style2->vertical_align.type = css_val_unspecified;
+        style2->vertical_align.value = css_va_baseline;
         style2->font_family = css_ff_sans_serif;
         style2->font_size.type = css_val_px;
         style2->font_size.value = 24 << 8;
@@ -13396,7 +13399,8 @@ void runBasicTinyDomUnitTests()
         style3->page_break_before = css_pb_auto;
         style3->page_break_after = css_pb_auto;
         style3->page_break_inside = css_pb_auto;
-        style3->vertical_align = css_va_baseline;
+        style3->vertical_align.type = css_val_unspecified;
+        style3->vertical_align.value = css_va_baseline;
         style3->font_family = css_ff_sans_serif;
         style3->font_size.type = css_val_px;
         style3->font_size.value = 24 << 8;
