@@ -419,6 +419,7 @@ public:
                 m_srcs[pos] = src;
                 m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
                 last_non_space_pos = pos;
+                prev_was_space = false;
                 pos++;
             } else {
                 int len = src->t.len;
