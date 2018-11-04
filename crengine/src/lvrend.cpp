@@ -3058,9 +3058,9 @@ void convertLengthToPx( css_length_t & val, int base_px, int base_em )
 }
 */
 
-inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool inherited=true )
+inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool unspecified_is_inherited=true )
 {
-    if ( val.type == css_val_inherited || (val.type == css_val_unspecified && inherited))
+    if ( val.type == css_val_inherited || (val.type == css_val_unspecified && unspecified_is_inherited) )
         val = parent_val;
 }
 
@@ -3296,9 +3296,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     }
     // line_height
     spreadParent( pstyle->letter_spacing, parent_style->letter_spacing );
-    spreadParent( pstyle->line_height, parent_style->line_height );
+    spreadParent( pstyle->line_height, parent_style->line_height, false ); // css_val_unspecified is a valid unit
     spreadParent( pstyle->color, parent_style->color );
-    spreadParent( pstyle->background_color, parent_style->background_color, false );
+    spreadParent( pstyle->background_color, parent_style->background_color, false ); // css_val_unspecified means no bg color
 
     // set calculated style
     //enode->getDocument()->cacheStyle( style );
