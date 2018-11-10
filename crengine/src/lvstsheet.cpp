@@ -2267,15 +2267,19 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             //CRLog::trace("attr_class: %s %s", LCSTR(val), LCSTR(_value) );
             /*As I have eliminated leading and ending spaces in the attribute value, any space in
              *val means there are more than one classes */
-            int pos = val.pos(_value);
-            if (val.pos(" ") != -1 && pos != -1) {
-                int len = _value.length();
-                if (pos + len == val.length() || //in the end
-                    val.at(pos + len) == L' ')      //in the beginning or in the middle
-                    return true;
-                else
-                    return false;
-        }
+            if (val.pos(" ") != -1) {
+                lString16 value_w_space_after = _value + " ";
+                if (val.pos(value_w_space_after) == 0)
+                    return true; // at start
+                lString16 value_w_space_before = " " + _value;
+                int pos = val.pos(value_w_space_before);
+                if (pos != -1 && pos + value_w_space_before.length() == val.length())
+                    return true; // at end
+                lString16 value_w_spaces_before_after = " " + _value + " ";
+                if (val.pos(value_w_spaces_before_after) != -1)
+                    return true; // in between
+                return false;
+            }
             return val == _value;
         }
         break;
