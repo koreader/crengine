@@ -917,7 +917,13 @@ public:
         // splitting discards the space on which a split is made - but it
         // can happen in other rare wrap cases like lastDeprecatedWrap)
         if ( (m_flags[start] & LCHAR_IS_SPACE) && !(lastSrc->flags & LTEXT_FLAG_PREFORMATTED) ) {
-            start++;
+            // But do it only if we're going to stay in same text node (if not
+            // the space may have some reason - there's sometimes a no-break-space
+            // before an image)
+            if (start < end-1 && m_srcs[start+1] == m_srcs[start]) {
+                start++;
+                lastSrc = m_srcs[start];
+            }
         }
         int wstart = start;
         bool lastIsSpace = false;
