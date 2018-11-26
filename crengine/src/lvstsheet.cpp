@@ -2173,7 +2173,7 @@ lUInt32 LVCssSelectorRule::getWeight() {
 
 bool LVCssSelectorRule::check( const ldomNode * & node )
 {
-    if (node->isNull() || node->isRoot())
+    if (!node || node->isNull() || node->isRoot())
         return false;
     // For most checks, while navigating nodes, we must ignore sibling text nodes.
     // We also ignore <autoBoxing> (crengine internal block element, inserted
@@ -2190,7 +2190,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             node = node->getParentNode();
             while (node && !node->isNull() && node->getNodeId() == el_autoBoxing)
                 node = node->getParentNode();
-            if (node->isNull())
+            if (!node || node->isNull())
                 return false;
             // If _id=0, we are the parent and we match
             if (!_id || node->getNodeId() == _id)
@@ -2205,9 +2205,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             {
                 node = node->getParentNode();
 		// prevent segfault due to undefined memory address on Ubuntu 17.10 (due to gcc 7.2.0?)
-                if (!node)
-                    return false;
-                if (node->isNull())
+                if (!node || node->isNull())
                     return false;
                 if (node->getNodeId() == el_autoBoxing)
                     continue;
