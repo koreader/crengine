@@ -1195,6 +1195,20 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 //=======================================================================
 // Render final block
 //=======================================================================
+// This renderFinalBlock() is NOT the equivalent of renderBlockElement()
+// for nodes with erm_final ! But ldomNode::renderFinalBlock() IS.
+//
+// Here, we just walk all the inline nodes to AddSourceLine() text nodes and
+// AddSourceObject() image nodes to the provided LFormattedText * txform.
+// It is the similarly named (called by renderBlockElement() when erm_final):
+//   ldomNode::renderFinalBlock(LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width)
+// that is provided with a width (with padding removed), and after calling
+// this 'void renderFinalBlock()' here, calls:
+//   int h = LFormattedTextRef->Format((lUInt16)width, (lUInt16)page_h)
+// to do the actual width-constrained rendering of the AddSource*'ed objects.
+// Note: here, RenderRectAccessor * fmt is only used to get the width of the container,
+// which is only needed to compute: ident = lengthToPx(style->text_indent, width, em)
+// (todo: replace 'fmt' with 'int basewidth' to avoid confusion)
 void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy )
 {
     int txform_src_count = txform->GetSrcCount(); // to track if we added lines to txform
@@ -2044,11 +2058,23 @@ int pagebreakhelper(ldomNode *enode,int width)
     return flag;
 }
 
+//=======================================================================
+// Render block element
+//=======================================================================
 int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width )
 {
     if ( enode->isElement() )
     {
         bool isFootNoteBody = false;
+        // One can have a glimpse at crengine internal footnotes rendering
+        // with Wikipedia EPUBs (where each footnote is in a <LI>) by
+        // uncomenting this:
+        // if ( enode->getNodeId()==el_li && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) )
+        //     if ( !enode->getAttributeValue(attr_id).empty() )
+        //         isFootNoteBody = true;
+        // and commenting below in renderBlockElement() this part of a test:
+        //   && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
+
         if ( enode->getNodeId()==el_section && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
             ldomNode * body = enode->getParentNode();
             while ( body != NULL && body->getNodeId()!=el_body )
@@ -2084,6 +2110,9 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         //margin_left += 50;
         //margin_right += 50;
 
+        // todo: we should be able to allow horizontal negative margins:
+        // (allow parsing negative values in lvstsheet.cpp, and
+        // ensure margin_top > 0)
         if (margin_left>0)
             x += margin_left;
         y += margin_top;
@@ -2150,12 +2179,44 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
             fmt.setHeight( 0 );
             fmt.push();
 
+            if (width <= 0) {
+                // In case we get a negative width (no room to render and draw anything),
+                // which may happen in hyper constrained layouts like heavy nested tables,
+                // don't go further in the rendering code.
+                // It seems erm_block and erm_final do "survive" such negative width,
+                // by just keeping substracting margin and padding to this negative
+                // number until, in ldomNode::renderFinalBlock(), when it's going to
+                // be serious, it is (luckily?) casted to an unsigned int in:
+                //   int h = f->Format((lUInt16)width, (lUInt16)page_h);
+                // So, a width=-138 becomes width=65398 and the drawing is then done
+                // without nearly any width constraint: some text may be drawn, some
+                // parts clipped, but the user will see something is wrong.
+                // So, we only do the following for tables, where the rendering code
+                // is more easily messed up by negative widths. As we won't show
+                // any table, and we want the user to notice something is missing,
+                // we set this element rendering method to erm_killed, and
+                // DrawDocument will then render a small figure...
+                if (enode->getRendMethod() >= erm_table) {
+                    printf("CRE WARNING: no width to draw %s\n", UnicodeToLocal(ldomXPointer(enode, 0).toString()).c_str());
+                    enode->setRendMethod( erm_killed );
+                    fmt.setHeight( 15 ); // not squared, so it does not look
+                    fmt.setWidth( 10 );  // like a list square bullet
+                    fmt.setX( fmt.getX() - 5 );
+                        // We shift it half to the left, so a bit of it can be
+                        // seen if some element on the right covers it with some
+                        // background color.
+                    return fmt.getHeight();
+                }
+            }
+
             int m = enode->getRendMethod();
             switch( m )
             {
             case erm_mixed:
                 {
                     // TODO: autoboxing not supported yet
+                    // (actually, erm_mixed is never used, and autoboxing
+                    // IS supported and done when needed)
                 }
                 break;
             case erm_table:
@@ -3001,6 +3062,16 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
     }
 }
 
+//=======================================================================
+// Draw document
+//=======================================================================
+// Recursively called as children nodes are walked.
+// x0, y0 are coordinates of top left point to draw to in buffer
+// dx, dy are width and height to draw to in buffer
+// doc_x, doc_y are offset coordinates in document:
+//   doc_x is initially 0, and doc_y is set to a negative
+//   value (- page.start) from the y of the top of the page
+//   (in the whole book height) we want to start showing
 void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx, int dy, int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,
                    ldomMarkedRangeList *bookmarks)
 {
@@ -3191,6 +3262,15 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             break;
         case erm_invisible:
             // don't draw invisible blocks
+            break;
+        case erm_killed:
+            //drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), 0xFF0000 );
+            // Draw something that does not look like a bullet
+            // This should render in red something like: [\]
+            drawbuf.RoundRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(),
+                fmt.getWidth()/4, fmt.getWidth()/4, 0xFF0000, 0x9 );
+            drawbuf.FillRect( x0 + doc_x + fmt.getWidth()/6, y0 + doc_y + fmt.getHeight()*3/8,
+                x0 + doc_x + fmt.getWidth()*5/6, y0+doc_y+fmt.getHeight()*5/8, 0xFF0000 );
             break;
         default:
             break;

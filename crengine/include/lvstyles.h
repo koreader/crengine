@@ -216,6 +216,7 @@ public:
 enum lvdom_element_render_method
 {
     erm_invisible = 0, ///< invisible: don't render
+    erm_killed,        ///< reset to this when there is no room to render element
     erm_block,         ///< render as block element (render as containing other elements)
     erm_final,         ///< final element: render the whole it's content as single render block
     erm_inline,        ///< inline element
