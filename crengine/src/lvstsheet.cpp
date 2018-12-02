@@ -317,15 +317,20 @@ static bool parse_integer( const char * & str, int & value)
     return true;
 }
 
-static bool parse_number_value( const char * & str, css_length_t & value, bool is_font_size=false )
+static bool parse_number_value( const char * & str, css_length_t & value,
+    bool accept_percent=true, bool accept_auto=false, bool is_font_size=false )
 {
     value.type = css_val_unspecified;
     skip_spaces( str );
     // Here and below: named values and unit case should not matter
-    if ( substr_icompare( "inherit", str ) )
-    {
+    if ( substr_icompare( "inherit", str ) ) {
         value.type = css_val_inherited;
         value.value = 0;
+        return true;
+    }
+    if ( accept_auto && substr_icompare( "auto", str ) ) {
+        value.type = css_val_unspecified;
+        value.value = css_generic_auto;
         return true;
     }
     if ( is_font_size ) {
@@ -421,8 +426,12 @@ static bool parse_number_value( const char * & str, css_length_t & value, bool i
         value.type = css_val_mm;
     else if ( substr_icompare( "pc", str ) )
         value.type = css_val_pc;
-    else if ( substr_icompare( "%", str ) )
-        value.type = css_val_percent;
+    else if ( substr_icompare( "%", str ) ) {
+        if (accept_percent)
+            value.type = css_val_percent;
+        else
+            return false;
+    }
     else if (n == 0 && frac == 0)
         value.type = css_val_px;
     // allow unspecified unit (for line-height)
@@ -910,7 +919,7 @@ static const char * css_bg_position_names[]={
 
 //border-collpase names
 static const char * css_bc_names[]={
-        "seperate",
+        "separate",
         "collapse",
         "initial",
         "inherit",
@@ -1092,6 +1101,9 @@ bool LVCssDeclaration::parse( const char * &decl )
                     }
                 }
                 break;
+
+            // Next ones accept 1 length value (with possibly named values for borders
+            // that we map to a length)
             case cssd_line_height:
             case cssd_letter_spacing:
             case cssd_font_size:
@@ -1118,19 +1130,19 @@ bool LVCssDeclaration::parse( const char * &decl )
                     switch (n1) {
                         case 0:
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 1;
+                            buf<<(lUInt32) (1*256);
                             break;
                         case 1:
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 3;
+                            buf<<(lUInt32) (3*256);
                             break;
                         case 2:
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 5;
+                            buf<<(lUInt32) (5*256);
                             break;
                         case 3:
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 3;
+                            buf<<(lUInt32) (3*256);
                             break;
                         case 4:
                             buf<<(lUInt32) css_val_inherited;
@@ -1144,15 +1156,32 @@ bool LVCssDeclaration::parse( const char * &decl )
             }//continue if value is number
             case cssd_padding_bottom:
                 {
+                    // borders don't accept length in %
+                    bool accept_percent = true;
+                    if ( prop_code==cssd_border_bottom_width || prop_code==cssd_border_top_width ||
+                            prop_code==cssd_border_left_width || prop_code==cssd_border_right_width )
+                        accept_percent = false;
+                    // only margin, width and height accept keyword "auto"
+                    bool accept_auto = false;
+                    if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
+                            prop_code==cssd_margin_left || prop_code==cssd_margin_right ||
+                            prop_code==cssd_width || prop_code==cssd_height )
+                        accept_auto = true;
+                    bool is_font_size = false;
+                    if ( prop_code==cssd_font_size )
+                        is_font_size = true;
                     css_length_t len;
-                    if ( parse_number_value( decl, len, prop_code==cssd_font_size ) )
-                    {
+                    if ( parse_number_value( decl, len, accept_percent, accept_auto, is_font_size) ) {
                         buf<<(lUInt32) (prop_code | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
                 }
                 break;
+            // Done with those that accept 1 length value.
+
+            // Next ones accept 4 length values (with possibly named values for borders
+            // that we map to a length)
             case cssd_margin:
             case cssd_border_width:
             {
@@ -1166,28 +1195,28 @@ bool LVCssDeclaration::parse( const char * &decl )
                             for (int i = 0; i < 4; ++i)
                             {
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 1;
+                            buf<<(lUInt32) (1*256);
                             }
                             break;
                         case 1:
                             for (int i = 0; i < 4; ++i)
                             {
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 3;
+                            buf<<(lUInt32) (3*256);
                             }
                             break;
                         case 2:
                             for (int i = 0; i < 4; ++i)
                             {
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 5;
+                            buf<<(lUInt32) (5*256);
                             }
                             break;
                         case 3:
                             for (int i = 0; i < 4; ++i)
                             {
                             buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) 3;
+                            buf<<(lUInt32) (3*256);
                             }
                             break;
                         case 4:
@@ -1205,10 +1234,16 @@ bool LVCssDeclaration::parse( const char * &decl )
             }
             case cssd_padding:
 		{
+                    bool accept_percent = true;
+                    if ( prop_code==cssd_border_width )
+                        accept_percent = false;
+                    bool accept_auto = false;
+                    if ( prop_code==cssd_margin )
+                        accept_auto = true;
 		    css_length_t len[4];
 		    int i;
 		    for (i = 0; i < 4; ++i)
-			if (!parse_number_value( decl, len[i]))
+			if (!parse_number_value( decl, len[i], accept_percent, accept_auto ))
 			    break;
 		    if (i)
 		    {
@@ -1227,6 +1262,8 @@ bool LVCssDeclaration::parse( const char * &decl )
 		    }
 		}
 		break;
+            // Done with those that accept 4 length values.
+
             case cssd_color:
             case cssd_background_color:
             case cssd_border_top_color:
@@ -1336,6 +1373,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                 }
             }
                 break;
+
+            // Next ones accept a triplet (possibly incomplete) like "2px solid blue".
+            // Borders don't accept length in %, and Firefox ignores the whole
+            // individual declaration when that happens (with "10% dotted blue", and
+            // later a style="border-width: 5px", Firefox shows it solid and black).
             case cssd_border:
             case cssd_border_top:
             case cssd_border_right:
@@ -1351,7 +1393,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     const char *str1=tmp.c_str();
                     if(!parse_color_value(str1,color))
                     {   str1=tmp.c_str();
-                        if(!parse_number_value(str1,width)&&parse_name(str1,css_bw_names,-1)==-1) {
+                        if(!parse_number_value(str1,width,false)&&parse_name(str1,css_bw_names,-1)==-1) {
                             str1=tmp.c_str();
                             n1 = parse_name(str1, css_bst_names, -1);
                             skip_spaces(str1);
@@ -1360,7 +1402,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                                 const char * str3=str1;
                                 if(!parse_color_value(str2,color)){
                                     str2=str3;
-                                    if(parse_number_value(str2,width)) n3=1;
+                                    if(parse_number_value(str2,width,false)) n3=1;
                                     else{
                                         int num=parse_name(str2,css_bw_names,-1);
                                         if (num!=-1){
@@ -1368,16 +1410,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                                             width.type=css_val_px;
                                             switch (num){
                                                 case 0:
-                                                    width.value=1;
+                                                    width.value=1*256;
                                                     break;
                                                 case 1:
-                                                    width.value=3;
+                                                    width.value=3*256;
                                                     break;
                                                 case 2:
-                                                    width.value=5;
+                                                    width.value=5*256;
                                                     break;
                                                 case 3:
-                                                    width.value=3;
+                                                    width.value=3*256;
                                                     break;
                                                 case 4:
                                                     width.type=css_val_inherited;
@@ -1393,7 +1435,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                                 else {
                                     n2=1;
                                     skip_spaces(str2);
-                                    if(parse_number_value(str2,width)) n3=1;
+                                    if(parse_number_value(str2,width,false)) n3=1;
                                     else{
                                         int num=parse_name(str2,css_bw_names,-1);
                                         if (num!=-1){
@@ -1401,16 +1443,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                                             width.type=css_val_px;
                                             switch (num){
                                                 case 0:
-                                                    width.value=1;
+                                                    width.value=1*256;
                                                     break;
                                                 case 1:
-                                                    width.value=3;
+                                                    width.value=3*256;
                                                     break;
                                                 case 2:
-                                                    width.value=5;
+                                                    width.value=5*256;
                                                     break;
                                                 case 3:
-                                                    width.value=3;
+                                                    width.value=3*256;
                                                     break;
                                                 case 4:
                                                     width.type=css_val_inherited;
@@ -1433,16 +1475,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                                     width.type=css_val_px;
                                     switch (num){
                                         case 0:
-                                            width.value=1;
+                                            width.value=1*256;
                                             break;
                                         case 1:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 2:
-                                            width.value=5;
+                                            width.value=5*256;
                                             break;
                                         case 3:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 4:
                                             width.type=css_val_inherited;
@@ -1474,11 +1516,11 @@ bool LVCssDeclaration::parse( const char * &decl )
                         n2=1;
                         skip_spaces(str1);
                         const char * str2=str1;
-                        if(!parse_number_value(str1,width)&&parse_name(str1,css_bw_names,-1)==-1) {
+                        if(!parse_number_value(str1,width,false)&&parse_name(str1,css_bw_names,-1)==-1) {
                             str1=str2;
                             n1 = parse_name(str1, css_bst_names, -1);
                             skip_spaces(str1);
-                            if(parse_number_value(str1,width)) n3=1;
+                            if(parse_number_value(str1,width,false)) n3=1;
                             else {
                                 int num=parse_name(str1,css_bw_names,-1);
                                 if (num!=-1){
@@ -1486,16 +1528,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                                     width.type=css_val_px;
                                     switch (num){
                                         case 0:
-                                            width.value=1;
+                                            width.value=1*256;
                                             break;
                                         case 1:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 2:
-                                            width.value=5;
+                                            width.value=5*256;
                                             break;
                                         case 3:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 4:
                                             width.type=css_val_inherited;
@@ -1515,16 +1557,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                                     width.type=css_val_px;
                                     switch (num){
                                         case 0:
-                                            width.value=1;
+                                            width.value=1*256;
                                             break;
                                         case 1:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 2:
-                                            width.value=5;
+                                            width.value=5*256;
                                             break;
                                         case 3:
-                                            width.value=3;
+                                            width.value=3*256;
                                             break;
                                         case 4:
                                             width.type=css_val_inherited;
@@ -1643,6 +1685,8 @@ bool LVCssDeclaration::parse( const char * &decl )
                         }
                     }
                     break;
+            // Done with those that accepts a triplet.
+
             case cssd_background_image:
             {
                 lString8 str;
@@ -1750,7 +1794,8 @@ bool LVCssDeclaration::parse( const char * &decl )
                 css_length_t len[2];
                 int i;
                 for (i = 0; i < 2; ++i)
-                    if (!parse_number_value( decl, len[i]))
+                    // border-spacing doesn't accept values in %
+                    if (!parse_number_value( decl, len[i], false))
                         break;
                 if (i)
                 {
@@ -2588,6 +2633,10 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 element = element.lowercase();
             }
             _id = doc->getElementNameIndex( element.c_str() );
+                // Note: non standard element names (not listed in fb2def.h) in
+                // selectors (eg: blah {font-style: italic}) may have different values
+                // returned by getElementNameIndex() across book loadings, and cause:
+                // "cached rendering is invalid (style hash mismatch): doing full rendering"
             _specificity += 1; // we have an element: this adds 1 to specificity
             skip_spaces( str );
         }

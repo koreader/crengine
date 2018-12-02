@@ -166,6 +166,10 @@ typedef struct css_style_rec_tag {
     , background_position(css_background_p_none)
     , border_collapse(css_border_seperate)
     {
+        // css_length_t fields are initialized by css_length_tag()
+        // to (css_val_screen_px, 0)
+        // These should not: a not specified border width will
+        // use DEFAULT_BORDER_WIDTH (=2)
         border_width[0] = css_length_t(css_val_unspecified, 0);
         border_width[1] = css_length_t(css_val_unspecified, 0);
         border_width[2] = css_length_t(css_val_unspecified, 0);
