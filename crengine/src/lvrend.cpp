@@ -2505,53 +2505,53 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 case css_border_dotted:
                     dot=interval=topBorderwidth;
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
                     break;
                 case css_border_dashed:
                     dot=3*topBorderwidth;
                     interval=3*topBorderwidth;
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
                     break;
                 case css_border_solid:
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
                     break;
                 case css_border_double:
                     for(int i=0;i<=(leftpoint2.y-leftpoint1.y)/(leftpoint2.y-leftpoint1.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, topBordercolor);}
                     for(int i=0;i<=(leftpoint3.y-leftpoint2.y)/(leftpoint3.y-leftpoint2.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint3.x-i*leftrate, leftpoint3.y-i, rightpoint3.x+i*rightrate,
+                    {drawbuf.FillRect(leftpoint3.x-i*leftrate, leftpoint3.y-i, rightpoint3.x+i*rightrate+1,
                                       rightpoint3.y-i+1, topBordercolor);}
                     break;
                 case css_border_groove:
                     for(int i=0;i<=leftpoint2.y-leftpoint1.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, shadecolor);}
                     for(int i=0;i<leftpoint3.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate+1,
                                       rightpoint2.y+i+1, lightcolor);}
                     break;
                 case css_border_inset:
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, shadecolor,dot,interval,0);}
                     break;
                 case css_border_outset:
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y+i+1, lightcolor,dot,interval,0);}
                     break;
                 case css_border_ridge:
                     for(int i=0;i<=leftpoint2.y-leftpoint1.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
                                      rightpoint1.y+i+1, lightcolor);}
                     for(int i=0;i<leftpoint3.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate+1,
                                       rightpoint2.y+i+1, shadecolor);}
                     break;
                 default:
@@ -2602,21 +2602,21 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 case css_border_dotted:
                     dot=interval=rightBorderwidth;
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i-1,toppoint1.y+i*toprate,bottompoint1.x-i,
-                                         bottompoint1.y-i*bottomrate, rightBordercolor,dot,interval,1);
+                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
+                                         bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
                     }
                     break;
                 case css_border_dashed:
                     dot=3*rightBorderwidth;
                     interval=3*rightBorderwidth;
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i-1,toppoint1.y+i*toprate,bottompoint1.x-i,
-                                         bottompoint1.y-i*bottomrate, rightBordercolor,dot,interval,1);
+                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
+                                         bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
                     }
                     break;
                 case css_border_solid:
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i-1,toppoint1.y+i*toprate,bottompoint1.x-i,
+                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
                                          bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
                     }
                     break;
@@ -2642,13 +2642,13 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     break;
                 case css_border_inset:
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i-1,toppoint1.y+i*toprate,bottompoint1.x-i,
+                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
                                          bottompoint1.y-i*bottomrate+1, lightcolor,dot,interval,1);
                     }
                     break;
                 case css_border_outset:
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i-1,toppoint1.y+i*toprate,bottompoint1.x-i,
+                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
                                          bottompoint1.y-i*bottomrate+1, shadecolor,dot,interval,1);
                     }
                     break;
@@ -2709,19 +2709,19 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 case css_border_dotted:
                     dot=interval=bottomBorderwidth;
                     for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
                     break;
                 case css_border_dashed:
                     dot=3*bottomBorderwidth;
                     interval=3*bottomBorderwidth;
                     for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
                     break;
                 case css_border_solid:
                     for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
                     break;
                 case css_border_double:
@@ -2742,20 +2742,20 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     break;
                 case css_border_inset:
                     for(int i=0;i<=leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, lightcolor,dot,interval,0);}
                     break;
                 case css_border_outset:
                     for(int i=0;i<=leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, shadecolor,dot,interval,0);}
                     break;
                 case css_border_ridge:
                     for(int i=0;i<=leftpoint1.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, shadecolor);}
                     for(int i=0;i<leftpoint2.y-leftpoint3.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y-i, rightpoint2.x-i*rightrate,
+                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y-i, rightpoint2.x-i*rightrate+1,
                                       rightpoint2.y-i+1, lightcolor);}
                     break;
                 default:break;
@@ -2806,7 +2806,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     dot=interval=leftBorderwidth;
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
                         drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,leftBordercolor,dot,interval,1);
+                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
                     }
                     break;
                 case css_border_dashed:
@@ -2814,55 +2814,55 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     interval=3*leftBorderwidth;
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
                         drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,leftBordercolor,dot,interval,1);
+                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
                     }
                     break;
                 case css_border_solid:
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
                         drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,leftBordercolor,dot,interval,1);
+                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
                     }
                     break;
                 case css_border_double:
                     for (int i=0;i<=(toppoint2.x-toppoint1.x)/(toppoint2.x-toppoint1.x>2?3:2);i++){
                         drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,leftBordercolor);
+                                         bottompoint1.y-i*bottomrate+1,leftBordercolor);
                     }
                     for (int i=0;i<=(toppoint3.x-toppoint2.x)/(toppoint3.x-toppoint2.x>2?3:2);i++){
                         drawbuf.FillRect(toppoint3.x-i,toppoint3.y-i*toprate,bottompoint3.x-i+1,
-                                         bottompoint3.y+i*bottomrate,leftBordercolor);
+                                         bottompoint3.y+i*bottomrate+1,leftBordercolor);
                     }
                     break;
                 case css_border_groove:
                     for (int i=0;i<=toppoint2.x-toppoint1.x;i++){
                         drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,shadecolor);
+                                         bottompoint1.y-i*bottomrate+1,shadecolor);
                     }
                     for (int i=0;i<toppoint3.x-toppoint2.x;i++){
                         drawbuf.FillRect(toppoint2.x+i,toppoint2.y+i*toprate,bottompoint2.x+i+1,
-                                         bottompoint2.y-i*bottomrate,lightcolor);
+                                         bottompoint2.y-i*bottomrate+1,lightcolor);
                     }
                     break;
                 case css_border_inset:
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
                         drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,shadecolor,dot,interval,1);
+                                         bottompoint1.y-i*bottomrate+1,shadecolor,dot,interval,1);
                     }
                     break;
                 case css_border_outset:
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
                         drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,lightcolor,dot,interval,1);
+                                         bottompoint1.y-i*bottomrate+1,lightcolor,dot,interval,1);
                     }
                     break;
                 case css_border_ridge:
                     for (int i=0;i<=toppoint2.x-toppoint1.x;i++){
                         drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate,lightcolor);
+                                         bottompoint1.y-i*bottomrate+1,lightcolor);
                     }
                     for (int i=0;i<toppoint3.x-toppoint2.x;i++){
                         drawbuf.FillRect(toppoint2.x+i,toppoint2.y+i*toprate,bottompoint2.x+i+1,
-                                         bottompoint2.y-i*bottomrate,shadecolor);
+                                         bottompoint2.y-i*bottomrate+1,shadecolor);
                     }
                     break;
                 default:break;
