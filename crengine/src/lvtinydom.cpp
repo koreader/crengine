@@ -3230,7 +3230,7 @@ static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
 #define WRITENODEEX_UNUSED_3                     0x0080 ///<
 #define WRITENODEEX_NB_SKIPPED_CHARS             0x0100 ///< show number of skipped chars in text nodes: (...43...)
 #define WRITENODEEX_NB_SKIPPED_NODES             0x0200 ///< show number of skipped sibling nodes: [...17...]
-#define WRITENODEEX_UNUSED_4                     0x0400 ///<
+#define WRITENODEEX_SHOW_REND_METHOD             0x0400 ///< show rendering method at end of tag (<div ~F> =Final, <b ~i>=Inline...)
 #define WRITENODEEX_UNUSED_5                     0x0800 ///<
 #define WRITENODEEX_GET_CSS_FILES                0x1000 ///< ensure css files that apply to initial node are returned
                                                         ///  in &cssFiles (needed when not starting from root node)
@@ -3480,6 +3480,29 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                     if (!cssFiles.contains(cssFile))
                         cssFiles.add(cssFile);
                 }
+            }
+        }
+        if ( WNEFLAG(SHOW_REND_METHOD) ) {
+            *stream << " ~";
+            switch ( node->getRendMethod() ) {
+                case erm_invisible:          *stream << "X";     break;
+                case erm_killed:             *stream << "K";     break;
+                case erm_block:              *stream << "B";     break;
+                case erm_final:              *stream << "F";     break;
+                case erm_inline:             *stream << "i";     break;
+                case erm_mixed:              *stream << "M";     break; // not implemented
+                case erm_list_item:          *stream << "L";     break; // no more used
+                case erm_table:              *stream << "T";     break;
+                case erm_table_row_group:    *stream << "TRG";   break;
+                case erm_table_header_group: *stream << "THG";   break;
+                case erm_table_footer_group: *stream << "TFG";   break;
+                case erm_table_row:          *stream << "TR";    break;
+                case erm_table_column_group: *stream << "TCG";   break;
+                case erm_table_column:       *stream << "TC";    break;
+                case erm_table_cell:         *stream << "tcell"; break; // never stays erm_table_cell (becomes block or final)
+                case erm_table_caption:      *stream << "tcap";  break;
+                case erm_runin:              *stream << "R";     break;
+                default:                     *stream << "?";     break;
             }
         }
         if ( node->getChildCount() == 0 ) {
@@ -12782,6 +12805,10 @@ void ldomDocument::setNodeNumberingProps( lUInt32 nodeDataIndex, ListNumberingPr
 }
 
 /// formats final block
+// 'fmt' is the rect of the block node, and MUST have its width set
+// (as ::renderFinalBlock( this, f.get(), fmt...) needs it to compute text-indent in %
+// 'int width' is the available width for the inner content, and so
+// caller must exclude block node padding from it.
 int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width )
 {
     ASSERT_NODE_NOT_NULL;
