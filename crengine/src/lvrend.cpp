@@ -1119,8 +1119,8 @@ int lengthToPx( css_length_t val, int base_px, int base_em )
             px = 96 * value / 6 >> 8;
         break;
 
-    case css_val_unspecified: // XXX shouldn't that be treated as px, for convenience?
-    case css_val_inherited:
+    case css_val_unspecified: // may be used with named values like "auto", but should
+    case css_val_inherited:            // return 0 when lengthToPx() is called on them
     default:
         px = 0;
         ensure_non_zero = false;
@@ -1965,15 +1965,21 @@ void getPageBreakStyle( ldomNode * el, css_page_break_t &before, css_page_break_
 //measure border width, 0 for top,1 for right,2 for bottom,3 for left
 int measureBorder(ldomNode *enode,int border) {
         int em = enode->getFont()->getSize();
+        // No need for a width, as border does not support units in % according
+        // to CSS specs.
         int width = 0;
+        // (Note: another reason for disabling borders in % (that we did support)
+        // is that, at the various places where measureBorder() is called,
+        // fmt.setWidth() has not yet been called and fmt.getWidth() would
+        // return 0. Later, at drawing time, fmt.getWidth() will return the real
+        // width, which could cause rendering of borders over child elements,
+        // as these were positionned with a border=0.)
         if (border==0){
                 bool hastopBorder = (enode->getStyle()->border_style_top >= css_border_solid &&
                                      enode->getStyle()->border_style_top <= css_border_outset);
                 if (!hastopBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[0];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
-                // We need to get the container width only for css_val_percent
-                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int topBorderwidth = lengthToPx(bw, width, em);
                 topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
                 return topBorderwidth;}
@@ -1983,7 +1989,6 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasrightBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[1];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
-                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int rightBorderwidth = lengthToPx(bw, width, em);
                 rightBorderwidth = rightBorderwidth != 0 ? rightBorderwidth : DEFAULT_BORDER_WIDTH;
                 return rightBorderwidth;}
@@ -1993,7 +1998,6 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasbottomBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[2];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
-                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int bottomBorderwidth = lengthToPx(bw, width, em);
                 bottomBorderwidth = bottomBorderwidth != 0 ? bottomBorderwidth : DEFAULT_BORDER_WIDTH;
                 return bottomBorderwidth;}
@@ -2003,7 +2007,6 @@ int measureBorder(ldomNode *enode,int border) {
                 if (!hasleftBorder) return 0;
                 css_length_t bw = enode->getStyle()->border_width[3];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
-                if (bw.type == css_val_percent) { RenderRectAccessor fmt(enode); width = fmt.getWidth(); }
                 int leftBorderwidth = lengthToPx(bw, width, em);
                 leftBorderwidth = leftBorderwidth != 0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
                 return leftBorderwidth;}
@@ -2426,7 +2429,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
     bool hasbottomBorder = (enode->getStyle()->border_style_bottom >=css_border_solid&&enode->getStyle()->border_style_bottom<=css_border_outset);
     bool hasleftBorder = (enode->getStyle()->border_style_left >=css_border_solid&&enode->getStyle()->border_style_left<=css_border_outset);
 
-    // check for explicit 'border-width: 0' which means no border
+    // Check for explicit 'border-width: 0' which means no border.
     css_length_t bw;
     bw = enode->getStyle()->border_width[0];
     hastopBorder = hastopBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
@@ -2441,7 +2444,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         lUInt32 shadecolor=0x555555;
         lUInt32 lightcolor=0xAAAAAA;
         int em = enode->getFont()->getSize();
-        int width = fmt.getWidth();
+        int width = 0; // values in % are invalid for borders, so we shouldn't get any
         int topBorderwidth = lengthToPx(enode->getStyle()->border_width[0],width,em);
         topBorderwidth = topBorderwidth!=0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
         int rightBorderwidth = lengthToPx(enode->getStyle()->border_width[1],width,em);

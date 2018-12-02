@@ -233,12 +233,16 @@ enum css_background_position_value_t {
     css_background_p_none
 };
 
-enum css_border_collapse_value_t{
+enum css_border_collapse_value_t {
     css_border_seperate,
     css_border_collapse,
     css_border_c_initial,
     css_border_c_inherit,
     css_border_c_none
+};
+
+enum css_generic_value_t {
+    css_generic_auto = -1 // for (css_val_unspecified, css_value_auto), for "margin: auto"
 };
 
 /// css length value
