@@ -572,6 +572,11 @@ public:
 
     void resizeImage( int & width, int & height, int maxw, int maxh, bool arbitraryImageScaling, int maxScaleMult )
     {
+        if (width == 0 || height == 0) {
+            // Avoid a floating point exception (division by zero) crash.
+            printf("CRE WARNING: resizeImage(width=0 or height=0)\n");
+            return;
+        }
         //CRLog::trace("Resize image (%dx%d) max %dx%d %s  *%d", width, height, maxw, maxh, arbitraryImageScaling ? "arbitrary" : "integer", maxScaleMult);
         if ( maxScaleMult<1 ) maxScaleMult = 1;
         if ( arbitraryImageScaling ) {
@@ -584,6 +589,11 @@ public:
             height = height * pscale / 1000;
             width = width * pscale / 1000;
         } else {
+            if (maxw == 0 || maxh == 0) {
+                // Avoid a floating point exception (division by zero) crash.
+                printf("CRE WARNING: resizeImage(maxw=0 or maxh=0)\n");
+                return;
+            }
             int scale_div = 1;
             int scale_mul = 1;
             int div_x = (width * 1000 / maxw);
@@ -1423,23 +1433,41 @@ public:
             	firstCharMargin = (x + firstCharMargin) > 0 ? firstCharMargin : 0;
             }
             // find candidates where end of line is possible
+            bool seen_non_collapsed_space = false;
             for ( i=pos; i<m_length; i++ ) {
-                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - firstCharMargin)
-                    break;
                 lUInt8 flags = m_flags[i];
                 if ( m_text[i]=='\n' ) {
                     lastMandatoryWrap = i;
                     break;
                 }
+                bool grabbedExceedingSpace = false;
+                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - firstCharMargin)
+                    // It's possible the char at i is a space whose width exceeds maxWidth,
+                    // but it should be a candidate for lastNormalWrap (otherwise, the
+                    // previous word will be hyphenated and we will get spaces widen for
+                    // text justification)
+                    if ( flags & LCHAR_ALLOW_WRAP_AFTER ) // don't break yet
+                        grabbedExceedingSpace = true;
+                    else
+                        break;
                 // Note: upstream has added in:
                 //   https://github.com/buggins/coolreader/commit/e2a1cf3306b6b083467d77d99dad751dc3aa07d9
                 // to the next if:
                 //  || lGetCharProps(m_text[i]) == 0
                 // but this does not look right, as any other unicode char would allow wrap.
                 //
-                // No need to bother with LCHAR_IS_COLLAPSED_SPACE, they have zero width
-                // and so will be taken here. They carry LCHAR_ALLOW_WRAP_AFTER just like
+                // We would not need to bother with LCHAR_IS_COLLAPSED_SPACE, as they have zero
+                // width and so can be grabbed here. They carry LCHAR_ALLOW_WRAP_AFTER just like
                 // a space, so they will set lastNormalWrap.
+                // But we don't want any collapsed space at start to make a new line if the
+                // following text is a long word that doesn't fit in the available width (which
+                // can happen in a small table cell). So, ignore them at start of line:
+                if (!seen_non_collapsed_space) {
+                    if (flags & LCHAR_IS_COLLAPSED_SPACE)
+                        continue;
+                    else
+                        seen_non_collapsed_space = true;
+                }
                 if ((flags & LCHAR_ALLOW_WRAP_AFTER) || isCJKIdeograph(m_text[i])) {
                     // Need to check if previous and next non-space char request a wrap on
                     // this space (or CJK char) to be avoided
@@ -1470,14 +1498,20 @@ public:
                     lastNormalWrap = i;
                 else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER )
                     lastDeprecatedWrap = i;
-                else if ( flags & LCHAR_ALLOW_HYPH_WRAP_AFTER )
-                    lastHyphWrap = i;
-                if (m_pbuffer->min_space_condensing_percent!=100 && i<m_length-1 && (m_flags[i] & LCHAR_IS_SPACE) && (i==m_length-1 || !(m_flags[i + 1] & LCHAR_IS_SPACE))) {
+                else if ( flags & LCHAR_ALLOW_HYPH_WRAP_AFTER ) // can't happen at this point as we haven't
+                    lastHyphWrap = i;                           // gone thru HyphMan::hyphenate()
+                if ( !grabbedExceedingSpace &&
+                        m_pbuffer->min_space_condensing_percent!=100 &&
+                        i<m_length-1 &&
+                        (m_flags[i] & LCHAR_IS_SPACE) &&
+                        (i==m_length-1 || !(m_flags[i + 1] & LCHAR_IS_SPACE)) ) {
                     // Each space not followed by a space is candidate for space condensing
                     int dw = getMaxCondensedSpaceTruncation(i);
                     if ( dw>0 )
                         spaceReduceWidth += dw;
                 }
+                if (grabbedExceedingSpace)
+                    break; // delayed break
             }
             if (i<=pos)
                 i = pos + 1; // allow at least one character to be shown on line
