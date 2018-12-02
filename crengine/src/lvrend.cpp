@@ -2165,6 +2165,8 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 }
             }
         }
+        // todo: With the help of getRenderedWidths(), we could implement
+        // margin: auto with erm_block to have centered elements
 
         bool flgSplit = false;
         width -= margin_left + margin_right;
@@ -3577,4 +3579,486 @@ int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int
     int h = table.renderCells( context );
 
     return h;
+}
+
+// Uncomment for debugging getRenderedWidths():
+// #define DEBUG_GETRENDEREDWIDTHS
+
+// Estimate width of node when rendered:
+//   maxWidth: width if it would be rendered on an infinite width area
+//   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding) {
+    // Setup passed-by-reference parameters for recursive calls
+    int curMaxWidth = 0;    // reset on <BR/> or on new block nodes
+    int curWordWidth = 0;   // may not be reset to correctly estimate multi-nodes single-word ("I<sup>er</sup>")
+    bool collapseNextSpace = true; // collapse leading spaces
+    int lastSpaceWidth = 0; // trailing spaces width to remove
+    // These do not need to be passed by reference, as they are only valid for inner nodes/calls
+    int indent = 0;         // text-indent: used on first text, and set again on <BR/>
+    // Start measurements and recursions:
+    getRenderedWidths(node, maxWidth, minWidth, ignorePadding,
+        curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
+}
+
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding,
+    int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent)
+{
+    // This does mostly what renderBlockElement, renderFinalBlock and lvtextfm.cpp
+    // do, but only with widths and horizontal margin/border/padding and indent
+    // (with no width constraint, so no line splitting and hyphenation - and we
+    // don't care about vertical spacing and alignment).
+    // Limitations: no support for css_d_run_in (hardly ever used, we don't care)
+
+    if ( node->isElement() ) {
+        int m = node->getRendMethod();
+        if (m == erm_invisible)
+            return;
+
+        // Get image size early
+        bool is_img = false;
+        lInt16 img_width = 0;
+        if ( node->getNodeId()==el_img ) {
+            is_img = true;
+            // (as in lvtextfm.cpp LFormattedText::AddSourceObject)
+            #define DUMMY_IMAGE_SIZE 16
+            LVImageSourceRef img = node->getObjectImageSource();
+            if ( img.isNull() )
+                img = LVCreateDummyImageSource( node, DUMMY_IMAGE_SIZE, DUMMY_IMAGE_SIZE );
+            lInt16 width = (lUInt16)img->GetWidth();
+            lInt16 height = (lUInt16)img->GetHeight();
+            // Scale image native size according to gRenderDPI
+            width = scaleForRenderDPI(width);
+            height = scaleForRenderDPI(height);
+            // Adjust if size defined by CSS
+            css_style_ref_t style = node->getStyle();
+            int w = 0, h = 0;
+            int em = node->getFont()->getSize();
+            w = lengthToPx(style->width, 100, em);
+            h = lengthToPx(style->height, 100, em);
+            if (style->width.type==css_val_percent) w = -w;
+            if (style->height.type==css_val_percent) h = w*height/width;
+            if ( w*h==0 ) {
+                if ( w==0 ) {
+                    if ( h==0 ) { // use image native size
+                        h = height;
+                        w = width;
+                    } else { // use style height, keep aspect ratio
+                        w = width*h/height;
+                    }
+                } else if ( h==0 ) { // use style width, keep aspect ratio
+                    h = w*height/width;
+                    if (h == 0) h = height;
+                }
+            }
+            if (w > 0)
+                img_width = w;
+            else { // 0 or styles were in %
+                // This is a bit tricky...
+                // When w < 0, the style width was in %, which means % of the
+                // container width.
+                // So it does not influence the width we're trying to guess, and will
+                // adjust to the final width. So, we could let it to be 0.
+                // But, if this image is the single element of this block, we would
+                // end up with a minWidth of 0, with no room for the image, and the
+                // image would be scaled as a % of 0, so to 0.
+                // So, consider we want the image to be shown as a % of its original
+                // size: so, our width should be the original image width.
+                img_width = width;
+                // With that, it looks like we behave exactly as Firefox, whether
+                // the image is single in a cell, or surrounded, in this cell
+                // and/or sibling cells, by small or long text!
+                // We ensure a minimal size of 1em (so it shows as least the size
+                // of a letter).
+                int em = node->getFont()->getSize();
+                if (img_width < em)
+                    img_width = em;
+            }
+        }
+
+        if (m == erm_inline) {
+            if ( is_img ) {
+                // Get done with previous word
+                if (curWordWidth > minWidth)
+                    minWidth = curWordWidth;
+                curWordWidth = 0;
+                collapseNextSpace = false;
+                lastSpaceWidth = 0;
+                if (img_width > 0) { // inline img with a fixed width
+                    maxWidth += img_width;
+                    if (img_width > minWidth)
+                        minWidth = img_width;
+                }
+                return;
+            }
+            if ( node->getNodeId()==el_br ) {
+                #ifdef DEBUG_GETRENDEREDWIDTHS
+                    printf("GRW: BR\n");
+                #endif
+                // Get done with current word
+                if (lastSpaceWidth)
+                    curMaxWidth -= lastSpaceWidth;
+                if (curMaxWidth > maxWidth)
+                    maxWidth = curMaxWidth;
+                if (curWordWidth > minWidth)
+                    minWidth = curWordWidth;
+                // Next word on new line has text-indent in its width
+                curMaxWidth = indent;
+                curWordWidth = indent;
+                collapseNextSpace = true; // skip leading spaces
+                lastSpaceWidth = 0;
+                return;
+            }
+            // Contains only other inline or text nodes:
+            // add to our passed by ref *Width
+            for (int i = 0; i < node->getChildCount(); i++) {
+                ldomNode * child = node->getChildNode(i);
+                // Nothing more to do with inline elements: they just carry some
+                // styles that will be grabbed by children text nodes
+                getRenderedWidths(child, maxWidth, minWidth, false,
+                    curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
+            }
+            return;
+        }
+
+        // For erm_block and erm_final:
+        // We may have padding/margin/border, that we can simply add to
+        // the widths that will be computed by our children.
+        // Also, if these have % as their CSS unit, we need a width to
+        // apply the % to, so we can only do that when we get a maxWidth
+        // and minWidth from children.
+
+        // For list-items, we need to compute the bullet width to use either
+        // as indent, or as left padding
+        int list_marker_width = 0;
+        bool list_marker_width_as_padding = false;
+        if ( node->getStyle()->display == css_d_list_item_block ) {
+            LFormattedTextRef txform( node->getDocument()->createFormattedText() );
+            lString16 marker = renderListItemMarker( node, list_marker_width, txform.get(), 16, 0);
+            #ifdef DEBUG_GETRENDEREDWIDTHS
+                printf("GRW: list_marker_width: %d\n", list_marker_width);
+            #endif
+            if ( node->getStyle()->list_style_position == css_lsp_outside &&
+                    node->getStyle()->text_align != css_ta_center &&
+                    node->getStyle()->text_align != css_ta_right) {
+                // (same hack as in rendering code: we render 'outside' just
+                // like 'inside' when center or right aligned)
+                list_marker_width_as_padding = true;
+            }
+        }
+
+        // We use temporary parameters, that we'll add our padding/margin/border to
+        int _maxWidth = 0;
+        int _minWidth = 0;
+
+        if (m == erm_final) { // Block node that contains only inline or text nodes:
+            if ( is_img ) { // img with display: block always become erm_final (never erm_block)
+                if (img_width > 0) { // block img with a fixed width
+                    _maxWidth = img_width;
+                    _minWidth = img_width;
+                }
+            }
+            else {
+                // We don't have any width yet to use for text-indent in % units,
+                // but this is very rare - use em as we must use something
+                int em = node->getFont()->getSize();
+                indent = lengthToPx(node->getStyle()->text_indent, em, em);
+                // curMaxWidth and curWordWidth are not used in our parents (which
+                // are block-like elements), we can just reset them.
+                // First word will have text-indent has its width
+                curMaxWidth = indent;
+                curWordWidth = indent;
+                if (list_marker_width > 0 && !list_marker_width_as_padding) {
+                    // with additional list marker if list-style-position: inside
+                    curMaxWidth += list_marker_width;
+                    curWordWidth += list_marker_width;
+                }
+                collapseNextSpace = true; // skip leading spaces
+                lastSpaceWidth = 0;
+                // Process children, which are either erm_inline or text nodes
+                for (int i = 0; i < node->getChildCount(); i++) {
+                    ldomNode * child = node->getChildNode(i);
+                    getRenderedWidths(child, _maxWidth, _minWidth, false,
+                        curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
+                    // A <BR/> can happen deep among our children, so we deal with that when erm_inline above
+                }
+                if (lastSpaceWidth)
+                    curMaxWidth -= lastSpaceWidth;
+                // Add current word as we're leaving a block node, so it can't be followed by some other text
+                if (curMaxWidth > _maxWidth)
+                    _maxWidth = curMaxWidth;
+                if (curWordWidth > _minWidth)
+                    _minWidth = curWordWidth;
+            }
+        }
+        // if (m == erm_block) // Block node that contains other stacked block or final nodes
+        // Not dealing with other rendering methods may return widths of 0 (and
+        // on a nested inner table with erm_table, would ask to render this inner
+        // table in a width of 0).
+        // So, we treat all other erm_* as erm_block (which will obviously be
+        // wrong for erm_table* with more than 1 column, but it should give a
+        // positive enough width to draw something).
+        else {
+            // Process children, which are all block-like nodes:
+            // our *Width are the max of our children *Width
+            for (int i = 0; i < node->getChildCount(); i++) {
+                // New temporary parameters
+                int _maxw = 0;
+                int _minw = 0;
+                ldomNode * child = node->getChildNode(i);
+                getRenderedWidths(child, _maxw, _minw, false,
+                    curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
+                if (_maxw > _maxWidth)
+                    _maxWidth = _maxw;
+                if (_minw > _minWidth)
+                    _minWidth = _minw;
+            }
+        }
+
+        // For both erm_block or erm_final, adds padding/margin/border
+        // to _maxWidth and _minWidth (see comment above)
+        if (!ignorePadding) {
+            int padLeft = 0; // these will include padding, border and margin
+            int padRight = 0;
+            if (list_marker_width > 0 && list_marker_width_as_padding) {
+                // with additional left padding for marker if list-style-position: outside
+                padLeft += list_marker_width;
+            }
+            // For % values, we need to reverse-apply them as a whole.
+            // We can'd do that individually for each, so we aggregate
+            // the % values.
+            // (And as we can't ceil() each individually, we'll add 1px
+            // below for each one to counterbalance rounding errors.)
+            int padPct = 0; // cumulative percent
+            int padPctNb = 0; // nb of styles in % (to add 1px)
+            int em = node->getFont()->getSize();
+            css_style_ref_t style = node->getStyle();
+            // margin
+            if (style->margin[0].type == css_val_percent) {
+                padPct += style->margin[0].value;
+                padPctNb += 1;
+            }
+            else
+                padLeft += lengthToPx( style->margin[0], 0, em );
+            if (style->margin[1].type == css_val_percent) {
+                padPct += style->margin[1].value;
+                padPctNb += 1;
+            }
+            else
+                padRight += lengthToPx( style->margin[1], 0, em );
+            // padding
+            if (style->padding[0].type == css_val_percent) {
+                padPct += style->padding[0].value;
+                padPctNb += 1;
+            }
+            else
+                padLeft += lengthToPx( style->padding[0], 0, em );
+            if (style->padding[1].type == css_val_percent) {
+                padPct += style->padding[1].value;
+                padPctNb += 1;
+            }
+            else
+                padRight += lengthToPx( style->padding[1], 0, em );
+            // border (which does not accept units in %)
+            padLeft += measureBorder(node,3);
+            padRight += measureBorder(node,1);
+            // Add the non-pct values to make our base to invert-apply padPct
+            _minWidth += padLeft + padRight;
+            _maxWidth += padLeft + padRight;
+            // For length in %, the % (P, padPct) should be from the outer width (L),
+            // but we have only the inner width (w). We have w and P, we want L-w (m).
+            //   m = L*P  and  w = L - m
+            //   w = L - L*P  =  L*(1-P)
+            //   L = w/(1-P)
+            //   m = L - w  =  w/(1-P) - w  =  w*(1 - (1-P))/(1-P) = w*P/(1-P)
+            // css_val_percent value are *256 (100% = 100*256)
+            // We ignore a total of 100% (no space for content, and division by zero here
+            int minPadPctLen = 0;
+            int maxPadPctLen = 0;
+            if (padPct != 100*256) {
+                // add padPctNb: 1px for each value in %
+                minPadPctLen = _minWidth * padPct / (100*256-padPct) + padPctNb;
+                maxPadPctLen = _maxWidth * padPct / (100*256-padPct) + padPctNb;
+                _minWidth += minPadPctLen;
+                _maxWidth += maxPadPctLen;
+            }
+            #ifdef DEBUG_GETRENDEREDWIDTHS
+                printf("GRW blk:  pad min+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, minPadPctLen);
+                printf("GRW blk:  pad max+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, maxPadPctLen);
+            #endif
+        }
+        // We must have been provided with maxWidth=0 and minWidth=0 (temporary
+        // parameters set by outer calls), but do these regular checks anyway.
+        if (_maxWidth > maxWidth)
+            maxWidth = _maxWidth;
+        if (_minWidth > minWidth)
+            minWidth = _minWidth;
+    }
+    else if (node->isText() ) {
+        lString16 nodeText = node->getText();
+        int start = 0;
+        int len = nodeText.length();
+        if ( len == 0 )
+            return;
+        ldomNode *parent = node->getParentNode();
+        // letter-spacing
+        LVFont * font = parent->getFont().get();
+        int em = font->getSize();
+        lInt8 letter_spacing;
+        letter_spacing = lengthToPx(parent->getStyle()->letter_spacing, em, em);
+        // text-transform
+        switch (parent->getStyle()->text_transform) {
+            case css_tt_uppercase:
+                nodeText.uppercase();
+                break;
+            case css_tt_lowercase:
+                nodeText.lowercase();
+                break;
+            case css_tt_capitalize:
+                nodeText.capitalize();
+                break;
+            case css_tt_full_width:
+                // nodeText.fullWidthChars(); // disabled for now (may change CJK rendering)
+                break;
+            case css_tt_none:
+            case css_tt_inherit:
+                break;
+        }
+        // measure text
+        const lChar16 * txt = nodeText.c_str();
+        #ifdef DEBUG_GETRENDEREDWIDTHS
+            printf("GRW text: |%s|\n", UnicodeToLocal(nodeText).c_str());
+            printf("GRW text:  (dumb text size=%d)\n", node->getParentNode()->getFont()->getTextWidth(txt, len));
+        #endif
+        #define MAX_TEXT_CHUNK_SIZE 4096
+        static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
+        static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
+        while (true) {
+            LVFont * font = node->getParentNode()->getFont().get();
+            // Italic glyphs may need a little added width.
+            // Get it if needed as done in lvtextfm.cpp getAdditionalCharWidth()
+            // and getAdditionalCharWidthOnLeft()
+            bool is_italic_font = font->getItalic();
+            LVFont::glyph_info_t glyph; // slot for measuring one italic glyph
+            int chars_measured = font->measureText(
+                    txt + start,
+                    len,
+                    widths, flags,
+                    0x7FFF, // very wide width
+                    '?',    // replacement char
+                    letter_spacing,
+                    false); // no hyphenation
+            for (int i=0; i<chars_measured; i++) {
+                int w = widths[i] - (i>0 ? widths[i-1] : 0);
+                lChar16 c = *(txt + start + i);
+                /*
+                bool is_cjk = (c >= UNICODE_CJK_IDEOGRAPHS_BEGIN && c <= UNICODE_CJK_IDEOGRAPHS_END
+                            && ( c<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN
+                                || c>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) );
+                    // May need to do something with CJK punctuation?
+                */
+                // Having CJK columns min_width the width of a single CJK char
+                // looks quite a bit uglier than when not dealing with them
+                // specifically. So we don't for now...
+                bool is_cjk = false;
+
+                if (flags[i] & LCHAR_ALLOW_WRAP_AFTER) { // A space
+                    if (collapseNextSpace) // ignore this space
+                        continue;
+                    collapseNextSpace = true; // ignore next spaces, even if in another node
+                    lastSpaceWidth = w;
+                    curMaxWidth += w; // add this space to non-wrap width
+                    if (curWordWidth > 0) { // there was a word before this space
+                        if ( is_italic_font && (start+i > 0) ) {
+                            // adjust if last word's last char was italic
+                            lChar16 prevc = *(txt + start + i - 1);
+                            if (font->getGlyphInfo(prevc, &glyph, '?') ) {
+                                int delta = glyph.originX - glyph.width + glyph.blackBoxX;
+                                curWordWidth += delta > 0 ? delta : 0;
+                            }
+                        }
+                    }
+                    if (curWordWidth > minWidth) // done with previous word
+                        minWidth = curWordWidth; // longest word found
+                    curWordWidth = 0;
+                }
+                else if (is_cjk) { // CJK chars are themselves a word
+                    collapseNextSpace = false; // next space should not be ignored
+                    lastSpaceWidth = 0; // no width to take off if we stop with this char
+                    curMaxWidth += w;
+                    if (curWordWidth > 0) { // there was a word or CJK char before this CJK char
+                        if ( is_italic_font && (start+i > 0) ) {
+                            // adjust if last word's last char or previous CJK char was italic
+                            lChar16 prevc = *(txt + start + i - 1);
+                            if (font->getGlyphInfo(prevc, &glyph, '?') ) {
+                                int delta = glyph.originX - glyph.width + glyph.blackBoxX;
+                                curWordWidth += delta > 0 ? delta : 0;
+                            }
+                        }
+                    }
+                    if (curWordWidth > minWidth) // done with previous word
+                        minWidth = curWordWidth; // longest word found
+                    curWordWidth = w;
+                    if ( is_italic_font ) {
+                        if (font->getGlyphInfo(c, &glyph, '?') ) {
+                            // adjust for negative leading offset if current CJK char is italic
+                            int delta = -glyph.originX;
+                            delta = delta > 0 ? delta : 0;
+                            curWordWidth += delta;
+                            if (start + i == 0) // at start of text only? (not sure)
+                                curMaxWidth += delta; // also add it to max width
+                        }
+                    }
+                    // CJK may or may not need this italic treatment, not sure
+                }
+                else { // A char part of a word
+                    collapseNextSpace = false; // next space should not be ignored
+                    lastSpaceWidth = 0; // no width to take off if we stop with this char
+                    if (curWordWidth == 0) { // first char of a word
+                        if ( is_italic_font ) {
+                            // adjust for negative leading offset on first char of a word
+                            if (font->getGlyphInfo(c, &glyph, '?') ) {
+                                int delta = -glyph.originX;
+                                delta = delta > 0 ? delta : 0;
+                                curWordWidth += delta;
+                                if (start + i == 0) // at start of text only? (not sure)
+                                    curMaxWidth += delta; // also add it to max width
+                            }
+                        }
+                    }
+                    curMaxWidth += w;
+                    curWordWidth += w;
+                    // Try to guess long urls or hostnames, and split a word on
+                    // each / or dot not followed by a space, so they are not
+                    // a super long word and don't over extend minWidth.
+                    if ( (c == '/' || c == '.') &&
+                            i < start+len-1 && *(txt + start + i + 1) != ' ') {
+                        if (curWordWidth > minWidth)
+                            minWidth = curWordWidth;
+                        curWordWidth = 0;
+                    }
+                }
+            }
+            if ( chars_measured == len ) { // done with this text node
+                if (curWordWidth > 0) { // we end with a word
+                    if ( is_italic_font && (start+len > 0) ) {
+                        // adjust if word last char was italic
+                        lChar16 prevc = *(txt + start + len - 1);
+                        if (font->getGlyphInfo(prevc, &glyph, '?') ) {
+                            int delta = glyph.originX - glyph.width + glyph.blackBoxX;
+                            delta = delta > 0 ? delta : 0;
+                            curWordWidth += delta;
+                            curMaxWidth += delta; // also add it to max width
+                        }
+                    }
+                }
+                break;
+            }
+            // continue measuring
+            len -= chars_measured;
+            start += chars_measured;
+        }
+    }
+    #ifdef DEBUG_GETRENDEREDWIDTHS
+        printf("GRW current: max=%d word=%d (max=%d, min=%d)\n", curMaxWidth, curWordWidth, maxWidth, minWidth);
+    #endif
 }

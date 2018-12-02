@@ -41,6 +41,15 @@ void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef pare
 void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx, int dy, int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,
                    ldomMarkedRangeList * bookmarks = NULL);
 
+// Estimate width of node when rendered:
+//   maxWidth: width if it would be rendered on an infinite width area
+//   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
+// full function for recursive use:
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding,
+    int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent);
+// simpler function for first call:
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding=false);
+
 #define STYLE_FONT_EMBOLD_MODE_NORMAL 0
 #define STYLE_FONT_EMBOLD_MODE_EMBOLD 300
 
