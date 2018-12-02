@@ -1157,6 +1157,16 @@ public:
         if (code == '\t')
             code = ' ';
         register FT_UInt ch_glyph_index = FT_Get_Char_Index(_face, code);
+        if ( ch_glyph_index==0 && code >= 0xF000 && code <= 0xF0FF) {
+            // If no glyph found and code is among the private unicode
+            // area classically used by symbol fonts (range U+F020-U+F0FF),
+            // try to switch to FT_ENCODING_MS_SYMBOL
+            if (FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
+                ch_glyph_index = FT_Get_Char_Index( _face, code );
+                // restore unicode charmap if there is one
+                FT_Select_Charmap(_face, FT_ENCODING_UNICODE);
+            }
+        }
         if (0 != ch_glyph_index)
             res = code;
         else {
@@ -1172,6 +1182,16 @@ public:
         if ( code=='\t' )
             code = ' ';
         FT_UInt ch_glyph_index = FT_Get_Char_Index( _face, code );
+        if ( ch_glyph_index==0 && code >= 0xF000 && code <= 0xF0FF) {
+            // If no glyph found and code is among the private unicode
+            // area classically used by symbol fonts (range U+F020-U+F0FF),
+            // try to switch to FT_ENCODING_MS_SYMBOL
+            if (FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
+                ch_glyph_index = FT_Get_Char_Index( _face, code );
+                // restore unicode charmap if there is one
+                FT_Select_Charmap(_face, FT_ENCODING_UNICODE);
+            }
+        }
         if ( ch_glyph_index==0 ) {
             lUInt32 replacement = getReplacementChar( code );
             if ( replacement )
@@ -1413,6 +1433,7 @@ public:
                     _wcache.put(ch, w);
                 } else {
                     widths[i] = prev_width;
+                    lastFitChar = i + 1;
                     continue;  /* ignore errors */
                 }
                 if ( ch_glyph_index==(FT_UInt)-1 )
@@ -3126,6 +3147,13 @@ public:
             }
             bool scal = FT_IS_SCALABLE( face );
             bool charset = checkCharSet( face );
+            if (!charset) {
+                if (FT_Select_Charmap(face, FT_ENCODING_UNICODE)) // returns 0 on success
+                    // If no unicode charmap found, try symbol charmap
+                    if (!FT_Select_Charmap(face, FT_ENCODING_MS_SYMBOL))
+                        // It has a symbol charmap: consider it valid
+                        charset = true;
+            }
             //bool monospaced = isMonoSpaced( face );
             if ( !scal || !charset ) {
     //#if (DEBUG_FONT_MAN==1)
@@ -3227,6 +3255,14 @@ public:
             }
             bool scal = FT_IS_SCALABLE( face );
             bool charset = checkCharSet( face );
+            if (!charset) {
+                if (FT_Select_Charmap(face, FT_ENCODING_UNICODE)) // returns 0 on success
+                    // If no unicode charmap found, try symbol charmap
+                    if (!FT_Select_Charmap(face, FT_ENCODING_MS_SYMBOL))
+                        // It has a symbol charmap: consider it valid
+                        charset = true;
+            }
+
             //bool monospaced = isMonoSpaced( face );
             if ( !scal || !charset ) {
     //#if (DEBUG_FONT_MAN==1)
