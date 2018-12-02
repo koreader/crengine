@@ -3965,7 +3965,7 @@ static const char * AC_PARAM[] = {"param", "param", NULL};
 static const char * AC_IMG[]= {"img", NULL};
 static const char * AC_TD[] = {"td", "td", "th", NULL};
 static const char * AC_TH[] = {"th", "th", "td", NULL};
-static const char * AC_TR[] = {"tr", "tr", "thead", "tfoot", "tbody", NULL};
+static const char * AC_TR[] = {"tr", "tr", "td", NULL};
 static const char * AC_DIV[] = {"div", "p", NULL};
 static const char * AC_TABLE[] = {"table", "p", NULL};
 static const char * AC_THEAD[] = {"thead", "tr", "thead", "tfoot", "tbody", NULL};
@@ -4016,6 +4016,9 @@ HTML_AUTOCLOSE_TABLE[] = {
     AC_TABLE,
     NULL
 };
+// Note: AC_TD and AC_TR may kill a table nested inside an other table,
+// so such nested tables won't work in a .html file (but will in a .epub
+// that uses the NON-auto-closing ldomDocumentWriter).
 
 
 // base64 decode table

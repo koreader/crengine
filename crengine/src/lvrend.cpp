@@ -18,6 +18,32 @@
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
 
+// Note about box model/sizing in crengine:
+// https://quirksmode.org/css/user-interface/boxsizing.html says:
+//   - In the W3C box model, the width of an element gives the width of
+//     the content of the box, excluding padding and border.
+//   - In the traditional box model, the width of an element gives the
+//     width between the borders of the box, including padding and border.
+//   By default, all browsers use the W3C box model, with the exception
+//   of IE in "Quirks Mode" (IE5.5 Mode), which uses the traditional one.
+//
+// These models are toggable with CSS in current browsers:
+//   - the first one is used when "box-sizing: content-box" (default in browsers)
+//   - the second one is used when "box-sizing: border-box".
+//
+// crengine uses the traditional one (box-sizing: border-box).
+//
+// See: https://www.456bereastreet.com/archive/201112/the_difference_between_widthauto_and_width100/
+// for some example differences in rendering.
+//
+// As a side note, TABLE {width: auto} has a different behaviour that
+// what is described there: with width:auto, a table adjusts its width to
+// the table content, and does not take its full container width when
+// the content does not need it.
+// width: auto is the default for TABLEs in current browsers.
+// crengine default used to be "width: 100%", but now that we
+// can shrink to fit, it is "width: auto".
+
 int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
 bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
 int gRootFontSize = 24; // will be reset as soon as font size is set
@@ -92,6 +118,9 @@ int CssPageBreak2Flags( css_page_break_t prop );
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+// Uncomment for debugging table rendering:
+// #define DEBUG_TABLE_RENDERING
+
 #define TABLE_BORDER_WIDTH 1
 
 class CCRTableCol;
@@ -104,13 +133,10 @@ public:
     int width;
     int height;
     int percent;
-    int txtlen;
+    int max_content_width;
+    int min_content_width;
     short colspan;
     short rowspan;
-    short padding_left;
-    short padding_right;
-    short padding_top;
-    short padding_bottom;
     char halign;
     char valign;
     ldomNode * elem;
@@ -118,13 +144,10 @@ public:
     , width(0)
     , height(0)
     , percent(0)
-    , txtlen(0)
+    , max_content_width(0)
+    , min_content_width(0)
     , colspan(1)
     , rowspan(1)
-    , padding_left(0)
-    , padding_right(0)
-    , padding_top(0)
-    , padding_bottom(0)
     , halign(0)
     , valign(0)
     , elem(NULL)
@@ -172,20 +195,22 @@ public:
     int index;
     int width;
     int percent;
-    int txtlen;
+    int max_width;
     int min_width;
     int nrows;
     int x;      // sum of previous col widths
+    bool width_auto; // true when no width or percent is specified
     LVPtrVector<CCRTableCell, false> cells;
     ldomNode * elem;
     CCRTableCol() :
     index(0)
     , width(0)
     , percent(0)
-    , txtlen(0)
+    , max_width(0)
     , min_width(0)
     , nrows(0)
     , x(0) // sum of previous col widths
+    , width_auto(true)
     , elem( NULL )
     { }
     ~CCRTableCol() { }
@@ -217,17 +242,51 @@ int StrToIntPercent( const wchar_t * s, int digitwidth )
     return n;
 }
 
+// Utility function used in CCRTable::PlaceCells() when border_collapse.
+// border_id is the border index: 0=top, 1=right, 2=bottom, 3=left.
+// Update provided target_style and current_target_size.
+// We don't implement fully the rules describe in:
+//   https://www.w3.org/TR/CSS21/tables.html#border-conflict-resolution
+//
+// With use_neighbour_if_equal=true, neighbour border wins if its width
+// is equal to target width.
+// We would have intuitively set it to true, for a TABLE or TR border
+// color to be used even if border width is the same as the TD one. But
+// the above url rules state: "If border styles differ only in color,
+// then a style set on a cell wins over one on a row, which wins over
+// a row group, column, column group and, lastly, table."
+void collapse_border(css_style_ref_t & target_style, int & current_target_size,
+    int border_id, ldomNode * neighbour_node, bool use_neighbour_if_equal=false) {
+    if (neighbour_node) {
+        int neighbour_size = measureBorder(neighbour_node, border_id);
+        if ( neighbour_size > current_target_size ||
+                (use_neighbour_if_equal && neighbour_size == current_target_size) ) {
+            css_style_ref_t neighbour_style = neighbour_node->getStyle();
+            switch (border_id) {
+                case 0: target_style->border_style_top = neighbour_style->border_style_top; break;
+                case 1: target_style->border_style_right = neighbour_style->border_style_right; break;
+                case 2: target_style->border_style_bottom = neighbour_style->border_style_bottom; break;
+                case 3: target_style->border_style_left = neighbour_style->border_style_left; break;
+            }
+            target_style->border_width[border_id] = neighbour_style->border_width[border_id];
+            target_style->border_color[border_id] = neighbour_style->border_color[border_id];
+            current_target_size = neighbour_size;
+        }
+    }
+}
+
 class CCRTable {
 public:
-    int width;
+    int table_width;
     int digitwidth;
+    bool shrink_to_fit;
     ldomNode * elem;
     ldomNode * caption;
     int caption_h;
     LVPtrVector<CCRTableRow> rows;
     LVPtrVector<CCRTableCol> cols;
     LVPtrVector<CCRTableRowGroup> rowgroups;
-    LVMatrix<CCRTableCell*> cells;
+    // LVMatrix<CCRTableCell*> cells; // not used (it was filled, but never read)
     CCRTableRowGroup * currentRowGroup;
 
     void ExtendCols( int ncols ) {
@@ -278,14 +337,15 @@ public:
                         // rows of table
                         CCRTableRow * row = new CCRTableRow;
                         row->elem = item;
-//						if ( item==NULL )
-//							item = item;
                         if ( currentRowGroup ) {
                             // add row to group
                             row->rowgroup = currentRowGroup;
                             currentRowGroup->rows.add( row );
                         }
                         rows.add( row );
+                        // What could <tr link="number"> have been in the past ?
+                        // It's not mentionned in any HTML or FB2 spec,
+                        // and row->linkindex is never used.
                         if (row->elem->hasAttribute(LXML_NS_ANY, attr_link)) {
                             lString16 lnk=row->elem->getAttributeValue(attr_link);
                             row->linkindex = lnk.atoi();
@@ -301,6 +361,7 @@ public:
                         ExtendCols(colindex+1);
                         CCRTableCol * col = cols[colindex];
                         col->elem = item;
+                        /*
                         lString16 w = item->getAttributeValue(attr_width);
                         if (!w.empty()) {
                             // TODO: px, em, and other length types support
@@ -310,6 +371,17 @@ public:
                             else if (wn>0)
                                 col->width = wn;
                         }
+                        */
+                        css_length_t w = item->getStyle()->width;
+                        if ( w.type == css_val_percent ) { // %
+                            col->percent = w.value / 256;
+                        }
+                        else if ( w.type != css_val_unspecified ) { // px, em...
+                            int em = item->getFont()->getSize();
+                            col->width = lengthToPx( w, 0, em );
+                            // (0 as the base width for %, as % was dealt with just above)
+                        }
+                        // otherwise cell->percent and cell->width stay at 0
                         colindex++;
                     }
                     break;
@@ -324,8 +396,6 @@ public:
                         if ( rows.length()==0 ) {
                             CCRTableRow * row = new CCRTableRow;
                             row->elem = item;
-//                            if ( item==NULL )
-//                                item = item;
                             if ( currentRowGroup ) {
                                 // add row to group
                                 row->rowgroup = currentRowGroup;
@@ -337,16 +407,8 @@ public:
 
                         CCRTableCell * cell = new CCRTableCell;
                         cell->elem = item;
-                        lString16 w = item->getAttributeValue(attr_width);
-                        if (!w.empty()) {
-                            int wn = StrToIntPercent(w.c_str(), digitwidth);
-                            if (wn<0)
-                                cell->percent = -wn;
-                            else if (wn>0)
-                                cell->width = wn;
-                        }
                         int cs=StrToIntPercent(item->getAttributeValue(attr_colspan).c_str());
-                        if (cs>0 && cs<100) {
+                        if (cs>0 && cs<100) { // colspan=0 (span all remaining columns) not supported
                             cell->colspan=cs;
                         } else {
                             cs=1;
@@ -356,6 +418,16 @@ public:
                             cell->rowspan=rs;
                         } else {
                             rs=1;
+                        }
+                        /*
+                        // "width"
+                        lString16 w = item->getAttributeValue(attr_width);
+                        if (!w.empty()) {
+                            int wn = StrToIntPercent(w.c_str(), digitwidth);
+                            if (wn<0)
+                                cell->percent = -wn;
+                            else if (wn>0)
+                                cell->width = wn;
                         }
                         // "align"
                         lString16 halign = item->getAttributeValue(attr_align);
@@ -369,6 +441,39 @@ public:
                             cell->valign = 1; // center
                         else if (valign == "bottom")
                             cell->valign = 2; // bottom
+                        */
+                        // These commented above attributes have been translated to
+                        // CSS properties by ldomDocumentWriterFilter::OnAttribute():
+                        //   width= has been translated to elem style->width
+                        //   align= has been translated to elem style->text_align
+                        //   valign= has been translated to elem style->vertical_align
+                        // (This allows overriding them with Style tweaks to remove
+                        // publisher alignments and specified widths)
+                        css_length_t w = item->getStyle()->width;
+                        if ( w.type == css_val_percent ) { // %
+                            cell->percent = w.value / 256;
+                        }
+                        else if ( w.type != css_val_unspecified ) { // px, em...
+                            int em = item->getFont()->getSize();
+                            cell->width = lengthToPx( w, 0, em );
+                        }
+                        // else: cell->percent and cell->width stay at 0
+
+                        // This is not used here, but getStyle()->text_align will
+                        // be naturally handled when cells are rendered
+                        css_length_t ta = item->getStyle()->text_align;
+                        if ( ta == css_ta_center )
+                            cell->halign = 1; // center
+                        else if ( ta == css_ta_right )
+                            cell->halign = 2; // right
+
+                        css_length_t va = item->getStyle()->vertical_align;
+                        if ( va.type == css_val_unspecified ) {
+                            if ( va.value == css_va_middle )
+                                cell->valign = 1; // middle
+                            else if ( va.value == css_va_bottom )
+                                cell->valign = 2; // bottom
+                        }
 
                         cell->row = rows[rows.length()-1];
                         cell->row->cells.add( cell );
@@ -379,7 +484,6 @@ public:
                     break;
                 case erm_table_caption: // table caption
                     {
-                        //TODO
                         caption = item;
                     }
                     break;
@@ -393,9 +497,19 @@ public:
         return 0;
     }
 
+    // More or less complex algorithms to calculate column widths are described at:
+    //   https://www.w3.org/TR/css-tables-3/#computing-cell-measures
+    //   https://www.w3.org/TR/REC-html40/appendix/notes.html#h-B.5.2
+    //   https://www.w3.org/TR/CSS2/tables.html#auto-table-layout
+    //   https://drafts.csswg.org/css3-tables-algorithms/Overview.src.htm
+    //   https://developer.mozilla.org/en-US/docs/Archive/Mozilla/Table_Layout_Strategy
+    //   http://www.tads.org/t3doc/doc/htmltads/tables.htm
+    //   https://github.com/Kozea/WeasyPrint (html to pdf in python)
+
+    // Beware of risk of division by zero!
+    // (In vim, find divisions with: /\v(\/)@<!(\*)@<!\/(\/)@!(\*)@!.*   )
+
     void PlaceCells() {
-
-
         int i, j;
         // search for max column number
         int maxcols = 0;
@@ -430,7 +544,7 @@ public:
                         //int flg =1;
                     }
                 }
-                // update col width
+                // update col width (for regular cells with colspan=1 only)
                 if (cell->colspan==1) {
                     if (cell->width>0 && cell->col->width<cell->width && cell->col->percent==0) {
                         cell->col->width = cell->width;
@@ -466,70 +580,336 @@ public:
             nrow->index = i;
             rows.insert(i, nrow);
         }
-        // init CELLS matrix
-        cells.SetSize( rows.length(), cols.length(), NULL );
+        // The above code has possibly added with ExtendCols() virtual columns
+        // (that do not contain any cell) to 'cols' to account for colspan
+        // values (which may be bogus in some documents).
+        // Remove any extraneous cols and rows, and adjust the colspan and
+        // rowspan values of involved cells.
+        int max_used_x = -1;
+        int max_used_y = -1;
         for (i=0; i<rows.length(); i++) {
             for (j=0; j<rows[i]->cells.length(); j++) {
-                // init cell range in matrix  (x0,y0)[colspanXrowspan]
                 CCRTableCell * cell = (rows[i]->cells[j]);
                 int x0 = cell->col->index;
+                if (x0 > max_used_x)
+                    max_used_x = x0;
                 int y0 = cell->row->index;
-                for (int y=0; y<cell->rowspan; y++) {
-                    for (int x=0; x<cell->colspan; x++) {
-                        cells[y0+y][x0+x] = cell;
+                if (y0 > max_used_y)
+                    max_used_y = y0;
+            }
+        }
+        for (i=0; i<rows.length(); i++) {
+            for (j=0; j<rows[i]->cells.length(); j++) {
+                CCRTableCell * cell = (rows[i]->cells[j]);
+                if (cell->col->index + cell->colspan - 1 > max_used_x)
+                    cell->colspan = max_used_x - cell->col->index + 1;
+                if (cell->row->index + cell->rowspan - 1 > max_used_y)
+                    cell->rowspan = max_used_y - cell->row->index + 1;
+            }
+        }
+        #ifdef DEBUG_TABLE_RENDERING
+            printf("TABLE: grid %dx%d reduced to %dx%d\n",
+                cols.length(), rows.length(), max_used_x+1, max_used_y+1);
+        #endif
+        for (i=rows.length()-1; i>max_used_y; i--) {
+            if (rows[i]->rowgroup) {
+                rows[i]->rowgroup->rows.remove(rows[i]);
+            }
+            delete rows.remove(i);
+        }
+        for (i=cols.length()-1; i>max_used_x; i--) {
+            delete cols.remove(i);
+            // No need to adjust cols[x]->nrows, we don't use it from now
+        }
+
+        int table_em = elem->getFont()->getSize();
+        // border-spacing does not accept values in % unit
+        int borderspacing_h = lengthToPx(elem->getStyle()->border_spacing[0], 0, table_em);
+        bool border_collapse = (elem->getStyle()->border_collapse == css_border_collapse);
+
+        if (border_collapse) {
+            borderspacing_h = 0; // no border spacing when table collapse
+            // Each cell is responsible for drawing its borders.
+            for (i=0; i<rows.length(); i++) {
+                for (j=0; j<rows[i]->cells.length(); j++) {
+                    CCRTableCell * cell = (rows[i]->cells[j]);
+                    css_style_ref_t style = cell->elem->getStyle();
+                    // (Note: we should not modify styles directly, as the change
+                    // in style cache will affect other nodes with the same style,
+                    // and corrupt style cache Hash, invalidating cache reuse.)
+                    css_style_ref_t newstyle(new css_style_rec_t);
+                    copystyle(style, newstyle);
+
+                    // We don't do adjacent-cells "border size comparisons and
+                    // take the larger one", as it's not obvious to get here
+                    // this cell's adjactent ones (possibly multiple on a side
+                    // when rowspan/colspan).
+                    // But we should at least, for cells with no border, get the
+                    // top and bottom, and the left and right for cells at
+                    // table edges, from the TR, THEAD/TBODY or TABLE.
+                    bool is_at_top = cell->row->index == 0;
+                    bool is_at_bottom = (cell->row->index + cell->rowspan) == rows.length();
+                    bool is_at_left = cell->col->index == 0;
+                    bool is_at_right = (cell->col->index + cell->colspan) == cols.length();
+                    // We'll avoid calling measureBorder() many times for this same cell,
+                    // by passing these by reference to collapse_border():
+                    int cell_border_top = measureBorder(cell->elem, 0);
+                    int cell_border_right = measureBorder(cell->elem, 1);
+                    int cell_border_bottom = measureBorder(cell->elem, 2);
+                    int cell_border_left = measureBorder(cell->elem, 3);
+                    //
+                    // With border-collapse, a cell may get its top and bottom
+                    // borders from its TR.
+                    ldomNode * rtop = rows[cell->row->index]->elem;
+                        // (may be NULL, but collapse_border() checks for that)
+                    // For a cell with rowspan>1, not sure if its bottom border should come
+                    // from its own starting row, or the other row it happens to end on.
+                    // Should look cleaner if we use the later.
+                    ldomNode * rbottom = rows[cell->row->index + cell->rowspan - 1]->elem;
+                    collapse_border(newstyle, cell_border_top, 0, rtop);
+                    collapse_border(newstyle, cell_border_bottom, 2, rbottom);
+                    // We also get the left and right borders, for the first or
+                    // the last cell in a row, from the row (top row if multi rows span)
+                    if (is_at_left)
+                        collapse_border(newstyle, cell_border_left, 3, rtop);
+                    if (is_at_right)
+                        collapse_border(newstyle, cell_border_right, 1, rtop);
+                        // If a row is missing some cells, there is none that stick
+                        // to the right of the table (is_at_right is false): the outer
+                        // table border will have a hole for this row...
+                    // We may also get them from the rowgroup this TR is part of, if any, for
+                    // the cells in the first or the last row of this rowgroup
+                    if (rows[cell->row->index]->rowgroup) {
+                        CCRTableRowGroup * grp = rows[cell->row->index]->rowgroup;
+                        if (rows[cell->row->index] == grp->rows.first())
+                            collapse_border(newstyle, cell_border_top, 0, grp->elem);
+                        if (rows[cell->row->index] == grp->rows.last())
+                            collapse_border(newstyle, cell_border_bottom, 2, grp->elem);
+                        if (is_at_left)
+                            collapse_border(newstyle, cell_border_left, 3, grp->elem);
+                        if (is_at_right)
+                            collapse_border(newstyle, cell_border_right, 1, grp->elem);
                     }
-                }
+                    // And we may finally get borders from the table itself ("elem")
+                    if (is_at_top)
+                        collapse_border(newstyle, cell_border_top, 0, elem);
+                    if (is_at_bottom)
+                        collapse_border(newstyle, cell_border_bottom, 2, elem);
+                    if (is_at_left)
+                        collapse_border(newstyle, cell_border_left, 3, elem);
+                    if (is_at_right)
+                        collapse_border(newstyle, cell_border_right, 1, elem);
 
-                // calc cell text size
-                lString16 txt = (cell->elem)->getText();
-                int txtlen = txt.length();
-                txtlen=cell->elem->getFont()->getTextWidth(txt.c_str(),txtlen);//use actuall string width to calculate
-                //txtlen = (txtlen+(cell->colspan-1))/(cell->colspan + 1);
-                // Note: txtlen can be quite innacurate (it's the length of the cell's
-                // content as plain text, not taking into account padding or
-                // text-indent, or font size variations in children elements).
+                    // Now, we should disable some borders for this cell,
+                    // at inter-cell boundaries.
+                    // We could either keep the right and bottom borders
+                    // (which would be better to catch coordinates bugs).
+                    // Or keep the top and left borders, which is better:
+                    // if a cell carries its top border, when splitting
+                    // rows to pages, a row at top of page will have its
+                    // top border (unlike previous alternative), which is
+                    // clearer for the reader.
+                    // So, we disable the bottom and right borders, except
+                    // for cells that are on the right or at the bottom of
+                    // the table, as these will draw the outer table border
+                    // on these sides.
+                    if ( !is_at_right )
+                        newstyle->border_style_right = css_border_none;
+                    if ( !is_at_bottom )
+                        newstyle->border_style_bottom = css_border_none;
 
-                int min_width = 8; // min width if no text (so we can see empty columns used as separator)
-                if (txtlen > 0) {
-                    // Ensure a 1.2em minimal width (from the cell font size, which might
-                    // still be not enough if children elements have another font size)
-                    // (2em is too large if cells in a column contain all a single char)
-                    min_width = 1.2 * cell->elem->getFont()->getSize();
-                    // add it txtlen too, to account a bit for possible padding or text-indent
-                    txtlen += min_width;
+                    cell->elem->setStyle(newstyle);
+                    // (Note: we should no more modify a style after it has been
+                    // applied to a node with setStyle().)
                 }
-                for (int x=0; x<cell->colspan; x++) {
-                    if ( txtlen > cols[x0+x]->txtlen )
-                        cols[x0+x]->txtlen = txtlen;
-                    if ( min_width > cols[x0+x]->min_width )
-                        cols[x0+x]->min_width = min_width;
+                // (Some optimisation could be made in these loops, as
+                // collapse_border() currently calls measureBorder() many
+                // times for the same elements: TR, TBODY, TABLE...)
+            }
+            // The TR and TFOOT borders will explicitely NOT be drawn by DrawDocument()
+            // (Firefox never draws them, even when no border-collapse).
+            // But the TABLE ones will be (needed when no border-collapse).
+            // So, as we possibly collapsed the table border to the cells, we just
+            // set them to none on the TABLE.
+            css_style_ref_t style = elem->getStyle();
+            css_style_ref_t newstyle(new css_style_rec_t);
+            copystyle(style, newstyle);
+            newstyle->border_style_top = css_border_none;
+            newstyle->border_style_right = css_border_none;
+            newstyle->border_style_bottom = css_border_none;
+            newstyle->border_style_left = css_border_none;
+            elem->setStyle(newstyle);
+        }
+        // We should no longer modify cells' padding and border beyond this point,
+        // as these are used below to compute max_content_width and min_content_width,
+        // which account for them.
+
+        // Compute for each cell the max (prefered if possible) and min (width of the
+        // longest word, so no word is cut) rendered widths.
+        for (i=0; i<rows.length(); i++) {
+            for (j=0; j<rows[i]->cells.length(); j++) {
+                // rows[i]->cells contains only real cells made from node elements
+                CCRTableCell * cell = (rows[i]->cells[j]);
+                getRenderedWidths(cell->elem, cell->max_content_width, cell->min_content_width);
+                #ifdef DEBUG_TABLE_RENDERING
+                    printf("TABLE: cell[%d,%d] getRenderedWidths: %d (min %d)\n",
+                        j, i, cell->max_content_width, cell->min_content_width);
+                #endif
+                int x0 = cell->col->index;
+                if (cell->colspan == 1) {
+                    // Update cols max/min widths only for colspan=1 cells
+                    if ( cell->max_content_width > cols[x0]->max_width )
+                        cols[x0]->max_width = cell->max_content_width;
+                    if ( cell->min_content_width > cols[x0]->min_width )
+                        cols[x0]->min_width = cell->min_content_width;
                 }
             }
         }
+        // Second pass for cells with colspan > 1
+        for (i=0; i<rows.length(); i++) {
+            for (j=0; j<rows[i]->cells.length(); j++) {
+                CCRTableCell * cell = (rows[i]->cells[j]);
+                if (cell->colspan > 1) {
+                    // Check if we need to update the max_width and min_width
+                    // of each cols we span
+                    int nbspans = cell->colspan;
+                    int x0 = cell->col->index;
+                    // Get the existing aggregated min/max width of the cols we span
+                    int cols_max_width = 0;
+                    int cols_min_width = 0;
+                    for (int x=0; x<nbspans; x++) {
+                        cols_min_width += cols[x0+x]->min_width;
+                        cols_max_width += cols[x0+x]->max_width;
+                    }
+                    cols_min_width += borderspacing_h * (nbspans-1);
+                    cols_max_width += borderspacing_h * (nbspans-1);
+                    #ifdef DEBUG_TABLE_RENDERING
+                        printf("TABLE: COLS SPANNED[%d>%d] min_width=%d max_width=%d\n",
+                            x0, x0+nbspans-1, cols_min_width, cols_max_width);
+                    #endif
+                    if ( cell->min_content_width > cols_min_width ) {
+                        // Our min width is larger than the spanned cols min width
+                        int to_distribute = cell->min_content_width - cols_min_width;
+                        int distributed = 0;
+                        for (int x=0; x<nbspans; x++) {
+                            // Distribute more to bigger min_width to keep original
+                            // cell proportions
+                            int this_dist;
+                            if (cols_min_width > 0)
+                                this_dist = to_distribute * cols[x0+x]->min_width / cols_min_width;
+                            else
+                                this_dist = to_distribute / nbspans;
+                            cols[x0+x]->min_width += this_dist;
+                            distributed += this_dist;
+                            #ifdef DEBUG_TABLE_RENDERING
+                                printf("TABLE:   COL[%d] (todist:%d) min_wdith += %d => %d\n",
+                                    x0+x, to_distribute, this_dist, cols[x0+x]->min_width);
+                            #endif
+                        }
+                        // Distribute left over to last col
+                        cols[x0+nbspans-1]->min_width += to_distribute - distributed;
+                        #ifdef DEBUG_TABLE_RENDERING
+                            printf("TABLE: COL[%d] (leftover:%d-%d) min_wdith += %d => %d\n",
+                                x0+nbspans-1, to_distribute, distributed, to_distribute - distributed,
+                                cols[x0+nbspans-1]->min_width);
+                        #endif
+                    }
+                    // Let's do the same for max_width, although it may lead to
+                    // messier layouts in complex colspan setups...
+                    // (And we should probably not let all cols->max_width at 0 if they are 0!)
+                    if ( cell->max_content_width > cols_max_width ) {
+                        // Our max width is larger than the spanned cols max width
+                        int to_distribute = cell->max_content_width - cols_max_width;
+                        int distributed = 0;
+                        for (int x=0; x<nbspans; x++) {
+                            // Distribute more to bigger max_width to keep original
+                            // cell proportions
+                            int this_dist;
+                            if (cols_max_width > 0)
+                                this_dist = to_distribute * cols[x0+x]->max_width / cols_max_width;
+                            else
+                                this_dist = to_distribute / nbspans;
+                            cols[x0+x]->max_width += this_dist;
+                            distributed += this_dist;
+                            #ifdef DEBUG_TABLE_RENDERING
+                                printf("TABLE:   COL[%d] (todist:%d) max_wdith += %d => %d\n",
+                                    x0+x, to_distribute, this_dist, cols[x0+x]->max_width);
+                            #endif
+                        }
+                        // Distribute left over to last col
+                        cols[x0+nbspans-1]->max_width += to_distribute - distributed;
+                        #ifdef DEBUG_TABLE_RENDERING
+                            printf("TABLE: COL[%d] (leftover:%d-%d) max_wdith += %d => %d\n",
+                                x0+nbspans-1, to_distribute, distributed, to_distribute - distributed,
+                                cols[x0+nbspans-1]->max_width);
+                        #endif
+                    }
+                }
+            }
+        }
+
+        /////////////////////////// From here until further noticed, we just use and update the cols objects
+        // Find width available for cells content (including their borders and paddings)
+        // Start with table full width
+        int assignable_width = table_width;
+        // Remove table outer borders
+        assignable_width -= measureBorder(elem,1) + measureBorder(elem,3); // (border indexes are TRBL)
+        if ( border_collapse ) {
+            // Table own outer paddings and any border-spacing are
+            // ignored with border-collapse
+        }
+        else { // no collapse
+            // Remove table outer paddings (margin and padding indexes are LRTB)
+            assignable_width -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            assignable_width -= lengthToPx(elem->getStyle()->padding[1], table_width, table_em);
+            // Remove (nb cols + 1) border-spacing
+            assignable_width -= (cols.length() + 1) * borderspacing_h;
+        }
+        #ifdef DEBUG_TABLE_RENDERING
+            printf("TABLE: table_width=%d assignable_width=%d\n", table_width, assignable_width);
+        #endif
+        if (assignable_width <= 0) { // safety check
+            // In case we get a zero or negative value (too much padding or
+            // borderspacing and many columns), just re-set it to table_width
+            // for our calculation purpose, which expect a positive value to
+            // work with: the rendering will be bad, but some stuff will show.
+            assignable_width = table_width;
+            borderspacing_h = 0;
+        }
+
+        // Find best width for each column
         int npercent=0;
         int sumpercent=0;
         int nwidth = 0;
         int sumwidth = 0;
         for (int x=0; x<cols.length(); x++) {
+            #ifdef DEBUG_TABLE_RENDERING
+                printf("TABLE WIDTHS step1: cols[%d]: %d%% %dpx\n",
+                    x, cols[x]->percent, cols[x]->width);
+            #endif
             if (cols[x]->percent>0) {
+                cols[x]->width_auto = false;
                 sumpercent += cols[x]->percent;
                 cols[x]->width = 0;
                 npercent++;
             } else if (cols[x]->width>0) {
+                cols[x]->width_auto = false;
                 sumwidth += cols[x]->width;
                 nwidth++;
             }
         }
-        int nrest = cols.length()-nwidth-npercent; // not specified
+        int nrest = cols.length() - nwidth - npercent; // nb of cols with auto width
         int sumwidthpercent = 0; // percent of sum-width
-        int fullWidth = width - measureBorder(elem,1)-measureBorder(elem,3);//TABLE_BORDER_WIDTH * 2;
+        // Percents are to be used as a ratio of assignable_width (if we would
+        // use the original full table width, 100% would overflow with borders,
+        // paddings and border spacings)
         if (sumwidth) {
-            sumwidthpercent = 100*sumwidth/fullWidth;
-            if (sumpercent+sumwidthpercent+5*nrest>100) {
+            sumwidthpercent = 100*sumwidth/assignable_width;
+            if (sumpercent+sumwidthpercent+5*nrest>100) { // 5% (?) for each unsized column
                 // too wide: convert widths to percents
                 for (int i=0; i<cols.length(); i++) {
                     if (cols[i]->width>0) {
-                        cols[i]->percent = cols[i]->width*100/fullWidth;
+                        cols[i]->percent = cols[i]->width*100/assignable_width;
                         cols[i]->width = 0;
                         sumpercent += cols[i]->percent;
                         npercent++;
@@ -540,8 +920,8 @@ public:
             }
         }
         // scale percents
-        int maxpercent = 100-3*nrest;
-        if (sumpercent>maxpercent) {
+        int maxpercent = 100-3*nrest; // 3% (?) for each unsized column
+        if (sumpercent>maxpercent && sumpercent>0) {
             // scale percents
             int newsumpercent = 0;
             for (int i=0; i<cols.length(); i++) {
@@ -555,208 +935,344 @@ public:
         }
         // calc width by percents
         sumwidth = 0;
-        int sumtext = 1;
+        int sumautomaxwidth = 0;
         nwidth = 0;
         for (i=0; i<cols.length(); i++) {
             if (cols[i]->percent>0) {
-                cols[i]->width = width * cols[i]->percent / 100;
+                cols[i]->width = assignable_width * cols[i]->percent / 100;
                 cols[i]->percent = 0;
             }
             if (cols[i]->width>0) {
                 // calc width stats
                 sumwidth += cols[i]->width;
                 nwidth++;
-            } else if (cols[i]->txtlen>0) {
-                // calc text len sum of rest cols
-                sumtext += cols[i]->txtlen;
+            } else if (cols[i]->max_width>0) {
+                sumautomaxwidth += cols[i]->max_width;
             }
         }
+        #ifdef DEBUG_TABLE_RENDERING
+            for (int x=0; x<cols.length(); x++)
+                printf("TABLE WIDTHS step2: cols[%d]: %d%% %dpx\n",
+                    x, cols[x]->percent, cols[x]->width);
+        #endif
+        // At this point, all columns with specified width or percent has been
+        // set accordingly, or reduced to fit table width
+        // We need to compute a width for columns with unspecified width.
         nrest = cols.length() - nwidth;
-        int restwidth = width - sumwidth;
+        int restwidth = assignable_width - sumwidth;
+        int sumMinWidths = 0;
         // new pass: convert text len percent into width
         for (i=0; i<cols.length(); i++) {
-            if (cols[i]->width==0) {
-                cols[i]->width = cols[i]->txtlen * restwidth / sumtext;
-                // This has distributed width according to each column longest
-                // plain text, which may make some column really small if other
-                // columns have really long text.
-                // So, when no width= specified for a cell, give it a minimum width of
-                // half of what it would be if all no-width cells were splitted equally.
-                // (this may be decreased again below if max txtlen is smaller than that)
-                int preferedMinWidth = restwidth / nrest / 2;
-                if (cols[i]->width < preferedMinWidth) {
-                    cols[i]->width = preferedMinWidth;
-                }
+            if (cols[i]->width==0) { // unspecified (or width scaled down and rounded to 0)
+                // Distribute remaining width according to max_width ratio
+                // (so larger content gets more width to use less height)
+                if (sumautomaxwidth > 0)
+                    cols[i]->width = cols[i]->max_width * restwidth / sumautomaxwidth;
+                // else stays at 0
                 sumwidth += cols[i]->width;
                 nwidth++;
             }
-            if (cols[i]->width < cols[i]->min_width) { // extend too small cols!
+            if (cols[i]->width < cols[i]->min_width) {
+                // extend too small cols to their min_width
                 int delta = cols[i]->min_width - cols[i]->width;
                 cols[i]->width += delta;
                 sumwidth += delta;
             }
+            sumMinWidths += cols[i]->min_width; // will be handy later
         }
-        if (sumwidth>fullWidth) {
+        if (sumwidth>assignable_width && sumwidth>0) {
             // too wide! rescale down
             int newsumwidth = 0;
             for (i=0; i<cols.length(); i++) {
-                cols[i]->width = cols[i]->width * fullWidth / sumwidth;
+                cols[i]->width = cols[i]->width * assignable_width / sumwidth;
                 newsumwidth += cols[i]->width;
             }
             sumwidth = newsumwidth;
         }
-        // distribute rest of width between all cols that can benefit from more
+        #ifdef DEBUG_TABLE_RENDERING
+            for (int x=0; x<cols.length(); x++)
+                printf("TABLE WIDTHS step3: cols[%d]: %d%% %dpx (min:%d / max:%d)\n",
+                    x, cols[x]->percent, cols[x]->width, cols[x]->min_width, cols[x]->max_width);
+        #endif
+        bool canFitMinWidths = (sumMinWidths > 0 && sumMinWidths < assignable_width);
+        // new pass: resize columns with originally unspecified widths
         int rw=0;
         int dist_nb_cols = 0;
         for (int x=0; x<cols.length(); x++) {
-            // Adjust it further down to the measured txtlen (which might
-            // be quite innacurate, see above)
-            int needed_width = cols[x]->min_width;
-            if (cols[x]->txtlen > needed_width) {
-                needed_width = cols[x]->txtlen;
+            // Adjust it further down to the measured max_width
+            int prefered_width = cols[x]->min_width;
+            if (cols[x]->max_width > prefered_width) {
+                prefered_width = cols[x]->max_width;
             }
-            if (cols[x]->width > needed_width) {
-                rw += (cols[x]->width - needed_width);
-                cols[x]->width = needed_width;
-                // min_width is no more needed: use it as a flag so we don't
+            if (cols[x]->width_auto && cols[x]->width > prefered_width) {
+                // Column can nicely fit in a smaller width
+                rw += (cols[x]->width - prefered_width);
+                cols[x]->width = prefered_width;
+                // min_width is no longer needed: use it as a flag so we don't
                 // redistribute width to this column
                 cols[x]->min_width = -1;
             }
-            else { // candidate to get more width
-                dist_nb_cols += 1;
+            else if (canFitMinWidths && cols[x]->width < cols[x]->min_width) {
+                // Even for columns with originally specified width:
+                // If all min_width can fit into available width, ensure
+                // cell's min_width by taking back from to-be redistributed width
+                rw -= (cols[x]->min_width - cols[x]->width);
+                cols[x]->width = cols[x]->min_width;
+                // min_width is no longer needed: use it as a flag so we don't
+                // redistribute width to this column
+                cols[x]->min_width = -1;
+            }
+            else if (cols[x]->width_auto && cols[x]->min_width > 0) {
+                dist_nb_cols += 1;      // candidate to get more width
             }
         }
-        int restw = fullWidth - sumwidth+rw;
-        bool dist_all_cols = false;
-        if (dist_nb_cols == 0) {
-            // if only small columns, redistribute to all
-            dist_all_cols = true;
-            dist_nb_cols = cols.length();
+        #ifdef DEBUG_TABLE_RENDERING
+            for (int x=0; x<cols.length(); x++)
+                printf("TABLE WIDTHS step4: cols[%d]: %d%% %dpx (min %dpx)\n",
+                    x, cols[x]->percent, cols[x]->width, cols[x]->min_width);
+        #endif
+        int restw = assignable_width - sumwidth + rw; // may be negative if we needed to
+                                                      // increase to fulfill min_width
+        if (shrink_to_fit && restw > 0) {
+            // If we're asked to shrink width to fit cells content, don't
+            // distribute restw to columns, but shrink table width
+            // Table padding may be in %, and need to be corrected
+            int correction = 0;
+            correction += lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            correction += lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            table_width -= restw;
+            correction -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            correction -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            table_width -= correction;
+            assignable_width -= restw + correction; // (for debug printf() below)
+            #ifdef DEBUG_TABLE_RENDERING
+                printf("TABLE WIDTHS step5 (fit): reducing table_width %d -%d -%d > %d\n",
+                    table_width+restw+correction, restw, correction, table_width);
+            #endif
         }
-        if (restw>0 && dist_nb_cols>0) {
-            int a = restw / dist_nb_cols;
-            int b = restw % dist_nb_cols;
-            for (i=0; i<cols.length(); i++) {
-                if (dist_all_cols || cols[i]->min_width >= 0) {
-                    cols[i]->width += a;
-                    if (b>0) {
-                        cols[i]->width ++;
-                        b--;
+        else {
+            #ifdef DEBUG_TABLE_RENDERING
+                printf("TABLE WIDTHS step5 (dist): %d to distribute to %d cols\n",
+                    restw, dist_nb_cols);
+            #endif
+            // distribute rest of width between all cols that can benefit from more
+            bool dist_all_non_empty_cols = false;
+            if (dist_nb_cols == 0) {
+                dist_all_non_empty_cols = true;
+                // distribute to all non empty cols
+                for (int x=0; x<cols.length(); x++) {
+                    if (cols[x]->min_width != 0) {
+                        dist_nb_cols += 1;
                     }
                 }
+                #ifdef DEBUG_TABLE_RENDERING
+                    printf("TABLE WIDTHS step5: %d to distribute to all %d non empty cols\n",
+                        restw, dist_nb_cols);
+                #endif
             }
+            if (restw != 0 && dist_nb_cols>0) {
+                int a = restw / dist_nb_cols;
+                int b = restw % dist_nb_cols;
+                for (i=0; i<cols.length(); i++) {
+                    if ( (!dist_all_non_empty_cols && cols[i]->min_width > 0)
+                      || (dist_all_non_empty_cols && cols[i]->min_width != 0) ) {
+                        cols[i]->width += a;
+                        if (b>0) {
+                            cols[i]->width ++;
+                            b--;
+                        }
+                        else if (b<0) {
+                            cols[i]->width --;
+                            b++;
+                        }
+                    }
+                }
+                // (it would be better to distribute restw according
+                // to each column max_width / min_width, so larger ones
+                // get more of it)
+            }
+            #ifdef DEBUG_TABLE_RENDERING
+                for (int x=0; x<cols.length(); x++)
+                    printf("TABLE WIDTHS step5: cols[%d]: %d%% %dpx\n",
+                        x, cols[x]->percent, cols[x]->width);
+            #endif
         }
-        // widths calculated ok!
-        // update width of each cell
+        #ifdef DEBUG_TABLE_RENDERING
+            printf("TABLE WIDTHS SUM:");
+            int colswidthsum = 0;
+            for (int x=0; x<cols.length(); x++) {
+                printf(" +%d", cols[x]->width);
+                colswidthsum += cols[x]->width;
+            }
+            printf(" = %d", colswidthsum);
+            if (assignable_width == colswidthsum)
+                printf(" == assignable_width, GOOD\n");
+            else
+                printf(" != assignable_width %d, BAAAAAAADDD\n", assignable_width);
+        #endif
+
+        // update col x
+        for (i=0; i<cols.length(); i++) {
+            if (i == 0)
+                cols[i]->x = borderspacing_h;
+            else
+                cols[i]->x = cols[i-1]->x + cols[i-1]->width + borderspacing_h;
+            #ifdef DEBUG_TABLE_RENDERING
+                printf("TABLE WIDTHS step6: cols[%d]->x = %d\n", i, cols[i]->x);
+            #endif
+        }
+        /////////////////////////// Done with just using and updating the cols objects
+
+        // Columns widths calculated ok!
+        // Update width of each cell
         for (i=0; i<rows.length(); i++) {
             for (j=0; j<rows[i]->cells.length(); j++) {
-                // calculate width of cell
                 CCRTableCell * cell = (rows[i]->cells[j]);
                 cell->width = 0;
                 int x0 = cell->col->index;
                 for (int x=0; x<cell->colspan; x++) {
                     cell->width += cols[x0+x]->width;
                 }
-                // padding
-                RenderRectAccessor fmt( cell->elem );
-                int em = cell->elem->getFont()->getSize();
-                int width = fmt.getWidth();
-                cell->padding_left = (short)lengthToPx( cell->elem->getStyle()->padding[0], width, em );
-                cell->padding_right = (short)lengthToPx( cell->elem->getStyle()->padding[1], width, em );
-                cell->padding_top = (short)lengthToPx( cell->elem->getStyle()->padding[2], width, em );
-                cell->padding_bottom = (short)lengthToPx( cell->elem->getStyle()->padding[3], width, em );
-                if(elem->getStyle()->border_collapse==css_border_collapse)
-                {//simple collapse by disable some borders and eliminate paddings
-                    css_style_ref_t style = cell->elem->getStyle();
-                    // we should not modify styles directly, as the change in style cache will affect other
-                    // node with same style, and corrupt style cache Hash, invalidating cache reuse
-                    css_style_ref_t newstyle(new css_style_rec_t);
-                    copystyle(style, newstyle);
-                    newstyle->border_style_left = css_border_none;
-                    newstyle->border_style_bottom = css_border_none;
-                    if (i==0) {
-                        newstyle->border_style_top=css_border_none;
-                    }
-                    // we should no more modify a style after it has been applied to a node with setStyle()
-                    cell->elem->setStyle(newstyle);
+                if ( cell->colspan > 1 ) {
+                    // include skipped borderspacings in cell width
+                    cell->width += borderspacing_h * (cell->colspan-1);
                 }
-                else {
-                    int n=rows[i]->cells.length();
-                    int bsp_h=lengthToPx(elem->getStyle()->border_spacing[0],width,em);
-                    int delta=(lengthToPx(elem->getStyle()->padding[0],width,em)+lengthToPx(elem->getStyle()->padding[1],width,em)+bsp_h)/n;
-                    cell->width=cell->width-delta-bsp_h*(100+100/n)/100;
-                }
+                #ifdef DEBUG_TABLE_RENDERING
+                    printf("TABLE: placeCell[%d,%d] width: %d\n", j, i, cell->width);
+                #endif
             }
-        }
-        // update col x
-        for (i=1; i<cols.length(); i++) {
-            cols[i]->x = cols[i-1]->x + cols[i-1]->width;
         }
     }
 
     int renderCells( LVRendPageContext & context )
     {
-        int posx=measureBorder(elem,3);
-        int posy=measureBorder(elem,0);
-        int em=elem->getFont()->getSize();
-        css_style_ref_t table_style=elem->getStyle();
-        int bsp_v=lengthToPx(table_style->border_spacing[1],width,em);
-        int table_padding_top=lengthToPx(table_style->padding[2],width,em);
-        int table_padding_bottom=lengthToPx(table_style->padding[3],width,em);
-        int table_padding_left=lengthToPx(table_style->padding[0],width,em);
-        int table_padding_right=lengthToPx(table_style->padding[1],width,em);
-        int bsp_h=lengthToPx(table_style->border_spacing[0],width,em);
-        bool border_collapse=(table_style->border_collapse==css_border_collapse);
+        // We should set, for each of the table children and sub-children,
+        // its RenderRectAccessor fmt(node) x/y/w/h.
+        // x/y of a cell are relative to its own parent node top left corner
+        int em = elem->getFont()->getSize();
+        css_style_ref_t table_style = elem->getStyle();
+        int table_border_top = measureBorder(elem, 0);
+        int table_border_right = measureBorder(elem, 1);
+        int table_border_bottom = measureBorder(elem, 2);
+        int table_border_left = measureBorder(elem, 3);
+        int table_padding_left = lengthToPx(table_style->padding[0], table_width, em);
+        int table_padding_right = lengthToPx(table_style->padding[1], table_width, em);
+        int table_padding_top = lengthToPx(table_style->padding[2], table_width, em);
+        int table_padding_bottom = lengthToPx(table_style->padding[3], table_width, em);
+        int borderspacing_h = lengthToPx(table_style->border_spacing[0], 0, em); // does not accept %
+        int borderspacing_v = lengthToPx(table_style->border_spacing[1], 0, em);
+        bool border_collapse = (table_style->border_collapse==css_border_collapse);
         if (border_collapse) {
-            table_padding_top=0;
-            table_padding_bottom=0;
-            table_padding_left=0;
-            table_padding_right=0;
-            bsp_v=0;
-            bsp_h=0;
+            table_padding_top = 0;
+            table_padding_bottom = 0;
+            table_padding_left = 0;
+            table_padding_right = 0;
+            borderspacing_v = 0;
+            borderspacing_h = 0;
         }
+        // We want to distribute border spacing on top and bottom of each row,
+        // mainly for page splitting to carry half of it on each page.
+        int borderspacing_v_top = borderspacing_v / 2;
+        int borderspacing_v_bottom = borderspacing_v - borderspacing_v_top;
+        // (Both will be 0 if border_collapse)
+
+        int nb_rows = rows.length();
+
+        // We will context.AddLine() for page splitting the elements
+        // (caption, rows) as soon as we meet them and their y-positionnings
+        // inside the tables are known and won't change.
+        // (This would need that rowgroups be dealt with in this flow (and
+        // not at the end) if we change the fact that we ignore their
+        // border/padding/margin - see below why we do.)
+        lvRect rect;
+        elem->getAbsRect(rect);
+        const int table_y0 = rect.top; // absolute y in document for top of table
+        int last_y = table_y0; // used as y0 to AddLine(y0, table_y0+table_h)
+        int line_flags = 0;
+        bool splitPages = context.getPageList() != NULL;
+
+        // Final table height will be added to as we meet table content
+        int table_h = 0;
+        table_h += table_border_top;
+
         // render caption
         if ( caption ) {
-            RenderRectAccessor fmt( caption );
             int em = caption->getFont()->getSize();
-            int w = width-measureBorder(elem,3)-measureBorder(elem,1);
-            int padding_left = lengthToPx( caption->getStyle()->padding[0], width, em );
-            int padding_right = lengthToPx( caption->getStyle()->padding[1], width, em );
-            int padding_top = lengthToPx( caption->getStyle()->padding[2], width, em );
-            int padding_bottom = lengthToPx( caption->getStyle()->padding[3], width, em );
+            int w = table_width - table_border_left - table_border_right;
+            // (When border-collapse, these table_border_* will be 0)
+            // Note: table padding does not apply to caption, and table padding-top
+            // should be applied between the caption and the first row
+            // Also, Firefox does not include the caption inside the table outer border.
+            // We'll display as Firefox when border-collapse, as the table borders were
+            // reset to 0 after we collapsed them to the cells.
+            // But not when not border-collapse: we can't do that in crengine because
+            // of parent>children boxes containment, so the caption will be at top
+            // inside the table border.
+            // A caption can have borders, that we must include in its padding:
+            // we may then get a double border with the table one... (We could hack
+            // caption->style to remove its border if the table has some, if needed.)
             LFormattedTextRef txform;
-            caption_h = caption->renderFinalBlock( txform, &fmt, w - padding_left - padding_right ) + padding_top + padding_bottom+measureBorder(caption,0)+measureBorder(caption,2);
-            fmt.setY( posy+table_padding_top ); //cell->padding_top ); //cell->row->y - cell->row->y );
-            fmt.setX( posx ); // + cell->padding_left
-            fmt.setWidth( w ); //  - cell->padding_left - cell->padding_right
-            fmt.setHeight( caption_h ); // - cell->padding_top - cell->padding_bottom
+            RenderRectAccessor fmt( caption );
+            fmt.setX( table_border_left );
+            fmt.setY( table_h );
+            fmt.setWidth( w ); // fmt.width must be set before 'caption->renderFinalBlock'
+                               // to have text-indent in % not mess up at render time
+            int padding_left = lengthToPx( caption->getStyle()->padding[0], w, em ) + measureBorder(caption, 3);
+            int padding_right = lengthToPx( caption->getStyle()->padding[1], w, em ) + measureBorder(caption,1);
+            int padding_top = lengthToPx( caption->getStyle()->padding[2], w, em ) + measureBorder(caption,0);
+            int padding_bottom = lengthToPx( caption->getStyle()->padding[3], w, em ) + measureBorder(caption,2);
+            caption_h = caption->renderFinalBlock( txform, &fmt, w - padding_left - padding_right );
+            caption_h += padding_top + padding_bottom;
+            fmt.setHeight( caption_h );
             fmt.push();
+            table_h += caption_h;
         }
+        table_h += table_padding_top; // padding top applies after caption
+        if (nb_rows > 0) {
+            // There must be the full borderspacing_v above first row.
+            // Includes half of it here, and the other half when adding the row
+            table_h += borderspacing_v_bottom;
+        }
+        if (splitPages) {
+            // Includes table border top + full caption if any + table padding
+            // top + half of borderspacing_v.
+            // We ask for a split between these and the first row to be avoided,
+            // but if it can't, padding-top will be on previous page, leaving
+            // more room for the big first row on next page.
+            // Any table->style->page-break-before AVOID or ALWAYS has been
+            // taken care of by renderBlockElement(), so we can use AVOID here.
+            line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            context.AddLine(last_y, table_y0 + table_h, line_flags);
+            last_y = table_y0 + table_h;
+        }
+
         int i, j;
-        // calc individual cells dimensions
+        // Calc individual cells dimensions
         for (i=0; i<rows.length(); i++) {
             CCRTableRow * row = rows[i];
             for (j=0; j<rows[i]->cells.length(); j++) {
                 CCRTableCell * cell = rows[i]->cells[j];
                 //int x = cell->col->index;
                 int y = cell->row->index;
-                int n=rows[i]->cells.length();
-                int delta=(table_padding_left+table_padding_right+bsp_h)/n;
-                if ( i==y ) {
-                    //upper left corner of cell
-
-                    // If last cell of a row and border_collapse: increase cell width (whether final or block)
-                    if (border_collapse&&j==rows[i]->cells.length()-1) cell->width+=measureBorder(cell->elem,1);
-
+                int n = rows[i]->cells.length();
+                if ( i==y ) { // upper left corner of cell
                     RenderRectAccessor fmt( cell->elem );
-                    if ( cell->elem->getRendMethod()==erm_final ) {
+                    // TRs padding and border don't apply (see below), so they
+                    // don't add any x/y shift to the cells' positions in the TR
+                    fmt.setX(cell->col->x); // relative to its TR (border_spacing_h is
+                                            // already accounted in col->x)
+                    fmt.setY(0); // relative to its TR
+                    fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
+                    // We need to render the cell to get its height
+                    if ( cell->elem->getRendMethod() == erm_final ) {
                         LFormattedTextRef txform;
-                        int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - cell->padding_left - cell->padding_right-delta-bsp_h*(100+100/n)/100);
-                        cell->height = h + cell->padding_top + cell->padding_bottom+measureBorder(cell->elem,0)+measureBorder(cell->elem,2);
-                        fmt.setY( posy +table_padding_top+bsp_v); //cell->padding_top ); //cell->row->y - cell->row->y );
-                        fmt.setX( cell->col->x+posx+table_padding_left-delta*j+bsp_h); // + cell->padding_left
-                        fmt.setWidth( cell->width); //  - cell->padding_left - cell->padding_right
-                        fmt.setHeight( cell->height); // - cell->padding_top - cell->padding_bottom
+                        int em = cell->elem->getFont()->getSize();
+                        int padding_left = lengthToPx( cell->elem->getStyle()->padding[0], cell->width, em ) + measureBorder(cell->elem,3);
+                        int padding_right = lengthToPx( cell->elem->getStyle()->padding[1], cell->width, em ) + measureBorder(cell->elem,1);
+                        int padding_top = lengthToPx( cell->elem->getStyle()->padding[2], cell->width, em ) + measureBorder(cell->elem,0);
+                        int padding_bottom = lengthToPx( cell->elem->getStyle()->padding[3], cell->width, em ) + measureBorder(cell->elem,2);
+                        int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - padding_left - padding_right);
+                        cell->height = h + padding_top + padding_bottom;
                     } else if ( cell->elem->getRendMethod()!=erm_invisible ) {
                         // We must use a different context (used by rendering
                         // functions to record, with context.AddLine(), each
@@ -766,21 +1282,25 @@ public:
                         // main context. Their heights will already be accounted
                         // in their row's height (added to main context below).
                         LVRendPageContext emptycontext( NULL, context.getPageHeight() );
-                        int h = renderBlockElement( emptycontext, cell->elem, posx, posy, cell->width-cell->padding_left-cell->padding_right );
+                        int h = renderBlockElement( emptycontext, cell->elem, 0, 0, cell->width);
                         cell->height = h;
-                        fmt.setY( posy ); //cell->row->y - cell->row->y );
-                        fmt.setX( cell->col->x+posx );
-                        fmt.setWidth( cell->width );
-                        fmt.setHeight( cell->height );
                     }
-                    if ( cell->rowspan==1 ) {
+                    fmt.setHeight( cell->height );
+                    // Some fmt.set* will be updated below
+                    #ifdef DEBUG_TABLE_RENDERING
+                        printf("TABLE: renderCell[%d,%d] w/h: %d/%d\n", j, i, cell->width, cell->height);
+                    #endif
+                    if ( cell->rowspan == 1 ) {
+                        // Only set row height from this cell height if it is rowspan=1
+                        // We'll update rows height from cells with rowspan > 1 just below
                         if ( row->height < cell->height )
                             row->height = cell->height;
                     }
                 }
             }
         }
-        // update rows by multyrow cell height
+
+        // Update rows heights from multi-row (rowspan > 1) cells height
         for (i=0; i<rows.length(); i++) {
             //CCRTableRow * row = rows[i];
             for (j=0; j<rows[i]->cells.length(); j++) {
@@ -810,91 +1330,153 @@ public:
                 }
             }
         }
+
         // update rows y and total height
-        int h = caption_h;
-        for (i=0; i<rows.length(); i++) {
+        //
+        // Notes:
+        // TR are not supposed to have margin or padding according
+        // to CSS 2.1 https://www.w3.org/TR/CSS21/box.html (they could
+        // in CSS 2, and may be in CSS 3, not clear), and Firefox ignores
+        // them too (no effet whatever value, with border-collapse or not).
+        // (If we have to support them, we could account for their top
+        // and bottom values here, but the left and right values would
+        // need to be accounted above while computing assignable_width for
+        // columns content. Given that each row can be styled differently
+        // with classNames, we may have different values for each row,
+        // which would make computing the assignable_width very tedious.)
+        //
+        // TR can have borders, but, tested on Firefox with various
+        // table styles:
+        //   - they are never displayed when NOT border-collapse
+        //   - with border-collapse, they are only displayed when
+        //     the border is greater than the TD ones, so when
+        //     collapsing is applied.
+        // So, we don't need to account for TR borders here either:
+        // we collapsed them to the cell if border-collapse,
+        // and we can just ignore them here, and not draw them in
+        // DrawDocument() (Former crengine code did draw the border,
+        // but it drew it OVER the cell content, for lack of accounting
+        // it in cells placement and content width.)
+        for (i=0; i<nb_rows; i++) {
+            table_h += borderspacing_v_top;
             CCRTableRow * row = rows[i];
-            row->y = h;
-            h+=row->height+bsp_v;
-            if (i==rows.length()-1&&!border_collapse)
-                h+=bsp_v+table_padding_bottom+table_padding_top;
-			if ( row->elem ) {
+            row->y = table_h;
+            // It can happen there is a row that does not map to
+            // a node (some are added at start of PlaceCells()),
+            // so check for row->elem to avoid a segfault
+            if ( row->elem ) {
                 RenderRectAccessor fmt( row->elem );
-                fmt.setX(measureBorder(row->elem,3));
-                fmt.setY(row->y + measureBorder(row->elem,0));
-                fmt.setWidth( width - measureBorder(row->elem,1) -measureBorder(row->elem,3));
+                // TR position relative to the TABLE. If it is contained in a table group
+                // (thead, tbody...), these will be adjusted below to be relative to it.
+                // (Here were previously added row->elem borders)
+                fmt.setX(table_border_left + table_padding_left);
+                fmt.setY(row->y);
+                fmt.setWidth( table_width - table_border_left - table_padding_left - table_padding_right - table_border_right );
                 fmt.setHeight( row->height );
             }
+            table_h += row->height;
+            table_h += borderspacing_v_bottom;
+            if (splitPages) {
+                // Includes the row and half of its border_spacing above and half below.
+                if (i == 0) { // first row (or single row)
+                    // Avoid a split between table top border/padding/caption and first row.
+                    // Also, the first row could be column headers: avoid a split between it
+                    // and the 2nd row. (Any other reason to do that?)
+                    line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+                    // Former code had:
+                    // line_flags |= CssPageBreak2Flags(getPageBreakBefore(elem))<<RN_SPLIT_BEFORE;
+                }
+                else if ( i==nb_rows-1 ) { // last row
+                    // Avoid a split between last row and previous to last (really?)
+                    // Avoid a split between last row and table bottom padding/border
+                    line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+                }
+                else {
+                    // Otherwise, allow any split between rows
+                    line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AUTO;
+                }
+                context.AddLine(last_y, table_y0 + table_h, line_flags);
+                last_y = table_y0 + table_h;
+            }
         }
-        // update cell Y relative to row element
-        // calc individual cells dimensions
+        if (nb_rows > 0) {
+            // There must be the full borderspacing_v below last row.
+            // Includes the last half of it here, as the other half was added
+            // above with the row.
+            table_h += borderspacing_v_top;
+        }
+        table_h += table_padding_bottom + table_border_bottom;
+        if (splitPages) {
+            // Any table->style->page-break-after AVOID or ALWAYS will be taken
+            // care of by renderBlockElement(), so we can use AVOID here.
+            line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            context.AddLine(last_y, table_y0 + table_h, line_flags);
+            last_y = table_y0 + table_h;
+        }
+
+        // Update each cell height to be its row height, so it can draw its
+        // bottom border where it should be: as the row border.
+        // We also apply table cells' vertical-align property.
         for (i=0; i<rows.length(); i++) {
-            //CCRTableRow * row = rows[i];
             for (j=0; j<rows[i]->cells.length(); j++) {
                 CCRTableCell * cell = rows[i]->cells[j];
                 //int x = cell->col->index;
                 int y = cell->row->index;
                 if ( i==y ) {
                     RenderRectAccessor fmt( cell->elem );
-                    //CCRTableCol * lastcol = cols[ cell->col->index + cell->colspan - 1 ];
-                    //fmt->setWidth( lastcol->width + lastcol->x - cell->col->x - cell->padding_left - cell->padding_right );
                     CCRTableRow * lastrow = rows[ cell->row->index + cell->rowspan - 1 ];
-                    fmt.setHeight( lastrow->height + lastrow->y - cell->row->y ); // - cell->padding_top - cell->padding_bottom
+                    int row_h = lastrow->y + lastrow->height - cell->row->y;
+                    // Implement CSS property vertical-align for table cells
+                    // We have to format the cell with the row height for the borders
+                    // to be drawn at the correct positions: we can't just use
+                    // fmt.setY(fmt.getY() + pad) below to implement vertical-align.
+                    // We have to shift down the cell content itself
+                    int cell_h = fmt.getHeight(); // original height that fit cell content
+                    fmt.setHeight( row_h );
+                    if ( cell->valign && cell_h < row_h ) {
+                        int pad = 0;
+                        if (cell->valign == 1) // center
+                            pad = (row_h - cell_h)/2;
+                        else if (cell->valign == 2) // bottom
+                            pad = (row_h - cell_h);
+                        if ( cell->elem->getRendMethod() == erm_final ) {
+                            // We need to update the cell element padding-top to include this pad
+                            css_style_ref_t style = cell->elem->getStyle();
+                            css_style_ref_t newstyle(new css_style_rec_t);
+                            copystyle(style, newstyle);
+                            // If padding-top is a percentage, it is relative to
+                            // the *width* of the containing block
+                            int em = cell->elem->getFont()->getSize();
+                            int orig_padding_top = lengthToPx( style->padding[2], cell->width, em );
+                            newstyle->padding[2].type = css_val_screen_px;
+                            newstyle->padding[2].value = orig_padding_top + pad;
+                            cell->elem->setStyle(newstyle);
+                        } else if ( cell->elem->getRendMethod() != erm_invisible ) { // erm_block
+                            // We need to update each child fmt.y to include this pad
+                            for (int i=0; i<cell->elem->getChildCount(); i++) {
+                                ldomNode * item = cell->elem->getChildElementNode(i);
+                                if ( item ) {
+                                    RenderRectAccessor f( item );
+                                    f.setY( f.getY() + pad );
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        lvRect rect;
-        elem->getAbsRect(rect);
-        // split pages
-        if ( context.getPageList() != NULL ) {
-            //int break_before = CssPageBreak2Flags( node->getStyle()->page_break_before );
-            //int break_after = CssPageBreak2Flags( node->getStyle()->page_break_after );
-            //int break_inside = CssPageBreak2Flags( node->getStyle()->page_break_inside );
-            if ( caption && caption_h ) {
-                int line_flags = 0;  //TODO
-                int y0 = rect.top+table_padding_top+(border_collapse?0:posy); // start of row
-                int y1 = rect.top + caption_h + posy+table_padding_top; // end of row
-                line_flags |= RN_SPLIT_AUTO << RN_SPLIT_BEFORE;
-                line_flags |= RN_SPLIT_AVOID << RN_SPLIT_AFTER;
-                context.AddLine(y0,
-                    y1, line_flags);
-            }
-            int count = rows.length();
-            for (int i=0; i<count; i++)
-            {
-                CCRTableRow * row = rows[ i ];
-                int line_flags = 0;  //TODO
-                int y0 = rect.top + row->y +table_padding_top+bsp_v+posy;// start of row
-                int y1 = rect.top + row->y + row->height +bsp_v+table_padding_top+posy; // end of row
-                if ( i==count-1) {
-                    line_flags |= RN_SPLIT_AVOID << RN_SPLIT_BEFORE;
-                   if (border_collapse)
-                       y1 += measureBorder(elem,2);
-                } else
-                    line_flags |= RN_SPLIT_AUTO << RN_SPLIT_BEFORE;
-                if ( i==0 ) {
-                    line_flags |= RN_SPLIT_AVOID << RN_SPLIT_AFTER;
-                    line_flags |= CssPageBreak2Flags(getPageBreakBefore(elem))<<RN_SPLIT_BEFORE;
-                    if(border_collapse&&!caption) y0 -= posy;
-
-                } else
-                    line_flags |= RN_SPLIT_AUTO << RN_SPLIT_AFTER;
-                //if (i==0)
-                //    line_flags |= break_before << RN_SPLIT_BEFORE;
-                //else
-                //    line_flags |= break_inside << RN_SPLIT_BEFORE;
-                //if (i==count-1)
-                //    line_flags |= break_after << RN_SPLIT_AFTER;
-                //else
-                //    line_flags |= break_inside << RN_SPLIT_AFTER;
-
-                context.AddLine(y0,
-                    y1, line_flags);
-            }
-        }
-
-        // update row groups placement
+        // Update row groups (thead, tbody...) placement (we need to do that as
+        // these rowgroup elements are just block containers of the row elements,
+        // and they will be navigated by DrawDocument() to draw each child
+        // relative to its container: RenderRectAccessor X & Y are relative to
+        // the parent container top left corner)
+        //
+        // As mentionned above, rowgroups' margins and paddings should be
+        // ignored, and their borders are only used with border-collapse,
+        // and we collapsed them to the cells when we had to.
+        // So, we ignore them here, and DrawDocument() will NOT draw their
+        // border.
         for ( int i=0; i<rowgroups.length(); i++ ) {
             CCRTableRowGroup * grp = rowgroups[i];
             if ( grp->rows.length() > 0 ) {
@@ -904,7 +1486,7 @@ public:
                 fmt.setY( y0 );
                 fmt.setHeight( y1 - y0 );
                 fmt.setX( 0 );
-                fmt.setWidth( width );
+                fmt.setWidth( table_width );
                 for ( int j=0; j<grp->rows.length(); j++ ) {
                     // make row Y position relative to group
                     RenderRectAccessor rowfmt( grp->rows[j]->elem );
@@ -913,22 +1495,34 @@ public:
             }
         }
 
-
-        return h + measureBorder(elem,0) +measureBorder(elem,2);
+        return table_h;
     }
 
-    CCRTable(ldomNode * tbl_elem, int tbl_width, int dwidth) : digitwidth(dwidth) {
+    CCRTable(ldomNode * tbl_elem, int tbl_width, bool tbl_shrink_to_fit, int dwidth) : digitwidth(dwidth) {
         currentRowGroup = NULL;
         caption = NULL;
         caption_h = 0;
         elem = tbl_elem;
-        width = tbl_width;
+        table_width = tbl_width;
+        shrink_to_fit = tbl_shrink_to_fit;
+        #ifdef DEBUG_TABLE_RENDERING
+            printf("TABLE: ============ parsing new table %s\n",
+                UnicodeToLocal(ldomXPointer(elem, 0).toString()).c_str());
+        #endif
         LookupElem( tbl_elem, 0 );
         PlaceCells();
     }
 };
 
-
+int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int width, bool shrink_to_fit, int & fitted_width )
+{
+    CR_UNUSED2(x, y);
+    CCRTable table( node, width, shrink_to_fit, 10 );
+    int h = table.renderCells( context );
+    if (shrink_to_fit)
+        fitted_width = table.table_width;
+    return h;
+}
 
 void freeFormatData( ldomNode * node )
 {
@@ -2226,33 +2820,81 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     // ??? not sure
                     if ( isFootNoteBody )
                         context.enterFootNote( enode->getAttributeValue(attr_id) );
-                    // recurse all sub-blocks for blocks
-                    int y = 0;
                     lvRect r;
-                    enode->getAbsRect(r);
-                    lString16 name=enode->getNodeName();
-                    bool TableCollapse=false;
-                    if(name.lowercase().compare("table")==0&&enode->getStyle()->border_collapse==css_border_collapse){
-                        TableCollapse=true;
+                    enode->getAbsRect(r); // this will get as r.top the absolute Y from
+                                          // the relative fmt.setY( y ) we did above.
+                    // Was: if (margin_top>0)
+                    // but add it even if 0-margin to carry node's page-break-before ALWAYS
+                    // or AVOID, so renderTable doesn't have to care about it and can
+                    // use AVOID on its first AddLine()
+                    context.AddLine(r.top - margin_top, r.top, pagebreakhelper(enode,width));
+                    // (margin_top has already been added to make r.top, so we substracted it here)
+                    // renderTable() deals itself with the table borders and paddings
+
+                    // We allow a table to shrink width (cells to shrink to their content),
+                    // unless they have a width specified.
+                    // This can be tweaked with:
+                    //   table {width: 100% !important} to have tables take the full available width
+                    //   table {width: auto !important} to have tables shrink to their content
+                    bool shrink_to_fit = false;
+                    int fitted_width = -1;
+                    int table_width = width;
+                    int specified_width = lengthToPx( enode->getStyle()->width, width, em );
+                    if (specified_width <= 0) {
+                        // We get 0 when width unspecified (not set or when "width: auto"):
+                        // use container width, but allow table to shrink
+                        // XXX Should this only be done when explicit
+                        //  (css_val_unspecified, css_generic_auto) ?
+                        shrink_to_fit = true;
                     }
-                    if (margin_top>0) context.AddLine(r.top-margin_top, r.top-1, pagebreakhelper(enode,width));
-                    if (padding_top>0&&!TableCollapse) context.AddLine(r.top,r.top+padding_top-1,pagebreakhelper(enode,width));
-                    int h = renderTable( context, enode, 0, y, width );
-                    y += h;
-                    int st_y = lengthToPx( enode->getStyle()->height, em, em );
-                    if ( y < st_y )
-                        y = st_y;
-                    fmt.setHeight( y ); //+ margin_top + margin_bottom ); //???
-                    // ??? not sure
-                    lvRect rect;
-                    enode->getAbsRect(rect);
-                    if(padding_bottom>0&&!TableCollapse)
-                        context.AddLine(y+rect.top-padding_bottom,y+rect.top,RN_SPLIT_AFTER_AUTO);
-                    if(margin_bottom>0)
-                        context.AddLine(y+rect.top+1,y+rect.top+margin_bottom,RN_SPLIT_AFTER_AUTO);;
+                    else {
+                        if (specified_width > width)
+                            specified_width = width;
+                        table_width = specified_width;
+                    }
+                    int h = renderTable( context, enode, 0, y, table_width, shrink_to_fit, fitted_width );
+                    // Should we really apply a specified height ?!
+                    int st_h = lengthToPx( enode->getStyle()->height, em, em );
+                    if ( h < st_h )
+                        h = st_h;
+                    fmt.setHeight( h );
+                    // Update table width if it was fitted/shrunk
+                    if (shrink_to_fit && fitted_width > 0)
+                        table_width = fitted_width;
+                    fmt.setWidth( table_width );
+                    if (table_width < width) {
+                        // See for margin: auto, to center or align right the table
+                        int shift_x = 0;
+                        css_length_t m_left = enode->getStyle()->margin[0];
+                        css_length_t m_right = enode->getStyle()->margin[1];
+                        bool left_auto = m_left.type == css_val_unspecified && m_left.value == css_generic_auto;
+                        bool right_auto = m_right.type == css_val_unspecified && m_right.value == css_generic_auto;
+                        if (left_auto) {
+                            if (right_auto) { // center align
+                                shift_x = (width - table_width)/2;
+                            }
+                            else { // right align
+                                shift_x = (width - table_width);
+                            }
+                        }
+                        if (shift_x) {
+                            fmt.setX( fmt.getX() + shift_x );
+                        }
+                    }
+
+                    fmt.push();
+                    enode->getAbsRect(r); // this will get as r.bottom the absolute Y after fmt.setHeight( y )
+
+                    // Was: if(margin_bottom>0)
+                    //   context.AddLine(r.bottom, r.bottom + margin_bottom, RN_SPLIT_AFTER_AUTO);;
+                    // but add it even if 0-margin to carry node's page-break-after ALWAYS
+                    // or AVOID, so renderTable doesn't have to care about it and can
+                    // use AVOID on its last AddLine()
+                    int pb_flag = RN_SPLIT_BEFORE_AVOID | CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER;
+                    context.AddLine(r.bottom, r.bottom + margin_bottom, pb_flag);
                     if ( isFootNoteBody )
                         context.leaveFootNote();
-                    return y + margin_top + margin_bottom; // return block height
+                    return h + margin_top + margin_bottom; // return block height
                 }
                 break;
             case erm_block:
@@ -3082,6 +3724,10 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         RenderRectAccessor fmt( enode );
         doc_x += fmt.getX();
         doc_y += fmt.getY();
+        lvdom_element_render_method rm = enode->getRendMethod();
+        // A few things differ when done for TR, THEAD, TBODY and TFOOT
+        bool isTableRowLike = rm == erm_table_row || rm == erm_table_row_group ||
+                              rm == erm_table_header_group || rm == erm_table_footer_group;
         int em = enode->getFont()->getSize();
         int width = fmt.getWidth();
         int height = fmt.getHeight();
@@ -3090,17 +3736,20 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
         int padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
         //int padding_bottom = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW;
-        if ( (doc_y + height <= 0 || doc_y > 0 + dy)
-            && (
-               enode->getRendMethod()!=erm_table_row
-               && enode->getRendMethod()!=erm_table_row_group
-            ) ) //0~=y0
-        {
+        if ( (doc_y + height <= 0 || doc_y > 0 + dy) && !isTableRowLike ) {
+            // TR may have cells with rowspan>1, and even though this TR
+            // is out of range, it must draw a rowspan>1 cell, so it it
+            // not empty when a next TR (not out of range) is drawn.
             return; // out of range
         }
         css_length_t bg = enode->getStyle()->background_color;
         lUInt32 oldColor = 0;
-        if ( bg.type==css_val_color ) {
+        // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
+        // override bgcolor of cells with rowspan > 1. We spread, in setNodeStyle(),
+        // the TR bgcolor to its TDs that must have it, as it should be done (the
+        // border spacing between cells does not have the bg color of the TR: only
+        // cells have it).
+        if ( bg.type==css_val_color && !isTableRowLike ) {
             oldColor = drawbuf.GetBackgroundColor();
             drawbuf.SetBackgroundColor( bg.value );
             drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
@@ -3180,7 +3829,11 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1,
                                       doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), tableBorderColorDark );
                 }*/
-                 DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                // Don't draw border for TR TBODY... as their borders are never directly
+                // rendered by Firefox (they are rendered only when border-collapse, when
+                // they did collapse to the cell, and made out the cell border)
+                if ( !isTableRowLike )
+                    DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
             	}
             break;
         case erm_list_item: // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
@@ -3558,7 +4211,30 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     spreadParent( pstyle->letter_spacing, parent_style->letter_spacing );
     spreadParent( pstyle->line_height, parent_style->line_height, false ); // css_val_unspecified is a valid unit
     spreadParent( pstyle->color, parent_style->color );
-    spreadParent( pstyle->background_color, parent_style->background_color, false ); // css_val_unspecified means no bg color
+
+    // background_color
+    // Should not be inherited: elements start with unspecified.
+    // The code will fill the rect of a parent element, and will
+    // simply draw its children over the already filled rect.
+    bool spread_background_color = false;
+    // But for some elements, it should be propagated to children,
+    // and we explicitely don't have the parent fill the rect with
+    // its background-color:
+    // - a TD or TH with unspecified background-color does inherit
+    //   it from its parent TR. We don't draw bgcolor for TR.
+    if ( pstyle->display == css_d_table_cell )
+        spread_background_color = true;
+    // - a TR with unspecified background-color may inherit it from
+    //   its THEAD/TBODY/TFOOT parent (but not from its parent TABLE).
+    //   It may then again be propagated to the TD by the previous rule.
+    //   We don't draw bgcolor for THEAD/TBODY/TFOOT.
+    if ( pstyle->display == css_d_table_row &&
+            ( parent_style->display == css_d_table_row_group ||
+              parent_style->display == css_d_table_header_group ||
+              parent_style->display == css_d_table_footer_group ) )
+        spread_background_color = true;
+    if ( spread_background_color )
+        spreadParent( pstyle->background_color, parent_style->background_color, true );
 
     // set calculated style
     //enode->getDocument()->cacheStyle( style );
@@ -3570,15 +4246,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     // set font
     enode->initNodeFont();
-}
-
-int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int width )
-{
-    CR_UNUSED2(x, y);
-    CCRTable table( node, width, 10 );
-    int h = table.renderCells( context );
-
-    return h;
 }
 
 // Uncomment for debugging getRenderedWidths():

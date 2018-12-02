@@ -33,7 +33,7 @@ void renderFinalBlock( ldomNode * node, LFormattedText * txform, RenderRectAcces
 /// renders block which contains subblocks
 int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int y, int width );
 /// renders table element
-int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width );
+int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit, int & fitted_width );
 /// sets node style
 void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font );
 

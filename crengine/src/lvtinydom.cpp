@@ -62,7 +62,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.17k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.18k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x000D
 
@@ -4876,8 +4876,12 @@ ldomElementWriter::~ldomElementWriter()
 /// ldomDocumentWriter
 // Used to parse expected XHTML (possibly made by crengine or helpers) for
 // formats: FB2, RTF, WORD, plain text, PDB(txt)
-// Used for EPUB to build a single document, but driven by ldomDocumentFragmentWriter
+// Also used for EPUB to build a single document, but driven by ldomDocumentFragmentWriter
 // for each individual HTML files in the EPUB.
+// For all these document formats, it is fed by HTMLParser that does
+// convert to lowercase the tag names and attributes.
+// ldomDocumentWriter does not do any auto-close of unbalanced tags and
+// expect a fully correct and balanced XHTML.
 
 // overrides
 void ldomDocumentWriter::OnStart(LVFileFormatParser * parser)
@@ -8986,6 +8990,10 @@ void ldomDocumentFragmentWriter::OnTagBody()
 /////////////////////////////////////////////////////////////////
 /// ldomDocumentWriterFilter
 // Used to parse loosy HTML in formats: HTML, CHM, PDB(html)
+// For all these document formats, it is fed by HTMLParser that does
+// convert to lowercase the tag names and attributes.
+// ldomDocumentWriterFilter does then deal with auto-closing unbalanced
+// HTML tags according to the rules set in crengine/src/lvxml.cpp HTML_AUTOCLOSE_TABLE[]
 
 /** \brief callback object to fill DOM tree
 
@@ -9183,6 +9191,20 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar16 * nsname, const lChar1
 
     //CRLog::trace("OnAttribute(%s, %s)", LCSTR(lString16(attrname)), LCSTR(lString16(attrvalue)));
 
+    // ldomDocumentWriterFilter is used for HTML/CHM/PDB (not with EPUBs).
+    // We translate some attributes (now possibly deprecated) to their
+    // CSS style equivalent, globally or for some elements only.
+    // https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+    lUInt16 id = _currNode->_element->getNodeId();
+
+    // Not sure this is to be done here: we get attributes as they are read,
+    // so possibly before or after a style=, that the attribute may override.
+    // Hopefully, a document use either one or the other.
+    // (Alternative: in lvrend.cpp when used, as fallback when there is
+    // none specified in node->getStyle().)
+
+    // HTML align= => CSS text-align:
+    // (done for all elements - should this be restricted to some specific elements?)
     if ( !lStr_cmp(attrname, "align") ) {
         lString16 align = lString16(attrvalue).lowercase();
         if ( align == L"justify")
@@ -9195,6 +9217,55 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar16 * nsname, const lChar1
             appendStyle( L"text-align: center" );
        return;
     }
+
+    // For the table & friends elements where we do support the following styles,
+    // we translate these deprecated attributes to their style equivalents:
+    //
+    // HTML valign= => CSS vertical-align: only for TH & TD (as lvrend.cpp
+    // only uses it with erm_table_cell)
+    if (id == el_th || id == el_td) {
+        // Default rendering for cells is valign=top
+        // There is no support for valign=baseline.
+        if ( !lStr_cmp(attrname, "valign") ) {
+            lString16 valign = lString16(attrvalue).lowercase();
+            if ( valign == L"middle" )
+                appendStyle( L"vertical-align: middle" );
+            else if ( valign == L"bottom")
+                appendStyle( L"vertical-align: bottom" );
+           return;
+        }
+    }
+    // HTML width= => CSS width: only for TH, TD and COL (as lvrend.cpp
+    // only uses it with erm_table_cell and erm_table_column)
+    // Note: with IMG, lvtextfm LFormattedText::AddSourceObject() only uses
+    // style, and not attributes: <img width=100 height=50> would not be used.
+    if (id == el_th || id == el_td || id == el_col) {
+        if ( !lStr_cmp(attrname, "width") ) {
+            lString16 val = lString16(attrvalue);
+            const wchar_t * s = val.c_str();
+            bool is_pct = false;
+            int n=0;
+            if (s && s[0]) {
+                for (int i=0; s[i]; i++) {
+                    if (s[i]>='0' && s[i]<='9') {
+                        n = n*10 + (s[i]-'0');
+                    } else if (s[i] == '%') {
+                        is_pct = true;
+                        break;
+                    }
+                }
+                if (n > 0) {
+                    val = lString16("width: ");
+                    val.appendDecimal(n);
+                    val += is_pct ? "%" : "px"; // CSS pixels
+                    appendStyle(val.c_str());
+                }
+            }
+            return;
+        }
+    }
+
+    // Othewise, add the attribute
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
     lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
 
