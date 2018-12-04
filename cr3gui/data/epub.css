@@ -44,6 +44,12 @@ p {
     margin-top: 0;
     margin-bottom: 0;
 }
+blockquote {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    margin-left: 2em;
+    margin-right: 2em;
+}
 hr {
     height: 2px;
     background-color: #808080;
