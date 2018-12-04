@@ -4617,17 +4617,16 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
             for (int i=0; i<chars_measured; i++) {
                 int w = widths[i] - (i>0 ? widths[i-1] : 0);
                 lChar16 c = *(txt + start + i);
-                /*
                 bool is_cjk = (c >= UNICODE_CJK_IDEOGRAPHS_BEGIN && c <= UNICODE_CJK_IDEOGRAPHS_END
                             && ( c<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN
                                 || c>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) );
-                    // May need to do something with CJK punctuation?
-                */
-                // Having CJK columns min_width the width of a single CJK char
-                // looks quite a bit uglier than when not dealing with them
-                // specifically. So we don't for now...
-                bool is_cjk = false;
-
+                            // Do we need to do something about CJK punctuation?
+                    // Having CJK columns min_width the width of a single CJK char
+                    // may, on some pages, make some table cells have a single
+                    // CJK char per line, which can look uglier than when not
+                    // dealing with them specifically (see with: bool is_cjk=false).
+                    // But Firefox does that too, may be a bit less radically than
+                    // us, so our table algorithm may need some tweaking...
                 if (flags[i] & LCHAR_ALLOW_WRAP_AFTER) { // A space
                     if (collapseNextSpace) // ignore this space
                         continue;
