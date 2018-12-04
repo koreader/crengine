@@ -1479,7 +1479,9 @@ public:
                             break;
                         }
                     }
-                    if (!avoidWrap) { // Look at preceding char(s)
+                    if (!avoidWrap && i < m_length-1) { // Look at preceding char(s)
+                        // (but not if it is the last char, where a wrap is fine
+                        // even if it ends after a CH_PROP_AVOID_WRAP_AFTER char)
                         for (int j = i-1; j >= 0; j--) {
                             if ( !(m_flags[j] & LCHAR_ALLOW_WRAP_AFTER) ) { // not another (collapsible) space
                                 avoidWrap = lGetCharProps(m_text[j]) & CH_PROP_AVOID_WRAP_AFTER;
