@@ -880,10 +880,10 @@ public:
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
     : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL), _size(0), _hyphen_width(0), _baseline(0)
     , _weight(400), _italic(0)
+    , _glyph_cache(globalCache), _drawMonochrome(false), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT), _fallbackFontIsSet(false)
 #if USE_HARFBUZZ==1
     , _glyph_cache2(256)
 #endif
-    , _glyph_cache(globalCache), _drawMonochrome(false), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT), _fallbackFontIsSet(false)
     {
         _matrix.xx = 0x10000;
         _matrix.yy = 0x10000;
@@ -912,7 +912,7 @@ public:
 #if USE_HARFBUZZ==1
         LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::pair* pair;
         LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::iterator it = _glyph_cache2.forwardIterator();
-        while (pair = it.next()) {
+        while ((pair = it.next())) {
             LVFontGlyphIndexCacheItem* item = pair->value;
             if (item)
                 LVFontGlyphIndexCacheItem::freeItem(item);
@@ -1152,11 +1152,11 @@ public:
     }
 
 #if USE_HARFBUZZ==1
-    lChar16 filterChar(register lChar16 code) {
-        register lChar16 res;
+    lChar16 filterChar(lChar16 code) {
+        lChar16 res;
         if (code == '\t')
             code = ' ';
-        register FT_UInt ch_glyph_index = FT_Get_Char_Index(_face, code);
+        FT_UInt ch_glyph_index = FT_Get_Char_Index(_face, code);
         if ( ch_glyph_index==0 && code >= 0xF000 && code <= 0xF0FF) {
             // If no glyph found and code is among the private unicode
             // area classically used by symbol fonts (range U+F020-U+F0FF),
@@ -1291,17 +1291,17 @@ public:
             letter_spacing = MAX_LETTER_SPACING;
         }
 
-        register int i;
+        int i;
 
-        register lUInt16 prev_width = 0;
-        register int lastFitChar = 0;
+        lUInt16 prev_width = 0;
+        int lastFitChar = 0;
         updateTransform();
         // measure character widths
 
 #if USE_HARFBUZZ==1
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
 
-            register unsigned int glyph_count;
+            unsigned int glyph_count;
             hb_glyph_info_t* glyph_info = 0;
             hb_glyph_position_t* glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
@@ -1317,28 +1317,28 @@ public:
             glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, 0);
             glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, 0);
 #ifdef _DEBUG
-            if (glyph_count != len) {
+            if ((int)glyph_count != len) {
                 CRLog::debug(
                         "measureText(): glyph_count not equal source text length (ligature detected?), glyph_count=%d, len=%d",
                         glyph_count, len);
             }
 #endif
-            register int j;
-            register uint32_t cluster;
-            register uint32_t prev_cluster = 0;
-            for (i = 0; i < glyph_count; i++) {
+            uint32_t j;
+            uint32_t cluster;
+            uint32_t prev_cluster = 0;
+            for (i = 0; i < (int)glyph_count; i++) {
                 // Note: we use 'cluster' as an index similar to 'i' in 'text'
                 // but the docs warn about this, as it may be wrong with some "level"
                 // see https://harfbuzz.github.io/clusters.html for details
                 // But it seems to work in our case
                 cluster = glyph_info[i].cluster;
-                register lChar16 ch = text[cluster];
+                lChar16 ch = text[cluster];
                 // It seems each soft-hyphen is in its own cluster, of width 0,
                 // so HarfBuzz must already deal correctly with soft-hyphens.
                 // No need to do what we do in the Freetype alternative code below.
-                register bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
+                bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
                 flags[cluster] = GET_CHAR_FLAGS(ch); //calcCharFlags( ch );
-                register hb_codepoint_t ch_glyph_index = glyph_info[i].codepoint;
+                hb_codepoint_t ch_glyph_index = glyph_info[i].codepoint;
                 if (0 != ch_glyph_index)        // glyph found for this char in this font
                     widths[cluster] = prev_width + (glyph_pos[i].x_advance >> 6) + letter_spacing;
                 else {
@@ -1375,8 +1375,8 @@ public:
                 }
             }
             // For case when ligature is the last glyph in measured text
-            if (prev_cluster < len - 1 && prev_width < max_width) {
-                for (j = prev_cluster + 1; j < len; j++) {
+            if (prev_cluster < (uint32_t)(len - 1) && prev_width < (lUInt16)max_width) {
+                for (j = prev_cluster + 1; j < (uint32_t)len; j++) {
                     flags[j] = GET_CHAR_FLAGS(text[j]);
                     widths[j] = prev_width;
                 }
@@ -1387,8 +1387,8 @@ public:
                // fallback to the non harfbuzz code
 #endif // USE_HARFBUZZ
 
-        register FT_UInt previous = 0;
-        register int error;
+        FT_UInt previous = 0;
+        int error;
 #if (ALLOW_KERNING==1)
         int use_kerning = _kerningMode != KERNING_MODE_DISABLED && FT_HAS_KERNING( _face );
 #endif
@@ -1476,7 +1476,7 @@ public:
             if ( lastFitChar > 3 ) {
                 int hwStart, hwEnd;
                 lStr_findWordBounds( text, len, lastFitChar-1, hwStart, hwEnd );
-                if ( hwStart < lastFitChar-1 && hwEnd > hwStart+3 ) {
+                if ( hwStart < (int)(lastFitChar-1) && hwEnd > hwStart+3 ) {
                     //int maxw = max_width - (hwStart>0 ? widths[hwStart-1] : 0);
                     HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
                 }
@@ -1702,23 +1702,23 @@ public:
         if ( y + _height < clip.top || y >= clip.bottom )
             return;
 
-        register int i;
+        unsigned int i;
         //lUInt16 prev_width = 0;
-        register lChar16 ch;
+        lChar16 ch;
         // measure character widths
-        register bool isHyphen = false;
+        bool isHyphen = false;
         int x0 = x;
 #if USE_HARFBUZZ==1
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
             hb_glyph_info_t *glyph_info = 0;
             hb_glyph_position_t *glyph_pos = 0;
-            register unsigned int glyph_count;
-            register int w;
-            register int len_new = 0;
+            unsigned int glyph_count;
+            int w;
+            unsigned int len_new = 0;
             hb_buffer_clear_contents(_hb_buffer);
             hb_buffer_set_replacement_codepoint(_hb_buffer, 0);
             // fill HarfBuzz buffer with filtering
-            for (i = 0; i < len; i++) {
+            for (i = 0; i < (unsigned int)len; i++) {
                 ch = text[i];
                 // don't draw any soft hyphens inside text string
                 bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
@@ -1794,11 +1794,11 @@ public:
 #endif // USE_HARFBUZZ
 
         FT_UInt previous = 0;
-        register int error;
+        int error;
 #if (ALLOW_KERNING==1)
         int use_kerning = _kerningMode != KERNING_MODE_DISABLED && FT_HAS_KERNING( _face );
 #endif
-        for ( i=0; i<=len; i++) {
+        for ( i=0; i<=(unsigned int)len; i++) {
             if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
