@@ -4765,10 +4765,10 @@ void LVDocView::getCurrentPageLinks(ldomXRangeList & list) {
 		// search for links
 		class LinkKeeper: public ldomNodeCallback {
 			ldomXRangeList &_list;
-			bool check_first_text_node_parents_done = false;
+			bool check_first_text_node_parents_done;
 		public:
-			LinkKeeper(ldomXRangeList & list) :
-				_list(list) {
+			LinkKeeper(ldomXRangeList & list) : _list(list) {
+				check_first_text_node_parents_done = false;
 			}
 			/// called for each found text fragment in range
 			virtual void onText(ldomXRange * r) {

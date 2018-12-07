@@ -1441,15 +1441,16 @@ public:
                     break;
                 }
                 bool grabbedExceedingSpace = false;
-                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - firstCharMargin)
+                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - firstCharMargin) {
                     // It's possible the char at i is a space whose width exceeds maxWidth,
                     // but it should be a candidate for lastNormalWrap (otherwise, the
                     // previous word will be hyphenated and we will get spaces widen for
                     // text justification)
-                    if ( flags & LCHAR_ALLOW_WRAP_AFTER ) // don't break yet
+                    if ( (flags & LCHAR_ALLOW_WRAP_AFTER) && !(flags & LCHAR_IS_OBJECT) ) // don't break yet
                         grabbedExceedingSpace = true;
                     else
                         break;
+                }
                 // Note: upstream has added in:
                 //   https://github.com/buggins/coolreader/commit/e2a1cf3306b6b083467d77d99dad751dc3aa07d9
                 // to the next if:

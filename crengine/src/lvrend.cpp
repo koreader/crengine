@@ -310,6 +310,7 @@ public:
                 //CRLog::trace("LookupElem[%d] (%s, %d) %d", i, LCSTR(item->getNodeName()), state, (int)item->getRendMethod() );
                 switch ( rendMethod ) {
                 case erm_invisible:  // invisible: don't render
+                case erm_killed:     // no room to render element
                     // do nothing: invisible
                     break;
                 case erm_table:      // table element: render as table
