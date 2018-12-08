@@ -322,6 +322,8 @@ public:
     lUInt16 * m_charindex;
     int *     m_widths;
     int m_y;
+    int m_max_img_height;
+    bool m_has_images;
 
 #define OBJECT_CHAR_INDEX ((lUInt16)0xFFFF)
 
@@ -333,6 +335,8 @@ public:
         m_srcs = NULL;
         m_charindex = NULL;
         m_widths = NULL;
+        m_has_images = false,
+        m_max_img_height = -1;
     }
 
     ~LVFormatter()
@@ -349,6 +353,23 @@ public:
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
             if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
                 pos++;
+                if (!m_has_images) {
+                    // Compute images max height only when we meet an image,
+                    // and only for the first one as it's the same for all
+                    // images in this paragraph
+                    ldomNode * node = (ldomNode *) src->object;
+                    if ( node && !node->isNull() ) {
+                        // We have to limit the image height so that the line
+                        // that contains it does fit in the page without any
+                        // uneeded page break
+                        m_max_img_height = m_pbuffer->page_height;
+                        // remove parent nodes' margin/border/padding
+                        m_max_img_height -= node->getSurroundingAddedHeight();
+                        // remove height taken by the strut baseline
+                        m_max_img_height -= (m_pbuffer->strut_height - m_pbuffer->strut_baseline);
+                        m_has_images = true;
+                    }
+                }
             } else {
                 pos += src->t.len;
             }
@@ -760,7 +781,7 @@ public:
                     int height = m_srcs[start]->o.height;
                     width=width<0?-width*(m_pbuffer->width)/100:width;
                     height=height<0?-height*(m_pbuffer->width)/100:height;
-                    resizeImage(width, height, m_pbuffer->width, m_pbuffer->page_height, m_length>1);
+                    resizeImage(width, height, m_pbuffer->width, m_max_img_height, m_length>1);
                     lastWidth += width;
                     m_widths[start] = lastWidth;
                 }
@@ -1062,8 +1083,8 @@ public:
                     int height = lastSrc->o.height;
                     width = width<0? -width*(m_pbuffer->width-x)/100 : width;
                     height = height<0? -height*(m_pbuffer->width-x)/100 : height;
-
-                    resizeImage(width, height, m_pbuffer->width - x, m_pbuffer->page_height, m_length>1);
+                    // todo: adjust m_max_img_height with this image valign_dy/vertical_align
+                    resizeImage(width, height, m_pbuffer->width - x, m_max_img_height, m_length>1);
                     word->width = width;
                     word->o.height = height;
 
