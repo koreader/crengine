@@ -884,6 +884,8 @@ public:
     lString16 getObjectImageRefName();
     /// returns object image stream
     LVStreamRef getObjectImageStream();
+    /// returns the sum of this node and its parents' top and bottom margins, borders and paddings
+    int getSurroundingAddedHeight();
     /// formats final block
     int renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width );
     /// formats final block again after change, returns true if size of block is changed

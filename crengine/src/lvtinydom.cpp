@@ -12875,6 +12875,29 @@ void ldomDocument::setNodeNumberingProps( lUInt32 nodeDataIndex, ListNumberingPr
     lists.set(nodeDataIndex, v);
 }
 
+/// returns the sum of this node and its parents' top and bottom margins, borders and paddings
+int ldomNode::getSurroundingAddedHeight()
+{
+    int h = 0;
+    ldomNode * n = this;
+    while (true) {
+        lvdom_element_render_method rm = n->getRendMethod();
+        if ( rm != erm_inline && rm != erm_invisible && rm != erm_killed) {
+            RenderRectAccessor fmt( n );
+            h += lengthToPx( n->getStyle()->margin[2], fmt.getWidth(), n->getFont()->getSize() ); // top margin
+            h += lengthToPx( n->getStyle()->margin[3], fmt.getWidth(), n->getFont()->getSize() ); // bottom margin
+            h += lengthToPx( n->getStyle()->padding[2], fmt.getWidth(), n->getFont()->getSize() ); // top padding
+            h += lengthToPx( n->getStyle()->padding[3], fmt.getWidth(), n->getFont()->getSize() ); // bottom padding
+            h += measureBorder(n, 0); // top border
+            h += measureBorder(n, 2); // bottom border
+        }
+        n = n->getParentNode();
+        if ( !n || n->isNull() )
+            break;
+    }
+    return h;
+}
+
 /// formats final block
 // 'fmt' is the rect of the block node, and MUST have its width set
 // (as ::renderFinalBlock( this, f.get(), fmt...) needs it to compute text-indent in %
@@ -12904,7 +12927,6 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     /// render whole node content as single formatted object
     int flags = styleToTextFmtFlags( getStyle(), 0 );
     ::renderFinalBlock( this, f.get(), fmt, flags, 0, 16 );
-    int page_h = getDocument()->getPageHeight();
     cache.set( this, f );
     bool flg=gFlgFloatingPunctuationEnabled;
     if (this->getNodeName()=="th"||this->getNodeName()=="td"||
@@ -12913,6 +12935,8 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     {
         gFlgFloatingPunctuationEnabled=false;
     }
+    // This page_h we provide to f->Format() is only used to enforce a max height to images
+    int page_h = getDocument()->getPageHeight();
     int h = f->Format((lUInt16)width, (lUInt16)page_h);
     gFlgFloatingPunctuationEnabled=flg;
     frmtext = f;
