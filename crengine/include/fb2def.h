@@ -123,6 +123,10 @@ XS_TAG1I( strong )
 XS_TAG1I( sub )
 XS_TAG1I( sup )
 
+// EPUB3 elements (in ns_epub - otherwise set to inline like any unknown element)
+XS_TAG1I( switch )  // <epub:switch>
+XS_TAG1I( case )    // <epub:case required-namespace="...">
+XS_TAG1I( default ) // <epub:default>
 
 // FB2 elements
 XS_TAG1( FictionBook )
@@ -227,6 +231,7 @@ XS_NS( xsi )
 XS_NS( xmlns )
 XS_NS( xlink )
 XS_NS( xs )
+XS_NS( epub )
 
 XS_END_NS
 
