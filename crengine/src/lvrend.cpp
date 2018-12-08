@@ -4048,6 +4048,21 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
+    if (enode->getNodeNsId() == ns_epub) {
+        if (enode->getNodeId() == el_case) { // <epub:case required-namespace="...">
+            // As we don't support any specific namespace (like MathML, SVG...), just
+            // hide <epub:case> content - it must be followed by a <epub:default>
+            // section with usually regular content like some image.
+            ldomNode * parent = enode->getParentNode();
+            if (parent && parent->getNodeNsId() == ns_epub && parent->getNodeId() == el_switch) {
+                // (We can't here check parent's other children for the presence of one
+                // el_default, as we can be called while XML is being parsed and the DOM
+                // built and siblings not yet there, so just trust there is an el_default.)
+                pstyle->display = css_d_none;
+            }
+        }
+    }
+
     // not used (could be used for 'rem', but we have it in gRootFontSize)
     // int baseFontSize = enode->getDocument()->getDefaultFont()->getSize();
 
