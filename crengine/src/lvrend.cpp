@@ -196,6 +196,8 @@ public:
     int width;
     int percent;
     int max_width;
+    int sum_max_content_width;
+    int nb_sum_max_content_width;
     int min_width;
     int nrows;
     int x;      // sum of previous col widths
@@ -207,6 +209,8 @@ public:
     , width(0)
     , percent(0)
     , max_width(0)
+    , sum_max_content_width(0)
+    , nb_sum_max_content_width(0)
     , min_width(0)
     , nrows(0)
     , x(0) // sum of previous col widths
@@ -758,6 +762,8 @@ public:
                 #endif
                 int x0 = cell->col->index;
                 if (cell->colspan == 1) {
+                    cols[x0]->sum_max_content_width += cell->max_content_width;
+                    cols[x0]->nb_sum_max_content_width += 1;
                     // Update cols max/min widths only for colspan=1 cells
                     if ( cell->max_content_width > cols[x0]->max_width )
                         cols[x0]->max_width = cell->max_content_width;
@@ -844,6 +850,16 @@ public:
                                 x0+nbspans-1, to_distribute, distributed, to_distribute - distributed,
                                 cols[x0+nbspans-1]->max_width);
                         #endif
+                    }
+                    // Also distribute to sum_max_content_width
+                    for (int x=0; x<nbspans; x++) {
+                        int this_dist;
+                        if (cols_max_width > 0)
+                            this_dist = cell->max_content_width * cols[x0+x]->max_width / cols_max_width;
+                        else
+                            this_dist = cell->max_content_width / nbspans;
+                        cols[x0+x]->sum_max_content_width += this_dist;
+                        cols[x0+x]->nb_sum_max_content_width += 1;
                     }
                 }
             }
@@ -936,7 +952,8 @@ public:
         }
         // calc width by percents
         sumwidth = 0;
-        int sumautomaxwidth = 0;
+        int sum_auto_max_width = 0;
+        int sum_auto_mean_max_content_width = 0;
         nwidth = 0;
         for (i=0; i<cols.length(); i++) {
             if (cols[i]->percent>0) {
@@ -948,7 +965,8 @@ public:
                 sumwidth += cols[i]->width;
                 nwidth++;
             } else if (cols[i]->max_width>0) {
-                sumautomaxwidth += cols[i]->max_width;
+                sum_auto_max_width += cols[i]->max_width;
+                sum_auto_mean_max_content_width += cols[i]->sum_max_content_width / cols[i]->nb_sum_max_content_width;
             }
         }
         #ifdef DEBUG_TABLE_RENDERING
@@ -965,10 +983,19 @@ public:
         // new pass: convert text len percent into width
         for (i=0; i<cols.length(); i++) {
             if (cols[i]->width==0) { // unspecified (or width scaled down and rounded to 0)
-                // Distribute remaining width according to max_width ratio
+                // We have multiple options:
+                // Either distribute remaining width according to max_width ratio
                 // (so larger content gets more width to use less height)
-                if (sumautomaxwidth > 0)
-                    cols[i]->width = cols[i]->max_width * restwidth / sumautomaxwidth;
+                //     if (sum_auto_max_width > 0)
+                //         cols[i]->width = cols[i]->max_width * restwidth / sum_auto_max_width;
+                // Or better: distribute remaining width according to the mean
+                // of cells' max_content_width, so a single large cell among
+                // many smaller cells doesn't request all the width for this
+                // column (which would give less to others, which could make
+                // them use more height). This should help getting more
+                // reasonable heights across all rows.
+                if (sum_auto_mean_max_content_width > 0)
+                    cols[i]->width = cols[i]->sum_max_content_width / cols[i]->nb_sum_max_content_width * restwidth / sum_auto_mean_max_content_width;
                 // else stays at 0
                 sumwidth += cols[i]->width;
                 nwidth++;
