@@ -241,9 +241,9 @@ class LVRendLineInfo {
     friend struct PageSplitState;
     LVFootNoteList * links; // 4 bytes
     int start;              // 4 bytes
-    lInt16 height;          // 2 bytes
+    int height;             // 4 bytes (we may get extra tall lines with tables TR)
 public:
-    lInt16 flags;           // 2 bytes
+    lUInt16 flags;          // 2 bytes
     int getSplitBefore() const { return (flags>>RN_SPLIT_BEFORE)&7; }
     int getSplitAfter() const { return (flags>>RN_SPLIT_AFTER)&7; }
 /*
@@ -273,7 +273,7 @@ public:
 
     LVRendLineInfo() : links(NULL), start(-1), height(0), flags(0) { }
     LVRendLineInfo( int line_start, int line_end, lUInt16 line_flags )
-    : links(NULL), start(line_start), height((lUInt16)(line_end-line_start)), flags(line_flags)
+    : links(NULL), start(line_start), height(line_end-line_start), flags(line_flags)
     {
     }
     LVFootNoteList * getLinks() { return links; }
