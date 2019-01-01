@@ -2689,22 +2689,30 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
     if ( enode->isElement() )
     {
         bool isFootNoteBody = false;
-        // One can have a glimpse at crengine internal footnotes rendering
-        // with Wikipedia EPUBs (where each footnote is in a <LI>) by
-        // uncomenting this:
-        // if ( enode->getNodeId()==el_li && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) )
-        //     if ( !enode->getAttributeValue(attr_id).empty() )
-        //         isFootNoteBody = true;
-        // and commenting below in renderBlockElement() this part of a test:
-        //   && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
-
+        lString16 footnoteId;
+        // Allow displaying footnote content at the bottom of all pages that contain a link
+        // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
+        if ( enode->getStyle()->cr_hint == css_cr_hint_footnote_inpage &&
+                    enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
+            footnoteId = enode->getFirstInnerAttributeValue(attr_id);
+            if ( !footnoteId.empty() )
+                isFootNoteBody = true;
+        }
+        // For fb2 documents. Description of the <body> element from FictionBook2.2.xsd:
+        //   Main content of the book, multiple bodies are used for additional
+        //   information, like footnotes, that do not appear in the main book
+        //   flow. The first body is presented to the reader by default, and
+        //   content in the other bodies should be accessible by hyperlinks. Name
+        //   attribute should describe the meaning of this body, this is optional
+        //   for the main body.
         if ( enode->getNodeId()==el_section && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
             ldomNode * body = enode->getParentNode();
             while ( body != NULL && body->getNodeId()!=el_body )
                 body = body->getParentNode();
             if ( body ) {
                 if (body->getAttributeValue(attr_name) == "notes" || body->getAttributeValue(attr_name) == "comments")
-                    if ( !enode->getAttributeValue(attr_id).empty() )
+                    footnoteId = enode->getAttributeValue(attr_id);
+                    if ( !footnoteId.empty() )
                         isFootNoteBody = true;
             }
         }
@@ -2714,6 +2722,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         //    crFatalError();
 //        if ( enode->getNodeId() == el_empty_line )
 //            x = x;
+
         int em = enode->getFont()->getSize();
         int margin_left = lengthToPx( enode->getStyle()->margin[0], width, em ) + DEBUG_TREE_DRAW;
         int margin_right = lengthToPx( enode->getStyle()->margin[1], width, em ) + DEBUG_TREE_DRAW;
@@ -2848,7 +2857,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 {
                     // ??? not sure
                     if ( isFootNoteBody )
-                        context.enterFootNote( enode->getAttributeValue(attr_id) );
+                        context.enterFootNote( footnoteId );
                     lvRect r;
                     enode->getAbsRect(r); // this will get as r.top the absolute Y from
                                           // the relative fmt.setY( y ) we did above.
@@ -2929,7 +2938,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
             case erm_block:
                 {
                     if ( isFootNoteBody )
-                        context.enterFootNote( enode->getAttributeValue(attr_id) );
+                        context.enterFootNote( footnoteId );
 
 
                     // recurse all sub-blocks for blocks
@@ -3050,7 +3059,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     }
 
                     if ( isFootNoteBody )
-                        context.enterFootNote( enode->getAttributeValue(attr_id) );
+                        context.enterFootNote( footnoteId );
                     // render whole node content as single formatted object
                     fmt.setWidth( width );
                     fmt.setX( fmt.getX() );
@@ -3132,8 +3141,11 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
                                     ldomNode * parent = node->getParentNode();
-                                    if ( parent->getNodeId()==el_a && parent->hasAttribute(LXML_NS_ANY, attr_href )
-                                            && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note") {
+                                    if ( parent->getNodeId()==el_a && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note") {
+                                            // but we want to be able to gather in-page footnotes by only
+                                            // specifying a -cr-hint: to the footnote target, with no need
+                                            // to set one to the link itself
                                         lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
                                         if ( href.length()>0 && href.at(0)=='#' ) {
                                             href.erase(0,1);

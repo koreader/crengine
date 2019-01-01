@@ -771,6 +771,9 @@ public:
     /// returns true if element node has attribute with specified name id
     inline bool hasAttribute( lUInt16 id ) const  { return hasAttribute( LXML_NS_ANY, id ); }
 
+    /// returns attribute value by attribute name id, looking at children if needed
+    const lString16 & getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 id ) const;
+    const lString16 & getFirstInnerAttributeValue( lUInt16 id ) const { return getFirstInnerAttributeValue( LXML_NS_ANY, id ); };
 
     /// returns element type structure pointer if it was set in document for this element name
     const css_elem_def_props_t * getElementTypePtr();
