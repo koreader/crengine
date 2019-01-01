@@ -67,6 +67,6 @@ int scaleForRenderDPI( int value );
 #define DEF_RENDER_SCALE_FONT_WITH_DPI 0
 extern int gRenderDPI;
 extern bool gRenderScaleFontWithDPI;
-extern int gRootFontSize;;
+extern int gRootFontSize;
 
 #endif
