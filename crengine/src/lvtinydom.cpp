@@ -13179,13 +13179,19 @@ bool LVTocItem::deserialize( ldomDocument * doc, SerialBuf & buf )
 //}
 
 
-static void makeTocFromHeadings( ldomNode * node )
+static void makeTocFromCrHintsOrHeadings( ldomNode * node )
 {
-    int level = 0;
-    // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
-    if ( node->getNodeId() < el_h1 || node->getNodeId() > el_h6 )
+    css_cr_hint_t hint = node->getStyle()->cr_hint;
+    if ( hint == css_cr_hint_toc_ignore )
+        return; // requested to be ignored via style tweaks
+    int level;
+    if ( hint >= css_cr_hint_toc_level1 && hint <= css_cr_hint_toc_level6 )
+        level = hint - css_cr_hint_toc_level1 + 1;
+    else if ( node->getNodeId() >= el_h1 && node->getNodeId() <= el_h6 )
+        // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
+        level = node->getNodeId() - el_h1 + 1;
+    else
         return;
-    level = node->getNodeId() - el_h1 + 1;
     lString16 title = removeSoftHyphens( node->getText(' ') );
     ldomXPointer xp = ldomXPointer(node, 0);
     LVTocItem * root = node->getDocument()->getToc();
@@ -13194,7 +13200,7 @@ static void makeTocFromHeadings( ldomNode * node )
     int plevel = 1;
     while (plevel < level) {
         int nbc = parent->getChildCount();
-        if (nbc) { // use the latest children
+        if (nbc) { // use the latest child
             parent = parent->getChild(nbc-1);
         }
         else {
@@ -13205,8 +13211,9 @@ static void makeTocFromHeadings( ldomNode * node )
         }
         plevel++;
     }
-    LVTocItem * tocItem = parent->addChild(title, xp, lString16::empty_str);
+    parent->addChild(title, xp, lString16::empty_str);
 }
+
 
 static void makeTocFromDocFragments( ldomNode * node )
 {
@@ -13215,14 +13222,16 @@ static void makeTocFromDocFragments( ldomNode * node )
     // No title, and only level 1 with DocFragments
     ldomXPointer xp = ldomXPointer(node, 0);
     LVTocItem * root = node->getDocument()->getToc();
-    LVTocItem * tocItem = root->addChild(L"", xp, lString16::empty_str);
+    root->addChild(L"", xp, lString16::empty_str);
 }
 
 void ldomDocument::buildAlternativeToc()
 {
     m_toc.clear();
-    getRootNode()->recurseElements(makeTocFromHeadings);
-    // If no heading found, fall back to gathering DocFraments
+    // Look first for style tweaks specified -cr-hint: toc-level1 ... toc-level6
+    // and/or headings (H1...H6)
+    getRootNode()->recurseElements(makeTocFromCrHintsOrHeadings);
+    // If no heading or hints found, fall back to gathering DocFraments
     if ( !m_toc.getChildCount() )
         getRootNode()->recurseElements(makeTocFromDocFragments);
     // m_toc.setAlternativeTocFlag() uses the root toc item _page property
