@@ -126,7 +126,10 @@ void LVRendPageContext::AddLine( int starty, int endy, int flags )
     }
 }
 
-#define FOOTNOTE_MARGIN 12
+// We use 1.0rem (1x root font size) as the footnote margin (vertical margin
+// between text and first foornote)
+#define FOOTNOTE_MARGIN_REM 1
+extern int gRootFontSize;
 
 // helper class
 struct PageSplitState {
@@ -255,7 +258,7 @@ public:
             h += line->getEnd() - pagestart->getStart();
         int footh = 0 /*currentFootnoteHeight()*/ + footheight;
         if ( footh )
-            h += FOOTNOTE_MARGIN + footh;
+            h += FOOTNOTE_MARGIN_REM*gRootFontSize + footh;
         return h;
     }
     void SplitLineIfOverflowPage( LVRendLineInfo * line )
@@ -485,7 +488,7 @@ public:
     {
         int dh = line->getEnd()
             - (footstart ? footstart->getStart() : line->getStart())
-            + (footheight==0?FOOTNOTE_MARGIN:0);
+            + (footheight==0 ? FOOTNOTE_MARGIN_REM*gRootFontSize : 0);
         int h = currentHeight(NULL); //next
         #ifdef DEBUG_FOOTNOTES
             CRLog::trace("Add footnote line %d  footheight=%d  h=%d  dh=%d  page_h=%d",

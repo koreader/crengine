@@ -1910,9 +1910,19 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
                                                 -start + offset, m_dy, &m_markRanges, &m_bmkRanges);
 			//CRLog::trace("Done DrawDocument() for main text");
 			// draw footnotes
-#define FOOTNOTE_MARGIN 8
-			int fny = clip.top + (page.height ? page.height + FOOTNOTE_MARGIN
-					: FOOTNOTE_MARGIN);
+#define FOOTNOTE_MARGIN_REM 1 // as in lvpagesplitter.cpp
+			int footnote_margin = FOOTNOTE_MARGIN_REM * gRootFontSize;
+			int fny = clip.top + (page.height ? page.height + footnote_margin
+					: footnote_margin);
+			// Try to push footnotes to the bottom of page if possible
+			int footnotes_height = 0;
+			for (int fn = 0; fn < page.footnotes.length(); fn++) {
+				footnotes_height += page.footnotes[fn].height;
+			}
+			if (footnotes_height > 0) {
+				int h_avail = m_dy - m_pageMargins.top - m_pageMargins.bottom - height - footnote_margin;
+				fny += h_avail - footnotes_height; // put empty space before first footnote
+			}
 			int fy = fny;
 			bool footnoteDrawed = false;
 			for (int fn = 0; fn < page.footnotes.length(); fn++) {
@@ -1931,13 +1941,17 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				fy += fheight;
 			}
 			if (footnoteDrawed) { // && page.height
-				fny -= FOOTNOTE_MARGIN / 2;
+				// Draw a small horizontal line as a separator inside
+				// the margin between text and footnotes
+				fny -= footnote_margin * 1/3;
 				drawbuf->SetClipRect(NULL);
                 lUInt32 cl = drawbuf->GetTextColor();
                 cl = (cl & 0xFFFFFF) | (0x55000000);
-				drawbuf->FillRect(pageRect->left + m_pageMargins.left, fny,
-						pageRect->right - m_pageMargins.right, fny + 1,
-                        cl);
+				// The line separator was using the full page width:
+				//   int x1 = pageRect->right - m_pageMargins.right;
+				// but 1/7 of page width looks like what we can see in some books
+				int x1 = pageRect->left + m_pageMargins.left + (pageRect->right-pageRect->left)/7;
+				drawbuf->FillRect(pageRect->left + m_pageMargins.left, fny, x1, fny+1, cl);
 			}
 		}
 	}
