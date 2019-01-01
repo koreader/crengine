@@ -6000,7 +6000,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                 }
             }
         }
-        return false;
+        // return false;
+        // Not found, which is possible with a final node with only empty
+        // elements. This final node has a rect, so use it.
+        rect = rc;
+        return true;
     } else {
         // no base final node, using blocks
         //lvRect rc;
