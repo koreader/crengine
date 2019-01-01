@@ -4577,7 +4577,20 @@ ldomXPointer LVDocView::getBookmark() {
 					ptr = m_doc->createXPointer(lvPoint(0, page->start));
 			}
 		} else {
-			ptr = m_doc->createXPointer(lvPoint(0, _pos));
+			// ptr = m_doc->createXPointer(lvPoint(0, _pos));
+			// In scroll mode, the y position may not resolve to any xpointer
+			// (because of margins, empty elements...)
+			// When inside an image (top of page being the middle of an image),
+			// we get the top of the image, and when restoring this position,
+			// we'll have the top of the image at the top of the page, so
+			// scrolling a bit up.
+			// Let's do the same in that case: get the previous text node
+			// position
+			for (int y = _pos; y >= 0; y--) {
+				ptr = m_doc->createXPointer(lvPoint(0, y));
+				if (!ptr.isNull())
+					break;
+			}
 		}
 	}
 	return ptr;
