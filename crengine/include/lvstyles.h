@@ -75,7 +75,8 @@ enum css_style_rec_important_bit {
     imp_bit_background_position   = 1ULL << 48,
     imp_bit_border_collapse       = 1ULL << 49,
     imp_bit_border_spacing_h      = 1ULL << 50,
-    imp_bit_border_spacing_v      = 1ULL << 51
+    imp_bit_border_spacing_v      = 1ULL << 51,
+    imp_bit_cr_hint               = 1ULL << 52
 };
 
 /**
@@ -87,8 +88,8 @@ typedef struct css_style_rec_tag {
     int                  refCount; // for reference counting
     lUInt32              hash; // cache calculated hash value here
     lUInt64              important; // bitmap for !important (used only by LVCssDeclaration)
-                                    // we have currently below 52 css properties
-                                    // lvstsheet knows about 67, which are mapped to these 52
+                                    // we have currently below 53 css properties
+                                    // lvstsheet knows about 68, which are mapped to these 52
                                     // update bits above if you add new properties below
     css_display_t        display;
     css_white_space_t    white_space;
@@ -129,6 +130,7 @@ typedef struct css_style_rec_tag {
     css_background_position_value_t background_position;
     css_border_collapse_value_t border_collapse;
     css_length_t border_spacing[2];//first horizontal and the second vertical spacing
+    css_cr_hint_t          cr_hint;
     css_style_rec_tag()
     : refCount(0)
     , hash(0)
@@ -165,6 +167,7 @@ typedef struct css_style_rec_tag {
     , background_attachment(css_background_a_none)
     , background_position(css_background_p_none)
     , border_collapse(css_border_seperate)
+    , cr_hint(css_cr_hint_none)
     {
         // css_length_t fields are initialized by css_length_tag()
         // to (css_val_screen_px, 0)

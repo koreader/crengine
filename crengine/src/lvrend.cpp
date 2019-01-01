@@ -2491,6 +2491,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_collapse=source->border_collapse;
     dest->border_spacing[0]=source->border_spacing[0];
     dest->border_spacing[1]=source->border_spacing[1];
+    dest->cr_hint = source->cr_hint;
 }
 
 css_page_break_t getPageBreakBefore( ldomNode * el ) {

@@ -245,6 +245,25 @@ enum css_generic_value_t {
     css_generic_auto = -1 // for (css_val_unspecified, css_value_auto), for "margin: auto"
 };
 
+// Non standard property for providing hints to crengine via style tweaks
+// (see src/lvstsheet.cpp css_cr_hint_names[]= for explanations)
+enum css_cr_hint_t {
+    css_cr_hint_inherit,
+    css_cr_hint_none,
+    css_cr_hint_noteref,
+    css_cr_hint_noteref_ignore,
+    css_cr_hint_footnote,
+    css_cr_hint_footnote_ignore,
+    css_cr_hint_footnote_inpage,
+    css_cr_hint_toc_level1,
+    css_cr_hint_toc_level2,
+    css_cr_hint_toc_level3,
+    css_cr_hint_toc_level4,
+    css_cr_hint_toc_level5,
+    css_cr_hint_toc_level6,
+    css_cr_hint_toc_ignore
+};
+
 /// css length value
 typedef struct css_length_tag {
     css_value_type_t type;  ///< type of value
