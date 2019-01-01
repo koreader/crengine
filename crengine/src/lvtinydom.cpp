@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.19k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x000E
+#define FORMATTING_VERSION_ID 0x000F
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -3728,6 +3728,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_indent.value = 0;
     s->line_height.type = css_val_percent;
     s->line_height.value = def_interline_space << 8;
+    s->cr_hint = css_cr_hint_none;
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
     if ( _last_docflags != getDocFlags() ) {
@@ -13479,6 +13480,7 @@ void runBasicTinyDomUnitTests()
         style1->text_indent.value = 0;
         style1->line_height.type = css_val_percent;
         style1->line_height.value = 100 << 8;
+        style1->cr_hint = css_cr_hint_none;
 
         css_style_ref_t style2;
         style2 = css_style_ref_t( new css_style_rec_t );
@@ -13508,6 +13510,7 @@ void runBasicTinyDomUnitTests()
         style2->text_indent.value = 0;
         style2->line_height.type = css_val_percent;
         style2->line_height.value = 100 << 8;
+        style2->cr_hint = css_cr_hint_none;
 
         css_style_ref_t style3;
         style3 = css_style_ref_t( new css_style_rec_t );
@@ -13537,6 +13540,7 @@ void runBasicTinyDomUnitTests()
         style3->text_indent.value = 0;
         style3->line_height.type = css_val_percent;
         style3->line_height.value = 100 << 8;
+        style3->cr_hint = css_cr_hint_none;
 
         el1->setStyle(style1);
         css_style_ref_t s1 = el1->getStyle();

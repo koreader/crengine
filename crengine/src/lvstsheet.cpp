@@ -95,6 +95,7 @@ enum css_decl_code {
     cssd_border_collapse,
     cssd_border_spacing,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
+    cssd_cr_hint,
     cssd_stop
 };
 
@@ -169,6 +170,7 @@ static const char * css_decl_name[] = {
     "border-collapse",
     "border-spacing",
     "-cr-ignore-if-dom-version-greater-or-equal",
+    "-cr-hint",
     NULL
 };
 
@@ -926,6 +928,27 @@ static const char * css_bc_names[]={
         NULL
 };
 
+// -cr-hint names (non standard property for providing hints to crengine via style tweaks)
+static const char * css_cr_hint_names[]={
+        "inherit",
+        "none",
+                            // For footnote popup detection:
+        "noteref",          // link is to a footnote
+        "noteref-ignore",   // link is not to a footnote (even if everything else indicates it is)
+        "footnote",         // block is a footnote (must be a full footnote block container)
+        "footnote-ignore",  // block is not a footnote (even if everything else indicates it is)
+        "footnote-inpage",  // block is a footnote (must be a full footnote block container), and to be
+                            // displayed at the bottom of all pages that contain a link to it.
+        "toc-level1",       // to be considered as TOC item of level N when building alternate TOC
+        "toc-level2",
+        "toc-level3",
+        "toc-level4",
+        "toc-level5",
+        "toc-level6",
+        "toc-ignore",       // ignore these H1...H6 when building alternate TOC
+        NULL
+};
+
 bool LVCssDeclaration::parse( const char * &decl )
 {
     SerialBuf buf(512, true);
@@ -962,6 +985,10 @@ bool LVCssDeclaration::parse( const char * &decl )
                         return false;
                     }
                 }
+                break;
+            // non standard property for providing hints via style tweaks
+            case cssd_cr_hint:
+                n = parse_name( decl, css_cr_hint_names, -1 );
                 break;
             case cssd_display:
                 n = parse_name( decl, css_d_names, -1 );
@@ -2087,6 +2114,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_border_collapse:
             style->Apply( (css_border_collapse_value_t) *p++, &style->border_collapse, imp_bit_border_collapse, is_important );
+            break;
+        case cssd_cr_hint:
+            style->Apply( (css_cr_hint_t) *p++, &style->cr_hint, imp_bit_cr_hint, is_important );
             break;
         case cssd_stop:
             return;
