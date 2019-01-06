@@ -1920,7 +1920,9 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				footnotes_height += page.footnotes[fn].height;
 			}
 			if (footnotes_height > 0) {
-				int h_avail = m_dy - m_pageMargins.top - m_pageMargins.bottom - height - footnote_margin;
+				int h_avail = m_dy - getPageHeaderHeight()
+						   - m_pageMargins.top - m_pageMargins.bottom
+						   - height - footnote_margin;
 				fny += h_avail - footnotes_height; // put empty space before first footnote
 			}
 			int fy = fny;
