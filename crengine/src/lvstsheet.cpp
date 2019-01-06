@@ -21,8 +21,10 @@
 // define to dump all tokens
 //#define DUMP_CSS_PARSING
 
-#define IMPORTANT_DECL_ADD ((lUInt32)0x80000000U) // | to prop_code
-#define IMPORTANT_DECL_DEL ((lUInt32)0x7FFFFFFFU) // & to prop_code
+#define IMPORTANT_DECL_HIGHER   ((lUInt32)0x80000000U) // | to prop_code
+#define IMPORTANT_DECL_SET      ((lUInt32)0x40000000U) // | to prop_code
+#define IMPORTANT_DECL_REMOVE   ((lUInt32)0x3FFFFFFFU) // & to prop_code
+#define IMPORTANT_DECL_SHIFT    30 // >> from prop_code to get 2 bits (importance, is_important)
 
 enum css_decl_code {
     cssd_unknown,
@@ -291,7 +293,7 @@ static lUInt32 parse_important( const char *str ) // does not advance the origin
     skip_spaces( str );
     if (substr_icompare( "!important", str )) {
         // returns directly what should be | to prop_code
-        return IMPORTANT_DECL_ADD;
+        return IMPORTANT_DECL_SET;
     }
     return 0;
 }
@@ -949,7 +951,7 @@ static const char * css_cr_hint_names[]={
         NULL
 };
 
-bool LVCssDeclaration::parse( const char * &decl )
+bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
 {
     SerialBuf buf(512, true);
 
@@ -965,7 +967,8 @@ bool LVCssDeclaration::parse( const char * &decl )
         css_decl_code prop_code = parse_property_name( decl );
         skip_spaces( decl );
         lString8 strValue;
-        int parsed_important = 0; // for !important that may be parsed along the way
+        lUInt32 importance = higher_importance ? IMPORTANT_DECL_HIGHER : 0;
+        lUInt32 parsed_important = 0; // for !important that may be parsed along the way
         if (prop_code != cssd_unknown)
         {
             // parsed ok
@@ -1045,7 +1048,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     if (n1 != -1) {
                         len.type = css_val_unspecified;
                         len.value = n1;
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
@@ -1058,7 +1061,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if ( parse_number_value( decl, len ) ) {
                             if ( negative )
                                 len.value = -len.value;
-                            buf<<(lUInt32) (prop_code | parse_important(decl));
+                            buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                             buf<<(lUInt32) len.type;
                             buf<<(lUInt32) len.value;
                         }
@@ -1089,7 +1092,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                             if ( substr_icompare( "!important", name ) ) {
                                 // !important may be caught by splitPropertyValueList()
                                 list.erase( i, 1 );
-                                parsed_important = IMPORTANT_DECL_ADD;
+                                parsed_important = IMPORTANT_DECL_SET;
                             }
                         }
                         strValue = joinPropertyValueList( list );
@@ -1122,7 +1125,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                             len.value = -len.value;
                         }
                         // save result
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
@@ -1153,7 +1156,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf<<(lUInt32) (prop_code | parse_important(str));
+                    buf<<(lUInt32) (prop_code | importance | parse_important(str));
                     switch (n1) {
                         case 0:
                             buf<<(lUInt32) css_val_px;
@@ -1199,7 +1202,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         is_font_size = true;
                     css_length_t len;
                     if ( parse_number_value( decl, len, accept_percent, accept_auto, is_font_size) ) {
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
@@ -1216,7 +1219,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 const char*str=decl;
                 int n1=parse_name(str,css_bw_names,-1);
                 if (n1!=-1) {
-                    buf<<(lUInt32) (prop_code | parse_important(str));
+                    buf<<(lUInt32) (prop_code | importance | parse_important(str));
                     switch (n1) {
                         case 0:
                             for (int i = 0; i < 4; ++i)
@@ -1280,7 +1283,7 @@ bool LVCssDeclaration::parse( const char * &decl )
 			    case 2: len[2] = len[0]; /* fall through */
 			    case 3: len[3] = len[1];
 			}
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
 			for (i = 0; i < 4; ++i)
 			{
 			    buf<<(lUInt32) len[i].type;
@@ -1301,7 +1304,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 css_length_t len;
                 if ( parse_color_value( decl, len ) )
                 {
-                    buf<<(lUInt32) (prop_code | parse_important(decl));
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                     buf<<(lUInt32) len.type;
                     buf<<(lUInt32) len.value;
                 }
@@ -1322,7 +1325,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         case 2: len[2] = len[0]; /* fall through */
                         case 3: len[3] = len[1];
                     }
-                    buf<<(lUInt32) (prop_code | parse_important(decl));
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                     for (i = 0; i < 4; ++i)
                     {
                         buf<<(lUInt32) len[i].type;
@@ -1362,7 +1365,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 switch (sum) {
                     case 1:
                     {
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n1;
@@ -1371,7 +1374,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                         break;
                     case 2:
                     {
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n1;
@@ -1380,7 +1383,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
                     case 3:
                     {
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n3;
@@ -1389,7 +1392,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     break;
                     case 4:
                     {
-                        buf<<(lUInt32) (prop_code | parse_important(decl));
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) n1;
                         buf<<(lUInt32) n2;
                         buf<<(lUInt32) n3;
@@ -1613,23 +1616,23 @@ bool LVCssDeclaration::parse( const char * &decl )
                     {
                         if (n1 != -1)
                         {
-                            buf<<(lUInt32) (cssd_border_top_style | parsed_important);
+                            buf<<(lUInt32) (cssd_border_top_style | importance | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_right_style | parsed_important);
+                            buf<<(lUInt32) (cssd_border_right_style | importance | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_bottom_style | parsed_important);
+                            buf<<(lUInt32) (cssd_border_bottom_style | importance | parsed_important);
                             buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_left_style | parsed_important);
+                            buf<<(lUInt32) (cssd_border_left_style | importance | parsed_important);
                             buf<<(lUInt32) n1;
                             if (n2 != -1) {
-                                buf<<(lUInt32) (cssd_border_color | parsed_important);
+                                buf<<(lUInt32) (cssd_border_color | importance | parsed_important);
                                 for (int i = 0; i < 4; i++) {
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                 }
                             }
                             if (n3 != -1) {
-                                buf<<(lUInt32) (cssd_border_width | parsed_important);
+                                buf<<(lUInt32) (cssd_border_width | importance | parsed_important);
                                 for (int i = 0; i < 4; i++) {
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
@@ -1641,19 +1644,19 @@ bool LVCssDeclaration::parse( const char * &decl )
                     if (n1 != -1) {
                         switch (prop_code){
                             case cssd_border_top:
-                                buf<<(lUInt32) (cssd_border_top_style | parsed_important);
+                                buf<<(lUInt32) (cssd_border_top_style | importance | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_right:
-                                buf<<(lUInt32) (cssd_border_right_style | parsed_important);
+                                buf<<(lUInt32) (cssd_border_right_style | importance | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_bottom:
-                                buf<<(lUInt32) (cssd_border_bottom_style | parsed_important);
+                                buf<<(lUInt32) (cssd_border_bottom_style | importance | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             case cssd_border_left:
-                                buf<<(lUInt32) (cssd_border_left_style | parsed_important);
+                                buf<<(lUInt32) (cssd_border_left_style | importance | parsed_important);
                                 buf<<(lUInt32) n1;
                                 break;
                             default:break;
@@ -1661,22 +1664,22 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (n2 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf<<(lUInt32) (cssd_border_top_color | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_top_color | importance | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_right:
-                                    buf<<(lUInt32) (cssd_border_right_color | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_right_color | importance | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf<<(lUInt32) (cssd_border_bottom_color | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_bottom_color | importance | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
                                 case cssd_border_left:
-                                    buf<<(lUInt32) (cssd_border_left_color | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_left_color | importance | parsed_important);
                                     buf<<(lUInt32) color.type;
                                     buf<<(lUInt32) color.value;
                                     break;
@@ -1687,22 +1690,22 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (n3 != -1) {
                             switch (prop_code){
                                 case cssd_border_top:
-                                    buf<<(lUInt32) (cssd_border_top_width | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_top_width | importance | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_right:
-                                    buf<<(lUInt32) (cssd_border_right_width | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_right_width | importance | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_bottom:
-                                    buf<<(lUInt32) (cssd_border_bottom_width | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_bottom_width | importance | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
                                 case cssd_border_left:
-                                    buf<<(lUInt32) (cssd_border_left_width | parsed_important);
+                                    buf<<(lUInt32) (cssd_border_left_width | importance | parsed_important);
                                     buf<<(lUInt32) width.type;
                                     buf<<(lUInt32) width.value;
                                     break;
@@ -1724,7 +1727,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 str.append(decl,len);
                 str.trim();
                 len=str.length();
-                buf<<(lUInt32) (prop_code | parse_important(tmp));
+                buf<<(lUInt32) (prop_code | importance | parse_important(tmp));
                 buf<<(lUInt32) str.length();
                 for(int i=0;i<len;i++)
                     buf<<(lUInt32) str[i];
@@ -1791,16 +1794,16 @@ bool LVCssDeclaration::parse( const char * &decl )
                         if (position==25) position=11;
                     }
                     parsed_important = parse_important(decl);
-                    buf<<(lUInt32) (cssd_background_image | parsed_important);
+                    buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
                     buf<<(lUInt32) str.length();
                     for (int i = 0; i < str.length(); i++)
                         buf<<(lUInt32) str[i];
                     if(repeat!=-1) {
-                        buf<<(lUInt32) (cssd_background_repeat | parsed_important);
+                        buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
                         buf<<(lUInt32) repeat;
                     }
                     if (position!=-1) {
-                        buf<<(lUInt32) (cssd_background_position | parsed_important);
+                        buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
                         buf<<(lUInt32) position;
                     }
                 }
@@ -1809,7 +1812,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                     parsed_important = parse_important(decl);
                 }
                 if (has_color) {
-                    buf<<(lUInt32) (cssd_background_color | parsed_important);
+                    buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
                     buf<<(lUInt32) color.type;
                     buf<<(lUInt32) color.value;
                 }
@@ -1828,7 +1831,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 {
                     if (i==1) len[1] = len[0];
 
-                    buf<<(lUInt32) (prop_code | parse_important(decl));
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                     for (i = 0; i < 2; ++i)
                     {
                         buf<<(lUInt32) len[i].type;
@@ -1848,7 +1851,7 @@ bool LVCssDeclaration::parse( const char * &decl )
             if ( n!= -1)
             {
                 // add enum property
-                buf<<(lUInt32) (prop_code | parsed_important | parse_important(decl));
+                buf<<(lUInt32) (prop_code | importance | parsed_important | parse_important(decl));
                 buf<<(lUInt32) n;
             }
             if (!strValue.empty())
@@ -1857,7 +1860,7 @@ bool LVCssDeclaration::parse( const char * &decl )
                 if (prop_code==cssd_font_family)
                 {
                     // font names
-                    buf<<(lUInt32) (cssd_font_names | parsed_important | parse_important(decl));
+                    buf<<(lUInt32) (cssd_font_names | importance | parsed_important | parse_important(decl));
                     buf<<(lUInt32) strValue.length();
                     for (int i=0; i < strValue.length(); i++)
                         buf<<(lUInt32) strValue[i];
@@ -1910,9 +1913,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
     int * p = _data;
     for (;;)
     {
-        int prop_code = *p++;
-        bool is_important = prop_code & IMPORTANT_DECL_ADD;
-        prop_code = prop_code & IMPORTANT_DECL_DEL;
+        lUInt32 prop_code = *p++;
+        lUInt8 is_important = prop_code >> IMPORTANT_DECL_SHIFT; // 2 bits (importance, is_important)
+        prop_code = prop_code & IMPORTANT_DECL_REMOVE;
         switch (prop_code)
         {
         case cssd_display:
@@ -2872,7 +2875,7 @@ lUInt32 LVStyleSheet::getHash()
     return hash;
 }
 
-bool LVStyleSheet::parse( const char * str )
+bool LVStyleSheet::parse( const char * str, bool higher_importance )
 {
     LVCssSelector * selector = NULL;
     LVCssSelector * prev_selector;
@@ -2904,7 +2907,7 @@ bool LVStyleSheet::parse( const char * str )
             }
             // parse declaration
             LVCssDeclRef decl( new LVCssDeclaration );
-            if ( !decl->parse( str ) )
+            if ( !decl->parse( str, higher_importance ) )
             {
                 err = true;
                 err_count++;
