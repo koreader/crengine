@@ -206,7 +206,9 @@ public:
         // want to reset 'last' to be this past line!
         #ifdef DEBUG_PAGESPLIT
             printf("PS:           new current page %d>%d h=%d\n",
-                pagestart->getStart(), last->getEnd(), last->getEnd() - pagestart->getStart());
+                pagestart ? pagestart->getStart() : -111111111,
+                last ? last->getEnd() : -111111111,
+                pagestart && last ? last->getEnd() - pagestart->getStart() : -111111111);
         #endif
     }
     void AddToList()
@@ -229,8 +231,12 @@ public:
             }
         #endif
         #ifdef DEBUG_PAGESPLIT
-            printf("PS: ========= ADDING PAGE %d: %d > %d h=%d\n",
+            printf("PS: ========= ADDING PAGE %d: %d > %d h=%d",
                 page_list->length(), start, start+h, h);
+            if (footheight || hasFootnotes)
+                printf(" (+ %d footnotes, fh=%d => h=%d)", footnotes.length(),
+                    footheight, h+footheight+FOOTNOTE_MARGIN_REM*gRootFontSize);
+            printf("\n");
         #endif
         LVRendPageInfo * page = new LVRendPageInfo(start, h, page_list->length());
         lastpageend = start + h;
@@ -326,11 +332,23 @@ public:
                 line->getStart(), line->getEnd(), line->getHeight(),
                 line->getSplitBefore(), line->getSplitAfter());
         #endif
-        if (pagestart==NULL ) { // first line added
+        if (pagestart==NULL ) { // first line added,
+                                // or new page created by addition of footnotes
+            int footnotes_h = currentHeight(NULL);
+            if (footnotes_h > 0) { // we have some footnote on this new page
+                if (footnotes_h + line->getHeight() > page_h) { // adding this line would overflow
+                    #ifdef DEBUG_PAGESPLIT
+                        printf("   overflow over previous footnotes, letting footnotes on their own page\n");
+                    #endif
+                    AddToList(); //create a page with only the footnotes
+                }
+            }
             #ifdef DEBUG_PAGESPLIT
                 printf("   starting page with it\n");
             #endif
             last = line; // 'last' should never be NULL from now on
+                         // (but it can still happen when footnotes are enabled,
+                         // with long footnotes spanning multiple pages)
             StartPage( line );
             SplitLineIfOverflowPage(line); // may update 'last'
         }
@@ -504,38 +522,69 @@ public:
             CRLog::trace("Add footnote line %d  footheight=%d  h=%d  dh=%d  page_h=%d",
                 line->start, footheight, h, dh, page_h);
         #endif
+        #ifdef DEBUG_PAGESPLIT
+            printf("PS: Adding footnote line h=%d => current footnotes height=%d (available: %d)\n",
+                line->getEnd() - line->getStart(), dh, page_h - h);
+        #endif
         if ( h + dh > page_h ) {
             #ifdef DEBUG_FOOTNOTES
                 CRLog::trace("No current page space for this line, %s",
                     (footstart?"footstart is not null":"footstart is null"));
             #endif
-            if ( footstart==NULL ) {
-                //CRLog::trace("Starting new footnote fragment");
-                // no footnote lines fit
-                //pageend = last;
-                AddToList();
-                //StartPage( last );
-                StartPage( last );
-            } else {
+            #ifdef DEBUG_PAGESPLIT
+                if (footstart)
+                    printf("PS:   does not fit, splitting current footnote\n");
+                else
+                    printf("PS:   does not fit, starting footnote on next page\n");
+                // printf("PS:       pageend=%d, next=%d, last=%d\n",
+                //    pageend?pageend->getEnd():-1, next?next->getStart():-1, last->getStart());
+            #endif
+            if (footstart) { // Add what fitted to current page
                 AddFootnoteFragmentToList();
-                //const LVRendLineInfo * save = ?:last;
-                // = NULL;
-                // LVE-TODO-TEST
-                //if ( next != NULL ) {
-                    pageend = last;
-                    AddToList();
-                    StartPage( NULL );
-                    //StartPage( next );
-                //}
             }
+
+            // Forget about SPLIT_AVOID when footnotes are in the way,
+            // keeping things simpler and natural
+            pageend = last;
+            AddToList(); // create a page with current text and footnotes
+            StartPage(NULL);
+
+            /* Alternative, splitting on previous allowed position (pageend)
+               if we're in SPLIT_AVOID:
+            AddToList(); // create a page with current text (up to 'pagenend'
+                         // or 'last') and footnotes
+            // StartPage( last );
+            // We shouldn't use 'last', as we could lose some lines if
+            // we're into some SPLIT_AVOID, and footnotes fill current
+            // height before we get the chance to deal with it with
+            // normal lines in AddLine().
+            if (pageend && next)
+                // Safer to use 'next' if there is one to not lose any
+                // normal lines (footnotes for what will be pushed to next
+                // page might then be displayed on the previous page... but
+                // this somehow avoid pushing stuff too much on new pages)
+                StartPage(next);
+            else
+                // Otherwise, use NULL instead of 'last': 'last' is already
+                // on the previous page, and if coming foonotes span multiple
+                // page, 'last' might be displayed on each of these pages!
+                StartPage(NULL);
+            */
+
             footstart = footlast = line;
             footend = NULL;
             return;
         }
         if ( footstart==NULL ) {
+            #ifdef DEBUG_PAGESPLIT
+                printf("PS:   fit, footnote started, added to current page\n");
+            #endif
             footstart = footlast = line;
             footend = line;
         } else {
+            #ifdef DEBUG_PAGESPLIT
+                printf("PS:   fit, footnote continued, added to current page\n");
+            #endif
             footend = line;
             footlast = line;
         }
@@ -570,8 +619,10 @@ void LVRendPageContext::split()
         s.AddLine( line );
         // add footnotes for line, if any...
         if ( line->getLinks() ) {
-            s.last = line;
-            s.next = lindex<lineCount-1?lines[lindex+1]:line;
+            // These are not needed: we shouldn't mess here with last/next that
+            // are correctly managed by s.AddLine() just above.
+            // s.last = line;
+            // s.next = lindex<lineCount-1?lines[lindex+1]:line;
             bool foundFootNote = false;
             //if ( CRLog::isTraceEnabled() && line->getLinks()->length()>0 ) {
             //    CRLog::trace("LVRendPageContext::split() line %d: found %d links", lindex, line->getLinks()->length() );
