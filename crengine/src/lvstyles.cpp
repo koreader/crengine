@@ -42,9 +42,11 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((
-           (lUInt32)(rec.important>>32)) * 31
-         + (lUInt32)(rec.important&0xFFFFFFFFULL)) * 31
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((
+           (lUInt32)(rec.important >> 32)) * 31
+         + (lUInt32)(rec.important & 0xFFFFFFFFULL)) * 31
+         + (lUInt32)(rec.importance >> 32)) * 31
+         + (lUInt32)(rec.importance & 0xFFFFFFFFULL)) * 31
          + (lUInt32)rec.display) * 31
          + (lUInt32)rec.white_space) * 31
          + (lUInt32)rec.text_align) * 31
@@ -104,6 +106,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
 {
     return 
            r1.important == r2.important &&
+           r1.importance == r2.importance &&
            r1.display == r2.display &&
            r1.white_space == r2.white_space &&
            r1.text_align == r2.text_align &&
@@ -293,6 +296,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
         return false;
     buf.putMagic(style_magic);
     ST_PUT_UI64(important);         //    lUInt64              important;
+    ST_PUT_UI64(importance);        //    lUInt64              importance;
     ST_PUT_ENUM(display);           //    css_display_t        display;
     ST_PUT_ENUM(white_space);       //    css_white_space_t    white_space;
     ST_PUT_ENUM(text_align);        //    css_text_align_t     text_align;
@@ -345,6 +349,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
         return false;
     buf.putMagic(style_magic);
     ST_GET_UI64(important);                                 //    lUInt64              important;
+    ST_GET_UI64(importance);                                //    lUInt64              importance;
     ST_GET_ENUM(css_display_t, display);                    //    css_display_t        display;
     ST_GET_ENUM(css_white_space_t, white_space);            //    css_white_space_t    white_space;
     ST_GET_ENUM(css_text_align_t, text_align);              //    css_text_align_t     text_align;

@@ -20,8 +20,8 @@
 #include "lvtextfm.h"
 #include "lvfntman.h"
 
-/* bit position (in 'lUInt64 important' bitmap) of each css_style_rec_tag
- * properties to flag its '!important' status */
+/* bit position (in 'lUInt64 important' and 'lUInt64 importance' bitmaps) of
+ * each css_style_rec_tag properties to flag its '!important' status */
 // enum css_style_rec_important_bit : lUInt64 {  <= disliked by clang
 enum css_style_rec_important_bit {
     imp_bit_display               = 1ULL << 0,
@@ -87,10 +87,12 @@ enum css_style_rec_important_bit {
 typedef struct css_style_rec_tag {
     int                  refCount; // for reference counting
     lUInt32              hash; // cache calculated hash value here
-    lUInt64              important; // bitmap for !important (used only by LVCssDeclaration)
-                                    // we have currently below 53 css properties
-                                    // lvstsheet knows about 68, which are mapped to these 52
-                                    // update bits above if you add new properties below
+    lUInt64              important;  // bitmap for !important (used only by LVCssDeclaration)
+                                     // we have currently below 53 css properties
+                                     // lvstsheet knows about 68, which are mapped to these 52
+                                     // update bits above if you add new properties below
+    lUInt64              importance; // bitmap for important bit's importance/origin
+                                     // (allows for 2 level of !important importance)
     css_display_t        display;
     css_white_space_t    white_space;
     css_text_align_t     text_align;
@@ -135,6 +137,7 @@ typedef struct css_style_rec_tag {
     : refCount(0)
     , hash(0)
     , important(0)
+    , importance(0)
     , display( css_d_inline )
     , white_space(css_ws_inherit)
     , text_align(css_ta_inherit)
@@ -187,12 +190,17 @@ typedef struct css_style_rec_tag {
     bool isImportant( css_style_rec_important_bit bit ) { return important & bit; }
     void setImportant( css_style_rec_important_bit bit ) { important |= bit; }
     // apply value to field if important bit not yet set, then set it if is_important
-    template <typename T> inline void Apply( T value, T *field, css_style_rec_important_bit bit, bool is_important ) {
-        if ( !(important & bit) || is_important ) {
-            // important flag not previously set, or coming value has '!important' and
-            // should override previous important
+    template <typename T> inline void Apply( T value, T *field, css_style_rec_important_bit bit, lUInt8 is_important ) {
+        // is_important is 2 bits: (high_importance, is_important) (see lvstsheet.cpp)
+        if (     !(important & bit)     // important flag not previously set
+              || (is_important == 0x3)  // coming value has '!important' and comes from some CSS parsed with higher_importance=true
+              || (is_important == 0x1 && !(importance & bit) ) // coming value has '!important' and comes from some CSS parsed
+                                                               // with higher_importance=false, but previous value was not set from
+                                                               // a !important that came from CSS parsed with higher_importance=true
+           ) {
             *field = value; // apply
-            if (is_important) important |= bit; // update important flag
+            if (is_important & 0x1) important |= bit;   // update important flag
+            if (is_important == 0x3) importance |= bit; // update importance flag (!important comes from higher_importance CSS)
         }
     };
 } css_style_rec_t;

@@ -62,7 +62,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.19k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.20k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x000F
 
@@ -10835,7 +10835,14 @@ void lxmlDocBase::setStyleSheet( const char * css, bool replace )
     }
     if ( css && *css ) {
         //CRLog::debug("appending stylesheet contents: \n%s", css);
-        _stylesheet.parse( css );
+        _stylesheet.parse( css, true );
+        // We use override_important=true: we are the only code
+        // that sets the main CSS (including style tweaks). We allow
+        // any !important to override any previous !important.
+        // Other calls to _stylesheet.parse() elsewhere are used to
+        // include document embedded or inline CSS, with the default
+        // of override_important=false, so they won't override
+        // the ones we set here.
     }
     lUInt32 newHash = _stylesheet.getHash();
     if (oldHash != newHash) {
