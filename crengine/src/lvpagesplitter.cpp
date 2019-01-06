@@ -74,8 +74,10 @@ bool LVRendPageContext::updateRenderProgress( int numFinalBlocksRendered )
 /// append footnote link to last added line
 void LVRendPageContext::addLink( lString16 id )
 {
-    if ( !page_list )
+    if ( !page_list ) {
+        link_ids.add( id ); // gather links even if no page_list
         return;
+    }
     if ( lines.empty() )
         return;
     LVFootNote * note = getOrCreateFootNote( id );

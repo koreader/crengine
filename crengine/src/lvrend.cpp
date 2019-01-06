@@ -163,6 +163,7 @@ public:
     int y;
     int numcols; // sum of colspan
     int linkindex;
+    lString16Collection links;
     ldomNode * elem;
     LVPtrVector<CCRTableCell> cells;
     CCRTableRowGroup * rowgroup;
@@ -1301,6 +1302,33 @@ public:
                         int padding_bottom = lengthToPx( cell->elem->getStyle()->padding[3], cell->width, em ) + measureBorder(cell->elem,2);
                         int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - padding_left - padding_right);
                         cell->height = h + padding_top + padding_bottom;
+
+                        // Gather footnotes links, as done in renderBlockElement() when erm_final/flgSplit:
+                        if ( elem->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
+                            int count = txform->GetLineCount();
+                            for (int i=0; i<count; i++) {
+                                const formatted_line_t * line = txform->GetLineInfo(i);
+                                for ( int w=0; w<line->word_count; w++ ) { // check link start flag for every word
+                                    if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
+                                        const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
+                                        if ( src && src->object ) {
+                                            ldomNode * node = (ldomNode*)src->object;
+                                            ldomNode * parent = node->getParentNode();
+                                            while (parent && parent->getNodeId() != el_a)
+                                                parent = parent->getParentNode();
+                                            if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                                lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                                if ( href.length()>0 && href.at(0)=='#' ) {
+                                                    href.erase(0,1);
+                                                    row->links.add( href );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                     } else if ( cell->elem->getRendMethod()!=erm_invisible ) {
                         // We must use a different context (used by rendering
                         // functions to record, with context.AddLine(), each
@@ -1312,6 +1340,13 @@ public:
                         LVRendPageContext emptycontext( NULL, context.getPageHeight() );
                         int h = renderBlockElement( emptycontext, cell->elem, 0, 0, cell->width);
                         cell->height = h;
+                        // Gather footnotes links accumulated by emptycontext
+                        lString16Collection * link_ids = emptycontext.getLinkIds();
+                        if (link_ids->length() > 0) {
+                            for ( int n=0; n<link_ids->length(); n++ ) {
+                                row->links.add( link_ids->at(n) );
+                            }
+                        }
                     }
                     fmt.setHeight( cell->height );
                     // Some fmt.set* will be updated below
@@ -1425,6 +1460,12 @@ public:
                 }
                 context.AddLine(last_y, table_y0 + table_h, line_flags);
                 last_y = table_y0 + table_h;
+                // Add links gathered from this row's cells
+                if (row->links.length() > 0) {
+                    for ( int n=0; n<row->links.length(); n++ ) {
+                        context.addLink( row->links[n] );
+                    }
+                }
             }
         }
         if (nb_rows > 0) {
@@ -3180,6 +3221,35 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     }
                 }
             } // has page list
+            else {
+                // we still need to gather links when an emptycontext is used
+                // (duplicated part of the code above, as we don't want to consume any page-break)
+                int count = txform->GetLineCount();
+                for (int i=0; i<count; i++) {
+                    const formatted_line_t * line = txform->GetLineInfo(i);
+                    if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
+                        for ( int w=0; w<line->word_count; w++ ) {
+                            // check link start flag for every word
+                            if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
+                                const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
+                                if ( src && src->object ) {
+                                    ldomNode * node = (ldomNode*)src->object;
+                                    ldomNode * parent = node->getParentNode();
+                                    while (parent && parent->getNodeId() != el_a)
+                                        parent = parent->getParentNode();
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                        lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                        if ( href.length()>0 && href.at(0)=='#' ) {
+                                            href.erase(0,1);
+                                            context.addLink( href );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if ( isFootNoteBody )
                 context.leaveFootNote();
             return h + margin_top + margin_bottom + padding_top + padding_bottom;

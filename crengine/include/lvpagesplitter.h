@@ -336,6 +336,8 @@ class LVRendPageContext
     LVRendPageList * page_list;
     // page height
     int          page_h;
+    // Links gathered when no page_list
+    lString16Collection link_ids;
 
     LVHashTable<lString16, LVFootNoteRef> footNotes;
 
@@ -363,6 +365,11 @@ public:
 
     /// append footnote link to last added line
     void addLink( lString16 id );
+
+    /// get gathered links when no page_list
+    // (returns a reference to avoid lString16Collection destructor from
+    // being called twice and a double free crash)
+    lString16Collection * getLinkIds() { return &link_ids; }
 
     /// mark start of foot note
     void enterFootNote( lString16 id );
