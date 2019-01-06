@@ -18,9 +18,6 @@
 // #define DEBUG_PAGESPLIT
 // (Also change '#if 0' around 'For debugging lvpagesplitter.cpp'
 // to '#if 1' in src/lvdocview.cpp to get a summary of pages.
-// Note: we have no footnotes with most document formats, including
-// EPUB and HTML, so footnotes handling below has not been tested
-// and can be ignored.
 
 int LVRendPageList::FindNearestPage( int y, int direction )
 {
@@ -146,6 +143,7 @@ public:
     const LVRendLineInfo * footend;
     const LVRendLineInfo * footlast;
     LVArray<LVPageFootNoteInfo> footnotes;
+    LVArray<LVFootNote *> page_footnotes; // foonotes already on this page, to avoid duplicates
     int lastpageend;
 
     PageSplitState(LVRendPageList * pl, int pageHeight)
@@ -238,6 +236,16 @@ public:
             page->footnotes.add( footnotes );
             footnotes.clear();
             footheight = 0;
+        }
+        if ( page_footnotes.length()>0 ) {
+            page_footnotes.clear();
+        }
+        if (footnote) {
+            // If we're not yet done adding this footnote (so it will continue
+            // on the new page), consider it already present in this new page
+            // (even if one won't see the starting text and footnote number,
+            // it's better than seeing again the same duplicated footnote text)
+            page_footnotes.add(footnote);
         }
         page_list->add(page);
     }
@@ -530,6 +538,16 @@ public:
             footlast = line;
         }
     }
+    bool IsFootNoteInCurrentPage( LVFootNote* note )
+    {
+        if (page_footnotes.length() > 0)
+            for (int n = 0; n < page_footnotes.length(); n++)
+                if (note == page_footnotes[n])
+                    return true;
+        // Assume calling code will add it to this page, so remember it
+        page_footnotes.add(note);
+        return false;
+    }
 };
 
 void LVRendPageContext::split()
@@ -559,6 +577,9 @@ void LVRendPageContext::split()
             for ( int j=0; j<line->getLinks()->length(); j++ ) {
                 LVFootNote* note = line->getLinks()->get(j);
                 if ( note->getLines().length() ) {
+                    // Avoid duplicated footnotes in the same page
+                    if (s.IsFootNoteInCurrentPage(note))
+                        continue;
                     foundFootNote = true;
                     s.StartFootNote( note );
                     for ( int k=0; k<note->getLines().length(); k++ ) {
