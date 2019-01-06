@@ -1831,7 +1831,7 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 // Note: here, RenderRectAccessor * fmt is only used to get the width of the container,
 // which is only needed to compute: ident = lengthToPx(style->text_indent, width, em)
 // (todo: replace 'fmt' with 'int basewidth' to avoid confusion)
-void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy )
+void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy, bool * is_link_start )
 {
     int txform_src_count = txform->GetSrcCount(); // to track if we added lines to txform
     if ( enode->isElement() ) {
@@ -2225,10 +2225,18 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             bool thisIsRunIn = enode->getStyle()->display==css_d_run_in;
             if ( thisIsRunIn )
                 flags |= LTEXT_RUNIN_FLAG;
+            // is_link_start is given to inner elements (to flag the first
+            // text node part of a link), and will be reset to false by
+            // the first non-space-only text node
+            bool * is_link_start_p = is_link_start; // copy of orignal (possibly NULL) pointer
+            bool tmp_is_link_start = true; // new bool, for new pointer if we're a <A>
+            if ( enode->getNodeId()==el_a ) {
+                is_link_start_p = &tmp_is_link_start; // use new pointer
+            }
             for (int i=0; i<cnt; i++)
             {
                 ldomNode * child = enode->getChildNode( i );
-                renderFinalBlock( child, txform, fmt, flags, ident, line_h, valign_dy );
+                renderFinalBlock( child, txform, fmt, flags, ident, line_h, valign_dy, is_link_start_p );
             }
             // Note: CSS "display: run-in" is no longer used with our epub.css (it is
             // used with older css files for "body[name="notes"] section title", either
@@ -2326,8 +2334,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 
             ldomNode * parent = enode->getParentNode();
             int tflags = LTEXT_FLAG_OWNTEXT;
-            if ( parent->getNodeId() == el_a )
-                tflags |= LTEXT_IS_LINK;
+            // if ( parent->getNodeId() == el_a ) // "123" in <a href=><sup>123</sup></a> would not be flagged
+            if (is_link_start && *is_link_start) { // was propagated from some outer <A>
+                tflags |= LTEXT_IS_LINK; // used to gather in-page footnotes
+                lString16 tmp = lString16(txt);
+                if (!tmp.trim().empty()) // non empty text, will make out a word
+                    *is_link_start = false;
+                    // reset to false, so next text nodes in that link are not
+                    // flagged, and don't make out duplicate in-page footnotes
+            }
             LVFont * font = parent->getFont().get();
             css_style_ref_t style = parent->getStyle();
             lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
@@ -2697,6 +2712,12 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
             footnoteId = enode->getFirstInnerAttributeValue(attr_id);
             if ( !footnoteId.empty() )
                 isFootNoteBody = true;
+            // Notes:
+            // It fails when that block element has itself an id, but links
+            // do target an other inline sub element id (getFirstInnerAttributeValue()
+            // would get the block element id, and there would be no existing footnote
+            // for the link target id).
+            // Not tested how it would behave with nested "-cr-hint: footnote-inpage"
         }
         // For fb2 documents. Description of the <body> element from FictionBook2.2.xsd:
         //   Main content of the book, multiple bodies are used for additional
@@ -3115,8 +3136,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 int break_after = CssPageBreak2Flags( after );
                 int break_inside = CssPageBreak2Flags( inside );
                 int count = txform->GetLineCount();
-                for (int i=0; i<count; i++)
-                {
+                for (int i=0; i<count; i++) {
                     const formatted_line_t * line = txform->GetLineInfo(i);
                     int line_flags = 0; //TODO
                     if (i==0)
@@ -3141,8 +3161,10 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
                                     ldomNode * parent = node->getParentNode();
-                                    if ( parent->getNodeId()==el_a && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note") {
+                                    while (parent && parent->getNodeId() != el_a)
+                                        parent = parent->getParentNode();
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
                                             // but we want to be able to gather in-page footnotes by only
                                             // specifying a -cr-hint: to the footnote target, with no need
                                             // to set one to the link itself
@@ -3151,7 +3173,6 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                                             href.erase(0,1);
                                             context.addLink( href );
                                         }
-
                                     }
                                 }
                             }

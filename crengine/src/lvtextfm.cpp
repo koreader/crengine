@@ -1211,7 +1211,7 @@ public:
                     if ( m_flags[i-1] & LCHAR_ALLOW_WRAP_AFTER )
                         word->flags |= LTEXT_WORD_CAN_BREAK_LINE_AFTER; // not used anywhere
                     if ( word->t.start==0 && srcline->flags & LTEXT_IS_LINK )
-                        word->flags |= LTEXT_WORD_IS_LINK_START; // for footnotes (not used by koreader)
+                        word->flags |= LTEXT_WORD_IS_LINK_START; // for in-page footnotes
 
                     if ( visualAlignmentEnabled && lastWord ) { // if floating punctuation enabled
                         int endp = i-1;
