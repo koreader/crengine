@@ -1326,14 +1326,36 @@ public:
             uint32_t j;
             uint32_t cluster;
             uint32_t prev_cluster = 0;
+            int skipped_chars = 0; // to add to 'i' at end of loop, as 'i' is used later and should be accurate
             for (i = 0; i < (int)glyph_count; i++) {
+		/** from harfbuzz/src/hb-buffer.h
+		 * hb_glyph_info_t:
+		 * @codepoint: either a Unicode code point (before shaping) or a glyph index
+		 *             (after shaping).
+		 * @cluster: the index of the character in the original text that corresponds
+		 *           to this #hb_glyph_info_t, or whatever the client passes to
+		 *           hb_buffer_add(). More than one #hb_glyph_info_t can have the same
+		 *           @cluster value, if they resulted from the same character (e.g. one
+		 *           to many glyph substitution), and when more than one character gets
+		 *           merged in the same glyph (e.g. many to one glyph substitution) the
+		 *           #hb_glyph_info_t will have the smallest cluster value of them.
+		 *           By default some characters are merged into the same cluster
+		 *           (e.g. combining marks have the same cluster as their bases)
+		 *           even if they are separate glyphs, hb_buffer_set_cluster_level()
+		 *           allow selecting more fine-grained cluster handling.
+		 */
                 // Note: we use 'cluster' as an index similar to 'i' in 'text'
                 // but the docs warn about this, as it may be wrong with some "level"
                 // see https://harfbuzz.github.io/clusters.html for details
-                // But it seems to work in our case
+                // But it seems to work in our case.
+                // Note: we deal with the "when more than one character gets merged in the
+                // same glyph" case. Not sure we do things correctly for the "More than one
+                // glyph can have the same cluster value, if they resulted from the same
+                // character (one to many glyph substitution)"...
+
                 cluster = glyph_info[i].cluster;
                 lChar16 ch = text[cluster];
-                // It seems each soft-hyphen is in its own cluster, of width 0,
+                // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
                 // so HarfBuzz must already deal correctly with soft-hyphens.
                 // No need to do what we do in the Freetype alternative code below.
                 bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
@@ -1360,9 +1382,23 @@ public:
                 }
                 for (j = prev_cluster + 1; j < cluster; j++) {
                     // fill flags and widths for chars skipped (because they are part of a
-                    // ligature and are accounted in the previous cluster)
+                    // ligature and are accounted in the previous cluster - we didn't know
+                    // how many until we processed the next cluster)
                     flags[j] = GET_CHAR_FLAGS(text[j]);
-                    widths[j] = prev_width;		// for chars replaced by ligature
+                    widths[j] = prev_width; // so 2nd char of a ligature has width=0
+                    skipped_chars++;
+                    // This will ensure we get (with word "afloat"):
+                    //   glyph 14 cluster 14 flags=0:        glyph "a"
+                    //     widths[14] = 150, flags[14]=0     char "a"
+                    //   glyph 15 cluster 15 flags=0:        glyph "fl" (ligature)
+                    //     widths[15] = 163, flags[15]=0     char "f"
+                    //   glyph 16 cluster 17 flags=0:        glyph "o"
+                    //     widths[17] = 174, flags[17]=0     char "o"
+                    //       >widths[16] = 163, flags[16]=0  char "l"  (done here)
+                    //   glyph 17 cluster 18 flags=0:        glyph "a"
+                    //     widths[18] = 185, flags[18]=0     char "a"
+                    //   glyph 18 cluster 19 flags=0:        glyph "t"
+                    //     widths[19] = 192, flags[19]=0     char "t"
                 }
                 prev_cluster = cluster;
                 if (!isHyphen) // avoid soft hyphens inside text string
@@ -1379,8 +1415,11 @@ public:
                 for (j = prev_cluster + 1; j < (uint32_t)len; j++) {
                     flags[j] = GET_CHAR_FLAGS(text[j]);
                     widths[j] = prev_width;
+                    skipped_chars++;
                 }
             }
+            // i is used below to "fill props for rest of chars", so make it accurate
+            i += skipped_chars;
 
         } // _kerningMode == KERNING_MODE_HARFBUZZ
         else { // _kerningMode == KERNING_MODE_DISABLED or KERNING_MODE_FREETYPE:
@@ -1463,7 +1502,7 @@ public:
 
         // fill props for rest of chars
         for ( int ii=i; ii<len; ii++ ) {
-            flags[i] = GET_CHAR_FLAGS( text[ii] );
+            flags[ii] = GET_CHAR_FLAGS( text[ii] );
         }
 
         //maxFit = i;
@@ -1770,6 +1809,11 @@ public:
                                   item->bmp_height,
                                   palette);
                         x += w + letter_spacing;
+                        // Wondered if item->origin_x and glyph_pos[i].x_offset must really
+                        // be added (harfbuzz' x_offset correcting Freetype's origin_x),
+                        // or are the same thing (harfbuzz' x_offset=0 replacing and
+                        // cancelling FreeType's origin_x) ?
+                        // Comparing screenshots seems to indicate they must be added.
                     }
                 }
             }
