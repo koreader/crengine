@@ -817,6 +817,35 @@ static lUInt16 char_flags[] = {
         (ch==UNICODE_THIN_SPACE?LCHAR_ALLOW_WRAP_AFTER: \
          0)))))
 
+struct LVCharTriplet
+{
+    lChar16 prevChar;
+    lChar16 Char;
+    lChar16 nextChar;
+    bool operator==(const struct LVCharTriplet& other) {
+        return prevChar == other.prevChar && Char == other.Char && nextChar == other.nextChar;
+    }
+};
+
+struct LVCharPosInfo
+{
+    int offset;
+    int width;
+};
+
+inline lUInt32 getHash( const struct LVCharTriplet& triplet )
+{
+    // lUInt32 hash = (((
+    //       getHash((lUInt32)triplet.Char) )*31
+    //     + getHash((lUInt32)triplet.prevChar) )*31
+    //     + getHash((lUInt32)triplet.nextChar) );
+    // Probably less expensive:
+    lUInt32 hash = getHash( (lUInt64)triplet.Char
+                        + (((lUInt64)triplet.prevChar)<<16)
+                        + (((lUInt64)triplet.nextChar)<<32) );
+    return hash;
+}
+
 class LVFreeTypeFace : public LVFont
 {
 protected:
@@ -842,10 +871,15 @@ protected:
     bool          _fallbackFontIsSet;
     LVFontRef     _fallbackFont;
 #if USE_HARFBUZZ==1
-    hb_buffer_t* _hb_buffer;
     hb_font_t* _hb_font;
-    hb_feature_t _hb_kern_feature;
+    // For use with KERNING_MODE_HARFBUZZ:
+    hb_buffer_t* _hb_buffer;
+    hb_feature_t _hb_features[2];
     LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*> _glyph_cache2;
+    // For use with KERNING_MODE_HARFBUZZ_LIGHT:
+    hb_buffer_t* _hb_light_buffer;
+    hb_feature_t _hb_light_features[2];
+    LVHashTable<struct LVCharTriplet, struct LVCharPosInfo> _width_cache2;
 #endif
 public:
 
@@ -883,6 +917,7 @@ public:
     , _glyph_cache(globalCache), _drawMonochrome(false), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT), _fallbackFontIsSet(false)
 #if USE_HARFBUZZ==1
     , _glyph_cache2(256)
+    , _width_cache2(1024)
 #endif
     {
         _matrix.xx = 0x10000;
@@ -893,7 +928,13 @@ public:
 #if USE_HARFBUZZ==1
         _hb_font = 0;
         _hb_buffer = hb_buffer_create();
-        hb_feature_from_string("-kern", -1, &_hb_kern_feature);
+        _hb_light_buffer = hb_buffer_create();
+        // HarfBuzz features for full text shaping
+        hb_feature_from_string("+kern", -1, &_hb_features[0]);      // font kerning
+        hb_feature_from_string("+liga", -1, &_hb_features[1]);      // ligatures
+        // HarfBuzz features for lighweight characters width calculating with caching
+        hb_feature_from_string("+kern", -1, &_hb_light_features[0]);      // font kerning
+        hb_feature_from_string("-liga", -1, &_hb_light_features[1]);      // no ligatures
 #endif
     }
 
@@ -902,6 +943,8 @@ public:
 #if USE_HARFBUZZ==1
         if (_hb_buffer)
             hb_buffer_destroy(_hb_buffer);
+        if (_hb_light_buffer)
+            hb_buffer_destroy(_hb_light_buffer);
 #endif
         Clear();
     }
@@ -918,6 +961,7 @@ public:
                 LVFontGlyphIndexCacheItem::freeItem(item);
         }
         _glyph_cache2.clear();
+        _width_cache2.clear();
 #endif
     }
 
@@ -935,10 +979,6 @@ public:
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
 #if USE_HARFBUZZ==1
-        if (_kerningMode == KERNING_MODE_HARFBUZZ)
-            hb_feature_from_string("+kern", -1, &_hb_kern_feature);
-        else
-            hb_feature_from_string("-kern", -1, &_hb_kern_feature);
         // in cache may be found some ligatures, so clear it
         clearCache();
 #endif
@@ -1176,6 +1216,53 @@ public:
         }
         return res;
     }
+
+    bool hbCalcCharWidth(struct LVCharPosInfo* posInfo, const struct LVCharTriplet& triplet, lChar16 def_char) {
+        if (!posInfo)
+            return false;
+        unsigned int segLen = 0;
+        int cluster;
+        hb_buffer_clear_contents(_hb_light_buffer);
+        if (0 != triplet.prevChar) {
+            hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.prevChar, segLen);
+            segLen++;
+        }
+        hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.Char, segLen);
+        cluster = segLen;
+        segLen++;
+        if (0 != triplet.nextChar) {
+            hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.nextChar, segLen);
+            segLen++;
+        }
+        hb_buffer_set_content_type(_hb_light_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
+        hb_buffer_guess_segment_properties(_hb_light_buffer);
+        hb_shape(_hb_font, _hb_light_buffer, _hb_light_features, 2);
+        unsigned int glyph_count = hb_buffer_get_length(_hb_light_buffer);
+        if (segLen == glyph_count) {
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_light_buffer, &glyph_count);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_light_buffer, &glyph_count);
+            if (0 != glyph_info[cluster].codepoint) {        // glyph found for this char in this font
+                posInfo->offset = glyph_pos[cluster].x_offset >> 6;
+                posInfo->width = glyph_pos[cluster].x_advance >> 6;
+            } else {
+                // hb_shape() failed or glyph omited in this font, use fallback font
+                glyph_info_t glyph;
+                LVFont *fallback = getFallbackFont();
+                if (fallback) {
+                    if (fallback->getGlyphInfo(triplet.Char, &glyph, def_char)) {
+                        posInfo->offset = glyph.originX;
+                        posInfo->width = glyph.width;
+                    }
+                }
+            }
+        } else {
+#ifdef _DEBUG
+            CRLog::debug("hbCalcCharWidthWithKerning(): hb_buffer_get_length() return %d, must be %d, return value (-1)", glyph_count, segLen);
+#endif
+            return false;
+        }
+        return true;
+    }
 #endif
 
     FT_UInt getCharIndex( lChar16 code, lChar16 def_char ) {
@@ -1312,7 +1399,7 @@ public:
             hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
             hb_buffer_guess_segment_properties(_hb_buffer);
             // shape
-            hb_shape(_hb_font, _hb_buffer, &_hb_kern_feature, 1);
+            hb_shape(_hb_font, _hb_buffer, _hb_features, 2);
             glyph_count = hb_buffer_get_length(_hb_buffer);
             glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, 0);
             glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, 0);
@@ -1422,6 +1509,52 @@ public:
             i += skipped_chars;
 
         } // _kerningMode == KERNING_MODE_HARFBUZZ
+        else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
+            unsigned int glyph_count;
+            hb_glyph_info_t* glyph_info = 0;
+            hb_glyph_position_t* glyph_pos = 0;
+            struct LVCharTriplet triplet;
+            struct LVCharPosInfo posInfo;
+            triplet.Char = 0;
+            for ( i=0; i<len; i++) {
+                lChar16 ch = text[i];
+                bool isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
+                if (isHyphen) {
+                    // do just what would be done below if zero width (no change
+                    // in prev_width), and don't get involved in kerning
+                    flags[i] = 0; // no LCHAR_ALLOW_WRAP_AFTER, will be dealt with by hyphenate()
+                    widths[i] = prev_width;
+                    lastFitChar = i + 1;
+                    continue;
+                }
+                flags[i] = GET_CHAR_FLAGS(ch); //calcCharFlags( ch );
+                triplet.prevChar = triplet.Char;
+                triplet.Char = ch;
+                if (i < len - 1)
+                    triplet.nextChar = text[i + 1];
+                else
+                    triplet.nextChar = 0;
+                if (!_width_cache2.get(triplet, posInfo)) {
+                    if (hbCalcCharWidth(&posInfo, triplet, def_char))
+                        _width_cache2.set(triplet, posInfo);
+                    else { // (seems this never happens, unlike with KERNING_MODE_DISABLED)
+                        widths[i] = prev_width;
+                        lastFitChar = i + 1;
+                        continue;  /* ignore errors */
+                    }
+                }
+                widths[i] = prev_width + posInfo.width + letter_spacing;
+                if ( !isHyphen ) // avoid soft hyphens inside text string
+                    prev_width = widths[i];
+                if ( prev_width > max_width ) {
+                    if ( lastFitChar < i + 7)
+                        break;
+                } else {
+                    lastFitChar = i + 1;
+                }
+            }
+
+        } // _kerningMode == KERNING_MODE_HARFBUZZ_LIGHT
         else { // _kerningMode == KERNING_MODE_DISABLED or KERNING_MODE_FREETYPE:
                // fallback to the non harfbuzz code
 #endif // USE_HARFBUZZ
@@ -1770,7 +1903,7 @@ public:
             hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
             hb_buffer_guess_segment_properties(_hb_buffer);
             // shape
-            hb_shape(_hb_font, _hb_buffer, &_hb_kern_feature, 1);
+            hb_shape(_hb_font, _hb_buffer, _hb_features, 2);
             glyph_count = hb_buffer_get_length(_hb_buffer);
             glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, 0);
             glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, 0);
@@ -1833,6 +1966,57 @@ public:
             }
 
         } // _kerningMode == KERNING_MODE_HARFBUZZ
+        else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
+            hb_glyph_info_t *glyph_info = 0;
+            hb_glyph_position_t *glyph_pos = 0;
+            unsigned int glyph_count;
+            int w;
+            unsigned int len_new = 0;
+            struct LVCharTriplet triplet;
+            struct LVCharPosInfo posInfo;
+            triplet.Char = 0;
+            for ( i=0; i<=(unsigned int)len; i++) {
+                if ( i==len && !addHyphen )
+                    break;
+                if ( i<len ) {
+                    ch = text[i];
+                    if ( ch=='\t' )
+                        ch = ' ';
+                    // don't draw any soft hyphens inside text string
+                    isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
+                } else {
+                    ch = UNICODE_SOFT_HYPHEN_CODE;
+                    isHyphen = false; // an hyphen, but not one to not draw
+                }
+                FT_UInt ch_glyph_index = getCharIndex( ch, def_char );
+                LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
+                if ( !item )
+                    continue;
+                if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
+                    triplet.prevChar = triplet.Char;
+                    triplet.Char = ch;
+                    if (i < (unsigned int)(len - 1))
+                        triplet.nextChar = text[i + 1];
+                    else
+                        triplet.nextChar = 0;
+                    if (!_width_cache2.get(triplet, posInfo)) {
+                        if (!hbCalcCharWidth(&posInfo, triplet, def_char)) {
+                            posInfo.offset = 0;
+                            posInfo.width = item->advance;
+                        }
+                        _width_cache2.set(triplet, posInfo);
+                    }
+                    buf->Draw(x + item->origin_x + posInfo.offset,
+                        y + _baseline - item->origin_y,
+                        item->bmp,
+                        item->bmp_width,
+                        item->bmp_height,
+                        palette);
+
+                    x += posInfo.width + letter_spacing;
+                }
+            }
+        } // _kerningMode == KERNING_MODE_HARFBUZZ_LIGHT
         else { // _kerningMode == KERNING_MODE_DISABLED or KERNING_MODE_FREETYPE:
                // fallback to the non harfbuzz code
 #endif // USE_HARFBUZZ
@@ -2213,7 +2397,7 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                       lUInt32 flags=0, int letter_spacing=0 )
+                       lUInt32 flags, int letter_spacing )
     {
         if ( len <= 0 )
             return;
@@ -3189,7 +3373,7 @@ public:
                 }
                 break;
             }
-            bool scal = FT_IS_SCALABLE( face );
+            bool scal = FT_IS_SCALABLE( face ) != 0;
             bool charset = checkCharSet( face );
             if (!charset) {
                 if (FT_Select_Charmap(face, FT_ENCODING_UNICODE)) // returns 0 on success

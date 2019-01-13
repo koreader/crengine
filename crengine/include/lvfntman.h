@@ -167,6 +167,7 @@ enum hinting_mode_t {
 enum kerning_mode_t {
     KERNING_MODE_DISABLED,
     KERNING_MODE_FREETYPE,
+    KERNING_MODE_HARFBUZZ_LIGHT,
     KERNING_MODE_HARFBUZZ
 };
 
