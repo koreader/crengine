@@ -2992,6 +2992,36 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar16 * dst, int &dstlen)
                     | CONT_BYTE(1,6)
                     | CONT_BYTE(2,0);
                 s += 3;
+                // Supports WTF-8 : https://en.wikipedia.org/wiki/UTF-8#WTF-8
+                // a superset of UTF-8, that includes UTF-16 surrogates
+                // in UTF-8 bytes (forbidden in well-formed UTF-8).
+                // We may get that from bad producers or converters.
+                // As these shouldn't be there in UTF-8, if we find
+                // these surrogates in the right sequence, we might as well
+                // convert the char they represent to the right Unicode
+                // codepoint and display it instead of a '?'.
+                //   Surrogates are code points from two special ranges of
+                //   Unicode values, reserved for use as the leading, and
+                //   trailing values of paired code units in UTF-16. Leading,
+                //   also called high, surrogates are from D800 to DBFF, and
+                //   trailing, or low, surrogates are from DC00 to DFFF. They
+                //   are called surrogates, since they do not represent
+                //   characters directly, but only as a pair.
+                // (Note that lChar16 (wchar_t) is 4-bytes, and can store
+                // unicode codepoint > 0xFFFF like 0x10123)
+                ch = *(p-1); // re-read what we wrote
+                if (*(p-1) >= 0xD800 && *(p-1) <= 0xDBFF && s+2 < ends) { // what we wrote is a high surrogate,
+                    lUInt32 next = *s;                            // and there's room next for a low surrogate
+                    if ( (next & 0xF0) == 0xE0 && IS_FOLLOWING(1) && IS_FOLLOWING(2)) { // is a valid 3-bytes sequence
+                        next = ((next & 0x0F) << 12) | CONT_BYTE(1,6) | CONT_BYTE(2,0);
+                        if (next >= 0xDC00 && next <= 0xDFFF) { // is a low surrogate: valid surrogates sequence
+                            ch = 0x10000 + ((*(p-1) & 0x3FF)<<10) + (next & 0x3FF);
+                            p--; // rewind to override what we wrote
+                            *p++ = ch;
+                            s += 3;
+                        }
+                    }
+                }
             }
         } else if ( (ch & 0xF8) == 0xF0 ) {
             if (s + 4 > ends)
