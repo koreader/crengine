@@ -241,6 +241,19 @@ enum css_border_collapse_value_t {
     css_border_c_none
 };
 
+enum css_orphans_widows_value_t { // supported only if in range 1-9
+    css_orphans_widows_inherit,
+    css_orphans_widows_1,
+    css_orphans_widows_2,
+    css_orphans_widows_3,
+    css_orphans_widows_4,
+    css_orphans_widows_5,
+    css_orphans_widows_6,
+    css_orphans_widows_7,
+    css_orphans_widows_8,
+    css_orphans_widows_9
+};
+
 enum css_generic_value_t {
     css_generic_auto = -1 // for (css_val_unspecified, css_value_auto), for "margin: auto"
 };

@@ -2547,6 +2547,8 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_collapse=source->border_collapse;
     dest->border_spacing[0]=source->border_spacing[0];
     dest->border_spacing[1]=source->border_spacing[1];
+    dest->orphans = source->orphans;
+    dest->widows = source->widows;
     dest->cr_hint = source->cr_hint;
 }
 
@@ -3177,6 +3179,8 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 int break_after = CssPageBreak2Flags( after );
                 int break_inside = CssPageBreak2Flags( inside );
                 int count = txform->GetLineCount();
+                int orphans = (int)(enode->getStyle()->orphans) - (int)(css_orphans_widows_1) + 1;
+                int widows = (int)(enode->getStyle()->widows) - (int)(css_orphans_widows_1) + 1;
                 for (int i=0; i<count; i++) {
                     const formatted_line_t * line = txform->GetLineInfo(i);
                     int line_flags = 0; //TODO
@@ -3188,7 +3192,17 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         line_flags |= break_after << RN_SPLIT_AFTER;
                     else
                         line_flags |= break_inside << RN_SPLIT_AFTER;
+                    if (orphans > 1 && i > 0 && i < orphans)
+                        // with orphans:2, and we're the 2nd line (i=1), avoid split before
+                        // so we stick to first line
+                        line_flags |= RN_SPLIT_AVOID << RN_SPLIT_BEFORE;
+                    if (widows > 1 && i < count-1 && count-1 - i < widows)
+                        // with widows:2, and we're the last before last line (i=count-2),
+                        // avoid split after so we stick to last line
+                        line_flags |= RN_SPLIT_AVOID << RN_SPLIT_AFTER;
+
                     context.AddLine(rect.top+line->y+padding_top, rect.top+line->y+line->height+padding_top, line_flags);
+
                     if(padding_bottom>0&&i==count-1)
                         context.AddLine(rect.bottom-padding_bottom,rect.bottom,(margin_bottom>0?RN_SPLIT_AFTER_AUTO:CssPageBreak2Flags(getPageBreakAfter(enode))<<RN_SPLIT_AFTER)|padding_bottom_split_flag);
                     if(margin_bottom>0&&i==count-1)
@@ -4262,6 +4276,8 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
     UPDATE_STYLE_FIELD( text_transform, css_tt_inherit );
     UPDATE_STYLE_FIELD( hyphenate, css_hyph_inherit );
+    UPDATE_STYLE_FIELD( orphans, css_orphans_widows_inherit );
+    UPDATE_STYLE_FIELD( widows, css_orphans_widows_inherit );
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );
     UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit ); // These are not inherited per CSS specs,
