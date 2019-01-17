@@ -96,6 +96,8 @@ enum css_decl_code {
     cssd_background_position,
     cssd_border_collapse,
     cssd_border_spacing,
+    cssd_orphans,
+    cssd_widows,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
     cssd_stop
@@ -171,6 +173,8 @@ static const char * css_decl_name[] = {
     "background-position",
     "border-collapse",
     "border-spacing",
+    "orphans",
+    "widows",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
     NULL
@@ -927,6 +931,23 @@ static const char * css_bc_names[]={
         "collapse",
         "initial",
         "inherit",
+        NULL
+};
+
+// orphans and widows values (supported only if in range 1-9)
+// https://drafts.csswg.org/css-break-3/#widows-orphans
+//   "Negative values and zero are invalid and must cause the declaration to be ignored."
+static const char * css_orphans_widows_names[]={
+        "inherit",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
         NULL
 };
 
@@ -1843,6 +1864,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
             case cssd_border_collapse:
                 n=parse_name(decl,css_bc_names,-1);
                 break;
+            case cssd_orphans:
+                n=parse_name(decl, css_orphans_widows_names, -1);
+                break;
+            case cssd_widows:
+                n=parse_name(decl, css_orphans_widows_names, -1);
+                break;
             case cssd_stop:
             case cssd_unknown:
             default:
@@ -2117,6 +2144,12 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_border_collapse:
             style->Apply( (css_border_collapse_value_t) *p++, &style->border_collapse, imp_bit_border_collapse, is_important );
+            break;
+        case cssd_orphans:
+            style->Apply( (css_orphans_widows_value_t) *p++, &style->orphans, imp_bit_orphans, is_important );
+            break;
+        case cssd_widows:
+            style->Apply( (css_orphans_widows_value_t) *p++, &style->widows, imp_bit_widows, is_important );
             break;
         case cssd_cr_hint:
             style->Apply( (css_cr_hint_t) *p++, &style->cr_hint, imp_bit_cr_hint, is_important );

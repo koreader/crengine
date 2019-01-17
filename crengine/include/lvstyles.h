@@ -76,7 +76,9 @@ enum css_style_rec_important_bit {
     imp_bit_border_collapse       = 1ULL << 49,
     imp_bit_border_spacing_h      = 1ULL << 50,
     imp_bit_border_spacing_v      = 1ULL << 51,
-    imp_bit_cr_hint               = 1ULL << 52
+    imp_bit_orphans               = 1ULL << 52,
+    imp_bit_widows                = 1ULL << 53,
+    imp_bit_cr_hint               = 1ULL << 54
 };
 
 /**
@@ -88,8 +90,8 @@ typedef struct css_style_rec_tag {
     int                  refCount; // for reference counting
     lUInt32              hash; // cache calculated hash value here
     lUInt64              important;  // bitmap for !important (used only by LVCssDeclaration)
-                                     // we have currently below 53 css properties
-                                     // lvstsheet knows about 68, which are mapped to these 52
+                                     // we have currently below 55 css properties
+                                     // lvstsheet knows about 70, which are mapped to these 55
                                      // update bits above if you add new properties below
     lUInt64              importance; // bitmap for important bit's importance/origin
                                      // (allows for 2 level of !important importance)
@@ -132,6 +134,8 @@ typedef struct css_style_rec_tag {
     css_background_position_value_t background_position;
     css_border_collapse_value_t border_collapse;
     css_length_t border_spacing[2];//first horizontal and the second vertical spacing
+    css_orphans_widows_value_t orphans;
+    css_orphans_widows_value_t widows;
     css_cr_hint_t          cr_hint;
     css_style_rec_tag()
     : refCount(0)
@@ -170,6 +174,8 @@ typedef struct css_style_rec_tag {
     , background_attachment(css_background_a_none)
     , background_position(css_background_p_none)
     , border_collapse(css_border_seperate)
+    , orphans(css_orphans_widows_inherit)
+    , widows(css_orphans_widows_inherit)
     , cr_hint(css_cr_hint_none)
     {
         // css_length_t fields are initialized by css_length_tag()

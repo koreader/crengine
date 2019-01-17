@@ -62,7 +62,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.20k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.21k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0010
 
@@ -3728,6 +3728,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_indent.value = 0;
     s->line_height.type = css_val_percent;
     s->line_height.value = def_interline_space << 8;
+    s->orphans = css_orphans_widows_1; // default to allow orphans and widows
+    s->widows = css_orphans_widows_1;
     s->cr_hint = css_cr_hint_none;
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
