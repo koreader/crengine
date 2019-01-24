@@ -1062,6 +1062,35 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
             case cssd_list_style_position:
                 n = parse_name( decl, css_lsp_names, -1 );
                 break;
+            case cssd_list_style:
+                {
+                    // The list-style property is specified as one, two, or three keywords in any order,
+                    // the keywords being those of list-style-type, list-style-position and list-style-image.
+                    // We don't support (and will fail parsing the declaration) a list-style-image url(...)
+                    // component, but we can parse the declaration when it contains a type (square, decimal) and/or
+                    // a position (inside, outside) in any order.
+                    int ntype=-1;
+                    int nposition=-1;
+                    // check order "type position"
+                    ntype = parse_name( decl, css_lst_names, -1 );
+                    skip_spaces( decl );
+                    nposition = parse_name( decl, css_lsp_names, -1 );
+                    skip_spaces( decl );
+                    if (ntype == -1) { // check again if order was "position type"
+                        ntype = parse_name( decl, css_lst_names, -1 );
+                        skip_spaces( decl );
+                    }
+                    parsed_important = parse_important(decl);
+                    if (ntype != -1) {
+                        buf<<(lUInt32) (cssd_list_style_type | importance | parsed_important);
+                        buf<<(lUInt32) ntype;
+                    }
+                    if (nposition != -1) {
+                        buf<<(lUInt32) (cssd_list_style_position | importance | parsed_important);
+                        buf<<(lUInt32) nposition;
+                    }
+                }
+                break;
             case cssd_vertical_align:
                 {
                     css_length_t len;
