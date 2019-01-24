@@ -978,6 +978,7 @@ public:
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
+        _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
 #if USE_HARFBUZZ==1
         // in cache may be found some ligatures, so clear it
         clearCache();
@@ -989,6 +990,7 @@ public:
         if (_hintingMode == mode)
             return;
         _hintingMode = mode;
+        _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
         clearCache();
     }
     /// returns current hinting mode
