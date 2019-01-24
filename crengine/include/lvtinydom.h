@@ -368,8 +368,38 @@ public:
 // forward declaration
 class ldomNode;
 
-#define TNC_PART_COUNT 1024
-#define TNC_PART_SHIFT 10
+// About these #define TNC_PART_* :
+// A ldomNode unique reference is defined by:
+//    struct ldomNodeHandle {     /// compact 32bit value for node
+//        unsigned _docIndex:8;   // index in ldomNode::_documentInstances[MAX_DOCUMENT_INSTANCE_COUNT];
+//        unsigned _dataIndex:24; // index of node in document's storage and type
+//    };
+// The 24 bits of _dataIndex are used that way:
+//        return &(_elemList[index>>TNC_PART_INDEX_SHIFT][(index>>4)&TNC_PART_MASK]);
+//        #define TNTYPE  (_handle._dataIndex&0x0F)
+//        #define TNINDEX (_handle._dataIndex&(~0x0E))
+//   24>15 10bits (1024 values) : index in the first-level _elemList[TNC_PART_COUNT]
+//   14> 5 10bits (1024 values) : sub-index in second-level _elemList[first_index][]
+//    4> 1  4bits (16 values) : type (bit 1: text | element, bit 2: mutable | permanent)
+//                                   (bit 3 and 4 are not used, so we could grab 2 more bits from here if needed)
+//
+// We can update ldomNodeHandle to:
+//    struct ldomNodeHandle {
+//        unsigned _docIndex:4;   // decreasing MAX_DOCUMENT_INSTANCE_COUNT from 256 to 16
+//        unsigned _dataIndex:28; // get 4 more bits that we can distribute to these indexes.
+//    };
+// The other #define below (and possibly the code too) assume the same TNC_PART_SHIFT for both indexes,
+// so let's distribute 2 bits to each:
+//   28>17 12bits (4096 values) : index in the first-level _elemList[TNC_PART_COUNT]
+//   16> 5 12bits (4096 values) : sub-index in second-level _elemList[first_index][]
+//    4> 1  4bits (16 values)
+// With that, we have increased the max number of text nodes and the max number of
+// element nodes from 1024x1024 (1M) to 4096x4096 (16M) which allows loading very large books.
+
+//#define TNC_PART_COUNT 1024
+//#define TNC_PART_SHIFT 10
+#define TNC_PART_COUNT 4096
+#define TNC_PART_SHIFT 12
 #define TNC_PART_INDEX_SHIFT (TNC_PART_SHIFT+4)
 #define TNC_PART_LEN (1<<TNC_PART_SHIFT)
 #define TNC_PART_MASK (TNC_PART_LEN-1)
@@ -600,12 +630,17 @@ public:
 
 /// compact 32bit value for node
 struct ldomNodeHandle {
-    unsigned _docIndex:8;   // index in ldomNode::_documentInstances[MAX_DOCUMENT_INSTANCE_COUNT];
-    unsigned _dataIndex:24; // index of node in document's storage and type
+    // See comment above around #define TNC_PART_COUNT and TNC_PART_SHIFT changes
+    // Original crengine field sizes:
+    // unsigned _docIndex:8;
+    // unsigned _dataIndex:24;
+    unsigned _docIndex:4;   // index in ldomNode::_documentInstances[MAX_DOCUMENT_INSTANCE_COUNT];
+    unsigned _dataIndex:28; // index of node in document's storage and type
 };
 
 /// max number which could be stored in ldomNodeHandle._docIndex
-#define MAX_DOCUMENT_INSTANCE_COUNT 256
+// #define MAX_DOCUMENT_INSTANCE_COUNT 256
+#define MAX_DOCUMENT_INSTANCE_COUNT 16
 
 
 class ldomTextNode;
