@@ -709,6 +709,8 @@ void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int hei
         return;
     LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
     img->Decode( &drawcb );
+    _drawnImagesCount++;
+    _drawnImagesSurface += width*height;
 }
 
 
@@ -1299,6 +1301,8 @@ void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int he
     //fprintf( stderr, "LVColorDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
     img->Decode( &drawcb );
+    _drawnImagesCount++;
+    _drawnImagesSurface += width*height;
 }
 
 /// fills buffer with specified color
