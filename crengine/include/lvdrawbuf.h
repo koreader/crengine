@@ -228,6 +228,8 @@ protected:
     lUInt32 _backgroundColor;
     lUInt32 _textColor;
     bool _hidePartialGlyphs;
+    int _drawnImagesCount;
+    int _drawnImagesSurface;
 public:
     virtual void setHidePartialGlyphs( bool hide ) { _hidePartialGlyphs = hide; }
     /// returns current background color
@@ -262,8 +264,14 @@ public:
     */
     /// draws formatted text
     //virtual void DrawFormattedText( formatted_text_fragment_t * text, int x, int y );
+
+    /// Get nb of images drawn on buffer
+    int getDrawnImagesCount() { return _drawnImagesCount; }
+    /// Get surface of images drawn on buffer
+    int getDrawnImagesSurface() { return _drawnImagesSurface; }
     
-    LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true) { }
+    LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
+                        _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
 
