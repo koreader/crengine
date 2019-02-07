@@ -6690,8 +6690,24 @@ bool ldomDocument::findText( lString16 pattern, bool caseInsensitive, bool rever
     int fh = getFullHeight();
     if ( maxY<=0 || maxY>fh )
         maxY = fh;
-    ldomXPointer start = createXPointer( lvPoint(0, minY), reverse?-1:1 );
-    ldomXPointer end = createXPointer( lvPoint(10000, maxY), reverse?-1:1 );
+    // ldomXPointer start = createXPointer( lvPoint(0, minY), reverse?-1:1 );
+    // ldomXPointer end = createXPointer( lvPoint(10000, maxY), reverse?-1:1 );
+    // If we're provided with minY or maxY in some empty space (margins, empty
+    // elements...), they may not resolve to a XPointer.
+    // Find a valid y near each of them that does resolve to a XPointer:
+    ldomXPointer start;
+    ldomXPointer end;
+    for (int y = minY; y >= 0; y--) {
+        start = createXPointer( lvPoint(0, y), reverse?-1:1 );
+        if (!start.isNull())
+            break;
+    }
+    for (int y = maxY; y <= fh; y++) {
+        end = createXPointer( lvPoint(10000, y), reverse?-1:1 );
+        if (!end.isNull())
+            break;
+    }
+
     if ( start.isNull() || end.isNull() )
         return false;
     ldomXRange range( start, end );
