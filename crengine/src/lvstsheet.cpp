@@ -2276,7 +2276,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     // TODO: for cssrt_predecessor and cssrt_pseudoclass, we should
     // also deal with <autoBoxing> nodes when navigating siblings,
     // by iterating up and down the autoBoxing nodes met on our path while
-    // under real parent. These could take wront decisions in the meantime...
+    // under real parent. These could take wrong decisions in the meantime...
     switch (_type)
     {
     case cssrt_parent:        // E > F
@@ -2698,9 +2698,17 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
     for (;;)
     {
         skip_spaces( str );
+        // We need to skip spaces in the generic parsing, but we need to
+        // NOT check for attributes (.class, [attr=val]...) if we did skip
+        // some spaces (because "DIV .classname" has a different meaning
+        // (ancestor/descendant combinator) than "DIV.classname" (element
+        // with classname)).
+        bool check_attribute_rules = true;
         if ( *str == '*' ) // universal selector
         {
             str++;
+            if (*str==' ' || *str=='\t' || *str=='\n' || *str == '\r')
+                check_attribute_rules = false;
             skip_spaces( str );
             _id = 0;
         } 
@@ -2712,7 +2720,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             _id = 0; // (elementName internal id)
         }
-        else if ( css_is_alpha( *str ) )
+        else if ( css_is_alpha( *str ) ) // element name follows
         {
             // ident
             char ident[64];
@@ -2731,6 +2739,8 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 // returned by getElementNameIndex() across book loadings, and cause:
                 // "cached rendering is invalid (style hash mismatch): doing full rendering"
             _specificity += 1; // we have an element: this adds 1 to specificity
+            if (*str==' ' || *str=='\t' || *str=='\n' || *str == '\r')
+                check_attribute_rules = false;
             skip_spaces( str );
         }
         else
@@ -2741,27 +2751,29 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             return true;
         // one or more attribute rules
         bool attr_rule = false;
-        while ( *str == '[' || *str=='.' || *str=='#' || *str==':' )
-        {
-            LVCssSelectorRule * rule = parse_attr( str, doc );
-            if (!rule)
-                return false;
-            insertRuleStart( rule ); //insertRuleAfterStart
-            //insertRuleAfterStart( rule ); //insertRuleAfterStart
-            _specificity += rule->getWeight();
+        if (check_attribute_rules) {
+            while ( *str == '[' || *str=='.' || *str=='#' || *str==':' )
+            {
+                LVCssSelectorRule * rule = parse_attr( str, doc );
+                if (!rule)
+                    return false;
+                insertRuleStart( rule ); //insertRuleAfterStart
+                //insertRuleAfterStart( rule ); //insertRuleAfterStart
+                _specificity += rule->getWeight();
 
-            /*
-            if ( _id!=0 ) {
-                LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_parent);
-                rule->setId(_id);
-                insertRuleStart( rule );
-                _id=0;
+                /*
+                if ( _id!=0 ) {
+                    LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_parent);
+                    rule->setId(_id);
+                    insertRuleStart( rule );
+                    _id=0;
+                }
+                */
+
+                skip_spaces( str );
+                attr_rule = true;
+                //continue;
             }
-            */
-
-            skip_spaces( str );
-            attr_rule = true;
-            //continue;
         }
         // element relation
         if (*str == '>')
@@ -2794,7 +2806,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             _id=0;
             continue;
         }
-        else if (css_is_alpha( *str ))
+        else if (css_is_alpha( *str ) || (*str == '.') || (*str == '#') || (*str == '*') )
         {
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_ancessor);
             rule->setId(_id);
