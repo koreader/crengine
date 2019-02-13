@@ -7613,6 +7613,50 @@ bool ldomXPointerEx::prevVisibleText( bool thisBlockOnly )
     return false;
 }
 
+/// move to previous visible char
+bool ldomXPointerEx::prevVisibleChar( bool thisBlockOnly )
+{
+    if ( isNull() )
+        return false;
+    if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
+        // move to previous text
+        if ( !prevVisibleText(thisBlockOnly) )
+            return false;
+        ldomNode * node = getNode();
+        lString16 text = node->getText();
+        int textLen = text.length();
+        _data->setOffset( textLen );
+    }
+    _data->addOffset(-1);
+    return true;
+}
+
+/// move to next visible char
+bool ldomXPointerEx::nextVisibleChar( bool thisBlockOnly )
+{
+    if ( isNull() )
+        return false;
+    if ( !isText() || !isVisible() ) {
+        // move to next text
+        if ( !nextVisibleText(thisBlockOnly) )
+            return false;
+        _data->setOffset( 0 );
+        return true;
+    }
+    ldomNode * node = getNode();
+    lString16 text = node->getText();
+    int textLen = text.length();
+    if ( _data->getOffset() == textLen ) {
+        // move to next text
+        if ( !nextVisibleText(thisBlockOnly) )
+            return false;
+        _data->setOffset( 0 );
+        return true;
+    }
+    _data->addOffset(1);
+    return true;
+}
+
 // TODO: implement better behavior
 inline bool IsUnicodeSpace( lChar16 ch )
 {
