@@ -1544,6 +1544,11 @@ public:
     /// move to previous visible text node
     bool prevVisibleText( bool thisBlockOnly = false );
 
+    /// move to prev visible char
+    bool prevVisibleChar( bool thisBlockOnly = false );
+    /// move to next visible char
+    bool nextVisibleChar( bool thisBlockOnly = false );
+
     /// move to previous visible word beginning
     bool prevVisibleWordStart( bool thisBlockOnly = false );
     /// move to previous visible word end
