@@ -1853,11 +1853,15 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	//    offset = 0;
 	int offset = 0;
 	lvRect clip;
-	clip.left = pageRect->left + m_pageMargins.left;
 	clip.top = pageRect->top + m_pageMargins.top + headerHeight + offset;
-	clip.bottom = pageRect->top + m_pageMargins.top + height + headerHeight
-			+ offset;
-	clip.right = pageRect->left + pageRect->width() - m_pageMargins.right;
+	clip.bottom = pageRect->top + m_pageMargins.top + height + headerHeight + offset;
+	// clip.left = pageRect->left + m_pageMargins.left;
+	// clip.right = pageRect->left + pageRect->width() - m_pageMargins.right;
+	// We don't really need to enforce left and right clipping of page margins:
+	// this allows glyphs that need to (like 'J' at start of line or 'f' at
+	// end of line with some fonts) to not be cut by this clipping.
+	clip.left = pageRect->left;
+	clip.right = pageRect->left + pageRect->width();
 	if (page.type == PAGE_TYPE_COVER)
 		clip.top = pageRect->top + m_pageMargins.top;
     if (((m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && page.type
