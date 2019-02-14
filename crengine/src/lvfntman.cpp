@@ -797,9 +797,13 @@ lString8 familyName( FT_Face face )
     return faceName;
 }
 
+// The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
+// were: "LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER".
+// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_LIGATURE_TAIL
+// (as flags are usually lUint8, and the 8 bits were used, one needed to be dropped).
 static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 0    00
-    0, 0, LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER, 0, 0, LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER, 0, 0, // 8    08
+    0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, // 8    08
     0, 0, 0, 0, 0, 0, 0, 0, // 16   10
     0, 0, 0, 0, 0, 0, 0, 0, // 24   18
     LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, 0, 0, 0, 0, 0, // 32   20
@@ -1473,7 +1477,7 @@ public:
                     // fill flags and widths for chars skipped (because they are part of a
                     // ligature and are accounted in the previous cluster - we didn't know
                     // how many until we processed the next cluster)
-                    flags[j] = GET_CHAR_FLAGS(text[j]);
+                    flags[j] = GET_CHAR_FLAGS(text[j]) | LCHAR_IS_LIGATURE_TAIL;
                     widths[j] = prev_width; // so 2nd char of a ligature has width=0
                     skipped_chars++;
                     // This will ensure we get (with word "afloat"):
@@ -1502,7 +1506,7 @@ public:
             // For case when ligature is the last glyph in measured text
             if (prev_cluster < (uint32_t)(len - 1) && prev_width < (lUInt16)max_width) {
                 for (j = prev_cluster + 1; j < (uint32_t)len; j++) {
-                    flags[j] = GET_CHAR_FLAGS(text[j]);
+                    flags[j] = GET_CHAR_FLAGS(text[j]) | LCHAR_IS_LIGATURE_TAIL;
                     widths[j] = prev_width;
                     skipped_chars++;
                 }
