@@ -674,6 +674,30 @@ public:
         return delta > 0 ? delta : 0;
     }
 
+    /// measure word
+    bool measureWord(formatted_word_t * word, int & width)
+    {
+        src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
+        LVFont * srcfont= (LVFont *) srcline->t.font;
+        const lChar16 * str = srcline->t.text + word->t.start;
+        // Avoid malloc by using static buffers. Returns false if word too long.
+        #define MAX_MEASURED_WORD_SIZE 127
+        static lUInt16 widths[MAX_MEASURED_WORD_SIZE+1];
+        static lUInt8 flags[MAX_MEASURED_WORD_SIZE+1];
+        if (word->t.len > MAX_MEASURED_WORD_SIZE)
+            return false;
+        int chars_measured = srcfont->measureText(
+                str,
+                word->t.len,
+                widths, flags,
+                0x7FFF,
+                '?',
+                srcline->letter_spacing,
+                false);
+        width = widths[word->t.len-1];
+        return true;
+    }
+
     /// measure text of current paragraph
     void measureText()
     {
@@ -1170,7 +1194,32 @@ public:
 //                    lChar16 lastch = m_text[i-1];
 //                    if ( lastch==UNICODE_NO_BREAK_SPACE )
 //                        CRLog::trace("last char is UNICODE_NO_BREAK_SPACE");
+                    if ( m_flags[wstart] & LCHAR_IS_LIGATURE_TAIL ) {
+                        // The start of this word is part of a ligature that started
+                        // in a previous word: some hyphenation wrap happened on
+                        // this ligature, which will not be rendered as such.
+                        // We are the second part of the hyphenated word, and our first
+                        // char(s) have a width of 0 (for being part of the ligature):
+                        // we need to re-measure this half of the original word.
+                        int new_width;
+                        if ( measureWord(word, new_width) ) {
+                            word->width = new_width;
+                            word->min_width = word->width;
+                        }
+                    }
                     if ( m_flags[i-1] & LCHAR_ALLOW_HYPH_WRAP_AFTER ) {
+                        if ( m_flags[i] & LCHAR_IS_LIGATURE_TAIL ) {
+                            // The end of this word is part of a ligature that, because
+                            // of hyphenation, has been splitted onto next word.
+                            // We are the first part of the hyphenated word, and
+                            // our last char(s) have been assigned the width of the
+                            // ligature glyph, which will not be rendered as such:
+                            // we need to re-measure this half of the original word.
+                            int new_width;
+                            if ( measureWord(word, new_width) ) {
+                                word->width = new_width;
+                            }
+                        }
                         word->width += font->getHyphenWidth();
                         word->min_width = word->width;
                         word->flags |= LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER;
