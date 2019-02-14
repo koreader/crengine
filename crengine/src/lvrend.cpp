@@ -3927,6 +3927,15 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         case erm_table_footer_group:
         case erm_block:
             {
+                // Draw border before content, so inner content can bleed if necessary on
+                // the border (some glyphs like 'J' at start or 'f' at end may be drawn
+                // outside the text content box).
+                // Don't draw border for TR TBODY... as their borders are never directly
+                // rendered by Firefox (they are rendered only when border-collapse, when
+                // they did collapse to the cell, and made out the cell border)
+                if ( !isTableRowLike )
+                    DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+
                 // recursive draw all sub-blocks for blocks
                 int cnt = enode->getChildCount();
 
@@ -3975,17 +3984,17 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1,
                                       doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), tableBorderColorDark );
                 }*/
-                // Don't draw border for TR TBODY... as their borders are never directly
-                // rendered by Firefox (they are rendered only when border-collapse, when
-                // they did collapse to the cell, and made out the cell border)
-                if ( !isTableRowLike )
-                    DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                // Border was previously drawn here, but has been moved above for earlier drawing.
             	}
             break;
         case erm_list_item: // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
         case erm_final:
         case erm_table_caption:
             {
+                // Draw border before content, so inner content can bleed if necessary on
+                // the border (some glyphs like 'J' at start or 'f' at end may be drawn
+                // outside the text content box).
+                DrawBorder(enode, drawbuf, x0, y0, doc_x, doc_y, fmt);
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as final (containing only text and inline elements)
@@ -4041,7 +4050,8 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
                 drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
 #endif
-                DrawBorder(enode, drawbuf, x0, y0, doc_x, doc_y, fmt);
+                // Border was previously drawn here, but has been moved above for earlier drawing.
+
                 /*lUInt32 tableBorderColor = 0x555555;
                 lUInt32 tableBorderColorDark = 0xAAAAAA;
                 bool needBorder = enode->getStyle()->display==css_d_table_cell;
