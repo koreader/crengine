@@ -1,0 +1,8 @@
+exclude_paths:
+  - 'android/**'
+  - 'cr3gui/**'
+  - 'cr3qt/**'
+  - 'cr3wx/**'
+  - 'crengine/Tools/**'
+  - 'thirdparty/**'
+
