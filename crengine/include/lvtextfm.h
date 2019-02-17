@@ -74,7 +74,7 @@ typedef struct
     lInt16          margin;   /**< \brief first line margin */
     lInt16          valign_dy; /* drift y from baseline */
     lUInt8          interval; /**< \brief line interval, *16 (16=normal, 32=double) */
-    lInt8           letter_spacing; /**< \brief additional letter spacing, pixels */
+    lInt16          letter_spacing; /**< \brief additional letter spacing, pixels */
     lUInt32         color;    /**< \brief color */
     lUInt32         bgcolor;  /**< \brief background color */
     lUInt32         flags;    /**< \brief flags */
@@ -99,24 +99,24 @@ typedef struct
 */
 typedef struct
 {
-   lUInt16  src_text_index;  /**< \brief 00 index of source text line */
-   lUInt16  width;           /**< \brief 06 word width, pixels, when at line end */
-   lUInt16  x;               /**< \brief 08 word x position in line */
-   lInt8    y;               /**< \brief 10 baseline y position */
-   lUInt8   flags;           /**< \brief 11 flags */
+   lUInt16  src_text_index;  /**< \brief index of source text line */
+   lUInt16  width;           /**< \brief word width, pixels, when at line end */
+   lUInt16  min_width;       /**< \brief index of source text line */
+   lInt16   x;               /**< \brief word x position in line */
+   lInt16   y;               /**< \brief baseline y position */
+   lUInt8   flags;           /**< \brief flags */
    union {
           /// for text word
        struct {
-           lUInt16  start;           /**< \brief 12 position of word in source text */
-           lUInt16  len;             /**< \brief 14 number of chars in word */
+           lUInt16  start;           /**< \brief position of word in source text */
+           lUInt16  len;             /**< \brief number of chars in word */
        } t;
        /// for object
        struct {
-           lUInt16  height;           /**< \brief 12 height of image */
+           lUInt16  height;          /**< \brief height of image */
        } o;
    };
-   lUInt16 min_width;        /**< \brief 16 index of source text line */
-   lUInt16 padding;          /**< \brief 18 not used */
+   // lUInt16  padding;         /**< \brief not used */
 } formatted_word_t;
 
 /// can add space after this word
@@ -141,7 +141,7 @@ typedef struct
    formatted_word_t * words;       /**< array of words */
    lInt32             word_count;  /**< number of words */
    lUInt32            y;           /**< start y position of line */
-   lUInt16            x;           /**< start x position */
+   lInt16             x;           /**< start x position */
    lUInt16            width;       /**< width */
    lUInt16            height;      /**< height */
    lUInt16            baseline;    /**< baseline y offset */
@@ -230,7 +230,7 @@ void lvtextAddSourceLine(
    lUInt16         margin,   /* first line margin */
    void *          object,   /* pointer to custom object */
    lUInt16         offset,    /* offset from node/object start to start of line */
-   lInt8           letter_spacing
+   lInt16          letter_spacing
                          );
 
 /** Add source object
@@ -246,7 +246,7 @@ void lvtextAddSourceObject(
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
-   lInt8           letter_spacing
+   lInt16          letter_spacing
                          );
 
 
@@ -294,7 +294,7 @@ public:
                 lInt16          valign_dy, /* drift y from baseline */
                 lUInt16         margin,    /* first line margin */
                 void *          object,    /* pointer to custom object */
-                lInt8           letter_spacing=0
+                lInt16          letter_spacing=0
          );
 
     void AddSourceLine(
@@ -309,7 +309,7 @@ public:
            lUInt16         margin=0,    /* first line margin */
            void *          object=NULL,
            lUInt32         offset=0,
-           lInt8           letter_spacing=0
+           lInt16          letter_spacing=0
         )
     {
         lvtextAddSourceLine(m_pbuffer, 
