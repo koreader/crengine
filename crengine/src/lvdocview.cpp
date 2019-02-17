@@ -1935,9 +1935,12 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				int fstart = page.footnotes[fn].start;
 				int fheight = page.footnotes[fn].height;
 				clip.top = fy + offset;
-				clip.left = pageRect->left + m_pageMargins.left;
-				clip.right = pageRect->right - m_pageMargins.right;
 				clip.bottom = fy + offset + fheight;
+				// Also avoid left and right clipping of page margins with footnotes
+				// clip.left = pageRect->left + m_pageMargins.left;
+				// clip.right = pageRect->right - m_pageMargins.right;
+				clip.left = pageRect->left;
+				clip.right = pageRect->right;
 				drawbuf->SetClipRect(&clip);
 				DrawDocument(*drawbuf, m_doc->getRootNode(), pageRect->left
 						+ m_pageMargins.left, fy + offset, pageRect->width()
@@ -2360,6 +2363,7 @@ bool LVDocView::docToWindowPoint(lvPoint & pt) {
                     index = 1;
                 }
                 if (index >= 0) {
+                    /*
                     int x = pt.x + m_pageRects[index].left + m_pageMargins.left;
                     // We shouldn't get x ouside page width as we never crop on the
                     // width: if we do (if bug somewhere else), force it to be at the
@@ -2372,6 +2376,13 @@ bool LVDocView::docToWindowPoint(lvPoint & pt) {
                         pt.y = pt.y + getPageHeaderHeight() + m_pageMargins.top - m_pages[page + index]->start;
                         return true;
                     }
+                    */
+                    // We don't crop on the left, so it feels like we don't need to
+                    // ensure anything and crop on the right, and this allows text
+                    // selection to grab bits of overflowed glyph
+                    pt.x = pt.x + m_pageRects[index].left + m_pageMargins.left;
+                    pt.y = pt.y + getPageHeaderHeight() + m_pageMargins.top - m_pages[page + index]->start;
+                    return true;
                 }
             }
             return false;
