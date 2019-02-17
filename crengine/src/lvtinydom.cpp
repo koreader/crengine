@@ -5976,9 +5976,13 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                             else {
                                 int chw = w[ offset - word->t.start ] - chx;
                                 if ( offset == word->t.start + word->t.len - 1
-                                        && word->flags | LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) {
+                                        && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
+                                        && !gFlgFloatingPunctuationEnabled ) {
                                     // if offset is the end of word, and this word has
                                     // been hyphenated, includes the hyphen width
+                                    // (but not when floating punctuation is enabled,
+                                    // to keep nice looking rectangles on multi lines
+                                    // text selection)
                                     chw += font->getHyphenWidth();
                                 }
                                 rect.right = rect.left + chw;
@@ -7113,31 +7117,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
             curCharRect = lvRect();
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
-            if (curPos.getOffset() == textLen-1) {
-                // There is proably a bug with getRectEx() and getting the width
-                // of the last char of a text node: the rect.right overflows the
-                // real char width on the right and may mess highlighting.
-                // Best to use in this case ldomXRange:getRectEx() which
-                // uses ldomXPointer:getRect() non-extended, while still
-                // dealing with margins and borders (unlike standalone
-                // ldomXPointer:getRect() non-extended)
-                ldomXPointerEx endPos = curPos;
-                endPos.setOffset(textLen);
-                if (!ldomXRange(curPos, endPos).getRectEx(curCharRect)) {
-                    // printf("#### xRange.getRectEx(textLen=%d) failed\n", textLen);
-                    go_on = curPos.nextText(); // skip this text node
-                    nodeStartRect = lvRect(); // reset
-                    continue;
-                }
-                curCharRect.right -= 1; // ldomXRange:getRectEx() overflows 1px
-            }
-            else {
-                if (!curPos.getRectEx(curCharRect)) {
-                    // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
-                    go_on = curPos.nextText(); // skip this text node
-                    nodeStartRect = lvRect(); // reset
-                    continue;
-                }
+            if (!curPos.getRectEx(curCharRect)) {
+                // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
+                go_on = curPos.nextText(); // skip this text node
+                nodeStartRect = lvRect(); // reset
+                continue;
             }
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
@@ -7152,26 +7136,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         // Ignore (possibly collapsed) space at end of text node
         curPos.setOffset(nodeText[textLen-1] == ' ' ? textLen-2 : textLen-1 );
         curCharRect = lvRect();
-        if (curPos.getOffset() == textLen-1) {
-            // There is proably a bug with getRectEx() and getting the width
-            // of the last char of a text node: see above for why this trick.
-            ldomXPointerEx endPos = curPos;
-            endPos.setOffset(textLen);
-            if (!ldomXRange(curPos, endPos).getRectEx(curCharRect)) {
-                // printf("#### xRange.getRectEx(textLen=%d) failed\n", textLen);
-                go_on = curPos.nextText(); // skip this text node
-                nodeStartRect = lvRect(); // reset
-                continue;
-            }
-            curCharRect.right -= 1; // ldomXRange:getRectEx() overflows 1px
-        }
-        else {
-            if (!curPos.getRectEx(curCharRect)) {
-                // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
-                go_on = curPos.nextText(); // skip this text node
-                nodeStartRect = lvRect(); // reset
-                continue;
-            }
+        if (!curPos.getRectEx(curCharRect)) {
+            // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
+            go_on = curPos.nextText(); // skip this text node
+            nodeStartRect = lvRect(); // reset
+            continue;
         }
         if (curCharRect.top == nodeStartRect.top) {
             // Extend line up to the end of this node, but don't add it yet,
