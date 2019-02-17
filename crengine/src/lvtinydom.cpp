@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.22k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0011
+#define FORMATTING_VERSION_ID 0x0012
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -5986,6 +5986,16 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                                     chw += font->getHyphenWidth();
                                 }
                                 rect.right = rect.left + chw;
+                                // Extend left or right if this glyph overflows its
+                                // origin/advance box (can happen with an italic font,
+                                // or with a regular font on the right of the letter 'f'
+                                // or on the left of the letter 'J').
+                                // Only when negative (overflow) and not when positive
+                                // (which are more frequent), mostly to keep some good
+                                // looking rectangles on the sides when highlighting
+                                // multiple lines.
+                                rect.left += font->getLeftSideBearing(str[offset], true);
+                                rect.right -= font->getRightSideBearing(str[offset], true);
                             }
                         }
                         else
@@ -6902,6 +6912,8 @@ void ldomXRangeList::getRanges( ldomMarkedRangeList &dst )
         return;
     for ( int i=0; i<length(); i++ ) {
         ldomXRange * range = get(i);
+        // For native highlights to correctly grab glyphs left and right
+        // overflows, some tweaking might be needed here.
         lvPoint ptStart = range->getStart().toPoint();
         lvPoint ptEnd = range->getEnd().toPoint();
 //        // LVE:DEBUG

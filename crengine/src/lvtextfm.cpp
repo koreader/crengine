@@ -166,7 +166,7 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
    lUInt16         margin,   /* first line margin */
    void *          object,    /* pointer to custom object */
    lUInt16         offset,
-   lInt8           letter_spacing
+   lInt16          letter_spacing
                          )
 {
     int srctextsize = (pbuffer->srctextlen + FRM_ALLOC_SIZE-1) / FRM_ALLOC_SIZE * FRM_ALLOC_SIZE;
@@ -218,7 +218,7 @@ void lvtextAddSourceObject(
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
-   lInt8           letter_spacing
+   lInt16          letter_spacing
                          )
 {
     int srctextsize = (pbuffer->srctextlen + FRM_ALLOC_SIZE-1) / FRM_ALLOC_SIZE * FRM_ALLOC_SIZE;
@@ -256,7 +256,7 @@ void LFormattedText::AddSourceObject(
             lInt16          valign_dy, /* drift y from baseline */
             lUInt16         margin,    /* first line margin */
             void *          object,    /* pointer to custom object */
-            lInt8           letter_spacing
+            lInt16          letter_spacing
      )
 {
     ldomNode * node = (ldomNode*)object;
@@ -641,37 +641,41 @@ public:
     }
 
     /// checks whether to add more space after italic character
+    /// (this could be used to shift some regular font glyphs
+    /// like 'f' that often overflows the glyph - but we let
+    /// such glyphs overflow in the padding/margin, as it is
+    /// quite small and possibly intended by the font designer;
+    /// italic overflows are often larger, and need to be
+    /// corrected at end of line or end of italic node)
     int getAdditionalCharWidth( int pos, int maxpos ) {
         if (m_text[pos]==0) // object
             return 0; // no additional space
         LVFont * font = (LVFont*)m_srcs[pos]->t.font;
         if (!font)
             return 0; // no font
-        if ( !font->getItalic() )
-            return 0; // not italic
         if ( pos<maxpos-1 && m_srcs[pos+1]==m_srcs[pos] )
             return 0; // the same font, non-last char
-        // need to measure
-        LVFont::glyph_info_t glyph;
-        if ( !font->getGlyphInfo(m_text[pos], &glyph, '?') )
-            return 0;
-        int delta = glyph.originX - glyph.width + glyph.blackBoxX;//fix the italic CJK character
-        return delta > 0 ? delta : 0;
+        // Correct italic_only, only if overflow
+        int glyph_overflow = - font->getRightSideBearing(m_text[pos], true, true);
+        // if (glyph_overflow > 0) printf("right overflow: %c %d\n", m_text[pos], glyph_overflow);
+        return glyph_overflow;
     }
 
     /// checks whether to add more space on left before italic character
+    /// (this could be used to shift some regular font glyphs
+    /// like 'J' whose foot often overflows the glyph - but we let
+    /// such glyphs overflow in the padding/margin, as it is
+    /// quite small and possibly intended by the font designer;
+    /// italic underflows and overflows are often larger, and need
+    /// to be corrected at start of line)
     int getAdditionalCharWidthOnLeft( int pos ) {
         if (m_text[pos]==0) // object
             return 0; // no additional space
         LVFont * font = (LVFont*)m_srcs[pos]->t.font;
-        if ( !font->getItalic() )
-            return 0; // not italic
-        // need to measure
-        LVFont::glyph_info_t glyph;
-        if (!font->getGlyphInfo(m_text[pos], &glyph, '?'))
-            return 0;
-        int delta = -glyph.originX;
-        return delta > 0 ? delta : 0;
+        // Correct italic_only, including removal of positive leading space,
+        int glyph_overflow = - font->getLeftSideBearing(m_text[pos], false, true);
+        // if (glyph_overflow != 0) printf("left overflow %c: %d\n", m_text[pos], glyph_overflow);
+        return glyph_overflow;
     }
 
     /// measure word
@@ -1704,7 +1708,7 @@ public:
             }
             int dw = lastnonspace>=start ? getAdditionalCharWidth(lastnonspace, lastnonspace+1) : 0;
             if (dw) {
-                TR("additional width = %d, after char %s", dw, LCSTR(lString16(m_text + endp - 1, 1)));
+                TR("additional width = %d, after char %s", dw, LCSTR(lString16(m_text + lastnonspace, 1)));
                 m_widths[lastnonspace] += dw;
             }
             if (endp>m_length) endp=m_length;

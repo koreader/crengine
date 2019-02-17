@@ -517,34 +517,35 @@ public:
 #if (USE_FREETYPE==1)
 
 
-class LVFontGlyphWidthCache
+#define CACHED_UNSIGNED_METRIC_NOT_SET 0xFFFF
+class LVFontGlyphUnsignedMetricCache
 {
 private:
     static const int COUNT = 360;
-    lUInt8 * ptrs[COUNT]; //support up to 0X2CFFF=360*512-1
+    lUInt16 * ptrs[COUNT]; //support up to 0X2CFFF=360*512-1
 public:
-    lUInt8 get( lChar16 ch )
+    lUInt16 get( lChar16 ch )
     {
         FONT_GLYPH_CACHE_GUARD
         int inx = (ch>>9) & 0x1ff;
-        if (inx >= COUNT) return 0xFF;
-        lUInt8 * ptr = ptrs[inx];
+        if (inx >= COUNT) return CACHED_UNSIGNED_METRIC_NOT_SET;
+        lUInt16 * ptr = ptrs[inx];
         if ( !ptr )
-            return 0xFF;
+            return CACHED_UNSIGNED_METRIC_NOT_SET;
         return ptr[ch & 0x1FF ];
     }
-    void put( lChar16 ch, lUInt8 w )
+    void put( lChar16 ch, lUInt16 m )
     {
         FONT_GLYPH_CACHE_GUARD
         int inx = (ch>>9) & 0x1ff;
         if (inx >= COUNT) return;
-        lUInt8 * ptr = ptrs[inx];
+        lUInt16 * ptr = ptrs[inx];
         if ( !ptr ) {
-            ptr = new lUInt8[512];
+            ptr = new lUInt16[512];
             ptrs[inx] = ptr;
-            memset( ptr, 0xFF, sizeof(lUInt8) * 512 );
+            memset( ptr, CACHED_UNSIGNED_METRIC_NOT_SET, sizeof(lUInt16) * 512 );
         }
-        ptr[ ch & 0x1FF ] = w;
+        ptr[ ch & 0x1FF ] = m;
     }
     void clear()
     {
@@ -555,15 +556,31 @@ public:
             ptrs[i] = NULL;
         }
     }
-    LVFontGlyphWidthCache()
+    LVFontGlyphUnsignedMetricCache()
     {
-        memset( ptrs, 0, 360*sizeof(lUInt8*) );
+        memset( ptrs, 0, 360*sizeof(lUInt16*) );
     }
-    ~LVFontGlyphWidthCache()
+    ~LVFontGlyphUnsignedMetricCache()
     {
         clear();
     }
 };
+
+#define CACHED_SIGNED_METRIC_NOT_SET 0x7FFF
+#define CACHED_SIGNED_METRIC_SHIFT 0x8000
+class LVFontGlyphSignedMetricCache : public LVFontGlyphUnsignedMetricCache
+{
+public:
+    lInt16 get( lChar16 ch )
+    {
+        return (lInt16) ( LVFontGlyphUnsignedMetricCache::get(ch) - CACHED_SIGNED_METRIC_SHIFT );
+    }
+    void put( lChar16 ch, lInt16 m )
+    {
+        LVFontGlyphUnsignedMetricCache::put(ch, (lUInt16)( m + CACHED_SIGNED_METRIC_SHIFT) );
+    }
+};
+
 
 class LVFreeTypeFace;
 static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lChar16 ch, FT_GlyphSlot slot ) // , bool drawMonochrome
@@ -800,7 +817,7 @@ lString8 familyName( FT_Face face )
 // The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
 // were: "LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER".
 // LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_LIGATURE_TAIL
-// (as flags are usually lUint8, and the 8 bits were used, one needed to be dropped).
+// (as flags are usually lUInt8, and the 8 bits were used, one needed to be dropped).
 static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 0    00
     0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, // 8    08
@@ -867,7 +884,9 @@ protected:
     int           _baseline;
     int            _weight;
     int            _italic;
-    LVFontGlyphWidthCache _wcache;
+    LVFontGlyphUnsignedMetricCache   _wcache;   // glyph width cache
+    LVFontGlyphSignedMetricCache     _lsbcache; // glyph left side bearing cache
+    LVFontGlyphSignedMetricCache     _rsbcache; // glyph right side bearing cache
     LVFontLocalGlyphCache _glyph_cache;
     bool          _drawMonochrome;
     hinting_mode_t _hintingMode;
@@ -956,6 +975,8 @@ public:
     void clearCache() {
         _glyph_cache.clear();
         _wcache.clear();
+        _lsbcache.clear();
+        _rsbcache.clear();
 #if USE_HARFBUZZ==1
         LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::pair* pair;
         LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::iterator it = _glyph_cache2.forwardIterator();
@@ -1092,7 +1113,7 @@ public:
         if ( !error && italicize && !_italic ) {
             _matrix.xy = 0x10000*3/10;
             FT_Set_Transform(_face, &_matrix, NULL);
-            _italic = true;
+            _italic = 2;
         }
 
         if ( error ) {
@@ -1187,7 +1208,7 @@ public:
         if ( !error && italicize && !_italic ) {
             _matrix.xy = 0x10000*3/10;
             FT_Set_Transform(_face, &_matrix, NULL);
-            _italic = true;
+            _italic = 2;
         }
 
         if ( error ) {
@@ -1331,11 +1352,34 @@ public:
             flags );  /* load flags, see below */
         if ( error )
             return false;
-        glyph->blackBoxX = (lUInt8)(_slot->metrics.width >> 6);
-        glyph->blackBoxY = (lUInt8)(_slot->metrics.height >> 6);
-        glyph->originX =   (lInt8)(_slot->metrics.horiBearingX >> 6);
-        glyph->originY =   (lInt8)(_slot->metrics.horiBearingY >> 6);
-        glyph->width =     (lUInt8)(myabs(_slot->metrics.horiAdvance) >> 6);
+        glyph->blackBoxX = (lUInt16)(_slot->metrics.width >> 6);
+        glyph->blackBoxY = (lUInt16)(_slot->metrics.height >> 6);
+        glyph->originX =   (lInt16)(_slot->metrics.horiBearingX >> 6);
+        glyph->originY =   (lInt16)(_slot->metrics.horiBearingY >> 6);
+        glyph->width =     (lUInt16)(myabs(_slot->metrics.horiAdvance) >> 6);
+        if (glyph->blackBoxX == 0) // If a glyph has no blackbox (a spacing
+            glyph->rsb =   0;      // character), there is no bearing
+        else
+            glyph->rsb =   (lInt16)( (myabs(_slot->metrics.horiAdvance)
+                            - _slot->metrics.horiBearingX - _slot->metrics.width) >> 6);
+        // printf("%c: %d + %d + %d = %d (y: %d + %d)\n", code, glyph->originX, glyph->blackBoxX,
+        //                            glyph->rsb, glyph->width, glyph->originY, glyph->blackBoxY);
+        // Note: these >>6 on a negative number will floor() it, so we'll get
+        // a ceil()'ed value when considering negative numbers as some overflow,
+        // which is good when we're using it for adding some padding.
+        //
+        // Note: when the font does not provide italic glyphs (_italic = 2), some fake
+        // italic/oblique is obtained with FreeType transformation (_matrix.xy and
+        // FT_Set_Transform()). freetype.h states about it:
+        //     Note that this also transforms the `face.glyph.advance' field,
+        //     but *not* the values in `face.glyph.metrics'.
+        // So, with such fake italic, the values just computed above are wrong,
+        // and may cause some wrong glyphs positionning or advance.
+        // Some possible attempt at guessing the transformed values can be found in
+        // http://code.qt.io/cgit/qt/qtbase.git/tree/src/platformsupport/fontdatabases/freetype/qfontengine_ft.cpp
+        // (transformBoundingBox) but a straightforward port here does not give
+        // the expected rendering...
+
         return true;
     }
 /*
@@ -1459,7 +1503,7 @@ public:
                 else {
                     // hb_shape() failed or glyph skipped in this font, use fallback font
                     int w = _wcache.get(ch);
-                    if (0xFF == w) {
+                    if ( w == CACHED_UNSIGNED_METRIC_NOT_SET ) {
                         glyph_info_t glyph;
                         LVFont *fallback = getFallbackFont();
                         if (fallback) {
@@ -1604,7 +1648,7 @@ public:
 
             /* load glyph image into the slot (erase previous one) */
             int w = _wcache.get(ch);
-            if ( w==0xFF ) {
+            if ( w == CACHED_UNSIGNED_METRIC_NOT_SET ) {
                 glyph_info_t glyph;
                 if ( getGlyphInfo( ch, &glyph, def_char ) ) {
                     w = glyph.width;
@@ -1812,11 +1856,11 @@ public:
         return _size;
     }
 
-    /// returns char width
+    /// returns char glyph advance width
     virtual int getCharWidth( lChar16 ch, lChar16 def_char='?' )
     {
         int w = _wcache.get(ch);
-        if ( w==0xFF ) {
+        if ( w == CACHED_UNSIGNED_METRIC_NOT_SET ) {
             glyph_info_t glyph;
             if ( getGlyphInfo( ch, &glyph, def_char ) ) {
                 w = glyph.width;
@@ -1826,6 +1870,46 @@ public:
             _wcache.put(ch, w);
         }
         return w;
+    }
+
+    /// returns char glyph left side bearing
+    virtual int getLeftSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false )
+    {
+        if ( italic_only && !getItalic() )
+            return 0;
+        int b = _lsbcache.get(ch);
+        if ( b == CACHED_SIGNED_METRIC_NOT_SET ) {
+            glyph_info_t glyph;
+            if ( getGlyphInfo( ch, &glyph, '?' ) ) {
+                b = glyph.originX;
+            } else {
+                b = 0;
+            }
+            _lsbcache.put(ch, b);
+        }
+        if (negative_only && b >= 0)
+            return 0;
+        return b;
+    }
+
+    /// returns char glyph right side bearing
+    virtual int getRightSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false )
+    {
+        if ( italic_only && !getItalic() )
+            return 0;
+        int b = _rsbcache.get(ch);
+        if ( b == CACHED_SIGNED_METRIC_NOT_SET ) {
+            glyph_info_t glyph;
+            if ( getGlyphInfo( ch, &glyph, '?' ) ) {
+                b = glyph.rsb;
+            } else {
+                b = 0;
+            }
+            _rsbcache.put(ch, b);
+        }
+        if (negative_only && b >= 0)
+            return 0;
+        return b;
     }
 
     /// retrieves font handle
@@ -2379,11 +2463,23 @@ public:
         return _size;
     }
 
-    /// returns char width
+    /// returns char glyph advance width
     virtual int getCharWidth( lChar16 ch, lChar16 def_char=0 )
     {
         int w = _baseFont->getCharWidth( ch, def_char ) + _hShift;
         return w;
+    }
+
+    /// returns char glyph left side bearing
+    virtual int getLeftSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false )
+    {
+        return _baseFont->getLeftSideBearing( ch, negative_only, italic_only );
+    }
+
+    /// returns char glyph right side bearing
+    virtual int getRightSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false )
+    {
+        return _baseFont->getRightSideBearing( ch, negative_only, italic_only );
     }
 
     /// retrieves font handle

@@ -2411,7 +2411,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
             }
 
-            lInt8 letter_spacing;
+            int letter_spacing;
             // % is not supported for letter_spacing by Firefox, but crengine
             // did support it, by relating it to font size, so let's use em
             // in place of width
@@ -4743,7 +4743,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         // letter-spacing
         LVFont * font = parent->getFont().get();
         int em = font->getSize();
-        lInt8 letter_spacing;
+        int letter_spacing;
         letter_spacing = lengthToPx(parent->getStyle()->letter_spacing, em, em);
         // text-transform
         switch (parent->getStyle()->text_transform) {
@@ -4772,13 +4772,12 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         #define MAX_TEXT_CHUNK_SIZE 4096
         static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
+        // We adjust below each word width with calls to getLeftSideBearing()
+        // and getRightSideBearing(). These should be called with the exact same
+        // parameters as used in lvtextfm.cpp getAdditionalCharWidth() and
+        // getAdditionalCharWidthOnLeft().
         while (true) {
             LVFont * font = node->getParentNode()->getFont().get();
-            // Italic glyphs may need a little added width.
-            // Get it if needed as done in lvtextfm.cpp getAdditionalCharWidth()
-            // and getAdditionalCharWidthOnLeft()
-            bool is_italic_font = font->getItalic();
-            LVFont::glyph_info_t glyph; // slot for measuring one italic glyph
             int chars_measured = font->measureText(
                     txt + start,
                     len,
@@ -4807,13 +4806,11 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                     lastSpaceWidth = w;
                     curMaxWidth += w; // add this space to non-wrap width
                     if (curWordWidth > 0) { // there was a word before this space
-                        if ( is_italic_font && (start+i > 0) ) {
-                            // adjust if last word's last char was italic
+                        if (start+i > 0) {
+                            // adjust for last word's last char overflow (italic, letter f...)
                             lChar16 prevc = *(txt + start + i - 1);
-                            if (font->getGlyphInfo(prevc, &glyph, '?') ) {
-                                int delta = glyph.originX - glyph.width + glyph.blackBoxX;
-                                curWordWidth += delta > 0 ? delta : 0;
-                            }
+                            int right_overflow = - font->getRightSideBearing(prevc, true, true);
+                            curWordWidth += right_overflow;
                         }
                     }
                     if (curWordWidth > minWidth) // done with previous word
@@ -4825,44 +4822,31 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                     lastSpaceWidth = 0; // no width to take off if we stop with this char
                     curMaxWidth += w;
                     if (curWordWidth > 0) { // there was a word or CJK char before this CJK char
-                        if ( is_italic_font && (start+i > 0) ) {
-                            // adjust if last word's last char or previous CJK char was italic
+                        if (start+i > 0) {
+                            // adjust for last word's last char or previous CJK char right overflow
                             lChar16 prevc = *(txt + start + i - 1);
-                            if (font->getGlyphInfo(prevc, &glyph, '?') ) {
-                                int delta = glyph.originX - glyph.width + glyph.blackBoxX;
-                                curWordWidth += delta > 0 ? delta : 0;
-                            }
+                            int right_overflow = - font->getRightSideBearing(prevc, true, true);
+                            curWordWidth += right_overflow;
                         }
                     }
                     if (curWordWidth > minWidth) // done with previous word
                         minWidth = curWordWidth; // longest word found
                     curWordWidth = w;
-                    if ( is_italic_font ) {
-                        if (font->getGlyphInfo(c, &glyph, '?') ) {
-                            // adjust for negative leading offset if current CJK char is italic
-                            int delta = -glyph.originX;
-                            delta = delta > 0 ? delta : 0;
-                            curWordWidth += delta;
-                            if (start + i == 0) // at start of text only? (not sure)
-                                curMaxWidth += delta; // also add it to max width
-                        }
-                    }
-                    // CJK may or may not need this italic treatment, not sure
+                    // adjust for leading overflow
+                    int left_overflow = - font->getLeftSideBearing(c, false, true);
+                    curWordWidth += left_overflow;
+                    if (start + i == 0) // at start of text only? (not sure)
+                        curMaxWidth += left_overflow; // also add it to max width
                 }
                 else { // A char part of a word
                     collapseNextSpace = false; // next space should not be ignored
                     lastSpaceWidth = 0; // no width to take off if we stop with this char
                     if (curWordWidth == 0) { // first char of a word
-                        if ( is_italic_font ) {
-                            // adjust for negative leading offset on first char of a word
-                            if (font->getGlyphInfo(c, &glyph, '?') ) {
-                                int delta = -glyph.originX;
-                                delta = delta > 0 ? delta : 0;
-                                curWordWidth += delta;
-                                if (start + i == 0) // at start of text only? (not sure)
-                                    curMaxWidth += delta; // also add it to max width
-                            }
-                        }
+                        // adjust for leading overflow on first char of a word
+                        int left_overflow = - font->getLeftSideBearing(c, false, true);
+                        curWordWidth += left_overflow;
+                        if (start + i == 0) // at start of text only? (not sure)
+                            curMaxWidth += left_overflow; // also add it to max width
                     }
                     curMaxWidth += w;
                     curWordWidth += w;
@@ -4879,15 +4863,12 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
             }
             if ( chars_measured == len ) { // done with this text node
                 if (curWordWidth > 0) { // we end with a word
-                    if ( is_italic_font && (start+len > 0) ) {
-                        // adjust if word last char was italic
+                    if (start+len > 0) {
+                        // adjust for word last char right overflow
                         lChar16 prevc = *(txt + start + len - 1);
-                        if (font->getGlyphInfo(prevc, &glyph, '?') ) {
-                            int delta = glyph.originX - glyph.width + glyph.blackBoxX;
-                            delta = delta > 0 ? delta : 0;
-                            curWordWidth += delta;
-                            curMaxWidth += delta; // also add it to max width
-                        }
+                        int right_overflow = - font->getRightSideBearing(prevc, true, true);
+                        curWordWidth += right_overflow;
+                        curMaxWidth += right_overflow; // also add it to max width
                     }
                 }
                 break;

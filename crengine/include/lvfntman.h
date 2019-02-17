@@ -184,11 +184,12 @@ public:
     lUInt32 _hash;
     /// glyph properties structure
     struct glyph_info_t {
-        lUInt8  blackBoxX;   ///< 0: width of glyph
-        lUInt8  blackBoxY;   ///< 1: height of glyph black box
-        lInt8   originX;     ///< 2: X origin for glyph
-        lInt8   originY;     ///< 3: Y origin for glyph
-        lUInt8  width;       ///< 4: full width of glyph
+        lUInt16 blackBoxX;   ///< 0: width of glyph
+        lUInt16 blackBoxY;   ///< 1: height of glyph black box
+        lInt16  originX;     ///< 2: X origin for glyph (left side bearing)
+        lInt16  originY;     ///< 3: Y origin for glyph
+        lUInt16 width;       ///< 4: full advance width of glyph
+        lInt16  rsb;         ///< 5: right side bearing
     };
 
     /// hyphenation character
@@ -255,8 +256,12 @@ public:
     virtual int getWeight() const = 0;
     /// returns italic flag
     virtual int getItalic() const = 0;
-    /// returns char width
+    /// returns char glyph advance width
     virtual int getCharWidth( lChar16 ch, lChar16 def_char=0 ) = 0;
+    /// returns char glyph left side bearing
+    virtual int getLeftSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false ) = 0;
+    /// returns char glyph right side bearing
+    virtual int getRightSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false ) = 0;
     /// retrieves font handle
     virtual void * GetHandle() = 0;
     /// returns font typeface name
