@@ -2017,7 +2017,8 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         NULL,
                         flgHyphen,
                         srcline->flags & 0x0F00,
-                        srcline->letter_spacing);
+                        srcline->letter_spacing,
+                        word->width);
                     if ( cl!=0xFFFFFFFF )
                         buf->SetTextColor( oldColor );
                     if ( bgcl!=0xFFFFFFFF )
