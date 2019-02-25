@@ -12062,19 +12062,28 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
     if ( !isElement() )
         return NULL;
     ldomNode * enode = this;
+    lvdom_element_render_method rm = enode->getRendMethod();
+
     RenderRectAccessor fmt( this );
-    int top_margin=lengthToPx(enode->getStyle()->margin[2],fmt.getWidth(),enode->getFont()->getSize());
-    int bottom_margin=lengthToPx(enode->getStyle()->margin[3],fmt.getWidth(),enode->getFont()->getSize());
-    if ( enode->getRendMethod() == erm_invisible ) {
+    int top_margin = lengthToPx(enode->getStyle()->margin[2], fmt.getWidth(), enode->getFont()->getSize());
+    int bottom_margin = lengthToPx(enode->getStyle()->margin[3], fmt.getWidth(), enode->getFont()->getSize());
+    if ( rm == erm_table_row || rm == erm_table_row_group || rm == erm_table_header_group || rm == erm_table_footer_group ) {
+        // Styles margins set on <TR>, <THEAD> and the like are ignored
+        // by table layout algorithm (as per CSS specs)
+        top_margin = 0;
+        bottom_margin = 0;
+    }
+
+    if ( rm == erm_invisible ) {
         return NULL;
     }
     if ( pt.y < fmt.getY() - top_margin) {
-        if ( direction>0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption) )
+        if ( direction>0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
             return this;
         return NULL;
     }
     if ( pt.y >= fmt.getY() + fmt.getHeight() + bottom_margin ) {
-        if ( direction<0 && (enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption) )
+        if ( direction<0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
             return this;
         return NULL;
     }
@@ -12094,7 +12103,7 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
             return NULL;
         }
     }
-    if ( enode->getRendMethod() == erm_final || enode->getRendMethod() == erm_list_item || enode->getRendMethod() == erm_table_caption ) {
+    if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
         return this;
     }
     int count = getChildCount();
