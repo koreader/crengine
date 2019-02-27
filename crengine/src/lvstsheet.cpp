@@ -1304,8 +1304,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                             {
                             buf<<(lUInt32) css_val_inherited;
                             buf<<(lUInt32) 0;
-                            break;
                             }
+                            break;
                         default:break;
                     }
                     break;
