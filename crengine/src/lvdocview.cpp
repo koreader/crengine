@@ -2342,7 +2342,7 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 }
 
 /// converts point from document to window coordinates, returns true if success
-bool LVDocView::docToWindowPoint(lvPoint & pt) {
+bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom) {
 	LVLock lock(getMutex());
     CHECK_RENDER("docToWindowPoint()")
 	// TODO: implement coordinate conversion here
@@ -2356,11 +2356,22 @@ bool LVDocView::docToWindowPoint(lvPoint & pt) {
             int page = getCurPage();
             if (page >= 0 && page < m_pages.length() && pt.y >= m_pages[page]->start) {
                 int index = -1;
-                if (pt.y <= (m_pages[page]->start + m_pages[page]->height)) {
+                // The y at start+height is normally part of the next
+                // page. But we are often called twice with a topLeft
+                // and a bottomRight of a rectangle bounding words or
+                // a line, with the bottomRight being a rect height,
+                // so pointing to the y just outside the box.
+                // So, when we're specified that this point is a rect bottom,
+                // we return this page even if it's actually on next page.
+                int page_bottom = m_pages[page]->start + m_pages[page]->height;
+                if ( pt.y < page_bottom || (isRectBottom && pt.y == page_bottom) ) {
                     index = 0;
-                } else if (getVisiblePageCount() == 2 && page + 1 < m_pages.length() &&
-                    pt.y <= (m_pages[page + 1]->start + m_pages[page + 1]->height)) {
-                    index = 1;
+                }
+                else if (getVisiblePageCount() == 2 && page + 1 < m_pages.length()) {
+                    int next_page_bottom = m_pages[page + 1]->start + m_pages[page + 1]->height;
+                    if ( pt.y < next_page_bottom || (isRectBottom && pt.y == next_page_bottom) ) {
+                        index = 1;
+                    }
                 }
                 if (index >= 0) {
                     /*

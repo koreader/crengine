@@ -718,8 +718,8 @@ public:
     bool drawImage(LVDrawBuf * buf, LVImageSourceRef img, int x, int y, int dx, int dy);
     /// converts point from window to document coordinates, returns true if success
     bool windowToDocPoint( lvPoint & pt );
-    /// converts point from documsnt to window coordinates, returns true if success
-    bool docToWindowPoint( lvPoint & pt );
+    /// converts point from document to window coordinates, returns true if success
+    bool docToWindowPoint( lvPoint & pt, bool isRectBottom=false );
 
     /// returns document
     ldomDocument * getDocument() { return m_doc; }
