@@ -2013,10 +2013,16 @@ void LVDocView::GetPos(lvRect & rc) {
 
 int LVDocView::getPageHeight(int pageIndex)
 {
-    CR_UNUSED(pageIndex);
-	if (isPageMode() && _page >= 0 && _page < m_pages.length())
-		return m_pages[_page]->height;
+	if (isPageMode() && pageIndex >= 0 && pageIndex < m_pages.length())
+		return m_pages[pageIndex]->height;
 	return 0;
+}
+
+int LVDocView::getPageStartY(int pageIndex)
+{
+	if (isPageMode() && pageIndex >= 0 && pageIndex < m_pages.length())
+		return m_pages[pageIndex]->start;
+	return -1;
 }
 
 /// get vertical position of view inside document
@@ -2073,7 +2079,7 @@ int LVDocView::getCurPage() {
 	return m_pages.FindNearestPage(_pos, 0);
 }
 
-bool LVDocView::goToPage(int page, bool updatePosBookmark) {
+bool LVDocView::goToPage(int page, bool updatePosBookmark, bool regulateTwoPages) {
 	LVLock lock(getMutex());
     CHECK_RENDER("goToPage()")
 	if (!m_pages.length())
@@ -2098,8 +2104,8 @@ bool LVDocView::goToPage(int page, bool updatePosBookmark) {
 			page = 0;
 			res = false;
 		}
-		if (pc == 2)
-			page &= ~1;
+		if (pc == 2 && regulateTwoPages)
+			page &= ~1; // first page will always be odd (page are counted from 0)
 		if (page >= 0 && page < m_pages.length()) {
 			_pos = m_pages[page]->start;
 			_page = page;

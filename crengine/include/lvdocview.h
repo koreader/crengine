@@ -387,7 +387,6 @@ protected:
 
     virtual void getNavigationBarRectangle( int pageIndex, lvRect & rc );
 
-    virtual void getPageRectangle( int pageIndex, lvRect & pageRect );
     /// returns document offset for next page
     int getNextPageOffset();
     /// returns document offset for previous page
@@ -399,6 +398,8 @@ protected:
     /// get document rectangle for specified cursor position, returns false if not visible
     bool getCursorDocRect( ldomXPointer ptr, lvRect & rc );
 public:
+    /// get outer (before margins are applied) page rectangle
+    virtual void getPageRectangle( int pageIndex, lvRect & pageRect );
     /// get screen rectangle for specified cursor position, returns false if not visible
     bool getCursorRect( ldomXPointer ptr, lvRect & rc, bool scrollToCursor = false );
     /// set status bar and clock mode
@@ -853,12 +854,15 @@ public:
     /// set vertical position of view inside document
     int SetPos( int pos, bool savePos=true, bool allowScrollAfterEnd = false);
 
-	int getPageHeight(int pageIndex);
+    // get page start y (in full document height)
+    int getPageStartY(int pageIndex);
+    // get page height
+    int getPageHeight(int pageIndex);
 
     /// get number of current page
     int getCurPage();
     /// move to specified page
-    bool goToPage(int page, bool updatePosBookmark = true);
+    bool goToPage(int page, bool updatePosBookmark = true, bool regulateTwoPages = true);
     /// returns page count
     int getPageCount();
 
