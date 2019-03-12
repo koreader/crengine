@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.23k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0013
+#define FORMATTING_VERSION_ID 0x0014
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -5975,6 +5975,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                             }
                             else {
                                 int chw = w[ offset - word->t.start ] - chx;
+                                bool hyphen_added = false;
                                 if ( offset == word->t.start + word->t.len - 1
                                         && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
                                         && !gFlgFloatingPunctuationEnabled ) {
@@ -5984,6 +5985,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                                     // to keep nice looking rectangles on multi lines
                                     // text selection)
                                     chw += font->getHyphenWidth();
+                                    // We then should not account for the right side
+                                    // bearing below
+                                    hyphen_added = true;
                                 }
                                 rect.right = rect.left + chw;
                                 // Extend left or right if this glyph overflows its
@@ -5995,7 +5999,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                                 // looking rectangles on the sides when highlighting
                                 // multiple lines.
                                 rect.left += font->getLeftSideBearing(str[offset], true);
-                                rect.right -= font->getRightSideBearing(str[offset], true);
+                                if ( !hyphen_added )
+                                    rect.right -= font->getRightSideBearing(str[offset], true);
                             }
                         }
                         else
