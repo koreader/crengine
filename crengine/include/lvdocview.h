@@ -719,7 +719,7 @@ public:
     /// converts point from window to document coordinates, returns true if success
     bool windowToDocPoint( lvPoint & pt );
     /// converts point from document to window coordinates, returns true if success
-    bool docToWindowPoint( lvPoint & pt, bool isRectBottom=false );
+    bool docToWindowPoint( lvPoint & pt, bool isRectBottom=false, bool fitToPage=false );
 
     /// returns document
     ldomDocument * getDocument() { return m_doc; }
