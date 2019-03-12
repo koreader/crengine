@@ -2342,7 +2342,7 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 }
 
 /// converts point from document to window coordinates, returns true if success
-bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom) {
+bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom, bool fitToPage) {
 	LVLock lock(getMutex());
     CHECK_RENDER("docToWindowPoint()")
 	// TODO: implement coordinate conversion here
@@ -2395,6 +2395,26 @@ bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom) {
                     pt.y = pt.y + getPageHeaderHeight() + m_pageMargins.top - m_pages[page + index]->start;
                     return true;
                 }
+            }
+            if (fitToPage) {
+                // If we didn't find pt inside pages, adjust it to top or bottom page y
+                if (page >= 0 && page < m_pages.length() && pt.y < m_pages[page]->start) {
+                    // Before 1st page top: adjust to page top
+                    pt.x = pt.x + m_pageRects[0].left + m_pageMargins.left;
+                    pt.y = getPageHeaderHeight() + m_pageMargins.top;
+                }
+                else if (getVisiblePageCount() == 2 && page + 1 < m_pages.length()
+                        && pt.y >= m_pages[page + 1]->start + m_pages[page + 1]->height) {
+                    // After 2nd page bottom: adjust to 2nd page bottom
+                    pt.x = pt.x + m_pageRects[1].left + m_pageMargins.left;
+                    pt.y = getPageHeaderHeight() + m_pageMargins.top + m_pages[page+1]->height;
+                }
+                else {
+                    // After single page bottom: adjust to page bottom
+                    pt.x = pt.x + m_pageRects[0].left + m_pageMargins.left;
+                    pt.y = getPageHeaderHeight() + m_pageMargins.top + m_pages[page]->height;
+                }
+                return true;
             }
             return false;
 	}
