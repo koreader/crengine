@@ -1502,6 +1502,13 @@ public:
             int lastMandatoryWrap = -1;
             int spaceReduceWidth = 0; // max total line width which can be reduced by narrowing of spaces
             int firstCharMargin = getAdditionalCharWidthOnLeft(pos); // for first italic char with elements below baseline
+            // We might not need to bother with negative left side bearing, as we now
+            // can have them in the margin as we don't clip anymore. So we could just have:
+            // int firstCharMargin = 0;
+            // and italic "J" or "f" would be drawn a bit in the margin.
+            // (But as I don't know about the wanted effect with visualAlignmentEnabled,
+            // and given it's only about italic chars, and that we would need to remove
+            // stuff in getRenderedWidths... letting it as it is.)
 
             spaceReduceWidth -= visualAlignmentWidth/2;
             firstCharMargin += visualAlignmentWidth/2;
@@ -1707,6 +1714,10 @@ public:
                 // So, not touching it...
             }
             int dw = lastnonspace>=start ? getAdditionalCharWidth(lastnonspace, lastnonspace+1) : 0;
+            // If we ended the line with some hyphenation, no need to account for italic
+            // right side bearing overflow, as the last glyph will be an hyphen.
+            if (m_flags[endp-1] & LCHAR_ALLOW_HYPH_WRAP_AFTER)
+                dw = 0;
             if (dw) {
                 TR("additional width = %d, after char %s", dw, LCSTR(lString16(m_text + lastnonspace, 1)));
                 m_widths[lastnonspace] += dw;
