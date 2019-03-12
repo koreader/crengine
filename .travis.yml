@@ -1,5 +1,6 @@
 language: cpp
 
+dist: xenial
 sudo: false
 
 cache:
@@ -7,8 +8,6 @@ cache:
 
 addons:
   apt:
-    sources:
-      - llvm-toolchain-trusty-5.0
     packages:
       - clang-tidy-5.0
       - cppcheck
