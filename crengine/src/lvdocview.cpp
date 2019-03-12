@@ -2474,8 +2474,26 @@ void LVDocView::updateLayout() {
 	m_pageRects[1] = rc;
 	if (getVisiblePageCount() == 2) {
 		int middle = (rc.left + rc.right) >> 1;
-		m_pageRects[0].right = middle - m_pageMargins.right / 2;
-		m_pageRects[1].left = middle + m_pageMargins.left / 2;
+		// m_pageRects[0].right = middle - m_pageMargins.right / 2;
+		// m_pageRects[1].left = middle + m_pageMargins.left / 2;
+		// ^ seems wrong, as we later add the margins to these m_pageRects
+		// so this would add to much uneeded middle margin
+                // We will ensure a max middle margin the size of a single
+                // left or right margin, whichever is the greatest.
+		// We still want to ensure a minimal middle margin in case
+		// the requested pageMargins are really small. Say 1.2em.
+		int min_middle_margin = 1.2 * m_font_size;
+		int max_middle_margin = m_pageMargins.left > m_pageMargins.right ? m_pageMargins.left : m_pageMargins.right;
+		int additional_middle_margin = 0;
+		int middle_margin = m_pageMargins.right + m_pageMargins.left;
+		if (middle_margin < min_middle_margin)
+			additional_middle_margin = min_middle_margin - middle_margin;
+		else if (middle_margin > max_middle_margin && max_middle_margin > min_middle_margin)
+			additional_middle_margin = max_middle_margin - middle_margin; // negative
+		// Note: with negative values, we allow these 2 m_pageRects to
+		// overlap. But it seems there is no issue doing that.
+		m_pageRects[0].right = middle - additional_middle_margin / 2;
+		m_pageRects[1].left = middle + additional_middle_margin / 2;
 	}
 }
 
