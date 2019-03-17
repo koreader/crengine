@@ -499,6 +499,10 @@ public:
             return glyph.width;
         return 0;
     }
+    /// returns char glyph left side bearing (not implemented)
+    virtual int getLeftSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false ) { return 0; }
+    /// returns char glyph right side bearing (not implemented)
+    virtual int getRightSideBearing( lChar16 ch, bool negative_only=false, bool italic_only=false ) { return 0; }
 
     virtual lvfont_handle GetHandle() { return m_font; }
     

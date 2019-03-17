@@ -901,7 +901,7 @@ protected:
     LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*> _glyph_cache2;
     // For use with KERNING_MODE_HARFBUZZ_LIGHT:
     hb_buffer_t* _hb_light_buffer;
-    hb_feature_t _hb_light_features[2];
+    hb_feature_t _hb_light_features[22];
     LVHashTable<struct LVCharTriplet, struct LVCharPosInfo> _width_cache2;
 #endif
 public:
@@ -955,9 +955,42 @@ public:
         // HarfBuzz features for full text shaping
         hb_feature_from_string("+kern", -1, &_hb_features[0]);      // font kerning
         hb_feature_from_string("+liga", -1, &_hb_features[1]);      // ligatures
+
         // HarfBuzz features for lighweight characters width calculating with caching
-        hb_feature_from_string("+kern", -1, &_hb_light_features[0]);      // font kerning
-        hb_feature_from_string("-liga", -1, &_hb_light_features[1]);      // no ligatures
+        // We need to disable all the features, enabled by default in Harfbuzz, that
+        // may split a char into more glyphs, or merge chars into one glyph.
+        // (see harfbuzz/src/hb-ot-shape.cc hb_ot_shape_collect_features() )
+
+        // We can enable these ones:
+        hb_feature_from_string("+kern", -1, &_hb_light_features[0]);  // Kerning: Fine horizontal positioning of one glyph to the next, based on the shapes of the glyphs
+        hb_feature_from_string("+mark", -1, &_hb_light_features[1]);  // Mark Positioning: Fine positioning of a mark glyph to a base character
+        hb_feature_from_string("+mkmk", -1, &_hb_light_features[2]);  // Mark-to-mark Positioning: Fine positioning of a mark glyph to another mark character
+        hb_feature_from_string("+curs", -1, &_hb_light_features[3]);  // Cursive Positioning: Precise positioning of a letter's connection to an adjacent one
+        hb_feature_from_string("+locl", -1, &_hb_light_features[4]);  // Substitutes character with the preferred form based on script language
+
+        // We should disable these ones:
+        hb_feature_from_string("-liga", -1, &_hb_light_features[5]);  // Standard Ligatures: replaces (by default) sequence of characters with a single ligature glyph
+        hb_feature_from_string("-rlig", -1, &_hb_light_features[6]);  // Ligatures required for correct text display (any script, but in cursive) - Arabic, semitic
+        hb_feature_from_string("-clig", -1, &_hb_light_features[7]);  // Applies a second ligature feature based on a match of a character pattern within a context of surrounding patterns
+        hb_feature_from_string("-ccmp", -1, &_hb_light_features[8]);  // Glyph composition/decomposition: either calls a ligature replacement on a sequence of characters or replaces a character with a sequence of glyphs
+                                                                      // Provides logic that can for example effectively alter the order of input characters
+        hb_feature_from_string("-calt", -1, &_hb_light_features[9]);  // Contextual Alternates: Applies a second substitution feature based on a match of a character pattern within a context of surrounding patterns
+        hb_feature_from_string("-rclt", -1, &_hb_light_features[10]); // Required Contextual Alternates: Contextual alternates required for correct text display which differs from the default join for other letters, required especially important by Arabic
+        hb_feature_from_string("-rvrn", -1, &_hb_light_features[11]); // Required Variation Alternates: Special variants of a single character, which need apply to specific font variation, required by variable fonts
+        hb_feature_from_string("-ltra", -1, &_hb_light_features[12]); // Left-to-right glyph alternates: Replaces characters with forms befitting left-to-right presentation
+        hb_feature_from_string("-ltrm", -1, &_hb_light_features[13]); // Left-to-right mirrored forms: Replaces characters with possibly mirrored forms befitting left-to-right presentation
+        hb_feature_from_string("-rtla", -1, &_hb_light_features[14]); // Right-to-left glyph alternates: Replaces characters with forms befitting right-to-left presentation
+        hb_feature_from_string("-rtlm", -1, &_hb_light_features[15]); // Right-to-left mirrored forms: Replaces characters with possibly mirrored forms befitting right-to-left presentation
+        hb_feature_from_string("-frac", -1, &_hb_light_features[16]); // Fractions: Converts figures separated by slash with diagonal fraction
+        hb_feature_from_string("-numr", -1, &_hb_light_features[17]); // Numerator: Converts to appropriate fraction numerator form, invoked by frac
+        hb_feature_from_string("-dnom", -1, &_hb_light_features[18]); // Denominator: Converts to appropriate fraction denominator form, invoked by frac
+        hb_feature_from_string("-rand", -1, &_hb_light_features[19]); // Replaces character with random forms (meant to simulate handwriting)
+        hb_feature_from_string("-trak", -1, &_hb_light_features[20]); // Tracking (?)
+        hb_feature_from_string("-vert", -1, &_hb_light_features[21]); // Vertical (?)
+        // Especially needed with FreeSerif and french texts: -ccmp
+        // Especially needed with Fedra Serif and "The", "Thuringe": -calt
+        // These tweaks seem fragile (adding here +smcp to experiment with small caps would break FreeSerif again).
+        // So, when tuning these, please check it still behave well with FreeSerif.
 #endif
     }
 
@@ -1263,7 +1296,7 @@ public:
         }
         hb_buffer_set_content_type(_hb_light_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
         hb_buffer_guess_segment_properties(_hb_light_buffer);
-        hb_shape(_hb_font, _hb_light_buffer, _hb_light_features, 2);
+        hb_shape(_hb_font, _hb_light_buffer, _hb_light_features, 22);
         unsigned int glyph_count = hb_buffer_get_length(_hb_light_buffer);
         if (segLen == glyph_count) {
             hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_light_buffer, &glyph_count);
@@ -2676,6 +2709,11 @@ public:
             }
             _cache.clearFallbackFonts();
             _fallbackFontFace = face;
+            // Somehow, with Fedra Serif (only!), changing the fallback font does
+            // not prevent glyphs from previous fallback font to be re-used...
+            // So let's clear glyphs caches too.
+            gc();
+            clearGlyphCache();
         }
         return !_fallbackFontFace.empty();
     }
