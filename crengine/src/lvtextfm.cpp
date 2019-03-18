@@ -968,7 +968,11 @@ public:
             src_text_fragment_t * srcline = m_srcs[start];
             LVFont * font = (LVFont*)srcline->t.font;
             int fh = font->getHeight();
-            int fhWithInterval = (fh * interval) >> 8; // font height + interline space
+            int fhWithInterval; // font height + interline space
+            if (interval < 0) // absolute size
+                fhWithInterval = - interval;
+            else // line-height as unitless number
+                fhWithInterval = (fh * interval) >> 8;
             frmline->height = (lUInt16) fhWithInterval;
             m_y += frmline->height;
             m_pbuffer->height = m_y;
@@ -1167,8 +1171,15 @@ public:
                     int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                     int fh = font->getHeight();
                     // Accounts for line-height (adds what most documentation calls half-leading to top and to bottom):
-                    int fhWithInterval = (fh * interval) >> 8; // font height + interline space
+                    int fhWithInterval; // font height + interline space
+                    if (interval < 0) // absolute size
+                        fhWithInterval = - interval;
+                    else // line-height as unitless number
+                        fhWithInterval = (fh * interval) >> 8;
                     int fhInterval = fhWithInterval - fh;      // interline space only (negative for intervals < 100%)
+                    // Note: not sure if we should ensure these values stays positive
+                    // with absolute size interval, which may be small. As we do
+                    // only +/- arithmetic, it fells we should be fine.
                     top_to_baseline = font->getBaseline() + fhInterval/2;
                     baseline_to_bottom = fhWithInterval - top_to_baseline;
                     // vertical-align computation is now done in lvrend.cpp renderFinalBlock()
