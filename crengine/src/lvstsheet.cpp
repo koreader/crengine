@@ -2491,9 +2491,9 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 n++;
                     }
                     n++; // this is our position
-                    if (_value == "even" && (n % 2)==0)
+                    if (_value == "even" && (n & 1)==0)
                         return true;
-                    if (_value == "odd" && (n % 2)==1)
+                    if (_value == "odd" && (n & 1)==1)
                         return true;
                     // other values ( 5, 5n3...) not supported (yet)
                     return false;
@@ -2510,9 +2510,9 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 n++;
                     }
                     n++; // this is our position
-                    if (_value == "even" && (n % 2)==0)
+                    if (_value == "even" && (n & 1)==0)
                         return true;
-                    if (_value == "odd" && (n % 2)==1)
+                    if (_value == "odd" && (n & 1)==1)
                         return true;
                     // other values ( 5, 5n3...) not supported (yet)
                     return false;
