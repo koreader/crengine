@@ -73,7 +73,7 @@ typedef struct
     void *          object;   /**< \brief pointer to object which represents source */
     lInt16          margin;   /**< \brief first line margin */
     lInt16          valign_dy; /* drift y from baseline */
-    lUInt8          interval; /**< \brief line interval, *16 (16=normal, 32=double) */
+    lInt16          interval; /**< \brief line height in screen pixels */
     lInt16          letter_spacing; /**< \brief additional letter spacing, pixels */
     lUInt32         color;    /**< \brief color */
     lUInt32         bgcolor;  /**< \brief background color */
@@ -225,7 +225,7 @@ void lvtextAddSourceLine(
    lUInt32         color,    /* text color */
    lUInt32         bgcolor,  /* background color */
    lUInt32         flags,    /* flags */
-   lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
+   lInt16          interval, /* line height in screen pixels */
    lInt16          valign_dy,/* drift y from baseline */
    lUInt16         margin,   /* first line margin */
    void *          object,   /* pointer to custom object */
@@ -242,7 +242,7 @@ void lvtextAddSourceObject(
    lInt16         width,
    lInt16         height,
    lUInt32         flags,     /* flags */
-   lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+   lInt16          interval,  /* line height in screen pixels */
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
@@ -290,7 +290,7 @@ public:
 
     void AddSourceObject(
                 lUInt16         flags,     /* flags */
-                lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+                lInt16          interval,  /* line height in screen pixels */
                 lInt16          valign_dy, /* drift y from baseline */
                 lUInt16         margin,    /* first line margin */
                 void *          object,    /* pointer to custom object */
@@ -303,8 +303,8 @@ public:
            lUInt32         color,       /* text color */
            lUInt32         bgcolor,     /* background color */
            LVFont          * font,      /* font to draw string */
-           lUInt32         flags=LTEXT_ALIGN_LEFT|LTEXT_FLAG_OWNTEXT,
-           lUInt8          interval=16, /* interline space, *16 (16=single, 32=double) */
+           lUInt32         flags,       /* (had default =LTEXT_ALIGN_LEFT|LTEXT_FLAG_OWNTEXT) */
+           lInt16          interval,    /* line height in screen pixels */
            lInt16          valign_dy=0, /* drift y from baseline */
            lUInt16         margin=0,    /* first line margin */
            void *          object=NULL,

@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.23k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0014
+#define FORMATTING_VERSION_ID 0x0016
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -365,6 +365,7 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     hash = hash * 31 + HyphMan::getTrustSoftHyphens();
     hash = hash * 31 + gRenderDPI;
     hash = hash * 31 + gRootFontSize;
+    hash = hash * 31 + gInterlineScaleFactor;
     return hash;
 }
 
@@ -3694,6 +3695,7 @@ private:
 /// renders (formats) document in memory
 bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*y0*/, font_ref_t def_font, int def_interline_space, CRPropRef props )
 {
+    // Note: def_interline_space is no more used here
     bool changed = false;
     _renderedBlockCache.clear();
     changed = _imgScalingOptions.update(props, def_font->getSize()) || changed;
@@ -3726,8 +3728,10 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_style = css_fs_normal;
     s->text_indent.type = css_val_px;
     s->text_indent.value = 0;
-    s->line_height.type = css_val_percent;
-    s->line_height.value = def_interline_space << 8;
+    // s->line_height.type = css_val_percent;
+    // s->line_height.value = def_interline_space << 8;
+    s->line_height.type = css_val_unspecified;
+    s->line_height.value = css_generic_normal; // line-height: normal
     s->orphans = css_orphans_widows_1; // default to allow orphans and widows
     s->widows = css_orphans_widows_1;
     s->cr_hint = css_cr_hint_none;
@@ -13031,7 +13035,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     //RenderRectAccessor fmt( this );
     /// render whole node content as single formatted object
     int flags = styleToTextFmtFlags( getStyle(), 0 );
-    ::renderFinalBlock( this, f.get(), fmt, flags, 0, 16 );
+    ::renderFinalBlock( this, f.get(), fmt, flags, 0, -1 );
     cache.set( this, f );
     bool flg=gFlgFloatingPunctuationEnabled;
     if (this->getNodeName()=="th"||this->getNodeName()=="td"||
@@ -13587,8 +13591,8 @@ void runBasicTinyDomUnitTests()
         style1->font_style = css_fs_normal;
         style1->text_indent.type = css_val_px;
         style1->text_indent.value = 0;
-        style1->line_height.type = css_val_percent;
-        style1->line_height.value = 100 << 8;
+        style1->line_height.type = css_val_unspecified;
+        style1->line_height.value = css_generic_normal; // line-height: normal
         style1->cr_hint = css_cr_hint_none;
 
         css_style_ref_t style2;
@@ -13617,8 +13621,8 @@ void runBasicTinyDomUnitTests()
         style2->font_style = css_fs_normal;
         style2->text_indent.type = css_val_px;
         style2->text_indent.value = 0;
-        style2->line_height.type = css_val_percent;
-        style2->line_height.value = 100 << 8;
+        style2->line_height.type = css_val_unspecified;
+        style2->line_height.value = css_generic_normal; // line-height: normal
         style2->cr_hint = css_cr_hint_none;
 
         css_style_ref_t style3;
@@ -13647,8 +13651,8 @@ void runBasicTinyDomUnitTests()
         style3->font_style = css_fs_normal;
         style3->text_indent.type = css_val_px;
         style3->text_indent.value = 0;
-        style3->line_height.type = css_val_percent;
-        style3->line_height.value = 100 << 8;
+        style3->line_height.type = css_val_unspecified;
+        style3->line_height.value = css_generic_normal; // line-height: normal
         style3->cr_hint = css_cr_hint_none;
 
         el1->setStyle(style1);
