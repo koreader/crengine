@@ -255,7 +255,8 @@ enum css_orphans_widows_value_t { // supported only if in range 1-9
 };
 
 enum css_generic_value_t {
-    css_generic_auto = -1 // for (css_val_unspecified, css_value_auto), for "margin: auto"
+    css_generic_auto = -1,   // (css_val_unspecified, css_generic_auto), for "margin: auto"
+    css_generic_normal = -2  // (css_val_unspecified, css_generic_normal), for "line-height: normal"
 };
 
 // Non standard property for providing hints to crengine via style tweaks

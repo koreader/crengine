@@ -326,7 +326,11 @@ static bool parse_integer( const char * & str, int & value)
 }
 
 static bool parse_number_value( const char * & str, css_length_t & value,
-    bool accept_percent=true, bool accept_auto=false, bool is_font_size=false )
+    bool accept_percent=true,
+    bool accept_negative=false,
+    bool accept_auto=false,
+    bool accept_normal=false,
+    bool is_font_size=false )
 {
     value.type = css_val_unspecified;
     skip_spaces( str );
@@ -339,6 +343,11 @@ static bool parse_number_value( const char * & str, css_length_t & value,
     if ( accept_auto && substr_icompare( "auto", str ) ) {
         value.type = css_val_unspecified;
         value.value = css_generic_auto;
+        return true;
+    }
+    if ( accept_normal && substr_icompare( "normal", str ) ) {
+        value.type = css_val_unspecified;
+        value.value = css_generic_normal;
         return true;
     }
     if ( is_font_size ) {
@@ -389,6 +398,13 @@ static bool parse_number_value( const char * & str, css_length_t & value,
             value.type = css_val_percent;
             value.value = 125 << 8;
             return true;
+        }
+    }
+    bool negative = false;
+    if (accept_negative) {
+        if ( *str == '-' ) {
+            str++;
+            negative = true;
         }
     }
     int n = 0;
@@ -446,6 +462,8 @@ static bool parse_number_value( const char * & str, css_length_t & value,
     // else
     //    return false;
     value.value = n * 256 + 256 * frac / frac_div; // *256
+    if (negative)
+        value.value = -value.value;
     return true;
 }
 
@@ -1103,14 +1121,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                         buf<<(lUInt32) len.value;
                     }
                     else {
-                        bool negative = false;
-                        if ( *decl == '-' ) {
-                            decl++;
-                            negative = true;
-                        }
-                        if ( parse_number_value( decl, len ) ) {
-                            if ( negative )
-                                len.value = -len.value;
+                        if ( parse_number_value( decl, len, true, true ) ) { // accepts a negative value
                             buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                             buf<<(lUInt32) len.type;
                             buf<<(lUInt32) len.value;
@@ -1241,17 +1252,28 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                     if ( prop_code==cssd_border_bottom_width || prop_code==cssd_border_top_width ||
                             prop_code==cssd_border_left_width || prop_code==cssd_border_right_width )
                         accept_percent = false;
+                    // only margin accepts negative values
+                    bool accept_negative = false;
+                    // but not implemented (yet)
+                    // if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
+                    //         prop_code==cssd_margin_left || prop_code==cssd_margin_right )
+                    //     accept_negative = true;
                     // only margin, width and height accept keyword "auto"
                     bool accept_auto = false;
                     if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
                             prop_code==cssd_margin_left || prop_code==cssd_margin_right ||
                             prop_code==cssd_width || prop_code==cssd_height )
                         accept_auto = true;
+                    // only line-height and letter-spacing accept keyword "normal"
+                    bool accept_normal = false;
+                    if ( prop_code==cssd_line_height || prop_code==cssd_letter_spacing )
+                        accept_normal = true;
+                    // only font-size is... font-size
                     bool is_font_size = false;
                     if ( prop_code==cssd_font_size )
                         is_font_size = true;
                     css_length_t len;
-                    if ( parse_number_value( decl, len, accept_percent, accept_auto, is_font_size) ) {
+                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_normal, is_font_size) ) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
@@ -1313,35 +1335,38 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                 }
             }
             case cssd_padding:
-		{
+                {
                     bool accept_percent = true;
                     if ( prop_code==cssd_border_width )
                         accept_percent = false;
                     bool accept_auto = false;
-                    if ( prop_code==cssd_margin )
+                    bool accept_negative = false;
+                    if ( prop_code==cssd_margin ) {
                         accept_auto = true;
-		    css_length_t len[4];
-		    int i;
-		    for (i = 0; i < 4; ++i)
-			if (!parse_number_value( decl, len[i], accept_percent, accept_auto ))
-			    break;
-		    if (i)
-		    {
-			switch (i)
-			{
-			    case 1: len[1] = len[0]; /* fall through */
-			    case 2: len[2] = len[0]; /* fall through */
-			    case 3: len[3] = len[1];
-			}
+                        // accept_negative = true; // not implemented (yet)
+                    }
+                    css_length_t len[4];
+                    int i;
+                    for (i = 0; i < 4; ++i)
+                        if (!parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto ))
+                            break;
+                    if (i)
+                    {
+                        switch (i)
+                        {
+                            case 1: len[1] = len[0]; /* fall through */
+                            case 2: len[2] = len[0]; /* fall through */
+                            case 3: len[3] = len[1];
+                        }
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-			for (i = 0; i < 4; ++i)
-			{
-			    buf<<(lUInt32) len[i].type;
-			    buf<<(lUInt32) len[i].value;
-			}
-		    }
-		}
-		break;
+                        for (i = 0; i < 4; ++i)
+                        {
+                            buf<<(lUInt32) len[i].type;
+                            buf<<(lUInt32) len[i].value;
+                        }
+                    }
+                }
+                break;
             // Done with those that accept 4 length values.
 
             case cssd_color:
