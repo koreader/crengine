@@ -59,7 +59,7 @@ void LVRendSetFontEmbolden( int addWidth=STYLE_FONT_EMBOLD_MODE_EMBOLD );
 int LVRendGetFontEmbolden();
 
 int measureBorder(ldomNode *enode,int border);
-int lengthToPx( css_length_t val, int base_px, int base_em, bool unspecified_as_em=false );
+int lengthToPx( css_length_t val, int base_px, int base_em );
 int scaleForRenderDPI( int value );
 
 #define BASE_CSS_DPI 96 // at 96 dpi, 1 css px = 1 screen px

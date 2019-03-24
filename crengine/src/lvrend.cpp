@@ -1717,7 +1717,7 @@ int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
 }
 
 // Convert CSS value (type + number value) to screen px
-int lengthToPx( css_length_t val, int base_px, int base_em, bool unspecified_as_em )
+int lengthToPx( css_length_t val, int base_px, int base_em )
 {
     if (val.type == css_val_screen_px) { // use value as is
         return val.value;
@@ -1734,12 +1734,8 @@ int lengthToPx( css_length_t val, int base_px, int base_em, bool unspecified_as_
     // we do that early to not lose precision
     int value = scaleForRenderDPI(val.value);
 
-    css_value_type_t type = val.type;
-    if (unspecified_as_em && type == css_val_unspecified)
-        type = css_val_em;
-
     // value for all units is stored *256 to not lose fractional part
-    switch( type )
+    switch( val.type )
     {
     /* absolute value, most often seen */
     case css_val_px:
@@ -1910,50 +1906,16 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // line_h is named 'interval' in lvtextfm.cpp, and described as:
                 //   *256 (256=normal, 512=double)
                 // so both % and em should be related to the value '256'
-                switch( style->line_height.type ) {
-                    case css_val_unspecified:
-                        // line_height can be a number without unit, and it's just a factor
-                        // (that gets inherited unchanged) to apply to the element font height
-                        // For the sake of computation, we use lengthToPx() with em to scale
-                        // the value 256 which means line-height: 1
-                        line_h = lengthToPx(style->line_height, 0, 256, true);
-                        break;
-                    case css_val_em:
-                    case css_val_ex:
-                    case css_val_percent:
-                        line_h = lengthToPx(style->line_height, 256, 256);
-                        break;
-                    case css_val_rem: // related to font size of the root element, managed by lengthToPx()
-                    case css_val_px:
-                    case css_val_in:
-                    case css_val_cm:
-                    case css_val_mm:
-                    case css_val_pt:
-                    case css_val_pc:
-                    case css_val_screen_px:  // screen px: for already scaled values
-                        // Absolute units:
-                        // lvtextfm.cpp uses our line_h (= interval) that way:
-                        // when positive:
-                        //    int fh = font->getHeight();
-                        //    frmline->height = (fh * interval) >> 8; // font height + interline space
-                        // when negative:
-                        //    frmline->height = -interval;
-                        // So, make line_h negative when we know its absolute size
-                        {
-                        int abs_line_h = lengthToPx(style->line_height, 0, 0);
-                        if (abs_line_h > 0) // make sure we got a positive number
-                            line_h = - abs_line_h;
-                        }
-                        break;
-                    case css_val_inherited:
-                    default:
-                        // line_height should never be css_val_inherited as spreadParent
-                        // had updated it from its parent value, which could be the root
-                        // element value, which is a value in unspecified unit (0.9, 1 or 1.2),
-                        // so we always got a valid style->line_height, and there is no need
-                        // to keep the provided line_h like the original computation does
-                        break;
-                }
+                // line_height can be a number without unit, and it behaves as "em"
+                css_length_t line_height = css_length_t(
+                    style->line_height.type == css_val_unspecified ? css_val_em : style->line_height.type,
+                    style->line_height.value);
+                line_h = lengthToPx(line_height, 256, 256);
+                // line_height should never be css_val_inherited as spreadParent
+                // had updated it with its parent value, which could be the root
+                // element value, which is a value in % (90, 100 or 120), so we
+                // always got a valid style->line_height, and there is no need
+                // to keep the provided line_h like the original computation does
             }
             else { // original crengine computation (used when gRenderDPI off)
                 css_length_t len = style->line_height;
@@ -1990,11 +1952,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // and https://iamvdo.me/en/blog/css-font-metrics-line-height-and-vertical-align
             int fh = enode->getFont()->getHeight();
             int fb = enode->getFont()->getBaseline();
-            int f_line_h; // font height + interline space
-            if (line_h < 0) // absolute size
-                f_line_h = - line_h;
-            else // line-height as unitless number
-                f_line_h = (fh * line_h) >> 8;
+            int f_line_h = (fh * line_h) >> 8; // font height + interline space
             int f_half_leading = (f_line_h - fh) /2;
             txform->setStrut(f_line_h, fb + f_half_leading);
         }
@@ -4206,6 +4164,7 @@ inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool un
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
 {
+    CR_UNUSED(parent_font);
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();
@@ -4452,46 +4411,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         // printf("CRE WARNING: font-size css_val_unspecified or color, fallback to inherited\n");
         break;
     }
-
     // line_height
-    // spreadParent( pstyle->line_height, parent_style->line_height, false ); // css_val_unspecified is a valid unit
-    if (pstyle->line_height.type == css_val_inherited) {
-        int pfh = parent_font->getHeight(); // value in screen px
-        switch( parent_style->line_height.type ) {
-            // We didn't have yet the parent font when dealing with parent style
-            // inheritance to compute an absolute size line-height for em/ex/percent
-            // that we could just inherit as-is here.
-            // But we have it now, so compute its absolute size so it can be
-            // inherited as-is by our children.
-            case css_val_em:        // value = em*256 ; 256 = 1em = x1
-                pstyle->line_height.value = pfh * parent_style->line_height.value / 256;
-                pstyle->line_height.type = css_val_screen_px;
-                break;
-            case css_val_ex:        // value = ex*256 ; 512 = 2ex = 1em = x1
-                pstyle->line_height.value = pfh * parent_style->line_height.value / 512;
-                pstyle->line_height.type = css_val_screen_px;
-                break;
-            case css_val_percent:   // value = percent number * 256; 100*256 = 100% => x1
-                pstyle->line_height.value = pfh * parent_style->line_height.value / 100 / 256;
-                pstyle->line_height.type = css_val_screen_px;
-                break;
-            // For all others, we can inherit as-is
-            case css_val_rem:         // related to font size of the root element
-            case css_val_screen_px:   // absolute sizes
-            case css_val_px:
-            case css_val_in:
-            case css_val_cm:
-            case css_val_mm:
-            case css_val_pt:
-            case css_val_pc:
-            case css_val_unspecified: // unitless number: factor to element own font size: no relation to parent font
-            default:
-                pstyle->line_height = parent_style->line_height; // inherit as-is
-                break;
-        }
-    }
-
     spreadParent( pstyle->letter_spacing, parent_style->letter_spacing );
+    spreadParent( pstyle->line_height, parent_style->line_height, false ); // css_val_unspecified is a valid unit
     spreadParent( pstyle->color, parent_style->color );
 
     // background_color

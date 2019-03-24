@@ -64,7 +64,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.23k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0015
+#define FORMATTING_VERSION_ID 0x0014
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -3726,8 +3726,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_style = css_fs_normal;
     s->text_indent.type = css_val_px;
     s->text_indent.value = 0;
-    s->line_height.type = css_val_unspecified;        // line-height as a unitless number (0.9, 1, 1.2)
-    s->line_height.value = (def_interline_space << 8) / 100;  // 100 > 256
+    s->line_height.type = css_val_percent;
+    s->line_height.value = def_interline_space << 8;
     s->orphans = css_orphans_widows_1; // default to allow orphans and widows
     s->widows = css_orphans_widows_1;
     s->cr_hint = css_cr_hint_none;
