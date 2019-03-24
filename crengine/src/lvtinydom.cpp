@@ -13031,7 +13031,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     //RenderRectAccessor fmt( this );
     /// render whole node content as single formatted object
     int flags = styleToTextFmtFlags( getStyle(), 0 );
-    ::renderFinalBlock( this, f.get(), fmt, flags, 0, 256 );
+    ::renderFinalBlock( this, f.get(), fmt, flags, 0, 16 );
     cache.set( this, f );
     bool flg=gFlgFloatingPunctuationEnabled;
     if (this->getNodeName()=="th"||this->getNodeName()=="td"||

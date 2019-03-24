@@ -161,7 +161,7 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
    lUInt32         color,    /* color */
    lUInt32         bgcolor,  /* bgcolor */
    lUInt32         flags,    /* flags */
-   lInt16          interval, /* interline space, *256 (256=single, 512=double) */
+   lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,   /* first line margin */
    void *          object,    /* pointer to custom object */
@@ -214,7 +214,7 @@ void lvtextAddSourceObject(
    lInt16         width,
    lInt16         height,
    lUInt32         flags,     /* flags */
-   lInt16          interval,  /* interline space, *256 (256=single, 512=double) */
+   lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
@@ -252,7 +252,7 @@ bool gFlgFloatingPunctuationEnabled = true;
 
 void LFormattedText::AddSourceObject(
             lUInt16         flags,     /* flags */
-            lInt16          interval,  /* interline space, *256 (256=single, 512=double) */
+            lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
             lInt16          valign_dy, /* drift y from baseline */
             lUInt16         margin,    /* first line margin */
             void *          object,    /* pointer to custom object */
@@ -968,7 +968,7 @@ public:
             src_text_fragment_t * srcline = m_srcs[start];
             LVFont * font = (LVFont*)srcline->t.font;
             int fh = font->getHeight();
-            int fhWithInterval = (fh * interval) >> 8; // font height + interline space
+            int fhWithInterval = (fh * interval) >> 4; // font height + interline space
             frmline->height = (lUInt16) fhWithInterval;
             m_y += frmline->height;
             m_pbuffer->height = m_y;
@@ -1167,7 +1167,7 @@ public:
                     int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
                     int fh = font->getHeight();
                     // Accounts for line-height (adds what most documentation calls half-leading to top and to bottom):
-                    int fhWithInterval = (fh * interval) >> 8; // font height + interline space
+                    int fhWithInterval = (fh * interval) >> 4; // font height + interline space
                     int fhInterval = fhWithInterval - fh;      // interline space only (negative for intervals < 100%)
                     top_to_baseline = font->getBaseline() + fhInterval/2;
                     baseline_to_bottom = fhWithInterval - top_to_baseline;
