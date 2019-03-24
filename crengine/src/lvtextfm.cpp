@@ -161,7 +161,7 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
    lUInt32         color,    /* color */
    lUInt32         bgcolor,  /* bgcolor */
    lUInt32         flags,    /* flags */
-   lUInt8          interval, /* interline space, *16 (16=single, 32=double) */
+   lInt16          interval, /* line height in screen pixels */
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,   /* first line margin */
    void *          object,    /* pointer to custom object */
@@ -214,7 +214,7 @@ void lvtextAddSourceObject(
    lInt16         width,
    lInt16         height,
    lUInt32         flags,     /* flags */
-   lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+   lInt16          interval,  /* line height in screen pixels */
    lInt16          valign_dy, /* drift y from baseline */
    lUInt16         margin,    /* first line margin */
    void *          object,    /* pointer to custom object */
@@ -252,7 +252,7 @@ bool gFlgFloatingPunctuationEnabled = true;
 
 void LFormattedText::AddSourceObject(
             lUInt16         flags,     /* flags */
-            lUInt8          interval,  /* interline space, *16 (16=single, 32=double) */
+            lInt16          interval,  /* line height in screen pixels */
             lInt16          valign_dy, /* drift y from baseline */
             lUInt16         margin,    /* first line margin */
             void *          object,    /* pointer to custom object */
@@ -915,6 +915,7 @@ public:
     /// split line into words, add space for width alignment
     void addLine( int start, int end, int x, src_text_fragment_t * para, int interval, bool first, bool last, bool preFormattedOnly, bool needReduceSpace, bool isLastPara )
     {
+        // Note: provided 'interval' is no more used
         int maxWidth = m_pbuffer->width;
         //int w0 = start>0 ? m_widths[start-1] : 0;
         int align = para->flags & LTEXT_FLAG_NEWLINE;
@@ -966,10 +967,12 @@ public:
             // a frmline as Draw() loops thru these lines - a frmline
             // with no word will do).
             src_text_fragment_t * srcline = m_srcs[start];
-            LVFont * font = (LVFont*)srcline->t.font;
-            int fh = font->getHeight();
-            int fhWithInterval = (fh * interval) >> 4; // font height + interline space
-            frmline->height = (lUInt16) fhWithInterval;
+            if (srcline->interval > 0) // should always be the case
+                frmline->height = srcline->interval;
+            else { // fall back to line-height: normal
+                LVFont * font = (LVFont*)srcline->t.font;
+                frmline->height = font->getHeight();
+            }
             m_y += frmline->height;
             m_pbuffer->height = m_y;
             return;
@@ -1092,7 +1095,7 @@ public:
                 formatted_word_t * word = lvtextAddFormattedWord(frmline);
                 src_text_fragment_t * srcline = m_srcs[wstart];
                 // This LTEXT_VALIGN_ flag is now only of use with objects (images)
-                int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
+                int vertical_align_flag = srcline->flags & LTEXT_VALIGN_MASK;
                 // These will be used later to adjust the main line baseline and height:
                 int top_to_baseline; // distance from this word top to its own baseline (formerly named 'b')
                 int baseline_to_bottom; // descender below baseline for this word (formerly named 'h')
@@ -1111,7 +1114,7 @@ public:
                     int height = lastSrc->o.height;
                     width = width<0? -width*(m_pbuffer->width-x)/100 : width;
                     height = height<0? -height*(m_pbuffer->width-x)/100 : height;
-                    // todo: adjust m_max_img_height with this image valign_dy/vertical_align
+                    // todo: adjust m_max_img_height with this image valign_dy/vertical_align_flag
                     resizeImage(width, height, m_pbuffer->width - x, m_max_img_height, m_length>1);
                     word->width = width;
                     word->o.height = height;
@@ -1121,41 +1124,23 @@ public:
                     // word->y has to be set to where the baseline should be
                     top_to_baseline = word->o.height;
                     baseline_to_bottom = 0;
-                    if ( vertical_align == LTEXT_VALIGN_MIDDLE ) {
+                    if ( vertical_align_flag == LTEXT_VALIGN_MIDDLE ) {
                         // srcline->valign_dy has been set to where the middle of image should be
                         word->y = srcline->valign_dy + top_to_baseline/2;
                     }
-                    else if ( vertical_align == LTEXT_VALIGN_TEXT_TOP || vertical_align == LTEXT_VALIGN_TOP ) {
+                    else if ( vertical_align_flag == LTEXT_VALIGN_TEXT_TOP ) {
                         // srcline->valign_dy has been set to where top of image should be
                         word->y = srcline->valign_dy + top_to_baseline;
+                    }
+                    else if ( vertical_align_flag == LTEXT_VALIGN_TOP ) {
+                        word->y = top_to_baseline - frmline->baseline;
+                    }
+                    else if ( vertical_align_flag == LTEXT_VALIGN_BOTTOM ) {
+                        word->y = frmline->height - frmline->baseline;
                     }
                     else { // in all other cases, bottom of image is its baseline
                         word->y = srcline->valign_dy;
                     }
-
-                    /* FORMER vertical-align computation:
-                        //if (vertical_align && node->getAttributeValue("","class")=="duokan-footnote") // apply to duokan-footnote
-                        if ( vertical_align )  {
-                            ldomNode *node=(ldomNode*)para->object;
-                            LVFont *font=(LVFont*)para->t.font;
-                            if (!node->isNull() && !node->getText().empty()) {
-                                if ( vertical_align == LTEXT_VALIGN_SUB ) {
-                                    int fh=font->getHeight();
-                                    word->y +=  fh*0.3333;
-                                    // width=width/height*fh*0.6667;
-                                    // height=fh*0.6667;
-                                } else if ( vertical_align == LTEXT_VALIGN_SUPER ) {
-                                    int fh=font->getHeight();
-                                    word->y -=  fh*0.3333;
-                                    // width=width/height*fh*0.6667;
-                                    // height=fh*0.6667;
-                                } else if ( vertical_align == LTEXT_VALIGN_MIDDLE ) {
-                                    baseline_to_bottom = height / 2;
-                                    word->y += baseline_to_bottom;
-                                }
-                            }
-                        }
-                    */
                 } else {
                     // word
                     // wstart points to the previous first non-space char
@@ -1164,29 +1149,29 @@ public:
                     src_text_fragment_t * srcline = m_srcs[wstart];
                     LVFont * font = (LVFont*)srcline->t.font;
 
-                    int vertical_align = srcline->flags & LTEXT_VALIGN_MASK;
+                    int vertical_align_flag = srcline->flags & LTEXT_VALIGN_MASK;
+                    int line_height = srcline->interval;
                     int fh = font->getHeight();
+                    // As we do only +/- arithmetic, the following values being negative should be fine.
                     // Accounts for line-height (adds what most documentation calls half-leading to top and to bottom):
-                    int fhWithInterval = (fh * interval) >> 4; // font height + interline space
-                    int fhInterval = fhWithInterval - fh;      // interline space only (negative for intervals < 100%)
-                    top_to_baseline = font->getBaseline() + fhInterval/2;
-                    baseline_to_bottom = fhWithInterval - top_to_baseline;
-                    // vertical-align computation is now done in lvrend.cpp renderFinalBlock()
-                    word->y = srcline->valign_dy;
+                    int half_leading = (line_height - fh) / 2;
+                    top_to_baseline = font->getBaseline() + half_leading;
+                    baseline_to_bottom = line_height - top_to_baseline;
+                    // For vertical-align: top or bottom, align to the current frmline as it is at
+                    // this point (at minima, the strut), even if frmline height and baseline might
+                    // be moved by some coming up words
+                    if ( vertical_align_flag == LTEXT_VALIGN_TOP ) {
+                        word->y = font->getBaseline() - frmline->baseline;
+                    }
+                    else if ( vertical_align_flag == LTEXT_VALIGN_BOTTOM ) {
+                        word->y = frmline->height - fh + font->getBaseline() - frmline->baseline;
+                    }
+                    else {
+                        // For others, vertical-align computation is done in lvrend.cpp renderFinalBlock()
+                        word->y = srcline->valign_dy;
+                    }
                     // printf("baseline_to_bottom=%d top_to_baseline=%d word->y=%d txt=|%s|\n", baseline_to_bottom,
                     //   top_to_baseline, word->y, UnicodeToLocal(lString16(srcline->t.text, srcline->t.len)).c_str());
-                    /* FORMER vertical-align computation:
-                        int wy = 0; //fhInterval / 2;
-                        if ( vertical_align )  {
-                            if ( vertical_align == LTEXT_VALIGN_SUB )
-                                wy += fh / 3;
-                            else if ( vertical_align == LTEXT_VALIGN_SUPER )
-                                wy -= fh / 2;
-                            else if ( vertical_align == LTEXT_VALIGN_MIDDLE )
-                                wy += baseline_to_bottom / 2;
-                        }
-                        word->y = wy;
-                    */
 
                     word->x = frmline->width;
                     word->flags = 0;
@@ -1368,12 +1353,6 @@ public:
                     // printf("extended down +%d\n", needed_height-frmline->height);
                     frmline->height = needed_height;
                 }
-                /* FORMER line adjustment code:
-                    if ( frmline->baseline < top_to_baseline - word->y )
-                        frmline->baseline = (lUInt16) (top_to_baseline - word->y);
-                    if ( frmline->height < frmline->baseline + baseline_to_bottom )
-                        frmline->height = (lUInt16) ( frmline->baseline + baseline_to_bottom );
-                */
 
                 frmline->width += word->width;
 
@@ -1462,7 +1441,7 @@ public:
         }
         preFormattedOnly = preFormattedOnly && lfFound;
 
-        int interval = m_srcs[0]->interval;
+        int interval = m_srcs[0]->interval; // Note: no more used inside AddLine()
         int maxWidth = m_pbuffer->width;
 #if 1
         // reservation of space for floating punctuation

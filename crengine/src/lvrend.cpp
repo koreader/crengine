@@ -44,6 +44,8 @@
 // crengine default used to be "width: 100%", but now that we
 // can shrink to fit, it is "width: auto".
 
+int gInterlineScaleFactor = INTERLINE_SCALE_FACTOR_NO_SCALE;
+
 int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
 bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
 int gRootFontSize = 24; // will be reset as soon as font size is set
@@ -1717,7 +1719,7 @@ int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
 }
 
 // Convert CSS value (type + number value) to screen px
-int lengthToPx( css_length_t val, int base_px, int base_em )
+int lengthToPx( css_length_t val, int base_px, int base_em, bool unspecified_as_em )
 {
     if (val.type == css_val_screen_px) { // use value as is
         return val.value;
@@ -1734,8 +1736,12 @@ int lengthToPx( css_length_t val, int base_px, int base_em )
     // we do that early to not lose precision
     int value = scaleForRenderDPI(val.value);
 
+    css_value_type_t type = val.type;
+    if (unspecified_as_em && type == css_val_unspecified)
+        type = css_val_em;
+
     // value for all units is stored *256 to not lose fractional part
-    switch( val.type )
+    switch( type )
     {
     /* absolute value, most often seen */
     case css_val_px:
@@ -1846,6 +1852,19 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
         LVFont * font = enode->getFont().get();
         lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
         lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
+        if (line_h < 0) { // -1, not specified by caller: find it out from the node
+            if ( style->line_height.type == css_val_unspecified &&
+                        style->line_height.value == css_generic_normal ) {
+                line_h = font->getHeight(); // line-height: normal
+            }
+            else {
+                int em = font->getSize();
+                line_h = lengthToPx(style->line_height, em, em, true);
+            }
+            // Scale it according to gInterlineScaleFactor
+            if (style->line_height.type != css_val_screen_px && gInterlineScaleFactor != INTERLINE_SCALE_FACTOR_NO_SCALE)
+                line_h = (line_h * gInterlineScaleFactor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+        }
         marker += "\t";
         if ( txform ) {
             txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, 0);
@@ -1894,46 +1913,72 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         int width = fmt->getWidth();
         int em = enode->getFont()->getSize();
         css_style_rec_t * style = enode->getStyle().get();
+
+        // As seen with Firefox, an inline node line-height: do apply, so we need
+        // to compute it for all inline nodes, and not only in the "the top and
+        // single 'final' node" 'if' below. The computed line-height: of that final
+        // node does ensure the strut height, which is the minimal line-height for
+        // all inline nodes. But an individual inline node is able to increase that
+        // strut height, for the line it happens on only.
+        if (gRenderDPI) {
+            // line_h is named 'interval' in lvtextfm.cpp.
+            //     Note: it was formerly described as: "*16 (16=normal, 32=double)"
+            //     and the scaling to the font size (font height actually) was done
+            //     in lvtextfm.cpp.
+            //     This has been modified so that lvtextfm only accepts interval as
+            //     being already the final line height in screen pixels.
+            //     So, we only do any conversion from CSS to screen pixels here (and in
+            //     setNodeStyle() when the style->line_height is inherited).
+            // All related values (%, em, ex, unitless) apply their factor to
+            // enode->getFont()->getSize().
+            // Only "normal" uses enode->getFont()->getHeight()
+            if ( style->line_height.type == css_val_unspecified &&
+                        style->line_height.value == css_generic_normal ) {
+                line_h = enode->getFont()->getHeight(); // line-height: normal
+            }
+            else {
+                // In all other cases (%, em, unitless/unspecified), we can just scale 'em',
+                // and use the computed value for absolute sized values (these will
+                // be affected by gRenderDPI) and 'rem' (related to root element font size).
+                line_h = lengthToPx(style->line_height, em, em, true);
+            }
+        }
+        else {
+            // Let's fallback to the previous (wrong) behaviour when gRenderDPI=0
+            // Only do it for the top and single final node
+            if ((flags & LTEXT_FLAG_NEWLINE) && rm != erm_inline) {
+                int fh = enode->getFont()->getHeight(); // former code used font height for everything
+                switch( style->line_height.type ) {
+                    case css_val_percent:
+                    case css_val_em:
+                        line_h = lengthToPx(style->line_height, fh, fh);
+                        break;
+                    default: // Use font height (as line_h=16 in former code)
+                        line_h = fh;
+                        break;
+                }
+            }
+        }
+        if (line_h < 0) {
+            // Shouldn't happen, but in case we're called with line_h=-1 and we
+            // didn't compute a valid line_h:
+            printf("CRE WARNING: line_h still < 0: using 'normal'\n");
+            line_h = enode->getFont()->getHeight(); // line-height: normal
+        }
+        // having line_h=0 is ugly, but it's allowed and it works
+
+        // Scale line_h according to gInterlineScaleFactor, but not if
+        // it was already in screen_px, which means it has already been
+        // scaled (in setNodeStyle() when inherited).
+        if (style->line_height.type != css_val_screen_px && gInterlineScaleFactor != INTERLINE_SCALE_FACTOR_NO_SCALE)
+            line_h = (line_h * gInterlineScaleFactor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+
         if ((flags & LTEXT_FLAG_NEWLINE) && rm != erm_inline) {
             // Non-inline node in a final block: this is the top and single 'final' node:
             // get text-indent (mispelled 'ident' here and elsewhere) and line-height
             // that will apply to the full final block
             ident = lengthToPx(style->text_indent, width, em);
 
-            // line-height may be a bit tricky, so let's fallback
-            // to the original behaviour when gRenderDPI = 0
-            if (gRenderDPI) {
-                // line_h is named 'interval' in lvtextfm.cpp, and described as:
-                //   *16 (16=normal, 32=double)
-                // so both % and em should be related to the value '16'
-                // line_height can be a number without unit, and it behaves as "em"
-                css_length_t line_height = css_length_t(
-                    style->line_height.type == css_val_unspecified ? css_val_em : style->line_height.type,
-                    style->line_height.value);
-                line_h = lengthToPx(line_height, 16, 16);
-                // line_height should never be css_val_inherited as spreadParent
-                // had updated it with its parent value, which could be the root
-                // element value, which is a value in % (90, 100 or 120), so we
-                // always got a valid style->line_height, and there is no need
-                // to keep the provided line_h like the original computation does
-            }
-            else { // original crengine computation
-                css_length_t len = style->line_height;
-                switch( len.type )
-                {
-                case css_val_percent:
-                    line_h = len.value * 16 / 100 >> 8;
-                    break;
-                case css_val_px:
-                    line_h = len.value * 16 / enode->getFont()->getHeight() >> 8;
-                    break;
-                case css_val_em:
-                    line_h = len.value * 16 / 256;
-                    break;
-                default:
-                    break;
-                }
-            }
             // We set the LFormattedText strut_height and strut_baseline
             // with the values from this "final" node. All lines made out from
             // children will have a minimal height and baseline set to these.
@@ -1946,9 +1991,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // and https://iamvdo.me/en/blog/css-font-metrics-line-height-and-vertical-align
             int fh = enode->getFont()->getHeight();
             int fb = enode->getFont()->getBaseline();
-            int f_line_h = (fh * line_h) >> 4; // font height + interline space
-            int f_half_leading = (f_line_h - fh) /2;
-            txform->setStrut(f_line_h, fb + f_half_leading);
+            int f_half_leading = (line_h - fh) / 2;
+            txform->setStrut(line_h, fb + f_half_leading);
         }
         // save flags: will be re-inited to that when we meet a <BR/>
         int final_block_flags = flags;
@@ -2000,7 +2044,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             //   and related values, so we have to approximate them from height and baseline.
             int fh = enode->getFont()->getHeight();
             int fb = enode->getFont()->getBaseline();
-            int f_line_h = (fh * line_h) >> 4; // font height + interline space
+            int f_line_h = line_h; // computed above
             int f_half_leading = (f_line_h - fh) /2;
             // Use the current font values if no parent (should not happen thus) to
             // avoid the need for if-checks below
@@ -2014,7 +2058,9 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 pem = parent->getFont()->getSize();
                 pfh = parent->getFont()->getHeight();
                 pfb = parent->getFont()->getBaseline();
-                pf_line_h = (pfh * line_h) >> 4; // font height + interline space
+                // We assume our parent line_h is the same as ours (which may not be the
+                // case, but that should be rare)
+                pf_line_h = line_h;
                 pf_half_leading = (pf_line_h - pfh) /2;
             }
             if (vertical_align.type == css_val_unspecified) { // named values
@@ -2044,7 +2090,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         // (Firefox falls back to 0.56 x ascender for x-height:
                         //   valign_dy -= 0.56 * pfb / 2;  but this looks a little too low)
                         if (is_object)
-                            valign_dy -= pem/4; // y for middle of image (lvtextfm.cpp will now from flags)
+                            valign_dy -= pem/4; // y for middle of image (lvtextfm.cpp will know from flags)
                         else {
                             valign_dy += fb - fh/2; // move down current middle point to baseline
                             valign_dy -= pem/4; // move up by half of parent ex
@@ -2069,7 +2115,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         // With valign_dy=0, they are centered on the baseline. We want
                         // them centered on their top line
                         if (is_object)
-                            valign_dy -= pfb; // y for top of image (lvtextfm.cpp will now from flags)
+                            valign_dy -= pfb; // y for top of image (lvtextfm.cpp will know from flags)
                         else
                             valign_dy -= pfb - fb;
                         flags |= LTEXT_VALIGN_TEXT_TOP;
@@ -2079,22 +2125,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         // This should most probably be re-computed once a full line has been laid
                         // out, which would need us to do this in lvtextfm.cpp, and we would need to
                         // go back words when the last word has been laid out...
-                        // We go the easy way by just aligning to our parent bottom, so just
-                        // as css_va_text_bottom + half_leading
-                        if (is_object)
-                            valign_dy += (pfh - pfb + pf_half_leading);
-                        else
-                            valign_dy += (pfh - pfb + pf_half_leading) - (fh - fb + f_half_leading);
+                        // This will be computed in lvtextfm.cpp to at least align according to the strut
+                        valign_dy = 0; // dummy value
                         flags |= LTEXT_VALIGN_BOTTOM;
                         break;
                     case css_va_top:
                         // "Align the top of the aligned subtree with the top of the line box."
-                        // We go the easy way by just aligning to our parent top, so just
-                        // as css_va_text_top + half_leading
-                        if (is_object)
-                            valign_dy -= (pfb + pf_half_leading); // y for top of image
-                        else
-                            valign_dy -= (pfb + pf_half_leading) - (fb + f_half_leading);
+                        // This will be computed in lvtextfm.cpp to at least align according to the strut
+                        valign_dy = 0; // dummy value
                         flags |= LTEXT_VALIGN_TOP;
                         break;
                     case css_va_baseline:
@@ -2111,7 +2149,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // But using the current font size looks correct and similar when
                 // comparing to Firefox rendering.
                 int base_em = em; // use current font ->getSize()
-                int base_pct = (fh * line_h) >> 4; // font height + interline space (as in lvtextfm.cpp)
+                int base_pct = line_h;
                 // positive values push text up, so reduce dy
                 valign_dy -= lengthToPx(vertical_align, base_pct, base_em);
             }
@@ -2415,6 +2453,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // % is not supported for letter_spacing by Firefox, but crengine
             // did support it, by relating it to font size, so let's use em
             // in place of width
+            // lengthToPx() will correctly return 0 with css_generic_normal
             int em = font->getSize();
             letter_spacing = lengthToPx(style->letter_spacing, em, em);
             /*
@@ -3030,7 +3069,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                         // Get marker width and height
                         LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                         int list_marker_width;
-                        lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
+                        lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                         list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
                         if ( enode->getStyle()->list_style_position == css_lsp_outside &&
                             enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
@@ -3129,7 +3168,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
                             int list_marker_width;
-                            lString16 marker = renderListItemMarker( enode, list_marker_width, NULL, 0, 0 );
+                            lString16 marker = renderListItemMarker( enode, list_marker_width, NULL, -1, 0 );
                             fmt.setX( fmt.getX() + list_marker_width );
                             width -= list_marker_width;
                         }
@@ -3975,7 +4014,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // we just need to draw the marker in the space we made
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     int list_marker_width;
-                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
+                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                     lUInt32 h = txform->Format( (lUInt16)width, (lUInt16)page_height );
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
@@ -4033,7 +4072,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // this node.
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     int list_marker_width;
-                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), 16, 0);
+                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                     lUInt32 h = txform->Format( (lUInt16)width, (lUInt16)page_height );
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
@@ -4158,7 +4197,6 @@ inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool un
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
 {
-    CR_UNUSED(parent_font);
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();
@@ -4405,9 +4443,52 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         // printf("CRE WARNING: font-size css_val_unspecified or color, fallback to inherited\n");
         break;
     }
+
     // line_height
-    spreadParent( pstyle->letter_spacing, parent_style->letter_spacing );
-    spreadParent( pstyle->line_height, parent_style->line_height, false ); // css_val_unspecified is a valid unit
+    if (pstyle->line_height.type == css_val_inherited) {
+        // We didn't have yet the parent font when dealing with the parent style
+        // (or we could have computed an absolute size line-height that we could
+        // have just inherited as-is here).
+        // But we have it now, so compute its absolute size, so it can be
+        // inherited as-is by our children.
+        switch( parent_style->line_height.type ) {
+            case css_val_percent:
+            case css_val_em:
+            case css_val_ex:
+                {
+                int pem = parent_font->getSize(); // value in screen px
+                int line_h = lengthToPx(parent_style->line_height, pem, pem);
+                // Scale it according to gInterlineScaleFactor
+                if (gInterlineScaleFactor != INTERLINE_SCALE_FACTOR_NO_SCALE)
+                    line_h = (line_h * gInterlineScaleFactor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+                pstyle->line_height.value = line_h;
+                pstyle->line_height.type = css_val_screen_px;
+                }
+                break;
+            // For all others, we can inherit as-is:
+            // case css_val_rem:         // related to font size of the root element
+            // case css_val_screen_px:   // absolute sizes
+            // case css_val_px:
+            // case css_val_in:
+            // case css_val_cm:
+            // case css_val_mm:
+            // case css_val_pt:
+            // case css_val_pc:
+            // case css_val_unspecified: // unitless number: factor to element's own font size: no relation to parent font
+            default:
+                pstyle->line_height = parent_style->line_height; // inherit as-is
+                break;
+        }
+    }
+
+    // We can't use spreadParent() with letter_spacing, as there is
+    // (css_val_unspecified, css_generic_normal) which should not be overriden
+    // by inheritance, while all other bogus (css_val_unspecified, number) should
+    if ( pstyle->letter_spacing.type == css_val_inherited ||
+            (pstyle->letter_spacing.type == css_val_unspecified &&
+             pstyle->letter_spacing.value != css_generic_normal) )
+        pstyle->letter_spacing = parent_style->letter_spacing;
+
     spreadParent( pstyle->color, parent_style->color );
 
     // background_color
@@ -4598,7 +4679,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         bool list_marker_width_as_padding = false;
         if ( node->getStyle()->display == css_d_list_item_block ) {
             LFormattedTextRef txform( node->getDocument()->createFormattedText() );
-            lString16 marker = renderListItemMarker( node, list_marker_width, txform.get(), 16, 0);
+            lString16 marker = renderListItemMarker( node, list_marker_width, txform.get(), -1, 0);
             #ifdef DEBUG_GETRENDEREDWIDTHS
                 printf("GRW: list_marker_width: %d\n", list_marker_width);
             #endif
@@ -4768,8 +4849,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         // letter-spacing
         LVFont * font = parent->getFont().get();
         int em = font->getSize();
-        int letter_spacing;
-        letter_spacing = lengthToPx(parent->getStyle()->letter_spacing, em, em);
+        int letter_spacing = lengthToPx(parent->getStyle()->letter_spacing, em, em);
         // text-transform
         switch (parent->getStyle()->text_transform) {
             case css_tt_uppercase:

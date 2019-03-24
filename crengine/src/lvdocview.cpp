@@ -1008,12 +1008,15 @@ void LVDocView::drawCoverTo(LVDrawBuf * drawBuf, lvRect & rc) {
 	LFormattedText txform;
 	if (!authors.empty())
 		txform.AddSourceLine(authors.c_str(), authors.length(), 0xFFFFFFFF,
-				0xFFFFFFFF, author_fnt.get(), LTEXT_ALIGN_CENTER, 18);
+				0xFFFFFFFF, author_fnt.get(), LTEXT_ALIGN_CENTER,
+				author_fnt->getHeight() * 18 / 16);
 	txform.AddSourceLine(title.c_str(), title.length(), 0xFFFFFFFF, 0xFFFFFFFF,
-			title_fnt.get(), LTEXT_ALIGN_CENTER, 18);
+			title_fnt.get(), LTEXT_ALIGN_CENTER,
+			title_fnt->getHeight() * 18 / 16);
 	if (!series.empty())
 		txform.AddSourceLine(series.c_str(), series.length(), 0xFFFFFFFF,
-				0xFFFFFFFF, series_fnt.get(), LTEXT_ALIGN_CENTER, 18);
+				0xFFFFFFFF, series_fnt.get(), LTEXT_ALIGN_CENTER,
+				series_fnt->getHeight() * 18 / 16);
 	int title_w = rc.width() - rc.width() / 4;
 	int h = txform.Format((lUInt16)title_w, (lUInt16)rc.height());
 
@@ -3332,9 +3335,13 @@ static int findBestFit(LVArray<int> & v, int n, bool rollCyclic = false) {
 }
 
 void LVDocView::setDefaultInterlineSpace(int percent) {
-	LVLock lock(getMutex());
+    LVLock lock(getMutex());
     REQUEST_RENDER("setDefaultInterlineSpace")
-	m_def_interline_space = percent;
+    m_def_interline_space = percent; // not used
+    if (percent == 100) // (avoid any rounding issue)
+        gInterlineScaleFactor = INTERLINE_SCALE_FACTOR_NO_SCALE;
+    else
+        gInterlineScaleFactor = INTERLINE_SCALE_FACTOR_NO_SCALE * percent / 100;
     _posIsSet = false;
 //	goToBookmark( _posBookmark);
 //        updateBookMarksRanges();
