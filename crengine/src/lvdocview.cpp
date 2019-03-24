@@ -2489,10 +2489,15 @@ void LVDocView::updateLayout() {
 		int max_middle_margin = m_pageMargins.left > m_pageMargins.right ? m_pageMargins.left : m_pageMargins.right;
 		int additional_middle_margin = 0;
 		int middle_margin = m_pageMargins.right + m_pageMargins.left;
-		if (middle_margin < min_middle_margin)
+		if (middle_margin < min_middle_margin) {
 			additional_middle_margin = min_middle_margin - middle_margin;
-		else if (middle_margin > max_middle_margin && max_middle_margin > min_middle_margin)
-			additional_middle_margin = max_middle_margin - middle_margin; // negative
+		}
+		else if (middle_margin > max_middle_margin) {
+			if (max_middle_margin > min_middle_margin)
+				additional_middle_margin = max_middle_margin - middle_margin; // negative
+			else
+				additional_middle_margin = min_middle_margin - middle_margin; // negative
+		}
 		// Note: with negative values, we allow these 2 m_pageRects to
 		// overlap. But it seems there is no issue doing that.
 		m_pageRects[0].right = middle - additional_middle_margin / 2;

@@ -2051,17 +2051,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             int pem = em;
             int pfh = fh;
             int pfb = fb;
-            int pf_line_h = f_line_h;
-            int pf_half_leading = f_half_leading;
             ldomNode *parent = enode->getParentNode();
             if (parent && !parent->isNull()) {
                 pem = parent->getFont()->getSize();
                 pfh = parent->getFont()->getHeight();
                 pfb = parent->getFont()->getBaseline();
-                // We assume our parent line_h is the same as ours (which may not be the
-                // case, but that should be rare)
-                pf_line_h = line_h;
-                pf_half_leading = (pf_line_h - pfh) /2;
             }
             if (vertical_align.type == css_val_unspecified) { // named values
                 switch (style->vertical_align.value) {
