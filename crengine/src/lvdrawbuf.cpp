@@ -1,6 +1,6 @@
 /*******************************************************
 
-   CoolReader Engine 
+   CoolReader Engine
 
    lvdrawbuf.cpp:  Gray bitmap buffer class
 
@@ -86,7 +86,7 @@ static void ApplyAlphaRGB( lUInt32 &dst, lUInt32 src, lUInt32 alpha )
         dst = src;
     else if ( alpha<255 ) {
         src &= 0xFFFFFF;
-        lUInt32 opaque = 256 - alpha;
+        lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 n1 = (((dst & 0xFF00FF) * alpha + (src & 0xFF00FF) * opaque) >> 8) & 0xFF00FF;
         lUInt32 n2 = (((dst & 0x00FF00) * alpha + (src & 0x00FF00) * opaque) >> 8) & 0x00FF00;
         dst = n1 | n2;
@@ -98,7 +98,7 @@ static void ApplyAlphaRGB565( lUInt16 &dst, lUInt16 src, lUInt32 alpha )
     if ( alpha==0 )
         dst = src;
     else if ( alpha<255 ) {
-        lUInt32 opaque = 256 - alpha;
+        lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 r = (((dst & 0xF800) * alpha + (src & 0xF800) * opaque) >> 8) & 0xF800;
         lUInt32 g = (((dst & 0x07E0) * alpha + (src & 0x07E0) * opaque) >> 8) & 0x07E0;
         lUInt32 b = (((dst & 0x001F) * alpha + (src & 0x001F) * opaque) >> 8) & 0x001F;
@@ -113,7 +113,7 @@ static void ApplyAlphaGray( lUInt8 &dst, lUInt8 src, lUInt32 alpha, int bpp )
     else if ( alpha<255 ) {
         int mask = ((1<<bpp)-1) << (8-bpp);
         src &= mask;
-        lUInt32 opaque = 256 - alpha;
+        lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 n1 = ((dst * alpha + src * opaque)>>8 ) & mask;
         dst = (lUInt8)n1;
     }
@@ -127,14 +127,14 @@ static void ApplyAlphaGray( lUInt8 &dst, lUInt8 src, lUInt32 alpha, int bpp )
 //};
 
 static const short dither_2bpp_8x8[] = {
-0, 32, 12, 44, 2, 34, 14, 46, 
-48, 16, 60, 28, 50, 18, 62, 30, 
-8, 40, 4, 36, 10, 42, 6, 38, 
-56, 24, 52, 20, 58, 26, 54, 22, 
-3, 35, 15, 47, 1, 33, 13, 45, 
-51, 19, 63, 31, 49, 17, 61, 29, 
-11, 43, 7, 39, 9, 41, 5, 37, 
-59, 27, 55, 23, 57, 25, 53, 21, 
+0, 32, 12, 44, 2, 34, 14, 46,
+48, 16, 60, 28, 50, 18, 62, 30,
+8, 40, 4, 36, 10, 42, 6, 38,
+56, 24, 52, 20, 58, 26, 54, 22,
+3, 35, 15, 47, 1, 33, 13, 45,
+51, 19, 63, 31, 49, 17, 61, 29,
+11, 43, 7, 39, 9, 41, 5, 37,
+59, 27, 55, 23, 57, 25, 53, 21,
 };
 
 // returns byte with higher significant bits, lower bits are 0
@@ -688,17 +688,17 @@ public:
 
 
 int  LVBaseDrawBuf::GetWidth()
-{ 
+{
     return _dx;
 }
 
 int  LVBaseDrawBuf::GetHeight()
-{ 
-    return _dy; 
+{
+    return _dy;
 }
 
 int  LVGrayDrawBuf::GetBitsPerPixel()
-{ 
+{
     return _bpp;
 }
 
@@ -1182,7 +1182,7 @@ void LVGrayDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int he
                     if ( b>=mask )
                         *dst = color;
                     else {
-                        int alpha = 256 - b;
+                        int alpha = b ^ 0xFF;
                         ApplyAlphaGray( *dst, color, alpha, _bpp );
                     }
                 }
@@ -1615,8 +1615,8 @@ void LVColorDrawBuf::Resize( int dx, int dy )
         _dx = 0;
         _dy = 0;
     }
-    
-    if (dx>0 && dy>0) 
+
+    if (dx>0 && dy>0)
     {
         // create new bitmap
         _dx = dx;
@@ -1636,7 +1636,7 @@ void LVColorDrawBuf::Resize( int dx, int dy )
         bmi.bmiHeader.biYPelsPerMeter = 1024;
         bmi.bmiHeader.biClrUsed = 0;
         bmi.bmiHeader.biClrImportant = 0;
-    
+
         _drawbmp = CreateDIBSection( NULL, &bmi, DIB_RGB_COLORS, (void**)(&_data), NULL, 0 );
         _drawdc = CreateCompatibleDC(NULL);
         SelectObject(_drawdc, _drawbmp);
@@ -2013,7 +2013,7 @@ void LVGrayDrawBuf::DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32 
                             c |= (cl&0xFF);
                             *(dst+1) = c;
                         }
-                    }    
+                    }
                     dst++;
                     src++;
                 }
@@ -2039,7 +2039,7 @@ void LVGrayDrawBuf::DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32 
                             c |= (cl&0xFF);
                             *(dst+1) = c;
                         }
-                    }    
+                    }
                     dst++;
                     src++;
                 }
@@ -2596,7 +2596,7 @@ void LVGrayDrawBuf::DrawRescaled(LVDrawBuf * src, int x, int y, int dx, int dy, 
                     if ( x+xx >= clip.left && x+xx < clip.right ) {
                         int srcx16 = srcdx * xx * 16 / dx;
                         lUInt32 cl = src->GetInterpolatedColor(srcx16, srcy16);
-                        lUInt32 alpha = (cl >> 24) & 255;
+                        lUInt32 alpha = (cl >> 24) & 0xFF;
                         if (_bpp==1)
                         {
                             if (alpha >= 128)
@@ -2630,7 +2630,7 @@ void LVGrayDrawBuf::DrawRescaled(LVDrawBuf * src, int x, int y, int dx, int dy, 
                             if (alpha < 16)
                                 *dst = (lUInt8)dithered;
                             else if (alpha < 240) {
-                                lUInt32 nalpha = 255 - alpha;
+                                lUInt32 nalpha = alpha ^ 0xFF;
                                 lUInt32 pixel = *dst;
                                 if (_bpp == 4)
                                     pixel = ((pixel * alpha + dithered * nalpha) >> 8) & 0xF0;

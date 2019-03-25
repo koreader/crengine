@@ -1652,7 +1652,7 @@ void LVSvgImageSource::Compact() { }
 bool LVSvgImageSource::CheckPattern( const lUInt8 * buf, int len)
 {
     // check for <?xml or <svg
-    if (len > 5 && buf[0]=='<' && buf[1]=='?' && 
+    if (len > 5 && buf[0]=='<' && buf[1]=='?' &&
             (buf[2]=='x' || buf[2] == 'X') &&
             (buf[3]=='m' || buf[3] == 'M') &&
             (buf[4]=='l' || buf[4] == 'L'))
@@ -1762,7 +1762,7 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
                         g = (lUInt8)p[1];
                         b = (lUInt8)p[2];
                         a = (lUInt8)p[3];
-                        ia = 255 - a;
+                        ia = a ^ 0xFF;
                         ro = (lUInt32)( r*a + 0xff*ia );
                         go = (lUInt32)( g*a + 0xff*ia );
                         bo = (lUInt32)( b*a + 0xff*ia );
@@ -2105,8 +2105,8 @@ LVImageSourceRef LVCreateTileTransform( LVImageSourceRef src, int newWidth, int 
 static inline lUInt32 limit256(int n) {
     if (n < 0)
         return 0;
-    else if (n > 255)
-        return 255;
+    else if (n > 0xFF)
+        return 0xFF;
     else
         return (lUInt32)n;
 }
@@ -2152,7 +2152,7 @@ public:
         for (int x = 0; x < dx; x++) {
             lUInt32 cl = data[x];
             row[x] = cl;
-            if (((cl >> 24) & 255) < 0xC0) { // count non-transparent pixels only
+            if (((cl >> 24) & 0xFF) < 0xC0) { // count non-transparent pixels only
                 _sumR += (cl >> 16) & 0xFF;
                 _sumG += (cl >> 8) & 0xFF;
                 _sumB += (cl >> 0) & 0xFF;
@@ -2167,13 +2167,13 @@ public:
         int dx = _src->GetWidth();
         int dy = _src->GetHeight();
         // simple add
-        int ar = (((_add >> 16) & 255) - 0x80) * 2;
-        int ag = (((_add >> 8) & 255) - 0x80) * 2;
-        int ab = (((_add >> 0) & 255) - 0x80) * 2;
+        int ar = (((_add >> 16) & 0xFF) - 0x80) * 2;
+        int ag = (((_add >> 8) & 0xFF) - 0x80) * 2;
+        int ab = (((_add >> 0) & 0xFF) - 0x80) * 2;
         // fixed point * 256
-        int mr = ((_multiply >> 16) & 255) << 3;
-        int mg = ((_multiply >> 8) & 255) << 3;
-        int mb = ((_multiply >> 0) & 255) << 3;
+        int mr = ((_multiply >> 16) & 0xFF) << 3;
+        int mg = ((_multiply >> 8) & 0xFF) << 3;
+        int mb = ((_multiply >> 0) & 0xFF) << 3;
 
         int avgR = _countPixels > 0 ? _sumR / _countPixels : 128;
         int avgG = _countPixels > 0 ? _sumG / _countPixels : 128;
@@ -2185,9 +2185,9 @@ public:
                 lUInt32 cl = row[x];
                 lUInt32 a = cl & 0xFF000000;
                 if (a != 0xFF000000) {
-                    int r = (cl >> 16) & 255;
-                    int g = (cl >> 8) & 255;
-                    int b = (cl >> 0) & 255;
+                    int r = (cl >> 16) & 0xFF;
+                    int g = (cl >> 8) & 0xFF;
+                    int b = (cl >> 0) & 0xFF;
                     r = (((r - avgR) * mr) >> 8) + avgR + ar;
                     g = (((g - avgG) * mg) >> 8) + avgG + ag;
                     b = (((b - avgB) * mb) >> 8) + avgB + ab;
@@ -2227,7 +2227,7 @@ protected:
 public:
     LVAlphaTransformImgSource(LVImageSourceRef src, int alpha)
         : _src( src )
-        , _alpha(255 - alpha)
+        , _alpha(alpha ^ 0xFF)
     {
     }
     virtual ~LVAlphaTransformImgSource() {
@@ -2243,10 +2243,10 @@ public:
 
         for (int x = 0; x < dx; x++) {
             lUInt32 cl = data[x];
-            int srcalpha = 255 - (cl >> 24);
+            int srcalpha = (cl >> 24) ^ 0xFF;
             if (srcalpha > 0) {
                 srcalpha = _alpha * srcalpha;
-                cl = (cl & 0xFFFFFF) | ((255 - _alpha * srcalpha)<<24);
+                cl = (cl & 0xFFFFFF) | (((_alpha * srcalpha) ^ 0xFF)<<24);
             }
             data[x] = cl;
         }
@@ -2312,8 +2312,8 @@ public:
     // aaaaaaaarrrrrrrrggggggggbbbbbbbb -> yyyyyyaa
     inline lUInt8 grayPack( lUInt32 pixel )
     {
-        lUInt8 gray = (lUInt8)(( (pixel & 255) + ((pixel>>16) & 255) + ((pixel>>7)&510) ) >> 2);
-        lUInt8 alpha = (lUInt8)((pixel>>24) & 255);
+        lUInt8 gray = (lUInt8)(( (pixel & 0xFF) + ((pixel>>16) & 0xFF) + ((pixel>>7)&510) ) >> 2);
+        lUInt8 alpha = (lUInt8)((pixel>>24) & 0xFF);
         return (gray & 0xFC) | ((alpha >> 6) & 3);
     }
     // yyyyyyaa -> aaaaaaaarrrrrrrrggggggggbbbbbbbb
