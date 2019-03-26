@@ -195,10 +195,10 @@ public:
     /// draws text string
     /*
     virtual void DrawTextString( int x, int y, LVFont * pfont,
-                       const lChar16 * text, int len, 
+                       const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen=false ) = 0;
-    */                       
-                      
+    */
+
 /*
     /// draws formatted text
     virtual void DrawFormattedText( formatted_text_fragment_t * text, int x, int y ) = 0;
@@ -258,8 +258,8 @@ public:
     /// draws text string
     /*
     virtual void DrawTextString( int x, int y, LVFont * pfont,
-                       const lChar16 * text, int len, 
-                       lChar16 def_char, 
+                       const lChar16 * text, int len,
+                       lChar16 def_char,
                        lUInt32 * palette, bool addHyphen=false );
     */
     /// draws formatted text
@@ -269,7 +269,7 @@ public:
     int getDrawnImagesCount() { return _drawnImagesCount; }
     /// Get surface of images drawn on buffer
     int getDrawnImagesSurface() { return _drawnImagesSurface; }
-    
+
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
@@ -387,16 +387,33 @@ public:
     virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0,int length1,int length2,int direction=0);
 };
 
-inline lUInt32 RevRGB( lUInt32 cl )
-{
-    return ((cl>>16)&255) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+// NOTE: By default, CRe assumes RGB (array order) actually means BGR
+//       We don't, so, instead of fixing this at the root (i.e., in a *lot* of places),
+//       we simply swap R<->B when rendering to 32bpp, limiting the tweaks to lvdrawbuf
+//       c.f., https://github.com/koreader/koreader-base/pull/878#issuecomment-476723747
+#ifdef CR_RENDER_32BPP_RGB_PXFMT
+inline lUInt32 RevRGB( lUInt32 cl ) {
+    return ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
 }
 
-inline lUInt32 rgb565to888(lUInt32 cl ) {
+inline lUInt32 RevRGBA( lUInt32 cl ) {
+    return (cl&0xFF000000) | ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+}
+#else
+inline lUInt32 RevRGB( lUInt32 cl ) {
+    return cl;
+}
+
+inline lUInt32 RevRGBA( lUInt32 cl ) {
+    return cl;
+}
+#endif
+
+inline lUInt32 rgb565to888( lUInt32 cl ) {
     return ((cl & 0xF800)<<8) | ((cl & 0x07E0)<<5) | ((cl & 0x001F)<<3);
 }
 
-inline lUInt16 rgb888to565(lUInt32 cl ) {
+inline lUInt16 rgb888to565( lUInt32 cl ) {
     return (lUInt16)(((cl>>8)& 0xF800) | ((cl>>5 )& 0x07E0) | ((cl>>3 )& 0x001F));
 }
 
