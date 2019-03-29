@@ -1391,9 +1391,10 @@ public:
 	}
 #if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
-    bool getRect(lvRect & rect, bool extended=false) const;
-    /// returns caret rectangle for pointer inside formatted document considering paddings and borders
-    bool getRectEx(lvRect & rect) const { return getRect(rect, true); };
+    bool getRect(lvRect & rect, bool extended=false, bool adjusted=false) const;
+    /// returns glyph rectangle for pointer inside formatted document considering paddings and borders
+    /// (with adjusted=true, adjust for left and right side bearing of the glyph, for cleaner highlighting)
+    bool getRectEx(lvRect & rect, bool adjusted=false) const { return getRect(rect, true, adjusted); };
     /// returns coordinates of pointer inside formatted document
     lvPoint toPoint( bool extended=false ) const;
 #endif
