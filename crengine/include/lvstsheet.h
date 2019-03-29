@@ -154,6 +154,10 @@ public:
     ~LVCssSelectorRule() { if (_next) delete _next; }
     /// check condition for node
     bool check( const ldomNode * & node );
+    /// check next rules for node
+    bool checkNextRules( const ldomNode * node );
+    /// Some selector rule types do the full rules chain check themselves
+    bool isFullChecking() { return _type == cssrt_ancessor || _type == cssrt_predsibling; }
     lUInt32 getHash();
     lUInt32 getWeight();
 };

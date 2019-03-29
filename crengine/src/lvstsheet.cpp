@@ -2309,8 +2309,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     // under real parent. These could take wrong decisions in the meantime...
     switch (_type)
     {
-    case cssrt_parent:        // E > F
-        //
+    case cssrt_parent:        // E > F (child combinator)
         {
             node = node->getParentNode();
             while (node && !node->isNull() && node->getNodeId() == el_autoBoxing)
@@ -2323,30 +2322,39 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             return false;
         }
         break;
-    case cssrt_ancessor:      // E F
-        //
+    case cssrt_ancessor:      // E F (descendant combinator)
         {
             for (;;)
             {
                 node = node->getParentNode();
-		// prevent segfault due to undefined memory address on Ubuntu 17.10 (due to gcc 7.2.0?)
                 if (!node || node->isNull())
                     return false;
                 if (node->getNodeId() == el_autoBoxing)
                     continue;
-                // If _id=0 (no element to match against), we are in a
-                // non-deterministic rule, and we would need to iterate
-                // thru each parent to start checking next rules from,
-                // which we can't do. So, if no _id, start from direct
-                // parent (ie: '.cls F' will be like '.cls > F')
-                if (!_id || node->getNodeId() == _id)
-                    return true;
+                // cssrt_ancessor is a non-deterministic rule: next rules
+                // could fail when checked against this parent that matches
+                // current rule, but could succeed when checked against
+                // another parent that matches.
+                // So, we need to check the full next rules chain on each
+                // of our parent that matches current rule.
+                // As we check the whole selector rules chain here,
+                // LVCssSelector::check() won't have to: so it will trust
+                // our return value.
+                // Note: this is quite expensive compared to other combinators.
+                if ( !_id || node->getNodeId() == _id ) {
+                    // No element name to match against, or this element name
+                    // matches: check next rules starting from there.
+                    const ldomNode * n = node;
+                    if (checkNextRules(n))
+                        // We match all next rules (possibly including other
+                        // cssrt_ancessor)
+                        return true;
+                    // Next rules didn't match: continue with next parent
+                }
             }
         }
         break;
-    case cssrt_predecessor:   // E + F
-    case cssrt_predsibling:   // E ~ F (preceding sibling)
-        //
+    case cssrt_predecessor:   // E + F (adjacent sibling combinator)
         {
             int index = node->getNodeIndex();
             if (index>0) {
@@ -2354,14 +2362,38 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 for (int i=index-1; i>=0; i--) {
                     ldomNode * elem = parent->getChildElementNode(i);
                     // we get NULL when a child is a text node, that we should ignore
-                    if ( elem ) { // this is an element node
-                        // If _id=0 (no element to match against), same as above
+                    if ( elem ) { // this is the preceeding element node
                         if (!_id || elem->getNodeId() == _id) {
+                            // No element name to match against, or this element name matches
                             node = elem;
                             return true;
                         }
-                        if (_type == cssrt_predecessor) {
-                            return false;
+                        return false;
+                    }
+                }
+            }
+            return false;
+        }
+        break;
+    case cssrt_predsibling:   // E ~ F (preceding sibling / general sibling combinator)
+        {
+            int index = node->getNodeIndex();
+            if (index>0) {
+                ldomNode * parent = node->getParentNode();
+                for (int i=index-1; i>=0; i--) {
+                    const ldomNode * elem = parent->getChildElementNode(i);
+                    // we get NULL when a child is a text node, that we should ignore
+                    if ( elem ) { // this is an element node
+                        if ( !_id || elem->getNodeId() == _id ) {
+                            // No element name to match against, or this element name
+                            // matches: check next rules starting from there.
+                            // Same as what is done in cssrt_ancessor above: we may
+                            // have to check next rules on all preceeding siblings.
+                            if (checkNextRules(elem))
+                                // We match all next rules (possibly including other
+                                // cssrt_ancessor or cssrt_predsibling)
+                                return true;
+                            // Next rules didn't match: continue with next parent
                         }
                     }
                 }
@@ -2400,7 +2432,6 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrstarts:    // E[foo|="value"]
-        // todo
         {
             lString16 val = node->getAttributeValue(_attrid);
             if (_value.length()>val.length())
@@ -2410,7 +2441,6 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_id:            // E#id
-        // todo
         {
             lString16 val = node->getAttributeValue(attr_id);
             /*lString16 ldomDocumentFragmentWriter::convertId( lString16 id ) adds codeBasePrefix to
@@ -2426,7 +2456,6 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_class:         // E.class
-        // todo
         {
             lString16 val = node->getAttributeValue(attr_class);
             // val.lowercase(); // className should be case sensitive
@@ -2548,6 +2577,24 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     return true;
 }
 
+bool LVCssSelectorRule::checkNextRules( const ldomNode * node )
+{
+    // Similar to LVCssSelector::check() just below, but
+    // invoked from a rule
+    LVCssSelectorRule * rule = getNext();
+    if (!rule)
+        return true;
+    const ldomNode * n = node;
+    do {
+        if ( !rule->check(n) )
+            return false;
+        if ( rule->isFullChecking() )
+            return true;
+        rule = rule->getNext();
+    } while (rule!=NULL);
+    return true;
+}
+
 bool LVCssSelector::check( const ldomNode * node ) const
 {
     // check main Id
@@ -2558,10 +2605,14 @@ bool LVCssSelector::check( const ldomNode * node ) const
     // check additional rules
     const ldomNode * n = node;
     LVCssSelectorRule * rule = _rules;
-    do
-    {
+    do {
         if ( !rule->check(n) )
             return false;
+        // cssrt_ancessor or cssrt_predsibling rules will have checked next
+        // rules on each parent or sibling. If it didn't return false, it
+        // found one on which next rules match: no need to check them again
+        if ( rule->isFullChecking() )
+            return true;
         rule = rule->getNext();
     } while (rule!=NULL);
     return true;
