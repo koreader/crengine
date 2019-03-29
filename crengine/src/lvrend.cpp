@@ -3932,20 +3932,20 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         // A few things differ when done for TR, THEAD, TBODY and TFOOT
         bool isTableRowLike = rm == erm_table_row || rm == erm_table_row_group ||
                               rm == erm_table_header_group || rm == erm_table_footer_group;
-        int em = enode->getFont()->getSize();
-        int width = fmt.getWidth();
         int height = fmt.getHeight();
-        bool draw_padding_bg = true; //( enode->getRendMethod()==erm_final );
-        int padding_left = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
-        int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
-        int padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
-        //int padding_bottom = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW;
         if ( (doc_y + height <= 0 || doc_y > 0 + dy) && !isTableRowLike ) {
             // TR may have cells with rowspan>1, and even though this TR
             // is out of range, it must draw a rowspan>1 cell, so it it
             // not empty when a next TR (not out of range) is drawn.
             return; // out of range
         }
+        int em = enode->getFont()->getSize();
+        int width = fmt.getWidth();
+        bool draw_padding_bg = true; //( enode->getRendMethod()==erm_final );
+        int padding_left = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
+        int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
+        int padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
+        //int padding_bottom = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW;
         css_length_t bg = enode->getStyle()->background_color;
         lUInt32 oldColor = 0;
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
