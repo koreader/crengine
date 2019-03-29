@@ -295,9 +295,14 @@ static int parse_name( const char * & str, const char * * names, int def_value )
 static lUInt32 parse_important( const char *str ) // does not advance the original *str
 {
     skip_spaces( str );
-    if (substr_icompare( "!important", str )) {
-        // returns directly what should be | to prop_code
-        return IMPORTANT_DECL_SET;
+    // "!  important", with one or more spaces in between, is valid
+    if (*str == '!') {
+        str++;
+        skip_spaces( str );
+        if (substr_icompare( "important", str )) {
+            // returns directly what should be | to prop_code
+            return IMPORTANT_DECL_SET;
+        }
     }
     return 0;
 }
