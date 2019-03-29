@@ -5752,7 +5752,7 @@ lvPoint ldomXPointer::toPoint(bool extended) const
 // So we return the char width (and no more the word width) of the char
 // pointed to by this XPointer (unlike ldomXRange::getRectEx() which deals
 // with a range between 2 XPointers).
-bool ldomXPointer::getRect(lvRect & rect, bool extended) const
+bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
 {
     //CRLog::trace("ldomXPointer::getRect()");
     if ( isNull() )
@@ -5994,17 +5994,19 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended) const
                                     hyphen_added = true;
                                 }
                                 rect.right = rect.left + chw;
-                                // Extend left or right if this glyph overflows its
-                                // origin/advance box (can happen with an italic font,
-                                // or with a regular font on the right of the letter 'f'
-                                // or on the left of the letter 'J').
-                                // Only when negative (overflow) and not when positive
-                                // (which are more frequent), mostly to keep some good
-                                // looking rectangles on the sides when highlighting
-                                // multiple lines.
-                                rect.left += font->getLeftSideBearing(str[offset], true);
-                                if ( !hyphen_added )
-                                    rect.right -= font->getRightSideBearing(str[offset], true);
+                                if (adjusted) {
+                                    // Extend left or right if this glyph overflows its
+                                    // origin/advance box (can happen with an italic font,
+                                    // or with a regular font on the right of the letter 'f'
+                                    // or on the left of the letter 'J').
+                                    // Only when negative (overflow) and not when positive
+                                    // (which are more frequent), mostly to keep some good
+                                    // looking rectangles on the sides when highlighting
+                                    // multiple lines.
+                                    rect.left += font->getLeftSideBearing(str[offset], true);
+                                    if ( !hyphen_added )
+                                        rect.right -= font->getRightSideBearing(str[offset], true);
+                                }
                             }
                         }
                         else
@@ -7052,6 +7054,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         // The curPos.getRectEx(charRect) we use returns a rect for a single char, with
         // the width of the char. We then "extend" it to the char at end of line (or end
         // of range) to make a segment that we add to the provided &rects.
+        // We use getRectEx() with adjusted=true, for fine tuned glyph rectangles
+        // that include the excessive left or right side bearing.
 
         if (!curPos || curPos.isNull() || curPos.compare(rangeEnd) >= 0) {
             // no more text node, or after end of range: we're done
@@ -7099,14 +7103,14 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
-            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect)) {
+            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
                 curPos.setOffset(startOffset);
                 nodeStartRect = lvRect(); // reset
             }
             // last try with the last char (startOffset = textLen-1):
-            if (!curPos.getRectEx(nodeStartRect)) {
+            if (!curPos.getRectEx(nodeStartRect, true)) {
                 // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
                 // getRectEx() returns false when a node is invisible, so we just
                 // go processing next text node on failure (it may fail for other
@@ -7138,7 +7142,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
             curCharRect = lvRect();
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
-            if (!curPos.getRectEx(curCharRect)) {
+            if (!curPos.getRectEx(curCharRect, true)) {
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
                 go_on = curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
@@ -7157,7 +7161,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         // Ignore (possibly collapsed) space at end of text node
         curPos.setOffset(nodeText[textLen-1] == ' ' ? textLen-2 : textLen-1 );
         curCharRect = lvRect();
-        if (!curPos.getRectEx(curCharRect)) {
+        if (!curPos.getRectEx(curCharRect, true)) {
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
             go_on = curPos.nextText(); // skip this text node
             nodeStartRect = lvRect(); // reset
@@ -7184,7 +7188,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
                 continue;
             curPos.setOffset(i);
             curCharRect = lvRect(); // reset
-            if (!curPos.getRectEx(curCharRect)) {
+            if (!curPos.getRectEx(curCharRect, true)) {
                 // printf("#### curPos.getRectEx(char=%d) failed\n", i);
                 // Can happen with non-break-space and may be others,
                 // just try with next char
