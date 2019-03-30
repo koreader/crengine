@@ -1155,7 +1155,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                                 // remove family name from font list
                                 list.erase( i, 1 );
                             }
-                            if ( substr_icompare( "!important", name ) ) {
+                            else if ( substr_icompare( "!important", name ) ) {
                                 // !important may be caught by splitPropertyValueList()
                                 list.erase( i, 1 );
                                 parsed_important = IMPORTANT_DECL_SET;
@@ -1841,9 +1841,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                 while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!')
                 {tmp++;len++;}
                 str.append(decl,len);
-                tmp=str.c_str();
                 str.trim();
-                skip_spaces(tmp);
+                tmp=str.c_str();
                 int offset=len-str.length();//offset for removed spaces
                 if (Utf8ToUnicode(str).lowercase().startsWith("url")) {
                     len=0;
