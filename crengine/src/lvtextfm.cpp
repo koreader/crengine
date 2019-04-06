@@ -118,6 +118,9 @@ formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
     pbuffer->strut_baseline = 0;
     int defMode = MAX_IMAGE_SCALE_MUL > 1 ? (ARBITRARY_IMAGE_SCALE_ENABLED==1 ? 2 : 1) : 0;
     int defMult = MAX_IMAGE_SCALE_MUL;
+    // Notes from thornyreader:
+    // mode: 0=disabled, 1=integer scaling factors, 2=free scaling
+    // scale: 0=auto based on font size, 1=no zoom, 2=scale up to *2, 3=scale up to *3
     pbuffer->img_zoom_in_mode_block = defMode; /**< can zoom in block images: 0=disabled, 1=integer scale, 2=free scale */
     pbuffer->img_zoom_in_scale_block = defMult; /**< max scale for block images zoom in: 1, 2, 3 */
     pbuffer->img_zoom_in_mode_inline = defMode; /**< can zoom in inline images: 0=disabled, 1=integer scale, 2=free scale */
@@ -967,8 +970,10 @@ public:
             // a frmline as Draw() loops thru these lines - a frmline
             // with no word will do).
             src_text_fragment_t * srcline = m_srcs[start];
-            if (srcline->interval > 0) // should always be the case
-                frmline->height = srcline->interval;
+            if (srcline->interval > 0) { // should always be the case
+                if (srcline->interval > frmline->height) // keep strut_height if greater
+                    frmline->height = srcline->interval;
+            }
             else { // fall back to line-height: normal
                 LVFont * font = (LVFont*)srcline->t.font;
                 frmline->height = font->getHeight();
