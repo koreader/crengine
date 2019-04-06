@@ -463,7 +463,7 @@ LVStreamRef GetEpubCoverpage(LVContainerRef arc)
             if ( !href.empty() && !id.empty() ) {
                 if (id == coverId) {
                     // coverpage file
-                    lString16 coverFileName = codeBase + href;
+                    lString16 coverFileName = LVCombinePaths(codeBase, href);
                     CRLog::info("EPUB coverpage file: %s", LCSTR(coverFileName));
                     coverPageImageStream = m_arc->OpenStream(coverFileName.c_str(), LVOM_READ);
                 }
@@ -885,7 +885,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 href = DecodeHTMLUrlString(href);
                 if ( id==coverId ) {
                     // coverpage file
-                    lString16 coverFileName = codeBase + href;
+                    lString16 coverFileName = LVCombinePaths(codeBase, href);
                     CRLog::info("EPUB coverpage file: %s", LCSTR(coverFileName));
                     LVStreamRef stream = m_arc->OpenStream(coverFileName.c_str(), LVOM_READ);
                     if ( !stream.isNull() ) {
@@ -938,7 +938,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 EpubItem * ncx = epubItems.findById( spine->getAttributeValue("toc") ); //TODO
                 //EpubItem * ncx = epubItems.findById(cs16("ncx"));
                 if ( ncx!=NULL )
-                    ncxHref = codeBase + ncx->href;
+                    ncxHref = LVCombinePaths(codeBase, ncx->href);
 
                 for ( int i=1; i<50000; i++ ) {
                     ldomNode * item = doc->nodeFromXPath(lString16("package/spine/itemref[") << fmt::decimal(i) << "]");
@@ -981,7 +981,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     int fragmentCount = 0;
     for ( int i=0; i<spineItems.length(); i++ ) {
         if (spineItems[i]->mediaType == "application/xhtml+xml") {
-            lString16 name = codeBase + spineItems[i]->href;
+            lString16 name = LVCombinePaths(codeBase, spineItems[i]->href);
             lString16 subst = cs16("_doc_fragment_") + fmt::decimal(i);
             appender.addPathSubstitution( name, subst );
             //CRLog::trace("subst: %s => %s", LCSTR(name), LCSTR(subst));
@@ -989,7 +989,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     }
     for ( int i=0; i<spineItems.length(); i++ ) {
         if (spineItems[i]->mediaType == "application/xhtml+xml") {
-            lString16 name = codeBase + spineItems[i]->href;
+            lString16 name = LVCombinePaths(codeBase, spineItems[i]->href);
             {
                 CRLog::debug("Checking fragment: %s", LCSTR(name));
                 LVStreamRef stream = m_arc->OpenStream(name.c_str(), LVOM_READ);

@@ -3783,7 +3783,13 @@ lString16 LVCombinePaths( lString16 basePath, lString16 newPath )
             }
         }
     } while ( changed && s.length()>=pattern.length() );
-    // "./"
+    // Replace "/./" inside with "/"
+    pattern.clear();
+    pattern << separator << "." << separator;
+    lString16 replacement;
+    replacement << separator;
+    while ( s.replace( pattern, replacement ) ) ;
+    // Remove "./" at start
     if ( s.length()>2 && s[0]=='.' && s[1]==separator )
         s.erase(0, 2);
     return s;
