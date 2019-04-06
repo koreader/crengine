@@ -2512,52 +2512,62 @@ void LVDocView::setHeaderIcons(LVRefVec<LVImageSource> icons) {
 
 /// get page document range, -1 for current page
 LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
-	LVLock lock(getMutex());
+    LVLock lock(getMutex());
     CHECK_RENDER("getPageDocRange()")
-	LVRef < ldomXRange > res(NULL);
-	if (isScrollMode()) {
-		// SCROLL mode
-		int starty = _pos;
-		int endy = _pos + m_dy;
-		int fh = GetFullHeight();
-		if (endy >= fh)
-			endy = fh - 1;
-		ldomXPointer start = m_doc->createXPointer(lvPoint(0, starty));
-		ldomXPointer end = m_doc->createXPointer(lvPoint(0, endy));
-		if (start.isNull() || end.isNull())
-			return res;
-		res = LVRef<ldomXRange> (new ldomXRange(start, end));
-	} else {
-		// PAGES mode
-		if (pageIndex < 0 || pageIndex >= m_pages.length())
-			pageIndex = getCurPage();
-		if (pageIndex >= 0 && pageIndex < m_pages.length()) {
-			LVRendPageInfo * page = m_pages[pageIndex];
-			if (page->type != PAGE_TYPE_NORMAL)
-				return res;
-			ldomXPointer start = m_doc->createXPointer(lvPoint(0, page->start));
-			//ldomXPointer end = m_doc->createXPointer( lvPoint( m_dx+m_dy, page->start + page->height - 1 ) );
-			// On some pages (eg: that ends with some padding between an
-			// image on this page, and some text on next page), there may
-			// be some area which is rendered "final" without any content,
-			// thus holding no node. We would then get a null 'end' here.
-			// But we can get a xpointer by looking a few pixels back the
-			// height of page.
-			// (This does not seem to happen at start, nor on either side
-			// in scroll mode)
-			// ldomXPointer end = m_doc->createXPointer(lvPoint(0, page->start + page->height), 1);
-			ldomXPointer end;
-			for (int height=page->height; height>0; height--) {
-				end = m_doc->createXPointer(lvPoint(0, page->start + height), 1);
-				if (!end.isNull())
-					break; // we found our end of page xpointer
-			}
-			if (start.isNull() || end.isNull())
-				return res;
-			res = LVRef<ldomXRange> (new ldomXRange(start, end));
-		}
-	}
-	return res;
+    // On some pages (eg: that ends with some padding between an
+    // image on this page, and some text on next page), there may
+    // be some area which is rendered "final" without any content,
+    // thus holding no node. We could then get a null 'start' or
+    // 'end' below by looking only at start_y or end_y.
+    // So, in all cases, loop while increasing or decrasing y
+    // to get more chances of finding a valid XPointer.
+    LVRef < ldomXRange > res(NULL);
+    int start_y;
+    int end_y;
+    if (isScrollMode()) { // SCROLL mode
+        start_y = _pos;
+        end_y = _pos + m_dy;
+        int fh = GetFullHeight();
+        if (end_y >= fh)
+            end_y = fh - 1;
+    }
+    else { // PAGES mode
+        if (pageIndex < 0 || pageIndex >= m_pages.length())
+            pageIndex = getCurPage();
+        if (pageIndex >= 0 && pageIndex < m_pages.length()) {
+            LVRendPageInfo * page = m_pages[pageIndex];
+            if (page->type != PAGE_TYPE_NORMAL)
+                return res;
+            start_y = page->start;
+            end_y = page->start + page->height;
+        }
+        else {
+            return res;
+        }
+    }
+    int height = end_y - start_y;
+    if (height < 0)
+        return res;
+    ldomXPointer start;
+    ldomXPointer end;
+    int start_h;
+    for (start_h=0; start_h < height; start_h++) {
+        start = m_doc->createXPointer(lvPoint(0, start_y + start_h), 1);
+        // printf("  start (%d): %s\n", start_h, UnicodeToLocal(start.toString()).c_str());
+        if (!start.isNull())
+            break; // we found our start of page xpointer
+    }
+    int end_h;
+    for (end_h=height; end_h >= start_h; end_h--) {
+        end = m_doc->createXPointer(lvPoint(0, start_y + end_h), 1);
+        // printf("  end (%d): %s\n", end_h, UnicodeToLocal(end.toString()).c_str());
+        if (!end.isNull())
+            break; // we found our end of page xpointer
+    }
+    if (start.isNull() || end.isNull())
+        return res;
+    res = LVRef<ldomXRange> (new ldomXRange(start, end));
+    return res;
 }
 
 /// returns number of non-space characters on current page
