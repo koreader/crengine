@@ -683,6 +683,13 @@ bool parse_color_value( const char * & str, css_length_t & value )
             return true;
         }
     }
+    if ( substr_icompare( "transparent", str ) ) {
+        // Make it an invalid color, but a valid parsing so it
+        // can be inherited or flagged with !important
+        value.type = css_val_unspecified;
+        value.value = 0;
+        return true;
+    }
     return false;
 }
 
