@@ -399,11 +399,12 @@ public:
 //       c.f., https://github.com/koreader/koreader-base/pull/878#issuecomment-476723747
 #ifdef CR_RENDER_32BPP_RGB_PXFMT
 inline lUInt32 RevRGB( lUInt32 cl ) {
-    return ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+    return ((cl<<16)&0xFF0000) | ((cl>>16)&0x0000FF) | (cl&0x00FF00);
 }
 
 inline lUInt32 RevRGBA( lUInt32 cl ) {
-    return (cl&0xFF000000) | ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+    // Swap B <-> R, keep G & A
+    return ((cl<<16)&0xFF000000) | ((c>>16)&0x000000FF) | (cl&0xFF00FF00);
 }
 #else
 inline lUInt32 RevRGB( lUInt32 cl ) {
