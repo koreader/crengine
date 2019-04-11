@@ -424,6 +424,60 @@ inline lUInt16 rgb888to565( lUInt32 cl ) {
     return (lUInt16)(((cl>>8)& 0xF800) | ((cl>>5 )& 0x07E0) | ((cl>>3 )& 0x001F));
 }
 
+#define DIV255(V)                                                                                        \
+({                                                                                                       \
+	auto _v = (V) + 128;                                                                             \
+	(((_v >> 8U) + _v) >> 8U);                                                                       \
+})
+
+// Quantize an 8-bit color value down to a palette of 16 evenly spaced colors, using an ordered 8x8 dithering pattern.
+// With a grayscale input, this happens to match the eInk palette perfectly ;).
+// If the input is not grayscale, and the output fb is not grayscale either,
+// this usually still happens to match the eInk palette after the EPDC's own quantization pass.
+// c.f., https://en.wikipedia.org/wiki/Ordered_dithering
+// & https://github.com/ImageMagick/ImageMagick/blob/ecfeac404e75f304004f0566557848c53030bad6/MagickCore/threshold.c#L1627
+// NOTE: As the references imply, this is straight from ImageMagick,
+//       with only minor simplifications to enforce Q8 & avoid fp maths.
+static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
+{
+	// c.f., https://github.com/ImageMagick/ImageMagick/blob/ecfeac404e75f304004f0566557848c53030bad6/config/thresholds.xml#L107
+	static const lUInt8 threshold_map_o8x8[] = { 1,  49, 13, 61, 4,  52, 16, 64, 33, 17, 45, 29, 36, 20, 48, 32,
+						      9,  57, 5,  53, 12, 60, 8,  56, 41, 25, 37, 21, 44, 28, 40, 24,
+						      3,  51, 15, 63, 2,  50, 14, 62, 35, 19, 47, 31, 34, 18, 46, 30,
+						      11, 59, 7,  55, 10, 58, 6,  54, 43, 27, 39, 23, 42, 26, 38, 22 };
+
+	// Constants:
+	// Quantum = 8; Levels = 16; map Divisor = 65
+	// QuantumRange = 0xFF
+	// QuantumScale = 1.0 / QuantumRange
+	//
+	// threshold = QuantumScale * v * ((L-1) * (D-1) + 1)
+	// NOTE: The initial computation of t (specifically, what we pass to DIV255) would overflow an uint8_t.
+	//       So jump to shorts, and do it signed to be extra careful, although I don't *think* we can ever underflow here.
+	lInt16 t = (lInt16) DIV255(v * ((15U << 6) + 1U));
+	// level = t / (D-1);
+	lInt16 l = (t >> 6);
+	// t -= l * (D-1);
+	t = (lInt16)(t - (l << 6));
+
+	// map width & height = 8
+	// c = ClampToQuantum((l+(t >= map[(x % mw) + mw * (y % mh)])) * QuantumRange / (L-1));
+	lInt16 q = (lInt16)((l + (t >= threshold_map_o8x8[(x & 7U) + 8U * (y & 7U)])) * 17);
+	// NOTE: For some arcane reason, on ARM (at least), this is noticeably faster than Pillow's CLIP8 macro.
+	//       Following this logic with ternary operators yields similar results,
+	//       so I'm guessing it's the < 256 part of Pillow's macro that doesn't agree with GCC/ARM...
+	lUInt8 c;
+	if (q > 0xFF) {
+		c = 0xFF;
+	} else if (q < 0) {
+		c = 0U;
+	} else {
+		c = (lUInt8) q;
+	}
+
+	return c;
+}
+
 /// 32-bit RGB buffer
 class LVColorDrawBuf : public LVBaseDrawBuf
 {

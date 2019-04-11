@@ -594,12 +594,15 @@ public:
                     }
 
                     lUInt8 dcl;
-                    if ( dither && bpp < 8) {
+                    if ( dither && bpp < 8 ) {
 #if (GRAY_INVERSE==1)
                         dcl = (lUInt8)DitherNBitColor( cl^0xFFFFFF, x, yy, bpp );
 #else
                         dcl = (lUInt8)DitherNBitColor( cl, x, yy, bpp );
 #endif
+                    } else if ( dither && bpp == 8 ) {
+                        dcl = rgbToGray( cl, bpp );
+                        dcl = dither_o8x8( x, yy, dcl );
                     } else {
                         dcl = rgbToGray( cl, bpp );
                     }
