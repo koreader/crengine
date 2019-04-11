@@ -400,6 +400,7 @@ private:
     int * xmap;
     int * ymap;
     bool dither;
+    bool invert;
     bool isNinePatch;
 public:
     static int * GenMap( int src_len, int dst_len )
@@ -446,8 +447,8 @@ public:
         }
         return map;
     }
-    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith )
-    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith)
+    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv )
+    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv)
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
@@ -490,6 +491,7 @@ public:
         }
         int yy = -1;
         int yy2 = -1;
+        const lUInt32 rgba_invert = invert ? 0x00FFFFFF : 0;
         if (ymap) {
             for (int i = 0; i < dst_dy; i++) {
                 if (ymap[i] == y) {
@@ -530,7 +532,7 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -551,7 +553,7 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -572,7 +574,7 @@ public:
                 for (int x=0; x<dst_dx; x++)
                 {
                     int srcx = xmap ? xmap[x] : x;
-                    lUInt32 cl = data[srcx];
+                    lUInt32 cl = data[srcx] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -612,7 +614,7 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -652,7 +654,7 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || (alpha&0x80) )
@@ -707,10 +709,8 @@ void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int hei
     //fprintf( stderr, "LVGrayDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     if ( width<=0 || height<=0 )
         return;
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages );
     img->Decode( &drawcb );
-    if ( _invertImages )
-        InvertRect(x, y, x+width, y+height);
 
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;
@@ -1302,10 +1302,8 @@ int  LVColorDrawBuf::GetBitsPerPixel()
 void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither )
 {
     //fprintf( stderr, "LVColorDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages );
     img->Decode( &drawcb );
-    if ( _invertImages )
-        InvertRect(x, y, x+width, y+height);
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;
 }
