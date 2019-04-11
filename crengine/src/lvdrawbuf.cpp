@@ -929,7 +929,7 @@ void LVGrayDrawBuf::InvertRect(int x0, int y0, int x1, int y1)
             lUInt8 * line = GetScanLine(y0);
             for (int y=y0; y<y1; y++) {
                 for (int x=x0; x<x1; x++)
-                    line[x] = ~line[x];
+                    line[x] ^= 0xFF;
                 line += _rowsize;
             }
         }
