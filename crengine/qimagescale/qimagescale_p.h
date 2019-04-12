@@ -52,7 +52,7 @@
 
 namespace CRe {
 
-unsigned uint* qSmoothScaleImage(const uint* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+uint* qSmoothScaleImage(const uint* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
 
 namespace QImageScale {
     struct QImageScaleInfo {
