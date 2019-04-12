@@ -461,6 +461,11 @@ public:
             isNinePatch = true;
             ninePatch = np->frame;
         }
+        // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
+        if (smoothscale && src_dx == dst_dx && src_dy == dst_dy) {
+            smoothscale = false;
+            //fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+        }
         if ( src_dx != dst_dx || isNinePatch) {
             if (isNinePatch)
                 xmap = GenNinePatchMap(src_dx, dst_dx, ninePatch.left, ninePatch.right);
@@ -472,11 +477,6 @@ public:
                 ymap = GenNinePatchMap(src_dy, dst_dy, ninePatch.top, ninePatch.bottom);
             else if (!smoothscale)
                 ymap = GenMap( src_dy, dst_dy );
-        }
-        // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
-        if (smoothscale && src_dx == dst_dx && src_dy == dst_dy) {
-            smoothscale = false;
-            //fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
         }
         // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
         if (smoothscale) {
