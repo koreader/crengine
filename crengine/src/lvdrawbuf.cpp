@@ -479,7 +479,9 @@ public:
             //fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
         }
         // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
-        decoded = new lUInt8[src_dy * (src_dx * 4)];
+        if (smoothscale) {
+            decoded = new lUInt8[src_dy * (src_dx * 4)];
+        }
     }
     virtual ~LVImageScaledDrawCallback()
     {
