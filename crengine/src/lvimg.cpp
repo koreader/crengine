@@ -788,6 +788,7 @@ public:
                  */
                 buffer = new lUInt8 [ cinfo.output_width * cinfo.output_components ];
                 row = new lUInt32 [ cinfo.output_width ];
+                fprintf(stderr, "JPG stride in pixels: %d\n", cinfo.output_width);
                 /* Step 6: while (scan lines remain to be read) */
                 /*           jpeg_read_scanlines(...); */
 
@@ -810,7 +811,7 @@ public:
                     }
                     callback->OnLineDecoded( this, y, row );
                 }
-                callback->OnEndDecode(this, row, false);
+                callback->OnEndDecode(this, (lUInt32 *) buffer, false);
             }
 
         if ( buffer )
@@ -931,6 +932,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         png_set_interlace_handling(png_ptr);
         png_read_update_info(png_ptr,info_ptr);//update after set
         png_bytep *image=NULL;
+        fprintf(stderr, "PNG dims in pixels: %dx%d\n", width, height);
         image =  new png_bytep[height];
         for (lUInt32 i=0; i<height; i++)
             image[i] =  new png_byte[png_get_rowbytes(png_ptr,info_ptr)];
@@ -939,10 +941,8 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         {
             callback->OnLineDecoded( this, y,  (lUInt32*) image[y] );
         }
-
+        callback->OnEndDecode(this, (lUInt32*) image[0], false);
         png_read_end(png_ptr, info_ptr);
-
-        callback->OnEndDecode(this, (lUInt32*) image, false);
         for (lUInt32 i=0; i<height; i++)
             delete [] image[i];
         delete [] image;

@@ -402,6 +402,7 @@ private:
     bool dither;
     bool invert;
     bool smoothscale;
+    lUInt8 * decoded;
     bool isNinePatch;
 public:
     static int * GenMap( int src_len, int dst_len )
@@ -449,7 +450,7 @@ public:
         return map;
     }
     LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv, bool smooth )
-    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv), smoothscale(smooth)
+    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv), smoothscale(smooth), decoded(0)
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
@@ -473,9 +474,12 @@ public:
                 ymap = GenMap( src_dy, dst_dy );
         }
         // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
-        if (smoothscale && !xmap && !ymap) {
+        if (smoothscale && src_dx == dst_dx && src_dy == dst_dy) {
             smoothscale = false;
+            fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
         }
+        // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
+        decoded = new lUInt8[src_dy * (src_dx * 4)];
     }
     virtual ~LVImageScaledDrawCallback()
     {
@@ -483,19 +487,23 @@ public:
             delete[] xmap;
         if (ymap)
             delete[] ymap;
+        if (decoded)
+            delete[] decoded;
     }
     virtual void OnStartDecode( LVImageSource * )
     {
     }
     virtual bool OnLineDecoded( LVImageSource *, int y, lUInt32 * data )
     {
-        //fprintf( stderr, "l_%d ", y );
+        fprintf( stderr, "l_%d ", y );
         if (isNinePatch) {
             if (y == 0 || y == src_dy-1) // ignore first and last lines
                 return true;
         }
-        // Defer everything to the post-process pass for smooth scaling
+        // Defer everything to the post-process pass for smooth scaling, we just have to store the line in our decoded buffer
         if (smoothscale) {
+            fprintf( stderr, "Abort early for l_%d because smoothscale\n", y );
+            memcpy(decoded + (y * (src_dx * 4)), data, (src_dx * 4));
             return true;
         }
         int yy = -1;
@@ -703,21 +711,32 @@ public:
         }
 
         // Scale our decoded data...
-        lUInt32 * sdata = nullptr;
-        sdata = CRe::qSmoothScaleImage(data, src_dx, src_dy, false, dst_dx, dst_dy);
+        lUInt8 * sdata = nullptr;
+        fprintf( stderr, "Requesting smooth scaling (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+        sdata = CRe::qSmoothScaleImage(decoded, src_dx, src_dy, false, dst_dx, dst_dy);
         if (sdata == nullptr) {
                 // Hu oh... Scaling failed! Return *without* drawing anything!
                 // We skipped map generation, so we can't easily fallback to nearest-neighbor...
+                fprintf( stderr, "Smooth scaling failed :(\n" );
                 return;
         }
 
         // Process as usual, with a bit of a hack to avoid code duplication...
         smoothscale = false;
         for (int y=0; y < dst_dy; y++) {
-            this->OnLineDecoded( obj, y, sdata );
+            lUInt8 * row = sdata + (y * (dst_dx * 4));
+            this->OnLineDecoded( obj, y, (lUInt32 *) row );
         }
 
-        // And now we can free the scaled buffer
+        // This prints the unscaled decoded buffer, for debugging purposes ;).
+        /*
+        for (int y=0; y < src_dy; y++) {
+            lUInt8 * row = decoded + (y * (src_dx * 4));
+            this->OnLineDecoded( obj, y, (lUInt32 *) row );
+        }
+        */
+
+        // And now that it's been rendered we can free the scaled buffer (it was allocated by CRe::qSmoothScaleImage).
         free(sdata);
     }
 };
