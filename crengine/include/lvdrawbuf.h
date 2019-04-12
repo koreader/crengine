@@ -410,7 +410,7 @@ inline lUInt32 RevRGB( lUInt32 cl ) {
 
 inline lUInt32 RevRGBA( lUInt32 cl ) {
     // Swap B <-> R, keep G & A
-    return ((cl<<16)&0xFF000000) | ((c>>16)&0x000000FF) | (cl&0xFF00FF00);
+    return ((cl<<16)&0xFF000000) | ((cl>>16)&0x000000FF) | (cl&0xFF00FF00);
 }
 #else
 inline lUInt32 RevRGB( lUInt32 cl ) {
