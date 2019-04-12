@@ -489,6 +489,11 @@ static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
 	return c;
 }
 
+// Declare our bit of scaler ripped from Qt5...
+namespace CRe {
+uint* qSmoothScaleImage(const uint* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+}
+
 /// 32-bit RGB buffer
 class LVColorDrawBuf : public LVBaseDrawBuf
 {
