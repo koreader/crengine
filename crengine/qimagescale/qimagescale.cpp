@@ -109,7 +109,7 @@ namespace QImageScale {
     static int* qimageCalcXPoints(int sw, int dw);
     static int* qimageCalcApoints(int s, int d, int up);
     static QImageScaleInfo* qimageFreeScaleInfo(QImageScaleInfo *isi);
-    static QImageScaleInfo *qimageCalcScaleInfo(const unsigned char* img, int sw, int sh, int dw, int dh, char aa);
+    static QImageScaleInfo *qimageCalcScaleInfo(const quint32* img, int sw, int sh, int dw, int dh, char aa);
 }
 
 using namespace QImageScale;
@@ -236,7 +236,7 @@ static QImageScaleInfo* QImageScale::qimageFreeScaleInfo(QImageScaleInfo *isi)
     return 0;
 }
 
-static QImageScaleInfo* QImageScale::qimageCalcScaleInfo(const unsigned char* img,
+static QImageScaleInfo* QImageScale::qimageCalcScaleInfo(const quint32* img,
                                                          int sw, int sh,
                                                          int dw, int dh, char aa)
 {
@@ -746,9 +746,9 @@ static void qt_qimageScaleAARGB_down_xy(QImageScaleInfo *isi, unsigned int *dest
     }
 }
 
-unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool ignore_alpha, int dw, int dh)
+quint32* qSmoothScaleImage(const quint32* src, int sw, int sh, bool ignore_alpha, int dw, int dh)
 {
-    unsigned char* buffer = nullptr;
+    quint32* buffer = nullptr;
     if (src == nullptr || dw <= 0 || dh <= 0)
         return buffer;
 
@@ -767,7 +767,7 @@ unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool 
         qimageFreeScaleInfo(scaleinfo);
         return nullptr;
     } else {
-        buffer = (unsigned char*) ptr;
+        buffer = (quint32*) ptr;
     }
 
     // NOTE: See comment in qimageCalcScaleInfo regarding our simplification of using sw directly.
