@@ -52,7 +52,7 @@
 
 namespace CRe {
 
-extern "C" unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
 
 namespace QImageScale {
     struct QImageScaleInfo {
