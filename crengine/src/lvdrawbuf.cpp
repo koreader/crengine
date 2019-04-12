@@ -401,6 +401,7 @@ private:
     int * ymap;
     bool dither;
     bool invert;
+    bool smoothscale;
     bool isNinePatch;
 public:
     static int * GenMap( int src_len, int dst_len )
@@ -447,8 +448,8 @@ public:
         }
         return map;
     }
-    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv )
-    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv)
+    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv, bool smooth )
+    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv), smoothscale(smooth)
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
@@ -712,7 +713,7 @@ void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int hei
     //fprintf( stderr, "LVGrayDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     if ( width<=0 || height<=0 )
         return;
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages ? _ditherImages : dither, _invertImages );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages ? _ditherImages : dither, _invertImages, _smoothImages );
     img->Decode( &drawcb );
 
     _drawnImagesCount++;
@@ -1305,7 +1306,7 @@ int  LVColorDrawBuf::GetBitsPerPixel()
 void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither )
 {
     //fprintf( stderr, "LVColorDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages, _smoothImages );
     img->Decode( &drawcb );
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;

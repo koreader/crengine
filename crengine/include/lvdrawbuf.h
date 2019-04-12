@@ -101,6 +101,8 @@ public:
     virtual void setInvertImages( bool invert ) = 0;
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) = 0;
+    /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
+    virtual void setSmoothScalingImages( bool smooth ) = 0;
     /// invert image
     virtual void  Invert() = 0;
     /// get buffer width, pixels
@@ -234,6 +236,7 @@ protected:
     bool _hidePartialGlyphs;
     bool _invertImages;
     bool _ditherImages;
+    bool _smoothImages;
     int _drawnImagesCount;
     int _drawnImagesSurface;
 public:
@@ -243,6 +246,8 @@ public:
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
+    /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
+    virtual void setSmoothScalingImages( bool smooth ) { _smoothImages = smooth; }
     /// returns current background color
     virtual lUInt32 GetBackgroundColor() { return _backgroundColor; }
     /// sets current background color
@@ -282,7 +287,7 @@ public:
     int getDrawnImagesSurface() { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _ditherImages(false),
+                        _invertImages(false), _ditherImages(false), _smoothImages(false),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
