@@ -175,7 +175,7 @@ public:
     	}
     	return true;
     }
-    virtual void OnEndDecode( LVImageSource * obj, bool errors ) {
+    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool errors ) {
         CR_UNUSED2(obj, errors);
     }
 };
@@ -581,8 +581,8 @@ public:
                 }
                 callback->OnLineDecoded(this, i, row);
             }
+            callback->OnEndDecode(this, row, false);
             delete[] row;
-            callback->OnEndDecode(this, false);
         }
         return true;
     }
@@ -678,8 +678,8 @@ public:
                 }
                 callback->OnLineDecoded(this, i, row);
             }
+            callback->OnEndDecode(this, row, false);
             delete[] row;
-            callback->OnEndDecode(this, false);
         }
         return true;
     }
@@ -810,7 +810,7 @@ public:
                     }
                     callback->OnLineDecoded( this, y, row );
                 }
-                callback->OnEndDecode(this, true);
+                callback->OnEndDecode(this, row, false);
             }
 
         if ( buffer )
@@ -857,7 +857,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
             png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         }
         if (callback)
-            callback->OnEndDecode(this, true); // error!
+            callback->OnEndDecode(this, nullptr, true); // error!
         return false;
     }
 
@@ -942,8 +942,9 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
 
         png_read_end(png_ptr, info_ptr);
 
-        callback->OnEndDecode(this, false);
-        for (lUInt32 i=0; i<height; i++) delete [] image[i];
+        callback->OnEndDecode(this, (lUInt32*) image, false);
+        for (lUInt32 i=0; i<height; i++)
+            delete [] image[i];
         delete [] image;
     }
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
@@ -1089,8 +1090,8 @@ public:
                 y++;
             }
         }
+        callback->OnEndDecode( m_pImage, line, false );
         delete[] line;
-        callback->OnEndDecode( m_pImage, false );
     }
 };
 
@@ -1777,8 +1778,8 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
                     }
                     callback->OnLineDecoded( this, y, row );
                 }
+                callback->OnEndDecode(this, row, false);
                 delete[] row;
-                callback->OnEndDecode(this, false);
                 res = true;
                 free(img);
             }
@@ -1978,10 +1979,10 @@ public:
         _callback->OnStartDecode(this);
 	}
     virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data );
-    virtual void OnEndDecode( LVImageSource *, bool res)
+    virtual void OnEndDecode( LVImageSource *, lUInt32 * data, bool res)
 	{
 		_line.clear();
-        _callback->OnEndDecode(this, res);
+        _callback->OnEndDecode(this, data, res);
     }
 	virtual ldomNode * GetSourceNode() { return NULL; }
 	virtual LVStream * GetSourceStream() { return NULL; }
@@ -2162,7 +2163,7 @@ public:
         return true;
 
     }
-    virtual void OnEndDecode( LVImageSource * obj, bool res)
+    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool res)
     {
         int dx = _src->GetWidth();
         int dy = _src->GetHeight();
@@ -2196,10 +2197,10 @@ public:
             }
             _callback->OnLineDecoded(obj, y, row);
         }
+        _callback->OnEndDecode(this, (lUInt32*)_drawbuf->GetScanLine(0), res);
         if (_drawbuf)
             delete _drawbuf;
         _drawbuf = NULL;
-        _callback->OnEndDecode(this, res);
     }
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
@@ -2252,10 +2253,10 @@ public:
         }
         return _callback->OnLineDecoded(obj, y, data);
     }
-    virtual void OnEndDecode( LVImageSource * obj, bool res)
+    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool res)
     {
         CR_UNUSED(obj);
-        _callback->OnEndDecode(this, res);
+        _callback->OnEndDecode(this, data, res);
     }
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
@@ -2345,7 +2346,7 @@ public:
         }
         return true;
     }
-    virtual void OnEndDecode( LVImageSource *, bool )
+    virtual void OnEndDecode( LVImageSource *, lUInt32 *, bool )
     {
         //CRLog::trace( "LVUnpackedImgSource::OnEndDecode" );
     }
@@ -2369,6 +2370,7 @@ public:
                     dst[x] = grayUnpack( src[x] );
                 callback->OnLineDecoded( this, y, dst );
             }
+            callback->OnEndDecode( this, line.ptr(), false );
             line.clear();
         } else if ( _bpp==16 ) {
             // 16bit
@@ -2381,14 +2383,15 @@ public:
                     dst[x] = rgb565to888( src[x] );
                 callback->OnLineDecoded( this, y, dst );
             }
+            callback->OnEndDecode( this, line.ptr(), false );
             line.clear();
         } else {
             // color
             for ( int y=0; y<_dy; y++ ) {
                 callback->OnLineDecoded( this, y, _colorImage + _dx * y );
             }
+            callback->OnEndDecode( this, _colorImage, false );
         }
-        callback->OnEndDecode( this, false );
         return true;
     }
     virtual ~LVUnpackedImgSource()
@@ -2431,6 +2434,7 @@ public:
             for ( int y=0; y<_dy; y++ ) {
                 callback->OnLineDecoded( this, y, (lUInt32 *)_buf->GetScanLine(y) );
             }
+            callback->OnEndDecode( this, (lUInt32 *)_buf->GetScanLine(0), false );
         } else {
             // 16 bpp
             lUInt32 * row = new lUInt32[_dx];
@@ -2440,9 +2444,9 @@ public:
                     row[x] = rgb565to888(src[x]);
                 callback->OnLineDecoded( this, y, row );
             }
+            callback->OnEndDecode( this, row, false );
             delete[] row;
         }
-        callback->OnEndDecode( this, false );
         return true;
     }
     virtual ~LVDrawBufImgSource()

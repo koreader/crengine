@@ -687,7 +687,7 @@ public:
         }
         return true;
     }
-    virtual void OnEndDecode( LVImageSource *, bool )
+    virtual void OnEndDecode( LVImageSource *, lUInt32 * data, bool )
     {
     }
 };

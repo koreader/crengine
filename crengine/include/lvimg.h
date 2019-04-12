@@ -58,7 +58,7 @@ public:
     virtual ~LVImageDecoderCallback();
     virtual void OnStartDecode( LVImageSource * obj ) = 0;
     virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data ) = 0;
-    virtual void OnEndDecode( LVImageSource * obj, bool errors ) = 0;
+    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool errors ) = 0;
 };
 
 struct CR9PatchInfo {
