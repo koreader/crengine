@@ -712,7 +712,7 @@ void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int hei
     //fprintf( stderr, "LVGrayDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     if ( width<=0 || height<=0 )
         return;
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages ? _ditherImages : dither, _invertImages );
     img->Decode( &drawcb );
 
     _drawnImagesCount++;

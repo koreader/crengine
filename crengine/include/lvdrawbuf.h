@@ -99,6 +99,8 @@ public:
     virtual void setHidePartialGlyphs( bool hide ) = 0;
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) = 0;
+    /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
+    virtual void setDitherImages( bool dither ) = 0;
     /// invert image
     virtual void  Invert() = 0;
     /// get buffer width, pixels
@@ -231,6 +233,7 @@ protected:
     lUInt32 _textColor;
     bool _hidePartialGlyphs;
     bool _invertImages;
+    bool _ditherImages;
     int _drawnImagesCount;
     int _drawnImagesSurface;
 public:
@@ -238,6 +241,8 @@ public:
     virtual void setHidePartialGlyphs( bool hide ) { _hidePartialGlyphs = hide; }
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
+    /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
+    virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
     /// returns current background color
     virtual lUInt32 GetBackgroundColor() { return _backgroundColor; }
     /// sets current background color
@@ -277,7 +282,8 @@ public:
     int getDrawnImagesSurface() { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _drawnImagesCount(0), _drawnImagesSurface(0) { }
+                        _invertImages(false), _ditherImages(false),
+                        _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
 
