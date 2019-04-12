@@ -287,7 +287,7 @@ public:
     int getDrawnImagesSurface() { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _ditherImages(false), _smoothImages(false),
+                        _invertImages(false), _ditherImages(false), _smoothImages(true),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
@@ -491,7 +491,7 @@ static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
 
 // Declare our bit of scaler ripped from Qt5...
 namespace CRe {
-uint* qSmoothScaleImage(const uint* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+lUInt8* qSmoothScaleImage(const lUInt8* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
 }
 
 /// 32-bit RGB buffer

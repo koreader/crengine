@@ -476,7 +476,7 @@ public:
         // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
         if (smoothscale && src_dx == dst_dx && src_dy == dst_dy) {
             smoothscale = false;
-            fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+            //fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
         }
         // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
         decoded = new lUInt8[src_dy * (src_dx * 4)];
@@ -495,14 +495,14 @@ public:
     }
     virtual bool OnLineDecoded( LVImageSource *, int y, lUInt32 * data )
     {
-        fprintf( stderr, "l_%d ", y );
+        //fprintf( stderr, "l_%d ", y );
         if (isNinePatch) {
             if (y == 0 || y == src_dy-1) // ignore first and last lines
                 return true;
         }
         // Defer everything to the post-process pass for smooth scaling, we just have to store the line in our decoded buffer
         if (smoothscale) {
-            fprintf( stderr, "Abort early for l_%d because smoothscale\n", y );
+            //fprintf( stderr, "Smoothscale l_%d pass\n", y );
             memcpy(decoded + (y * (src_dx * 4)), data, (src_dx * 4));
             return true;
         }
@@ -703,7 +703,7 @@ public:
         }
         return true;
     }
-    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool err )
+    virtual void OnEndDecode( LVImageSource * obj, bool )
     {
         // If we're not smooth scaling, we're done!
         if (!smoothscale) {
@@ -712,12 +712,12 @@ public:
 
         // Scale our decoded data...
         lUInt8 * sdata = nullptr;
-        fprintf( stderr, "Requesting smooth scaling (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+        //fprintf( stderr, "Requesting smooth scaling (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
         sdata = CRe::qSmoothScaleImage(decoded, src_dx, src_dy, false, dst_dx, dst_dy);
         if (sdata == nullptr) {
                 // Hu oh... Scaling failed! Return *without* drawing anything!
                 // We skipped map generation, so we can't easily fallback to nearest-neighbor...
-                fprintf( stderr, "Smooth scaling failed :(\n" );
+                //fprintf( stderr, "Smooth scaling failed :(\n" );
                 return;
         }
 
