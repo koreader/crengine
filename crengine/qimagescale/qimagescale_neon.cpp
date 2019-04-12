@@ -41,7 +41,7 @@
 
 #if defined(__ARM_NEON__)
 
-namespace FBInk {
+namespace CRe {
 
 using namespace QImageScale;
 

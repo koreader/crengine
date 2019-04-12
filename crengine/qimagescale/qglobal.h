@@ -41,7 +41,7 @@
 #ifndef QGLOBAL_H
 #define QGLOBAL_H
 
-namespace FBInk {
+namespace CRe {
 
 #if defined(_WIN32) && !defined(__GNUC__)
 typedef __int64 qint64;            /* 64 bit signed */
@@ -62,7 +62,7 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-namespace FBInk {
+namespace CRe {
 
 /*
    Utility macros and inline functions

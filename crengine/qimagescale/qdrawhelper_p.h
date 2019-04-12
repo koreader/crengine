@@ -49,7 +49,7 @@
 #include <x86intrin.h>
 #endif
 
-namespace FBInk {
+namespace CRe {
 
 #if defined(__GNUC__)
 #  if (defined(__i386) || defined(__i386__) || defined(_M_IX86)) && defined(__GNUC__) && !defined(__clang__) && !defined(__INTEL_COMPILER)

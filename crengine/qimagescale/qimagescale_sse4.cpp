@@ -41,7 +41,7 @@
 
 #if defined(__SSE4_1__)
 
-namespace FBInk {
+namespace CRe {
 
 using namespace QImageScale;
 

@@ -40,7 +40,7 @@
 #ifndef QRGB_H
 #define QRGB_H
 
-namespace FBInk {
+namespace CRe {
 
 typedef unsigned int QRgb;                        // RGB triplet
 
