@@ -581,8 +581,8 @@ public:
                 }
                 callback->OnLineDecoded(this, i, row);
             }
-            callback->OnEndDecode(this, false);
             delete[] row;
+            callback->OnEndDecode(this, false);
         }
         return true;
     }
@@ -857,7 +857,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
             png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         }
         if (callback)
-            callback->OnEndDecode(this, nullptr, true); // error!
+            callback->OnEndDecode(this, true); // error!
         return false;
     }
 

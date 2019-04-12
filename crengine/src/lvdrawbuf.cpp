@@ -480,6 +480,7 @@ public:
         }
         // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
         if (smoothscale) {
+            // Byte-sized buffer, we're 32bpp, so, 4 bytes per pixel.
             decoded = new lUInt8[src_dy * (src_dx * 4)];
         }
     }
