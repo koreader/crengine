@@ -463,14 +463,18 @@ public:
         if ( src_dx != dst_dx || isNinePatch) {
             if (isNinePatch)
                 xmap = GenNinePatchMap(src_dx, dst_dx, ninePatch.left, ninePatch.right);
-            else
+            else if (!smoothscale)
                 xmap = GenMap( src_dx, dst_dx );
         }
         if ( src_dy != dst_dy || isNinePatch) {
             if (isNinePatch)
                 ymap = GenNinePatchMap(src_dy, dst_dy, ninePatch.top, ninePatch.bottom);
-            else
+            else if (!smoothscale)
                 ymap = GenMap( src_dy, dst_dy );
+        }
+        // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
+        if (smoothscale && !xmap && !ymap) {
+            smoothscale = false;
         }
     }
     virtual ~LVImageScaledDrawCallback()
@@ -489,6 +493,10 @@ public:
         if (isNinePatch) {
             if (y == 0 || y == src_dy-1) // ignore first and last lines
                 return true;
+        }
+        // Defer everything to the post-process pass for smooth scaling
+        if (smoothscale) {
+            return true;
         }
         int yy = -1;
         int yy2 = -1;
@@ -687,8 +695,30 @@ public:
         }
         return true;
     }
-    virtual void OnEndDecode( LVImageSource *, lUInt32 * data, bool )
+    virtual void OnEndDecode( LVImageSource * obj, lUInt32 * data, bool err )
     {
+        // If we're not smooth scaling, we're done!
+        if (!smoothscale) {
+            return;
+        }
+
+        // Scale our decoded data...
+        lUInt32 * sdata = nullptr;
+        sdata = CRe::qSmoothScaleImage(data, src_dx, src_dy, false, dst_dx, dst_dy);
+        if (sdata == nullptr) {
+                // Hu oh... Scaling failed! Return *without* drawing anything!
+                // We skipped map generation, so we can't easily fallback to nearest-neighbor...
+                return;
+        }
+
+        // Process as usual, with a bit of a hack to avoid code duplication...
+        smoothscale = false;
+        for (int y=0; y < dst_dy; y++) {
+            this->OnLineDecoded( obj, y, sdata );
+        }
+
+        // And now we can free the scaled buffer
+        free(sdata);
     }
 };
 
