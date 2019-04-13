@@ -621,7 +621,7 @@ public:
                         dcl = (lUInt8)DitherNBitColor( cl, x, yy, bpp );
 #endif
                     } else if ( dither && bpp == 8 ) {
-                        dcl = rgbToGray( cl, bpp );
+                        dcl = rgbToGray( cl );
                         dcl = dither_o8x8( x, yy, dcl );
                     } else {
                         dcl = rgbToGray( cl, bpp );
