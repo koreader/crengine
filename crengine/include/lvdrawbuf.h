@@ -287,7 +287,7 @@ public:
     int getDrawnImagesSurface() { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _ditherImages(false), _smoothImages(true),
+                        _invertImages(false), _ditherImages(false), _smoothImages(false),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
