@@ -33,6 +33,9 @@ void LVDrawBuf::RoundRect( int x0, int y0, int x1, int y1, int borderWidth, int 
     // TODO: draw rounded corners
 }
 
+// NOTE: For more accurate conversions, see:
+//       stb does (lUInt8) (((r*77) + (g*150) + (b*29)) >> 8) (That's roughly the Rec601Luma algo)
+//       Qt5 does (lUInt8) (((r*11) + (g*16) + (b*5)) >> 5) (That's closer to Rec601Luminance or Rec709Luminance IIRC)
 static lUInt32 rgbToGray( lUInt32 color )
 {
     lUInt32 r = (0xFF0000 & color) >> 16;
