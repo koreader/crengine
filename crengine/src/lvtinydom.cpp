@@ -897,7 +897,7 @@ bool CacheFile::read( lUInt16 type, lUInt16 dataIndex, lUInt8 * &buf, int &size 
     lvsize_t bytesRead = 0;
     _stream->Read(buf, size, &bytesRead );
     if ( (int)bytesRead!=size ) {
-        CRLog::error("CacheFile::read: Cannot read block %d:%d of size %d", type, dataIndex, (int)size);
+        CRLog::error("CacheFile::read: Cannot read block %d:%d of size %d, bytesRead=%d", type, dataIndex, (int)size, (int)bytesRead);
         free(buf);
         buf = NULL;
         size = 0;
@@ -1643,7 +1643,7 @@ bool tinyNodeCollection::openCacheFile()
         return false;
     }
 
-    CRLog::info("ldomDocument::openCacheFile() - looking for cache file", UnicodeToUtf8(fname).c_str() );
+    CRLog::info("ldomDocument::openCacheFile() - looking for cache file %s", UnicodeToUtf8(fname).c_str() );
 
     lString16 cache_path;
     LVStreamRef map = ldomDocCache::openExisting( fname, crc, getPersistenceFlags(), cache_path );
@@ -1651,13 +1651,13 @@ bool tinyNodeCollection::openCacheFile()
         delete f;
         return false;
     }
-    CRLog::info("ldomDocument::openCacheFile() - cache file found, trying to read index", UnicodeToUtf8(fname).c_str() );
+    CRLog::info("ldomDocument::openCacheFile() - cache file found, trying to read index %s", UnicodeToUtf8(fname).c_str() );
 
     if ( !f->open( map ) ) {
         delete f;
         return false;
     }
-    CRLog::info("ldomDocument::openCacheFile() - index read successfully", UnicodeToUtf8(fname).c_str() );
+    CRLog::info("ldomDocument::openCacheFile() - index read successfully %s", UnicodeToUtf8(fname).c_str() );
     f->setCachePath(cache_path);
     _cacheFile = f;
     _textStorage.setCache( f );
