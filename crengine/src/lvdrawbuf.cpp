@@ -33,6 +33,9 @@ void LVDrawBuf::RoundRect( int x0, int y0, int x1, int y1, int borderWidth, int 
     // TODO: draw rounded corners
 }
 
+// NOTE: For more accurate (but slightly more costly) conversions, see:
+//       stb does (lUInt8) (((r*77) + (g*150) + (b*29)) >> 8) (That's roughly the Rec601Luma algo)
+//       Qt5 does (lUInt8) (((r*11) + (g*16) + (b*5)) >> 5) (That's closer to Rec601Luminance or Rec709Luminance IIRC)
 static lUInt32 rgbToGray( lUInt32 color )
 {
     lUInt32 r = (0xFF0000 & color) >> 16;
@@ -400,6 +403,9 @@ private:
     int * xmap;
     int * ymap;
     bool dither;
+    bool invert;
+    bool smoothscale;
+    lUInt8 * decoded;
     bool isNinePatch;
 public:
     static int * GenMap( int src_len, int dst_len )
@@ -446,8 +452,8 @@ public:
         }
         return map;
     }
-    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith )
-    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith)
+    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv, bool smooth )
+    : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv), smoothscale(smooth), decoded(0)
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
@@ -458,17 +464,27 @@ public:
             isNinePatch = true;
             ninePatch = np->frame;
         }
+        // If smoothscaling was requested, but no scaling was needed, disable the post-processing pass
+        if (smoothscale && src_dx == dst_dx && src_dy == dst_dy) {
+            smoothscale = false;
+            //fprintf( stderr, "Disabling smoothscale because no scaling was needed (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+        }
         if ( src_dx != dst_dx || isNinePatch) {
             if (isNinePatch)
                 xmap = GenNinePatchMap(src_dx, dst_dx, ninePatch.left, ninePatch.right);
-            else
+            else if (!smoothscale)
                 xmap = GenMap( src_dx, dst_dx );
         }
         if ( src_dy != dst_dy || isNinePatch) {
             if (isNinePatch)
                 ymap = GenNinePatchMap(src_dy, dst_dy, ninePatch.top, ninePatch.bottom);
-            else
+            else if (!smoothscale)
                 ymap = GenMap( src_dy, dst_dy );
+        }
+        // If we have a smoothscale post-processing pass, we'll need to build a buffer of the *full* decoded image.
+        if (smoothscale) {
+            // Byte-sized buffer, we're 32bpp, so, 4 bytes per pixel.
+            decoded = new lUInt8[src_dy * (src_dx * 4)];
         }
     }
     virtual ~LVImageScaledDrawCallback()
@@ -477,6 +493,8 @@ public:
             delete[] xmap;
         if (ymap)
             delete[] ymap;
+        if (decoded)
+            delete[] decoded;
     }
     virtual void OnStartDecode( LVImageSource * )
     {
@@ -488,8 +506,15 @@ public:
             if (y == 0 || y == src_dy-1) // ignore first and last lines
                 return true;
         }
+        // Defer everything to the post-process pass for smooth scaling, we just have to store the line in our decoded buffer
+        if (smoothscale) {
+            //fprintf( stderr, "Smoothscale l_%d pass\n", y );
+            memcpy(decoded + (y * (src_dx * 4)), data, (src_dx * 4));
+            return true;
+        }
         int yy = -1;
         int yy2 = -1;
+        const lUInt32 rgba_invert = invert ? 0x00FFFFFF : 0;
         if (ymap) {
             for (int i = 0; i < dst_dy; i++) {
                 if (ymap[i] == y) {
@@ -530,7 +555,7 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -551,7 +576,7 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -572,7 +597,7 @@ public:
                 for (int x=0; x<dst_dx; x++)
                 {
                     int srcx = xmap ? xmap[x] : x;
-                    lUInt32 cl = data[srcx];
+                    lUInt32 cl = data[srcx] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -592,12 +617,15 @@ public:
                     }
 
                     lUInt8 dcl;
-                    if ( dither && bpp < 8) {
+                    if ( dither && bpp < 8 ) {
 #if (GRAY_INVERSE==1)
                         dcl = (lUInt8)DitherNBitColor( cl^0xFFFFFF, x, yy, bpp );
 #else
                         dcl = (lUInt8)DitherNBitColor( cl, x, yy, bpp );
 #endif
+                    } else if ( dither && bpp == 8 ) {
+                        dcl = rgbToGray( cl );
+                        dcl = dither_o8x8( x, yy, dcl );
                     } else {
                         dcl = rgbToGray( cl, bpp );
                     }
@@ -612,7 +640,7 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
@@ -652,7 +680,7 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
                     if ( xx<clip.left || xx>=clip.right || (alpha&0x80) )
@@ -681,8 +709,41 @@ public:
         }
         return true;
     }
-    virtual void OnEndDecode( LVImageSource *, bool )
+    virtual void OnEndDecode( LVImageSource * obj, bool )
     {
+        // If we're not smooth scaling, we're done!
+        if (!smoothscale) {
+            return;
+        }
+
+        // Scale our decoded data...
+        lUInt8 * sdata = nullptr;
+        //fprintf( stderr, "Requesting smooth scaling (%dx%d -> %dx%d)\n", src_dx, src_dy, dst_dx, dst_dy );
+        sdata = CRe::qSmoothScaleImage(decoded, src_dx, src_dy, false, dst_dx, dst_dy);
+        if (sdata == nullptr) {
+                // Hu oh... Scaling failed! Return *without* drawing anything!
+                // We skipped map generation, so we can't easily fallback to nearest-neighbor...
+                //fprintf( stderr, "Smooth scaling failed :(\n" );
+                return;
+        }
+
+        // Process as usual, with a bit of a hack to avoid code duplication...
+        smoothscale = false;
+        for (int y=0; y < dst_dy; y++) {
+            lUInt8 * row = sdata + (y * (dst_dx * 4));
+            this->OnLineDecoded( obj, y, (lUInt32 *) row );
+        }
+
+        // This prints the unscaled decoded buffer, for debugging purposes ;).
+        /*
+        for (int y=0; y < src_dy; y++) {
+            lUInt8 * row = decoded + (y * (src_dx * 4));
+            this->OnLineDecoded( obj, y, (lUInt32 *) row );
+        }
+        */
+
+        // And now that it's been rendered we can free the scaled buffer (it was allocated by CRe::qSmoothScaleImage).
+        free(sdata);
     }
 };
 
@@ -707,10 +768,8 @@ void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int hei
     //fprintf( stderr, "LVGrayDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     if ( width<=0 || height<=0 )
         return;
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages, _invertImages, _smoothImages );
     img->Decode( &drawcb );
-    if ( _invertImages )
-        InvertRect(x, y, x+width, y+height);
 
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;
@@ -929,7 +988,7 @@ void LVGrayDrawBuf::InvertRect(int x0, int y0, int x1, int y1)
             lUInt8 * line = GetScanLine(y0);
             for (int y=y0; y<y1; y++) {
                 for (int x=x0; x<x1; x++)
-                    line[x] = ~line[x];
+                    line[x] ^= 0xFF;
                 line += _rowsize;
             }
         }
@@ -1302,10 +1361,8 @@ int  LVColorDrawBuf::GetBitsPerPixel()
 void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither )
 {
     //fprintf( stderr, "LVColorDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages, _smoothImages );
     img->Decode( &drawcb );
-    if ( _invertImages )
-        InvertRect(x, y, x+width, y+height);
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;
 }

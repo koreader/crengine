@@ -810,7 +810,7 @@ public:
                     }
                     callback->OnLineDecoded( this, y, row );
                 }
-                callback->OnEndDecode(this, true);
+                callback->OnEndDecode(this, false);
             }
 
         if ( buffer )
@@ -939,11 +939,11 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         {
             callback->OnLineDecoded( this, y,  (lUInt32*) image[y] );
         }
-
         png_read_end(png_ptr, info_ptr);
 
         callback->OnEndDecode(this, false);
-        for (lUInt32 i=0; i<height; i++) delete [] image[i];
+        for (lUInt32 i=0; i<height; i++)
+            delete [] image[i];
         delete [] image;
     }
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
