@@ -53,6 +53,10 @@
 #endif
 #endif
 
+#ifdef __ANDROID__
+#include <android/api-level.h>
+#endif
+
 namespace CRe {
 
 /*
@@ -760,6 +764,14 @@ unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool 
         return buffer;
 
     // SSE/NEON friendly alignment, just in case...
+#if defined(__ANDROID__) && __ANDROID_API__ < 16
+    buffer = (unsigned char*) malloc(dw * dh * 4);
+    if (buffer == nullptr) {
+        std::cerr << "qSmoothScaleImage: out of memory, returning null!" << std::endl;
+        qimageFreeScaleInfo(scaleinfo);
+        return nullptr;
+    }
+#else
     void *ptr;
     // NOTE: Output format is always RGBA! So make enough room for 4 bytes per pixel ;).
     if (posix_memalign(&ptr, 16, dw * dh * 4) != 0) {
@@ -769,6 +781,7 @@ unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool 
     } else {
         buffer = (unsigned char*) ptr;
     }
+#endif
 
     // NOTE: See comment in qimageCalcScaleInfo regarding our simplification of using sw directly.
     //       Here, the Rgba64 codepath *does* divide by 8, because it casts buffer to QRgba64 *,
