@@ -2009,6 +2009,11 @@ public:
     /// For use on the root toc item only (_page, otherwise unused, can be used to store this flag)
     void setAlternativeTocFlag() { if (_level==0) _page = 1; }
     bool hasAlternativeTocFlag() { return _level==0 && _page==1; }
+
+    /// When page numbers have been calculated, LVDocView::updatePageNumbers()
+    /// sets the root toc item _percent to -1. So let's use it to know that fact.
+    bool hasValidPageNumbers() { return _level==0 && _percent == -1; }
+    void invalidatePageNumbers() { if (_level==0) _percent = 0; }
 };
 
 

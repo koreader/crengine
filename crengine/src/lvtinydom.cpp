@@ -3934,6 +3934,9 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
     if ( !_rendered ) {
         setCacheFileStale(true); // new rendering: cache file will be updated
         _toc_from_cache_valid = false;
+        // force recalculation of page numbers (even if not computed in this
+        // session, they will be when loaded from cache next session)
+        m_toc.invalidatePageNumbers();
         pages->clear();
         if ( showCover )
             pages->add( new LVRendPageInfo( _page_height ) );
