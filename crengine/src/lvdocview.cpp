@@ -778,7 +778,7 @@ LVTocItem * LVDocView::getToc() {
         // Avoid calling updatePageNumbers() in that case (as it is expensive
         // and would delay book opening when loaded from cache - it will be
         // called when it is really needed: after next full rendering)
-        if (!m_doc->isTocFromCacheValid())
+        if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers())
             updatePageNumbers(m_doc->getToc());
 	return m_doc->getToc();
 }
