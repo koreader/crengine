@@ -62,7 +62,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.23k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.24k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0018
 
@@ -399,6 +399,9 @@ struct CacheFileItem
     lUInt64 _dataHash; // additional hash of data
     lUInt64 _packedHash; // additional hash of packed data
     lUInt32 _uncompressedSize;   // size of uncompressed block, if compression is applied, 0 if no compression
+    lUInt32 _padding;  // explicite padding (this struct would be implicitely padded from 44 bytes to 48 bytes)
+                       // so we can set this padding value to 0 (instead of some random data with implicite padding)
+                       // in order to get reproducible (same file checksum) cache files when this gets serialized
     bool validate( int fsize )
     {
         if ( _magic!=CACHE_FILE_ITEM_MAGIC ) {
@@ -425,6 +428,7 @@ struct CacheFileItem
     , _dataHash(0)          // hash of data
     , _packedHash(0) // additional hash of packed data
     , _uncompressedSize(0)  // size of uncompressed block, if compression is applied, 0 if no compression
+    , _padding(0)           // (padding)
     {
     }
 };
@@ -1852,8 +1856,19 @@ bool tinyNodeCollection::saveNodeData( lUInt16 type, ldomNode ** list, int nodec
         }
         ldomNode buf[TNC_PART_LEN];
         memcpy(buf, list[i], sizeof(ldomNode) * sz);
-        for (int j = 0; j < sz; j++)
+        for (int j = 0; j < sz; j++) {
             buf[j].setDocumentIndex(_docIndex);
+            // On 64bits builds, this serialized ldomNode may have some
+            // random data at the end, for being:
+            //   union { [...] tinyElement * _elem_ptr; [...] lUInt32 _ptext_addr; [...] lUInt32 _nextFreeIndex }
+            // To get "reproducible" cache files with a same file checksum, we'd
+            // rather have the remains of the _elem_ptr sets to 0
+            if (__SIZEOF_POINTER__ == 8) { // 64bits
+                lUInt32 tmp = buf[j]._data._nextFreeIndex; // save 32bits part
+                buf[j]._data._elem_ptr = 0;                // clear 64bits area
+                buf[j]._data._nextFreeIndex = tmp;         // restore 32bits part
+            }
+        }
         if (!_cacheFile->write(type, i, (lUInt8*)buf, sizeof(ldomNode) * sz, COMPRESS_NODE_DATA))
             crFatalError(-1, "Cannot write node data");
     }
