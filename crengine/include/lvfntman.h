@@ -272,7 +272,8 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette = NULL, bool addHyphen = false,
-                       lUInt32 flags=0, int letter_spacing=0, int width=-1 ) = 0;
+                       lUInt32 flags=0, int letter_spacing=0, int width=-1,
+                       int text_decoration_back_gap=0 ) = 0;
     /// constructor
     LVFont() : _visual_alignment_width(-1), _hash(0) { }
 
@@ -448,7 +449,8 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                       lUInt32 flags=0, int letter_spacing=0, int width=-1 );
+                       lUInt32 flags=0, int letter_spacing=0, int width=-1,
+                       int text_decoration_back_gap=0 );
 };
 
 #if (USE_FREETYPE!=1) && (USE_BITMAP_FONTS==1)
@@ -646,7 +648,8 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                       lUInt32 flags=0, int letter_spacing=0, int width=-1 );
+                       lUInt32 flags=0, int letter_spacing=0, int width=-1,
+                       int text_decoration_back_gap=0 );
         
     /** \brief get glyph image in 1 byte per pixel format
         \param code is unicode character

@@ -1961,6 +1961,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 }
             }
 #endif
+
+            int text_decoration_back_gap;
+            lUInt16 lastWordSrcIndex;
             for (j=0; j<frmline->word_count; j++)
             {
                 word = &frmline->words[j];
@@ -1998,6 +2001,14 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         buf->FillRect( rc.left, rc.top, rc.right, rc.bottom, 0xAAAAAA );
                     }
                     */
+                    // Check if we need to continue the text decoration from previous word.
+                    // For now, we only ensure it if this word and previous one are in the
+                    // same text node. We wrongly won't when one of these is in a sub <SPAN>
+                    // because we can't detect that rightly at this point anymore...
+                    text_decoration_back_gap = 0;
+                    if (j > 0 && word->src_text_index == lastWordSrcIndex) {
+                        text_decoration_back_gap = word->x - lastWordEnd;
+                    }
                     lUInt32 oldColor = buf->GetTextColor();
                     lUInt32 oldBgColor = buf->GetBackgroundColor();
                     lUInt32 cl = srcline->color;
@@ -2017,12 +2028,15 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         flgHyphen,
                         srcline->flags & 0x0F00,
                         srcline->letter_spacing,
-                        word->width);
+                        word->width,
+                        text_decoration_back_gap);
                     if ( cl!=0xFFFFFFFF )
                         buf->SetTextColor( oldColor );
                     if ( bgcl!=0xFFFFFFFF )
                         buf->SetBackgroundColor( oldBgColor );
                 }
+                lastWordSrcIndex = word->src_text_index;
+                lastWordEnd = word->x + word->width;
             }
 
 #ifdef CR_USE_INVERT_FOR_SELECTION_MARKS

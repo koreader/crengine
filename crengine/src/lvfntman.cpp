@@ -1980,7 +1980,8 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                       lUInt32 flags, int letter_spacing, int width )
+                       lUInt32 flags, int letter_spacing, int width,
+                       int text_decoration_back_gap )
     {
         FONT_GUARD
         if ( len <= 0 || _face==NULL )
@@ -2202,6 +2203,9 @@ public:
             // pen x if last glyph was a space not accounted in word width)
             if ( width >= 0 && x > x0 + width)
                 x = x0 + width;
+            // And start the decoration before x0 if it is continued
+            // from previous word
+            x0 -= text_decoration_back_gap;
             int h = _size > 30 ? 2 : 1;
             lUInt32 cl = buf->GetTextColor();
             if ( (flags & LTEXT_TD_UNDERLINE) || (flags & LTEXT_TD_BLINK) ) {
@@ -2537,7 +2541,8 @@ public:
     virtual void DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                       lUInt32 flags, int letter_spacing, int width )
+                       lUInt32 flags, int letter_spacing, int width,
+                       int text_decoration_back_gap )
     {
         if ( len <= 0 )
             return;
@@ -2595,6 +2600,9 @@ public:
             // pen x if last glyph was a space not accounted in word width)
             if ( width >= 0 && x > x0 + width)
                 x = x0 + width;
+            // And start the decoration before x0 if it is continued
+            // from previous word
+            x0 -= text_decoration_back_gap;
             int h = _size > 30 ? 2 : 1;
             lUInt32 cl = buf->GetTextColor();
             if ( (flags & LTEXT_TD_UNDERLINE) || (flags & LTEXT_TD_BLINK) ) {
@@ -4148,7 +4156,7 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
 
 void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
-                   lChar16 def_char, lUInt32 * palette, bool addHyphen, lUInt32 , int , int )
+                   lChar16 def_char, lUInt32 * palette, bool addHyphen, lUInt32 , int , int, int )
 {
     //static lUInt8 glyph_buf[16384];
     //LVFont::glyph_info_t info;
@@ -4755,7 +4763,8 @@ lUInt16 LVWin32DrawFont::measureText(
 void LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
                    lChar16 def_char, lUInt32 * palette, bool addHyphen,
-                   lUInt32 flags, int letter_spacing, int width )
+                   lUInt32 flags, int letter_spacing, int width,
+                   int text_decoration_back_gap )
 {
     if (_hfont==NULL)
         return;
