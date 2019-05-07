@@ -30,6 +30,10 @@
 #include <zlib.h>
 #endif
 
+#if (USE_UTF8PROC==1)
+#include <utf8proc.h>
+#endif
+
 #if !defined(__SYMBIAN32__) && defined(_WIN32)
 extern "C" {
 #include <windows.h>
@@ -2613,6 +2617,9 @@ void lStr_uppercase( lChar16 * str, int len )
 {
     for ( int i=0; i<len; i++ ) {
         lChar16 ch = str[i];
+#if (USE_UTF8PROC==1)
+        str[i] = utf8proc_toupper(ch);
+#else
         if ( ch>='a' && ch<='z' ) {
             str[i] = ch - 0x20;
         } else if ( ch>=0xE0 && ch<=0xFF ) {
@@ -2631,6 +2638,7 @@ void lStr_uppercase( lChar16 * str, int len )
                 str[i] = ch | 8;
             }
         }
+#endif
     }
 }
 
@@ -2638,6 +2646,9 @@ void lStr_lowercase( lChar16 * str, int len )
 {
     for ( int i=0; i<len; i++ ) {
         lChar16 ch = str[i];
+#if (USE_UTF8PROC==1)
+        str[i] = utf8proc_tolower(ch);
+#else
         if ( ch>='A' && ch<='Z' ) {
             str[i] = ch + 0x20;
         } else if ( ch>=0xC0 && ch<=0xDF ) {
@@ -2656,6 +2667,7 @@ void lStr_lowercase( lChar16 * str, int len )
                 str[i] = ch & (~8);
             }
         }
+#endif
     }
 }
 
@@ -2679,6 +2691,9 @@ void lStr_capitalize( lChar16 * str, int len )
         lChar16 ch = str[i];
         if (prev_is_word_sep) {
             // as done as in lStr_uppercase()
+#if (USE_UTF8PROC==1)
+            str[i] = utf8proc_toupper(ch);
+#else
             if ( ch>='a' && ch<='z' ) {
                 str[i] = ch - 0x20;
             } else if ( ch>=0xE0 && ch<=0xFF ) {
@@ -2697,6 +2712,7 @@ void lStr_capitalize( lChar16 * str, int len )
                     str[i] = ch | 8;
                 }
             }
+#endif
         }
         // update prev_is_word_sep for next char
         prev_is_word_sep = lStr_isWordSeparator(ch);
