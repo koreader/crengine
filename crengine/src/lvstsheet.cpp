@@ -2238,7 +2238,7 @@ lUInt32 LVCssDeclaration::getHash() {
 static bool parse_ident( const char * &str, char * ident )
 {
     *ident = 0;
-    skip_spaces( str );
+    // skip_spaces( str ); // skipping spaces should be ensured if needed before calling this
     if ( !css_is_alpha( *str ) )
         return false;
     int i;
@@ -2294,7 +2294,8 @@ lUInt32 LVCssSelectorRule::getWeight() {
         case cssrt_ancessor:      // E F
         case cssrt_predecessor:   // E + F
         case cssrt_predsibling:   // E ~ F
-            return 1;
+            // But not when they don't have an element (_id=0)
+            return _id != 0 ? 1 : 0;
             break;
         case cssrt_universal:     // *
             return 0;
@@ -2674,10 +2675,10 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     if (*str=='.') {
         // E.class
         str++;
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (!parse_ident( str, attrvalue ))
             return NULL;
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         lString16 s( attrvalue );
         // s.lowercase(); // className should be case sensitive
@@ -2686,10 +2687,10 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str=='#' ) {
         // E#id
         str++;
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (!parse_ident( str, attrvalue ))
             return NULL;
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
         lString16 s( attrvalue );
         rule->setAttr(attr_id, s);
@@ -2697,7 +2698,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str==':' ) {
         // E:pseudo-class (eg: E:first-child)
         str++;
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (*str==':')   // pseudo element (double ::, eg: E::first-line) are not supported
             return NULL;
         int n = parse_name( str, css_pseudo_classes, -1 );
@@ -2711,7 +2712,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
             // we don't parse the value here, it may have specific meaning
             // per pseudo-class type
         }
-        skip_spaces( str );
+        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
         lString16 s( attrvalue );
         rule->setAttr(n, s);
@@ -2857,10 +2858,15 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 }
                 */
 
-                skip_spaces( str );
+                // We should not skip spaces here. Combining multiple classnames
+                // or attributes is possible, but without any space
+                // skip_spaces( str );
+
                 attr_rule = true;
                 //continue;
             }
+            // skip any space now after all combining attributes or classnames have been parsed
+            skip_spaces( str );
         }
         // element relation
         if (*str == '>')
