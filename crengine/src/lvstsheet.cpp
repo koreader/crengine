@@ -2237,8 +2237,8 @@ lUInt32 LVCssDeclaration::getHash() {
 
 static bool parse_ident( const char * &str, char * ident )
 {
+    // Note: skipping any space before or after should be ensured by caller if needed
     *ident = 0;
-    // skip_spaces( str ); // skipping spaces should be ensured if needed before calling this
     if ( !css_is_alpha( *str ) )
         return false;
     int i;
@@ -2669,16 +2669,18 @@ bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
 
 LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
 {
+    // We should not skip_spaces() here: it's invalid just after one of '.#:'
+    // and we should keep the one after the parsed value as its presence or not
+    // has a different meaning (no space: multiple attributes or classnames
+    // selector - space: descendant combinator)
     char attrname[512];
     char attrvalue[512];
     LVCssSelectorRuleType st = cssrt_universal;
     if (*str=='.') {
         // E.class
         str++;
-        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (!parse_ident( str, attrvalue ))
             return NULL;
-        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         lString16 s( attrvalue );
         // s.lowercase(); // className should be case sensitive
@@ -2687,10 +2689,8 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str=='#' ) {
         // E#id
         str++;
-        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (!parse_ident( str, attrvalue ))
             return NULL;
-        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
         lString16 s( attrvalue );
         rule->setAttr(attr_id, s);
@@ -2698,7 +2698,6 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str==':' ) {
         // E:pseudo-class (eg: E:first-child)
         str++;
-        // skip_spaces( str ); // don't skip space: a space there is invalid
         if (*str==':')   // pseudo element (double ::, eg: E::first-line) are not supported
             return NULL;
         int n = parse_name( str, css_pseudo_classes, -1 );
@@ -2712,7 +2711,6 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
             // we don't parse the value here, it may have specific meaning
             // per pseudo-class type
         }
-        // skip_spaces( str ); // don't skip spaces after value to allow multi attibutes or classes selection
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
         lString16 s( attrvalue );
         rule->setAttr(n, s);
@@ -2721,6 +2719,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if (*str != '[')
         return NULL;
     str++;
+    // We may find and skip spaces inside [...]
     skip_spaces( str );
     if (!parse_ident( str, attrname ))
         return NULL;
@@ -2858,14 +2857,14 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 }
                 */
 
-                // We should not skip spaces here. Combining multiple classnames
-                // or attributes is possible, but without any space
-                // skip_spaces( str );
+                // We should not skip spaces here: combining multiple classnames or
+                // attributes is to be done only when there is no space in between
+                // them. Otherwise, it's a descendant combinator (cssrt_ancessor).
 
                 attr_rule = true;
                 //continue;
             }
-            // skip any space now after all combining attributes or classnames have been parsed
+            // Skip any space now after all combining attributes or classnames have been parsed
             skip_spaces( str );
         }
         // element relation
