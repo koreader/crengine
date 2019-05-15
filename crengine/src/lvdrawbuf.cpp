@@ -515,6 +515,7 @@ public:
         int yy = -1;
         int yy2 = -1;
         const lUInt32 rgba_invert = invert ? 0x00FFFFFF : 0;
+        const lUInt8 gray_invert = invert ? 0xFF : 0;
         if (ymap) {
             for (int i = 0; i < dst_dy; i++) {
                 if (ymap[i] == y) {
@@ -634,14 +635,28 @@ public:
                 for (int x=0; x<dst_dx; x++)
                 {
                     int srcx = xmap ? xmap[x] : x;
-                    lUInt32 cl = data[srcx] ^ rgba_invert;
+                    lUInt32 cl = data[srcx];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( alpha ) {
+                    }
+
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            cl = 0x00000000;
+                        } else {
+                            continue;
+                        }
+                    else if ( alpha != 0 ) {
                         lUInt32 origColor = row[x];
-                        if ( bpp==3 ) {
+                        if ( bpp == 3 ) {
                             origColor = origColor & 0xE0;
                             origColor = origColor | (origColor>>3) | (origColor>>6);
                         } else {
@@ -666,7 +681,7 @@ public:
                     } else {
                         dcl = rgbToGray( cl, bpp );
                     }
-                    row[ x ] = dcl;
+                    row[ x ] = dcl ^ gray_invert;
                     // ApplyAlphaGray( row[x], dcl, alpha, bpp );
                 }
             }
