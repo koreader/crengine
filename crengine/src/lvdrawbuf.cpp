@@ -555,18 +555,40 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( !alpha )
-                        row[ x ] = RevRGB(cl);
-                    else {
-                    	if ((row[x] & 0xFF000000) == 0xFF000000)
-                            row[ x ] = RevRGBA(cl); // copy as is if buffer pixel is transparent
-                    	else
-                    		ApplyAlphaRGB( row[x], RevRGB(cl), alpha );
+                    }
+
+                    // NOTE: Remember that for some mysterious reason, lvimg feeds us inverted alpha
+                    //       (i.e., 0 is opaque, 0xFF is transparent)...
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            row[ x ] = 0x00000000;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha == 0 ) {
+                        // Fully opaque, plot it as-is
+                        row[ x ] = RevRGB(cl) ^ rgba_invert;
+                    } else {
+                        if ((row[x] & 0xFF000000) == 0xFF000000) {
+                            // Plot it as-is if *buffer* pixel is transparent
+                            row[ x ] = RevRGBA(cl) ^ rgba_invert;
+                        } else {
+                            // NOTE: This *also* has a "fully opaque" shortcut... :/
+                            ApplyAlphaRGB( row[x], RevRGB(cl), alpha );
+                            // Invert post-blending to avoid potential stupidity...
+                            row[ x ] ^= rgba_invert;
+                        }
                     }
                 }
             }
