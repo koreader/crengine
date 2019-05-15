@@ -598,17 +598,31 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( alpha<16 ) {
-                        row[ x ] = rgb888to565( cl );
-                    } else if (alpha<0xF0) {
+                    }
+
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            row[ x ] = 0x0000;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha < 16 ) {
+                        row[ x ] = rgb888to565( cl ^ rgba_invert );
+                    } else if ( alpha < 0xF0 ) {
                         lUInt32 v = rgb565to888(row[x]);
                         ApplyAlphaRGB( v, cl, alpha );
-                        row[x] = rgb888to565(v);
+                        row[ x ] = rgb888to565(v ^ rgba_invert);
                     }
                 }
             }
