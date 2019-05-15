@@ -745,20 +745,35 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || (alpha&0x80) )
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
+                    }
+
+                    if ( alpha & 0x80 ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            cl = 0x00000000;
+                        } else {
+                            continue;
+                        }
+                    }
+
                     lUInt32 dcl = 0;
                     if ( dither ) {
 #if (GRAY_INVERSE==1)
-                        dcl = Dither1BitColor( cl, x, yy ) ^ 1;
+                        dcl = Dither1BitColor( cl ^ rgba_invert, x, yy ) ^ 1;
 #else
-                        dcl = Dither1BitColor( cl, x, yy ) ^ 0;
+                        dcl = Dither1BitColor( cl ^ rgba_invert, x, yy ) ^ 0;
 #endif
                     } else {
-                        dcl = rgbToGrayMask( cl, 1 ) & 1;
+                        dcl = rgbToGrayMask( cl ^ rgba_invert, 1 ) & 1;
                     }
                     int byteindex = (xx >> 3);
                     int bitindex = ((xx & 7));
