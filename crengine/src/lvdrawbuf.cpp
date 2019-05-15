@@ -665,7 +665,7 @@ public:
                         } else {
                             continue;
                         }
-                    else if ( alpha != 0 ) {
+                    } else if ( alpha != 0 ) {
                         lUInt32 origColor = row[x];
                         if ( bpp == 3 ) {
                             origColor = origColor & 0xE0;
@@ -757,6 +757,7 @@ public:
                     lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
+
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
