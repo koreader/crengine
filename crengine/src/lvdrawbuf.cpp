@@ -647,10 +647,8 @@ public:
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
-                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
-                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
-                            // c.f., https://github.com/koreader/koreader/issues/4986
-                            cl = 0x00000000;
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
                         } else {
                             continue;
                         }
@@ -708,10 +706,8 @@ public:
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
-                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
-                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
-                            // c.f., https://github.com/koreader/koreader/issues/4986
-                            cl = 0x00000000;
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
                         } else {
                             continue;
                         }
@@ -756,10 +752,8 @@ public:
                     if ( alpha & 0x80 ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
-                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
-                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
-                            // c.f., https://github.com/koreader/koreader/issues/4986
-                            cl = 0x00000000;
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
                         } else {
                             continue;
                         }
