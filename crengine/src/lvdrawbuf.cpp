@@ -85,9 +85,9 @@ static lUInt8 rgbToGrayMask( lUInt32 color, int bpp )
 
 static void ApplyAlphaRGB( lUInt32 &dst, lUInt32 src, lUInt32 alpha )
 {
-    if ( alpha==0 )
+    if ( alpha == 0 ) {
         dst = src;
-    else if ( alpha<255 ) {
+    } else if ( alpha < 255 ) {
         src &= 0xFFFFFF;
         lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 n1 = (((dst & 0xFF00FF) * alpha + (src & 0xFF00FF) * opaque) >> 8) & 0xFF00FF;
@@ -98,9 +98,9 @@ static void ApplyAlphaRGB( lUInt32 &dst, lUInt32 src, lUInt32 alpha )
 
 static void ApplyAlphaRGB565( lUInt16 &dst, lUInt16 src, lUInt32 alpha )
 {
-    if ( alpha==0 )
+    if ( alpha==0 ) {
         dst = src;
-    else if ( alpha<255 ) {
+    } else if ( alpha < 255 ) {
         lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 r = (((dst & 0xF800) * alpha + (src & 0xF800) * opaque) >> 8) & 0xF800;
         lUInt32 g = (((dst & 0x07E0) * alpha + (src & 0x07E0) * opaque) >> 8) & 0x07E0;
@@ -111,16 +111,29 @@ static void ApplyAlphaRGB565( lUInt16 &dst, lUInt16 src, lUInt32 alpha )
 
 static void ApplyAlphaGray( lUInt8 &dst, lUInt8 src, lUInt32 alpha, int bpp )
 {
-    if ( alpha==0 )
+    if ( alpha==0 ) {
         dst = src;
-    else if ( alpha<255 ) {
-        int mask = ((1<<bpp)-1) << (8-bpp);
+    } else if ( alpha < 255 ) {
+        int mask = ((1 << bpp) - 1) << (8 - bpp);
         src &= mask;
         lUInt32 opaque = alpha ^ 0xFF;
-        lUInt32 n1 = ((dst * alpha + src * opaque)>>8 ) & mask;
+        lUInt32 n1 = ((dst * alpha + src * opaque) >> 8) & mask;
         dst = (lUInt8)n1;
     }
 }
+
+/*
+static void ApplyAlphaGray8( lUInt8 &dst, lUInt8 src, lUInt8 alpha )
+{
+    if ( alpha==0 ) {
+        dst = src;
+    } else if ( alpha < 255 ) {
+        lUInt8 opaque = alpha ^ 0xFF;
+        lUInt8 v = ((dst * alpha + src * opaque) >> 8);
+        dst = (lUInt8) v;
+    }
+}
+*/
 
 //static const short dither_2bpp_4x4[] = {
 //    5, 13,  8,  16,
