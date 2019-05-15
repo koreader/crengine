@@ -607,7 +607,8 @@ public:
                         continue;
                     }
 
-                    if ( alpha == 0xFF ) {
+                    // NOTE: See final branch of the ladder. Not quite sure why some alpha ranges are treated differently...
+                    if ( alpha >= 0xF0 ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
