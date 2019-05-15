@@ -695,14 +695,27 @@ public:
                     lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
+                    }
 
                     int byteindex = (xx >> 2);
                     int bitindex = (3-(xx & 3))<<1;
                     lUInt8 mask = 0xC0 >> (6 - bitindex);
 
-                    if ( alpha ) {
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            cl = 0x00000000;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha != 0 ) {
                         lUInt32 origColor = (row[ byteindex ] & mask)>>bitindex;
                         origColor = origColor | (origColor<<2);
                         origColor = origColor | (origColor<<4);
@@ -714,12 +727,12 @@ public:
                     lUInt32 dcl = 0;
                     if ( dither ) {
 #if (GRAY_INVERSE==1)
-                        dcl = Dither2BitColor( cl, x, yy ) ^ 3;
+                        dcl = Dither2BitColor( cl ^ rgba_invert, x, yy ) ^ 3;
 #else
-                        dcl = Dither2BitColor( cl, x, yy );
+                        dcl = Dither2BitColor( cl ^ rgba_invert, x, yy );
 #endif
                     } else {
-                        dcl = rgbToGrayMask( cl, 2 ) & 3;
+                        dcl = rgbToGrayMask( cl ^ rgba_invert, 2 ) & 3;
                     }
                     dcl = dcl << bitindex;
                     row[ byteindex ] = (lUInt8)((row[ byteindex ] & (~mask)) | dcl);
