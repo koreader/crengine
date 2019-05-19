@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20180703
+% 20190519
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -1886,4 +1886,13 @@ but needed by crengine no quote pattern -->
 <pattern> dé3s2i4r </pattern>
 <pattern> dé3s2i4rs </pattern>
 <pattern> souf5f6le</pattern>
+<!-- dealing with cyber- -->
+<pattern> cy1be2r1</pattern>
+<pattern> cybera2</pattern>
+<pattern> cybere2</pattern>
+<pattern> cyberé2</pattern>
+<pattern> cyber3h2</pattern>
+<pattern> cyberi2</pattern>
+<pattern> cybers2</pattern>
+<pattern> cybe3rien</pattern>
 </HyphenationDescription>
