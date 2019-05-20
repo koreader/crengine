@@ -1882,10 +1882,15 @@ but needed by crengine no quote pattern -->
 <pattern>m2s </pattern>
 <pattern>n2x </pattern>
 <pattern>o2s </pattern>
+<pattern>i2s </pattern>
+<pattern>k2i </pattern>
+<pattern>2x </pattern>
 <!-- other rules -->
 <pattern> dé3s2i4r </pattern>
 <pattern> dé3s2i4rs </pattern>
 <pattern> souf5f6le</pattern>
+<pattern> l4le </pattern>
+<pattern> ml4le </pattern>
 <!-- dealing with cyber- -->
 <pattern> cy1be2r1</pattern>
 <pattern> cybera2</pattern>
@@ -1894,5 +1899,5 @@ but needed by crengine no quote pattern -->
 <pattern> cyber3h2</pattern>
 <pattern> cyberi2</pattern>
 <pattern> cybers2</pattern>
-<pattern> cybe3rien</pattern>
+<pattern> cybe3r2ien</pattern>
 </HyphenationDescription>
