@@ -846,7 +846,7 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
     memset( mask, '0', wlen+3 );
     mask[wlen+3] = 0;
     bool found = false;
-    for ( int i=0; i<wlen; i++ ) {
+    for ( int i=0; i<=wlen; i++ ) {
         found = match( word + i, mask + i ) || found;
     }
     if ( !found )
