@@ -1691,8 +1691,8 @@ public:
                     lastFitChar = i + 1;
                     continue;  /* ignore errors */
                 }
-                if ( ch_glyph_index==(FT_UInt)-1 )
-                    ch_glyph_index = getCharIndex( ch, 0 );
+//                if ( ch_glyph_index==(FT_UInt)-1 )
+//                    ch_glyph_index = getCharIndex( ch, 0 );
 //                error = FT_Load_Glyph( _face,          /* handle to face object */
 //                        ch_glyph_index,                /* glyph index           */
 //                        FT_LOAD_DEFAULT );             /* load flags, see below */
@@ -1701,8 +1701,12 @@ public:
 //                    continue;  /* ignore errors */
 //                }
             }
+            if ( use_kerning ) {
+                if ( ch_glyph_index==(FT_UInt)-1 )
+                    ch_glyph_index = getCharIndex( ch, 0 );
+                previous = ch_glyph_index;
+            }
             widths[i] = prev_width + w + (kerning >> 6) + letter_spacing;
-            previous = ch_glyph_index;
             if ( !isHyphen ) // avoid soft hyphens inside text string
                 prev_width = widths[i];
             if ( prev_width > max_width ) {
