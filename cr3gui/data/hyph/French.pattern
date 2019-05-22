@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20180703
+% 20190519
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -1873,17 +1873,25 @@
 <pattern>5ze </pattern>
 <pattern>5zent </pattern>
 <pattern>5zes </pattern>
+<pattern> l6le </pattern>
+<pattern> ml6le </pattern>
 -->
 <!-- rules to take care of some exceptions introduced by right 1 
 but needed by crengine no quote pattern -->
-<pattern>d2s </pattern>
-<pattern>f2s </pattern>
-<pattern>g2s </pattern>
-<pattern>m2s </pattern>
-<pattern>n2x </pattern>
-<pattern>o2s </pattern>
+<pattern>6i </pattern>
+<pattern>6s </pattern>
+<pattern>6x </pattern>
 <!-- other rules -->
 <pattern> dé3s2i4r </pattern>
 <pattern> dé3s2i4rs </pattern>
 <pattern> souf5f6le</pattern>
+<!-- dealing with cyber- -->
+<pattern> cy1be2r1</pattern>
+<pattern> cybera2</pattern>
+<pattern> cybere2</pattern>
+<pattern> cyberé2</pattern>
+<pattern> cyber3h2</pattern>
+<pattern> cyberi2</pattern>
+<pattern> cybers2</pattern>
+<pattern> cybe3r2ien</pattern>
 </HyphenationDescription>
