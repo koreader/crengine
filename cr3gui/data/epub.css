@@ -140,6 +140,10 @@ nobr {
     white-space: nowrap;
 }
 
+/* Element added for each empty line when rendering plain txt files */
+empty-line {
+    height: 1em;
+}
 
 
 /* Old element or className based selectors involving display: that
