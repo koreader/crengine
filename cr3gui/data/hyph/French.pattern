@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf8"?>
 <!--
-% 20190519
+% 20190527
 %
 % This set of rules is a conversion and adaptation for crengine and koreader 
 % based on :
@@ -13,20 +13,19 @@
 % to be part of words so we get rid of all the rules that were ignored by the 
 % crengine and adding some rules to take exceptions into account.
 %
-% lines 1759 to 1765 :
+% commented rules (disabled by default) :
+% special patterns which override the rules to not hyphen the 
+% last syllabe of a word when it's a mute one.
+% Only works if minrighthyph is at 2 and improve the spacing between words.
+% Only uncomment if you prefer better spacing and not care much about rules :)
+%
+% end of file : special corrections to deal with some cases met during reading :
 % special patterns to take into account some words with simple quote inside them
 % which are considered two words by crengine
 % jusqu'à, aux, etc. aujourd'hui. prud'homme, prud'hommal, rock'n roll, 
 % entr'ouvrir,entr'apercevoir, etc. presqu'île.
 % note : au-jour-d'hui and pru-d'homme won't work if min right length is > 1
 %
-% lines 1766 to 1881 (disabled by default)
-% special patterns which override the rules to not hyphen the 
-% last syllabe of a word when it's a mute one.
-% Only works if minrighthyph is at 2 and improve the spacing between words.
-% Only uncomment if you prefer better spacing and not care much about rules :)
-%
-% end of file : special corrections to deal with some cases met during reading.
 -->
 <HyphenationDescription>
 <pattern> a4</pattern>
@@ -1751,13 +1750,6 @@
 <pattern>1zo</pattern>
 <pattern>1zu</pattern>
 <pattern>1zy</pattern>
-<!-- added pattern for quote -->
-<pattern> jus5qu </pattern>
-<pattern> au5jour5d </pattern>
-<pattern> pru5d </pattern>
-<pattern> ro5ck </pattern>
-<pattern> en5tr </pattern>
-<pattern> pres5qu </pattern>
 <!-- let's override mute syllabes
 <pattern>5be </pattern>
 <pattern>5bent </pattern>
@@ -1876,11 +1868,21 @@
 <pattern> l6le </pattern>
 <pattern> ml6le </pattern>
 -->
+<!-- added pattern for quote -->
+<pattern> jus5qu </pattern>
+<pattern> au5jour5d </pattern>
+<pattern> pru5d </pattern>
+<pattern> ro5ck </pattern>
+<pattern> en5tr </pattern>
+<pattern> pres5qu </pattern>
 <!-- rules to take care of some exceptions introduced by right 1 
 but needed by crengine no quote pattern -->
-<pattern>6i </pattern>
-<pattern>6s </pattern>
-<pattern>6x </pattern>
+<pattern>4i </pattern>
+<pattern>4s </pattern>
+<pattern>4x </pattern>
+<pattern>4q </pattern>
+<pattern>4d </pattern>
+<pattern>4r </pattern>
 <!-- other rules -->
 <pattern> dé3s2i4r </pattern>
 <pattern> dé3s2i4rs </pattern>
