@@ -85,9 +85,9 @@ static lUInt8 rgbToGrayMask( lUInt32 color, int bpp )
 
 static void ApplyAlphaRGB( lUInt32 &dst, lUInt32 src, lUInt32 alpha )
 {
-    if ( alpha==0 )
+    if ( alpha == 0 ) {
         dst = src;
-    else if ( alpha<255 ) {
+    } else if ( alpha < 255 ) {
         src &= 0xFFFFFF;
         lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 n1 = (((dst & 0xFF00FF) * alpha + (src & 0xFF00FF) * opaque) >> 8) & 0xFF00FF;
@@ -98,9 +98,9 @@ static void ApplyAlphaRGB( lUInt32 &dst, lUInt32 src, lUInt32 alpha )
 
 static void ApplyAlphaRGB565( lUInt16 &dst, lUInt16 src, lUInt32 alpha )
 {
-    if ( alpha==0 )
+    if ( alpha==0 ) {
         dst = src;
-    else if ( alpha<255 ) {
+    } else if ( alpha < 255 ) {
         lUInt32 opaque = alpha ^ 0xFF;
         lUInt32 r = (((dst & 0xF800) * alpha + (src & 0xF800) * opaque) >> 8) & 0xF800;
         lUInt32 g = (((dst & 0x07E0) * alpha + (src & 0x07E0) * opaque) >> 8) & 0x07E0;
@@ -111,16 +111,29 @@ static void ApplyAlphaRGB565( lUInt16 &dst, lUInt16 src, lUInt32 alpha )
 
 static void ApplyAlphaGray( lUInt8 &dst, lUInt8 src, lUInt32 alpha, int bpp )
 {
-    if ( alpha==0 )
+    if ( alpha==0 ) {
         dst = src;
-    else if ( alpha<255 ) {
-        int mask = ((1<<bpp)-1) << (8-bpp);
+    } else if ( alpha < 255 ) {
+        int mask = ((1 << bpp) - 1) << (8 - bpp);
         src &= mask;
         lUInt32 opaque = alpha ^ 0xFF;
-        lUInt32 n1 = ((dst * alpha + src * opaque)>>8 ) & mask;
+        lUInt32 n1 = ((dst * alpha + src * opaque) >> 8) & mask;
         dst = (lUInt8)n1;
     }
 }
+
+/*
+static void ApplyAlphaGray8( lUInt8 &dst, lUInt8 src, lUInt8 alpha )
+{
+    if ( alpha==0 ) {
+        dst = src;
+    } else if ( alpha < 255 ) {
+        lUInt8 opaque = alpha ^ 0xFF;
+        lUInt8 v = ((dst * alpha + src * opaque) >> 8);
+        dst = (lUInt8) v;
+    }
+}
+*/
 
 //static const short dither_2bpp_4x4[] = {
 //    5, 13,  8,  16,
@@ -515,6 +528,7 @@ public:
         int yy = -1;
         int yy2 = -1;
         const lUInt32 rgba_invert = invert ? 0x00FFFFFF : 0;
+        const lUInt8 gray_invert = invert ? 0xFF : 0;
         if (ymap) {
             for (int i = 0; i < dst_dy; i++) {
                 if (ymap[i] == y) {
@@ -555,18 +569,40 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( !alpha )
-                        row[ x ] = RevRGB(cl);
-                    else {
-                    	if ((row[x] & 0xFF000000) == 0xFF000000)
-                            row[ x ] = RevRGBA(cl); // copy as is if buffer pixel is transparent
-                    	else
-                    		ApplyAlphaRGB( row[x], RevRGB(cl), alpha );
+                    }
+
+                    // NOTE: Remember that for some mysterious reason, lvimg feeds us inverted alpha
+                    //       (i.e., 0 is opaque, 0xFF is transparent)...
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            row[ x ] = 0x00000000;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha == 0 ) {
+                        // Fully opaque, plot it as-is
+                        row[ x ] = RevRGB(cl) ^ rgba_invert;
+                    } else {
+                        if ((row[x] & 0xFF000000) == 0xFF000000) {
+                            // Plot it as-is if *buffer* pixel is transparent
+                            row[ x ] = RevRGBA(cl) ^ rgba_invert;
+                        } else {
+                            // NOTE: This *also* has a "fully opaque" shortcut... :/
+                            ApplyAlphaRGB( row[x], RevRGB(cl), alpha );
+                            // Invert post-blending to avoid potential stupidity...
+                            row[ x ] ^= rgba_invert;
+                        }
                     }
                 }
             }
@@ -576,17 +612,32 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( alpha<16 ) {
-                        row[ x ] = rgb888to565( cl );
-                    } else if (alpha<0xF0) {
+                    }
+
+                    // NOTE: See final branch of the ladder. Not quite sure why some alpha ranges are treated differently...
+                    if ( alpha >= 0xF0 ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
+                            // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
+                            // c.f., https://github.com/koreader/koreader/issues/4986
+                            row[ x ] = 0x0000;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha < 16 ) {
+                        row[ x ] = rgb888to565( cl ^ rgba_invert );
+                    } else if ( alpha < 0xF0 ) {
                         lUInt32 v = rgb565to888(row[x]);
                         ApplyAlphaRGB( v, cl, alpha );
-                        row[x] = rgb888to565(v);
+                        row[ x ] = rgb888to565(v ^ rgba_invert);
                     }
                 }
             }
@@ -597,14 +648,26 @@ public:
                 for (int x=0; x<dst_dx; x++)
                 {
                     int srcx = xmap ? xmap[x] : x;
-                    lUInt32 cl = data[srcx] ^ rgba_invert;
+                    lUInt32 cl = data[srcx];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
-                    if ( alpha ) {
+                    }
+
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha != 0 ) {
                         lUInt32 origColor = row[x];
-                        if ( bpp==3 ) {
+                        if ( bpp == 3 ) {
                             origColor = origColor & 0xE0;
                             origColor = origColor | (origColor>>3) | (origColor>>6);
                         } else {
@@ -629,7 +692,7 @@ public:
                     } else {
                         dcl = rgbToGray( cl, bpp );
                     }
-                    row[ x ] = dcl;
+                    row[ x ] = dcl ^ gray_invert;
                     // ApplyAlphaGray( row[x], dcl, alpha, bpp );
                 }
             }
@@ -640,17 +703,28 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || alpha==0xFF )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
+                    }
 
                     int byteindex = (xx >> 2);
                     int bitindex = (3-(xx & 3))<<1;
                     lUInt8 mask = 0xC0 >> (6 - bitindex);
 
-                    if ( alpha ) {
+                    if ( alpha == 0xFF ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
+                        } else {
+                            continue;
+                        }
+                    } else if ( alpha != 0 ) {
                         lUInt32 origColor = (row[ byteindex ] & mask)>>bitindex;
                         origColor = origColor | (origColor<<2);
                         origColor = origColor | (origColor<<4);
@@ -662,12 +736,12 @@ public:
                     lUInt32 dcl = 0;
                     if ( dither ) {
 #if (GRAY_INVERSE==1)
-                        dcl = Dither2BitColor( cl, x, yy ) ^ 3;
+                        dcl = Dither2BitColor( cl ^ rgba_invert, x, yy ) ^ 3;
 #else
-                        dcl = Dither2BitColor( cl, x, yy );
+                        dcl = Dither2BitColor( cl ^ rgba_invert, x, yy );
 #endif
                     } else {
-                        dcl = rgbToGrayMask( cl, 2 ) & 3;
+                        dcl = rgbToGrayMask( cl ^ rgba_invert, 2 ) & 3;
                     }
                     dcl = dcl << bitindex;
                     row[ byteindex ] = (lUInt8)((row[ byteindex ] & (~mask)) | dcl);
@@ -680,20 +754,34 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x] ^ rgba_invert;
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     int xx = x + dst_x;
                     lUInt32 alpha = (cl >> 24)&0xFF;
-                    if ( xx<clip.left || xx>=clip.right || (alpha&0x80) )
+
+                    if ( xx<clip.left || xx>=clip.right ) {
+                        // OOB, don't plot it!
                         continue;
+                    }
+
+                    if ( alpha & 0x80 ) {
+                        // Transparent, don't plot it...
+                        if ( invert ) {
+                            // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
+                            cl = 0x00FFFFFF;
+                        } else {
+                            continue;
+                        }
+                    }
+
                     lUInt32 dcl = 0;
                     if ( dither ) {
 #if (GRAY_INVERSE==1)
-                        dcl = Dither1BitColor( cl, x, yy ) ^ 1;
+                        dcl = Dither1BitColor( cl ^ rgba_invert, x, yy ) ^ 1;
 #else
-                        dcl = Dither1BitColor( cl, x, yy ) ^ 0;
+                        dcl = Dither1BitColor( cl ^ rgba_invert, x, yy ) ^ 0;
 #endif
                     } else {
-                        dcl = rgbToGrayMask( cl, 1 ) & 1;
+                        dcl = rgbToGrayMask( cl ^ rgba_invert, 1 ) & 1;
                     }
                     int byteindex = (xx >> 3);
                     int bitindex = ((xx & 7));
