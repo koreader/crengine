@@ -1914,6 +1914,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // - with block nodes (so, only with the first "final" node, and not when
         // recursing its children which are inline), it will set horitontal alignment flags
         int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
+        // Note:
+        // - baseflags (passed by reference) is shared and re-used by this node's siblings
+        //   (all inline); it should carry newline/horizontal aligment flag, which should
+        //   be cleared when used.
+        // - flags is provided to this node's children (all inline) (becoming baseflags
+        //   for them), and should carry inherited text decoration, vertical alignment
+        //   and whitespace-pre state.
+
         int width = fmt->getWidth();
         int em = enode->getFont()->getSize();
         css_style_rec_t * style = enode->getStyle().get();
@@ -1998,8 +2006,6 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             int f_half_leading = (line_h - fh) / 2;
             txform->setStrut(line_h, fb + f_half_leading);
         }
-        // save flags: will be re-inited to that when we meet a <BR/>
-        int final_block_flags = flags;
 
         // Now, process styles that may differ between inline nodes, and
         // are needed to display any children text node.
@@ -2290,7 +2296,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
                 txform->AddSourceObject(flags, line_h, valign_dy, ident, enode );
-                baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+                flags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
             }
         }
         else { // non-IMG element: render children (elements or text nodes)
@@ -2343,9 +2349,16 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             << rect.left << rect.top << rect.right << rect.bottom << ")\n";
 #endif
 
-        // restore flags
-        //***********************************
-        baseflags = final_block_flags; // to allow blocks in one level with inlines
+        // Children may have consumed the newline flag, or may have added one
+        // (if the last one of them is a <BR>, it will not have been consumed
+        // eg. with <P><SMALL>Some small text<BR/></SMALL> and normal text</P>)
+        // So, forward the newline state from flags to baseflags:
+        if ( flags & LTEXT_FLAG_NEWLINE ) {
+            baseflags |= flags & LTEXT_FLAG_NEWLINE;
+        }
+        else { // newline consumed
+            baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+        }
         if ( enode->getNodeId()==el_br ) {
             if (baseflags & LTEXT_FLAG_NEWLINE) {
                 // We meet a <BR/>, but no text node were met before (or it
@@ -2380,17 +2393,6 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             case css_ta_inherit:
                 break;
             }
-//            baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
-//            LVFont * font = enode->getFont().get();
-//            txform->AddSourceLine( L"\n", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT,
-//                line_h, 0, enode, 0, 0 );
-        } else {
-            // 'baseflags' carries information about text alignment, and
-            // clearing newline flag would remove it. This information is
-            // only useful on the first source line added (with AddSourceLine)
-            // so don't clear it if we hadn't added anything
-            if (txform->GetSrcCount() > txform_src_count)
-                baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
         }
         //baseflags &= ~LTEXT_RUNIN_FLAG;
     }
