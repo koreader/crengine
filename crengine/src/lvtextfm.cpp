@@ -605,6 +605,16 @@ public:
             printf("CRE WARNING: resizeImage(width=0 or height=0)\n");
             return;
         }
+        if (width < 0 || height < 0) {
+            // Avoid invalid resizing if we are provided with negative values
+            printf("CRE WARNING: resizeImage(width<0 or height<0)\n");
+            return;
+        }
+        if (maxw < 0 || maxh < 0) {
+            // Avoid invalid resizing if we are provided with negative max values
+            printf("CRE WARNING: resizeImage(maxw<0 or maxh<0)\n");
+            return;
+        }
         //CRLog::trace("Resize image (%dx%d) max %dx%d %s  *%d", width, height, maxw, maxh, arbitraryImageScaling ? "arbitrary" : "integer", maxScaleMult);
         if ( maxScaleMult<1 ) maxScaleMult = 1;
         if ( arbitraryImageScaling ) {
@@ -1121,6 +1131,11 @@ public:
                     height = height<0? -height*(m_pbuffer->width-x)/100 : height;
                     // todo: adjust m_max_img_height with this image valign_dy/vertical_align_flag
                     resizeImage(width, height, m_pbuffer->width - x, m_max_img_height, m_length>1);
+                        // Note: it can happen with a standalone image in a small container
+                        // where text-indent is greater than width, that 'm_pbuffer->width - x'
+                        // can be negative. We could cap it to zero and resize the image to 0,
+                        // but let it be shown un-resized, possibly overflowing or overriding
+                        // other content.
                     word->width = width;
                     word->o.height = height;
 
