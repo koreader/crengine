@@ -4283,6 +4283,13 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     //////////////////////////////////////////////////////
     enode->getDocument()->applyStyle( enode, pstyle );
 
+    // Ensure any <stylesheet> element (that crengine "added BODY>stylesheet child
+    // element with HEAD>STYLE&LINKS content") stays invisible (it could end up being
+    // made visible when some book stylesheet contains "body > * {display: block;}")
+    if (enode->getNodeId() == el_stylesheet) {
+        pstyle->display = css_d_none;
+    }
+
     if ( enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) && enode->hasAttribute( LXML_NS_ANY, attr_style ) ) {
         lString16 nodeStyle = enode->getAttributeValue( LXML_NS_ANY, attr_style );
         if ( !nodeStyle.empty() ) {
