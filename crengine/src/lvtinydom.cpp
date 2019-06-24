@@ -13010,19 +13010,27 @@ int ldomNode::getSurroundingAddedHeight()
     int h = 0;
     ldomNode * n = this;
     while (true) {
+        ldomNode * parent = n->getParentNode();
         lvdom_element_render_method rm = n->getRendMethod();
         if ( rm != erm_inline && rm != erm_invisible && rm != erm_killed) {
-            RenderRectAccessor fmt( n );
-            h += lengthToPx( n->getStyle()->margin[2], fmt.getWidth(), n->getFont()->getSize() ); // top margin
-            h += lengthToPx( n->getStyle()->margin[3], fmt.getWidth(), n->getFont()->getSize() ); // bottom margin
-            h += lengthToPx( n->getStyle()->padding[2], fmt.getWidth(), n->getFont()->getSize() ); // top padding
-            h += lengthToPx( n->getStyle()->padding[3], fmt.getWidth(), n->getFont()->getSize() ); // bottom padding
+            // Add offset of border and padding
+            int base_width = 0;
+            if ( parent && !(parent->isNull()) ) {
+                // margins and padding in % are scaled according to parent's width
+                RenderRectAccessor fmt( parent );
+                base_width = fmt.getWidth();
+            }
+            int em = n->getFont()->getSize();
+            h += lengthToPx( n->getStyle()->margin[2], base_width, em );  // top margin
+            h += lengthToPx( n->getStyle()->margin[3], base_width, em );  // bottom margin
+            h += lengthToPx( n->getStyle()->padding[2], base_width, em ); // top padding
+            h += lengthToPx( n->getStyle()->padding[3], base_width, em ); // bottom padding
             h += measureBorder(n, 0); // top border
             h += measureBorder(n, 2); // bottom border
         }
-        n = n->getParentNode();
-        if ( !n || n->isNull() )
+        if ( !parent || parent->isNull() )
             break;
+        n = parent;
     }
     return h;
 }
