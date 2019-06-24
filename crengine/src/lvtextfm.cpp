@@ -1100,8 +1100,18 @@ public:
                     // block cut by <BR>): most browsers don't display the line break
                     // implied by the BR when we have: "<div>some text<br/> </div>more text"
                     // or "<div>some text<br/> <span> </span> </div>more text".
-                    if (lastWord && frmline->word_count == 0 && !isLastPara) {
-                        wstart--; // make a single word with a single collapsed space
+                    if (lastWord && frmline->word_count == 0) {
+                        if (!isLastPara) {
+                            wstart--; // make a single word with a single collapsed space
+                        }
+                        else { // Last or single para with no word
+                            // A line has already been added: just make
+                            // it zero height.
+                            frmline->height = 0;
+                            frmline->baseline = 0;
+                            continue;
+                            // We'll then just exit the loop as we are lastWord
+                        }
                     }
                     else {
                         // no word made, get ready for next loop
