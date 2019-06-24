@@ -1564,7 +1564,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _tinyElementCount(0)
 , _itemCount(0)
 #if BUILD_LITE!=1
-, _renderedBlockCache( 32 )
+, _renderedBlockCache( 256 )
 , _cacheFile(NULL)
 , _cacheFileStale(true)
 , _cacheFileLeaveAsDirty(false)
@@ -1599,7 +1599,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _tinyElementCount(0)
 , _itemCount(0)
 #if BUILD_LITE!=1
-, _renderedBlockCache( 32 )
+, _renderedBlockCache( 256 )
 , _cacheFile(NULL)
 , _cacheFileStale(true)
 , _cacheFileLeaveAsDirty(false)
@@ -3712,7 +3712,9 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
 {
     // Note: def_interline_space is no more used here
     bool changed = false;
-    _renderedBlockCache.clear();
+    // Don't clear this cache of LFormattedText if
+    // render props don't change.
+    //   _renderedBlockCache.clear();
     changed = _imgScalingOptions.update(props, def_font->getSize()) || changed;
     css_style_ref_t s( new css_style_rec_t );
     s->display = css_d_block;
@@ -3910,6 +3912,8 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
             printf("CRE: document loaded, but styles re-init needed (possible epub with embedded fonts)\n");
         }
         CRLog::info("rendering context is changed - full render required...");
+        // Clear LFormattedTextRef cache
+        _renderedBlockCache.clear();
         CRLog::trace("init format data...");
         //CRLog::trace("validate 1...");
         //validateDocument();
