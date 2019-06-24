@@ -4018,7 +4018,8 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
                         DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
-                        txform->Draw( &drawbuf, doc_x+x0 + padding_left, doc_y+y0 + padding_top, NULL, NULL );
+                        // (Don't shift by padding left, the list marker is outside padding left)
+                        txform->Draw( &drawbuf, doc_x+x0, doc_y+y0 + padding_top, NULL, NULL );
                     }
                 }
 
@@ -4076,7 +4077,8 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
                         DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
-                        txform->Draw( &drawbuf, doc_x+x0 + padding_left - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
+                        // (Don't shift by padding left, the list marker is outside padding left)
+                        txform->Draw( &drawbuf, doc_x+x0 - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
                     }
                 }
 
