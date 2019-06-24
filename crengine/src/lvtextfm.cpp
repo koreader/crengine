@@ -767,6 +767,10 @@ public:
                         int newlen = chars_measured; // TODO: find best wrap position
                         i = start + newlen;
                         len = newlen;
+                        // As we're going to continue measuring this text node,
+                        // reset newFont (the font of the next text node), so
+                        // it does not replace lastFont at the end of the loop.
+                        newFont = NULL;
                     }
 
                     // Deal with chars flagged as collapsed spaces:
