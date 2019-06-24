@@ -1454,7 +1454,11 @@ public:
                 else if ( i==nb_rows-1 ) { // last row
                     // Avoid a split between last row and previous to last (really?)
                     // Avoid a split between last row and table bottom padding/border
-                    line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+                    //   line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+                    // Let's not avoid a split between last and previous last, as
+                    // the last row is most often not a bottom TH, and it would just
+                    // drag them onto next page, leaving a hole on previous page.
+                    line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AVOID;
                 }
                 else {
                     // Otherwise, allow any split between rows
