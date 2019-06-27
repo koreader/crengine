@@ -441,6 +441,11 @@ inline lUInt16 rgb888to565( lUInt32 cl ) {
 	(((_v >> 8U) + _v) >> 8U);                                                                       \
 })
 
+// Because of course we're not using <stdint.h> -_-".
+#ifndef UINT8_MAX
+	#define UINT8_MAX (255)
+#endif
+
 // Quantize an 8-bit color value down to a palette of 16 evenly spaced colors, using an ordered 8x8 dithering pattern.
 // With a grayscale input, this happens to match the eInk palette perfectly ;).
 // If the input is not grayscale, and the output fb is not grayscale either,
