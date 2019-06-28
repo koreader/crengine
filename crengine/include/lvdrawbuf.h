@@ -441,6 +441,11 @@ inline lUInt16 rgb888to565( lUInt32 cl ) {
 	(((_v >> 8U) + _v) >> 8U);                                                                       \
 })
 
+// Because of course we're not using <stdint.h> -_-".
+#ifndef UINT8_MAX
+	#define UINT8_MAX (255)
+#endif
+
 // Quantize an 8-bit color value down to a palette of 16 evenly spaced colors, using an ordered 8x8 dithering pattern.
 // With a grayscale input, this happens to match the eInk palette perfectly ;).
 // If the input is not grayscale, and the output fb is not grayscale either,
@@ -464,29 +469,22 @@ static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
 	//
 	// threshold = QuantumScale * v * ((L-1) * (D-1) + 1)
 	// NOTE: The initial computation of t (specifically, what we pass to DIV255) would overflow an uint8_t.
-	//       So jump to shorts, and do it signed to be extra careful, although I don't *think* we can ever underflow here.
-	lInt16 t = (lInt16) DIV255(v * ((15U << 6) + 1U));
+	//       With a Q8 input value, we're at no risk of ever underflowing, so, keep to unsigned maths.
+	//       Technically, an uint16_t would be wide enough, but it gains us nothing,
+	//       and requires a few explicit casts to make GCC happy ;).
+	lUInt32 t = DIV255(v * ((15U << 6) + 1U));
 	// level = t / (D-1);
-	lInt16 l = (t >> 6);
+	lUInt32 l = (t >> 6);
 	// t -= l * (D-1);
-	t = (lInt16)(t - (l << 6));
+	t = (t - (l << 6));
 
 	// map width & height = 8
 	// c = ClampToQuantum((l+(t >= map[(x % mw) + mw * (y % mh)])) * QuantumRange / (L-1));
-	lInt16 q = (lInt16)((l + (t >= threshold_map_o8x8[(x & 7U) + 8U * (y & 7U)])) * 17);
-	// NOTE: For some arcane reason, on ARM (at least), this is noticeably faster than Pillow's CLIP8 macro.
-	//       Following this logic with ternary operators yields similar results,
-	//       so I'm guessing it's the < 256 part of Pillow's macro that doesn't agree with GCC/ARM...
-	lUInt8 c;
-	if (q > 0xFF) {
-		c = 0xFF;
-	} else if (q < 0) {
-		c = 0U;
-	} else {
-		c = (lUInt8) q;
-	}
-
-	return c;
+	lUInt32 q = ((l + (t >= threshold_map_o8x8[(x & 7U) + 8U * (y & 7U)])) * 17);
+	// NOTE: We're doing unsigned maths, so, clamping is basically MIN(q, UINT8_MAX) ;).
+	//       The only overflow we should ever catch should be for a few white (v = 0xFF) input pixels
+	//       that get shifted to the next step (i.e., q = 272 (0xFF + 17)).
+	return (q > UINT8_MAX ? UINT8_MAX : static_cast<lUInt8>(q));
 }
 
 // Declare our bit of scaler ripped from Qt5...
