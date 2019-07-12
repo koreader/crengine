@@ -1023,8 +1023,14 @@ public:
                 //isObject = (m_flags[i] & LCHAR_IS_OBJECT)!=0;
                 isSpace = (m_flags[i] & LCHAR_IS_SPACE)!=0; // current char is a space
                 //nextIsSpace = i<end-1 && (m_flags[i+1] & LCHAR_IS_SPACE);
-                space = splitBySpaces && lastIsSpace && !isSpace && i<lastnonspace;
+                space = splitBySpaces && lastIsSpace && !isSpace && i<=lastnonspace;
                 // /\ previous char was a space, current char is not a space
+                //     Note: last check was initially "&& i<lastnonspace", but with
+                //     this, a line containing "thing inside a " (ending with a
+                //     1-char word) would be considered only 2 words ("thing" and
+                //     "inside a") and, when justify'ing text, space would not be
+                //     distributed between "inside" and "a"...
+                //     Not really sure what's the purpose of this last test...
             } else {
                 lastWord = true;
             }
