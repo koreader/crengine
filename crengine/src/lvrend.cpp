@@ -1466,11 +1466,12 @@ public:
                 }
                 context.AddLine(last_y, table_y0 + table_h, line_flags);
                 last_y = table_y0 + table_h;
-                // Add links gathered from this row's cells
-                if (row->links.length() > 0) {
-                    for ( int n=0; n<row->links.length(); n++ ) {
-                        context.addLink( row->links[n] );
-                    }
+            }
+            // Add links gathered from this row's cells (even if !splitPages
+            // in case of imbricated tables)
+            if (row->links.length() > 0) {
+                for ( int n=0; n<row->links.length(); n++ ) {
+                    context.addLink( row->links[n] );
                 }
             }
         }
