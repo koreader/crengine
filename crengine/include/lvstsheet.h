@@ -120,18 +120,28 @@ static const char * css_pseudo_classes[] =
 
 enum LVCssSelectorRuleType
 {
-    cssrt_universal,     // *
-    cssrt_parent,        // E > F
-    cssrt_ancessor,      // E F
-    cssrt_predecessor,   // E + F
-    cssrt_predsibling,   // E ~ F
-    cssrt_attrset,       // E[foo]
-    cssrt_attreq,        // E[foo="value"]
-    cssrt_attrhas,       // E[foo~="value"]
-    cssrt_attrstarts,    // E[foo|="value"]
-    cssrt_id,            // E#id
-    cssrt_class,         // E.class
-    cssrt_pseudoclass    // E:pseudo-class, E:pseudo-class(value)
+    cssrt_universal,         // *
+    cssrt_parent,            // E > F
+    cssrt_ancessor,          // E F
+    cssrt_predecessor,       // E + F
+    cssrt_predsibling,       // E ~ F
+    cssrt_attrset,           // E[foo]
+    cssrt_attrset_i,         // E[foo i] (case insensitive)
+    cssrt_attreq,            // E[foo="value"]
+    cssrt_attreq_i,          // E[foo="value i"]
+    cssrt_attrhas,           // E[foo~="value"]
+    cssrt_attrhas_i,         // E[foo~="value i"]
+    cssrt_attrstarts_word,   // E[foo|="value"]
+    cssrt_attrstarts_word_i, // E[foo|="value i"]
+    cssrt_attrstarts,        // E[foo^="value"]
+    cssrt_attrstarts_i,      // E[foo^="value i"]
+    cssrt_attrends,          // E[foo$="value"]
+    cssrt_attrends_i,        // E[foo$="value i"]
+    cssrt_attrcontains,      // E[foo*="value"]
+    cssrt_attrcontains_i,    // E[foo*="value i"]
+    cssrt_id,                // E#id
+    cssrt_class,             // E.class
+    cssrt_pseudoclass        // E:pseudo-class, E:pseudo-class(value)
 };
 
 class LVCssSelectorRule

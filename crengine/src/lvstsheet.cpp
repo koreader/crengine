@@ -2282,12 +2282,21 @@ lUInt32 LVCssSelectorRule::getWeight() {
         case cssrt_id:            // E#id
             return 1 << 16;
             break;
-        case cssrt_attrset:       // E[foo]
-        case cssrt_attreq:        // E[foo="value"]
-        case cssrt_attrhas:       // E[foo~="value"]
-        case cssrt_attrstarts:    // E[foo|="value"]
-        case cssrt_class:         // E.class
-        case cssrt_pseudoclass:   // E:pseudo-class
+        case cssrt_attrset:           // E[foo]
+        case cssrt_attreq:            // E[foo="value"]
+        case cssrt_attreq_i:          // E[foo="value i"]
+        case cssrt_attrhas:           // E[foo~="value"]
+        case cssrt_attrhas_i:         // E[foo~="value i"]
+        case cssrt_attrstarts_word:   // E[foo|="value"]
+        case cssrt_attrstarts_word_i: // E[foo|="value i"]
+        case cssrt_attrstarts:        // E[foo^="value"]
+        case cssrt_attrstarts_i:      // E[foo^="value i"]
+        case cssrt_attrends:          // E[foo$="value"]
+        case cssrt_attrends_i:        // E[foo$="value i"]
+        case cssrt_attrcontains:      // E[foo*="value"]
+        case cssrt_attrcontains_i:    // E[foo*="value i"]
+        case cssrt_class:             // E.class
+        case cssrt_pseudoclass:       // E:pseudo-class
             return 1 << 8;
             break;
         case cssrt_parent:        // E > F
@@ -2416,19 +2425,21 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attreq:        // E[foo="value"]
+    case cssrt_attreq_i:      // E[foo="value i"]
         {
             lString16 val = node->getAttributeValue(_attrid);
-            bool res = (val == _value);
-            //if ( res )
-            //    return true;
-            //CRLog::trace("attreq: %s %s", LCSTR(val), LCSTR(_value) );
-            return res;
+            if (_type == cssrt_attreq_i)
+                val.lowercase();
+            return val == _value;
         }
         break;
     case cssrt_attrhas:       // E[foo~="value"]
+    case cssrt_attrhas_i:     // E[foo~="value i"]
         // one of space separated values
         {
             lString16 val = node->getAttributeValue(_attrid);
+            if (_type == cssrt_attrhas_i)
+                val.lowercase();
             int p = val.pos( lString16(_value.c_str()) );            
             if (p<0)
                 return false;
@@ -2438,13 +2449,64 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             return true;
         }
         break;
-    case cssrt_attrstarts:    // E[foo|="value"]
+    case cssrt_attrstarts_word:    // E[foo|="value"]
+    case cssrt_attrstarts_word_i:  // E[foo|="value i"]
+        {
+            // value can be exactly value or can begin with value
+            // immediately followed by a hyphen
+            lString16 val = node->getAttributeValue(_attrid);
+            int val_len = val.length();
+            int value_len = _value.length();
+            if (value_len > val_len)
+                return false;
+            if (_type == cssrt_attrstarts_i)
+                val.lowercase();
+            if (value_len == val_len) {
+                return val == _value;
+            }
+            if (val[value_len] != '-')
+                return false;
+            val = val.substr(0, value_len);
+            return val == _value;
+        }
+        break;
+    case cssrt_attrstarts:    // E[foo^="value"]
+    case cssrt_attrstarts_i:  // E[foo^="value i"]
+        {
+            lString16 val = node->getAttributeValue(_attrid);
+            int val_len = val.length();
+            int value_len = _value.length();
+            if (value_len > val_len)
+                return false;
+            val = val.substr(0, value_len);
+            if (_type == cssrt_attrstarts_i)
+                val.lowercase();
+            return val == _value;
+        }
+        break;
+    case cssrt_attrends:    // E[foo$="value"]
+    case cssrt_attrends_i:  // E[foo$="value i"]
+        {
+            lString16 val = node->getAttributeValue(_attrid);
+            int val_len = val.length();
+            int value_len = _value.length();
+            if (value_len > val_len)
+                return false;
+            val = val.substr(val_len-value_len, value_len);
+            if (_type == cssrt_attrends_i)
+                val.lowercase();
+            return val == _value;
+        }
+        break;
+    case cssrt_attrcontains:    // E[foo*="value"]
+    case cssrt_attrcontains_i:  // E[foo*="value i"]
         {
             lString16 val = node->getAttributeValue(_attrid);
             if (_value.length()>val.length())
                 return false;
-            val = val.substr(0, _value.length());
-            return val == _value;
+            if (_type == cssrt_attrcontains_i)
+                val.lowercase();
+            return val.pos(_value, 0) >= 0;
         }
         break;
     case cssrt_id:            // E#id
@@ -2625,7 +2687,7 @@ bool LVCssSelector::check( const ldomNode * node ) const
     return true;
 }
 
-bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
+bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, char stop_char=']' )
 {
     int pos = 0;
     skip_spaces( str );
@@ -2647,6 +2709,13 @@ bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
         if (*str != stop_char)
             return false;
         str++;
+        if (parse_trailing_i && pos >=2) {
+            parse_trailing_i = false;
+            if ( (buf[pos-2]==' ') && (buf[pos-1]=='i' || buf[pos-1]=='I') ) {
+                parse_trailing_i = true;
+                buf[pos-2] = 0;
+            }
+        }
         return true;
     }
     else
@@ -2656,15 +2725,29 @@ bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
             if (pos>=64)
                 return false;
         }
+        int end_pos = pos;
+        if (parse_trailing_i) {
+            parse_trailing_i = false;
+            if (str[pos] && str[pos]==' ' && str[pos+1] && (str[pos+1]=='i' || str[pos+1]=='I')) {
+                parse_trailing_i = true;
+                pos+=2;
+            }
+        }
         if (str[pos]!=stop_char)
             return false;
-        for (int i=0; i<pos; i++)
+        for (int i=0; i<end_pos; i++)
             buf[i] = str[i];
-        buf[pos] = 0;
+        buf[end_pos] = 0;
         str+=pos;
         str++;
         return true;
     }
+}
+
+bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
+{
+    bool parse_trailing_i = false;
+    return parse_attr_value( str, buf, parse_trailing_i, stop_char );
 }
 
 LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
@@ -2725,6 +2808,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         return NULL;
     skip_spaces( str );
     attrvalue[0] = 0;
+    bool parse_trailing_i = false;
     if (*str==']')
     {
         st = cssrt_attrset;
@@ -2733,23 +2817,68 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     else if (*str=='=')
     {
         str++;
-        if (!parse_attr_value( str, attrvalue))
+        parse_trailing_i = true; // reset to false if value does not end with " i"
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
             return NULL;
-        st = cssrt_attreq;
+        if (parse_trailing_i)
+            st = cssrt_attreq_i;
+        else
+            st = cssrt_attreq;
     }
     else if (*str=='~' && str[1]=='=')
     {
         str+=2;
-        if (!parse_attr_value( str, attrvalue))
+        parse_trailing_i = true;
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
             return NULL;
-        st = cssrt_attrhas;
+        if (parse_trailing_i)
+            st = cssrt_attrhas_i;
+        else
+            st = cssrt_attrhas;
     }
     else if (*str=='|' && str[1]=='=')
     {
         str+=2;
-        if (!parse_attr_value( str, attrvalue))
+        parse_trailing_i = true;
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
             return NULL;
-        st = cssrt_attrstarts;
+        if (parse_trailing_i)
+            st = cssrt_attrstarts_word_i;
+        else
+            st = cssrt_attrstarts_word;
+    }
+    else if (*str=='^' && str[1]=='=')
+    {
+        str+=2;
+        parse_trailing_i = true;
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
+            return NULL;
+        if (parse_trailing_i)
+            st = cssrt_attrstarts_i;
+        else
+            st = cssrt_attrstarts;
+    }
+    else if (*str=='$' && str[1]=='=')
+    {
+        str+=2;
+        parse_trailing_i = true;
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
+            return NULL;
+        if (parse_trailing_i)
+            st = cssrt_attrends_i;
+        else
+            st = cssrt_attrends;
+    }
+    else if (*str=='*' && str[1]=='=')
+    {
+        str+=2;
+        parse_trailing_i = true;
+        if (!parse_attr_value( str, attrvalue, parse_trailing_i))
+            return NULL;
+        if (parse_trailing_i)
+            st = cssrt_attrcontains_i;
+        else
+            st = cssrt_attrcontains;
     }
     else
     {
@@ -2757,6 +2886,9 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     }
     LVCssSelectorRule * rule = new LVCssSelectorRule(st);
     lString16 s( attrvalue );
+    if (parse_trailing_i) { // cssrt_attr*_i met
+        s.lowercase();
+    }
     lUInt16 id = doc->getAttrNameIndex( lString16(attrname).c_str() );
     rule->setAttr(id, s);
     return rule;
