@@ -291,17 +291,23 @@ public:
         // displayed on different pages (althought it seems crengine
         // deals with displaying the cut line fully at start of
         // next page).
-        // Note: this was not tested with footnotes. We don't take
-        // footnotes into account here, so hopefully they would be
-        // displayed with the last slice of an overflowed 'line'.
+        // we don't take the current footnotes height into account
+        // here to get the maximum vertical space for this line (to
+        // avoid more splits if we were to display the accumulated
+        // footnotes with the first slice). They will be displayed
+        // on the page with the last slice of the overflowed 'line'.
 
-        int slice_start = line->getStart();
+        // If we have a previous pagestart (which will be 'line' if
+        // we are called following a StartPage(line), take it as
+        // part of the first slice
+        int slice_start = pagestart ? pagestart->getStart() : line->getStart();
         #ifdef DEBUG_PAGESPLIT
             if (line->getEnd() - slice_start > page_h) {
                 printf("PS:     line overflows page: %d > %d\n",
                     line->getEnd() - slice_start, page_h);
             }
         #endif
+        bool did_slice = false;
         while (line->getEnd() - slice_start > page_h) {
             // Greater than page height: we need to cut
             LVRendPageInfo * page = new LVRendPageInfo(slice_start, page_h, page_list->length());
@@ -314,8 +320,9 @@ public:
             lastpageend = slice_start;
             last = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
             pageend = last;
+            did_slice = true;
         }
-        if (slice_start != line->getStart()) {
+        if (did_slice) {
             // We did cut slices: we made a virtual 'line' with the last slice,
             // and as it fits on a page, use it at start of next page, to
             // possibly have other lines added after it on this page.
@@ -369,7 +376,12 @@ public:
             //bool flgFit = currentHeight( next ? next : line ) <= page_h;
             bool flgFit = currentHeight( line ) <= page_h;
 
-            if (!flgFit && flgSplit==RN_SPLIT_AVOID && pageend && next) {
+            if (!flgFit && flgSplit==RN_SPLIT_AVOID && pageend && next
+                        && line->getHeight() <= page_h) {
+                        // (But not if the line itself is taller than page height
+                        // and would be split again: keeping it on current page
+                        // (with its preceeding line) may prevent some additional
+                        // splits.)
                 #ifdef DEBUG_PAGESPLIT
                     printf("PS:   does not fit but split avoid\n");
                 #endif
@@ -404,7 +416,13 @@ public:
                 //       the 'if (!flgFit)' in spite of RN_SPLIT_AVOID.
             }
 
-            if (!flgFit) {
+            if (!flgFit && line->getHeight() > page_h) {
+                // If it doesn't fit and if the line itself is taller than
+                // page height and would be split again, keep it on current
+                // page to possibly avoid additional splits.
+                SplitLineIfOverflowPage(line); // may update 'last'
+            }
+            else if (!flgFit) {
                 #ifdef DEBUG_PAGESPLIT
                     printf("PS:   does not fit but split ");
                     if (flgSplit==RN_SPLIT_AUTO) { printf("is allowed\n"); }
