@@ -2226,9 +2226,10 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // render the marker if any, and continue rendering text on same line
         // Rendering hack: we do that too when list-style-position = outside AND text-align "right"
         // or "center", as this will draw the marker at the near left of the text (otherwise,
-        // the marker would be drawn on the far left of the whole available width, which is ugly.
+        // the marker would be drawn on the far left of the whole available width, which is
+        // ugly) - but we don't draw anything when list-style-type=none.
         if ( style->display == css_d_list_item_block && ( style->list_style_position == css_lsp_inside ||
-                (style->list_style_position == css_lsp_outside &&
+                (style->list_style_position == css_lsp_outside && style->list_style_type != css_lst_none &&
                     (style->text_align == css_ta_center || style->text_align == css_ta_right)) ) ) {
             // list_item_block rendered as final (containing only text and inline elements)
             int marker_width;
@@ -3079,12 +3080,13 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                             // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
                             list_marker_padding = list_marker_width;
                         }
-                        else {
+                        else if ( enode->getStyle()->list_style_type != css_lst_none ) {
                             // When list_style_position = inside, we need to let renderFinalBlock()
                             // know there is a marker to prepend when rendering the first of our
                             // children (or grand-children, depth first) that is erm_final
                             // (caveat: the marker will not be shown if any of the first children
                             // is erm_invisible)
+                            // (No need to do anything when  list-style-type none.)
                             ldomNode * tmpnode = enode;
                             while ( tmpnode->hasChildren() ) {
                                 tmpnode = tmpnode->getChildNode( 0 );
@@ -4698,6 +4700,11 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 // (same hack as in rendering code: we render 'outside' just
                 // like 'inside' when center or right aligned)
                 list_marker_width_as_padding = true;
+            }
+            else if ( node->getStyle()->list_style_type == css_lst_none ) {
+                // When css_lsp_inside, or with that hack when outside & center/right,
+                // no space should be used if list-style-type: none.
+                list_marker_width = 0;
             }
         }
 
