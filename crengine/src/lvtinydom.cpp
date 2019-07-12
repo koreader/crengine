@@ -12365,7 +12365,10 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
         marker = L"\x25A0";
         break;
     case css_lst_none:
-        marker = L"\x0020";
+        // When css_lsp_inside, no space is used by the invisible marker
+        if ( s->list_style_position != css_lsp_inside ) {
+            marker = L"\x0020";
+        }
         break;
     case css_lst_decimal:
     case css_lst_lower_roman:
