@@ -31,6 +31,8 @@ XS_BEGIN_TAGS
 
 // Internal element for block rendering
 XS_TAG1T( autoBoxing )
+// Internal element for float rendering
+XS_TAG1T( floatBox )
 // Internal element for EPUB, containing each individual HTML file
 XS_TAG1( DocFragment )
 

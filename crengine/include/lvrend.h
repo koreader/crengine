@@ -36,6 +36,8 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int
 int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit, int & fitted_width );
 /// sets node style
 void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font );
+/// copy style
+void copystyle( css_style_ref_t sourcestyle, css_style_ref_t deststyle );
 
 /// draws formatted document to drawing buffer
 void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx, int dy, int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,

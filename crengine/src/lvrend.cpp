@@ -1845,22 +1845,31 @@ void SplitLines( const lString16 & str, lString16Collection & lines )
 lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormattedText * txform, int line_h, int flags ) {
     lString16 marker;
     marker_width = 0;
-    ListNumberingPropsRef listProps =  enode->getDocument()->getNodeNumberingProps( enode->getParentNode()->getDataIndex() );
+    ldomNode * parent = enode->getParentNode();
+    // The UL > LI parent-child chain may have had a floatBox element
+    // inserted if the LI has some float: style (also handled below
+    // when walking this parent's children).
+    if ( parent->getNodeId() == el_floatBox ) {
+        parent = parent->getParentNode();
+    }
+    ListNumberingPropsRef listProps =  enode->getDocument()->getNodeNumberingProps( parent->getDataIndex() );
     if ( listProps.isNull() ) { // no previously cached info: compute and cache it
         int counterValue = 0;
-        ldomNode * parent = enode->getParentNode();
         int maxWidth = 0;
         for ( int i=0; i<parent->getChildCount(); i++ ) {
             lString16 marker;
             int markerWidth = 0;
             ldomNode * child = parent->getChildElementNode(i);
+            if ( child->getNodeId() == el_floatBox ) {
+                child = child->getChildNode(0);
+            }
             if ( child && child->getNodeListMarker( counterValue, marker, markerWidth ) ) {
                 if ( markerWidth>maxWidth )
                     maxWidth = markerWidth;
             }
         }
         listProps = ListNumberingPropsRef( new ListNumberingProps(counterValue, maxWidth) );
-        enode->getDocument()->setNodeNumberingProps( enode->getParentNode()->getDataIndex(), listProps );
+        enode->getDocument()->setNodeNumberingProps( parent->getDataIndex(), listProps );
     }
     int counterValue = 0;
     if ( enode->getNodeListMarker( counterValue, marker, marker_width ) ) {
@@ -4335,6 +4344,73 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                 decl.apply( pstyle );
             }
         }
+    }
+
+    if ( BLOCK_RENDERING_G(PREPARE_FLOATBOXES) ) {
+        // https://developer.mozilla.org/en-US/docs/Web/CSS/float
+        //  As float implies the use of the block layout, it modifies the computed value
+        //  of the display values, in some cases: [...]
+        // Mostly everything becomes display: block
+        // As we use tests like node->getStyle()->display == css_d_block in a few places,
+        // it's easier to change it here than add tests for getStyle()->float_ in these
+        // places.
+        // (This may not have much effect, as it may get ignored in initNodeRendMethod()
+        // when !FLOAT_FLOATBOXES)
+        // At the time setNodeStyle() is called, this can only happen on an original
+        // element with float:, and not on a wrapping floatBox element which is either
+        // not there yet (or just added, which will be handled by next 'if'), or has
+        // not yet got its float_ from its child. So the ->display of the floatBox
+        // element will have to be updated too elsewhere.
+        if ( pstyle->float_ == css_f_left || pstyle->float_ == css_f_right ) {
+            if ( pstyle->display == css_d_inline ) {
+                pstyle->display = css_d_block;
+            }
+        }
+    }
+    if ( BLOCK_RENDERING_G(WRAP_FLOATS) ) {
+        if ( enode->getNodeId() == el_floatBox ) {
+            // floatBox added, by initNodeRendMethod(), as a wrapper around
+            // element with float:.
+            // We want to set the floatBox->style->float_ to the same value
+            // as the wrapped original node.
+            // We are either called explicitely (by initNodeRendMethod) while
+            // the XML is being loaded, where the el_floatBox has just been
+            // created - or on re-rendering when the el_floatBox is already there.
+            // In the XML loading case, the child styles have already been applied,
+            // so we can trust the child properties.
+            // In the re-rendering case, the child styles have been reset and have
+            // not yet been computed, so we can't apply it. This will be fixed
+            // by initNodeRendMethod() when processing the nodes deep-first and
+            // up the DOM tree, after the styles have been applied.
+            if (enode->getChildCount() == 1) {
+                ldomNode * child = enode->getChildNode(0);
+                css_style_ref_t child_style = child->getStyle();
+                if ( ! child_style.isNull() ) { // Initial XML loading phase
+                    // This child_style is only non-null on the initial XML loading.
+                    // We do as in ldomNode::initNodeRendMethod() when the floatBox
+                    // is already there (on re-renderings):
+                    pstyle->float_ = child_style->float_;
+                    if (child_style->display == css_d_inline) { // when !PREPARE_FLOATBOXES
+                        pstyle->display = css_d_inline; // become an inline wrapper
+                    }
+                    else if (child_style->display == css_d_none) {
+                        pstyle->display = css_d_none; // stay invisible
+                    }
+                    else { // everything else (including tables) must be wrapped by a block
+                        pstyle->display = css_d_block;
+                    }
+                }
+                // Else (child_style non-null), it's a re-rendering: nothing special
+                // to do, this will be dealt with later by initNodeRendMethod().
+            }
+        }
+    }
+    else { // legacy rendering or enhanced with no float support
+        // Cancel any float value set from stylesheets:
+        // this should be enough to trigger a displayhash mismatch
+        // and a popup inviting the user to reload, to get rid of
+        // floatBox elements.
+        pstyle->float_ = css_f_none;
     }
 
     // update inherited style attributes
