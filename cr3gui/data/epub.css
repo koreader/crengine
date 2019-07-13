@@ -18,18 +18,20 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 0.7em;
     margin-bottom: 0.5em;
     font-weight: bold;
-    text-align: center;
     text-indent: 0;
     hyphens: none;
-}
-h1, h2, h3 {
-    page-break-before: always;
     page-break-inside: avoid;
     page-break-after: avoid;
 }
-h4, h5, h6 {
-    page-break-inside: avoid;
-    page-break-after: avoid;
+/* Don't break page on headings in EPUBs: publishers may not expect it,
+ * as most EPUB renderers only break page on a new DocFragment. */
+h1 {
+    -cr-only-if: -epub-document; /* only if NOT EPUB document */
+        page-break-before: always;
+}
+h2, h3 {
+    -cr-only-if: legacy -epub-document;
+        page-break-before: always;
 }
 h1 { font-size: 150%; }
 h2 { font-size: 140%; }
@@ -39,7 +41,6 @@ h5 { font-size: 110%; }
 
 /* Block elements */
 p {
-    text-align: justify;
     text-indent: 1.2em;
     margin-top: 0;
     margin-bottom: 0;
@@ -90,7 +91,7 @@ dd {
 /* Tables */
 table {
     font-size: 80%;
-    margin: 3px;
+    margin: 3px 0;
 }
 table table { /* stop imbricated tables from getting smaller */
     font-size: 100%;
@@ -144,6 +145,15 @@ nobr {
 empty-line {
     height: 1em;
 }
+
+/* Attributes that make some elements float or clear */
+br[clear=all i], br[clear=both i]   { clear: both; }
+br[clear=left i]     { clear: left; }
+br[clear=right i]    { clear: right; }
+img[align=left i]    { float: left; }
+img[align=right i]   { float: right; }
+table[align=left i]  { float: left; }
+table[align=right i] { float: right; }
 
 
 /* Old element or className based selectors involving display: that

@@ -80,7 +80,7 @@ private:
 public:
     void apply( css_style_rec_t * style );
     bool empty() { return _data==NULL; }
-    bool parse( const char * & decl, bool higher_importance=false );
+    bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL );
     lUInt32 getHash();
     LVCssDeclaration() : _data(NULL) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
