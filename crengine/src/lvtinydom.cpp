@@ -6363,11 +6363,13 @@ bool ldomXPointer::isFinalNode() const
 ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool strictBounds )
 {
     //
+    lvPoint orig_pt = lvPoint(pt);
     ldomXPointer ptr;
     if ( !getRootNode() )
         return ptr;
     ldomNode * finalNode = getRootNode()->elementFromPoint( pt, direction );
     if ( !finalNode ) {
+        // No node found, return start or end of document if pt overflows it, otherwise NULL
         if ( pt.y >= getFullHeight()) {
             ldomNode * node = getRootNode()->getLastTextChild();
             return ldomXPointer(node,node ? node->getText().length() : 0);
@@ -6378,38 +6380,109 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         CRLog::trace("not final node");
         return ptr;
     }
-    lvRect rc;
-    finalNode->getAbsRect( rc );
-    //CRLog::debug("ldomDocument::createXPointer point = (%d, %d), finalNode %08X rect = (%d,%d,%d,%d)", pt.x, pt.y, (lUInt32)finalNode, rc.left, rc.top, rc.right, rc.bottom );
-    pt.x -= rc.left+measureBorder(finalNode,3)+lengthToPx(finalNode->getStyle()->padding[0],rc.width(),finalNode->getFont()->getSize());//
-    pt.y -= rc.top+measureBorder(finalNode,0)+lengthToPx(finalNode->getStyle()->padding[2],rc.height(),finalNode->getFont()->getSize());//add offset for borders,paddings
-    //if ( !r )
-    //    return ptr;
-    if ( finalNode->getRendMethod() != erm_final && finalNode->getRendMethod() != erm_list_item && finalNode->getRendMethod() != erm_table_caption ) {
-        // not final, use as is
+    // printf("finalNode %s\n", UnicodeToLocal(ldomXPointer(finalNode, 0).toString()).c_str());
+
+    lvdom_element_render_method rm = finalNode->getRendMethod();
+    if ( rm != erm_final && rm != erm_list_item && rm != erm_table_caption ) {
+        // Not final, return XPointer to first or last child
+        lvRect rc;
+        finalNode->getAbsRect( rc );
         if ( pt.y < (rc.bottom + rc.top) / 2 )
             return ldomXPointer( finalNode, 0 );
         else
             return ldomXPointer( finalNode, finalNode->getChildCount() );
     }
-    // final, format and search
+
+    // Final node found
+    // Adjust pt in coordinates of the FormattedText
+    RenderRectAccessor fmt( finalNode );
+    lvRect rc;
+    // When in enhanced rendering mode, we can get the FormattedText coordinates
+    // and its width (inner_width) directly
+    finalNode->getAbsRect( rc, true ); // inner=true
+    pt.x -= rc.left;
+    pt.y -= rc.top;
+    int inner_width;
+    if ( RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) {
+        inner_width = fmt.getInnerWidth();
+    }
+    else {
+        // In legacy mode, we just got the erm_final coordinates, and we must
+        // compute and remove left/top border and padding (using rc.width() as
+        // the base for % is wrong here, and so is rc.height() for padding top)
+        int em = finalNode->getFont()->getSize();
+        int padding_left = measureBorder(finalNode,3)+lengthToPx(finalNode->getStyle()->padding[0],rc.width(),em);
+        int padding_right = measureBorder(finalNode,1)+lengthToPx(finalNode->getStyle()->padding[1],rc.width(),em);
+        int padding_top = measureBorder(finalNode,0)+lengthToPx(finalNode->getStyle()->padding[2],rc.height(),em);
+        pt.x -= padding_left;
+        pt.y -= padding_top;
+        // As well as the inner width
+        inner_width  = fmt.getWidth() - padding_left - padding_right;
+    }
+
+    // Get the formatted text, so we can look for 'pt' line by line, word by word,
+    // (and embedded float by embedded float if there are some).
     LFormattedTextRef txtform;
     {
-        RenderRectAccessor r( finalNode );
-        finalNode->renderFinalBlock( txtform, &r, r.getWidth() -measureBorder(finalNode,1)-measureBorder(finalNode,3)
-        -lengthToPx(finalNode->getStyle()->padding[0],rc.width(),finalNode->getFont()->getSize())
-        -lengthToPx(finalNode->getStyle()->padding[1],rc.width(),finalNode->getFont()->getSize()));
+        // This will possibly return it from CVRendBlockCache
+        finalNode->renderFinalBlock( txtform, &fmt, inner_width );
     }
+
+    // First, look if pt happens to be in some float
+    // (this may not work with floats with negative margins)
+    int fcount = txtform->GetFloatCount();
+    for (int f=0; f<fcount; f++) {
+        const embedded_float_t * flt = txtform->GetFloatInfo(f);
+        // Ignore fake floats (no srctext) made from outer floats footprint
+        if ( flt->srctext == NULL )
+            continue;
+        if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + flt->height ) {
+            // pt is inside this float.
+            // This node is not a final node, we need to find the right final node
+            ldomNode * floatNode = (ldomNode *) flt->srctext->object;
+            finalNode = floatNode->elementFromPoint( pt, direction );
+            // printf("float finaleNode %s\n", UnicodeToLocal(ldomXPointer(finalNode, 0).toString()).c_str());
+            if ( finalNode ) { // found it
+                lvdom_element_render_method rm = finalNode->getRendMethod();
+                if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
+                    // We just update the local variables created above and used below,
+                    // with similar code as above (but no need for the legacy way, as
+                    // we don't get float in legacy rendering).
+                    finalNode->getAbsRect( rc, true ); // inner = true
+                    pt = orig_pt; // re-set to the original one, as we're back in absolute coordinates
+                    pt.x -= rc.left;
+                    pt.y -= rc.top;
+                    fmt = RenderRectAccessor( finalNode );
+                    if ( RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) {
+                        inner_width = fmt.getInnerWidth();
+                    }
+                    else { // should not happen, but fallback to rc width
+                        inner_width = rc.width();
+                    }
+                    finalNode->renderFinalBlock( txtform, &fmt, inner_width );
+                    break; // go on looking at words in this new txtform
+                }
+            }
+        }
+        // If no containing float, or no inner final node found in it,
+        // go on looking at the text of the original final node
+    }
+
+    // Look at words in the rendered final node (whether it's the original
+    // main final node, or the one found in a float)
     int lcount = txtform->GetLineCount();
     for ( int l = 0; l<lcount; l++ ) {
         const formatted_line_t * frmline = txtform->GetLineInfo(l);
         if ( pt.y >= (int)(frmline->y + frmline->height) && l<lcount-1 )
             continue;
-        //CRLog::debug("  point (%d, %d) line found [%d]: (%d..%d)", pt.x, pt.y, l, frmline->y, frmline->y+frmline->height);
-        // found line, searching for word
+        // CRLog::debug("  point (%d, %d) line found [%d]: (%d..%d)",
+        //      pt.x, pt.y, l, frmline->y, frmline->y+frmline->height);
+
+        // Found line, searching for word
         int wc = (int)frmline->word_count;
         int x = pt.x - frmline->x;
-        // frmline->x is text indentation (+ possibly some margin)
+        // frmline->x is text indentation (+ possibly leading space if text
+        // centered or right aligned)
         if (strictBounds) {
             if (x < 0 || x > frmline->width) { // pt is before or after formatted text: nothing there
                 return ptr;
@@ -6419,21 +6492,25 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             const formatted_word_t * word = &frmline->words[w];
             if ( x < word->x + word->width || w==wc-1 ) {
                 const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
-                //CRLog::debug(" word found [%d]: x=%d..%d, start=%d, len=%d  %08X", w, word->x, word->x + word->width, word->t.start, word->t.len, src->object);
-                // found word, searching for letters
+                // CRLog::debug(" word found [%d]: x=%d..%d, start=%d, len=%d  %08X",
+                //      w, word->x, word->x + word->width, word->t.start, word->t.len, src->object);
+
                 ldomNode * node = (ldomNode *)src->object;
-                if ( !node )
+                if ( !node ) // Ignore crengine added text (spacing, list item bullets...)
                     continue;
+
                 if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
-                    // object (image)
-#if 1
+                    // Object (image)
+                    #if 1
                     // return image object itself
                     return ldomXPointer(node, 0);
-#else
+                    #else
                     return ldomXPointer( node->getParentNode(),
                         node->getNodeIndex() + (( x < word->x + word->width/2 ) ? 0 : 1) );
-#endif
+                    #endif
                 }
+
+                // Found word, searching for letters
                 LVFont * font = (LVFont *) src->t.font;
                 lUInt16 width[512];
                 lUInt8 flg[512];
@@ -6508,7 +6585,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
     for ( ; p; p = p->getParentNode() ) {
         int rm = p->getRendMethod();
         if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
-            finalNode = p; // found final block
+            // With floats, we may get multiple erm_final when walking up
+            // to root node: keep the first one met (but go on up to the
+            // root node in case we're in some upper erm_invisible).
+            if (!finalNode)
+                finalNode = p; // found final block
         } else if ( p->getRendMethod() == erm_invisible ) {
             return false; // invisible !!!
         }
@@ -6524,36 +6605,47 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
 
     if ( finalNode!=NULL ) {
         lvRect rc;
-        finalNode->getAbsRect( rc );
+        finalNode->getAbsRect( rc, extended ); // inner=true if extended=true
         if (rc.height() == 0 && rc.width() > 0) {
             rect = rc;
             rect.bottom++;
             return true;
         }
-        RenderRectAccessor r( finalNode );
-        //if ( !r )
+        RenderRectAccessor fmt( finalNode );
+        //if ( !fmt )
         //    return false;
+
+        // When in enhanced rendering mode, we can get the FormattedText coordinates
+        // and its width (inner_width) directly
+        int inner_width;
+        int shift_x;
+        int shift_y;
+        if ( RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) {
+            inner_width = fmt.getInnerWidth();
+            // if extended=true, we got directly the adjusted rc.top and rc.left
+        }
+        else {
+            // In legacy mode, we just got the erm_final coordinates, and we must
+            // compute and remove left/top border and padding (using rc.width() as
+            // the base for % is wrong here)
+            int em = finalNode->getFont()->getSize();
+            int padding_left = measureBorder(finalNode,3) + lengthToPx(finalNode->getStyle()->padding[0], rc.width(), em);
+            int padding_right = measureBorder(finalNode,1) + lengthToPx(finalNode->getStyle()->padding[1], rc.width(), em);
+            inner_width  = fmt.getWidth() - padding_left - padding_right;
+            if (extended) {
+                int padding_top = measureBorder(finalNode,0) + lengthToPx(finalNode->getStyle()->padding[2], rc.width(), em);
+                rc.top += padding_top;
+                rc.left += padding_left;
+                // rc.right += padding_left; // wrong, but not used
+                // rc.bottom += padding_top; // wrong, but not used
+            }
+        }
+
+        // Get the formatted text, so we can look where in it is this XPointer
         LFormattedTextRef txtform;
-        finalNode->renderFinalBlock(
-             txtform,
-             &r,
-             r.getWidth()
-                -measureBorder(finalNode,1)
-                -measureBorder(finalNode,3)
-                -lengthToPx(finalNode->getStyle()->padding[0],
-                            rc.width(),
-                            finalNode->getFont()->getSize())
-                -lengthToPx(finalNode->getStyle()->padding[1],
-                            rc.width(),
-                            finalNode->getFont()->getSize()));
+        finalNode->renderFinalBlock( txtform, &fmt, inner_width );
 
         ldomNode *node = getNode();
-        if (extended) {
-            rc.top+=measureBorder(finalNode,0)+lengthToPx(finalNode->getStyle()->padding[2],r.getWidth(),finalNode->getFont()->getSize());
-            rc.left+=measureBorder(finalNode,3)+lengthToPx(finalNode->getStyle()->padding[0],r.getWidth(),finalNode->getFont()->getSize());
-            rc.right+=measureBorder(finalNode,3)+lengthToPx(finalNode->getStyle()->padding[0],r.getWidth(),finalNode->getFont()->getSize());
-            rc.bottom+=measureBorder(finalNode,0)+lengthToPx(finalNode->getStyle()->padding[2],r.getWidth(),finalNode->getFont()->getSize());
-        }
         int offset = getOffset();
 ////        ldomXPointerEx xp(node, offset);
 ////        if ( !node->isText() ) {
@@ -6598,6 +6690,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
         ldomXPointerEx xp(node, offset);
         for ( int i=0; i<txtform->GetSrcCount(); i++ ) {
             const src_text_fragment_t * src = txtform->GetSrcInfo(i);
+            if ( src->flags & LTEXT_SRC_IS_FLOAT ) // skip floats
+                continue;
             bool isObject = (src->flags&LTEXT_SRC_IS_OBJECT)!=0;
             if ( src->object == node ) {
                 srcIndex = i;
@@ -7717,21 +7811,35 @@ bool ldomXRange::getRectEx( lvRect & rect, bool & isSingleLine )
     // get start and end rects
     lvRect rc1;
     lvRect rc2;
-    if ( !getStart().getRect(rc1) || !getEnd().getRect(rc2) )
+    // inner=true if enhanced rendering, to directly get the inner coordinates,
+    // so no need to compute paddings (as done below for legacy rendering)
+    if ( !getStart().getRect(rc1, true) || !getEnd().getRect(rc2, true) )
         return false;
-    ldomNode *finalNode1,*finalNode2;
-    finalNode1=getStart().getFinalNode();
-    finalNode2=getEnd().getFinalNode();
-    RenderRectAccessor r1(finalNode1);
-    RenderRectAccessor r2(finalNode2);
-    rc1.top+=measureBorder(finalNode1,0)+lengthToPx(finalNode1->getStyle()->padding[2],r1.getWidth(),finalNode1->getFont()->getSize());
-    rc1.left+=measureBorder(finalNode1,3)+lengthToPx(finalNode1->getStyle()->padding[0],r1.getWidth(),finalNode1->getFont()->getSize());
-    rc1.right+=measureBorder(finalNode1,3)+lengthToPx(finalNode1->getStyle()->padding[0],r1.getWidth(),finalNode1->getFont()->getSize());
-    rc1.bottom+=measureBorder(finalNode1,0)+lengthToPx(finalNode1->getStyle()->padding[2],r1.getWidth(),finalNode1->getFont()->getSize());
-    rc2.top+=measureBorder(finalNode2,0)+lengthToPx(finalNode2->getStyle()->padding[2],r2.getWidth(),finalNode2->getFont()->getSize());
-    rc2.left+=measureBorder(finalNode2,3)+lengthToPx(finalNode2->getStyle()->padding[0],r2.getWidth(),finalNode2->getFont()->getSize());
-    rc2.right+=measureBorder(finalNode2,3)+lengthToPx(finalNode2->getStyle()->padding[0],r2.getWidth(),finalNode2->getFont()->getSize());
-    rc2.bottom+=measureBorder(finalNode2,0)+lengthToPx(finalNode2->getStyle()->padding[2],r2.getWidth(),finalNode2->getFont()->getSize());
+    ldomNode * finalNode1 = getStart().getFinalNode();
+    ldomNode * finalNode2 = getEnd().getFinalNode();
+    RenderRectAccessor fmt1(finalNode1);
+    RenderRectAccessor fmt2(finalNode2);
+    // In legacy mode, we just got the erm_final coordinates, and we must
+    // compute and add left/top border and padding (using rc.width() as
+    // the base for % is wrong here, and so is rc.height() for padding top)
+    if ( ! RENDER_RECT_HAS_FLAG(fmt1, INNER_FIELDS_SET) ) {
+        int em = finalNode1->getFont()->getSize();
+        int padding_left = measureBorder(finalNode1,3) + lengthToPx(finalNode1->getStyle()->padding[0], fmt1.getWidth(), em);
+        int padding_top = measureBorder(finalNode1,0) + lengthToPx(finalNode1->getStyle()->padding[2], fmt1.getWidth(), em);
+        rc1.top += padding_top;
+        rc1.left += padding_left;
+        rc1.right += padding_left;
+        rc1.bottom += padding_top;
+    }
+    if ( ! RENDER_RECT_HAS_FLAG(fmt2, INNER_FIELDS_SET) ) {
+        int em = finalNode2->getFont()->getSize();
+        int padding_left = measureBorder(finalNode2,3) + lengthToPx(finalNode2->getStyle()->padding[0], fmt2.getWidth(), em);
+        int padding_top = measureBorder(finalNode2,0) + lengthToPx(finalNode2->getStyle()->padding[2], fmt2.getWidth(), em);
+        rc2.top += padding_top;
+        rc2.left += padding_left;
+        rc2.right += padding_left;
+        rc2.bottom += padding_top;
+    }
     if ( rc1.top == rc2.top && rc1.bottom == rc2.bottom ) {
         // on same line
         rect.left = rc1.left;
@@ -12846,6 +12954,7 @@ ldomNode * ldomNode::getLastTextChild()
     return NULL;
 }
 
+
 #if BUILD_LITE!=1
 /// find node by coordinates of point in formatted document
 ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
@@ -12860,23 +12969,92 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
     }
     RenderRectAccessor fmt( this );
 
-    // Styles margins set on <TR>, <THEAD> and the like are ignored
-    // by table layout algorithm (as per CSS specs)
-    bool ignore_margins = ( rm == erm_table_row || rm == erm_table_row_group ||
-                            rm == erm_table_header_group || rm == erm_table_footer_group );
+    if ( BLOCK_RENDERING_G(ENHANCED) ) {
+        // In enhanced rendering mode, because of collpasing of vertical margins
+        // and the fact that we did not update style margins to their computed
+        // values, a children box with margins can overlap its parent box, if
+        // the child bigger margin collapsed with the parent smaller margin.
+        // So, if we ignore the margins, there can be holes along the vertical
+        // axis (these holes are the collapsed margins). But the content boxes
+        // (without margins) don't overlap.
+        if ( direction>=0 ) {
+            // We get the parent node's children in ascending order
+            // It could just be:
+            //   if ( pt.y >= fmt.getY() + fmt.getHeight() ) {
+            //       // Box fully before pt.y: not a candidate, next one may be
+            //       return NULL;
+            // but, because of possible floats overflowing their container element,
+            // and we want to check if pt is inside any of them, we directly
+            // check with bottom overflow included (just to avoid 2 tests
+            // in the most common case when there is no overflow).
+            if ( pt.y >= fmt.getY() + fmt.getHeight() + fmt.getBottomOverflow() ) {
+                // Box (with overflow) fully before pt.y: not a candidate, next one may be
+                return NULL;
+            }
+            if ( pt.y >= fmt.getY() + fmt.getHeight() ) { // pt.y is inside the box bottom overflow
+                // Get back absolute coordinates of pt
+                lvRect rc;
+                getParentNode()->getAbsRect( rc );
+                lvPoint pt0 = lvPoint(rc.left+pt.x, rc.top+pt.y );
+                // Check each of this element's children if pt is inside it (so, we'll
+                // go by here for each of them that has some overflow too, and that
+                // contributed to making this element's overflow.)
+                int count = getChildCount();
+                for ( int i=0; i<count; i++ ) {
+                    ldomNode * p = getChildNode( i );
+                    // Find an inner erm_final element that has pt in it: for now, it can
+                    // only be a float. Use direction=0 to really check for x boundaries.
+                    ldomNode * e = p->elementFromPoint( lvPoint(pt.x-fmt.getX(), pt.y-fmt.getY()), 0 );
+                    if ( e ) {
+                        // Just to be sure, as elementFromPoint() may be a bit fuzzy in its
+                        // checks, double check that pt is really inside that e rect.
+                        lvRect erc;
+                        e->getAbsRect( erc );
+                        if ( erc.isPointInside(pt0) ) {
+                            return e; // return this inner erm_final
+                        }
+                    }
+                }
+                return NULL; // Nothing found in the overflow
+            }
+            // pt.y is inside the box (without overflows), go on with it.
+            // Note: we don't check for next elements which may have a top
+            // overflow and have pt.y inside it, because it would be a bit
+            // more twisted here, and it's less common that floats overflow
+            // their container's top (they need to have negative margins).
+        }
+        else {
+            // We get the parent node's children in descending order
+            if ( pt.y < fmt.getY() ) {
+                // Box fully before pt.y: not a candidate, next one may be
+                return NULL;
+            }
+        }
+    }
+    else {
+        // In legacy rendering mode, all boxes (with their margins added) touch
+        // each other, and the boxes of children are fully contained (with
+        // their margins added) in their parent box.
 
-    int top_margin = ignore_margins ? 0 : lengthToPx(enode->getStyle()->margin[2], fmt.getWidth(), enode->getFont()->getSize());
-    if ( pt.y < fmt.getY() - top_margin) {
-        if ( direction>0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
-            return this;
-        return NULL;
+        // Styles margins set on <TR>, <THEAD> and the like are ignored
+        // by table layout algorithm (as per CSS specs)
+        bool ignore_margins = ( rm == erm_table_row || rm == erm_table_row_group ||
+                                rm == erm_table_header_group || rm == erm_table_footer_group );
+
+        int top_margin = ignore_margins ? 0 : lengthToPx(enode->getStyle()->margin[2], fmt.getWidth(), enode->getFont()->getSize());
+        if ( pt.y < fmt.getY() - top_margin) {
+            if ( direction>0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
+                return this;
+            return NULL;
+        }
+        int bottom_margin = ignore_margins ? 0 : lengthToPx(enode->getStyle()->margin[3], fmt.getWidth(), enode->getFont()->getSize());
+        if ( pt.y >= fmt.getY() + fmt.getHeight() + bottom_margin ) {
+            if ( direction<0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
+                return this;
+            return NULL;
+        }
     }
-    int bottom_margin = ignore_margins ? 0 : lengthToPx(enode->getStyle()->margin[3], fmt.getWidth(), enode->getFont()->getSize());
-    if ( pt.y >= fmt.getY() + fmt.getHeight() + bottom_margin ) {
-        if ( direction<0 && (rm == erm_final || rm == erm_list_item || rm == erm_table_caption) )
-            return this;
-        return NULL;
-    }
+
     if (!direction && pt.x != 0) {
         // We shouldn't do the following if we are given a direction
         // (full text search) as we may get locked on some page.
@@ -12892,10 +13070,19 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
         if ( pt.x >= fmt.getX() + fmt.getWidth() ) {
             return NULL;
         }
+        // But check x if we happen to be on a floating node (which,
+        // with float:right, can appear first in the DOM but be
+        // displayed at a higher x)
+        if ( pt.x < fmt.getX() && enode->isFloatingBox() ) {
+            return NULL;
+        }
     }
     if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
+        // Final node, that's what we looked for
         return this;
     }
+    // Not a final node, but a block container node that must contain
+    // the final node we look for: check its children.
     int count = getChildCount();
     if ( direction>=0 ) {
         for ( int i=0; i<count; i++ ) {
@@ -13867,6 +14054,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
 }
 
 /// formats final block again after change, returns true if size of block is changed
+/// (not used anywhere, not updated to use RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET)
 bool ldomNode::refreshFinalBlock()
 {
     ASSERT_NODE_NOT_NULL;
@@ -13881,8 +14069,8 @@ bool ldomNode::refreshFinalBlock()
     LFormattedTextRef txtform;
     int width = fmt.getWidth();
     renderFinalBlock( txtform, &fmt, width-measureBorder(this,1)-measureBorder(this,3)
-                                                                 -lengthToPx(this->getStyle()->padding[0],fmt.getWidth(),this->getFont()->getSize())
-                                                                 -lengthToPx(this->getStyle()->padding[1],fmt.getWidth(),this->getFont()->getSize()));
+         -lengthToPx(this->getStyle()->padding[0],fmt.getWidth(),this->getFont()->getSize())
+         -lengthToPx(this->getStyle()->padding[1],fmt.getWidth(),this->getFont()->getSize()));
     fmt.getRect( newRect );
     if ( oldRect == newRect )
         return false;

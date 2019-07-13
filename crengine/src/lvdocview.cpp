@@ -2548,21 +2548,41 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
     int height = end_y - start_y;
     if (height < 0)
         return res;
+    // Note: this may return a range that may not include some parts
+    // of the document that are actually displayed on that page, like
+    // floats that were in some HTML fragment of the previous page,
+    // but whose positionning has been shifted/delayed and ended up
+    // on this page (so, getCurrentPageLinks() may miss links from
+    // such floats).
+    // With floats, a page may actually show more than one range,
+    // not sure how to deal with that (return a range including all
+    // subranges, so possibly including stuff not shown on the page?)
     ldomXPointer start;
     ldomXPointer end;
     int start_h;
     for (start_h=0; start_h < height; start_h++) {
         start = m_doc->createXPointer(lvPoint(0, start_y + start_h), 1);
-        // printf("  start (%d): %s\n", start_h, UnicodeToLocal(start.toString()).c_str());
-        if (!start.isNull())
-            break; // we found our start of page xpointer
+        // printf("  start (%d=%d): %s\n", start_h, start_y + start_h, UnicodeToLocal(start.toString()).c_str());
+        if (!start.isNull()) {
+            // Check what we got is really in current page
+            lvPoint pt = start.toPoint();
+            // printf("start pt.y %d start_y %d end_y %d\n", pt.y, start_y, end_y);
+            if (pt.y >= start_y && pt.y <= end_y)
+                break; // we found our start of page xpointer
+        }
     }
     int end_h;
     for (end_h=height; end_h >= start_h; end_h--) {
-        end = m_doc->createXPointer(lvPoint(0, start_y + end_h), 1);
-        // printf("  end (%d): %s\n", end_h, UnicodeToLocal(end.toString()).c_str());
-        if (!end.isNull())
-            break; // we found our end of page xpointer
+        end = m_doc->createXPointer(lvPoint(GetWidth(), start_y + end_h), -1);
+                                // x=GetWidth() to get XPointer of end of line
+        // printf("  end (%d=%d): %s\n", end_h, start_y + end_h, UnicodeToLocal(end.toString()).c_str());
+        if (!end.isNull()) {
+            // Check what we got is really in current page
+            lvPoint pt = end.toPoint();
+            // printf("end pt.y %d start_y %d end_y %d\n", pt.y, start_y, end_y);
+            if (pt.y >= start_y && pt.y <= end_y)
+                break; // we found our end of page xpointer
+        }
     }
     if (start.isNull() || end.isNull())
         return res;
@@ -4672,17 +4692,40 @@ ldomXPointer LVDocView::getBookmark() {
 				// and increase y until we find a coherent one.
 				LVRendPageInfo * page = m_pages[_page];
 				bool found = false;
+				ldomXPointer fallback_ptr;
 				for (int y = page->start; y < page->start + page->height; y++) {
 					ptr = m_doc->createXPointer(lvPoint(0, y));
 					lvPoint pt = ptr.toPoint();
 					if (pt.y >= page->start) {
-						// valid, resolves back to same page
-						found = true;
-						break;
+						if (!fallback_ptr)
+							fallback_ptr = ptr;
+						if ( pt.y < page->start + page->height ) {
+							// valid, resolves back to same page
+							found = true;
+							break;
+						}
 					}
 				}
-				if (!found) // fallback to the one for page->start, even if not good
-					ptr = m_doc->createXPointer(lvPoint(0, page->start));
+				if (!found) {
+					// None looking forward resolved to that same page, we
+					// might find a better one looking backward (eg: when
+					// an element contains some floats that overflow its
+					// height) with direction=-1:
+					ptr = m_doc->createXPointer(lvPoint(0, page->start), -1);
+					lvPoint pt = ptr.toPoint();
+					if (pt.y >= page->start && pt.y < page->start + page->height ) {
+						found = true;
+					}
+				}
+				if (!found) {
+					if (!fallback_ptr.isNull()) {
+						ptr = fallback_ptr;
+					}
+					else {
+						// fallback to the one for page->start, even if not good
+						ptr = m_doc->createXPointer(lvPoint(0, page->start));
+					}
+				}
 			}
 		} else {
 			// ptr = m_doc->createXPointer(lvPoint(0, _pos));
