@@ -107,8 +107,9 @@ void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef pare
 void copystyle( css_style_ref_t sourcestyle, css_style_ref_t deststyle );
 
 /// draws formatted document to drawing buffer
-void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx, int dy, int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,
-                   ldomMarkedRangeList * bookmarks = NULL);
+void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx, int dy, int doc_x, int doc_y,
+                   int page_height, ldomMarkedRangeList * marks, ldomMarkedRangeList * bookmarks = NULL,
+                   bool draw_content=true, bool draw_background=true );
 
 // Estimate width of node when rendered:
 //   maxWidth: width if it would be rendered on an infinite width area

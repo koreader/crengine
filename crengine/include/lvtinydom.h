@@ -1945,7 +1945,8 @@ public:
     {
     }
     /// create bounded by RC list, with (0,0) coordinates at left top corner
-    ldomMarkedRangeList( const ldomMarkedRangeList * list, lvRect & rc );
+    // crop/discard elements outside of rc (or outside of crop_rc instead if provided)
+    ldomMarkedRangeList( const ldomMarkedRangeList * list, lvRect & rc, lvRect * crop_rc=NULL );
 };
 
 class ldomXRangeList : public LVPtrVector<ldomXRange>

@@ -6772,6 +6772,13 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                     position_y = 0;
             }
             LVDrawBuf *tmp = NULL;
+            // todo: fix this: with a background image set on body, or on
+            // a huge block element, this will create a super huge buffer
+            // (if body, the whole document or doc fragment height),
+            // and will draw the background image many many times on it,
+            // for, in the end, just draw a crop of that huge
+            // buffer on the single page height drawbuf...
+            // (10 seconds to draw a page on a 50 pages document on the emulator...)
             tmp = new LVColorDrawBuf(fmt.getWidth(), fmt.getHeight(), 32);
             for (int i = 0; i < repeat_times_x + 1; i++) {
                 for (int j = 0; j < repeat_times_y + 1; j++) {
@@ -6804,9 +6811,18 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
 //   doc_x is initially 0, and doc_y is set to a negative
 //   value (- page.start) from the y of the top of the page
 //   (in the whole book height) we want to start showing
-void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx, int dy, int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,
-                   ldomMarkedRangeList *bookmarks)
+void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx, int dy,
+                    int doc_x, int doc_y, int page_height, ldomMarkedRangeList * marks,
+                    ldomMarkedRangeList *bookmarks, bool draw_content, bool draw_background )
 {
+    // Because of possible floats overflowing their block container box, that could
+    // be drawn over the area of a next block, we may need to switch to two-steps drawing:
+    // - first draw only the background of all block nodes and their
+    //   children (excluding floats)
+    // - then draw the content (border, text, images) without the background, and
+    //   floats (with their background)
+    // There may still be some issue when main content, some block floats, and some
+    // embedded floats are mixed and some/all of them have backgrounds...
     if ( enode->isElement() )
     {
         RenderRectAccessor fmt( enode );
@@ -6816,20 +6832,28 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         // A few things differ when done for TR, THEAD, TBODY and TFOOT
         bool isTableRowLike = rm == erm_table_row || rm == erm_table_row_group ||
                               rm == erm_table_header_group || rm == erm_table_footer_group;
+
+        // Check if this node has content to be shown on viewport
         int height = fmt.getHeight();
-        if ( (doc_y + height <= 0 || doc_y > 0 + dy) && !isTableRowLike ) {
-            // TR may have cells with rowspan>1, and even though this TR
-            // is out of range, it must draw a rowspan>1 cell, so it it
-            // not empty when a next TR (not out of range) is drawn.
-            return; // out of range
+        int top_overflow = fmt.getTopOverflow();
+        int bottom_overflow = fmt.getBottomOverflow();
+        if ( (doc_y + height + bottom_overflow <= 0 || doc_y - top_overflow > 0 + dy) ) {
+            // We don't have to draw this node.
+            // Except TR which may have cells with rowspan>1, and even though
+            // this TR is out of range, it must draw a rowspan>1 cell, so it
+            // is not empty when a next TR (not out of range) is drawn (this
+            // makes drawing multi-pages table slow).
+            if ( !isTableRowLike ) {
+                return; // out of range
+            }
+            if ( BLOCK_RENDERING_G(ENHANCED) ) {
+                // But in enhanced mode, we have set bottom overflow on
+                // TR and table row groups, so we can trust them.
+                return; // out of range
+            }
         }
-        int em = enode->getFont()->getSize();
-        int width = fmt.getWidth();
-        bool draw_padding_bg = true; //( enode->getRendMethod()==erm_final );
-        int padding_left = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
-        int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
-        int padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
-        //int padding_bottom = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW;
+
+        // Check and draw background
         css_length_t bg = enode->getStyle()->background_color;
         lUInt32 oldColor = 0;
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
@@ -6838,28 +6862,43 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         // border spacing between cells does not have the bg color of the TR: only
         // cells have it).
         if ( bg.type==css_val_color && !isTableRowLike ) {
+            // Even if we don't draw/fill background, we may need to
+            // drawbuf.SetBackgroundColor() for the text to be correctly
+            // drawn over this background color
             oldColor = drawbuf.GetBackgroundColor();
             drawbuf.SetBackgroundColor( bg.value );
-            drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
+            if ( draw_background )
+                drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
         }
-        lString16 nodename=enode->getNodeName();    // CSS specific: <body> background does not obey margin rules
-        if (nodename.lowercase().compare("body")==0&&enode->getStyle()->background_image!=lString8(""))
-        {
-            int width=fmt.getWidth();
-            fmt.setWidth(drawbuf.GetWidth());
-            DrawBackgroundImage(enode,drawbuf,0,y0,0,doc_y,fmt);
-            fmt.setWidth(width);
+        if ( draw_background ) {
+            lString16 nodename=enode->getNodeName();    // CSS specific: <body> background does not obey margin rules
+            if (nodename.lowercase().compare("body")==0&&enode->getStyle()->background_image!=lString8(""))
+            {
+                int width=fmt.getWidth();
+                // todo: don't setWidth() here, just add params to
+                // DrawBackgroundImage(...width,height) and provide
+                // fmt.getWidth() and fmt.getHeight()
+                // Even, for BODY, we may even want to just remove the
+                // clip of drawbuf so it's not just drawn between page
+                // top and page bottom (which can be smaller than drabuf
+                // height) and fill top and bottom margins, like we do
+                // here for left and right margins.
+                fmt.setWidth(drawbuf.GetWidth());
+                DrawBackgroundImage(enode,drawbuf,0,y0,0,doc_y,fmt);
+                fmt.setWidth(width);
+            }
+            else  DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
         }
-        else  DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
-#if (DEBUG_TREE_DRAW!=0)
-        lUInt32 color;
-        static lUInt32 const colors2[] = { 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA };
-        static lUInt32 const colors4[] = { 0x555555, 0xFF4040, 0x40FF40, 0x4040FF, 0xAAAAAA, 0xFF8000, 0xC0C0C0, 0x808080 };
-        if (drawbuf.GetBitsPerPixel()>=16)
-            color = colors4[enode->getNodeLevel() & 7];
-        else
-            color = colors2[enode->getNodeLevel() & 7];
-#endif
+        #if (DEBUG_TREE_DRAW!=0)
+            lUInt32 color;
+            static lUInt32 const colors2[] = { 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA, 0x555555, 0xAAAAAA };
+            static lUInt32 const colors4[] = { 0x555555, 0xFF4040, 0x40FF40, 0x4040FF, 0xAAAAAA, 0xFF8000, 0xC0C0C0, 0x808080 };
+            if (drawbuf.GetBitsPerPixel()>=16)
+                color = colors4[enode->getNodeLevel() & 7];
+            else
+                color = colors2[enode->getNodeLevel() & 7];
+        #endif
+
         switch( enode->getRendMethod() )
         {
         case erm_table:
@@ -6869,7 +6908,34 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         case erm_table_footer_group:
         case erm_block:
             {
-                // Draw border before content, so inner content can bleed if necessary on
+                // recursive draw all sub-blocks for blocks
+                int cnt = enode->getChildCount();
+
+                bool in_two_steps_drawing = true;
+                if ( draw_content && draw_background )
+                    in_two_steps_drawing = false;
+
+                if ( in_two_steps_drawing && draw_background ) { // draw_content==false
+                    // Recursively draw background only
+                    for (int i=0; i<cnt; i++) {
+                        ldomNode * child = enode->getChildNode( i );
+                        // No need to draw early the background of floatboxes:
+                        // it will be drawn with the content after non-floating
+                        // content has been drawn below
+                        if ( child->isFloatingBox() )
+                            continue;
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, false, true );
+                    }
+                    // Cleanup and return
+                    if ( bg.type==css_val_color ) {
+                        drawbuf.SetBackgroundColor( oldColor );
+                    }
+                    return;
+                }
+
+                // When here, we are either drawing both content and background, or only content.
+
+                // Draw borders before content, so inner content can bleed if necessary on
                 // the border (some glyphs like 'J' at start or 'f' at end may be drawn
                 // outside the text content box).
                 // Don't draw border for TR TBODY... as their borders are never directly
@@ -6878,9 +6944,6 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 if ( !isTableRowLike )
                     DrawBorder(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
 
-                // recursive draw all sub-blocks for blocks
-                int cnt = enode->getChildCount();
-
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as block (containing text and block elements)
                 // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
@@ -6888,6 +6951,15 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 if ( enode->getStyle()->display == css_d_list_item_block &&
                         enode->getStyle()->list_style_position == css_lsp_outside &&
                             enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                    int width = fmt.getWidth();
+                    int base_width = 0; // for padding_top in %
+                    ldomNode * parent = enode->getParentNode();
+                    if ( parent && !(parent->isNull()) ) {
+                        RenderRectAccessor pfmt( parent );
+                        base_width = pfmt.getWidth();
+                    }
+                    int em = enode->getFont()->getSize();
+                    int padding_top = lengthToPx( enode->getStyle()->padding[2], base_width, em ) + measureBorder(enode,0) + DEBUG_TREE_DRAW;
                     // We already adjusted all children blocks' left-padding and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
@@ -6903,30 +6975,97 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     }
                 }
 
-                for (int i=0; i<cnt; i++)
-                {
+                // Draw first the non-floating nodes (as their background color would
+                // otherwise be drawn over any floating node content drawn previously
+                // (But if floats or their children have themselves some background,
+                // and negative margins are involved, their background could be drawn
+                // over non-floating text... but that's not easy to check...)
+                bool has_floats = false;
+                for (int i=0; i<cnt; i++) {
                     ldomNode * child = enode->getChildNode( i );
-                    DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks ); //+fmt->getX() +fmt->getY()
+                    if ( child->isFloatingBox() ) {
+                        has_floats = true;
+                        // Floats can be drawn after non-floats no matter
+                        // if we went two-steps or not.
+                        continue;
+                    }
+
+                    if ( in_two_steps_drawing ) {
+                        // If we are already in 2-steps drawing, drawing background
+                        // first and then content is already taken care of by some
+                        // upper node. So, no need to check if we need to switch,
+                        // just draw the content.
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, true, false );
+                        continue;
+                    }
+
+                    // If not yet in 2-steps drawing, we need to check if we
+                    // have to do that 2-steps drawing ourselves.
+                    RenderRectAccessor cfmt( child );
+                    if ( cfmt.getBottomOverflow() == 0 ) {
+                        // No bottom overflow: just draw both content and background
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, true, true );
+                        continue;
+                    }
+
+                    // This child has content that overflows: we need to 2-steps draw
+                    // it and its siblings up until all overflow is passed.
+                    // printf("Starting 2-steps drawing at %d %s\n", cfmt.getY(),
+                    //      UnicodeToLocal(ldomXPointer(child, 0).toString()).c_str());
+                    int overflow_y = cfmt.getY() + cfmt.getHeight() + cfmt.getBottomOverflow();
+                    int last_two_steps_drawn_node;
+                    for (int j=i; j<cnt; j++) {
+                        last_two_steps_drawn_node = j;
+                        child = enode->getChildNode( j );
+                        if ( child->isFloatingBox() ) {
+                            has_floats = true;
+                            continue;
+                        }
+                        // Draw backgrounds (recusively)
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, false, true );
+                        cfmt = RenderRectAccessor( child );
+                        int current_y = cfmt.getY() + cfmt.getHeight();
+                        int this_overflow = cfmt.getBottomOverflow();
+                        if ( current_y >= overflow_y && this_overflow == 0 ) {
+                            // Overflow y passed by, and no more new overflow, we
+                            // can switch back to 1-step drawing
+                            // printf("Done with 2-steps drawing after %d %s\n", current_y,
+                            //      UnicodeToLocal(ldomXPointer(child, 0).toString()).c_str());
+                            break;
+                        }
+                        overflow_y = current_y + this_overflow;
+                    }
+                    // Now, draw the content of all these nodes we've just drawn the background of
+                    for (int k=i; k<=last_two_steps_drawn_node; k++) {
+                        child = enode->getChildNode( k );
+                        if ( child->isFloatingBox() ) {
+                            has_floats = true;
+                            continue;
+                        }
+                        // Draw contents (recursively)
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, true, false );
+                    }
+                    // Go on with 1-step drawing
+                    i = last_two_steps_drawn_node;
                 }
-#if (DEBUG_TREE_DRAW!=0)
-                drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+1, color );
-                drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+1, doc_y+y0+fmt.getHeight(), color );
-                drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
-                drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
-#endif
-                /*lUInt32 tableBorderColor = 0xAAAAAA;
-                lUInt32 tableBorderColorDark = 0x555555;
-                bool needBorder = enode->getRendMethod()==erm_table || enode->getStyle()->display==css_d_table_cell;
-                if ( needBorder ) {
-                   drawbuf.FillRect( doc_x+x0, doc_y+y0,
-                                      doc_x+x0+fmt.getWidth(), doc_y+y0+1, tableBorderColor );
-                    drawbuf.FillRect( doc_x+x0, doc_y+y0,
-                                      doc_x+x0+1, doc_y+y0+fmt.getHeight(), tableBorderColor );
-                    drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0,
-                                      doc_x+x0+fmt.getWidth(),   doc_y+y0+fmt.getHeight(), tableBorderColorDark );
-                    drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1,
-                                      doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), tableBorderColorDark );
-                }*/
+
+                // Then draw over the floating nodes ignored in previous loop
+                if (has_floats) {
+                    for (int i=0; i<cnt; i++) {
+                        ldomNode * child = enode->getChildNode( i );
+                        if ( !child->isFloatingBox() )
+                            continue;
+                        // Draw both content and background for floats
+                        DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, true, true );
+                    }
+                }
+
+                #if (DEBUG_TREE_DRAW!=0)
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+1, color );
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+1, doc_y+y0+fmt.getHeight(), color );
+                    drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
+                #endif
                 // Border was previously drawn here, but has been moved above for earlier drawing.
             	}
             break;
@@ -6934,10 +7073,44 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         case erm_final:
         case erm_table_caption:
             {
-                // Draw border before content, so inner content can bleed if necessary on
+                // No sub-background drawing for erm_final (its background was
+                // drawn above, before the switch())
+                if ( !draw_content ) {
+                    // Cleanup and return
+                    if ( bg.type==css_val_color ) {
+                        drawbuf.SetBackgroundColor( oldColor );
+                    }
+                    return;
+                }
+
+                // Draw borders before content, so inner content can bleed if necessary on
                 // the border (some glyphs like 'J' at start or 'f' at end may be drawn
                 // outside the text content box).
                 DrawBorder(enode, drawbuf, x0, y0, doc_x, doc_y, fmt);
+
+                // Get ready to create a LFormattedText with the correct content width
+                // and position: we'll have it draw itself at the right coordinates.
+                int width = fmt.getWidth();
+                int inner_width;
+                int padding_left;
+                int padding_top;
+                if ( RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) { // enhanced rendering for erm_final nodes
+                    // This flag is set only when in enhanced rendering mode, and
+                    // only on erm_final-like nodes.
+                    padding_left = fmt.getInnerX();
+                    padding_top = fmt.getInnerY();
+                    inner_width = fmt.getInnerWidth();
+                }
+                else { // legacy rendering
+                    // Note: this computation is wrong for paddings in %, as they should
+                    // apply against the parent container width, not this block width.
+                    int em = enode->getFont()->getSize();
+                    bool draw_padding_bg = true; //( enode->getRendMethod()==erm_final );
+                    padding_left = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
+                    int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
+                    padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
+                    inner_width = width - padding_left - padding_right;
+                }
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as final (containing only text and inline elements)
@@ -6960,65 +7133,61 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         // (Don't shift by padding left, the list marker is outside padding left)
                         txform->Draw( &drawbuf, doc_x+x0 - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
                     }
+                    // Note: if there's a float on the left of the list item, we let
+                    // the marker where it would be if there were no float, while Firefox
+                    // would shift it by the float width. But for both, the marker may
+                    // be hidden by/shown inside the float...
+                    // Not obvious to do as Firefox, which draws it like if it has some
+                    // negative padding from the text.
                 }
 
                 // draw whole node content as single formatted object
                 LFormattedTextRef txform;
-                enode->renderFinalBlock( txform, &fmt, fmt.getWidth() - padding_left - padding_right );
+                enode->renderFinalBlock( txform, &fmt, inner_width );
                 fmt.push();
                 {
                     lvRect rc;
                     enode->getAbsRect( rc );
                     ldomMarkedRangeList *nbookmarks = NULL;
-                    if ( bookmarks && bookmarks->length()) {
+                    if ( bookmarks && bookmarks->length()) { // internal crengine bookmarked text highlights
                         nbookmarks = new ldomMarkedRangeList( bookmarks, rc );
                     }
-                    if ( marks && marks->length() ) {
-                        //rc.left -= doc_x;
-                        //rc.right -= doc_x;
-                        //rc.top -= doc_y;
-                        //rc.bottom -= doc_y;
-                        ldomMarkedRangeList nmarks( marks, rc );
+                    if ( marks && marks->length() ) { // "native highlighting" of a selection in progress
+                        // Keep marks that are part of the top and bottom overflows
+                        lvRect crop_rc = lvRect(rc);
+                        crop_rc.top -= fmt.getTopOverflow();
+                        crop_rc.bottom += fmt.getBottomOverflow();
+                        ldomMarkedRangeList nmarks( marks, rc, &crop_rc );
                         DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // Draw regular text with currently marked highlights
                         txform->Draw( &drawbuf, doc_x+x0 + padding_left, doc_y+y0 + padding_top, &nmarks, nbookmarks );
                     } else {
                         DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // Draw regular text, no marks
                         txform->Draw( &drawbuf, doc_x+x0 + padding_left, doc_y+y0 + padding_top, marks, nbookmarks );
                     }
                     if (nbookmarks)
                         delete nbookmarks;
                 }
-#if (DEBUG_TREE_DRAW!=0)
-                drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+1, color );
-                drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+1, doc_y+y0+fmt.getHeight(), color );
-                drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
-                drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
-#endif
+                #if (DEBUG_TREE_DRAW!=0)
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+1, color );
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+1, doc_y+y0+fmt.getHeight(), color );
+                    drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
+                    drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1, doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), color );
+                #endif
                 // Border was previously drawn here, but has been moved above for earlier drawing.
-
-                /*lUInt32 tableBorderColor = 0x555555;
-                lUInt32 tableBorderColorDark = 0xAAAAAA;
-                bool needBorder = enode->getStyle()->display==css_d_table_cell;
-                if ( needBorder ) {
-                    drawbuf.FillRect( doc_x+x0, doc_y+y0,
-                                      doc_x+x0+fmt.getWidth(), doc_y+y0+1, tableBorderColor );
-                    drawbuf.FillRect( doc_x+x0, doc_y+y0,
-                                      doc_x+x0+1, doc_y+y0+fmt.getHeight(), tableBorderColor );
-                    drawbuf.FillRect( doc_x+x0+fmt.getWidth()-1, doc_y+y0,
-                                      doc_x+x0+fmt.getWidth(),   doc_y+y0+fmt.getHeight(), tableBorderColorDark );
-                    drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt.getHeight()-1,
-                                      doc_x+x0+fmt.getWidth(), doc_y+y0+fmt.getHeight(), tableBorderColorDark );
-                    //drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+fmt->getWidth(), doc_y+y0+1, tableBorderColorDark );
-                    //drawbuf.FillRect( doc_x+x0, doc_y+y0, doc_x+x0+1, doc_y+y0+fmt->getHeight(), tableBorderColorDark );
-                    //drawbuf.FillRect( doc_x+x0+fmt->getWidth()-1, doc_y+y0, doc_x+x0+fmt->getWidth(), doc_y+y0+fmt->getHeight(), tableBorderColor );
-                    //drawbuf.FillRect( doc_x+x0, doc_y+y0+fmt->getHeight()-1, doc_x+x0+fmt->getWidth(), doc_y+y0+fmt->getHeight(), tableBorderColor );
-                }*/
             }
             break;
         case erm_invisible:
             // don't draw invisible blocks
             break;
         case erm_killed:
+            if ( !draw_content ) {
+                if ( bg.type==css_val_color ) {
+                    drawbuf.SetBackgroundColor( oldColor );
+                }
+                return;
+            }
             //drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), 0xFF0000 );
             // Draw something that does not look like a bullet
             // This should render in red something like: [\]

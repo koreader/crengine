@@ -2495,6 +2495,13 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
     buf->GetClipRect( &clip );
     const lChar16 * str;
     int line_y = y;
+
+    // printf("x/y: %d/%d clip.top/bottom: %d %d\n", x, y, clip.top, clip.bottom);
+    // When drawing a paragraph that spans 3 pages, we may get:
+    //   x/y: 9/407 clip.top/bottom: 13 559
+    //   x/y: 9/-139 clip.top/bottom: 13 583
+    //   x/y: 9/-709 clip.top/bottom: 13 545
+
     for (i=0; i<m_pbuffer->frmlinecount; i++)
     {
         if (line_y>=clip.bottom)
@@ -2539,6 +2546,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             // process marks
 #ifndef CR_USE_INVERT_FOR_SELECTION_MARKS
             if ( marks!=NULL && marks->length()>0 ) {
+                // Here is drawn the "native highlighting" of a selection in progress
                 lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width, frmline->y + frmline->height );
                 for ( int i=0; i<marks->length(); i++ ) {
                     lvRect mark;
@@ -2668,6 +2676,78 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
 #endif
         }
         line_y += frmline->height;
+    }
+
+    // Draw floats if any
+    // We'll need to know the current final node to correct and draw "marks"
+    // (native highlights): we'll get it when dealing with the first float if any.
+    ldomNode * this_final_node = NULL;
+    lvRect this_final_node_rect;
+    ldomMarkedRangeList * absmarks = new ldomMarkedRangeList();
+
+    for (i=0; i<m_pbuffer->floatcount; i++) {
+        embedded_float_t * flt = m_pbuffer->floats[i];
+        if (flt->srctext == NULL) {
+            // Ignore outer floats (they are either fake footprint floats,
+            // or real outer floats not to be drawn by us)
+            continue;
+        }
+        ldomNode * node = (ldomNode *) flt->srctext->object;
+
+        // Only some part of this float needs to be in the clip area.
+        // Also account for the overflows, so we can render fully
+        // floats with negative margins.
+        RenderRectAccessor fmt( node );
+        int top_overflow = fmt.getTopOverflow();
+        int bottom_overflow = fmt.getBottomOverflow();
+        // Note: some dropcaps may still not being draw in spite of this
+        // because of the checks with _hidePartialGlyphs in lvdrawbuf.cpp
+        // (todo: get rid of these _hidePartialGlyphs checks ?)
+
+        if (y + flt->y - top_overflow < clip.bottom && y + flt->y + flt->height + bottom_overflow >= clip.top) {
+            // DrawDocument() parameters (y0 + doc_y must be equal to our y,
+            // doc_y just shift the viewport, so anything outside is not drawn).
+            int x0 = x + flt->x;
+            int y0 = y + flt->y;
+            int doc_x = 0 - flt->x;
+            int doc_y = 0 - flt->y;
+            int dx = m_pbuffer->width;
+            int dy = m_pbuffer->page_height;
+            int page_height = m_pbuffer->page_height;
+
+            if ( marks!=NULL && marks->length()>0 && this_final_node == NULL ) {
+                // Provided ldomMarkedRangeList * marks are ranges made from the words
+                // of a selection currently being made (native highlights by crengine).
+                // Their coordinates have been translated from absolute to relative
+                // to our final node by the DrawDocument() that called us.
+                // As we are going to call DrawDocument() to draw the floats, we need
+                // to translate them back to absolute coordinates (DrawDocument() will
+                // translate them again to relative coordinates in the drawn float).
+                // (They are matched above against the lineRect, which have coordinates
+                // in the context of where we are drawing.)
+
+                // We need to know the current final node and its absolute coordinates
+                this_final_node = node->getParentNode();
+                for ( ; this_final_node; this_final_node = this_final_node->getParentNode() ) {
+                    int rm = this_final_node->getRendMethod();
+                    if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption )
+                        break;
+                }
+                this_final_node->getAbsRect( this_final_node_rect );
+
+                // Create a new ldomMarkedRangeList with marks in absolute coordinates,
+                // that will be used by this float we just met, and the next ones.
+                for ( int i=0; i<marks->length(); i++ ) {
+                    ldomMarkedRange * mark = marks->get(i);
+                    ldomMarkedRange * newmark = new ldomMarkedRange( *mark );
+                    newmark->start.y += this_final_node_rect.top;
+                    newmark->end.y += this_final_node_rect.top;
+                    absmarks->add(newmark);
+                }
+            }
+
+            DrawDocument( *buf, node, x0, y0, dx, dy, doc_x, doc_y, page_height, absmarks, bookmarks );
+        }
     }
 }
 
