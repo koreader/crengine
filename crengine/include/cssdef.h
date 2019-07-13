@@ -141,10 +141,13 @@ enum css_font_family_t {
 enum css_page_break_t {
     css_pb_inherit,
     css_pb_auto,
+    css_pb_avoid, // those after this one are not supported by page-break-inside
     css_pb_always,
-    css_pb_avoid,
     css_pb_left,
-    css_pb_right
+    css_pb_right,
+    css_pb_page,
+    css_pb_recto,
+    css_pb_verso
 };
 
 /// list-style-type property values
@@ -252,6 +255,23 @@ enum css_orphans_widows_value_t { // supported only if in range 1-9
     css_orphans_widows_7,
     css_orphans_widows_8,
     css_orphans_widows_9
+};
+
+/// float property values
+enum css_float_t {
+    css_f_inherit,
+    css_f_none,
+    css_f_left,
+    css_f_right
+};
+
+/// clear property values
+enum css_clear_t {
+    css_c_inherit,
+    css_c_none,
+    css_c_left,
+    css_c_right,
+    css_c_both
 };
 
 enum css_generic_value_t {

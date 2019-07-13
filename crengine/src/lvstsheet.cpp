@@ -66,9 +66,12 @@ enum css_decl_code {
     cssd_padding_top,
     cssd_padding_bottom,
     cssd_padding,
-    cssd_page_break_before,
+    cssd_page_break_before, // Historical, but common, page break properties names
     cssd_page_break_after,
     cssd_page_break_inside,
+    cssd_break_before, // Newest page break properties names
+    cssd_break_after,
+    cssd_break_inside,
     cssd_list_style,
     cssd_list_style_type,
     cssd_list_style_position,
@@ -98,6 +101,8 @@ enum css_decl_code {
     cssd_border_spacing,
     cssd_orphans,
     cssd_widows,
+    cssd_float,
+    cssd_clear,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
     cssd_stop
@@ -146,6 +151,9 @@ static const char * css_decl_name[] = {
     "page-break-before",
     "page-break-after",
     "page-break-inside",
+    "break-before",
+    "break-after",
+    "break-inside",
     "list-style",
     "list-style-type",
     "list-style-position",
@@ -175,6 +183,8 @@ static const char * css_decl_name[] = {
     "border-spacing",
     "orphans",
     "widows",
+    "float",
+    "clear",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
     NULL
@@ -796,10 +806,13 @@ static const char * css_pb_names[] =
 {
     "inherit",
     "auto",
+    "avoid", // those after this one are not supported by page-break-inside
     "always",
-    "avoid",
     "left",
     "right",
+    "page",
+    "recto",
+    "verso",
     NULL
 };
 
@@ -981,6 +994,27 @@ static const char * css_orphans_widows_names[]={
         NULL
 };
 
+// float value names
+static const char * css_f_names[] =
+{
+    "inherit",
+    "none",
+    "left",
+    "right",
+    NULL
+};
+
+// clear value names
+static const char * css_c_names[] =
+{
+    "inherit",
+    "none",
+    "left",
+    "right",
+    "both",
+    NULL
+};
+
 // -cr-hint names (non standard property for providing hints to crengine via style tweaks)
 static const char * css_cr_hint_names[]={
         "inherit",
@@ -1078,12 +1112,21 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                     n = parse_name( decl, css_hyph_names3, -1 );
                 break;
             case cssd_page_break_before:
+            case cssd_break_before:
+                prop_code = cssd_page_break_before;
                 n = parse_name( decl, css_pb_names, -1 );
                 break;
             case cssd_page_break_inside:
+            case cssd_break_inside:
+                prop_code = cssd_page_break_inside;
                 n = parse_name( decl, css_pb_names, -1 );
+                // Only a subset of css_pb_names are accepted
+                if (n > css_pb_avoid)
+                    n = -1;
                 break;
             case cssd_page_break_after:
+            case cssd_break_after:
+                prop_code = cssd_page_break_after;
                 n = parse_name( decl, css_pb_names, -1 );
                 break;
             case cssd_list_style_type:
@@ -1266,10 +1309,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                         accept_percent = false;
                     // only margin accepts negative values
                     bool accept_negative = false;
-                    // but not implemented (yet)
-                    // if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
-                    //         prop_code==cssd_margin_left || prop_code==cssd_margin_right )
-                    //     accept_negative = true;
+                    if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
+                            prop_code==cssd_margin_left || prop_code==cssd_margin_right )
+                        accept_negative = true;
                     // only margin, width and height accept keyword "auto"
                     bool accept_auto = false;
                     if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
@@ -1355,7 +1397,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                     bool accept_negative = false;
                     if ( prop_code==cssd_margin ) {
                         accept_auto = true;
-                        // accept_negative = true; // not implemented (yet)
+                        accept_negative = true;
                     }
                     css_length_t len[4];
                     int i;
@@ -1935,6 +1977,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
             case cssd_widows:
                 n=parse_name(decl, css_orphans_widows_names, -1);
                 break;
+            case cssd_float:
+                n = parse_name( decl, css_f_names, -1 );
+                break;
+            case cssd_clear:
+                n = parse_name( decl, css_c_names, -1 );
+                break;
             case cssd_stop:
             case cssd_unknown:
             default:
@@ -2215,6 +2263,12 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_widows:
             style->Apply( (css_orphans_widows_value_t) *p++, &style->widows, imp_bit_widows, is_important );
+            break;
+        case cssd_float:
+            style->Apply( (css_float_t) *p++, &style->float_, imp_bit_float, is_important );
+            break;
+        case cssd_clear:
+            style->Apply( (css_clear_t) *p++, &style->clear, imp_bit_clear, is_important );
             break;
         case cssd_cr_hint:
             style->Apply( (css_cr_hint_t) *p++, &style->cr_hint, imp_bit_cr_hint, is_important );
