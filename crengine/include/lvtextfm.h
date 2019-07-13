@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-// text flags
+// src_text_fragment_t flags
 #define LTEXT_ALIGN_LEFT       0x0001  /**< \brief new left-aligned paragraph */
 #define LTEXT_ALIGN_RIGHT      0x0002  /**< \brief new right-aligned paragraph */
 #define LTEXT_ALIGN_CENTER     0x0003  /**< \brief new centered paragraph */
@@ -65,6 +65,13 @@ extern "C" {
 
 #define LTEXT_FLAG_PREFORMATTED 0x0080 /**< \brief element space mode is preformatted */
 
+#define LTEXT_SRC_IS_CLEAR_RIGHT     0x00100000  /**< \brief text follows <BR style="clear: right"> */
+#define LTEXT_SRC_IS_CLEAR_LEFT      0x00200000  /**< \brief text follows <BR style="clear: left"> */
+#define LTEXT_SRC_IS_CLEAR_BOTH      0x00300000  /**< \brief text follows <BR style="clear: both"> */
+#define LTEXT_SRC_IS_CLEAR_LAST      0x00400000  /**< \brief ignorable text, added when nothing follows <BR style="clear: both"> */
+
+#define LTEXT_SRC_IS_FLOAT           0x01000000  /**< \brief float:'ing node */
+#define LTEXT_SRC_IS_FLOAT_DONE      0x02000000  /**< \brief float:'ing node (already dealt with) */
 
 /** \brief Source text line
 */
@@ -119,6 +126,7 @@ typedef struct
    // lUInt16  padding;         /**< \brief not used */
 } formatted_word_t;
 
+// formatted_word_t flags
 /// can add space after this word
 #define LTEXT_WORD_CAN_ADD_SPACE_AFTER       1
 /// can break line after this word
@@ -134,6 +142,10 @@ typedef struct
 
 //#define LTEXT_BACKGROUND_MARK_FLAGS 0xFFFF0000l
 
+// formatted_line_t flags
+#define LTEXT_LINE_SPLIT_AVOID_BEFORE        1
+#define LTEXT_LINE_SPLIT_AVOID_AFTER         2
+
 /** \brief Text formatter formatted line
 */
 typedef struct
@@ -148,6 +160,21 @@ typedef struct
    lUInt8             flags;       /**< flags */
    lUInt8             align;       /**< alignment */
 } formatted_line_t;
+
+/** \brief Text formatter embedded float
+*/
+typedef struct
+{
+   src_text_fragment_t * srctext;     /**< source node */
+   lInt32                y;           /**< start y position of float */
+   lInt16                x;           /**< start x position */
+   lUInt16               width;       /**< width */
+   lUInt16               height;      /**< height */
+   css_clear_t           clear;       /**< clear: css property value */
+   bool                  is_right;    /**< is float: right */
+   bool                  to_position; /**< not yet positionned */
+   lString16Collection * links;       /** footnote links found in this float text */
+} embedded_float_t;
 
 /** \brief Bookmark highlight modes.
 */
@@ -180,6 +207,8 @@ typedef struct
    lInt32                srctextlen;    /**< number of source text lines */
    formatted_line_t   ** frmlines;      /**< formatted lines */
    lInt32                frmlinecount;  /**< formatted lines count*/
+   embedded_float_t   ** floats;        /**< embedded floats */
+   lInt32                floatcount;    /**< embedded floats count*/
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
@@ -290,7 +319,7 @@ public:
     }
 
     void AddSourceObject(
-                lUInt16         flags,     /* flags */
+                lUInt32         flags,     /* flags */
                 lInt16          interval,  /* line height in screen pixels */
                 lInt16          valign_dy, /* drift y from baseline */
                 lUInt16         margin,    /* first line margin */
@@ -344,6 +373,16 @@ public:
     const formatted_line_t * GetLineInfo(int index)
     {
         return m_pbuffer->frmlines[index];
+    }
+
+    int GetFloatCount()
+    {
+        return m_pbuffer->floatcount;
+    }
+
+    const embedded_float_t * GetFloatInfo(int index)
+    {
+        return m_pbuffer->floats[index];
     }
 
     void Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * marks,  ldomMarkedRangeList *bookmarks = NULL );

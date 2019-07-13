@@ -51,6 +51,7 @@
 #endif
 
 #define FRM_ALLOC_SIZE 16
+#define FLT_ALLOC_SIZE 4
 
 formatted_line_t * lvtextAllocFormattedLine( )
 {
@@ -109,6 +110,25 @@ formatted_line_t * lvtextAddFormattedLineCopy( formatted_text_fragment_t * pbuff
     return (pbuffer->frmlines[ pbuffer->frmlinecount++ ] = lvtextAllocFormattedLineCopy(words, words_count));
 }
 
+embedded_float_t * lvtextAllocEmbeddedFloat( )
+{
+    embedded_float_t * flt = (embedded_float_t *)malloc(sizeof(embedded_float_t));
+    memset( flt, 0, sizeof(embedded_float_t) );
+    return flt;
+}
+
+embedded_float_t * lvtextAddEmbeddedFloat( formatted_text_fragment_t * pbuffer )
+{
+    int size = (pbuffer->floatcount + FLT_ALLOC_SIZE-1) / FLT_ALLOC_SIZE * FLT_ALLOC_SIZE;
+    if (pbuffer->floatcount >= size)
+    {
+        size += FLT_ALLOC_SIZE;
+        pbuffer->floats = cr_realloc( pbuffer->floats, size );
+    }
+    return (pbuffer->floats[ pbuffer->floatcount++ ] = lvtextAllocEmbeddedFloat());
+}
+
+
 formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
 {
     formatted_text_fragment_t * pbuffer = (formatted_text_fragment_t*)malloc( sizeof(formatted_text_fragment_t) );
@@ -152,6 +172,17 @@ void lvtextFreeFormatter( formatted_text_fragment_t * pbuffer )
             lvtextFreeFormattedLine( pbuffer->frmlines[i] );
         }
         free( pbuffer->frmlines );
+    }
+    if (pbuffer->floats)
+    {
+        for (int i=0; i<pbuffer->floatcount; i++)
+        {
+            if (pbuffer->floats[i]->links) {
+                delete pbuffer->floats[i]->links;
+            }
+            free(pbuffer->floats[i]);
+        }
+        free( pbuffer->floats );
     }
     free(pbuffer);
 }
@@ -254,7 +285,7 @@ void lvtextAddSourceObject(
 bool gFlgFloatingPunctuationEnabled = true;
 
 void LFormattedText::AddSourceObject(
-            lUInt16         flags,     /* flags */
+            lUInt32         flags,     /* flags */
             lInt16          interval,  /* line height in screen pixels */
             lInt16          valign_dy, /* drift y from baseline */
             lUInt16         margin,    /* first line margin */
@@ -267,6 +298,18 @@ void LFormattedText::AddSourceObject(
         TR("LFormattedText::AddSourceObject(): node is NULL!");
         return;
     }
+
+    if (flags & LTEXT_SRC_IS_FLOAT) { // not an image but a float:'ing node
+        // Nothing much to do with it at this point
+        lvtextAddSourceObject(m_pbuffer, 0, 0,
+            flags, interval, valign_dy, margin, object, letter_spacing );
+            // lvtextAddSourceObject will itself add to flags: | LTEXT_SRC_IS_OBJECT
+            // (only flags & object parameter will be used, the others are not,
+            // but they matter if this float is the first node in a paragraph,
+            // as the code may grab them from the first source)
+        return;
+    }
+
     LVImageSourceRef img = node->getObjectImageSource();
     if ( img.isNull() )
         img = LVCreateDummyImageSource( node, DUMMY_IMAGE_SIZE, DUMMY_IMAGE_SIZE );
@@ -278,7 +321,7 @@ void LFormattedText::AddSourceObject(
     height = scaleForRenderDPI(height);
 
     css_style_ref_t style = node->getStyle();
-    int w = 0, h = 0;
+    lInt16 w = 0, h = 0;
     int em = node->getFont()->getSize();
     lString16 nodename = node->getNodeName();
     if ((nodename.lowercase().compare("sub")==0
@@ -328,8 +371,12 @@ public:
     int m_y;
     int m_max_img_height;
     bool m_has_images;
+    bool m_has_float_to_position;
+    bool m_has_ongoing_float;
+    bool m_no_clear_own_floats;
 
 #define OBJECT_CHAR_INDEX ((lUInt16)0xFFFF)
+#define FLOAT_CHAR_INDEX  ((lUInt16)0xFFFE)
 
     LVFormatter(formatted_text_fragment_t * pbuffer)
     : m_pbuffer(pbuffer), m_length(0), m_size(0), m_staticBufs(true), m_y(0)
@@ -343,10 +390,338 @@ public:
         m_widths = NULL;
         m_has_images = false,
         m_max_img_height = -1;
+        m_has_float_to_position = false;
+        m_has_ongoing_float = false;
+        m_no_clear_own_floats = false;
     }
 
     ~LVFormatter()
     {
+    }
+
+    // Embedded floats positionning helpers.
+    // Returns y of the bottom of the lowest float
+    int getFloatsMaxBottomY() {
+        int max_b_y = m_y;
+        for (int i=0; i<m_pbuffer->floatcount; i++) {
+            embedded_float_t * flt = m_pbuffer->floats[i];
+            // Ignore fake floats (no src) made from outer floats footprint
+            if ( flt->srctext != NULL ) {
+                int b_y = flt->y + flt->height;
+                if (b_y > max_b_y)
+                    max_b_y = b_y;
+            }
+        }
+        return max_b_y;
+    }
+    // Returns min y for next float
+    int getNextFloatMinY(css_clear_t clear) {
+        int y = m_y; // current line y
+        for (int i=0; i<m_pbuffer->floatcount; i++) {
+            embedded_float_t * flt = m_pbuffer->floats[i];
+            if (flt->to_position) // ignore not yet positionned floats
+                continue;
+            // A later float should never be positionned above an earlier float
+            if ( flt->y > y )
+                y = flt->y;
+            if ( clear > css_c_none) {
+                if ( (clear == css_c_both) || (clear == css_c_left && !flt->is_right)
+                                           || (clear == css_c_right && flt->is_right) ) {
+                    int b_y = flt->y + flt->height;
+                    if (b_y > y)
+                        y = b_y;
+                }
+            }
+        }
+        return y;
+    }
+    // Returns available width (for text or a new float) available at y
+    // and between y and y+h
+    // Also set offset_x to the x where this width is available
+    int getAvailableWidthAtY(int start_y, int h, int & offset_x) {
+        if (m_pbuffer->floatcount == 0) { // common short path when no float
+            offset_x = 0;
+            return m_pbuffer->width;
+        }
+        int fl_left_max_x = 0;
+        int fl_right_min_x = m_pbuffer->width;
+        // We need to scan line by line from start_y to start_y+h to be sure
+        int y = start_y;
+        while (y <= start_y + h) {
+            for (int i=0; i<m_pbuffer->floatcount; i++) {
+                embedded_float_t * flt = m_pbuffer->floats[i];
+                if (flt->to_position) // ignore not yet positionned floats
+                    continue;
+                if (flt->y <= y && flt->y + flt->height > y) { // this float is spanning this y
+                    if (flt->is_right) {
+                        if (flt->x < fl_right_min_x)
+                            fl_right_min_x = flt->x;
+                    }
+                    else {
+                        if (flt->x + flt->width > fl_left_max_x)
+                            fl_left_max_x = flt->x + flt->width;
+                    }
+                }
+            }
+            y += 1;
+        }
+        offset_x = fl_left_max_x;
+        return fl_right_min_x - fl_left_max_x;
+    }
+    // Returns next y after start_y where required_width is available
+    // Also set offset_x to the x where that width is available
+    int getYWithAvailableWidth(int start_y, int required_width, int required_height, int & offset_x, bool get_right_offset_x=false) {
+        int y = start_y;
+        int w;
+        while (true) {
+            w = getAvailableWidthAtY(y, required_height, offset_x);
+            if (w >= required_width) // found it
+                break;
+            if (w == m_pbuffer->width) { // We're past all floats
+                // returns this y even if required_width is larger than
+                // m_pbuffer->width and it will overflow
+                offset_x = 0;
+                break;
+            }
+            y += 1;
+        }
+        if (get_right_offset_x) {
+            int left_floats_w = offset_x;
+            int right_floats_w = m_pbuffer->width - left_floats_w - w;
+            offset_x = m_pbuffer->width - right_floats_w - required_width;
+            if (offset_x < 0) // overflow
+                offset_x = 0;
+        }
+        return y;
+    }
+    // The following positionning codes is not the most efficient, as we
+    // call the previous functions that do many of the same kind of loops.
+    // But it's the clearest to express the decision flow
+
+    /// Embedded (among other inline elements) floats management
+    void addFloat(src_text_fragment_t * src, int currentTextWidth) {
+        embedded_float_t * flt =  lvtextAddEmbeddedFloat( m_pbuffer );
+        flt->srctext = src;
+
+        ldomNode * node = (ldomNode *) src->object;
+        flt->is_right = node->getStyle()->float_ == css_f_right;
+        // clear was not moved to the floatBox: get it from its single child
+        flt->clear = node->getChildNode(0)->getStyle()->clear;
+
+        // Thanks to the wrapping floatBox element, which has no
+        // margin, we can set its RenderRectAccessor to be exactly
+        // our embedded_float coordinates and sizes.
+        //   If the wrapped element has margins, its renderRectAccessor
+        //   will be positionned/sized at the level of borders or padding,
+        //   as crengine does naturally with:
+        //       fmt.setWidth(width - margin_left - margin_right);
+        //       fmt.setHeight(height - margin_top - margin_bottom);
+        //       fmt.setX(x + margin_left);
+        //       fmt.setY(y + margin_top);
+        // So, the RenderRectAccessor(floatBox) can act as a cache
+        // of previously rendered and positionned floats!
+        int width;
+        int height;
+        // This formatting code is called when rendering, but can also be called when
+        // looking for links, highlighting... so it may happen that floats have
+        // already been rendered and positionnned, and we already know their width
+        // and height.
+        bool already_rendered = false;
+        { // in its own scope, so this RenderRectAccessor is forgotten when left
+            RenderRectAccessor fmt( node );
+            if ( RENDER_RECT_HAS_FLAG(fmt, FLOATBOX_IS_RENDERED) )
+                already_rendered = true;
+            // We could also directly use fmt.getX/Y() if it has already been
+            // positionned, and avoid the positionning code below.
+            // But let's be fully deterministic with that, and redo it.
+        }
+        if ( !already_rendered ) {
+            LVRendPageContext emptycontext( NULL, m_pbuffer->page_height );
+            renderBlockElement( emptycontext, node, 0, 0, m_pbuffer->width );
+            // (renderBlockElement will ensure style->height if requested.)
+            // Gather footnotes links accumulated by emptycontext
+            // (We only need to gather links in the rendering phase, for
+            // page splitting, so no worry if we don't when already_rendered)
+            lString16Collection * link_ids = emptycontext.getLinkIds();
+            if (link_ids->length() > 0) {
+                flt->links = new lString16Collection();
+                for ( int n=0; n<link_ids->length(); n++ ) {
+                    flt->links->add( link_ids->at(n) );
+                }
+            }
+        }
+        // (renderBlockElement() above may update our RenderRectAccessor(),
+        // so (re)get it only now)
+        RenderRectAccessor fmt( node );
+        width = fmt.getWidth();
+        height = fmt.getHeight();
+
+        flt->width = width;
+        flt->height = height;
+        flt->to_position = true;
+
+        // If there are already floats to position, don't position any more for now
+        if ( !m_has_float_to_position ) {
+            if ( getNextFloatMinY(flt->clear) == m_y ) {
+                // No previous float, nor any clear:'ing, prevents having this one
+                // on current line,
+                // See if it can still fit on this line, accounting for the current
+                // width used by the text before this inline float (getCurrentLineWidth()
+                // accounts for already positionned floats on this line)
+                if ( currentTextWidth + flt->width <= getCurrentLineWidth() ) {
+                    // Call getYWithAvailableWidth() just to get x
+                    int x;
+                    int y = getYWithAvailableWidth(m_y, flt->width + currentTextWidth, 0, x, flt->is_right);
+                    if (y == m_y) { // should always be true, but just to be sure
+                        if (flt->is_right) // correct x: add currentTextWidth we added
+                            x = x + currentTextWidth;  // to the width for computation
+                        flt->x = x;
+                        flt->y = y;
+                        flt->to_position = false;
+                        fmt.setX(flt->x);
+                        fmt.setY(flt->y);
+                        if (flt->is_right)
+                            RENDER_RECT_SET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+                        else
+                            RENDER_RECT_UNSET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+                        RENDER_RECT_SET_FLAG(fmt, FLOATBOX_IS_RENDERED);
+                        // Small trick for elements with negative margins (invert dropcaps)
+                        // that would overflow above flt->x, to avoid a page split by
+                        // sticking the line to the hopefully present margin-top that
+                        // precedes this paragraph
+                        // (we may want to deal with that more generically by storing these
+                        // overflows so we can ensure no page split on the other following
+                        // lines as long as they are not consumed)
+                        RenderRectAccessor cfmt( node->getChildNode(0));
+                        if (cfmt.getY() < 0)
+                            m_has_ongoing_float = true;
+                        return; // all done with this float
+                    }
+                }
+            }
+            m_has_float_to_position = true;
+        }
+    }
+    void positionDelayedFloats() {
+        // m_y has been updated, position delayed floats
+        if (!m_has_float_to_position)
+            return;
+        for (int i=0; i<m_pbuffer->floatcount; i++) {
+            embedded_float_t * flt = m_pbuffer->floats[i];
+            if (!flt->to_position)
+                continue;
+            int x = 0;
+            int y = getNextFloatMinY(flt->clear);
+            y = getYWithAvailableWidth(y, flt->width, flt->height, x, flt->is_right);
+            flt->x = x;
+            flt->y = y;
+            flt->to_position = false;
+            ldomNode * node = (ldomNode *) flt->srctext->object;
+            RenderRectAccessor fmt( node );
+            fmt.setX(flt->x);
+            fmt.setY(flt->y);
+            if (flt->is_right)
+                RENDER_RECT_SET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+            else
+                RENDER_RECT_UNSET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+            RENDER_RECT_SET_FLAG(fmt, FLOATBOX_IS_RENDERED);
+        }
+        m_has_float_to_position = false;
+    }
+    void finalizeFloats() {
+        // Adds blank lines to fill the vertical space still occupied by our own
+        // inner floats (we don't fill the height of outer floats (float_footprint)
+        // as they can still apply over our siblings.)
+        fillAndMoveToY( getFloatsMaxBottomY() );
+    }
+    void fillAndMoveToY(int target_y) {
+        // Adds blank lines to fill the vertical space from current m_y to target_y.
+        // We need to use 1px lines to get a chance to allow a page wrap at
+        // vertically stacked floats boundaries
+        if ( target_y <= m_y ) // bogus: we won't rewind y
+            return;
+        bool has_ongoing_float;
+        while ( m_y < target_y ) {
+            formatted_line_t * frmline =  lvtextAddFormattedLine( m_pbuffer );
+            frmline->y = m_y;
+            frmline->x = 0;
+            frmline->height = 1;
+            frmline->baseline = 1; // no word to draw, does not matter
+            // Check if there are floats spanning that y, so we
+            // can avoid a page split
+            has_ongoing_float = false;
+            for (int i=0; i<m_pbuffer->floatcount; i++) {
+                embedded_float_t * flt = m_pbuffer->floats[i];
+                if (flt->to_position) // ignore not yet positionned floats (even if
+                    continue;         // there shouldn't be any when this is called)
+                if (flt->y < m_y && flt->y + flt->height > m_y) {
+                    has_ongoing_float = true;
+                    break;
+                }
+                // flt->y == m_y is fine: the float starts on this line,
+                // we can split on it
+            }
+            if (has_ongoing_float) {
+                frmline->flags |= LTEXT_LINE_SPLIT_AVOID_BEFORE;
+            }
+            m_y += 1;
+            m_pbuffer->height = m_y;
+        }
+        checkOngoingFloat();
+    }
+    void floatClearText( int flags ) {
+        // Handling of "clear: left/right/both" is different if the 'clear:'
+        // is carried by a <BR> or by a float'ing box (for floating boxes, it
+        // is done in addFloat()). Here, we deal with <BR style="clear:..">.
+        // If a <BR/> has a "clear:", it moves the text below the floats, and the
+        // text continues from there.
+        // (Only a <BR> can carry a clear: among the non-floating inline elements.)
+        if ( flags & LTEXT_SRC_IS_CLEAR_LEFT ) {
+            int y = getNextFloatMinY( css_c_left );
+            if (y > m_y)
+                fillAndMoveToY( y );
+        }
+        if ( flags & LTEXT_SRC_IS_CLEAR_RIGHT ) {
+            int y = getNextFloatMinY( css_c_right );
+            if (y > m_y)
+                fillAndMoveToY( y );
+        }
+    }
+    int getCurrentLineWidth() {
+        int x;
+        // m_pbuffer->strut_height is all we can check for at this point,
+        // but the text that will be put on this line may exceed it if
+        // there's some vertical-align or font size change involved.
+        // So, the line could be pushed down and conflict with a float below.
+        // But this will do for now...
+        return getAvailableWidthAtY(m_y, m_pbuffer->strut_height, x);
+    }
+    int getCurrentLineX() {
+        int x;
+        getAvailableWidthAtY(m_y, m_pbuffer->strut_height, x);
+        return x;
+    }
+    bool isCurrentLineWithFloat() {
+        int x;
+        int w = getAvailableWidthAtY(m_y, m_pbuffer->strut_height, x);
+        return w < m_pbuffer->width;
+    }
+    void checkOngoingFloat() {
+        // Check if there is still some float spanning at current m_y
+        // If there is, next added line will ensure no page split
+        // between it and the previous line
+        m_has_ongoing_float = false;
+        for (int i=0; i<m_pbuffer->floatcount; i++) {
+            embedded_float_t * flt = m_pbuffer->floats[i];
+            if (flt->to_position) // ignore not yet positionned floats, as they
+                continue;         // are not yet running past m_y
+            if (flt->y < m_y && flt->y + flt->height > m_y) {
+                m_has_ongoing_float = true;
+                break;
+            }
+            // flt->y == m_y is fine: the float starts on this line,
+            // no need to avoid page split by next line
+        }
     }
 
     /// allocate buffers for paragraph
@@ -357,7 +732,10 @@ public:
         // PASS 1: calculate total length (characters + objects)
         for ( i=start; i<end; i++ ) {
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
-            if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
+            if ( src->flags & LTEXT_SRC_IS_FLOAT ) {
+                pos++;
+            }
+            else if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
                 pos++;
                 if (!m_has_images) {
                     // Compute images max height only when we meet an image,
@@ -454,15 +832,28 @@ public:
         int last_non_space_pos = -1; // to get rid of all trailing spaces
         for ( i=start; i<end; i++ ) {
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
-            if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
+            if ( src->flags & LTEXT_SRC_IS_FLOAT ) {
                 m_text[pos] = 0;
-                m_flags[pos] = LCHAR_IS_OBJECT | LCHAR_ALLOW_WRAP_AFTER;
                 m_srcs[pos] = src;
+                m_flags[pos] = LCHAR_IS_OBJECT;
+                m_charindex[pos] = FLOAT_CHAR_INDEX; //0xFFFE;
+                    // m_flags is a lUInt8, and there are already 8 LCHAR_IS_* bits/flags
+                    // so we can't add our own. But using LCHAR_IS_OBJECT should not hurt,
+                    // as we do the FLOAT tests before it is used.
+                    // m_charindex[pos] is the one to use to detect FLOATs
+                pos++;
+                // No need to update prev_was_space or last_non_space_pos
+            }
+            else if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
+                m_text[pos] = 0;
+                m_srcs[pos] = src;
+                m_flags[pos] = LCHAR_IS_OBJECT | LCHAR_ALLOW_WRAP_AFTER;
                 m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
                 last_non_space_pos = pos;
                 prev_was_space = false;
                 pos++;
-            } else {
+            }
+            else {
                 int len = src->t.len;
                 lStr_ncpy( m_text+pos, src->t.text, len );
                 if ( i==0 || (src->flags & LTEXT_FLAG_NEWLINE) )
@@ -564,6 +955,8 @@ public:
         pos = pos-1; // get back last pos++
         if (last_non_space_pos >= 0 && last_non_space_pos+1 <= pos) {
             for ( int k=last_non_space_pos+1; k<=pos; k++ ) {
+                if (m_flags[k] == LCHAR_IS_OBJECT)
+                    continue; // don't unflag floats
                 m_flags[k] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
                 // m_text[k] = '='; // uncomment when debugging
             }
@@ -744,11 +1137,13 @@ public:
             bool prevCharIsObject = false;
             if ( i<m_length ) {
                 newSrc = m_srcs[i];
-                isObject = m_charindex[i] == OBJECT_CHAR_INDEX;
+                isObject = m_charindex[i] == OBJECT_CHAR_INDEX ||
+                           m_charindex[i] == FLOAT_CHAR_INDEX;
                 newFont = isObject ? NULL : (LVFont *)newSrc->t.font;
             }
             if (i > 0)
-                prevCharIsObject = m_charindex[i - 1] == OBJECT_CHAR_INDEX;
+                prevCharIsObject = m_charindex[i-1] == OBJECT_CHAR_INDEX ||
+                                   m_charindex[i-1] == FLOAT_CHAR_INDEX;
             if ( !lastFont )
                 lastFont = newFont;
             if ( i>start && (newFont!=lastFont
@@ -757,7 +1152,7 @@ public:
                              || i>=start+MAX_TEXT_CHUNK_SIZE
                              || (m_flags[i]&LCHAR_MANDATORY_NEWLINE)) ) {
                 // measure start..i-1 chars
-                if ( m_charindex[i-1]!=OBJECT_CHAR_INDEX ) {
+                if ( m_charindex[i-1]!=OBJECT_CHAR_INDEX && m_charindex[i-1]!=FLOAT_CHAR_INDEX ) {
                     // measure text
                     int len = i - start;
                     int chars_measured = lastFont->measureText(
@@ -826,13 +1221,25 @@ public:
                     // ?????? WTF
                     //m_flags[len] = 0;
                     // TODO: letter spacing letter_spacing
-                } else {
+                }
+                else if ( m_charindex[start] == FLOAT_CHAR_INDEX) {
+                    // Embedded floats can have a zero width in this process of
+                    // text measurement. They'll be measured when positionned.
+                    m_widths[start] = lastWidth;
+                }
+                else {
                     // measure object
                     // assume i==start+1
                     int width = m_srcs[start]->o.width;
                     int height = m_srcs[start]->o.height;
                     width=width<0?-width*(m_pbuffer->width)/100:width;
                     height=height<0?-height*(m_pbuffer->width)/100:height;
+                    /*
+                    printf("measureText img: o.w=%d o.h=%d > w=%d h=%d (max %d %d is_inline=%d) %s\n",
+                        m_srcs[start]->o.width, m_srcs[start]->o.height, width, height,
+                        m_pbuffer->width, m_max_img_height, m_length>1,
+                        UnicodeToLocal(ldomXPointer((ldomNode*)m_srcs[start]->object, 0).toString()).c_str());
+                    */
                     resizeImage(width, height, m_pbuffer->width, m_max_img_height, m_length>1);
                     lastWidth += width;
                     m_widths[start] = lastWidth;
@@ -865,11 +1272,18 @@ public:
 #define MAX_WORD_SIZE 64
 
     /// align line: add or reduce widths of spaces to achieve desired text alignment
-    void alignLine( formatted_line_t * frmline, int width, int alignment ) {
-        if ( frmline->x + frmline->width > width ) {
+    void alignLine( formatted_line_t * frmline, int alignment ) {
+        // Fetch current line x offset and max width
+        int x_offset;
+        int width = getAvailableWidthAtY(m_y, m_pbuffer->strut_height, x_offset);
+        // printf("alignLine %d+%d < %d\n", frmline->x, frmline->width, width);
+
+        // (frmline->x may be different from x_offset when non-zero text-indent)
+        int available_width = x_offset + width - (frmline->x + frmline->width);
+        if ( available_width < 0 ) {
             // line is too wide
             // reduce spaces to fit line
-            int extraSpace = frmline->x + frmline->width - width;
+            int extraSpace = -available_width;
             int totalSpace = 0;
             int i;
             for ( i=0; i<(int)frmline->word_count-1; i++ ) {
@@ -881,8 +1295,6 @@ public:
                 }
             }
             if ( totalSpace>0 ) {
-//                int addSpaceDiv = extraSpace / addSpacePoints;
-//                int addSpaceMod = extraSpace % addSpacePoints;
                 int delta = 0;
                 for ( i=0; i<(int)frmline->word_count; i++ ) {
                     frmline->words[i].x -= delta;
@@ -901,16 +1313,14 @@ public:
         } else if ( alignment==LTEXT_ALIGN_LEFT )
             return; // no additional alignment necessary
         else if ( alignment==LTEXT_ALIGN_CENTER ) {
-            // centering, ignoring first line margin
-            frmline->x = (width - frmline->width) / 2;
+            frmline->x += available_width / 2;
         } else if ( alignment==LTEXT_ALIGN_RIGHT ) {
-            // right align
-            frmline->x = (width - frmline->width);
+            frmline->x += available_width;
         } else {
             // LTEXT_ALIGN_WIDTH
-            int extraSpace = width - frmline->x - frmline->width;
-            if ( extraSpace<=0 )
+            if ( available_width <= 0 )
                 return; // no space to distribute
+            int extraSpace = available_width;
             int addSpacePoints = 0;
             int i;
             for ( i=0; i<(int)frmline->word_count-1; i++ ) {
@@ -940,10 +1350,11 @@ public:
     void addLine( int start, int end, int x, src_text_fragment_t * para, int interval, bool first, bool last, bool preFormattedOnly, bool needReduceSpace, bool isLastPara )
     {
         // Note: provided 'interval' is no more used
-        int maxWidth = m_pbuffer->width;
+        int maxWidth = getCurrentLineWidth();
         //int w0 = start>0 ? m_widths[start-1] : 0;
         int align = para->flags & LTEXT_FLAG_NEWLINE;
         TR("addLine(%d, %d) y=%d  align=%d", start, end, m_y, align);
+        // printf("addLine(%d, %d) y=%d  align=%d maxWidth=%d\n", start, end, m_y, align, maxWidth);
 
         int text_align_last = (para->flags >> LTEXT_LAST_LINE_ALIGN_SHIFT) & LTEXT_FLAG_NEWLINE;
         if ( last && !first && align==LTEXT_ALIGN_WIDTH && text_align_last!=0 )
@@ -982,6 +1393,10 @@ public:
         // increased if some inline elements need more, but not decreased.
         frmline->height = m_pbuffer->strut_height;
         frmline->baseline = m_pbuffer->strut_baseline;
+        if (m_has_ongoing_float)
+            // Avoid page split when some float that started on a previous line
+            // still spans this line
+            frmline->flags |= LTEXT_LINE_SPLIT_AVOID_BEFORE;
 
         if ( preFormattedOnly && (start == end) ) {
             // Specific for preformatted text when consecutive \n\n:
@@ -1005,6 +1420,20 @@ public:
         }
 
         src_text_fragment_t * lastSrc = m_srcs[start];
+
+        // We can just skip FLOATs in addLine(), as they were taken
+        // care of in processParagraph() to just reduce the available width
+        // So skip floats at start:
+        while (lastSrc && (lastSrc->flags & LTEXT_SRC_IS_FLOAT) ) {
+            start++;
+            lastSrc = m_srcs[start];
+        }
+        if (!lastSrc) { // nothing but floats
+            // A line has already been added: just make it zero-height.
+            frmline->height = 0;
+            return;
+        }
+
         // Ignore space at start of line (this rarely happens, as line
         // splitting discards the space on which a split is made - but it
         // can happen in other rare wrap cases like lastDeprecatedWrap)
@@ -1096,8 +1525,10 @@ public:
                 // but they will be drawn as a space by Draw(). We need
                 // to increment the start index into the src_text_fragment_t
                 // for Draw() to start rendering the text from this position.
+                // Also skip floating nodes
                 while (wstart < i) {
-                    if ( !(m_flags[wstart] & LCHAR_IS_COLLAPSED_SPACE) )
+                    if ( !(m_flags[wstart] & LCHAR_IS_COLLAPSED_SPACE) &&
+                            !(m_srcs[wstart]->flags & LTEXT_SRC_IS_FLOAT) )
                         break;
                     // printf("_"); // to see when we remove one, before the TR() below
                     wstart++;
@@ -1408,9 +1839,11 @@ public:
             }
             lastIsSpace = isSpace;
         }
-        alignLine( frmline, maxWidth, align );
+        alignLine( frmline, align );
         m_y += frmline->height;
         m_pbuffer->height = m_y;
+        checkOngoingFloat();
+        positionDelayedFloats();
     }
 
     int getMaxCondensedSpaceTruncation(int pos) {
@@ -1489,7 +1922,7 @@ public:
         preFormattedOnly = preFormattedOnly && lfFound;
 
         int interval = m_srcs[0]->interval; // Note: no more used inside AddLine()
-        int maxWidth = m_pbuffer->width;
+        int maxWidth = getCurrentLineWidth();
 #if 1
         // reservation of space for floating punctuation
         bool visualAlignmentEnabled = gFlgFloatingPunctuationEnabled!=0;
@@ -1514,9 +1947,18 @@ public:
         int upSkipPos = -1;
         int indent = m_srcs[0]->margin;
 
+        /* We'd rather not have this final node text just dropped if there
+         * is not enough width for the indent !
         if (indent > maxWidth) {
             return;
         }
+        */
+
+        // int minWidth = 0;
+        // Not per-specs, but when floats reduce the available width, skip y until
+        // we have the width to draw at least a few chars on a line.
+        // We use N x strut_height because it's one easily acccessible font metric here.
+        int minWidth = 3 * m_pbuffer->strut_height;
 
         for (;pos<m_length;) { // each loop makes a line
             int x = indent >=0 ? (pos==0 ? indent : 0) : (pos==0 ? 0 : -indent);
@@ -1536,6 +1978,25 @@ public:
             // and given it's only about italic chars, and that we would need to remove
             // stuff in getRenderedWidths... letting it as it is.)
 
+            maxWidth = getCurrentLineWidth();
+            if (maxWidth <= minWidth) {
+                // Find y with available minWidth
+                int unused_x;
+                // We need to provide a height to find some width available over
+                // this height, but we don't know yet the height of text (that
+                // may have some vertical-align or use a bigger font) or images
+                // that will end up on this line (line height is handled later,
+                // by AddLine()), we can only ask for the only height we know
+                // about: m_pbuffer->strut_height...
+                // todo: find a way to be sure or react to that
+                int new_y = getYWithAvailableWidth(m_y, minWidth, m_pbuffer->strut_height, unused_x);
+                fillAndMoveToY( new_y );
+                maxWidth = getCurrentLineWidth();
+            }
+
+            if ( visualAlignmentEnabled )
+                maxWidth -= visualAlignmentWidth;
+
             spaceReduceWidth -= visualAlignmentWidth/2;
             firstCharMargin += visualAlignmentWidth/2;
             if (isCJKLeftPunctuation(m_text[pos])) {
@@ -1546,6 +2007,29 @@ public:
             // find candidates where end of line is possible
             bool seen_non_collapsed_space = false;
             for ( i=pos; i<m_length; i++ ) {
+                if (m_charindex[i] == FLOAT_CHAR_INDEX) { // float
+                    src_text_fragment_t * src = m_srcs[i];
+                    // Not sure if we can be called again on the same LVFormatter
+                    // object, but the whole code allows for re-formatting and
+                    // they should give the same result.
+                    // So, use a flag to not re-add already processed floats.
+                    if ( !(src->flags & LTEXT_SRC_IS_FLOAT_DONE) ) {
+                        int currentWidth = x + m_widths[i]-w0 - spaceReduceWidth + firstCharMargin;
+                        addFloat( src, currentWidth );
+                        src->flags |= LTEXT_SRC_IS_FLOAT_DONE;
+                        maxWidth = getCurrentLineWidth();
+                    }
+                    // We don't set lastNormalWrap when collapsed spaces,
+                    // so let's not for floats either.
+                    // But we need to when the float is the last source (as
+                    // done below, otherwise we would not update wrapPos and
+                    // we'd get another ghost line, and this real last line
+                    // might be wrongly justified).
+                    if ( i==m_length-1 ) {
+                        lastNormalWrap = i;
+                    }
+                    continue;
+                }
                 lUInt8 flags = m_flags[i];
                 if ( m_text[i]=='\n' ) {
                     lastMandatoryWrap = i;
@@ -1586,6 +2070,8 @@ public:
                     bool avoidWrap = false;
                     // Look first at following char(s)
                     for (int j = i+1; j < m_length; j++) {
+                        if (m_charindex[j] == FLOAT_CHAR_INDEX) // skip floats
+                            continue;
                         if ( !(m_flags[j] & LCHAR_ALLOW_WRAP_AFTER) ) { // not another (collapsible) space
                             avoidWrap = lGetCharProps(m_text[j]) & CH_PROP_AVOID_WRAP_BEFORE;
                             break;
@@ -1595,6 +2081,8 @@ public:
                         // (but not if it is the last char, where a wrap is fine
                         // even if it ends after a CH_PROP_AVOID_WRAP_AFTER char)
                         for (int j = i-1; j >= 0; j--) {
+                            if (m_charindex[j] == FLOAT_CHAR_INDEX) // skip floats
+                                continue;
                             if ( !(m_flags[j] & LCHAR_ALLOW_WRAP_AFTER) ) { // not another (collapsible) space
                                 avoidWrap = lGetCharProps(m_text[j]) & CH_PROP_AVOID_WRAP_AFTER;
                                 break;
@@ -1627,6 +2115,8 @@ public:
                 if (grabbedExceedingSpace)
                     break; // delayed break
             }
+            // It feels there's no need to do anything if there's been one single float
+            // that took all the width: we moved i and can wrap.
             if (i<=pos)
                 i = pos + 1; // allow at least one character to be shown on line
             int wordpos = i-1;
@@ -1749,6 +2239,7 @@ public:
                 m_widths[lastnonspace] += dw;
             }
             if (endp>m_length) endp=m_length;
+            x += getCurrentLineX(); // add shift induced by left floats
             addLine(pos, endp, x + firstCharMargin, para, interval, pos==0, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace, isLastPara);
             pos = wrapPos + 1;
         }
@@ -1767,15 +2258,38 @@ public:
 //            TR("  %d: flg=%04x al=%d ri=%d '%s'", i, flg, (flg & LTEXT_FLAG_NEWLINE), (flg & LTEXT_RUNIN_FLAG)?1:0, (flg&LTEXT_SRC_IS_OBJECT ? "<image>" : LCSTR(lString16(m_pbuffer->srctext[i].t.text, m_pbuffer->srctext[i].t.len)) ) );
 //        }
 //        TR("============================");
-        bool prevRunIn = m_pbuffer->srctextlen>0 && (m_pbuffer->srctext[0].flags & LTEXT_RUNIN_FLAG);
-        for ( i=1; i<=m_pbuffer->srctextlen; i++ ) {
+
+        int srctextlen = m_pbuffer->srctextlen;
+        int clear_after_last_flag = 0;
+        if ( srctextlen>0 && (m_pbuffer->srctext[srctextlen-1].flags & LTEXT_SRC_IS_CLEAR_LAST) ) {
+            // Ignorable source line added to carry a last <br clear=>.
+            clear_after_last_flag = m_pbuffer->srctext[srctextlen-1].flags & LTEXT_SRC_IS_CLEAR_BOTH;
+            srctextlen -= 1; // Don't process this last srctext
+        }
+
+        bool prevRunIn = srctextlen>0 && (m_pbuffer->srctext[0].flags & LTEXT_RUNIN_FLAG);
+        for ( i=1; i<=srctextlen; i++ ) {
             // Split on LTEXT_FLAG_NEWLINE, mostly set when <BR/> met
-            bool isLastPara = (i == m_pbuffer->srctextlen);
+            // (we check m_pbuffer->srctext[i], the next srctext that we are not
+            // adding to the current paragraph, as <BR> and its clear= are carried
+            // by the following text.)
+            bool isLastPara = (i == srctextlen);
             if ( isLastPara || ((m_pbuffer->srctext[i].flags & LTEXT_FLAG_NEWLINE) && !prevRunIn) ) {
+                if ( m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_CLEAR_BOTH ) {
+                    // (LTEXT_SRC_IS_CLEAR_BOTH is a mask, will match _LEFT and _RIGHT too)
+                    floatClearText( m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_CLEAR_BOTH );
+                }
                 processParagraph( start, i, isLastPara );
                 start = i;
             }
-            prevRunIn = (i<m_pbuffer->srctextlen) && (m_pbuffer->srctext[i].flags & LTEXT_RUNIN_FLAG);
+            prevRunIn = (i<srctextlen) && (m_pbuffer->srctext[i].flags & LTEXT_RUNIN_FLAG);
+        }
+        if ( !m_no_clear_own_floats ) {
+            // Clear our own floats so they are fully contained in this final block.
+            finalizeFloats();
+        }
+        if ( clear_after_last_flag ) {
+            floatClearText( clear_after_last_flag );
         }
     }
 
@@ -1828,6 +2342,21 @@ static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
     }
     m_pbuffer->frmlines = NULL;
     m_pbuffer->frmlinecount = 0;
+
+    // Also clear floats
+    if (m_pbuffer->floats)
+    {
+        for (int i=0; i<m_pbuffer->floatcount; i++)
+        {
+            if (m_pbuffer->floats[i]->links) {
+                delete m_pbuffer->floats[i]->links;
+            }
+            free( m_pbuffer->floats[i] );
+        }
+        free( m_pbuffer->floats );
+    }
+    m_pbuffer->floats = NULL;
+    m_pbuffer->floatcount = 0;
 }
 
 // experimental formatter
@@ -1842,7 +2371,43 @@ lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, BlockFloatFoo
     // format text
     LVFormatter formatter( m_pbuffer );
 
-    return formatter.format();
+    if (float_footprint) {
+        formatter.m_no_clear_own_floats = float_footprint->no_clear_own_floats;
+
+        // BlockFloatFootprint provides a set of floats to represent
+        // outer floats possibly having some footprint over the final
+        // block that is to be formatted.
+        // See FlowState->getFloatFootprint() for details.
+        // So, for each of them, just add an embedded_float_t (without
+        // a scrtext as they are not ours) to the buffer so our
+        // positionning code can handle them.
+        for (int i=0; i<float_footprint->floats_cnt; i++) {
+            embedded_float_t * flt =  lvtextAddEmbeddedFloat( m_pbuffer );
+            flt->srctext = NULL; // not our own float
+            flt->x = float_footprint->floats[i][0];
+            flt->y = float_footprint->floats[i][1];
+            flt->width = float_footprint->floats[i][2];
+            flt->height = float_footprint->floats[i][3];
+            flt->is_right = (bool)(float_footprint->floats[i][4]);
+        }
+    }
+
+    lUInt32 h = formatter.format();
+
+    if ( float_footprint && float_footprint->no_clear_own_floats ) {
+        // If we did not finalize/clear our embedded floats, forward
+        // them to FlowState so it can ensure layout around them of
+        // other block or final nodes.
+        for (int i=0; i<m_pbuffer->floatcount; i++) {
+            embedded_float_t * flt = m_pbuffer->floats[i];
+            if (flt->srctext == NULL) // ignore outer floats given to us by flow
+                continue;
+            float_footprint->forwardOverflowingFloat(flt->x, flt->y, flt->width, flt->height,
+                                        flt->is_right, (ldomNode *)flt->srctext->object);
+        }
+    }
+
+    return h;
 }
 
 void LFormattedText::setImageScalingOptions( img_scaling_options_t * options )
