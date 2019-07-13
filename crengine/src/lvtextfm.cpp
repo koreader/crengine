@@ -319,6 +319,7 @@ public:
     int       m_length;
     int       m_size;
     bool      m_staticBufs;
+    static bool      m_staticBufs_inUse;
     lChar16 * m_text;
     lUInt8 *  m_flags;
     src_text_fragment_t * * m_srcs;
@@ -333,6 +334,8 @@ public:
     LVFormatter(formatted_text_fragment_t * pbuffer)
     : m_pbuffer(pbuffer), m_length(0), m_size(0), m_staticBufs(true), m_y(0)
     {
+        if (m_staticBufs_inUse)
+            m_staticBufs = false;
         m_text = NULL;
         m_flags = NULL;
         m_srcs = NULL;
@@ -399,8 +402,10 @@ public:
 
 #define STATIC_BUFS_SIZE 8192
 #define ITEMS_RESERVED 16
+
         // "m_length+1" to keep room for the additional slot to be zero'ed
         if ( !m_staticBufs || m_length+1 > STATIC_BUFS_SIZE ) {
+            // if (!m_staticBufs && m_text == NULL) printf("allocating dynamic buffers\n");
             if ( m_length+1 > m_size ) {
                 // realloc
                 m_size = m_length+ITEMS_RESERVED;
@@ -424,6 +429,8 @@ public:
             m_srcs = m_static_srcs;
             m_widths = m_static_widths;
             m_staticBufs = true;
+            m_staticBufs_inUse = true;
+            // printf("using static buffers\n");
         }
         memset( m_flags, 0, sizeof(lUInt8)*m_length ); // start with all flags set to zero
         pos = 0;
@@ -1786,6 +1793,11 @@ public:
             m_charindex = NULL;
             m_widths = NULL;
             m_staticBufs = true;
+            // printf("freeing dynamic buffers\n");
+        }
+        else {
+            m_staticBufs_inUse = false;
+            // printf("releasing static buffers\n");
         }
     }
 
@@ -1800,6 +1812,8 @@ public:
         return m_y;
     }
 };
+
+bool LVFormatter::m_staticBufs_inUse = false;
 
 static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
 {
