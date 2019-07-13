@@ -622,7 +622,34 @@ public:
     void setY( int y );
     void setWidth( int w );
     void setHeight( int h );
+
+    int getInnerWidth();
+    int getInnerX();
+    int getInnerY();
+    void setInnerX( int x );
+    void setInnerY( int y );
+    void setInnerWidth( int w );
+
+    int  getTopOverflow();
+    int  getBottomOverflow();
+    void setTopOverflow( int dy );
+    void setBottomOverflow( int dy );
+
+    int  getListPropNodeIndex();
+    void setListPropNodeIndex( int idx );
+
+    unsigned short getFlags();
+    void setFlags( unsigned short flags );
+
+    void getTopRectsExcluded( int & lw, int & lh, int & rw, int & rh );
+    void setTopRectsExcluded( int lw, int lh, int rw, int rh );
+    void getNextFloatMinYs( int & left, int & right );
+    void setNextFloatMinYs( int left, int right );
+    void getInvolvedFloatIds( int & float_count, lUInt32 * float_ids );
+    void setInvolvedFloatIds( int float_count, lUInt32 * float_ids );
+
     void push();
+    void clear();
     RenderRectAccessor( ldomNode * node );
     ~RenderRectAccessor();
 };
