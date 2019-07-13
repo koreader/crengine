@@ -55,6 +55,11 @@
 //   Also change <code> from 'white-space: pre' to 'normal', like browsers do
 //   Added missing block elements from HTML specs so they are correctly
 //   displayed as 'block' instead of the new default of 'inline'.
+//
+// (20190703: added support for CSS float: and clear: which may
+// insert <floatBox> elements in the DOM tree. Bus as this is
+// toggable, and legacy rendering is available, no need to limit
+// their support to some DOM_VERSION. So no bump needed.)
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 int gDOMVersionRequested     = DOM_VERSION_CURRENT;
@@ -3427,6 +3432,8 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
         bool doNewLineAfterEndTag = false;
         bool doIndentBeforeStartTag = false;
         bool doIndentBeforeEndTag = false;
+        bool doNewlineBeforeIndentBeforeStartTag = false; // specific for floats among inlines inside final
+        bool doIndentAfterNewLineAfterEndTag = false;     // specific for floats among inlines inside final
         if ( WNEFLAG(NEWLINE_ALL_NODES) ) {
             doNewLineBeforeStartTag = true;
             doNewLineAfterStartTag = true;
@@ -3453,6 +3460,13 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                     doNewLineAfterStartTag = false;
                     doIndentBeforeEndTag = false;
                 }
+                else if (node->isFloatingBox()) {
+                    lvdom_element_render_method prm = node->getParentNode()->getRendMethod();
+                    if (prm == erm_final || prm == erm_inline) {
+                        doNewlineBeforeIndentBeforeStartTag = true;
+                        doIndentAfterNewLineAfterEndTag = true;
+                    }
+                }
             }
             // Do something specific when erm_invisible ?
         }
@@ -3474,6 +3488,8 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                     *stream << "\n";
             }
         }
+        if (doNewlineBeforeIndentBeforeStartTag)
+            *stream << "\n";
         if (doIndentBeforeStartTag)
             for ( int i=indentBaseLevel; i<level; i++ )
                 *stream << "  ";
@@ -3527,8 +3543,6 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                 *stream << "?>";
             else
                 *stream << "/>";
-            if (doNewLineAfterEndTag)
-                *stream << "\n";
         }
         else {
             *stream << ">";
@@ -3569,9 +3583,12 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                 for ( int i=indentBaseLevel; i<level; i++ )
                     *stream << "  ";
             *stream << "</" << elemName << ">";
-            if (doNewLineAfterEndTag)
-                *stream << "\n";
         }
+        if (doNewLineAfterEndTag)
+            *stream << "\n";
+        if (doIndentAfterNewLineAfterEndTag)
+            for ( int i=indentBaseLevel; i<level; i++ )
+                *stream << "  ";
         if ( containsEnd && WNEFLAG(NB_SKIPPED_NODES) ) {
             // Next siblings will not contain endXP and won't be written: show how many they are
             ldomNode * parent = node->getParentNode();
@@ -4335,6 +4352,18 @@ static bool isInlineNode( ldomNode * node )
     return m==erm_inline || m==erm_runin;
 }
 
+static bool isFloatingNode( ldomNode * node )
+{
+    if ( node->isText() )
+        return false;
+    return node->getStyle()->float_ > css_f_none;
+}
+
+static bool isNotFloatingNode( ldomNode * node )
+{
+    return node->getStyle()->float_ <= css_f_none;
+}
+
 static lString16 getSectionHeader( ldomNode * section )
 {
     lString16 header;
@@ -4402,7 +4431,7 @@ void ldomNode::removeChildren( int startIndex, int endIndex )
     }
 }
 
-void ldomNode::autoboxChildren( int startIndex, int endIndex )
+void ldomNode::autoboxChildren( int startIndex, int endIndex, bool handleFloating )
 {
 #if BUILD_LITE!=1
     if ( !isElement() )
@@ -4413,6 +4442,9 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
     int lastNonEmpty = endIndex;
 
     bool hasInline = pre;
+    bool hasNonEmptyInline = pre;
+    bool hasFloating = false;
+    // (Note: did not check how floats inside <PRE> are supposed to work)
     if ( !pre ) {
         while ( firstNonEmpty<=endIndex && getChildNode(firstNonEmpty)->isText() ) {
             lString16 s = getChildNode(firstNonEmpty)->getText();
@@ -4429,12 +4461,84 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
 
         for ( int i=firstNonEmpty; i<=lastNonEmpty; i++ ) {
             ldomNode * node = getChildNode(i);
-            if ( isInlineNode( node ) )
+            if ( isInlineNode( node ) ) {
                 hasInline = true;
+                if ( !hasNonEmptyInline ) {
+                    if (node->isText()) {
+                        lString16 s = node->getText();
+                        if ( !IsEmptySpace(s.c_str(), s.length() ) ) {
+                            hasNonEmptyInline = true;
+                        }
+                    }
+                    else {
+                        if ( handleFloating && isFloatingNode(node) ) {
+                            // Ignore floatings
+                        }
+                        else {
+                            hasNonEmptyInline = true;
+                            // Note: when not using DO_NOT_CLEAR_OWN_FLOATS, we might
+                            // want to be more agressive in the removal of empty
+                            // elements, including nested empty elements which would
+                            // have no effect on the rendering (eg, some empty <link/>
+                            // or <span id="PageNumber123"/>), to avoid having the float
+                            // in an autoBox element with nothing else, which would
+                            // then be cleared and leave some blank space.
+                            // We initially did:
+                            //    // For now, assume any inline node with some content
+                            //    // (text or other inlines) is non empty.
+                            //    if ( node->getChildCount() > 0 )
+                            //        hasNonEmptyInline = true;
+                            //    else if (node->getNodeId() == el_br) {
+                            //        hasNonEmptyInline = true;
+                            //    }
+                            //    else {
+                            //        const css_elem_def_props_t * ntype = node->getElementTypePtr();
+                            //        if (ntype && ntype->is_object) // standalone image
+                            //            hasNonEmptyInline = true;
+                            //    }
+                            // and we could even use hasNonEmptyInlineContent() to get
+                            // rid of any nested empty elements and be sure to have our
+                            // float standalone and be able to have it rendered as block
+                            // instead of in an erm_final.
+                            //
+                            // But this was for edge cases (but really noticable), and it has
+                            // become less critical now that we have/ DO_NOT_CLEAR_OWN_FLOATS,
+                            // so let's not remove any element from our DOM (those with some
+                            // id= attribute might be the target of a link).
+                            //
+                            // Sample test case in China.EN at the top of the "Politics" section:
+                            //   "...</div> <link/> (or any text) <div float>...</div> <div>..."
+                            // gets turned into:
+                            //   "...</div>
+                            //   <autoBoxing>
+                            //     <link/> (or any text)
+                            //     <floatBox>
+                            //       <div float>...</div>
+                            //     </floatBox>
+                            //   </autoBoxing>
+                            //   <div>..."
+                            // If the floatbox would be let outside of the autobox, it would
+                            // be fine when not DO_NOT_CLEAR_OWN_FLOATS too.
+                        }
+                    }
+                }
+            }
+            if ( handleFloating && isFloatingNode(node) )
+                hasFloating = true;
+            if ( hasNonEmptyInline && hasFloating )
+                break; // We know, no need to look more
         }
     }
 
-    if ( hasInline ) { //&& firstNonEmpty<=lastNonEmpty
+    if ( hasFloating && !hasNonEmptyInline) {
+        // only multiple floats with empty spaces in between:
+        // remove empty text nodes, and let the floats be blocks, don't autobox
+        for ( int i=endIndex; i>=startIndex; i-- ) {
+            if ( !isFloatingNode(getChildNode(i)) )
+                removeChildren(i, i);
+        }
+    }
+    else if ( hasInline ) { //&& firstNonEmpty<=lastNonEmpty
 
 #ifdef TRACE_AUTOBOX
         CRLog::trace("Autobox children %d..%d of node <%s>  childCount=%d", firstNonEmpty, lastNonEmpty, LCSTR(getNodeName()), getChildCount());
@@ -4447,7 +4551,7 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
                 CRLog::trace("    elem: %d <%s> rendMode=%d  display=%d", node->getDataIndex(), LCSTR(node->getNodeName()), node->getRendMethod(), node->getStyle()->display);
         }
 #endif
-        // remove starting empty
+        // remove trailing empty
         removeChildren(lastNonEmpty+1, endIndex);
 
         // inner inline
@@ -4455,13 +4559,94 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex )
         abox->initNodeStyle();
         abox->setRendMethod( erm_final );
         moveItemsTo( abox, firstNonEmpty+1, lastNonEmpty+1 );
-        // remove trailing empty
+        // remove starting empty
         removeChildren(startIndex, firstNonEmpty-1);
-    } else {
+    }
+    else if ( hasFloating) {
+        // only floats, don't autobox them (otherwise the autobox wouldn't be floating)
+        // remove trailing empty
+        removeChildren(lastNonEmpty+1, endIndex);
+        // remove starting empty
+        removeChildren(startIndex, firstNonEmpty-1);
+    }
+    else {
         // only empty items: remove them instead of autoboxing
         removeChildren(startIndex, endIndex);
     }
 #endif
+}
+
+bool ldomNode::cleanIfOnlyEmptyTextInline( bool handleFloating )
+{
+#if BUILD_LITE!=1
+    if ( this->getDocument()->_cacheFile != NULL )
+        // We can't remove anything if there is a cache file
+        return false;
+    if ( !isElement() )
+        return false;
+    css_style_ref_t style = getStyle();
+    if ( style->white_space==css_ws_pre )
+        return false; // Don't mess with PRE
+    // We return false as soon as we find something non text, or text non empty
+    int i = getChildCount()-1;
+    for ( ; i>=0; i-- ) {
+        ldomNode * node = getChildNode(i);
+        if ( node->isText() ) {
+            lString16 s = node->getText();
+            if ( !IsEmptySpace(s.c_str(), s.length() ) ) {
+                return false;
+            }
+        }
+        else if ( handleFloating && isFloatingNode(node) ) {
+            // Ignore floatings
+        }
+        else { // non-text non-float element
+            return false;
+        }
+    }
+    // Ok, only empty text inlines, with possible floats
+    i = getChildCount()-1;
+    for ( ; i>=0; i-- ) {
+        // With the tests done above, we just need to remove text nodes
+        if ( getChildNode(i)->isText() ) {
+            removeChildren(i, i);
+        }
+    }
+    return true;
+#else
+    return false;
+#endif
+}
+
+/// returns true if element has inline content (non empty text, images, <BR>)
+bool ldomNode::hasNonEmptyInlineContent( bool ignoreFloats )
+{
+    if ( getRendMethod() == erm_invisible ) {
+        return false;
+    }
+    if ( ignoreFloats && BLOCK_RENDERING_G(FLOAT_FLOATBOXES) && getStyle()->float_ > css_f_none ) {
+        return false;
+    }
+    // With some other bool param, we might want to also check for
+    // padding top/bottom (and height if check ENSURE_STYLE_HEIGHT)
+    // if these will introduce some content.
+    if ( isText() ) {
+        lString16 s = getText();
+        return !IsEmptySpace(s.c_str(), s.length() );
+    }
+    if (getNodeId() == el_br) {
+        return true;
+    }
+    const css_elem_def_props_t * ntype = getElementTypePtr();
+    if (ntype && ntype->is_object) { // standalone image
+        return true;
+    }
+    for ( int i=0; i<(int)getChildCount(); i++ ) {
+        if ( getChildNode(i)->hasNonEmptyInlineContent() ) {
+            return true;
+        }
+    }
+    return false;
 }
 
 #if BUILD_LITE!=1
@@ -4481,17 +4666,22 @@ static void resetRendMethodToInvisible( ldomNode * node )
     node->setRendMethod(erm_invisible);
 }
 
-static void detectChildTypes( ldomNode * parent, bool & hasBlockItems, bool & hasInline )
+static void detectChildTypes( ldomNode * parent, bool & hasBlockItems, bool & hasInline, bool & hasFloating, bool detectFloating=false )
 {
     hasBlockItems = false;
     hasInline = false;
+    hasFloating = false;
     int len = parent->getChildCount();
     for ( int i=len-1; i>=0; i-- ) {
         ldomNode * node = parent->getChildNode(i);
         if ( !node->isElement() ) {
             // text
             hasInline = true;
-        } else {
+        }
+        else if ( detectFloating && node->getStyle()->float_ > css_f_none ) {
+            hasFloating = true;
+        }
+        else {
             // element
             int d = node->getStyle()->display;
             int m = node->getRendMethod();
@@ -4616,8 +4806,38 @@ bool hasInvisibleParent( ldomNode * node )
     return false;
 }
 
+bool ldomNode::isFloatingBox()
+{
+    // BLOCK_RENDERING_G(FLOAT_FLOATBOXES) is what triggers rendering
+    // the floats floating. They are wrapped in a floatBox, possibly
+    // not floating, when BLOCK_RENDERING_G(WRAP_FLOATS)).
+    if ( BLOCK_RENDERING_G(FLOAT_FLOATBOXES) && getNodeId() == el_floatBox
+                && getStyle()->float_ > css_f_none)
+        return true;
+    return false;
+}
+
 void ldomNode::initNodeRendMethod()
 {
+    // This method is called when re-rendering, but also while
+    // initially loading a document.
+    // On initial loading:
+    //   A node's style is defined when the node element XML tag
+    //   opening is processed (by lvrend.cpp setNodeStyle() which
+    //   applies inheritance from its parent, which has
+    //   already been parsed).
+    //   This method is called when the node element XML tag is
+    //   closed, so all its children are known, have styles, and
+    //   have had this method called on them.
+    // On re-rendering:
+    //   Styles are first applied recursively, parents first (because
+    //   of inheritance).
+    //   This method is then called thru recurseElementsDeepFirst, so
+    //   from deepest children up to their parents up to the root node.
+    // So, this method should decide how this node is going to be
+    // rendered (inline, block containing other blocks, or final block
+    // containing only inlines), only from the node's own style, and
+    // from the styles and rendering methods of its children.
     if ( !isElement() )
         return;
     if ( isRoot() ) {
@@ -4640,9 +4860,15 @@ void ldomNode::initNodeRendMethod()
         //recurseElements( resetRendMethodToInvisible );
         setRendMethod(erm_invisible);
     } else if ( d==css_d_inline ) {
-        // inline
+        // inline: an inline parent reset all its children to inline
+        // (so, if some block content is erroneously wrapped in a SPAN,
+        // all the content become inline...)
         //CRLog::trace("switch all children elements of <%s> to inline", LCSTR(getNodeName()));
-        recurseElements( resetRendMethodToInline );
+        if ( BLOCK_RENDERING_G(PREPARE_FLOATBOXES) )
+            // Don't reset nodes with float: which can stay block among inlines
+            recurseMatchingElements( resetRendMethodToInline, isNotFloatingNode );
+        else
+            recurseElements( resetRendMethodToInline );
     } else if ( d==css_d_run_in ) {
         // runin
         //CRLog::trace("switch all children elements of <%s> to inline", LCSTR(getNodeName()));
@@ -4659,9 +4885,28 @@ void ldomNode::initNodeRendMethod()
         // remove last empty space text nodes
         bool hasBlockItems = false;
         bool hasInline = false;
-        detectChildTypes( this, hasBlockItems, hasInline );
+        bool hasFloating = false;
+        // Floating nodes, thus block, are accounted apart from inlines
+        // and blocks, as their behaviour is quite specific.
+        // - When !PREPARE_FLOATBOXES, we just don't deal specifically with
+        //   floats, for a rendering more similar to legacy rendering: SPANs
+        //   with float: will be considered as non-floating inline, while
+        //   DIVs with float: will be considered as block elements, possibly
+        //   causing autoBoxing of surrounding content with only inlines.
+        // - When PREPARE_FLOATBOXES (even if !FLOAT_FLOATBOXES), we do prepare
+        //   floats and floatBoxes to be consistent, ready to be floating, or
+        //   not and flat (with a rendering possibly not similar to legacy),
+        //   without any display hash mismatch (so that toggling does not
+        //   require a full reloading). SPANs and DIVs with float: mixed with
+        //   inlines will be considered as inline when !FLOAT_FLOATBOXES, to
+        //   avoid having autoBoxing elements that would mess with a correct
+        //   floating rendering.
+        // Note that FLOAT_FLOATBOXES requires having PREPARE_FLOATBOXES.
+        bool handleFloating = BLOCK_RENDERING_G(PREPARE_FLOATBOXES);
+
+        detectChildTypes( this, hasBlockItems, hasInline, hasFloating, handleFloating );
         const css_elem_def_props_t * ntype = getElementTypePtr();
-        if (ntype && ntype->is_object) {
+        if (ntype && ntype->is_object) { // image
             switch ( d )
             {
             case css_d_block:
@@ -4676,14 +4921,60 @@ void ldomNode::initNodeRendMethod()
                 break;
             }
         } else if ( hasBlockItems && !hasInline ) {
-            // only blocks inside
+            // only blocks (or floating blocks) inside
             setRendMethod( erm_block );
         } else if ( !hasBlockItems && hasInline ) {
-            setRendMethod( erm_final );
+            // only inline (with possibly floating blocks that will
+            // be dealt with by renderFinalBlock)
+            if ( hasFloating ) {
+                // If all the inline elements are empty space, we may as well
+                // remove them and have our floats contained in a erm_block
+                if ( cleanIfOnlyEmptyTextInline(true) ) {
+                    setRendMethod( erm_block );
+                }
+                else {
+                    if ( !BLOCK_RENDERING_G(FLOAT_FLOATBOXES) ) {
+                        // If we don't want floatBoxes floating, reset them to be
+                        // rendered inline among inlines
+                        recurseElements( resetRendMethodToInline );
+                    }
+                    setRendMethod( erm_final );
+                }
+            }
+            else {
+                setRendMethod( erm_final );
+            }
         } else if ( !hasBlockItems && !hasInline ) {
+            // nothing (or only floating blocks)
+            // (don't ignore it as it might be some HR with borders/padding,
+            // even if no content)
             setRendMethod( erm_block );
-            //setRendMethod( erm_invisible );
         } else if ( hasBlockItems && hasInline ) {
+            // Mixed content of blocks and inline elements:
+            // the consecutive inline elements should be considered part
+            // of an anonymous block element - non-anonymous for crengine,
+            // as we create a <autoBoxing> element and add it to the DOM),
+            // taking care of ignoring unvaluable inline elements consisting
+            // of only spaces.
+            //   Note: when there are blocks, inlines and floats mixed, we could
+            //   choose to let the floats be blocks, or include them with the
+            //   surrounding inlines into an autoBoxing:
+            //   - blocks: they will just be footprints (so, only 2 squares at
+            //   top left and right) over the inline/final content, and when
+            //   there are many, the text may not wrap fully around the floats...
+            //   - with inlines: they will wrap fully, but if the text is short,
+            //   the floats will be cleared, and there will be blank vertical
+            //   filling space...
+            //   The rendering can be really different, and there's no real way
+            //   of knowing which will be the best.
+            //   So, for now, go with including them with inlines into the
+            //   erm_final autoBoxing.
+            // The above has become less critical after we added DO_NOT_CLEAR_OWN_FLOATS
+            // and ALLOW_EXACT_FLOATS_FOOTPRINTS, and both options should render
+            // similarly.
+            // But still going with including them with inlines is best, as we
+            // don't need to include them in the footprint (so, the limit of
+            // 5 outer block float IDs is still available for real outer floats).
             if ( getParentNode()->getNodeId()==el_autoBoxing ) {
                 // already autoboxed
                 setRendMethod( erm_final );
@@ -4698,18 +4989,21 @@ void ldomNode::initNodeRendMethod()
 //                        CRLog::error("Invalid parent->child relation for nodes %d->%d", getParentNode()->getDataIndex(), getDataIndex() );
 //                    }
 
-                    if ( isInlineNode(node) ) {
+                    // We want to keep float:'ing nodes with inline nodes, so they stick with their
+                    // siblings inline nodes in an autoBox: the erm_final autoBox will deal
+                    // with rendering the floating node, and the inline text around it
+                    if ( isInlineNode(node) || (handleFloating && isFloatingNode(node)) ) {
                         int j = i-1;
                         for ( ; j>=0; j-- ) {
                             node = getChildNode(j);
-                            if ( !isInlineNode(node) )
+                            if ( !isInlineNode(node) && !(handleFloating && isFloatingNode(node)) )
                                 break;
                         }
                         j++;
                         // j..i are inline
                         if ( j>0 || i<(int)getChildCount()-1 )
                             if  ( this->getDocument()->_cacheFile == NULL)
-                                autoboxChildren( j, i );
+                                autoboxChildren( j, i, handleFloating );
                         i = j;
                     } else if ( i>0 ) {
                         ldomNode * prev = getChildNode(i-1);
@@ -4718,20 +5012,162 @@ void ldomNode::initNodeRendMethod()
                             if ( getChildCount()!=2 ) {
                                 CRLog::debug("Autoboxing run-in items");
                                 if  ( this->getDocument()->_cacheFile == NULL)
-                                    autoboxChildren( i-1, i );
+                                    autoboxChildren( i-1, i, handleFloating );
                             }
                             i--;
                         }
                     }
                 }
                 // check types after autobox
-                detectChildTypes( this, hasBlockItems, hasInline );
+                detectChildTypes( this, hasBlockItems, hasInline, hasFloating, handleFloating );
                 if ( hasInline ) {
                     // Final
                     setRendMethod( erm_final );
                 } else {
                     // Block
                     setRendMethod( erm_block );
+                }
+            }
+        }
+    }
+
+    if (BLOCK_RENDERING_G(WRAP_FLOATS)) {
+        // While loading the document, we want to put any element with float:left/right
+        // inside an internal floatBox element with no margin in its style: this
+        // floatBox's RenderRectAccessor will have the position and width/height
+        // of the outer element (with margins inside), while the RenderRectAccessor
+        // of the wrapped original element itself will have the w/h of the element,
+        // including borders but excluding margins (as it is done for all elements
+        // by crengine).
+        // That makes out the following rules:
+        // - a floatBox has a single child: the original floating element.
+        // - a non-floatBox element with style->float_ must be wrapped in a floatBox
+        //   which will get the same style->float_ (happens in the initial document
+        //   loading)
+        // - if it already has a floatBox parent, no need to do it again, just ensure
+        //   the style->float_ are the same (happens when re-rendering)
+        // - if the element has lost its style->float_ (style tweak applied), or
+        //   WRAP_FLOATS disabled, as we can't remove the floatBox (we can't
+        //   modify the DOM once a cache has been made): update the floatBox's
+        //   style->float_ and style->display and rendering method to be the same
+        //   as the element: this will limit the display degradation when such
+        //   change happen (but a full re-loading will still be suggested to the
+        //   user, and should probably be accepted).
+        // So, to allow toggling FLOAT_FLOATBOXES with less chance of getting
+        // a _nodeDisplayStyleHash change (and so, a need for document reloading),
+        // it's best to use WRAP_FLOATS even when flat rendering is requested.
+        //
+        // Note that, when called in the XML loading phase, we can't update
+        // a node style (with getStyle(), copystyle(), setStyle()) as, for some reason
+        // not pinpointed, it could affect and mess with the upcoming node parsing.
+        // We can just set the style of an element we add (and only once, setting it
+        // twice would cause the same mess). But in the re-rendering phase, we can
+        // update a node style as much as we want.
+        bool isFloating = getStyle()->float_ > css_f_none;
+        bool isFloatBox = (getNodeId() == el_floatBox);
+        if ( isFloating || isFloatBox ) {
+            ldomNode * parent = getParentNode();
+            bool isFloatBoxChild = (parent && (parent->getNodeId() == el_floatBox));
+            if ( isFloatBox ) {
+                // Wrapping floatBox already made
+                if (getChildCount() != 1) {
+                    CRLog::error("floatBox with zero or more than one child");
+                    crFatalError();
+                }
+                // Update floatBox style according to child's one
+                ldomNode * child = getChildNode(0);
+                css_style_ref_t child_style = child->getStyle();
+                css_style_ref_t my_style = getStyle();
+                css_style_ref_t my_new_style( new css_style_rec_t );
+                copystyle(my_style, my_new_style);
+                my_new_style->float_ = child_style->float_;
+                if (child_style->display == css_d_inline) { // when !PREPARE_FLOATBOXES
+                    my_new_style->display = css_d_inline; // become an inline wrapper
+                }
+                else if (child_style->display == css_d_none) {
+                    my_new_style->display = css_d_none; // stay invisible
+                }
+                else { // everything else (including tables) must be wrapped by a block
+                    my_new_style->display = css_d_block;
+                }
+                setStyle(my_new_style);
+                // When re-rendering, setNodeStyle() has already been called to set
+                // our style and font, so no need for calling initNodeFont() here,
+                // as we didn't change anything related to font in the style (and
+                // calling it can cause a style hash mismatch for some reason).
+
+                // Update floatBox rendering method according to child's one
+                // It should be erm_block by default (the child can be erm_final
+                // if it contains text), except if the child has stayed inline
+                // when !PREPARE_FLOATBOXES
+                if (child->getRendMethod() == erm_inline)
+                    setRendMethod( erm_inline );
+                else
+                    setRendMethod( erm_block );
+            }
+            else if ( isFloatBoxChild ) {
+                // Already floatBox'ed, nothing special to do
+            }
+            else { // !isFloatBox && !isFloatBoxChild
+                // Element with float:, that has not been yet wrapped in a floatBox.
+                // Like above, don't do any node moving when there is already a
+                // cache file, to avoid some unclear segfaults.
+                // (If new floats appear after loading, we won't render well, but
+                // a style hash mismatch will happen and the user will be
+                // suggested to reload the book with cache cleaned.)
+                if ( this->getDocument()->_cacheFile == NULL ) {
+                    // Replace this element with a floatBox in its parent children collection,
+                    // and move it inside, as the single child of this floatBox.
+                    int pos = getNodeIndex();
+                    ldomNode * fbox = parent->insertChildElement( pos, LXML_NS_NONE, el_floatBox );
+                    parent->moveItemsTo( fbox, pos+1, pos+1 ); // move this element from parent into fbox
+
+                    // If we have float:, this just-created floatBox should be erm_block,
+                    // unless the child has been kept inline
+                    if ( !BLOCK_RENDERING_G(PREPARE_FLOATBOXES) && getRendMethod() == erm_inline)
+                        fbox->setRendMethod( erm_inline );
+                    else
+                        fbox->setRendMethod( erm_block );
+
+                    // We want this floatBox to have no real style (and it surely
+                    // should not have the margins of the child), but it should probably
+                    // have the inherited properties of the node parent, just like the child
+                    // had them. We can't just copy the parent style into this floatBox, as
+                    // we don't want its non-inherited properties like background-color which
+                    // could be drawn over some other content if this float has some negative
+                    // margins.
+                    // So, we can't really do this:
+                    //    // Move float and display from me into my new fbox parent
+                    //    css_style_ref_t mystyle = getStyle();
+                    //    css_style_ref_t parentstyle = parent->getStyle();
+                    //    css_style_ref_t fboxstyle( new css_style_rec_t );
+                    //    copystyle(parentstyle, fboxstyle);
+                    //    fboxstyle->float_ = mystyle->float_;
+                    //    fboxstyle->display = mystyle->display;
+                    //    fbox->setStyle(fboxstyle);
+                    //    fbox->initNodeFont();
+                    //
+                    // Best to use lvrend.cpp setNodeStyle(), which will properly set
+                    // this new node style with inherited properties from its parent,
+                    // and we made it do this specific propagation of float_ and
+                    // display from its single children, only when it has styles
+                    // defined (so, only on initial loading and not on re-renderings).
+                    setNodeStyle( fbox, parent->getStyle(), parent->getFont() );
+
+                    // We would have liked to reset style->float_ to none in the
+                    // node we moved in the floatBox, for correctness sake.
+                    //    css_style_ref_t mynewstyle( new css_style_rec_t );
+                    //    copystyle(mystyle, mynewstyle);
+                    //    mynewstyle->float_ = css_f_none;
+                    //    mynewstyle->display = css_d_block;
+                    //    setStyle(mynewstyle);
+                    //    initNodeFont();
+                    // Unfortunatly, we can't yet re-set a style while the DOM
+                    // is still being built (as we may be called during the loading
+                    // phase) without many font glitches.
+                    // So, we'll have a floatBox with float: that contains a span
+                    // or div with float: - the rendering code may have to check
+                    // for that: ->isFloatingBox() was added for that.
                 }
             }
         }
@@ -10146,11 +10582,14 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                     res = res * 31 + sh;
                     if (!style.isNull()) {
                         _nodeDisplayStyleHash = _nodeDisplayStyleHash * 31 + style.get()->display;
-                        // Also accounts in this hash if this node is "white_space: pre"
+                        // Also account in this hash if this node is "white_space: pre"
                         // If white_space change from/to "pre" to/from any other value,
                         // the document will need to be reloaded so that the HTML text parts
                         // are parsed according the the PRE/not-PRE rules
                         if (style.get()->white_space == css_ws_pre) _nodeDisplayStyleHash += 29;
+                        // Also account for style->float_, as it should create/remove new floatBox
+                        // elements wrapping floats when toggling BLOCK_RENDERING_G(ENHANCED)
+                        if (style.get()->float_ > css_f_none) _nodeDisplayStyleHash += 123;
                     }
                     //printf("element %d %d style hash: %x\n", i, j, sh);
                     LVFontRef font = buf[j].getFont();
@@ -12032,6 +12471,27 @@ void ldomNode::recurseElements( void (*pFun)( ldomNode * node ) )
     }
 }
 
+/// calls specified function recursively for all elements of DOM tree
+void ldomNode::recurseMatchingElements( void (*pFun)( ldomNode * node ), bool (*matchFun)( ldomNode * node ) )
+{
+    ASSERT_NODE_NOT_NULL;
+    if ( !isElement() )
+        return;
+    if ( !matchFun( this ) ) {
+        return;
+    }
+    pFun( this );
+    int cnt = getChildCount();
+    for (int i=0; i<cnt; i++)
+    {
+        ldomNode * child = getChildNode( i );
+        if ( child->isElement() )
+        {
+            child->recurseMatchingElements( pFun, matchFun );
+        }
+    }
+}
+
 /// calls specified function recursively for all nodes of DOM tree
 void ldomNode::recurseNodes( void (*pFun)( ldomNode * node ) )
 {
@@ -12381,6 +12841,12 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
         if ( counterValue<=0 ) {
             // calculate counter
             ldomNode * parent = getParentNode();
+            // The UL > LI parent-child chain may have had a floatBox element
+            // inserted if the LI has some float: style (also handled below
+            // when walking this parent's children).
+            if ( parent->getNodeId() == el_floatBox ) {
+                parent = parent->getParentNode();
+            }
             counterValue = 0;
             // See if parent has a 'start' attribute that overrides this 0
             // https://www.w3.org/TR/html5/grouping-content.html#the-ol-element
@@ -12393,6 +12859,9 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
             }
             for (int i = 0; i < parent->getChildCount(); i++) {
                 ldomNode * child = parent->getChildNode(i);
+                if ( child->getNodeId() == el_floatBox ) {
+                    child = child->getChildNode(0);
+                }
                 css_style_ref_t cs = child->getStyle();
                 if ( cs.isNull() )
                     continue;

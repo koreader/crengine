@@ -2371,8 +2371,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     if (!node || node->isNull() || node->isRoot())
         return false;
     // For most checks, while navigating nodes, we must ignore sibling text nodes.
-    // We also ignore <autoBoxing> (crengine internal block element, inserted
-    // for rendering purpose) when looking at parent(s).
+    // We also ignore <autoBoxing> and <floatBox> (crengine internal block element,
+    // inserted for rendering purpose) when looking at parent(s).
     // TODO: for cssrt_predecessor and cssrt_pseudoclass, we should
     // also deal with <autoBoxing> nodes when navigating siblings,
     // by iterating up and down the autoBoxing nodes met on our path while
@@ -2382,7 +2382,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     case cssrt_parent:        // E > F (child combinator)
         {
             node = node->getParentNode();
-            while (node && !node->isNull() && node->getNodeId() == el_autoBoxing)
+            while (node && !node->isNull() && (node->getNodeId() == el_autoBoxing || node->getNodeId() == el_floatBox))
                 node = node->getParentNode();
             if (!node || node->isNull())
                 return false;
@@ -2399,7 +2399,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 node = node->getParentNode();
                 if (!node || node->isNull())
                     return false;
-                if (node->getNodeId() == el_autoBoxing)
+                if (node->getNodeId() == el_autoBoxing || node->getNodeId() == el_floatBox)
                     continue;
                 // cssrt_ancessor is a non-deterministic rule: next rules
                 // could fail when checked against this parent that matches
@@ -3003,7 +3003,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             // a few ones that are added explicitely by crengine): we need
             // to lowercase them here too to expect a match.
             lString16 element(ident);
-            if (element != "DocFragment" && element != "autoBoxing" && element != "FictionBook" ) {
+            if (element != "DocFragment" && element != "autoBoxing" & element != "floatBox" && element != "FictionBook" ) {
                 element = element.lowercase();
             }
             _id = doc->getElementNameIndex( element.c_str() );

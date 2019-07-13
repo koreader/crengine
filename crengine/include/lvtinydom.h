@@ -717,8 +717,11 @@ private:
     /// sets new value for render data structure
     void setRenderData( lvdomElementFormatRec & newData);
 
-    void autoboxChildren( int startIndex, int endIndex );
+    void autoboxChildren( int startIndex, int endIndex, bool handleFloating=false );
     void removeChildren( int startIndex, int endIndex );
+    bool cleanIfOnlyEmptyTextInline( bool handleFloating=false );
+    /// returns true if element has inline content (non empty text, images, <BR>)
+    bool hasNonEmptyInlineContent( bool ignoreFloats=false );
 
 public:
 #if BUILD_LITE!=1
@@ -852,6 +855,8 @@ public:
     void clearRenderData();
     /// calls specified function recursively for all elements of DOM tree
     void recurseElements( void (*pFun)( ldomNode * node ) );
+    /// calls specified function recursively for all elements of DOM tree matched by matchFun
+    void recurseMatchingElements( void (*pFun)( ldomNode * node ), bool (*matchFun)( ldomNode * node ) );
     /// calls specified function recursively for all elements of DOM tree, children before parent
     void recurseElementsDeepFirst( void (*pFun)( ldomNode * node ) );
     /// calls specified function recursively for all nodes of DOM tree
@@ -936,6 +941,8 @@ public:
 
     /// for display:list-item node, get marker
     bool getNodeListMarker( int & counterValue, lString16 & marker, int & markerWidth );
+    /// is node a floating floatBox
+    bool isFloatingBox();
 };
 
 
