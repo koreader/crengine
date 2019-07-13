@@ -16,6 +16,17 @@
 
 #include "lvtinydom.h"
 
+// Flags for RenderRectAccessor
+#define RENDER_RECT_FLAG_INNER_FIELDS_SET                   0x0001
+#define RENDER_RECT_FLAG_NO_CLEAR_OWN_FLOATS                0x0002
+#define RENDER_RECT_FLAG_FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS 0x0004
+#define RENDER_RECT_FLAG_FLOATBOX_IS_RIGHT                  0x0008
+#define RENDER_RECT_FLAG_FLOATBOX_IS_RENDERED               0x0010
+
+#define RENDER_RECT_SET_FLAG(r, f)   ( r.setFlags( r.getFlags() | RENDER_RECT_FLAG_##f ) )
+#define RENDER_RECT_UNSET_FLAG(r, f) ( r.setFlags( r.getFlags() & ~RENDER_RECT_FLAG_##f ) )
+#define RENDER_RECT_HAS_FLAG(v, f)   ( (bool)(v.getFlags() & RENDER_RECT_FLAG_##f) )
+
 /// returns true if styles are identical
 bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 );
 /// removes format data from node

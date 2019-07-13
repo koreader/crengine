@@ -260,13 +260,67 @@ enum lvdom_element_render_method
 /// node format record
 class lvdomElementFormatRec {
 protected:
-    int  _x;
-    int  _width;
-    int  _y;
-    int  _height;
+    // Values on the x-axis can be stored in a 16bit int, values
+    // on the y-axis should better be stored in a 32bit int.
+    // Some of these fields were added to support floats and
+    // optimize some computations (we increased the size of
+    // this object from 4 to 16 32bits-int - this make cache
+    // files grow only by ~1%, probably because they compress
+    // well when not filled and left to be 0).
+
+    // Position and size of a (block or final) element, relative to
+    // it's parent block container top left, not including margins,
+    // but including borders and paddings.
+    int    _y;
+    int    _height;
+    short  _x;
+    short  _width;
+    // For erm_final block, inner width and position (so, excluding
+    // paddings and border) of the LFormattedText inside that element.
+    short  _inner_width; // = _width - left and right borders and paddings
+    short  _inner_x;     // = left border + padding
+    short  _inner_y;     // = top border + padding
+    short  _available1;  // (no need for any _inner_height currently)
+
+    // Children blocks should be fully contained in their parent block,
+    // and sibling nodes blocks should not overlap with other siblings,
+    // except when float are involved and we allow them to continue
+    // over next outer elements.
+    // Record these overflows, mostly to just be able to draw floats
+    // correctly and not ignore them if their container block is out
+    // of screen. Also help selecting text in overflowing floats.
+    int _top_overflow;    // Overflow (positive value) below _y
+    int _bottom_overflow; // Overflow (positive value) after _y+_height
+
+    int _listprop_node_idx; // dataIndex of the UL/OL node this erm_final block
+                           // should get its marker from
+
+    // Flags & extras, to have additional info related to this rect cached.
+    // - For erm_final nodes, these contain the footprint of outer floats
+    //   that we need to know when accessing this final node (for re-
+    //   formatting, when drawing, or selecting text or links...) to expect
+    //   a reproducible layout (see BlockFloatFootprint for the different
+    //   possible usages of these extra fields).
+    unsigned short  _flags;
+    unsigned short  _extra0;
+    int  _extra1;
+    int  _extra2;
+    int  _extra3;
+    int  _extra4;
+    int  _extra5;
+
+    // Added for padding from 14 to 16 32-bits ints
+    int _available2;
+    int _available3;
+
 public:
     lvdomElementFormatRec()
-    : _x(0), _width(0), _y(0), _height(0)//, _formatter(NULL)
+    : _x(0), _width(0), _y(0), _height(0)
+    , _inner_width(0), _inner_x(0), _inner_y(0), _available1(0)
+    , _top_overflow(0), _bottom_overflow(0), _listprop_node_idx(0)
+    , _flags(0), _extra0(0)
+    , _extra1(0), _extra2(0), _extra3(0), _extra4(0), _extra5(0)
+    , _available2(0), _available3(0)
     {
     }
     ~lvdomElementFormatRec()
@@ -275,14 +329,38 @@ public:
     void clear()
     {
         _x = _width = _y = _height = 0;
+        _inner_width = _inner_x = _inner_y = _available1 = 0;
+        _top_overflow = _bottom_overflow = 0;
+        _listprop_node_idx = 0;
+        _flags = _extra0 = 0;
+        _extra1 = _extra2 = _extra3 = _extra4 = _extra5 = 0;
+        _available2 = 0; _available3 = 0;
     }
     bool operator == ( lvdomElementFormatRec & v )
     {
-        return (_height==v._height && _y==v._y && _width==v._width && _x==v._x );
+        return (_height==v._height && _y==v._y && _width==v._width && _x==v._x &&
+                _inner_width==v._inner_width && _inner_x==v._inner_x &&
+                _inner_y==v._inner_y && _available1==v._available1 &&
+                _top_overflow==v._top_overflow && _bottom_overflow==v._bottom_overflow &&
+                _listprop_node_idx==v._listprop_node_idx &&
+                _flags==v._flags && _extra0==v._extra0 &&
+                _extra1==v._extra1 && _extra2==v._extra2 && _extra3==v._extra3 &&
+                _extra4==v._extra4 && _extra5==v._extra5 &&
+                _available2==v._available2 && _available3==v._available3
+                );
     }
     bool operator != ( lvdomElementFormatRec & v )
     {
-        return (_height!=v._height || _y!=v._y || _width!=v._width || _x!=v._x );
+        return (_height!=v._height || _y!=v._y || _width!=v._width || _x!=v._x ||
+                _inner_width!=v._inner_width || _inner_x!=v._inner_x ||
+                _inner_y!=v._inner_y || _available1!=v._available1 ||
+                _top_overflow!=v._top_overflow || _bottom_overflow!=v._bottom_overflow ||
+                _listprop_node_idx!=v._listprop_node_idx ||
+                _flags!=v._flags || _extra0!=v._extra0 ||
+                _extra1!=v._extra1 || _extra2!=v._extra2 || _extra3!=v._extra3 ||
+                _extra4!=v._extra4 || _extra5!=v._extra5 ||
+                _available2!=v._available2 || _available3!=v._available3
+                );
     }
     // Get/Set
     int getX() const { return _x; }
@@ -300,6 +378,8 @@ public:
     void setY( int y ) { _y = y; }
     void setWidth( int w ) { _width = w; }
     void setHeight( int h ) { _height = h; }
+    // No real need for setters/getters for the other fields, RenderRectAccessor
+    // extends this class and can access them freely.
 };
 
 /// calculate cache record hash

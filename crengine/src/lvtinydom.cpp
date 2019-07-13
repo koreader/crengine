@@ -67,7 +67,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.24k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.25k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x001A
 
@@ -1360,6 +1360,13 @@ RenderRectAccessor::~RenderRectAccessor()
 #endif
 }
 
+void RenderRectAccessor::clear()
+{
+    lvdomElementFormatRec::clear(); // will clear every field
+    _modified = true;
+    _dirty = false;
+}
+
 void RenderRectAccessor::push()
 {
     if ( _modified ) {
@@ -1487,6 +1494,275 @@ void RenderRectAccessor::getRect( lvRect & rc )
     rc.right = _x + _width;
     rc.bottom = _y + _height;
 }
+
+void RenderRectAccessor::setInnerX( int x )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _inner_x != x ) {
+        _inner_x = x;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::setInnerY( int y )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _inner_y != y ) {
+        _inner_y = y;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::setInnerWidth( int w )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _inner_width != w ) {
+        _inner_width = w;
+        _modified = true;
+    }
+}
+int RenderRectAccessor::getInnerX()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _inner_x;
+}
+int RenderRectAccessor::getInnerY()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _inner_y;
+}
+int RenderRectAccessor::getInnerWidth()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _inner_width;
+}
+int RenderRectAccessor::getTopOverflow()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _top_overflow;
+}
+int RenderRectAccessor::getBottomOverflow()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _bottom_overflow;
+}
+void RenderRectAccessor::setTopOverflow( int dy )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( dy < 0 ) dy = 0; // don't allow a negative value
+    if ( _top_overflow != dy ) {
+        _top_overflow = dy;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::setBottomOverflow( int dy )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( dy < 0 ) dy = 0; // don't allow a negative value
+    if ( _bottom_overflow != dy ) {
+        _bottom_overflow = dy;
+        _modified = true;
+    }
+}
+int RenderRectAccessor::getListPropNodeIndex()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _listprop_node_idx;
+}
+void RenderRectAccessor::setListPropNodeIndex( int idx )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _listprop_node_idx != idx ) {
+        _listprop_node_idx = idx;
+        _modified = true;
+    }
+}
+unsigned short RenderRectAccessor::getFlags()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _flags;
+}
+void RenderRectAccessor::setFlags( unsigned short flags )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _flags != flags ) {
+        _flags = flags;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::getTopRectsExcluded( int & lw, int & lh, int & rw, int & rh )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    lw = _extra1 >> 16;    // Both stored in a single int slot (widths are
+    rw = _extra1 & 0xFFFF; // constrained to lUint16 in many other places)
+    lh = _extra2;
+    rh = _extra3;
+}
+void RenderRectAccessor::setTopRectsExcluded( int lw, int lh, int rw, int rh )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _extra2 != lh || _extra3 != rh || (_extra1>>16) != lw || (_extra1&0xFFFF) != rw ) {
+        _extra1 = (lw<<16) + rw;
+        _extra2 = lh;
+        _extra3 = rh;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::getNextFloatMinYs( int & left, int & right )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    left = _extra4;
+    right = _extra5;
+}
+void RenderRectAccessor::setNextFloatMinYs( int left, int right )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _extra4 != left || _extra5 != right ) {
+        _extra4 = left;
+        _extra5 = right;
+        _modified = true;
+    }
+}
+void RenderRectAccessor::getInvolvedFloatIds( int & float_count, lUInt32 * float_ids )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    float_count = _extra0;
+    if (float_count > 0) float_ids[0] = _extra1;
+    if (float_count > 1) float_ids[1] = _extra2;
+    if (float_count > 2) float_ids[2] = _extra3;
+    if (float_count > 3) float_ids[3] = _extra4;
+    if (float_count > 4) float_ids[4] = _extra5;
+}
+void RenderRectAccessor::setInvolvedFloatIds( int float_count, lUInt32 * float_ids )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    _extra0 = float_count;
+    if (float_count > 0) _extra1 = float_ids[0];
+    if (float_count > 1) _extra2 = float_ids[1];
+    if (float_count > 2) _extra3 = float_ids[2];
+    if (float_count > 3) _extra4 = float_ids[3];
+    if (float_count > 4) _extra5 = float_ids[4];
+    _modified = true;
+}
+
 #endif
 
 
@@ -12398,10 +12674,7 @@ static void updateRendMethod( ldomNode * node )
     // a previous page drawing phase), that could otherwise have negative
     // impact on the coming rendering (noticeable with table elements).
     RenderRectAccessor fmt( node );
-    fmt.setX(0);
-    fmt.setWidth(0);
-    fmt.setY(0);
-    fmt.setHeight(0);
+    fmt.clear();
     fmt.push();
 }
 
