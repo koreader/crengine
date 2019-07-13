@@ -3752,6 +3752,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->line_height.value = css_generic_normal; // line-height: normal
     s->orphans = css_orphans_widows_1; // default to allow orphans and widows
     s->widows = css_orphans_widows_1;
+    s->float_ = css_f_none;
+    s->clear = css_c_none;
     s->cr_hint = css_cr_hint_none;
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();

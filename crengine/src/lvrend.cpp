@@ -2515,14 +2515,17 @@ int CssPageBreak2Flags( css_page_break_t prop )
 {
     switch (prop)
     {
+    case css_pb_auto:
+        return RN_SPLIT_AUTO;
+    case css_pb_avoid:
+        return RN_SPLIT_AVOID;
     case css_pb_always:
     case css_pb_left:
     case css_pb_right:
+    case css_pb_page:
+    case css_pb_recto:
+    case css_pb_verso:
         return RN_SPLIT_ALWAYS;
-    case css_pb_avoid:
-        return RN_SPLIT_AVOID;
-    case css_pb_auto:
-        return RN_SPLIT_AUTO;
     default:
         return RN_SPLIT_AUTO;
     }
@@ -2603,6 +2606,8 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_spacing[1]=source->border_spacing[1];
     dest->orphans = source->orphans;
     dest->widows = source->widows;
+    dest->float_ = source->float_;
+    dest->clear = source->clear;
     dest->cr_hint = source->cr_hint;
 }
 
@@ -2859,6 +2864,11 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 
         //margin_left += 50;
         //margin_right += 50;
+        // Legacy rendering did/does not support negative margins
+        if (margin_left < 0) margin_left = 0;
+        if (margin_right < 0) margin_right = 0;
+        if (margin_top < 0) margin_top = 0;
+        if (margin_bottom < 0) margin_bottom = 0;
 
         // todo: we should be able to allow horizontal negative margins:
         // (allow parsing negative values in lvstsheet.cpp, and
@@ -4378,9 +4388,16 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( widows, css_orphans_widows_inherit );
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );
-    UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit ); // These are not inherited per CSS specs,
-    UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );  // investigate why they are here (might be
-    UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit ); // for processing reasons)
+
+    // page_break_* should not be inherited per CSS specs, and as we set
+    // each node to start with css_pb_auto, they shouldn't get a chance
+    // to be inherited, except if a publisher really uses 'inherit'.
+    // We usually don't ensure inheritance of styles that are not inherited
+    // by default, but as these were originally in the code, let's keep them.
+    UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit );
+    UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );
+    UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit );
+
     // vertical_align is not inherited per CSS specs: we fixed its propagation
     // to children with the use of 'valign_dy'
     // UPDATE_STYLE_FIELD( vertical_align, css_va_inherit );
