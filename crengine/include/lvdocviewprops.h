@@ -65,6 +65,7 @@
 // use 0 for old crengine behaviour (no support for absolute units and 1css px = 1 screen px)
 #define PROP_RENDER_DPI                 "crengine.render.dpi"
 #define PROP_RENDER_SCALE_FONT_WITH_DPI "crengine.render.scale.font.with.dpi"
+#define PROP_RENDER_BLOCK_RENDERING_FLAGS "crengine.render.block.rendering.flags"
 
 #define PROP_CACHE_VALIDATION_ENABLED  "crengine.cache.validation.enabled"
 #define PROP_MIN_FILE_SIZE_TO_CACHE  "crengine.cache.filesize.min"

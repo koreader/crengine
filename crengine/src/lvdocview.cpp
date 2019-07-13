@@ -5960,6 +5960,7 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 
     props->setIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI); // 96 dpi
     props->setIntDef(PROP_RENDER_SCALE_FONT_WITH_DPI, DEF_RENDER_SCALE_FONT_WITH_DPI); // no scale
+    props->setIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
 
     props->setIntDef(PROP_FILE_PROPS_FONT_SIZE, 22);
 
@@ -6228,6 +6229,13 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if ( gFlgFloatingPunctuationEnabled != value ) {
                 gFlgFloatingPunctuationEnabled = value;
                 REQUEST_RENDER("propsApply floating punct")
+            }
+        } else if (name == PROP_RENDER_BLOCK_RENDERING_FLAGS) {
+            int value = props->getIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
+            value = validateBlockRenderingFlags(value);
+            if ( gRenderBlockRenderingFlags != value ) {
+                gRenderBlockRenderingFlags = value;
+                REQUEST_RENDER("propsApply render block rendering flags")
             }
         } else if (name == PROP_RENDER_DPI) {
             int value = props->getIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI);
