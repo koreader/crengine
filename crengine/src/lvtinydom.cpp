@@ -12597,7 +12597,7 @@ void ldomNode::setText8( lString8 utf8 )
 
 #if BUILD_LITE!=1
 /// returns node absolute rectangle
-void ldomNode::getAbsRect( lvRect & rect )
+void ldomNode::getAbsRect( lvRect & rect, bool inner )
 {
     ASSERT_NODE_NOT_NULL;
     ldomNode * node = this;
@@ -12606,12 +12606,28 @@ void ldomNode::getAbsRect( lvRect & rect )
     rect.top = fmt.getY();
     rect.right = fmt.getWidth();
     rect.bottom = fmt.getHeight();
+    if ( inner && RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) {
+        // This flag is set only when in enhanced rendering mode, and
+        // only on erm_final-like nodes.
+        rect.left += fmt.getInnerX();     // add padding left
+        rect.top += fmt.getInnerY();      // add padding top
+        rect.right = fmt.getInnerWidth(); // replace by inner width
+    }
     node = node->getParentNode();
     for (; node; node = node->getParentNode())
     {
         RenderRectAccessor fmt( node );
         rect.left += fmt.getX();
         rect.top += fmt.getY();
+        if ( RENDER_RECT_HAS_FLAG(fmt, INNER_FIELDS_SET) ) {
+            // getAbsRect() is mostly used on erm_final nodes. So,
+            // if we meet another erm_final node in our parent, we are
+            // probably an embedded floatBox. Embedded floatBoxes are
+            // positionned according to the inner LFormattedText, so
+            // we need to account for these padding shifts.
+            rect.left += fmt.getInnerX();     // add padding left
+            rect.top += fmt.getInnerY();      // add padding top
+        }
     }
     rect.bottom += rect.top;
     rect.right += rect.left;
@@ -13792,7 +13808,7 @@ int ldomNode::getSurroundingAddedHeight()
 // (as ::renderFinalBlock( this, f.get(), fmt...) needs it to compute text-indent in %
 // 'int width' is the available width for the inner content, and so
 // caller must exclude block node padding from it.
-int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width )
+int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width, BlockFloatFootprint * float_footprint )
 {
     ASSERT_NODE_NOT_NULL;
     if ( !isElement() )
@@ -13801,6 +13817,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     CVRendBlockCache & cache = getDocument()->getRendBlockCache();
     LFormattedTextRef f;
     lvdom_element_render_method rm = getRendMethod();
+
     if ( cache.get( this, f ) ) {
         frmtext = f;
         if ( rm != erm_final && rm != erm_list_item && rm != erm_table_caption )
@@ -13820,13 +13837,24 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     bool flg=gFlgFloatingPunctuationEnabled;
     if (this->getNodeName()=="th"||this->getNodeName()=="td"||
             (!this->getParentNode()->isNull()&&this->getParentNode()->getNodeName()=="td")||
-            (!this->getParentNode()->isNull()&&this->getParentNode()->getNodeName()=="th"))
-    {
+            (!this->getParentNode()->isNull()&&this->getParentNode()->getNodeName()=="th")) {
         gFlgFloatingPunctuationEnabled=false;
     }
     // This page_h we provide to f->Format() is only used to enforce a max height to images
     int page_h = getDocument()->getPageHeight();
-    int h = f->Format((lUInt16)width, (lUInt16)page_h);
+    // Save or restore outer floats footprint (it is only provided
+    // when rendering the document - when this is called to draw the
+    // node, or search for text and links, we need to get it from
+    // the cached RenderRectAccessor).
+    BlockFloatFootprint restored_float_footprint; // (need to be available when we exit the else {})
+    if (float_footprint) { // Save it in this node's RenderRectAccessor
+        float_footprint->store( this );
+    }
+    else { // Restore it from this node's RenderRectAccessor
+        float_footprint = &restored_float_footprint;
+        float_footprint->restore( this, (lUInt16)width );
+    }
+    int h = f->Format((lUInt16)width, (lUInt16)page_h, float_footprint);
     gFlgFloatingPunctuationEnabled=flg;
     frmtext = f;
     //CRLog::trace("Created new formatted object for node #%08X", (lUInt32)this);

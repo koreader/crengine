@@ -27,6 +27,58 @@
 #define RENDER_RECT_UNSET_FLAG(r, f) ( r.setFlags( r.getFlags() & ~RENDER_RECT_FLAG_##f ) )
 #define RENDER_RECT_HAS_FLAG(v, f)   ( (bool)(v.getFlags() & RENDER_RECT_FLAG_##f) )
 
+class FlowState;
+
+// Footprint of block floats (from FlowState) on a final block,
+// to be passed to lvtextfm LFormattedText::Format().
+// Also allows LFormattedText to pass back information about
+// its own embedded floats if they overflow the final block
+// own height.
+class BlockFloatFootprint {
+private:
+    FlowState * flow;
+    int d_left;
+    int d_top;
+    int used_min_y;
+    int used_max_y;
+public:
+    // Forwarded from BLOCK_RENDERING_DO_NOT_CLEAR_OWN_FLOATS
+    // (or not when table cell erm_final)
+    bool no_clear_own_floats;
+    bool use_floatIds;
+    // Footprints, used when they are more than 5 floats involved,
+    // or ALLOW_EXACT_FLOATS_FOOTPRINTS not enabled.
+    int left_w;
+    int left_h;
+    int right_w;
+    int right_h;
+    int left_min_y;
+    int right_min_y;
+    // FloatIds, used when less than 5 floats involved
+    // and ALLOW_EXACT_FLOATS_FOOTPRINTS enabled
+    int nb_floatIds;
+    lUInt32 floatIds[5];
+    // Floats to transfer to final block for it to
+    // start with these 5 "fake" embedded floats
+    int floats_cnt;
+    int floats[5][5]; // max 5 floats, with (x,y,w,h,is_right) each
+
+    int getFinalMinY() { return used_min_y; };
+    int getFinalMaxY() { return used_max_y; };
+    void store( ldomNode * node );
+    void restore( ldomNode * node, int final_width );
+    void generateEmbeddedFloatsFromFootprints( int final_width );
+    void generateEmbeddedFloatsFromFloatIds( ldomNode * node, int final_width );
+    void forwardOverflowingFloat( int x, int y, int w, int h, bool r, ldomNode * node );
+
+    BlockFloatFootprint( FlowState * fl=NULL, int dleft=0, int dtop=0, bool noclearownfloats=false ) :
+        flow(fl), d_left(dleft), d_top(dtop), no_clear_own_floats(noclearownfloats),
+        used_min_y(0), used_max_y(0),
+        left_w(0), left_h(0), right_w(0), right_h(0), left_min_y(0), right_min_y(0),
+        use_floatIds(false), nb_floatIds(0), floats_cnt(0)
+        { }
+};
+
 /// returns true if styles are identical
 bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 );
 /// removes format data from node
@@ -40,11 +92,15 @@ int initRendMethod( ldomNode * node, bool recurseChildren, bool allowAutoboxing 
 /// converts style to text formatting API flags
 int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags );
 /// renders block as single text formatter object
-void renderFinalBlock( ldomNode * node, LFormattedText * txform, RenderRectAccessor * fmt, int & flags, int ident, int line_h, int valign_dy=0, bool * is_link_start=NULL );
-/// renders block which contains subblocks
+void renderFinalBlock( ldomNode * node, LFormattedText * txform, RenderRectAccessor * fmt, int & flags,
+                       int ident, int line_h, int valign_dy=0, bool * is_link_start=NULL );
+/// renders block which contains subblocks (with gRenderBlockRenderingFlags as flags)
 int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int y, int width );
+/// renders block which contains subblocks
+int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int y, int width, int rend_flags );
 /// renders table element
-int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit, int & fitted_width );
+int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit,
+                 int & fitted_width, bool pb_inside_avoid=false, bool enhanced_rendering=false );
 /// sets node style
 void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font );
 /// copy style
@@ -58,10 +114,10 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx,
 //   maxWidth: width if it would be rendered on an infinite width area
 //   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
 // full function for recursive use:
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding,
-    int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent);
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding, int rendFlags,
+            int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent);
 // simpler function for first call:
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding=false);
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding=false, int rendFlags=0);
 
 #define STYLE_FONT_EMBOLD_MODE_NORMAL 0
 #define STYLE_FONT_EMBOLD_MODE_EMBOLD 300

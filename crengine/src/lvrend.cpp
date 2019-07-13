@@ -31,7 +31,13 @@
 //   - the first one is used when "box-sizing: content-box" (default in browsers)
 //   - the second one is used when "box-sizing: border-box".
 //
-// crengine uses the traditional one (box-sizing: border-box).
+// crengine legacy rendering uses the traditional one (box-sizing: border-box).
+// In enhanced rendering mode, the W3C box model can be enabled by
+// setting BLOCK_RENDERING_USE_W3C_BOX_MODEL in flags.
+//
+// Note: internally in the code, RenderRectAccessor stores the position
+// and width of the border box (and when in enhanced rendering mode, in
+// its _inner* fields, those of the content box).
 //
 // See: https://www.456bereastreet.com/archive/201112/the_difference_between_widthauto_and_width100/
 // for some example differences in rendering.
@@ -70,6 +76,9 @@ int validateBlockRenderingFlags(int f) {
         f |= BLOCK_RENDERING_WRAP_FLOATS;
     return f;
 }
+
+// Uncomment for debugging enhanced block rendering
+// #define DEBUG_BLOCK_RENDERING
 
 //#define DEBUG_TREE_DRAW 3
 // define to non-zero (1..5) to see block bounds
@@ -127,6 +136,7 @@ simpleLogFile logfile;
 void copystyle( css_style_ref_t sourcestyle, css_style_ref_t deststyle );
 css_page_break_t getPageBreakBefore( ldomNode * el );
 int CssPageBreak2Flags( css_page_break_t prop );
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // TABLE RENDERING CLASSES
@@ -175,6 +185,7 @@ class CCRTableRow {
 public:
     int index;
     int height;
+    int bottom_overflow; // extra height from row with rowspan>1
     int y;
     int numcols; // sum of colspan
     int linkindex;
@@ -184,6 +195,7 @@ public:
     CCRTableRowGroup * rowgroup;
     CCRTableRow() : index(0)
     , height(0)
+    , bottom_overflow(0)
     , y(0)
     , numcols(0) // sum of colspan
     , linkindex(-1)
@@ -300,6 +312,8 @@ public:
     int table_width;
     int digitwidth;
     bool shrink_to_fit;
+    bool avoid_pb_inside;
+    bool enhanced_rendering;
     ldomNode * elem;
     ldomNode * caption;
     int caption_h;
@@ -1265,8 +1279,18 @@ public:
             int padding_right = lengthToPx( caption->getStyle()->padding[1], w, em ) + measureBorder(caption,1);
             int padding_top = lengthToPx( caption->getStyle()->padding[2], w, em ) + measureBorder(caption,0);
             int padding_bottom = lengthToPx( caption->getStyle()->padding[3], w, em ) + measureBorder(caption,2);
+            if ( enhanced_rendering ) {
+                // As done in renderBlockElementEnhanced when erm_final
+                fmt.setInnerX( padding_left );
+                fmt.setInnerY( padding_top );
+                fmt.setInnerWidth( w - padding_left - padding_right );
+                RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+            }
+            fmt.push();
             caption_h = caption->renderFinalBlock( txform, &fmt, w - padding_left - padding_right );
             caption_h += padding_top + padding_bottom;
+            // Reload fmt, as enode->renderFinalBlock() may have updated it.
+            fmt = RenderRectAccessor( caption );
             fmt.setHeight( caption_h );
             fmt.push();
             table_h += caption_h;
@@ -1285,7 +1309,12 @@ public:
             // more room for the big first row on next page.
             // Any table->style->page-break-before AVOID or ALWAYS has been
             // taken care of by renderBlockElement(), so we can use AVOID here.
-            line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            if ( !enhanced_rendering )
+                line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            else
+                // but not if called from RenderBlockElementEnhanced, where
+                // margins handle page splitting a bit differently
+                line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AVOID;
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h;
         }
@@ -1300,13 +1329,6 @@ public:
                 int y = cell->row->index;
                 int n = rows[i]->cells.length();
                 if ( i==y ) { // upper left corner of cell
-                    RenderRectAccessor fmt( cell->elem );
-                    // TRs padding and border don't apply (see below), so they
-                    // don't add any x/y shift to the cells' positions in the TR
-                    fmt.setX(cell->col->x); // relative to its TR (border_spacing_h is
-                                            // already accounted in col->x)
-                    fmt.setY(0); // relative to its TR
-                    fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
                     // We need to render the cell to get its height
                     if ( cell->elem->getRendMethod() == erm_final ) {
                         LFormattedTextRef txform;
@@ -1315,6 +1337,16 @@ public:
                         int padding_right = lengthToPx( cell->elem->getStyle()->padding[1], cell->width, em ) + measureBorder(cell->elem,1);
                         int padding_top = lengthToPx( cell->elem->getStyle()->padding[2], cell->width, em ) + measureBorder(cell->elem,0);
                         int padding_bottom = lengthToPx( cell->elem->getStyle()->padding[3], cell->width, em ) + measureBorder(cell->elem,2);
+                        RenderRectAccessor fmt( cell->elem );
+                        fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
+                        if ( enhanced_rendering ) {
+                            // As done in renderBlockElementEnhanced when erm_final
+                            fmt.setInnerX( padding_left );
+                            fmt.setInnerY( padding_top );
+                            fmt.setInnerWidth( cell->width - padding_left - padding_right );
+                            RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+                        }
+                        fmt.push();
                         int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - padding_left - padding_right);
                         cell->height = h + padding_top + padding_bottom;
 
@@ -1363,8 +1395,19 @@ public:
                             }
                         }
                     }
+                    // RenderRectAccessor needs to be updated after the call
+                    // to renderBlockElement() which will have setX/setY to (0,0).
+                    // But we're updating them to be in the coordinates of the TR.
+                    RenderRectAccessor fmt( cell->elem );
+                    // TRs padding and border don't apply (see below), so they
+                    // don't add any x/y shift to the cells' positions in the TR
+                    fmt.setX(cell->col->x); // relative to its TR (border_spacing_h is
+                                            // already accounted in col->x)
+                    fmt.setY(0); // relative to its TR
+                    fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
                     fmt.setHeight( cell->height );
-                    // Some fmt.set* will be updated below
+                    fmt.push();
+                    // Some fmt.set* may be updated below
                     #ifdef DEBUG_TABLE_RENDERING
                         printf("TABLE: renderCell[%d,%d] w/h: %d/%d\n", j, i, cell->width, cell->height);
                     #endif
@@ -1405,6 +1448,32 @@ public:
                             }
                         }
                     }
+                }
+            }
+        }
+        if ( enhanced_rendering ) {
+            // Update rows' bottom overflow to include the height of
+            // the next rows spanned over by cells with rowspan>1.
+            // (This must be done in another loop from the one above)
+            for (i=0; i<rows.length(); i++) {
+                CCRTableRow * row = rows[i];
+                int max_h = 0;
+                for (j=0; j<rows[i]->cells.length(); j++) {
+                    CCRTableCell * cell = rows[i]->cells[j];
+                    int y = cell->row->index;
+                    if ( i==y && cell->rowspan>1 ) {
+                        int total_h = 0;
+                        for ( int k=i; k<=i+cell->rowspan-1; k++ ) {
+                            CCRTableRow * row2 = rows[k];
+                            total_h += row2->height;
+                        }
+                        if ( total_h > max_h ) {
+                            max_h = total_h;
+                        }
+                    }
+                }
+                if ( max_h > row->height ) {
+                    row->bottom_overflow = max_h - row->height;
                 }
             }
         }
@@ -1451,12 +1520,19 @@ public:
                 fmt.setY(row->y);
                 fmt.setWidth( table_width - table_border_left - table_padding_left - table_padding_right - table_border_right );
                 fmt.setHeight( row->height );
+                if ( enhanced_rendering ) {
+                    fmt.setBottomOverflow( row->bottom_overflow );
+                }
             }
             table_h += row->height;
             table_h += borderspacing_v_bottom;
             if (splitPages) {
                 // Includes the row and half of its border_spacing above and half below.
-                if (i == 0) { // first row (or single row)
+                if (avoid_pb_inside) {
+                    // Avoid any split between rows
+                    line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+                }
+                else if (i == 0) { // first row (or single row)
                     // Avoid a split between table top border/padding/caption and first row.
                     // Also, the first row could be column headers: avoid a split between it
                     // and the 2nd row. (Any other reason to do that?)
@@ -1474,8 +1550,13 @@ public:
                     line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AVOID;
                 }
                 else {
-                    // Otherwise, allow any split between rows
-                    line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AUTO;
+                    // Otherwise, allow any split between rows, except if
+                    // the rows has some bottom overflow, which means it has
+                    // some cells with rowspan>1 that we'd rather not have cut.
+                    if ( row->bottom_overflow > 0 )
+                        line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AVOID;
+                    else
+                        line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AUTO;
                 }
                 context.AddLine(last_y, table_y0 + table_h, line_flags);
                 last_y = table_y0 + table_h;
@@ -1498,7 +1579,12 @@ public:
         if (splitPages) {
             // Any table->style->page-break-after AVOID or ALWAYS will be taken
             // care of by renderBlockElement(), so we can use AVOID here.
-            line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            if ( !enhanced_rendering )
+                line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            else
+                // but not if called from RenderBlockElementEnhanced, where
+                // margins handle page splitting a bit differently
+                line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AUTO;
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h;
         }
@@ -1529,17 +1615,23 @@ public:
                         else if (cell->valign == 2) // bottom
                             pad = (row_h - cell_h);
                         if ( cell->elem->getRendMethod() == erm_final ) {
-                            // We need to update the cell element padding-top to include this pad
-                            css_style_ref_t style = cell->elem->getStyle();
-                            css_style_ref_t newstyle(new css_style_rec_t);
-                            copystyle(style, newstyle);
-                            // If padding-top is a percentage, it is relative to
-                            // the *width* of the containing block
-                            int em = cell->elem->getFont()->getSize();
-                            int orig_padding_top = lengthToPx( style->padding[2], cell->width, em );
-                            newstyle->padding[2].type = css_val_screen_px;
-                            newstyle->padding[2].value = orig_padding_top + pad;
-                            cell->elem->setStyle(newstyle);
+                            if ( enhanced_rendering ) {
+                                // Just shift down the content box
+                                fmt.setInnerY( fmt.getInnerY() + pad );
+                            }
+                            else {
+                                // We need to update the cell element padding-top to include this pad
+                                css_style_ref_t style = cell->elem->getStyle();
+                                css_style_ref_t newstyle(new css_style_rec_t);
+                                copystyle(style, newstyle);
+                                // If padding-top is a percentage, it is relative to
+                                // the *width* of the containing block
+                                int em = cell->elem->getFont()->getSize();
+                                int orig_padding_top = lengthToPx( style->padding[2], cell->width, em );
+                                newstyle->padding[2].type = css_val_screen_px;
+                                newstyle->padding[2].value = orig_padding_top + pad;
+                                cell->elem->setStyle(newstyle);
+                            }
                         } else if ( cell->elem->getRendMethod() != erm_invisible ) { // erm_block
                             // We need to update each child fmt.y to include this pad
                             for (int i=0; i<cell->elem->getChildCount(); i++) {
@@ -1570,16 +1662,29 @@ public:
             CCRTableRowGroup * grp = rowgroups[i];
             if ( grp->rows.length() > 0 ) {
                 int y0 = grp->rows.first()->y;
-                int y1 = grp->rows.last()->y + grp->rows.first()->height;
+                int y1 = grp->rows.last()->y + grp->rows.last()->height;
                 RenderRectAccessor fmt( grp->elem );
                 fmt.setY( y0 );
                 fmt.setHeight( y1 - y0 );
                 fmt.setX( 0 );
                 fmt.setWidth( table_width );
+                int max_row_bottom_overflow_y = 0;
                 for ( int j=0; j<grp->rows.length(); j++ ) {
                     // make row Y position relative to group
                     RenderRectAccessor rowfmt( grp->rows[j]->elem );
                     rowfmt.setY( rowfmt.getY() - y0 );
+                    if ( enhanced_rendering ) {
+                        // max y (relative to y0) from rows with bottom overflow
+                        int row_bottom_overflow_y = rowfmt.getY() + rowfmt.getHeight() + rowfmt.getBottomOverflow();
+                        if (row_bottom_overflow_y > max_row_bottom_overflow_y)
+                            max_row_bottom_overflow_y = row_bottom_overflow_y;
+                    }
+                }
+                if ( enhanced_rendering ) {
+                    // Update row group bottom overflow from the rows max
+                    if ( max_row_bottom_overflow_y > fmt.getHeight() ) {
+                        fmt.setBottomOverflow( max_row_bottom_overflow_y - fmt.getHeight() );
+                    }
                 }
             }
         }
@@ -1587,13 +1692,16 @@ public:
         return table_h;
     }
 
-    CCRTable(ldomNode * tbl_elem, int tbl_width, bool tbl_shrink_to_fit, int dwidth) : digitwidth(dwidth) {
+    CCRTable(ldomNode * tbl_elem, int tbl_width, bool tbl_shrink_to_fit, bool tbl_avoid_pb_inside,
+                                bool tbl_enhanced_rendering, int dwidth) : digitwidth(dwidth) {
         currentRowGroup = NULL;
         caption = NULL;
         caption_h = 0;
         elem = tbl_elem;
         table_width = tbl_width;
         shrink_to_fit = tbl_shrink_to_fit;
+        avoid_pb_inside = tbl_avoid_pb_inside;
+        enhanced_rendering = tbl_enhanced_rendering;
         #ifdef DEBUG_TABLE_RENDERING
             printf("TABLE: ============ parsing new table %s\n",
                 UnicodeToLocal(ldomXPointer(elem, 0).toString()).c_str());
@@ -1603,10 +1711,11 @@ public:
     }
 };
 
-int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int width, bool shrink_to_fit, int & fitted_width )
+int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int width, bool shrink_to_fit,
+                 int & fitted_width, bool avoid_pb_inside, bool enhanced_rendering )
 {
     CR_UNUSED2(x, y);
-    CCRTable table( node, width, shrink_to_fit, 10 );
+    CCRTable table( node, width, shrink_to_fit, avoid_pb_inside, enhanced_rendering, 10 );
     int h = table.renderCells( context );
     if (shrink_to_fit)
         fitted_width = table.table_width;
@@ -2263,14 +2372,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         }
         if ( rm == erm_final ) {
             // when list_item_block has been rendered as block (containing text and block elements)
-            // and list-style-position = inside, we flagged (in renderBlockElement, by associating to
-            // it a ListNumberingProps entry) the first child rendered as final so we know we have
-            // to add the marker here
-            ListNumberingPropsRef listProps =  enode->getDocument()->getNodeNumberingProps( enode->getDataIndex() );
-            if ( !listProps.isNull() ) {
-                // the associated ListNumberingProps stores the index of the list_item_block parent.
-                // We get its marker and draw it here.
-                ldomNode * list_item_block_parent = enode->getDocument()->getTinyNode(listProps->maxCounter);
+            // and list-style-position=inside (or outside when text-align center or right), the
+            // list item marker is to be propagated to the first erm_final child.
+            // In renderBlockElement(), we saved the list item node index into the
+            // RenderRectAccessor of the first child rendered as final.
+            // So if we find one, we know we have to add the marker here.
+            int listPropNodeIndex = fmt->getListPropNodeIndex();
+            if ( listPropNodeIndex ) {
+                ldomNode * list_item_block_parent = enode->getDocument()->getTinyNode( listPropNodeIndex );
                 int marker_width;
                 lString16 marker = renderListItemMarker( list_item_block_parent, marker_width, txform, line_h, flags );
                 if ( marker.length() ) {
@@ -2540,6 +2649,7 @@ int CssPageBreak2Flags( css_page_break_t prop )
     }
 }
 
+// Only used by renderBlockElementLegacy()
 bool isFirstBlockChild( ldomNode * parent, ldomNode * child ) {
     int count = parent->getChildCount();
     for ( int i=0; i<count; i++ ) {
@@ -2620,6 +2730,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->cr_hint = source->cr_hint;
 }
 
+// Only used by renderBlockElementLegacy()
 css_page_break_t getPageBreakBefore( ldomNode * el ) {
     if ( el->isText() )
         el = el->getParentNode();
@@ -2655,6 +2766,7 @@ css_page_break_t getPageBreakBefore( ldomNode * el ) {
     return before;
 }
 
+// Only used by renderBlockElementLegacy()
 css_page_break_t getPageBreakAfter( ldomNode * el ) {
     if ( el->isText() )
         el = el->getParentNode();
@@ -2677,6 +2789,7 @@ css_page_break_t getPageBreakAfter( ldomNode * el ) {
     return after;
 }
 
+// Only used by renderBlockElementLegacy()
 css_page_break_t getPageBreakInside( ldomNode * el ) {
     if ( el->isText() )
         el = el->getParentNode();
@@ -2697,6 +2810,7 @@ css_page_break_t getPageBreakInside( ldomNode * el ) {
     return inside;
 }
 
+// Only used by renderBlockElementLegacy()
 void getPageBreakStyle( ldomNode * el, css_page_break_t &before, css_page_break_t &inside, css_page_break_t &after ) {
     bool firstChild = true;
     bool lastChild = true;
@@ -2780,6 +2894,7 @@ int measureBorder(ldomNode *enode,int border) {
            else return 0;
         }
 
+// Only used by renderBlockElementLegacy()
 //calculate total margin+padding before node,if >0 don't do campulsory page split
 int pagebreakhelper(ldomNode *enode,int width)
 {
@@ -2810,7 +2925,36 @@ int pagebreakhelper(ldomNode *enode,int width)
 //=======================================================================
 // Render block element
 //=======================================================================
-int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width )
+// renderBlockElement() aimed at positionning the node provided: setting
+// its width and height, and its (x,y) in the coordinates of its parent
+// element's border box (so, including parent's paddings and borders
+// top/left, but not its margins).
+// The provided x and y must include the parent's padding and border, and
+// the relative y this new node happen to be in this parent container.
+// renderBlockElement() will then add the node's own margins top/left to
+// them, to set the (x,y) of this node's border box as its position in
+// its parent coordinates.
+// So, it just shift coordinates and adjust widths of imbricated block nodes,
+// until it meets a "final" node (a node with text or image content), which
+// will then have been sized and positionned.
+// After the initial rendering, we mostly only care about these positionned
+// final nodes (for text rendering, text selection, text search, links...).
+// We still walk the block nodes when we need absolute coordinates, computed
+// from all the relative shifts of the containing block nodes boxes up to the
+// root node. Also when drawing, we draw background and borders of these
+// block nodes, nothing much else with them, until we reach a final node
+// and we can draw its text and images.
+
+// Prototype of the entry point functions for rendering the root node, a table cell or a float
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width );
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int rend_flags );
+
+// Prototypes of the 2 alternative block rendering recursive functions
+int  renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int x, int y, int width );
+void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int width, int flags );
+
+// Legacy/original CRE block rendering
+int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int x, int y, int width )
 {
     if ( enode->isElement() )
     {
@@ -2879,9 +3023,6 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         if (margin_top < 0) margin_top = 0;
         if (margin_bottom < 0) margin_bottom = 0;
 
-        // todo: we should be able to allow horizontal negative margins:
-        // (allow parsing negative values in lvstsheet.cpp, and
-        // ensure margin_top > 0)
         if (margin_left>0)
             x += margin_left;
         y += margin_top;
@@ -2934,8 +3075,6 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                 }
             }
         }
-        // todo: With the help of getRenderedWidths(), we could implement
-        // margin: auto with erm_block to have centered elements
 
         bool flgSplit = false;
         width -= margin_left + margin_right;
@@ -3020,8 +3159,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     if (specified_width <= 0) {
                         // We get 0 when width unspecified (not set or when "width: auto"):
                         // use container width, but allow table to shrink
-                        // XXX Should this only be done when explicit
-                        //  (css_val_unspecified, css_generic_auto) ?
+                        // (Should this only be done when explicit (css_val_unspecified, css_generic_auto)?)
                         shrink_to_fit = true;
                     }
                     else {
@@ -3124,16 +3262,16 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                             while ( tmpnode->hasChildren() ) {
                                 tmpnode = tmpnode->getChildNode( 0 );
                                 if (tmpnode && tmpnode->getRendMethod() == erm_final) {
-                                    // We use NodeNumberingProps to store, for this child node, a reference
-                                    // to curent node, so renderFinalBlock() can call renderListItemMarker on
-                                    // it and get a marker formatted according to current node style.
-                                    // (This is not the regular usage of ListNumberingProps, but we can use it
-                                    // without any conflict as it's never used for erm_final nodes; we get the
-                                    // benefit that is is saved in the cache, and it's cleaned when re-rendering.
-                                    // We store our enode index into the maxCounter slot - and list_marker_width
-                                    // into the maxWidth slot, even if we won't use it.)
-                                    ListNumberingPropsRef listProps = ListNumberingPropsRef( new ListNumberingProps(enode->getDataIndex(), list_marker_width) );
-                                    enode->getDocument()->setNodeNumberingProps( tmpnode->getDataIndex(), listProps );
+                                    // We need renderFinalBlock() to be able to reach the current
+                                    // enode when it will render/draw this tmpnode, so it can call
+                                    // renderListItemMarker() on it and get a marker formatted
+                                    // according to current node style.
+                                    // We store enode's data index into the RenderRectAccessor of
+                                    // this erm_final tmpnode so it's saved in the cache.
+                                    // (We used to use NodeNumberingProps to store it, but it
+                                    // is not saved in the cache.)
+                                    RenderRectAccessor tmpfmt( tmpnode );
+                                    tmpfmt.setListPropNodeIndex( enode->getDataIndex() );
                                     break;
                                 }
                             }
@@ -3145,7 +3283,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                     {
                         ldomNode * child = enode->getChildNode( i );
                         //fmt.push();
-                        int h = renderBlockElement( context, child, padding_left + list_marker_padding, y,
+                        int h = renderBlockElementLegacy( context, child, padding_left + list_marker_padding, y,
                             width - padding_left - padding_right - list_marker_padding );
                         y += h;
                         block_height += h;
@@ -3373,6 +3511,2614 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         crFatalError(111, "Attempting to render Text node");
     }
     return 0;
+}
+
+
+//=======================================================================
+// FlowState: block formatting context manager
+// used by renderBlockElementEnhanced()
+//=======================================================================
+// Created at the start of a "block formatting context" (one when rendering
+// the root node, one when rendering each float or table cell).
+// We move down in it as we add elements along the height, and shift
+// (and unshift) x/width on nested block elements according to
+// elements horizontal margins, borders, paddings and specified or
+// computed widths.
+// It ensures proper vertical margins collapsing by accumulating added
+// vertical margins, and only pushing the resulting margin when some
+// real non-margin content is added.
+// It also forwards lines/spaces to lvpagesplitter's "context", ensuring
+// proper page split flags (and avoiding unwelcome ones).
+// Floats are added to it for positionning along this height
+// depending on other floats.
+// It then can provide a "float footprint" to final nodes, so they can
+// lay out their text (and own embedded floats) alongside block floats.
+//
+// Some initial limitations with floats had later found some solutions,
+// which can be enabled by setting some flags. Mentionning them because
+// the code might be a bit rooted around these early limitations:
+// - Floats added by a block element are "clear"'ed when leaving
+//   this block: some blank height is added if necessary, so they are
+//   fully contained in this block (they do not overflow the block
+//   and are not shown alongside next elements).
+//     Can be overcome by using BLOCK_RENDERING_DO_NOT_CLEAR_OWN_FLOATS,
+//     which keeps active floats (and have lvtextfm embedded floats
+//     forwarded to the main flow): this may cause some issues with
+//     text selection in such floats, and may need a double drawing
+//     (background first, content next) for later text blocks to not
+//     draw their background over already drawn past floats.
+// - The footprint provided to final nodes is just a single rectangle
+//   anchored at the top left and another one anchored at the top right.
+//   These footprints are stored in the cached RenderRectAccessor (that
+//   we extended with new slots) of each final node (so we can get it
+//   back to re-lay out the text when needed, when looking for links,
+//   searching or selecting text).
+//     Can be overcome by using BLOCK_RENDERING_ALLOW_EXACT_FLOATS_FOOTPRINTS,
+//     which, when there are no more than 5 floats involved on a final
+//     node, will store these floats' node Ids in the slots that would
+//     otherwise be used for storing the footprint rectangles.
+//     Allowing that for more than 5 would need new slots, or another
+//     kind of decicated crengine cache for storing a variable number
+//     of things related to a node.
+
+class FlowState {
+private:
+    // BlockShift: backup of some FlowState fields when entering
+    // an inner block (so, making a sub-level).
+    class BlockShift { public:
+        int x_min;
+        int x_max;
+        int l_y;
+        int in_y_min;
+        int in_y_max;
+        bool avoid_pb_inside;
+        void reset(int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) {
+            x_min = xmin;
+            x_max = xmax;
+            l_y = ly;
+            in_y_min = iymin;
+            in_y_max = iymax;
+            avoid_pb_inside = avoidpbinside;
+        }
+        BlockShift(int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) :
+                x_min(xmin),
+                x_max(xmax),
+                l_y(ly),
+                in_y_min(iymin),
+                in_y_max(iymax),
+                avoid_pb_inside(avoidpbinside)
+                { }
+    };
+    class BlockFloat : public lvRect {
+        public:
+        ldomNode * node;
+        int level; // level that owns this float
+        bool is_right;
+        bool final_pos; // true if y0/y1 are the final absolute position and this
+                        // float should not be moved when pushing vertical margins.
+        BlockFloat( int x0, int y0, int x1, int y1, bool r, int l, bool f, ldomNode * n=NULL) :
+                lvRect(x0,y0,x1,y1),
+                level(l),
+                is_right(r),
+                final_pos(f),
+                node(n)
+                { }
+    };
+    LVRendPageContext & context;
+    LVPtrVector<BlockShift>  _shifts;
+    LVPtrVector<BlockFloat>  _floats;
+    int  rend_flags;
+    int  page_height; // just needed to avoid excessive bogus margins and heights
+    int  level;       // current level
+    int  o_width;     // initial original container width
+    int  c_y;         // current y relative to formatting context top (our absolute y for us here)
+    int  l_y;         // absolute y at which current level started
+    int  in_y_min;    // min/max children content abs y (for floats in current or inner levels
+    int  in_y_max;    //   that overflow this level height)
+    int  x_min;       // current left min x
+    int  x_max;       // current right max x
+    bool is_main_flow;
+    int  top_clear_level; // level to attach floats for final clearance when leaving the flow
+    bool avoid_pb_inside; // To carry this fact from upper elements to inner children
+    bool avoid_pb_inside_just_toggled_on;  // for specific processing of boundaries
+    bool avoid_pb_inside_just_toggled_off;
+    bool seen_content_since_page_split; // to avoid consecutive page split when only empty or padding in between
+    int  last_split_after_flag; // in case we need to adjust upcoming line's flag vs previous line's
+
+    // vm_* : state of our handling of collapsable vertical margins
+    bool vm_has_some;              // true when some vertical margin added, reset to false when pushed
+    bool vm_disabled;              // for disabling vertical margin handling when in edge case situations
+    bool vm_target_avoid_pb_inside;
+    ldomNode * vm_target_node;     // target element that will be shifted by the collapsed margin
+    int  vm_target_level;          // level of this target node
+    int  vm_active_pb_flag;        // page-break flag for the whole margin
+    int  vm_max_positive_margin;
+    int  vm_max_negative_margin;
+    int  vm_back_usable_as_margin; // previously moved vertical space where next margin could be accounted in
+
+public:
+    FlowState( LVRendPageContext & ctx, int width, int rendflags ):
+        context(ctx),
+        rend_flags(rendflags),
+        level(0),
+        o_width(width),
+        c_y(0),
+        l_y(0),
+        in_y_min(0),
+        in_y_max(0),
+        x_min(0),
+        x_max(width),
+        avoid_pb_inside(false),
+        avoid_pb_inside_just_toggled_on(false),
+        avoid_pb_inside_just_toggled_off(false),
+        seen_content_since_page_split(false),
+        last_split_after_flag(RN_SPLIT_AUTO),
+        vm_has_some(false),
+        vm_disabled(false),
+        vm_target_node(NULL),
+        vm_target_level(0),
+        vm_max_positive_margin(0),
+        vm_max_negative_margin(0),
+        vm_back_usable_as_margin(0),
+        vm_target_avoid_pb_inside(false),
+        vm_active_pb_flag(RN_SPLIT_AUTO)
+        {
+            is_main_flow = context.getPageList() != NULL;
+            top_clear_level = is_main_flow ? 1 : 2; // see resetFloatsLevelToTopLevel()
+            page_height = context.getPageHeight();
+        }
+    ~FlowState() {
+        // Shouldn't be needed as these must have been cleared
+        // by leaveBlockLevel(). But let's ensure we clean up well.
+        for (int i=_floats.length()-1; i>=0; i--) {
+            BlockFloat * flt = _floats[i];
+            _floats.remove(i);
+            delete flt;
+        }
+        for (int i=_shifts.length()-1; i>=0; i--) {
+            BlockShift * sht = _shifts[i];
+            _shifts.remove(i);
+            delete sht;
+        }
+    }
+
+    bool isMainFlow() {
+        return is_main_flow;
+    }
+    int getOriginalContainerWidth() {
+        return o_width;
+    }
+    int getCurrentAbsoluteX() {
+        return x_min;
+    }
+    int getCurrentAbsoluteY() {
+        return c_y;
+    }
+    int getCurrentRelativeY() {
+        return c_y - l_y;
+    }
+    int getCurrentLevel() {
+        return level;
+    }
+    int getCurrentLevelAbsoluteY() {
+        return l_y;
+    }
+    int getPageHeight() {
+        return page_height;
+    }
+    LVRendPageContext * getPageContext() {
+        return &context;
+    }
+    bool getAvoidPbInside() {
+        return avoid_pb_inside;
+    }
+
+    bool hasActiveFloats() {
+        return _floats.length() > 0;
+    }
+    bool hasFloatRunningAtY( int y, int h=0 ) {
+        for (int i=0; i<_floats.length(); i++) {
+            BlockFloat * flt = _floats[i];
+            if (flt->top < y+h && flt->bottom > y) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void addSpaceToContext( int starty, int endy, int line_h,
+            bool split_avoid_before, bool split_avoid_inside, bool split_avoid_after ) {
+        // Add vertical space by adding multiple lines of height line_h
+        // (as an alternative to adding a single huge line), ensuring
+        // given split_avoid flags, and avoiding split on the floats met
+        // along the way
+        if (endy - starty <= 0)
+            return;
+        // Ensure avoid_pb_inside
+        if ( avoid_pb_inside_just_toggled_off ) {
+            avoid_pb_inside_just_toggled_off = false;
+            if ( !split_avoid_before && !hasFloatRunningAtY(starty) ) {
+                // Previous added line may have RN_SPLIT_AFTER_AVOID, but
+                // we want to allow a split between it and this new line:
+                // just add an empty line to cancel the split avoid
+                context.AddLine( starty, starty, RN_SPLIT_BOTH_AUTO );
+                last_split_after_flag = RN_SPLIT_AUTO;
+            }
+        }
+        if ( avoid_pb_inside ) {
+            // Update provided flags to split avoid
+            if ( avoid_pb_inside_just_toggled_on ) {
+                avoid_pb_inside_just_toggled_on = false;
+                // previous added line may allow a break after,
+                // let split_avoid_before unchanged
+            }
+            else {
+                split_avoid_before = true;
+            }
+            split_avoid_inside = true;
+            split_avoid_after = true;
+        }
+
+        if (line_h <= 0) // sanity check
+            line_h = 1;
+        bool is_first = true;
+        bool is_last = false;
+        int flags;
+        int y0 = starty;
+        while (y0 < endy) {
+            int y1 = y0 + line_h;
+            if (y1 >= endy) {
+                y1 = endy;
+                is_last = true;
+            }
+            flags = 0;
+            if ( split_avoid_before && is_first )
+                flags |= RN_SPLIT_BEFORE_AVOID;
+            if ( split_avoid_after && is_last )
+                flags |= RN_SPLIT_AFTER_AVOID;
+            if ( split_avoid_inside && !is_first & !is_last )
+                flags |= RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            if ( hasFloatRunningAtY(y0) )
+                flags |= RN_SPLIT_BEFORE_AVOID;
+            context.AddLine(y0, y1, flags);
+            y0 = y1;
+            is_first = false;
+        }
+        last_split_after_flag = RN_GET_SPLIT_AFTER(flags);
+    }
+
+    int addContentLine( int height, int flags, bool is_padding=false ) {
+        // As we may push vertical margins, we return the total height moved
+        // (needed when adding bottom padding that may push inner vertical
+        // margins, which should be accounted in the element height).
+        int start_c_y = c_y;
+        // Ensure avoid_pb_inside
+        if ( avoid_pb_inside_just_toggled_off ) {
+            avoid_pb_inside_just_toggled_off = false;
+            // Previous added line may have RN_SPLIT_AFTER_AVOID,
+            // but we want to allow a split between it and this new
+            // line or the coming pushed vertical margin:
+            // just add an empty line to cancel the split avoid
+            if ( !(flags & RN_SPLIT_BEFORE_AVOID) && !hasFloatRunningAtY(c_y) ) {
+                context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO );
+                last_split_after_flag = RN_SPLIT_AUTO;
+            }
+        }
+        if ( avoid_pb_inside ) {
+            if ( avoid_pb_inside_just_toggled_on ) {
+                avoid_pb_inside_just_toggled_on = false;
+                // Previous added line may allow a break after, so dont prevent it
+                flags = RN_GET_SPLIT_BEFORE(flags) | RN_SPLIT_AFTER_AVOID;
+            }
+            else {
+                flags = RN_SPLIT_BOTH_AVOID;
+            }
+        }
+        // Push vertical margin with active pb
+        if ( vm_has_some ) { // avoid expensive call if not needed
+            pushVerticalMargin(RN_GET_SPLIT_BEFORE(flags));
+        }
+        else if ( BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) && _floats.length()>0 ) {
+            // but this has to be done if not done by pushVerticalMargin()
+            resetFloatsLevelToTopLevel();
+        }
+        // Most often for content lines, lvtextfm.cpp's LVFormatter will
+        // have already checked for float (via BlockFloatFootprint), so
+        // avoid calling hasFloatRunningAtY() when not needed
+        if ( !(flags & RN_SPLIT_BEFORE_AVOID) && hasFloatRunningAtY(c_y) )
+            flags |= RN_SPLIT_BEFORE_AVOID;
+        context.AddLine( c_y, c_y + height, flags );
+        last_split_after_flag = RN_GET_SPLIT_AFTER(flags);
+        if ( !is_padding )
+            seen_content_since_page_split = true;
+        moveDown( height );
+        if ( vm_disabled ) // Re-enable it now that some real content has been seen
+            enableVerticalMargin();
+        return c_y - start_c_y;
+    }
+
+    void addContentSpace( int height, int line_h, bool split_avoid_before,
+                bool split_avoid_inside, bool split_avoid_after ) {
+        // Push vertical margin with active pb
+        if ( vm_has_some ) { // avoid expensive call if not needed
+            pushVerticalMargin(split_avoid_before ? RN_SPLIT_AVOID : RN_SPLIT_AUTO);
+        }
+        else if ( BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) && _floats.length()>0 ) {
+            // but this has to be done if not done by pushVerticalMargin()
+            resetFloatsLevelToTopLevel();
+        }
+        addSpaceToContext( c_y, c_y + height, line_h, split_avoid_before, split_avoid_inside, split_avoid_after);
+        last_split_after_flag = split_avoid_after ? RN_SPLIT_AVOID : RN_SPLIT_AUTO;
+        if ( !seen_content_since_page_split ) {
+            // Assume that if split_avoid_inside is not set, this space
+            // is just padding/style_h. We want to prevent double
+            // page splits inside such spaces.
+            if ( split_avoid_inside ) {
+                seen_content_since_page_split = true;
+            }
+        }
+        moveDown( height );
+        if ( vm_disabled ) // Re-enable it now that some real content has been seen
+            enableVerticalMargin();
+    }
+
+    void disableVerticalMargin() {
+        vm_disabled = true;
+        // Reset everything so it's ready when re-enabled, and our various
+        // tests act as if there's no vertical margin to handle.
+        vm_has_some = false;
+        vm_target_node = NULL;
+        vm_target_avoid_pb_inside = false;
+        vm_target_level = 0;
+        vm_max_positive_margin = 0;
+        vm_max_negative_margin = 0;
+        vm_active_pb_flag = RN_SPLIT_AUTO;
+        vm_back_usable_as_margin = 0;
+    }
+    void enableVerticalMargin() {
+        vm_disabled = false;
+        // Also drop any back margin added since disabling
+        vm_back_usable_as_margin = 0;
+    }
+    void addVerticalMargin( ldomNode * node, int height, int pb_flag, bool is_top_margin=false ) {
+        if ( vm_disabled ) { // ignore that margin, unless it asks for a page split
+            if ( pb_flag != RN_SPLIT_ALWAYS ) {
+                return;
+            }
+            enableVerticalMargin();
+        }
+        // printf("  adding vertical margin %d (%x top=%d)\n", height, pb_flag, is_top_margin);
+
+        // When collapsing margins, the resulting margin is to be
+        // applied outside the first element involved. So, remember
+        // the first node we are given, that will later be shifted down
+        // when some real content is added (padding/border or text).
+        if ( is_top_margin ) { // new node
+            if ( is_main_flow && !vm_target_node && vm_active_pb_flag == RN_SPLIT_ALWAYS ) {
+                // We have only met bottom margins before, and one had "break-after: always":
+                // push what we had till now
+                pushVerticalMargin();
+            }
+            // If we get a new node with a same or lower level, we left our previous
+            // node and it didn't have any content nor height: we can just let it
+            // be where it was and continue with the new node, which will get the
+            // accumulated margin.
+            // (This is a wrong, but simpler to do. The right way would be to
+            // grab down the previous empty nodes with the new final target node.)
+            if ( !vm_target_node || level <= vm_target_level ) {
+                vm_target_node = node;
+                vm_target_level = level;
+                // Remember avoid_pb_inside for the target node
+                vm_target_avoid_pb_inside = avoid_pb_inside;
+                if ( BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) && _floats.length()>0 ) {
+                    // Reset level of all previous floats as they are
+                    // correctly positionned and should not be moved
+                    // if this (new) vm_target_node get some margin
+                    // and is moved down.
+                    resetFloatsLevelToTopLevel();
+                }
+            }
+        }
+
+        // We may combine multiple margins, each with its own flag, and we should
+        // compute a global flag for the future single collapsed margin resulting
+        // from them.
+        // Quotes from https://www.w3.org/TR/CSS2/page.html#allowed-page-breaks:
+        //   "Page breaks can occur at the following places: [...] 1. In the
+        //   vertical margin between block-level boxes
+        //   Rule A: Breaking at (1) is allowed only if the 'page-break-after' and
+        //   'page-break-before' properties of all the elements generating boxes
+        //   that meet at this margin allow it, which is when at least one of
+        //   them has the value 'always', 'left', or 'right', or when all of them
+        //   are 'auto'."
+        // So, a page break "always" is stronger than "avoid" ("avoid" seems to be
+        // just a way to not set "auto", so breaking the rule "when all of them
+        // are 'auto'", but it is allowed when "at least one of them has the
+        // value 'always'")
+        // Note: if we wanted to avoid a page break between siblings H2 and H3,
+        // we should use in our epub.css: H2 + H3 { page-break-before: avoid; }
+
+        if ( pb_flag == RN_SPLIT_ALWAYS ) {
+            // Avoid consecutive page split when no real content in between
+            if ( BLOCK_RENDERING(rend_flags, ALLOW_PAGE_BREAK_WHEN_NO_CONTENT) || seen_content_since_page_split ) {
+                if ( vm_active_pb_flag != RN_SPLIT_ALWAYS ) {
+                    // First break-before or break-after:always seen.
+                    // Forget any previously seen margin, as it would
+                    // collapse at end of previous page, but we won't
+                    // add a line for it.
+                    vm_max_positive_margin = 0;
+                    vm_max_negative_margin = 0;
+                    // Also forget height taken while clearing floats
+                    vm_back_usable_as_margin = 0;
+                    // Also don't have the one provided added, if it's some
+                    // bottom margin that comes with break-after:always.
+                    if ( !is_top_margin )
+                        height = 0;
+                }
+                vm_active_pb_flag = RN_SPLIT_ALWAYS;
+            }
+        }
+        else if ( pb_flag == RN_SPLIT_AVOID ) {
+            if ( vm_active_pb_flag != RN_SPLIT_ALWAYS )
+                vm_active_pb_flag = RN_SPLIT_AVOID;
+        }
+        else { // auto
+            // Keep current vm_active_pb_flag (RN_SPLIT_AUTO if nothing else seen).
+            // But:
+            // Rule B: "However, if all of them are 'auto' and a common ancestor of
+            // all the elements has a 'page-break-inside' value of 'avoid',
+            // then breaking here is not allowed"
+            // As it is the target node that will get the margin, if avoid_pb_inside
+            // was set for that node, we should avoid a split in that margin.
+            if ( vm_target_avoid_pb_inside )
+                vm_active_pb_flag = RN_SPLIT_AVOID;
+        }
+
+        if ( vm_active_pb_flag == RN_SPLIT_ALWAYS ) {
+            // Also from https://www.w3.org/TR/CSS2/page.html#allowed-page-breaks:
+            //   "When a forced page break occurs here, the used value of the relevant
+            //    'margin-bottom' property is set to '0'; the relevant 'margin-top'
+            //    [...] applies (i.e., is not set to '0') after a forced page break."
+            // Not certain what should be the "relevant" margin-top when collapsing
+            // multiple margins, but as we are going to push the collapsed margin
+            // with RN_SPLIT_BEFORE_ALWAYS, it feels any bottom margin should be
+            // ignored (so a large previous bottom margin does not make a larger
+            // top margin on this new page).
+            if ( !is_top_margin )
+                height = 0; // Make that bottom margin be empty
+        }
+
+        // The collapsed margin will be the max of the positive ones + the min
+        // of the negative ones (the most negative one)
+        if (height > 0 && height > vm_max_positive_margin)
+            vm_max_positive_margin = height;
+        if (height < 0 && height < vm_max_negative_margin)
+            vm_max_negative_margin = height;
+        vm_has_some = true;
+
+        if ( !is_top_margin && vm_target_node && node == vm_target_node && vm_active_pb_flag == RN_SPLIT_ALWAYS ) {
+            // We leave our target node, and some pb always was set by it
+            // or its children, but with no content nor height.
+            // It looks like we should ensure the pb always, possibly making
+            // an empty page if upcoming node has a pb always too (that's
+            // what Prince seems to do).
+            pushVerticalMargin();
+        }
+        if ( !BLOCK_RENDERING(rend_flags, COLLAPSE_VERTICAL_MARGINS) ) {
+            // If we don't want collapsing margins, just push this added
+            // unit of margin (not really checked if we get exactly what
+            // we would get when in legacy rendering mode).
+            pushVerticalMargin();
+        }
+    }
+    int getCurrentVerticalMargin() {
+        // The collapsed margin is the max of the positive ones + the min
+        // of the negative ones (the most negative one)
+        int margin = vm_max_positive_margin + vm_max_negative_margin;
+        if ( is_main_flow && margin < 0 ) {
+            // Unless requested, we don't allow negative margins in the
+            // main flow, as it could have us moving backward and cause
+            // issues with page splitting and text selection.
+            if ( !BLOCK_RENDERING(rend_flags, ALLOW_NEGATIVE_COLLAPSED_MARGINS) ) {
+                margin = 0;
+            }
+        }
+        if ( margin > 0 && vm_back_usable_as_margin > 0 ) {
+            if ( margin > vm_back_usable_as_margin )
+                margin -= vm_back_usable_as_margin;
+            else
+                margin = 0;
+        }
+        // Even if below, we can have some margin lines discarded in page mode,
+        // super huge bogus margins could still be shown in scroll mode (and footer
+        // in scroll mode could still show "page 1 of 2" while we scroll this margin
+        // height that spans many many screen heights).
+        // To avoid any confusion, limit any margin to be the page height
+        if ( margin > page_height )
+            margin = page_height;
+        return margin;
+    }
+    void pushVerticalMargin( int next_split_before_flag=RN_SPLIT_AUTO ) {
+        if ( vm_disabled )
+            return;
+        // Compute the single margin to add along our flow y and to pages context.
+        int margin = getCurrentVerticalMargin();
+        vm_back_usable_as_margin = 0;
+        // printf("pushing vertical margin %d (%x %d)\n", margin, vm_target_node, vm_target_level);
+
+        // Note: below, we allow some margin (previous page margin) to be discarded
+        // if it can not fit on the previous page and is pushed on next page. This is
+        // usually fine when we have white backgrounds, but may show some white holes
+        // at bottom of page before a split (where a non-fully discarded margin would
+        // otherwise allow some now-white background to be painted on the whole page).
+
+        if (is_main_flow && margin < 0) { // can only happen if ALLOW_NEGATIVE_COLLAPSED_MARGINS
+            // We're moving backward and don't know what was before and what's
+            // coming next. Add an empty line to avoid a split there.
+            context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AVOID );
+        }
+        else if (is_main_flow) {
+            // When this is called, whether we have some positive resulting vertical
+            // margin or not (zero), we need to context.AddLine() a possibly empty
+            // line with the right pb flags according to what we gathered while
+            // vertical margins were added.
+            int flags;
+            bool emit_empty = true;
+            if ( vm_active_pb_flag == RN_SPLIT_ALWAYS ) {
+                // Forced page break
+                // Quotes from https://www.w3.org/TR/CSS2/page.html#allowed-page-breaks:
+                //   "In the normal flow, page breaks can occur at the following places:
+                //     1) In the vertical margin between block-level boxes. [...]
+                //     When a forced page break occurs here, the used value of the relevant
+                //     'margin-bottom' property is set to '0'; the relevant 'margin-top'
+                //     [...] applies (i.e., is not set to '0') after a forced page break."
+                if ( vm_target_node ) {
+                    // As top margin should be on the next page, split before the margin
+                    // (Note that Prince does not do this: the top margin of an element
+                    // with "page-break-before: always" is discarded.)
+                    flags = RN_SPLIT_BEFORE_ALWAYS | RN_SPLIT_AFTER_AVOID;
+                }
+                else { // no target node: only bottom margin with some break-after
+                    // If it does not fit on previous page, and is pushed on next page,
+                    // discard it.
+                    // (This fixes weasyprint/margin-collapse-160.htm "Margins should not
+                    // propagate into the next page", which has a margin-bottom: 1000em
+                    // that would make 37 pages - but these 1000em would still be ensured
+                    // in scroll mode if we were not limiting a margin to max page_height.)
+                    flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_ALWAYS | RN_SPLIT_DISCARD_AT_START;
+                }
+                // Note: floats must have been cleared before calling us if a page-break
+                // has to happen.
+                // (We could have cleared all floats here, so they are not truncated and
+                // split on the new page, but it might be too late: uncleared floats
+                // would be accounted in a BlockFloatFootprint, which would have some
+                // impact on the content lines; these lines would be added, and could
+                // call pushVerticalMargin(): we would here clear floats, but the
+                // lines would have already been sized with the footprint, which would
+                // not be there if we clear the floats here, and we would get holes in
+                // the text.)
+            }
+            else if (vm_active_pb_flag == RN_SPLIT_AVOID ) { // obvious
+                flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
+            }
+            else {
+                // Allow an unforced page break, keeping the margin on previous page
+                //
+                // Quotes from https://www.w3.org/TR/CSS2/page.html#allowed-page-breaks:
+                //   "In the normal flow, page breaks can occur at the following places:
+                //     3) Between the content edge of a block container box and the
+                //     outer edges of its child content (margin edges of block-level
+                //     children or line box edges for inline-level children) if there
+                //     is a (non-zero) gap between them"
+                //  Which means it is never allowed between a parent's top and its
+                //  first child's top - and between a last child's bottom and its
+                //  parent's bottom (except when some CSS "height:" is into play
+                //  (which we deal with elsewhere), or when CSS "position: relative"
+                //  is used, that we don't support).
+                //
+                //    "1) In the vertical margin between block-level boxes. When an
+                //     unforced page break occurs here, the used values of the relevant
+                //     'margin-top' and 'margin-bottom' properties are set to '0'.
+                //     When a forced page break occurs here, the used value of the relevant
+                //     'margin-bottom' property is set to '0'; the relevant 'margin-top'
+                //     used value may either be set to '0' or retained."
+                //  Which means it is only allowed between a block's bottom and its
+                //  following sibling's top.
+                //
+                // We can ensure both of the above cases by just adding a line for
+                // the margin (even if empty) forwarding the flags of previous and
+                // next lines.
+                // As everywhere, we push top paddings (and the first line of text) with
+                // RN_SPLIT_BEFORE_AUTO and RN_SPLIT_AFTER_AVOID - and bottom paddings
+                // (and the last line of text) with RN_SPLIT_BEFORE_AVOID and
+                // RN_SPLIT_AFTER_AUTO:
+                // - if we are pushing the margin between an upper block and a
+                //   child we'll be between outer padding_top with RN_SPLIT_AFTER_AVOID
+                //   and inner padding_top with RN_SPLIT_BEFORE_AUTO: by adding our
+                //   margin with RN_SPLIT_BEFORE_AUTO and RN_SPLIT_AFTER_AVOID, we
+                //   forbid a page split at this place
+                // - if we are pushing the margin between same-level sibling blocks: the
+                //   first block padding_bottom has RN_SPLIT_AFTER_AUTO and the next
+                //   block padding_top has RN_SPLIT_BEFORE_AUTO: by using _AUTO on both
+                //   sides of our margin, a split is then allowed.
+                //
+                if ( last_split_after_flag == RN_SPLIT_AUTO && next_split_before_flag == RN_SPLIT_AUTO )  {
+                    // Allow a split on both sides.
+                    // Note: if out of break-inside avoid, addContentLine() will have added
+                    // an empty line to get rid of any previous SPLIT_AFTER_AVOID, so this margin
+                    // line can be either at end of previous page, or at start of next page, and
+                    // it will not drag the previous real line with it on next page.
+                    // Allow it to be discarded if it happens to be put at start of next page.
+                    flags = RN_SPLIT_BOTH_AUTO | RN_SPLIT_DISCARD_AT_START;
+                }
+                else {
+                    // Just forward the flags (but not ALWAYS, which we should not do again)
+                    int after_flag = last_split_after_flag & ~RN_SPLIT_ALWAYS;
+                    flags = next_split_before_flag | (after_flag << RN_SPLIT_AFTER);
+                }
+                // No need to emit these empty lines when split auto and there is no margin
+                emit_empty = false;
+            }
+            if ( margin > 0 || emit_empty ) {
+                if ( c_y == 0 ) {
+                    // First margin with no content yet. Just avoid a split
+                    // with futur content, so that if next content is taller
+                    // than page height, we don't get an empty first page.
+                    flags &= ~RN_SPLIT_AFTER_ALWAYS;
+                    flags |= RN_SPLIT_AFTER_AVOID;
+                }
+                if ( hasFloatRunningAtY(c_y, margin) ) {
+                    // Don't discard margin, or we would discard some part of a float
+                    flags &= ~RN_SPLIT_DISCARD_AT_START;
+                }
+                if ( hasFloatRunningAtY(c_y) ) {
+                    // Avoid a split
+                    flags &= ~RN_SPLIT_BEFORE_ALWAYS;
+                    flags |= RN_SPLIT_BEFORE_AVOID;
+                }
+                else if ( RN_GET_SPLIT_BEFORE(flags) == RN_SPLIT_ALWAYS && last_split_after_flag == RN_SPLIT_AVOID ) {
+                    // If last line ended with RN_SPLIT_AVOID, it would
+                    // prevent our RN_SPLIT_ALWAYS to have effect.
+                    // It seems that per-specs, the SPLIT_ALWAYS should win.
+                    // So, kill the SPLIT_AVOID with an empty line.
+                    context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO );
+                    // Note: keeping the RN_SPLIT_AVOID could help avoiding
+                    // consecutive page splits in some normal cases (we send
+                    // SPLIT_BEFORE_ALWAYS with SPLIT_AFTER_AVOID, and top
+                    // paddings come with SPLIT_AFTER_AVOID). We could
+                    // use !seen_content_since_page_split here to not
+                    // send this empty line, but that's somehow handled
+                    // above where we just not use RN_SPLIT_ALWAYS if it
+                    // hasn't been reset.
+                }
+                context.AddLine( c_y, c_y + margin, flags );
+                // Note: we don't use AddSpace, a margin does not have to be arbitrarily
+                // splitted, RN_SPLIT_DISCARD_AT_START ensures it does not continue
+                // on next page.
+                // But, if there's a float at start and  another at end, we could think
+                // about trying to find a split point inside the margin (if 2 floats
+                // are meeting there).
+                last_split_after_flag = RN_GET_SPLIT_AFTER(flags);
+                if ( (RN_GET_SPLIT_BEFORE(flags) == RN_SPLIT_ALWAYS) || (RN_GET_SPLIT_AFTER(flags) == RN_SPLIT_ALWAYS) )
+                    // Reset this, so we can ignore some upcoming duplicate SPLIT_ALWAYS
+                    seen_content_since_page_split = false;
+            }
+        }
+        // No need to do any more stuff if margin == 0
+        if ( margin != 0 ) {
+            if (vm_target_node) {
+                // As we are adding the margin above vm_target_node, so actually pushing
+                // this node down, all its child blocks will also be moved down.
+                // We need to correct all the l_y of all the sublevels since vm_target_node
+                // (not including vm_target_level, which contains/is outside vm_target_node):
+                if (level > vm_target_level) { // current one (not yet in _shifts)
+                    l_y += margin;
+                    in_y_min += margin;
+                    in_y_max += margin;
+                }
+                for (int i=level-1; i>vm_target_level; i--) {
+                    _shifts[i]->l_y += margin;
+                    _shifts[i]->in_y_min += margin;
+                    _shifts[i]->in_y_max += margin;
+                }
+                // We also need to update sub-levels' floats' absolute or
+                // relative coordinates
+                for (int i=0; i<_floats.length(); i++) {
+                    BlockFloat * flt = _floats[i];
+                    if ( flt->level > vm_target_level ) {
+                        if ( flt->final_pos ) {
+                            // Float already absolutely positionned (block float):
+                            // adjust its relative y to its container's top to
+                            // counteract the margin shift
+                            RenderRectAccessor fmt( flt->node );
+                            fmt.setY( fmt.getY() - margin );
+                        }
+                        else {
+                            // Float not absolutely positionned (forwarded embedded float):
+                            // update its absolute coordinates as its container will be
+                            // moved by this margin, so will its floats.
+                            flt->top += margin;
+                            flt->bottom += margin;
+                        }
+                    }
+                }
+                // Update the vm_target_node y (its relative y in its container)
+                RenderRectAccessor fmt( vm_target_node );
+                    #ifdef DEBUG_BLOCK_RENDERING
+                    if (isMainFlow()) {
+                        printf("pushedVM %d => c_y=%d>%d target=%s y=%d>%d\n", margin, c_y, c_y+margin,
+                            UnicodeToLocal(ldomXPointer(vm_target_node, 0).toString()).c_str(),
+                            fmt.getY(), fmt.getY()+margin);
+                    }
+                    #endif
+                fmt.setY( fmt.getY() + margin );
+                fmt.push();
+                // It feels we don't need to update margin_top in the ->style of this
+                // node to its used value (which would be complicated), as its only
+                // other use (apart from here) is in:
+                // - ldomNode::getSurroundingAddedHeight() : where we'll then get a
+                //   little smaller that screen height for full screen images
+                // - ldomNode::elementFromPoint() : we tweaked it so it does not
+                //   look at margins in enhanced rendering mode.
+            }
+            #ifdef DEBUG_BLOCK_RENDERING
+                else { if (isMainFlow()) printf("pushedVM %d => c_y=%d>%d no target node\n", margin, c_y, c_y+margin); }
+            #endif
+            // If no target node (bottom margin), moveDown(margin) is all there
+            // is to do.
+            moveDown( margin );
+            // (We have to do this moveDown() here, after the above floats'
+            // coordinates updates, otherwise these floats might be removed
+            // by moveDown() as it passes them.)
+        }
+        #ifdef DEBUG_BLOCK_RENDERING
+            else { if (isMainFlow()) printf("pushedVM 0 => c_y=%d\n", c_y); }
+        #endif
+
+        // Reset everything, as we used it all, and nothing should have
+        // any impact on the next vertical margin.
+        // (No need to update vm_target_level which makes no
+        // sense without a vm_target_node, and we wouldn't
+        // know which value to reset to.)
+        vm_target_node = NULL;
+        vm_target_avoid_pb_inside = false;
+        vm_max_positive_margin = 0;
+        vm_max_negative_margin = 0;
+        vm_active_pb_flag = RN_SPLIT_AUTO;
+        vm_has_some = false;
+        if ( BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) && _floats.length()>0 ) {
+            // We did not clear floats, so we may meet them again when
+            // pushing some upcoming vertical margin. But we don't want
+            // to have them shifted down, as their positions are now fixed.
+            // Just reset their level to be the top flow clear level, so
+            // we ignore them in next pushVerticalMargin() calls.
+            resetFloatsLevelToTopLevel();
+        }
+    }
+    void resetFloatsLevelToTopLevel() {
+        // To be called only if DO_NOT_CLEAR_OWN_FLOATS (moved
+        // as a function because we should call it too when we
+        // can skip pushVerticalMargin()).
+        // As blocks are not clearing their own floats, and
+        // we may meet previous siblings' floats, we don't
+        // want to have them shifted again by some later
+        // vertical margin.
+        // So, assign them to a lower level, the one that
+        // should have them cleared when exiting the flow
+        // (to account them in the flow height):
+        //   is_main_flow ? 0 : 1, plus 1
+        for (int i=0; i<_floats.length(); i++) {
+            BlockFloat * flt = _floats[i];
+            flt->level = top_clear_level;
+        }
+    }
+
+    // Enter/leave a block level: backup/restore some of this FlowState
+    // fields, and do some housekeeping.
+    void newBlockLevel( int width, int d_left, bool avoid_pb ) {
+        // Don't new/delete to avoid too many malloc/free, keep and re-use/reset
+        // the ones already created
+        if ( _shifts.length() <= level ) {
+            _shifts.push( new BlockShift( x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside ) );
+        }
+        else {
+            _shifts[level]->reset( x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside );
+        }
+        x_min += d_left;
+        x_max = x_min + width;
+        l_y = c_y;
+        in_y_min = c_y;
+        in_y_max = c_y;
+        level++;
+        // Don't disable any upper avoid_pb_inside
+        if ( avoid_pb ) {
+            if ( !avoid_pb_inside)
+                avoid_pb_inside_just_toggled_on = true;
+            avoid_pb_inside = true;
+        }
+    }
+    int leaveBlockLevel( int & top_overflow, int & bottom_overflow ) {
+        int start_c_y = l_y;
+        int last_c_y = c_y;
+        top_overflow = in_y_min < start_c_y ? start_c_y - in_y_min : 0;  // positive value
+        bottom_overflow = in_y_max > last_c_y ? in_y_max - last_c_y : 0; // positive value
+        BlockShift * prev = _shifts[level-1];
+        x_min = prev->x_min;
+        x_max = prev->x_max;
+        l_y = prev->l_y;
+        in_y_min = in_y_min < prev->in_y_min ? in_y_min : prev->in_y_min; // keep sublevel's one if smaller
+        in_y_max = in_y_max > prev->in_y_max ? in_y_max : prev->in_y_max; // keep sublevel's one if larger
+        if ( prev->avoid_pb_inside != avoid_pb_inside )
+            avoid_pb_inside_just_toggled_off = true;
+        avoid_pb_inside = prev->avoid_pb_inside;
+        level--;
+        int height; // height of the block level we are leaving, that we should return
+        if ( BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) && level > (is_main_flow ? 0 : 1) ) {
+            // If requested, don't clear own floats.
+            // But we need to for level 0 (root node, floatBox) and
+            // level 1 (body, floating child) to get them accounted
+            // in the document or float height.
+            height = last_c_y - start_c_y;
+        }
+        else {
+            // Otherwise, clear the floats that were added in this shift level
+            int new_c_y = c_y;
+            for (int i=_floats.length()-1; i>=0; i--) {
+                BlockFloat * flt = _floats[i];
+                if (flt->level > level) {
+                    if (flt->bottom > new_c_y) {
+                        new_c_y = flt->bottom; // move to the bottom of this float
+                    }
+                    // We can't remove/delete them yet, we need them
+                    // to be here for addSpaceToContext() to ensure
+                    // no page split over them
+                }
+            }
+            // addSpaceToContext() will take care of avoiding page split
+            // where some (non-cleared) floats are still running.
+            addSpaceToContext(last_c_y, new_c_y, 1, false, false, false);
+            int dy = new_c_y - last_c_y;
+            moveDown( dy );
+            if ( bottom_overflow > dy )
+                bottom_overflow = bottom_overflow - dy;
+            else
+                bottom_overflow = 0;
+            if (dy > 0)
+                seen_content_since_page_split = true;
+            // The vertical space moved to clear floats can be
+            // deduced from upcoming pushed/collapsed vertical margin.
+            vm_back_usable_as_margin += dy;
+            // moveDown() should have already cleared out past floats,
+            // but just ensure there's none left past the level we left
+            for (int i=_floats.length()-1; i>=0; i--) {
+                BlockFloat * flt = _floats[i];
+                if (flt->level > level) {
+                    _floats.remove(i);
+                    delete flt;
+                }
+            }
+            height = new_c_y - start_c_y;
+        }
+        return height;
+    }
+
+    bool moveDown( int dy ) {
+        // Will return true if we had running floats *before* moving
+        int prev_c_y = c_y;
+        if (dy > 0) { // moving forward
+            c_y += dy;
+            if ( c_y > in_y_max ) {
+                // update current level max seen y (not really needed as it is
+                // checked on leaveBlockLeve, but for symetry)
+                in_y_max = c_y;
+            }
+        }
+        else if (dy < 0) { // moving backward
+            // Only allowed if we are not the main flow (eg: a float), or if
+            // explicitely requested (as it may cause issues with page splitting
+            // and text/links selection)
+            if ( !is_main_flow || BLOCK_RENDERING(rend_flags, ALLOW_NEGATIVE_COLLAPSED_MARGINS) ) {
+                c_y += dy;
+                if ( c_y < in_y_min ) {
+                    // update current level min seen y (in case negative margins
+                    // moved past level origin y)
+                    in_y_min = c_y;
+                }
+            }
+            // Nothing else to do, no float cleaning as we did not move forward
+            return true; // pretend we have floats running
+        }
+        // Clear past floats, and see if we have some running
+        bool had_floats_running = false;
+        for (int i=_floats.length()-1; i>=0; i--) {
+            BlockFloat * flt = _floats[i];
+            if ( flt->top < prev_c_y && flt->bottom > prev_c_y ) {
+                had_floats_running = true;
+                // If a float has started strictly before prev_c_y, it was
+                // running (if it started on prev_c_y, it was a new one
+                // and should not prevent a page split at prev_c_y)
+            }
+            if (flt->bottom <= c_y) {
+                // This float is past, we shouldn't have to worry
+                // about it anymore
+                _floats.remove(i);
+                delete flt;
+            }
+        }
+        return had_floats_running;
+    }
+
+    void clearFloats( css_clear_t clear ) {
+        if (clear <= css_c_none)
+            return;
+        int cleared_y = c_y;
+        for (int i=0; i<_floats.length(); i++) {
+            BlockFloat * flt = _floats[i];
+            if ( ( clear == css_c_both ) || ( clear == css_c_left && !flt->is_right ) ||
+                                            ( clear == css_c_right && flt->is_right ) ) {
+                if (flt->bottom > cleared_y)
+                    cleared_y = flt->bottom;
+            }
+        }
+        int dy = cleared_y - c_y;
+        // Add the vertical space skipped to the page splitting context.
+        // addSpaceToContext() will take care of avoiding page split
+        // where some (non-cleared) floats are still running.
+        addSpaceToContext(c_y, cleared_y, 1, false, false, false);
+        if (dy > 0) {
+            moveDown( dy ); // will delete past floats
+            // The vertical space moved to clear floats can be
+            // deduced from upcoming pushed/collapsed vertical margin.
+            vm_back_usable_as_margin += dy;
+            seen_content_since_page_split = true;
+        }
+        if ( vm_disabled ) {
+            // Re-enable vertical margin (any clear, even if not "both",
+            // mean we could have moved and we are not tied to stay
+            // aligned with 0-height floats).
+            // Not sure about this, but it allows working around the issue
+            // with 0-height float containers that we disable margin with, by
+            // just (with styletweaks) setting "clear: both" on their followup.
+            enableVerticalMargin();
+        }
+    }
+
+    // Floats positionning helpers. These work in absolute coordinates (relative
+    // to flow state initial top)
+    // Returns min y for next float
+    int getNextFloatMinY(css_clear_t clear) {
+        int y = c_y; // current line y
+        for (int i=0; i<_floats.length(); i++) {
+            BlockFloat * flt = _floats[i];
+            // A later float should never be positionned above an earlier float
+            if ( flt->top > y )
+                y = flt->top;
+            if ( clear > css_c_none) {
+                if ( (clear == css_c_both) || (clear == css_c_left && !flt->is_right)
+                                           || (clear == css_c_right && flt->is_right) ) {
+                    if (flt->bottom > y)
+                        y = flt->bottom;
+                }
+            }
+        }
+        return y;
+    }
+    // Returns next y after start_y where required_width is available over required_height
+    // Also set offset_x to the x where that width is available
+    int getYWithAvailableWidth(int start_y, int required_width, int required_height,
+                int min_x, int max_x, int & offset_x, bool get_right_offset_x=false) {
+        if (_floats.length() == 0) { // fast path
+            // If no floats, width is available at start_y
+            if (get_right_offset_x) {
+                offset_x = max_x - required_width;
+                if (offset_x < min_x) // overflow
+                    offset_x = min_x;
+            }
+            else {
+                offset_x = min_x;
+            }
+            return start_y;
+        }
+        bool fit = false;
+        int fit_left_x = min_x;
+        int fit_right_x = max_x;
+        int fit_top_y = start_y;
+        int fit_bottom_y = start_y;
+        int y = start_y;
+        int floats_max_bottom = start_y;
+        while (true) {
+            int left_x = min_x;
+            int right_x = max_x;
+            for (int i=0; i<_floats.length(); i++) {
+                BlockFloat * flt = _floats[i];
+                if (flt->bottom > floats_max_bottom)
+                    floats_max_bottom = flt->bottom;
+                if (flt->top <= y && flt->bottom > y) {
+                    if (flt->is_right) {
+                        if (flt->left < right_x)
+                            right_x = flt->left;
+                    }
+                    else {
+                        if (flt->right > left_x)
+                            left_x = flt->right;
+                    }
+                }
+            }
+            if (right_x - left_x < required_width) { // doesn't fit
+                fit = false;
+            }
+            else { // required_width fits at this y
+                if (!fit) { // first y that fit
+                    fit = true;
+                    fit_top_y = y;
+                    fit_bottom_y = y;
+                    fit_left_x = left_x;
+                    fit_right_x = right_x;
+                }
+                else { // we already fitted on previous y
+                    // Adjust to previous boundaries
+                    if (left_x > fit_left_x)
+                        fit_left_x = left_x;
+                    if (right_x < fit_right_x)
+                        fit_right_x = right_x;
+                    if (fit_right_x - fit_left_x < required_width) { // we don't fit anymore
+                        fit = false;
+                    }
+                    else { // we continue fitting
+                        fit_bottom_y = y;
+                    }
+                }
+            }
+            if ( fit && (fit_bottom_y - fit_top_y >= required_height) )
+                break; // found & done
+            y += 1;
+            if ( y >= floats_max_bottom )
+                break; // no more floats
+        }
+        if (!fit) {
+            // If we left the loop non fitting, because of no or no more floats,
+            // adjust to provided boundaries
+            fit_left_x = min_x;
+            fit_right_x = max_x;
+            fit_top_y = y;
+        }
+        if (get_right_offset_x) {
+            offset_x = fit_right_x - required_width;
+            if (offset_x < fit_left_x) // overflow
+                offset_x = fit_left_x;
+        }
+        else {
+            offset_x = fit_left_x; // We don't mind it it overflows max-min
+        }
+        return fit_top_y;
+    }
+    void addFloat( ldomNode * node, css_clear_t clear, bool is_right, int top_margin ) {
+        RenderRectAccessor fmt( node );
+        int width = fmt.getWidth();
+        int height = fmt.getHeight();
+        int x = fmt.getX();   // a floatBox has no margin and no padding, but these
+        int y = fmt.getY();   // x/y carries the container's padding left/top
+        // printf("  block addFloat w=%d h=%d x=%d y=%d\n", width, height, x, y);
+        int shift_x = 0;
+        int shift_y = 0;
+
+        // Get this float position in our flow state absolute coordinates
+        int pos_y = c_y + top_margin;     // y with collapsed vertical margin included
+        int fy = getNextFloatMinY(clear); // min_y depending on other floats
+        if (pos_y > fy)
+            fy = pos_y;
+        int fx = 0;
+        fy = getYWithAvailableWidth(fy, width, height, x_min, x_max, fx, is_right);
+        _floats.push( new BlockFloat( fx, fy, fx + width, fy + height, is_right, level, true, node) );
+
+        // Get relative coordinates to current container top
+        shift_x = fx - x_min;
+        shift_y = fy - l_y;
+        // Set the float relative coordinate in its container
+        fmt.setX(x + shift_x);
+        fmt.setY(y + shift_y);
+        if (is_right)
+            RENDER_RECT_SET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+        else
+            RENDER_RECT_UNSET_FLAG(fmt, FLOATBOX_IS_RIGHT);
+        // printf("  block addFloat => %d %d > x=%d y=%d\n", shift_x, shift_y, fmt.getX(), fmt.getY());
+
+        // If this float overflows the current in_y_min/max, update them
+        if ( fy - fmt.getTopOverflow() < in_y_min )
+            in_y_min = fy - fmt.getTopOverflow();
+        if ( fy + height + fmt.getBottomOverflow() > in_y_max )
+            in_y_max = fy + height + fmt.getBottomOverflow();
+    }
+
+    void addPositionnedFloat( int rel_x, int rel_y, int width, int height, int is_right, ldomNode * node ) {
+        int fx = x_min + rel_x;
+        // Where addPositionnedFloat is used (rendering erm_final), c_y has not
+        // yet been updated, so it is still the base for rel_y.
+        int fy = c_y + rel_y;
+        // These embedded floats are kind of in a sublevel of current level
+        // (even if we didn't create a sublevel), let's add them with level+1
+        // so they get correctly shifted when vertical margins collapse
+        // in an outer level from the final node they come from.
+        _floats.push( new BlockFloat( fx, fy, fx + width, fy + height, is_right, level+1, false, node ) );
+
+        // No need to update this level in_y_min/max with this float,
+        // as it belongs to some erm_final block that will itself
+        // carry its floats' own overflows, and forward them to
+        // the current level with next methods.
+    }
+    // For erm_final nodes to forward their overflow to current level
+    void updateCurrentLevelTopOverflow(int top_overflow) {
+        if ( top_overflow <= 0 )
+            return;
+        int y = c_y - top_overflow;
+        if ( y < in_y_min )
+            in_y_min = y;
+    }
+    void updateCurrentLevelBottomOverflow(int bottom_overflow) {
+        if ( bottom_overflow <= 0 )
+            return;
+        int y = c_y + bottom_overflow;
+        if ( y > in_y_max )
+            in_y_max = y;
+    }
+
+    BlockFloatFootprint getFloatFootprint(ldomNode * node, int d_left, int d_right, int d_top ) {
+        // Returns the footprint of current floats over a final block
+        // to be laid out at current c_y (+d_top).
+        // This footprint will be a set of floats to represent outer
+        // floats possibly having some impact over the final block
+        // about to be formatted.
+        // These floats can be either:
+        // - real floats rectangles, when they are no more than 5
+        //   and ALLOW_EXACT_FLOATS_FOOTPRINTS is enabled
+        // - or "fake" floats ("footprints") embodying all floats
+        //   in 2 rectangles (one at top left, one at top right),
+        //   and 2 empty floats to represent lower outer floats not
+        //   intersecting with this final block, but whose y sets
+        //   the minimal y for the possible upcoming embedded floats.
+        //
+        // Why at most "5" real floats?
+        // Because I initially went with the "fake" floats solution,
+        // because otherwise, storing references (per final block) to
+        // a variable number of other floatBox nodes would need another
+        // kind of crengine cache, and that looked complicated...
+        // This "fake" floats way is quite limited, making holes in
+        // the text, preventing the "staircase" effect of differently
+        // sized floats.
+        // Very later, I realized that in the fields I added to
+        // RenderRectAccessor (extra1...extra5) to store these fake
+        // floats rectangles, I could store in them the dataIndex of
+        // the real floatBoxes node (which I can if they are no more
+        // than 5), so we can fetch their real positions and dimensions
+        // each time a final block is to be (re-)formatted, to allow
+        // for a nicer layout of text around these (at most 5) floats.
+        BlockFloatFootprint footprint = BlockFloatFootprint( this, d_left, d_top,
+                                            BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS) );
+        if (_floats.length() == 0) // zero footprint if no float
+            return footprint;
+        int top_y = c_y + d_top;
+        int left_x = x_min + d_left;
+        int right_x = x_max - d_right;
+        int final_width = right_x - left_x;
+        // Absolute coordinates of this box top left and top right
+        int flprint_left_x = left_x;
+        int flprint_left_y = top_y;
+        int flprint_right_x = right_x;
+        int flprint_right_y = top_y;
+        // Bottomest top of all our current floats (needed to know the absolute
+        // minimal y at which next left or right float can be positionned)
+        int flprint_left_min_y = top_y;
+        int flprint_right_min_y = top_y;
+        // Extend them to include any part of floats that overlap it.
+        // We can store at max 5 ldomNode IDs in a RenderRectAccessor
+        // extra1..extra5 fields. If we meet more than that, we
+        // will fall back to footprints.
+        int floats_involved = 0;
+        // printf("left_x = x_min %d + d_left %d = %d  top_y=%d\n", x_min, d_left, left_x, top_y);
+        for (int i=0; i<_floats.length(); i++) {
+            BlockFloat * flt = _floats[i];
+            if ( BLOCK_RENDERING(rend_flags, ALLOW_EXACT_FLOATS_FOOTPRINTS) ) {
+                // Ignore floats already passed by and possibly not yet removed
+                if (flt->bottom > top_y) {
+                    if (floats_involved < 5) { // at most 5 slots
+                        // Do the following even if we end up seeing more
+                        // than 5 floats and not using all that.
+                        // Store their dataIndex directly in footprint
+                        footprint.floatIds[floats_involved] = flt->node->getDataIndex();
+                        // printf("  flt #%d x %d y %d\n", i, flt->left, flt->top);
+
+                        // Compute the transferable floats as it is less expensive
+                        // to do now than using generateEmbeddedFloatsFromFloatIds().
+                        // Have them clip'ed to our top and width (seems to work
+                        // without clipping, but just to be sure as the lvtextfm.cpp
+                        // code was made with assuming rect are fully contained
+                        // in its own working area).
+                        int x0 = flt->left - left_x;
+                        if ( x0 < 0 )
+                            x0 = 0;
+                        else if ( x0 > final_width )
+                            x0 = final_width;
+                        int x1 = flt->right - left_x;
+                        if ( x1 < 0 )
+                            x1 = 0;
+                        else if ( x1 > final_width )
+                            x1 = final_width;
+                        int y0 = flt->top > top_y ? flt->top - top_y : 0;
+                        int y1 = flt->bottom - top_y;
+                        footprint.floats[floats_involved][0] = x0;      // x
+                        footprint.floats[floats_involved][1] = y0;      // y
+                        footprint.floats[floats_involved][2] = x1 - x0; // width
+                        footprint.floats[floats_involved][3] = y1 - y0; // height
+                        footprint.floats[floats_involved][4] = flt->is_right;
+                    }
+                    floats_involved++;
+                }
+            }
+            // Compute the other fields even if we end up not using them
+            if (flt->is_right) {
+                if ( flt->left < flprint_right_x ) {
+                    flprint_right_x = flt->left;
+                }
+                if ( flt->bottom > flprint_right_y ) {
+                    flprint_right_y = flt->bottom;
+                }
+                if ( flt->top > flprint_right_min_y ) {
+                    flprint_right_min_y = flt->top;
+                }
+            }
+            else {
+                if ( flt->right > flprint_left_x ) {
+                    flprint_left_x = flt->right;
+                }
+                if ( flt->bottom > flprint_left_y ) {
+                    flprint_left_y = flt->bottom;
+                }
+                if ( flt->top > flprint_left_min_y ) {
+                    flprint_left_min_y = flt->top;
+                }
+            }
+        }
+        if ( floats_involved > 0 && floats_involved <= 5) {
+            // We can use floatIds
+            footprint.use_floatIds = true;
+            footprint.nb_floatIds = floats_involved;
+            // No need to call generateEmbeddedFloatsFromFloatIds() as we
+            // already computed them above.
+            /* Uncomment for checking reproducible results (here and below)
+               footprint.generateEmbeddedFloatsFromFloatIds( node, final_width );
+            */
+            footprint.floats_cnt = floats_involved;
+        }
+        else {
+            // In case we met only past floats not yet removed, that made
+            // no impact on flprint_*, all this will result in zero-values
+            // rects that will make no embedded floats.
+            footprint.use_floatIds = false;
+            // Get widths and heights of floats overlapping this final block
+            footprint.left_h = flprint_left_y - top_y;
+            footprint.right_h = flprint_right_y - top_y;
+            footprint.left_w = flprint_left_x - (x_min + d_left);
+            footprint.right_w = x_max - d_right - flprint_right_x;
+            if (footprint.left_h < 0 )
+                footprint.left_h = 0;
+            if (footprint.right_h < 0 )
+                footprint.right_h = 0;
+            if (footprint.left_w < 0 )
+                footprint.left_w = 0;
+            if (footprint.right_w < 0 )
+                footprint.right_w = 0;
+            footprint.left_min_y = flprint_left_min_y - top_y;
+            footprint.right_min_y = flprint_right_min_y - top_y;
+            if (footprint.left_min_y < 0 )
+                footprint.left_min_y = 0;
+            if (footprint.right_min_y < 0 )
+                footprint.right_min_y = 0;
+            // Generate the float to transfer
+            footprint.generateEmbeddedFloatsFromFootprints( final_width );
+        }
+        return footprint;
+    }
+
+}; // Done with FlowState
+
+// Register overflowing embedded floats into the main flow
+void BlockFloatFootprint::forwardOverflowingFloat( int x, int y, int w, int h, bool r, ldomNode * node )
+{
+    if ( flow == NULL )
+        return;
+    flow->addPositionnedFloat( d_left + x, d_top + y, w, h, r, node );
+    // Also update used_min_y and used_max_y, so they can be fetched
+    // to update erm_final block's top_overflow and bottom_overflow
+    // if some floats did overflow
+    RenderRectAccessor fmt( node );
+    if (y - fmt.getTopOverflow() < used_min_y)
+        used_min_y = y - fmt.getTopOverflow();
+    if (y + h + fmt.getBottomOverflow() > used_max_y)
+        used_max_y = y + h + fmt.getBottomOverflow();
+};
+
+void BlockFloatFootprint::generateEmbeddedFloatsFromFloatIds( ldomNode * node,  int final_width )
+{
+    // We need to compute the footprints from the already computed
+    // RenderRectAccessor of the current node, and all the floats
+    // that were associated to the node because of their involvement
+    // in text layout.
+    lvRect rc;
+    node->getAbsRect( rc, true ); // get formatted text abs coordinates
+    int node_x = rc.left;
+    int node_y = rc.top;
+    floats_cnt = 0;
+    for (int i=0; i<nb_floatIds; i++) {
+        ldomNode * fbox = node->getDocument()->getTinyNode(floatIds[i]); // get node from its dataIndex
+        // The floatBox rect values should be exactly the same as what was
+        // used in the flow's _floats when rendering. We can check if this
+        // is not the case (so a bug) by uncommenting a few things below.
+        RenderRectAccessor fmt(fbox);
+        fbox->getAbsRect( rc );
+        /* Uncomment for checking reproducible results:
+            int bf0, bf1, bf2, bf3, bf4;
+            bf0=floats[floats_cnt][0]; bf1=floats[floats_cnt][1]; bf2=floats[floats_cnt][2];
+            bf3=floats[floats_cnt][3]; bf4=floats[floats_cnt][4];
+        */
+        // clip them
+        int x0 = rc.left - node_x;
+        if ( x0 < 0 )
+            x0 = 0;
+        else if ( x0 > final_width )
+            x0 = final_width;
+        int x1 = rc.right - node_x;
+        if ( x1 < 0 )
+            x1 = 0;
+        else if ( x1 > final_width )
+            x1 = final_width;
+        int y0 = rc.top > node_y ? rc.top - node_y : 0;
+        int y1 = rc.bottom - node_y;
+        // Sanity check to avoid negative width or height:
+        if ( y1 < y0 ) { int ytmp = y0; y0 = y1 ; y1 = ytmp; }
+        if ( x1 < x0 ) { int xtmp = x0; x0 = x1 ; x1 = xtmp; }
+        floats[floats_cnt][0] = x0;      // x
+        floats[floats_cnt][1] = y0;      // y
+        floats[floats_cnt][2] = x1 - x0; // width
+        floats[floats_cnt][3] = y1 - y0; // height
+        floats[floats_cnt][4] = RENDER_RECT_HAS_FLAG(fmt, FLOATBOX_IS_RIGHT); // is_right
+        /* Uncomment for checking reproducible results:
+            if (x1 < x0) printf("!!!! %d %d %d %d\n", rc.left, rc.right, rc.top, rc.bottom);
+            if ( bf0!=floats[floats_cnt][0] || bf1!=floats[floats_cnt][1] || bf2!=floats[floats_cnt][2] ||
+                 bf3!=floats[floats_cnt][3] || bf4!=floats[floats_cnt][4] ) {
+                    printf("node_x=%d node_y=%d\n", node_x, node_y);
+                    printf("  fbox #%d x=%d y=%d\n", i+1, rc.left, rc.top);
+                    printf("floatIds flt|abs mismatch: %d|%d %d|%d %d|%d %d|%d %d|%d txt:%s flt:%s \n",
+                    bf0, floats[floats_cnt][0], bf1, floats[floats_cnt][1], bf2, floats[floats_cnt][2],
+                    bf3, floats[floats_cnt][3], bf4, floats[floats_cnt][4],
+                    UnicodeToLocal(ldomXPointer(node, 0).toString()).c_str(),
+                    UnicodeToLocal(ldomXPointer(fbox, 0).toString()).c_str());
+            }
+        */
+        floats_cnt++;
+    }
+}
+
+void BlockFloatFootprint::generateEmbeddedFloatsFromFootprints( int final_width )
+{
+    floats_cnt = 0;
+    // Add fake floats (to represent real outer floats) so that
+    // their rectangles are considered when laying out lines
+    // and other floats.
+    // We need to keep them even if left_w or right_w <=0 (in
+    // which case they'll have no visual impact on the text),
+    // just so we can clear them when a <BR style="clear:">
+    // is met.
+    // Top left rectangle
+    if ( left_h > 0 ) {
+        floats[floats_cnt][0] = 0;      // x
+        floats[floats_cnt][1] = 0;      // y
+        floats[floats_cnt][2] = left_w; // width
+        floats[floats_cnt][3] = left_h; // height
+        floats[floats_cnt][4] = 0;      // is_right
+        floats_cnt++;
+    }
+    // Top right rectangle
+    if ( right_h > 0 ) {
+        floats[floats_cnt][0] = final_width - right_w; // x
+        floats[floats_cnt][1] = 0;                     // y
+        floats[floats_cnt][2] = right_w;               // width
+        floats[floats_cnt][3] = right_h;               // height
+        floats[floats_cnt][4] = 1;                     // is_right
+        floats_cnt++;
+    }
+    // Dummy 0x0 float for minimal y for next left float
+    if ( left_min_y > 0 ) {
+        floats[floats_cnt][0] = 0;          // x
+        floats[floats_cnt][1] = left_min_y; // y
+        floats[floats_cnt][2] = 0;          // width
+        floats[floats_cnt][3] = 0;          // height
+        floats[floats_cnt][4] = 0;          // is_right
+        floats_cnt++;
+    }
+    // Dummy 0x0 float for minimal y for next right float
+    if ( right_min_y > 0 ) {
+        floats[floats_cnt][0] = final_width; // x
+        floats[floats_cnt][1] = right_min_y; // y
+        floats[floats_cnt][2] = 0;           // width
+        floats[floats_cnt][3] = 0;           // height
+        floats[floats_cnt][4] = 1;           // is_right
+        floats_cnt++;
+    }
+}
+
+void BlockFloatFootprint::store(ldomNode * node)
+{
+    RenderRectAccessor fmt( node );
+    if ( use_floatIds ) {
+        RENDER_RECT_SET_FLAG(fmt, FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS);
+        fmt.setInvolvedFloatIds( nb_floatIds, floatIds );
+    }
+    else {
+        RENDER_RECT_UNSET_FLAG(fmt, FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS);
+        fmt.setTopRectsExcluded( left_w, left_h, right_w, right_h );
+        fmt.setNextFloatMinYs( left_min_y, right_min_y );
+    }
+    if ( no_clear_own_floats ) {
+        RENDER_RECT_SET_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
+    }
+    else {
+        RENDER_RECT_UNSET_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
+    }
+    fmt.push();
+};
+
+void BlockFloatFootprint::restore(ldomNode * node, int final_width)
+{
+    RenderRectAccessor fmt( node );
+    if ( RENDER_RECT_HAS_FLAG(fmt, FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS) ) {
+        use_floatIds = true;
+        fmt.getInvolvedFloatIds( nb_floatIds, floatIds );
+        generateEmbeddedFloatsFromFloatIds( node, final_width );
+    }
+    else {
+        fmt.getTopRectsExcluded( left_w, left_h, right_w, right_h );
+        fmt.getNextFloatMinYs( left_min_y, right_min_y );
+        generateEmbeddedFloatsFromFootprints( final_width );
+    }
+    no_clear_own_floats = RENDER_RECT_HAS_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
+};
+
+// Enhanced block rendering
+void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int container_width, int flags )
+{
+    if ( ! enode->isElement() ) {
+        crFatalError(111, "Attempting to render Text node");
+    }
+
+    int m = enode->getRendMethod();
+    if (m == erm_invisible) // don't render invisible blocks
+        return;
+
+    // See if this block is a footnote container, so we can deal with it accordingly
+    bool isFootNoteBody = false;
+    lString16 footnoteId;
+    // Allow displaying footnote content at the bottom of all pages that contain a link
+    // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
+    if ( enode->getStyle()->cr_hint == css_cr_hint_footnote_inpage &&
+                enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
+        footnoteId = enode->getFirstInnerAttributeValue(attr_id);
+        if ( !footnoteId.empty() )
+            isFootNoteBody = true;
+        // Notes:
+        // It fails when that block element has itself an id, but links
+        // do target an other inline sub element id (getFirstInnerAttributeValue()
+        // would get the block element id, and there would be no existing footnote
+        // for the link target id).
+        // Not tested how it would behave with nested "-cr-hint: footnote-inpage"
+    }
+    // For fb2 documents. Description of the <body> element from FictionBook2.2.xsd:
+    //   Main content of the book, multiple bodies are used for additional
+    //   information, like footnotes, that do not appear in the main book
+    //   flow. The first body is presented to the reader by default, and
+    //   content in the other bodies should be accessible by hyperlinks. Name
+    //   attribute should describe the meaning of this body, this is optional
+    //   for the main body.
+    if ( enode->getNodeId()==el_section && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
+        ldomNode * body = enode->getParentNode();
+        while ( body != NULL && body->getNodeId()!=el_body )
+            body = body->getParentNode();
+        if ( body ) {
+            if (body->getAttributeValue(attr_name) == "notes" || body->getAttributeValue(attr_name) == "comments")
+                footnoteId = enode->getAttributeValue(attr_id);
+                if ( !footnoteId.empty() )
+                    isFootNoteBody = true;
+        }
+    }
+
+    // is this a floating float container (floatBox)?
+    bool is_floating = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && enode->isFloatingBox();
+    bool is_floatbox_child = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES)
+            && enode->getParentNode() && enode->getParentNode()->isFloatingBox();
+
+    int em = enode->getFont()->getSize();
+
+    int padding_left   = lengthToPx( enode->getStyle()->padding[0], container_width, em )
+                            + measureBorder(enode, 3) + DEBUG_TREE_DRAW;
+    int padding_right  = lengthToPx( enode->getStyle()->padding[1], container_width, em )
+                            + measureBorder(enode, 1) + DEBUG_TREE_DRAW;
+    int padding_top    = lengthToPx( enode->getStyle()->padding[2], container_width, em )
+                            + measureBorder(enode, 0) + DEBUG_TREE_DRAW;
+    int padding_bottom = lengthToPx( enode->getStyle()->padding[3], container_width, em )
+                            + measureBorder(enode, 2) + DEBUG_TREE_DRAW;
+
+    css_length_t css_margin_left  = enode->getStyle()->margin[0];
+    css_length_t css_margin_right = enode->getStyle()->margin[1];
+
+    int margin_left   = lengthToPx( css_margin_left, container_width, em ) + DEBUG_TREE_DRAW;
+    int margin_right  = lengthToPx( css_margin_right, container_width, em ) + DEBUG_TREE_DRAW;
+    int margin_top    = lengthToPx( enode->getStyle()->margin[2], container_width, em ) + DEBUG_TREE_DRAW;
+    int margin_bottom = lengthToPx( enode->getStyle()->margin[3], container_width, em ) + DEBUG_TREE_DRAW;
+
+    if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_NEGATIVE_MARGINS) ) {
+        if (margin_left < 0) margin_left = 0;
+        if (margin_right < 0) margin_right = 0;
+    }
+    if ( ! BLOCK_RENDERING(flags, ALLOW_VERTICAL_NEGATIVE_MARGINS) ) {
+        if (margin_top < 0) margin_top = 0;
+        if (margin_bottom < 0) margin_bottom = 0;
+    }
+    bool margin_left_auto = css_margin_left.type == css_val_unspecified && css_margin_left.value == css_generic_auto;
+    bool margin_right_auto = css_margin_right.type == css_val_unspecified && css_margin_right.value == css_generic_auto;
+
+    // Adjust box size and position
+
+    // <HR> gets its style width and height no matter flags
+    bool is_hr = enode->getNodeId() == el_hr;
+    // <EMPTY-LINE> block element with height added for empty lines in txt document
+    bool is_empty_line_elem = enode->getNodeId() == el_empty_line;
+
+    // Get any style height to be ensured below (just before we add bottom
+    // padding when erm_block or erm_final)
+    // Otherwise, this block height will just be its rendered content height.
+    int style_h = -1;
+    bool apply_style_height = false;
+    css_length_t style_height;
+    int style_height_base_em;
+    if ( is_floating ) {
+        // Nothing special to do: the child style height will be
+        // enforced by subcall to renderBlockElement(child)
+    }
+    else if ( is_hr || is_empty_line_elem || BLOCK_RENDERING(flags, ENSURE_STYLE_HEIGHT) ) {
+        // We always use the style height for <HR>, to actually have
+        // a height to fill with its color
+        style_height = enode->getStyle()->height;
+        style_height_base_em = em;
+        apply_style_height = true;
+    }
+    if ( apply_style_height && style_height.type != css_val_unspecified ) {
+        if ( !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
+                style_height.type != css_val_percent && style_height.type != css_val_em &&
+                style_height.type != css_val_ex && style_height.type != css_val_rem ) {
+            apply_style_height = false;
+        }
+        if ( is_hr || is_empty_line_elem || apply_style_height ) {
+            style_h = lengthToPx( style_height, container_width, style_height_base_em );
+            if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+                // If W3C box model requested, CSS height specifies the height
+                // of the content box, so we just add paddings and borders
+                // to the height we got from styles (paddings will be removed
+                // when enforcing it below, but we keep the computation
+                // common to both models doing it that way).
+                style_h += padding_top + padding_bottom;
+            }
+        }
+    }
+
+    // Compute this block width
+    int width;
+    bool auto_width = false;
+    bool table_shrink_to_fit = false;
+
+    if ( is_floating ) {
+        // Floats width computation
+        // We need to have a width for floats, so we don't ignore anything no
+        // matter the flags.
+        // As the el_floatBox itself does not have any style->width or margins,
+        // we should compute our width from the child style, and possibly
+        // from its rendered content width.
+        ldomNode * child = enode->getChildNode(0);
+        int child_em = child->getFont()->getSize();
+        css_style_ref_t child_style = child->getStyle();
+
+        // We may tweak child styles
+        bool style_changed = false;
+        // If the child paddings are in %, they are related to this container width!
+        // As we won't have access to it anymore when rendering the float,
+        // convert them to screen_px now.
+        css_style_ref_t newstyle(new css_style_rec_t);
+        for (int i=0; i<4; i++) {
+            if ( child_style->padding[i].type == css_val_percent ) {
+                if (!style_changed) {
+                    copystyle(child_style, newstyle);
+                    style_changed = true;
+                }
+                newstyle->padding[i].type = css_val_screen_px;
+                newstyle->padding[i].value = lengthToPx( child_style->padding[i], container_width, child_em );
+            }
+        }
+        // Same for width, as getRenderedWidths() won't ensure width in %
+        if ( child_style->width.type == css_val_percent ) {
+            if (!style_changed) {
+                copystyle(child_style, newstyle);
+                style_changed = true;
+            }
+            newstyle->width.type = css_val_screen_px;
+            newstyle->width.value = lengthToPx( child_style->width, container_width, child_em );
+        }
+        // (We could do the same fot height if in %, but it looks like Firefox
+        // just ignore floats height in %, so let's ignore them too.)
+        if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_BLOCK_OVERFLOW) ) {
+            // Simplest way to avoid a float overflowing its floatBox is to
+            // ensure no negative margins
+            int child_margin_left   = lengthToPx( child_style->margin[0], container_width, child_em );
+            int child_margin_right  = lengthToPx( child_style->margin[1], container_width, child_em );
+            if ( child_margin_left < 0 ) {
+                if (!style_changed) {
+                    copystyle(child_style, newstyle);
+                    style_changed = true;
+                }
+                newstyle->margin[0].type = css_val_screen_px;
+                newstyle->margin[0].value = 0;
+            }
+            if ( child_margin_right < 0 ) {
+                if (!style_changed) {
+                    copystyle(child_style, newstyle);
+                    style_changed = true;
+                }
+                newstyle->margin[1].type = css_val_screen_px;
+                newstyle->margin[1].value = 0;
+            }
+        }
+        // Save child styles if we updated them
+        if ( style_changed ) {
+            child->setStyle(newstyle);
+            child_style = newstyle;
+        }
+
+        // The margins of the element with float: are related to our container_width,
+        // so account for them here, and don't let getRenderedWidths() add them (or they
+        // would be reverse-computed from the inner content)
+        int child_margin_left   = lengthToPx( child_style->margin[0], container_width, child_em );
+        int child_margin_right  = lengthToPx( child_style->margin[1], container_width, child_em );
+        int child_margins = child_margin_left + child_margin_right;
+        // A floatBox does not have any margin/padding/border itself, but we
+        // may add some border with CSS for debugging, so account for any
+        int floatBox_paddings = padding_left + padding_right;
+        // We let getRenderedWidths() give us the width of the float content:
+        // if the float element itself has a style->width, we'll get it, with
+        // or without paddings depending on USE_W3C_BOX_MODEL).
+        int max_content_width = 0;
+        int min_content_width = 0;
+        // If the floating child does not have a width, inner elements may have one
+        // Even if main flow is not ensuring style width, we need to ensure it
+        // for floats to avoid getting page wide floats which won't look like
+        // they are floating.
+        int rend_flags = flags | BLOCK_RENDERING_ENSURE_STYLE_WIDTH | BLOCK_RENDERING_ALLOW_STYLE_W_H_ABSOLUTE_UNITS;
+        // (ignoreMargin=true to ignore the child node margins as we already have them)
+        getRenderedWidths(child, max_content_width, min_content_width, true, rend_flags);
+        // We should not exceed our container_width
+        if (max_content_width + child_margins + floatBox_paddings < container_width) {
+            width = max_content_width + child_margins + floatBox_paddings;
+        }
+        else {
+            // It looks like Firefox never use min_content_width.
+            // If max_content_width does not fit, we don't go as small as
+            // the longest word length: we take the full container_width.
+            width = container_width;
+        }
+        // printf("floatBox width: max_w=%d min_w=%d => %d", max_content_width, min_content_width, width);
+    }
+    else if ( is_floatbox_child ) {
+        // The float style or rendered width has been applied to the wrapping
+        // floatBox, so just remove node's margins of the container (the
+        // floatBox) to get the child width.
+        width = container_width - margin_left - margin_right;
+        auto_width = true; // no more width tweaks
+        // For tables, keep table_shrink_to_fit=false, so this width is not reduced
+    }
+    else { // regular element (non-float)
+        bool apply_style_width = false;
+        css_length_t style_width = enode->getStyle()->width;
+        if ( enode->getStyle()->display > css_d_table ) {
+            // table sub-elements widths are managed by the table layout algorithm
+            apply_style_width = false;
+        }
+        else {
+            // Only if ENSURE_STYLE_WIDTH as we may prefer having
+            // full width text blocks to not waste reading width with blank areas.
+            if ( style_width.type != css_val_unspecified ) {
+                apply_style_width = BLOCK_RENDERING(flags, ENSURE_STYLE_WIDTH);
+                if ( apply_style_width && !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
+                        style_width.type != css_val_percent && style_width.type != css_val_em &&
+                        style_width.type != css_val_ex && style_width.type != css_val_rem ) {
+                    apply_style_width = false;
+                }
+                if ( is_hr ) {
+                    // We always use style width for <HR> for aesthetic reasons
+                    apply_style_width = true;
+                }
+            }
+            else if ( enode->getStyle()->display == css_d_table ) {
+                // Table with no style width can shrink.
+                // If we are not ensuring style widths above, tables with
+                // a width will not shrink and will fit container width.
+                // (This should allow our table style tweaks to work
+                // when !ENSURE_STYLE_WIDTH.)
+                table_shrink_to_fit = true;
+            }
+        }
+        if ( apply_style_width ) {
+            width = lengthToPx( style_width, container_width, em );
+            // In all crengine computation, width/fmt.getWidth() is the width
+            // of the border box (content box + paddings + borders).
+            // If we use what we got directly, we are in the traditional
+            // box model (Netscape / IE5 / crengine legacy/default).
+            if ( enode->getStyle()->display == css_d_table ) {
+                // TABLE style width always specifies its border box.
+                // It's an exception to the W3C box model, as witnessed
+                // with Firefox, and discussed at:
+                //  https://stackoverflow.com/questions/19068909/why-is-box-sizing-acting-different-on-table-vs-div
+            }
+            else if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+                // If W3C box model requested, CSS width specifies the width
+                // of the content box.
+                // In crengine, the width we deal with is the border box, so we
+                // just add paddings and borders to the width we got from styles.
+                width += padding_left + padding_right;
+            }
+            // printf("  apply_style_width => %d\n", width);
+        }
+        else {
+            width = container_width - margin_left - margin_right;
+            auto_width = true; // no more width tweaks
+        }
+    }
+
+    // What about a width with a negative value?
+    // It seems we are fine with a negative width in our recursive
+    // x and width computations, as children may make it positive
+    // again with negative margins, and we seem to always end up
+    // with a correct x position to draw our block at, quite
+    // very similarly as Firefox.
+    // So, our x/dx computations below seem like they may need
+    // us to keep a negative width value to be done right.
+    // (We'll revisit that when we meet counterexamples.)
+    //
+    // There are nevertheless a few things to take care of later
+    // when we get a negative width:
+    // - We want to avoid negative RenderRectAcessor.getWidth(),
+    //   so we'll set it to zero. It's mostly only used to draw
+    //   borders and backgrounds, and it seems alright to have
+    //   zero of these on such blocks.
+    //   Caveat: elementFromPoint()/createXPointer may get
+    //   confused with such rect, and not travel thru them, or
+    //   skip them.
+    // - A table with a zero or negative width (which can happen
+    //   with very busy imbricated tables) won't be drawn, and
+    //   it's rendering method will be switched to erm_killed
+    //   to display some small visual indicator.
+    // - Legacy rendering code keeps a negative width in
+    //   RenderRectAccessor, and, with erm_final nodes, provides
+    //   it as is to node->renderFinalBlock(), which casts it to
+    //   a signed integer when calling txform->Format(inner_width),
+    //   resulting in text formatted over a huge overflowing width.
+    //   This is somehow a quite good end solution to deal with
+    //   text formatting over a bogus negative width (instead of
+    //   just not displaying anything) as it gives a hint to the
+    //   user that something is wrong, with this text overflowing
+    //   the screen.
+    //   So, we won't be using erm_killed for these erm_final nodes,
+    //   but we will set the inner_width to be 1x screen width. Some
+    //   text may still overflow, text selection may not work, but
+    //   a bit  more of it will be seen on multiple lines.
+    //   Note: Firefox in this case uses the min content width as
+    //   a fallback width (we could do the same, but it is costly
+    //   and may result in adding many many pages with a narrow
+    //   column of one or two words on each line.
+
+    // Reference: https://www.w3.org/TR/CSS2/visudet.html#blockwidth
+    // As crengine uses internally the traditional box model, the width
+    // we are computing here is the width between the borders of the box,
+    // including padding and border.
+    // So, these rules are simplified to:
+    // - margin_left + width + margin_right = container_width
+    // - If width is not 'auto', and 'margin_left + width + margin_right' is larger
+    //   than container_width, then any 'auto' values for 'margin-left' or 'margin-right'
+    //   are, for the following rules, treated as zero.
+    // - If all of the above have a computed value other than 'auto', the values are
+    //   said to be "over-constrained" and one of the used values will have to be
+    //   different from its computed value. If the 'direction' property of the
+    //   containing block has the value 'ltr', the specified value of 'margin-right'
+    //   is ignored and the value is calculated so as to make the equality true.
+    // - If there is exactly one value specified as 'auto', its used value follows
+    //   from the equality
+    // - If 'width' is set to 'auto', any other 'auto' values become '0' and 'width'
+    //   follows from the resulting equality
+    // - If both 'margin-left' and 'margin-right' are 'auto', their used values are
+    //   equal. This horizontally centers the element with respect to the edges
+    //   of the containing block
+
+    // We now have the prefered width, and we need to adjust x to the position
+    // where this width is to start.
+    // ('x' might not be 0, as it includes the parent padding & borders)
+    // (margin_left and margin_right have a value of 0 if they are "auto")
+
+    // In most cases, our shift from x (our margin left inside container_width)
+    // is... margin_left
+    int dx = margin_left;
+
+    if ( !auto_width ) { // We have a width that may not fill all available space
+        // printf("fixed width: %d\n", width);
+        if ( width + margin_left + margin_right > container_width ) {
+            margin_right = 0; // drop margin_right
+        }
+        if ( width + margin_left + margin_right > container_width ) {
+            // We can't ensure any auto (or should we? ensure centering
+            // by even overflow on each side?)
+        }
+        else { // We fit into container_width
+            if ( BLOCK_RENDERING(flags, ENSURE_MARGIN_AUTO_ALIGNMENT) ) {
+                // https://www.hongkiat.com/blog/css-margin-auto/
+                //  "what do you think will happen when the value auto is given
+                //   to only one of those? A left or right margin with auto will
+                //   take up all of the "available" space making the element
+                //   look like it has been flushed right or left."
+                // The CSS specs do not seem to mention that.
+                // But Firefox ensures it. So let's do the same.
+                //
+                // (if margin_left_auto, we have until now: dx = margin_left = 0)
+                if ( margin_left_auto && margin_right_auto ) {
+                    dx = (container_width - width) / 2;
+                }
+                else if ( margin_left_auto ) {
+                    dx = container_width - width;
+                }
+                // else if ( margin_right_auto ): nothing to do
+            }
+        }
+    }
+
+    // Prevent overflows if not allowed
+    if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_BLOCK_OVERFLOW) ) {
+        if ( width > container_width ) { // width alone is bigger than container
+            dx = 0; // drop any left shift
+            width = container_width; // adjust to contained width
+        }
+        else if ( dx + width > container_width ) {
+            // width is smaller that container's, but dx makes it overflow
+            dx = container_width - width;
+        }
+    }
+    if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_PAGE_OVERFLOW) ) {
+        // Ensure it does not go past the left or right of the original
+        // container width (= page, for main flow)
+        // Note: not (yet) implemented for floats (but it is naturally
+        // ensured if !ALLOW_HORIZONTAL_BLOCK_OVERFLOW)
+        int o_width = flow->getOriginalContainerWidth();
+        int abs_x = flow->getCurrentAbsoluteX();
+        // abs_x already accounts for x (=padding_left of parent container,
+        // which is given to flow->newBlockLevel() before being also given
+        // to renderBlockElementEnhanced() as x).
+        if ( abs_x + dx < 0 ) {
+            dx = - abs_x; // clip to page left margin
+        }
+        if ( abs_x + dx + width > o_width ) {
+            width = o_width - abs_x - dx; // clip width to page right margin
+        }
+    }
+
+    // Apply dx, and we're done with width and x
+    x += dx;
+    // printf("width: %d   dx: %d > x: %d\n", width, dx, x);
+
+    bool no_margin_collapse = false;
+    if ( flow->getCurrentLevel() == 0 ) {
+        // "Margins of the root element's box do not collapse"
+        // We'll push it immediately below
+        no_margin_collapse = true;
+    }
+    else if ( flow->getCurrentLevel() == 1 && enode->getParentNode()->isFloatingBox() ) {
+        // The inner margin of the real float element (the single child of a floatBox)
+        // have to be pushed and not collapse with outer margins so they can
+        // get accounted in the float height.
+        no_margin_collapse = true;
+    }
+
+    // Ensure page breaks following the rules from:
+    //   https://www.w3.org/TR/CSS2/page.html#allowed-page-breaks
+    // Also ensure vertical margin collapsing, with rules from:
+    //   https://www.w3.org/TR/CSS21/box.html#collapsing-margins
+    //   https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Box_Model/Mastering_margin_collapsing
+    // (Test suite for margin collapsing: http://test.weasyprint.org/suite-css21/chapter8/section3/)
+    // All of this is mostly ensured in flow->pushVerticalMargin()
+    int break_before = CssPageBreak2Flags( enode->getStyle()->page_break_before );
+    int break_after = CssPageBreak2Flags( enode->getStyle()->page_break_after );
+    int break_inside = CssPageBreak2Flags( enode->getStyle()->page_break_inside );
+    // Note: some test suites seem to indicate that an inner "break-inside: auto"
+    // can override an outer "break-inside: avoid". We don't ensure that.
+
+    if ( no_margin_collapse ) {
+        // Push any earlier margin so it does not get collapsed with this one
+        flow->pushVerticalMargin();
+    }
+    // We don't shift y yet. We accumulate margin, and, after ensuring
+    // collapsing, emit it on the first non-margin real content added.
+    flow->addVerticalMargin( enode, margin_top, break_before, true ); // is_top_margin=true
+
+    LFormattedTextRef txform;
+
+    // Set what we know till now about this block
+    RenderRectAccessor fmt( enode );
+    fmt.setX( x );
+    fmt.setY( flow->getCurrentRelativeY() );
+    fmt.setWidth( width );
+    if ( width < 0) {
+        // We might be fine with a negative width when recursively rendering
+        // children nodes (which may make it positive again with negative
+        // margins). But we don't want our RenderRect to have a negative width.
+        fmt.setWidth( 0 );
+    }
+    fmt.setHeight( 0 ); // will be updated below
+    fmt.push();
+    // This has to be delayed till now: it may adjust the Y we just setY() above
+    if ( no_margin_collapse ) {
+        flow->pushVerticalMargin();
+    }
+
+    #ifdef DEBUG_BLOCK_RENDERING
+        if (!flow->isMainFlow()) printf("\t\t|");
+        for (int i=1; i<=flow->getCurrentLevel(); i++) { printf("%c", flow->isMainFlow() ? ' ':'-'); }
+        printf("%c", m==erm_block?'B':m==erm_table?'T':m==erm_final?'F':'?');
+        printf("\t%s", UnicodeToLocal(ldomXPointer(enode, 0).toString()).c_str());
+        printf("\tc_y=%d (rely=%d)\n", flow->getCurrentAbsoluteY(), flow->getCurrentRelativeY());
+    #endif
+
+    if (width <= 0) {
+        // In case we get a negative width (no room to render and draw anything),
+        // which may happen in hyper constrained layouts like heavy nested tables,
+        // don't go further in the rendering code.
+        // It seems erm_block nodes do "survive" such negative width,
+        // by just keeping substracting margin and padding to this negative
+        // number until we reach an erm_final. For these, below, we possibly
+        // do our best below to ensure a final positive inner_width.
+        // So, we only do the following for tables, where the rendering code
+        // is more easily messed up by negative widths. As we won't show
+        // any table, and we want the user to notice something is missing,
+        // we set this element rendering method to erm_killed, and
+        // DrawDocument will then render a small figure...
+        if (enode->getRendMethod() >= erm_table) {
+            printf("CRE WARNING: no width to draw %s\n", UnicodeToLocal(ldomXPointer(enode, 0).toString()).c_str());
+            enode->setRendMethod( erm_killed );
+            fmt.setHeight( 15 ); // not squared, so it does not look
+            fmt.setWidth( 10 );  // like a list square bullet
+            fmt.setX( fmt.getX() - 5 );
+                // We shift it half to the left, so a bit of it can be
+                // seen if some element on the right covers it with some
+                // background color.
+            flow->addContentLine( fmt.getHeight(), RN_SPLIT_BOTH_AVOID );
+            return;
+        }
+    }
+
+    switch( m ) {
+        case erm_table:
+            {
+                if ( isFootNoteBody )
+                    flow->getPageContext()->enterFootNote( footnoteId );
+
+                // As we don't support laying tables aside floats, just clear
+                // all floats and push all margins
+                flow->clearFloats( css_c_both );
+                flow->pushVerticalMargin();
+
+                // We need to update the RenderRectAccessor() as renderTable will
+                // use it to get the absolute table start y for context.AddLine()'ing
+                fmt.setY( flow->getCurrentRelativeY() );
+                fmt.push();
+
+                if ( isFootNoteBody )
+                    flow->getPageContext()->enterFootNote( footnoteId );
+
+                // Ensure page-break-inside avoid, from the table's style or
+                // from outer containers
+                bool avoid_pb_inside = break_inside==RN_SPLIT_AVOID;
+                if (!avoid_pb_inside)
+                    avoid_pb_inside = flow->getAvoidPbInside();
+
+                // We allow a table to shrink width (cells to shrink to their content),
+                // unless they have a width specified.
+                // This can be tweaked with:
+                //   table {width: 100% !important} to have tables take the full available width
+                //   table {width: auto !important} to have tables shrink to their content
+                int table_width = width;
+                int fitted_width = -1;
+                // renderTable has not been updated to use 'flow', and it looks
+                // like it does not really need to.
+                int h = renderTable( *(flow->getPageContext()), enode, 0, flow->getCurrentRelativeY(),
+                            table_width, table_shrink_to_fit, fitted_width, avoid_pb_inside, true );
+                // (It feels like we don't need to ensure a table specified height.)
+                fmt.setHeight( h );
+                // Update table width if it was fitted/shrunk
+                if (table_shrink_to_fit && fitted_width > 0)
+                    table_width = fitted_width;
+                fmt.setWidth( table_width );
+                if (table_width < width) {
+                    // This was already done above, but it needs to be adjusted
+                    // again if the table width was shrunk.
+                    // See for margin: auto, to center or align right the table
+                    int shift_x = 0;
+                    if (margin_left_auto) {
+                        if (margin_right_auto) { // center align
+                            shift_x = (width - table_width)/2;
+                        }
+                        else { // right align
+                            shift_x = (width - table_width);
+                        }
+                    }
+                    if (shift_x) {
+                        fmt.setX( fmt.getX() + shift_x );
+                    }
+                }
+                fmt.push();
+
+                flow->moveDown(h);
+
+                if ( isFootNoteBody )
+                    flow->getPageContext()->leaveFootNote();
+
+                flow->addVerticalMargin( enode, margin_bottom, break_after );
+                return;
+            }
+            break;
+        case erm_block:
+            {
+                // Deal with list item marker
+                // List item marker rendering when css_d_list_item_block
+                int list_marker_padding = 0; // set to non-zero when list-style-position = outside
+                int list_marker_height = 0;
+                if ( enode->getStyle()->display == css_d_list_item_block ) {
+                    // list_item_block rendered as block (containing text and block elements)
+                    // Get marker width and height
+                    LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
+                    int list_marker_width;
+                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
+                    list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
+                    if ( enode->getStyle()->list_style_position == css_lsp_outside &&
+                        enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                        // When list_style_position = outside, we have to shift the whole block
+                        // to the right and reduce the available width, which is done
+                        // below when calling renderBlockElement() for each child
+                        // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
+                        list_marker_padding = list_marker_width;
+                    }
+                    else if ( enode->getStyle()->list_style_type != css_lst_none ) {
+                        // When list_style_position = inside, we need to let renderFinalBlock()
+                        // know there is a marker to prepend when rendering the first of our
+                        // children (or grand-children, depth first) that is erm_final
+                        // (caveat: the marker will not be shown if any of the first children
+                        // is erm_invisible)
+                        // (No need to do anything when  list-style-type none.)
+                        ldomNode * tmpnode = enode;
+                        while ( tmpnode->hasChildren() ) {
+                            tmpnode = tmpnode->getChildNode( 0 );
+                            if (tmpnode && tmpnode->getRendMethod() == erm_final) {
+                                // We need renderFinalBlock() to be able to reach the current
+                                // enode when it will render/draw this tmpnode, so it can call
+                                // renderListItemMarker() on it and get a marker formatted
+                                // according to current node style.
+                                // We store enode's data index into the RenderRectAccessor of
+                                // this erm_final tmpnode so it's saved in the cache.
+                                // (We used to use NodeNumberingProps to store it, but it
+                                // is not saved in the cache.)
+                                RenderRectAccessor tmpfmt( tmpnode );
+                                tmpfmt.setListPropNodeIndex( enode->getDataIndex() );
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Note: there's something which can be a bit confusing here:
+                // we shift the flow state by padding_top (above, while dealing
+                // with it for page split context) and padding_left (just below).
+                // But each child x and y (set by renderBlockElement() below) must
+                // include padding_top and padding_left. So we keep providing these
+                // to renderBlockElement() even if it feels a bit out of place,
+                // notably in the float positionning code. But it works...
+
+                // Shrink flow state area: children that are float will be
+                // constrained into this area
+                // ('width' already had margin_left/_right substracted)
+                flow->newBlockLevel(width - list_marker_padding - padding_left - padding_right,
+                       margin_left + list_marker_padding + padding_left, break_inside==RN_SPLIT_AVOID);
+
+                if (padding_top>0) {
+                    // This may push accumulated vertical margin
+                    flow->addContentLine(padding_top, RN_SPLIT_AFTER_AVOID, true);
+                }
+
+                // Enter footnote body only after padding, to get rid of it
+                // and have lean in-page footnotes
+                if ( isFootNoteBody )
+                    flow->getPageContext()->enterFootNote( footnoteId );
+
+                // recurse all sub-blocks for blocks
+                int cnt = enode->getChildCount();
+                for (int i=0; i<cnt; i++) {
+                    ldomNode * child = enode->getChildNode( i );
+
+                    // We must deal differently with children that are floating nodes.
+                    // Different behaviors with "clear:"
+                    // - If a non-floating block has a "clear:", it is moved below the last
+                    //   float on that side
+                    // - If a floating block has a "clear:", it is moved below the last
+                    //   float on that side BUT the following non-floating blocks should
+                    //   not move and continue being rendered at the current y
+
+                    if ( child->isFloatingBox() ) {
+                        // Block floats are positionned respecting the current collapsed
+                        // margin, without actually globally pushing it, and without
+                        // collapsing with it.
+                        int flt_vertical_margin = flow->getCurrentVerticalMargin();
+                        bool is_right = child->getStyle()->float_ == css_f_right;
+                        // (style->clear has not been copied to the floatBox: we must
+                        // get it from the floatBox single child)
+                        css_clear_t child_clear = child->getChildNode(0)->getStyle()->clear;
+                        // Provide an empty context so float content does not add lines
+                        // to the page splitting context. The non-floating nodes will,
+                        // and if !DO_NOT_CLEAR_OWN_FLOATS, we'll fill the remaining
+                        // height taken by floats if any.
+                        LVRendPageContext emptycontext( NULL, flow->getPageHeight() );
+                        // For floats too, the provided x/y must be the padding-left/top of the
+                        // parent container of the float (and width must exclude the parent's
+                        // padding-left/right) for the flow to correctly position inner floats:
+                        // flow->addFloat() will additionally shift its positionning by the
+                        // child x/y set by this renderBlockElement().
+                        renderBlockElement( emptycontext, child, list_marker_padding + padding_left, padding_top,
+                                    width - list_marker_padding - padding_left - padding_right );
+                        flow->addFloat(child, child_clear, is_right, flt_vertical_margin);
+                        // Gather footnotes links accumulated by emptycontext
+                        lString16Collection * link_ids = emptycontext.getLinkIds();
+                        if (link_ids->length() > 0) {
+                            for ( int n=0; n<link_ids->length(); n++ ) {
+                                flow->getPageContext()->addLink( link_ids->at(n) );
+                            }
+                        }
+                    }
+                    else {
+                        css_clear_t child_clear = child->getStyle()->clear;
+                        // If this child is going to split page, clear all floats before
+                        if ( CssPageBreak2Flags( child->getStyle()->page_break_before ) == RN_SPLIT_ALWAYS )
+                            child_clear = css_c_both;
+                        flow->clearFloats( child_clear );
+                        renderBlockElementEnhanced( flow, child, list_marker_padding + padding_left,
+                            width - list_marker_padding - padding_left - padding_right, flags );
+                        // Vertical margins collapsing is mostly ensured in flow->pushVerticalMargin()
+                        //
+                        // Various notes about it:
+                        // https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Box_Model/Mastering_margin_collapsing
+                        //   "The margins of adjacent siblings are collapsed (except
+                        //   when the latter sibling needs to be cleared past floats)."
+                        // https://www.w3.org/TR/CSS21/box.html#collapsing-margins
+                        //  "The bottom margin of an in-flow block-level element always
+                        //  collapses with the top margin of its next in-flow block-level
+                        //  sibling, unless that sibling has clearance. "
+                        // https://www.w3.org/TR/CSS21/visuren.html#clearance
+                        //  clearance is not just having clear: it's when clear: has to
+                        //  do some moving
+                        // So we should not do this:
+                        //   if ( child_clear > css_c_none ) flow->pushVerticalMargin();
+                        // It looks like it just means that the upcoming pushed/collapsed
+                        // vertical margin could be part of the clear'ed vertical area.
+                        // We attempt at doing that in pushVerticalMargin(), and we manage
+                        // to look quite much like how Firefox renders - although we're
+                        // not doing all the computations the specs suggest.
+                        //
+                        // https://www.w3.org/TR/CSS21/box.html#collapsing-margins
+                        //  "Adjoining vertical margins collapse, except:
+                        //  2) If the top and bottom margins of an element with clearance
+                        //     are adjoining, its margins collapse with the adjoining
+                        //     margins of following siblings but that resulting margin does
+                        //     not collapse with the bottom margin of the parent block."
+                        // Not sure about this one. Is this about empty elements ("top and
+                        // bottom margins are adjoining" with each other)? Or something else?
+                    }
+                }
+
+                // Ensure there's enough height to fully display the list marker
+                int current_h = flow->getCurrentRelativeY();
+                if (list_marker_height && list_marker_height > current_h) {
+                    flow->addContentSpace(list_marker_height - current_h, 1, current_h > 0, true, false);
+                }
+
+                // Leave footnote body before style height and padding, to get
+                // rid of them and have lean in-page footnotes
+                if ( isFootNoteBody )
+                    flow->getPageContext()->leaveFootNote();
+
+                if (style_h >= 0) {
+                    current_h = flow->getCurrentRelativeY() + padding_bottom;
+                    int pad_h = style_h - current_h;
+                    if (pad_h > 0) {
+                        if (pad_h > flow->getPageHeight()) // don't pad more than one page height
+                            pad_h = flow->getPageHeight();
+                        // Add this space to the page splitting context
+                        // Allow page splitting inside this useless excessive style height
+                        flow->addContentSpace(pad_h, 1, false, false, false);
+                    }
+                }
+
+                if ( no_margin_collapse ) {
+                    // Push any earlier margin so it does not get collapsed with this one,
+                    // and we get the resulting margin in the height given by leaveBlockLevel().
+                    flow->pushVerticalMargin();
+                }
+                else if ( current_h == 0 && BLOCK_RENDERING(flags, DO_NOT_CLEAR_OWN_FLOATS) && flow->hasActiveFloats() ) {
+                    // There is no problem with some empty height/content blocks
+                    // with vertical margins, unless there are floats around
+                    // (whether they are outer floats, or standalone embedded
+                    // float(s) inside some erm_final block with nothing else,
+                    // which gave that current_h=0).
+                    // If floats are involved, the vertical margin should
+                    // apply above this empty block: it's like the following
+                    // non-empty block should grab these previous empty blocks
+                    // with it, and so the inner floats should be moved down.
+                    // This is complicated to get right, so, to avoid more
+                    // visible glitches and mismatches in floats position and
+                    // footprints, it's safer and less noticable to just push
+                    // vertical margin now and disable any further vertical
+                    // margin until some real content lines have been sent.
+                    // Sample test case:
+                    //     <div style="margin: 1em 0">aaa</div>
+                    //     <div style="margin: 1em 0"><span style="float: left">bbb</span></div>
+                    //     <div style="margin: 1em 0">ccc</div>
+                    //   bbb and ccc should be aligned
+                    // So, this is wrong, but the simplest to solve this case:
+                    flow->pushVerticalMargin();
+                    flow->disableVerticalMargin();
+                    // But this drop the H2 top margin in this test case:
+                    //     <div>some dummy text</div>
+                    //     <div> <!-- just because the float is inner to this div, which will get a 0-height -->
+                    //       <div style="float: left">some floating div</div>
+                    //     </div>
+                    //     <H2>This is a H2</H2>
+                }
+
+                int top_overflow = 0;
+                int bottom_overflow = 0;
+                int h = flow->leaveBlockLevel(top_overflow, bottom_overflow);
+
+                // padding bottom should be applied after leaveBlockLevel
+                // (Firefox, with a float taller than text, both in another
+                // float, applies bottom padding after the inner float)
+                if (padding_bottom>0) {
+                    int padding_bottom_with_inner_pushed_vm = flow->addContentLine(padding_bottom, RN_SPLIT_BEFORE_AVOID, true);
+                    h += padding_bottom_with_inner_pushed_vm;
+                    bottom_overflow -= padding_bottom_with_inner_pushed_vm;
+                }
+
+                if (h <=0) {
+                    // printf("negative h=%d %d %s %s\n", h, is_floating,
+                    //     UnicodeToLocal(ldomXPointer(enode, 0).toString()).c_str(), enode->getText().c_str());
+                    // Not sure if we can get negative heights in the main flow
+                    // (but when we did, because of bugs?, it resulted in hundreds
+                    // of blank pages).
+                    // Getting a zero height may prevent the block and its children
+                    // from being drawn, which is fine for node with no real content.
+                    // But we can rightfully get a negative height for floatBoxes
+                    // whose content has negative margins and is fully outside
+                    // the floatBox.
+                    // So, fix height as needed
+                    if ( is_floating ) {
+                        // Allow it to be candidate for drawing, and have a minimal
+                        // height so it's not just ignored.
+                        h = 1;
+                        bottom_overflow -= 1;
+                    }
+                    else { // Assume no content and nothing to draw
+                        h = 0;
+                    }
+                }
+
+                // Finally, get the height used by our padding and children.
+                // Original fmt.setY() might have been updated by collapsing margins,
+                // but we got the real final height.
+                fmt.setHeight( h );
+                fmt.setTopOverflow( top_overflow );
+                fmt.setBottomOverflow( bottom_overflow );
+                fmt.push();
+                // if (top_overflow > 0) printf("block top_overflow=%d\n", top_overflow);
+                // if (bottom_overflow > 0) printf("block bottom_overflow=%d\n", bottom_overflow);
+
+                flow->addVerticalMargin( enode, margin_bottom, break_after );
+                if ( no_margin_collapse ) {
+                    // Push our margin so it does not get collapsed with some later one
+                    flow->pushVerticalMargin();
+                }
+                return;
+            }
+            break;
+        case erm_list_item: // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
+        case erm_final:
+        case erm_table_cell:
+            {
+                // Deal with list item marker
+                int list_marker_padding = 0;;
+                if ( enode->getStyle()->display == css_d_list_item_block ) {
+                    // list_item_block rendered as final (containing only text and inline elements)
+                    // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
+                    if ( enode->getStyle()->list_style_position == css_lsp_outside &&
+                        enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                        // When list_style_position = outside, we have to shift the final block
+                        // to the right and reduce its width
+                        lString16 marker = renderListItemMarker( enode, list_marker_padding, NULL, -1, 0 );
+                        // With css_lsp_outside, the marker is outside: it shifts x left and reduces width
+                        width -= list_marker_padding;
+                        fmt.setWidth( width );
+                        fmt.setX( fmt.getX() + list_marker_padding );
+                        fmt.push();
+                    }
+                }
+
+                // To get an accurate BlockFloatFootprint, we need to push vertical
+                // margin now (and not delay it to the first addContentLine()).
+                // This can mess with proper margins collapsing if we were to
+                // output no content (we don't know that yet).
+                // So, do it only if we have floats.
+                if ( flow->hasActiveFloats() )
+                    flow->pushVerticalMargin();
+
+                // Store these in RenderRectAccessor fields, to avoid having to
+                // compute them again when in XPointer, elementFromPoint...
+                int inner_width = width - padding_left - padding_right;
+                if (inner_width <= 0) {
+                    // inner_width is the width given to LFormattedText->Format()
+                    // to lay out inlines and text along this width.
+                    // Legacy code allows it to be negative, but it ends
+                    // up being cast'ed to a signed int, resulting in a
+                    // huge width, with possibly text laid out on a single
+                    // long overflowing line.
+                    // We prefer here to make it positive with a limited
+                    // width, still possibly overflowing screen, but allowing
+                    // more text to be seen.
+                    // (This will mess with BlockFloatFootprint and proper
+                    // layout of floats, but we're in some edgy situation.)
+                    if ( width - padding_left > 0 ) {
+                        // Just kill padding_right
+                        inner_width = width - padding_left;
+                        padding_right = 0;
+                    }
+                    else if ( width > 0 ) {
+                        // Just kill both paddings
+                        inner_width = width - padding_left;
+                        padding_left = padding_right = 0;
+                    }
+                    else {
+                        // Kill padding and switch to the top container
+                        // width (the page width)
+                        inner_width = flow->getOriginalContainerWidth();
+                        padding_left = padding_right = 0;
+                    }
+                    // We could also do like Firefox and use the minimal content width:
+                    //   int max_content_width = 0;
+                    //   int min_content_width = 0;
+                    //   getRenderedWidths(enode, max_content_width, min_content_width, true, flags);
+                    //   inner_width = min_content_width;
+                    // but it is costly and may result in adding many many pages
+                    // with a narrow column of words.
+                }
+                fmt.setInnerX( padding_left );
+                fmt.setInnerY( padding_top );
+                fmt.setInnerWidth( inner_width );
+                RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+                fmt.push();
+                // (These setInner* needs to be set before creating float_footprint if
+                // we want to debug/valide floatIds coordinates)
+
+                // Outer block floats may be drawn over the erm_final node rect.
+                // Only its text (and embedded floats) must be laid out outside
+                // these outer floats areas (left and right paddings should be
+                // left under the floats, and should not be ensured after the
+                // outer floats areas).
+                // We will provide the text formatter with a small BlockFloatFootprint
+                // object, that will provide at most 5 rectangles representing outer
+                // floats (either real floats, or fake floats).
+                BlockFloatFootprint float_footprint = flow->getFloatFootprint( enode,
+                    margin_left + list_marker_padding + padding_left, margin_right + padding_right, padding_top );
+                    // (No need to account for margin-top, as we pushed vertical margin
+                    // just above if there were floats.)
+
+                int final_h = enode->renderFinalBlock( txform, &fmt, inner_width, &float_footprint );
+                int final_min_y = float_footprint.getFinalMinY();
+                int final_max_y = float_footprint.getFinalMaxY();
+
+                flow->getPageContext()->updateRenderProgress(1);
+                #ifdef DEBUG_DUMP_ENABLED
+                    logfile << "\n";
+                #endif
+
+                int pad_style_h = 0;
+                if (style_h >= 0) { // computed above
+                    int pad_h = style_h - (final_h + padding_top + padding_bottom);
+                    if (pad_h > 0) {
+                        // don't pad more than one page height
+                        if (pad_h > flow->getPageHeight())
+                            pad_h = flow->getPageHeight();
+                        pad_style_h = pad_h; // to be context.AddLine() below
+                    }
+                }
+
+                int h = padding_top + final_h + pad_style_h + padding_bottom;
+                final_min_y += padding_top;
+                final_max_y += padding_top;
+                int top_overflow = final_min_y < 0 ? -final_min_y : 0;
+                int bottom_overflow = final_max_y > h ? final_max_y - h : 0;
+                // if (top_overflow > 0) printf("final top_overflow=%d\n", top_overflow);
+                // if (bottom_overflow > 0) printf("final bottom_overflow=%d\n", bottom_overflow);
+
+                // Reload fmt, as enode->renderFinalBlock() will have
+                // updated it to store the float_footprint rects in.
+                //   Note: beware RenderRectAccessor's own state and refresh
+                //   management (push/_modified/_dirty) which may not be
+                //   super safe (push() sets dirty only if modified,
+                //   a getX() resets _dirty, and you can't set _dirty
+                //   explicitely when you know a 2nd instance will be
+                //   created and will modify the date).
+                //   So, safer to create a new instance to be sure
+                //   to get fresh data.
+                fmt = RenderRectAccessor( enode );
+                fmt.setHeight( h );
+                fmt.setTopOverflow( top_overflow );
+                fmt.setBottomOverflow( bottom_overflow );
+                fmt.push();
+                // (We set the height now because we know it, but it should be
+                // equal to what we will addContentLine/addContentSpace below.)
+
+                // We need to forward our overflow for it to be carried
+                // by our block containers if we overflow them.
+                flow->updateCurrentLevelTopOverflow(top_overflow);
+
+                if (padding_top>0) {
+                    // This may add accumulated margin
+                    flow->addContentLine(padding_top, RN_SPLIT_AFTER_AVOID, true);
+                }
+
+                // Enter footnote body after padding, to get rid of it
+                // and have lean in-page footnotes
+                if ( isFootNoteBody )
+                    flow->getPageContext()->enterFootNote( footnoteId );
+
+                // We have lines of text in 'txform', that we should register
+                // into flow/context for later page splitting.
+                int count = txform->GetLineCount();
+                int orphans = (int)(enode->getStyle()->orphans) - (int)(css_orphans_widows_1) + 1;
+                int widows = (int)(enode->getStyle()->widows) - (int)(css_orphans_widows_1) + 1;
+                for (int i=0; i<count; i++) {
+                    const formatted_line_t * line = txform->GetLineInfo(i);
+                    int line_flags = 0;
+
+                    // We let the first line with allow split before,
+                    // and the last line with allow split after (padding
+                    // top and bottom will too, but will themselves stick
+                    // to the first and last lines).
+                    // flow->addContentLine() may change that depending on
+                    // surroundings.
+
+                    // Honor widows and orphans
+                    if (orphans > 1 && i > 0 && i < orphans)
+                        // with orphans:2, and we're the 2nd line (i=1), avoid split before
+                        // so we stick to first line
+                        line_flags |= RN_SPLIT_BEFORE_AVOID;
+                    if (widows > 1 && i < count-1 && count-1 - i < widows)
+                        // with widows:2, and we're the last before last line (i=count-2),
+                        // avoid split after so we stick to last line
+                        line_flags |= RN_SPLIT_AFTER_AVOID;
+
+                    // Honor our own "page-break-inside: avoid" that hasn't been
+                    // passed to "flow" (any upper "break-inside: avoid" will be
+                    // enforced by flow->addContentLine())
+                    if ( break_inside == RN_SPLIT_AVOID ) {
+                        if (i > 0)
+                            line_flags |= RN_SPLIT_BEFORE_AVOID;
+                        if (i < count-1)
+                            line_flags |= RN_SPLIT_AFTER_AVOID;
+                    }
+
+                    flow->addContentLine(line->height, line_flags);
+
+                    // See if there are links to footnotes in that line, and add
+                    // a reference to it so page splitting can bring the footnotes
+                    // text on this page, and then decide about page split.
+                    if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) { // disable footnotes for footnotes
+                        for ( int w=0; w<line->word_count; w++ ) {
+                            // check link start flag for every word
+                            if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
+                                const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
+                                if ( src && src->object ) {
+                                    ldomNode * node = (ldomNode*)src->object;
+                                    ldomNode * parent = node->getParentNode();
+                                    while (parent && parent->getNodeId() != el_a)
+                                        parent = parent->getParentNode();
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
+                                            // but we want to be able to gather in-page footnotes by only
+                                            // specifying a -cr-hint: to the footnote target, with no need
+                                            // to set one to the link itself
+                                        lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                        if ( href.length()>0 && href.at(0)=='#' ) {
+                                            href.erase(0,1);
+                                            flow->getPageContext()->addLink( href );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Leave footnote body before style height and padding, to get
+                // rid of them and have lean in-page footnotes
+                if ( isFootNoteBody )
+                    flow->getPageContext()->leaveFootNote();
+
+                if( pad_style_h > 0) {
+                    // Add filling space to the page splitting context
+                    // Allow page splitting inside that useless excessive style height
+                    flow->addContentSpace(pad_style_h, 1, false, false, false);
+                }
+
+                if (padding_bottom>0) {
+                    flow->addContentLine(padding_bottom, RN_SPLIT_BEFORE_AVOID, true);
+                }
+
+                // We need to forward our overflow for it to be carried
+                // by our block containers if we overflow them.
+                flow->updateCurrentLevelBottomOverflow(bottom_overflow);
+
+                flow->addVerticalMargin( enode, margin_bottom, break_after );
+                if ( no_margin_collapse ) {
+                    // Push our margin so it does not get collapsed with some later one
+                    flow->pushVerticalMargin();
+                }
+                return;
+            }
+            break;
+        default:
+            CRLog::error("Unsupported render method %d", m);
+            crFatalError(); // error
+            break;
+    }
+    return;
+}
+
+// Entry points for rendering the root node, a table cell or a float
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int rend_flags )
+{
+    if ( BLOCK_RENDERING(rend_flags, ENHANCED) ) {
+        // Create a flow state (aka "block formatting context") for the rendering
+        // of this block and all its children.
+        // (We are called when rendering the root node, and when rendering each float
+        // met along walking the root node hierarchy - and when meeting a new float
+        // in a float, etc...)
+        FlowState flow( context, width, rend_flags );
+        renderBlockElementEnhanced( &flow, enode, x, width, rend_flags );
+        // The block height is c_y when we are done
+        return flow.getCurrentAbsoluteY();
+    }
+    else {
+        return renderBlockElementLegacy( context, enode, x, y, width);
+    }
+}
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width )
+{
+    // Use global rendering flags
+    // Note: we're not currently using it with other flags that the global ones.
+    return renderBlockElement( context, enode, x, y, width, gRenderBlockRenderingFlags );
 }
 
 //draw border lines,support color,width,all styles, not support border-collapse
@@ -4651,7 +7397,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 // Estimate width of node when rendered:
 //   maxWidth: width if it would be rendered on an infinite width area
 //   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding) {
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignoreMargin, int rendFlags) {
     // Setup passed-by-reference parameters for recursive calls
     int curMaxWidth = 0;    // reset on <BR/> or on new block nodes
     int curWordWidth = 0;   // may not be reset to correctly estimate multi-nodes single-word ("I<sup>er</sup>")
@@ -4660,11 +7406,11 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
     // These do not need to be passed by reference, as they are only valid for inner nodes/calls
     int indent = 0;         // text-indent: used on first text, and set again on <BR/>
     // Start measurements and recursions:
-    getRenderedWidths(node, maxWidth, minWidth, ignorePadding,
+    getRenderedWidths(node, maxWidth, minWidth, ignoreMargin, rendFlags,
         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
 }
 
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding,
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignoreMargin, int rendFlags,
     int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent)
 {
     // This does mostly what renderBlockElement, renderFinalBlock and lvtextfm.cpp
@@ -4778,7 +7524,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 ldomNode * child = node->getChildNode(i);
                 // Nothing more to do with inline elements: they just carry some
                 // styles that will be grabbed by children text nodes
-                getRenderedWidths(child, maxWidth, minWidth, false,
+                getRenderedWidths(child, maxWidth, minWidth, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
             }
             return;
@@ -4819,7 +7565,35 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         int _maxWidth = 0;
         int _minWidth = 0;
 
-        if (m == erm_final) { // Block node that contains only inline or text nodes:
+        bool use_style_width = false;
+        css_length_t style_width = node->getStyle()->width;
+        if ( BLOCK_RENDERING(rendFlags, ENSURE_STYLE_WIDTH) ) {
+            if ( node->getStyle()->display > css_d_table ) {
+                // ignore width for table sub-elements
+            }
+            else {
+                // Ignore widths in %, as we can't do much with them
+                if ( style_width.type != css_val_unspecified && style_width.type != css_val_percent ) {
+                    use_style_width = true;
+                    if ( !BLOCK_RENDERING(rendFlags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
+                            style_width.type != css_val_percent && style_width.type != css_val_em &&
+                            style_width.type != css_val_ex && style_width.type != css_val_rem ) {
+                        use_style_width = false;
+                    }
+                    if ( node->getNodeId() == el_hr ) {
+                        // We always use style width for <HR> for cosmetic reasons
+                        use_style_width = true;
+                    }
+                }
+            }
+        }
+
+        if ( use_style_width ) {
+            int em = node->getFont()->getSize();
+            _maxWidth = lengthToPx( style_width, 0, em );
+            _minWidth = _maxWidth;
+        }
+        else if (m == erm_final) { // Block node that contains only inline or text nodes:
             if ( is_img ) { // img with display: block always become erm_final (never erm_block)
                 if (img_width > 0) { // block img with a fixed width
                     _maxWidth = img_width;
@@ -4846,7 +7620,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 // Process children, which are either erm_inline or text nodes
                 for (int i = 0; i < node->getChildCount(); i++) {
                     ldomNode * child = node->getChildNode(i);
-                    getRenderedWidths(child, _maxWidth, _minWidth, false,
+                    getRenderedWidths(child, _maxWidth, _minWidth, false, rendFlags,
                         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
                     // A <BR/> can happen deep among our children, so we deal with that when erm_inline above
                 }
@@ -4874,7 +7648,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 int _maxw = 0;
                 int _minw = 0;
                 ldomNode * child = node->getChildNode(i);
-                getRenderedWidths(child, _maxw, _minw, false,
+                getRenderedWidths(child, _maxw, _minw, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
                 if (_maxw > _maxWidth)
                     _maxWidth = _maxw;
@@ -4885,35 +7659,50 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
 
         // For both erm_block or erm_final, adds padding/margin/border
         // to _maxWidth and _minWidth (see comment above)
-        if (!ignorePadding) {
-            int padLeft = 0; // these will include padding, border and margin
-            int padRight = 0;
-            if (list_marker_width > 0 && list_marker_width_as_padding) {
-                // with additional left padding for marker if list-style-position: outside
-                padLeft += list_marker_width;
-            }
-            // For % values, we need to reverse-apply them as a whole.
-            // We can'd do that individually for each, so we aggregate
-            // the % values.
-            // (And as we can't ceil() each individually, we'll add 1px
-            // below for each one to counterbalance rounding errors.)
-            int padPct = 0; // cumulative percent
-            int padPctNb = 0; // nb of styles in % (to add 1px)
-            int em = node->getFont()->getSize();
-            css_style_ref_t style = node->getStyle();
-            // margin
+
+        // Style width includes paddings and border in the traditional box model,
+        // but not in the W3C box model
+        bool ignorePadding = use_style_width && !BLOCK_RENDERING(rendFlags, USE_W3C_BOX_MODEL);
+
+        int padLeft = 0; // these will include padding, border and margin
+        int padRight = 0;
+        if (list_marker_width > 0 && list_marker_width_as_padding) {
+            // with additional left padding for marker if list-style-position: outside
+            padLeft += list_marker_width;
+        }
+        // For % values, we need to reverse-apply them as a whole.
+        // We can'd do that individually for each, so we aggregate
+        // the % values.
+        // (And as we can't ceil() each individually, we'll add 1px
+        // below for each one to counterbalance rounding errors.)
+        int padPct = 0; // cumulative percent
+        int padPctNb = 0; // nb of styles in % (to add 1px)
+        int em = node->getFont()->getSize();
+        css_style_ref_t style = node->getStyle();
+        // margin
+        if (!ignoreMargin) {
             if (style->margin[0].type == css_val_percent) {
                 padPct += style->margin[0].value;
                 padPctNb += 1;
             }
-            else
-                padLeft += lengthToPx( style->margin[0], 0, em );
+            else {
+                int margin = lengthToPx( style->margin[0], 0, em );
+                if ( margin > 0 || BLOCK_RENDERING(rendFlags, ALLOW_HORIZONTAL_NEGATIVE_MARGINS) ) {
+                    padLeft += margin;
+                }
+            }
             if (style->margin[1].type == css_val_percent) {
                 padPct += style->margin[1].value;
                 padPctNb += 1;
             }
-            else
-                padRight += lengthToPx( style->margin[1], 0, em );
+            else {
+                int margin = lengthToPx( style->margin[1], 0, em );
+                if ( margin > 0 || BLOCK_RENDERING(rendFlags, ALLOW_HORIZONTAL_NEGATIVE_MARGINS) ) {
+                    padRight += margin;
+                }
+            }
+        }
+        if (!ignorePadding) {
             // padding
             if (style->padding[0].type == css_val_percent) {
                 padPct += style->padding[0].value;
@@ -4930,31 +7719,31 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
             // border (which does not accept units in %)
             padLeft += measureBorder(node,3);
             padRight += measureBorder(node,1);
-            // Add the non-pct values to make our base to invert-apply padPct
-            _minWidth += padLeft + padRight;
-            _maxWidth += padLeft + padRight;
-            // For length in %, the % (P, padPct) should be from the outer width (L),
-            // but we have only the inner width (w). We have w and P, we want L-w (m).
-            //   m = L*P  and  w = L - m
-            //   w = L - L*P  =  L*(1-P)
-            //   L = w/(1-P)
-            //   m = L - w  =  w/(1-P) - w  =  w*(1 - (1-P))/(1-P) = w*P/(1-P)
-            // css_val_percent value are *256 (100% = 100*256)
-            // We ignore a total of 100% (no space for content, and division by zero here
-            int minPadPctLen = 0;
-            int maxPadPctLen = 0;
-            if (padPct != 100*256) {
-                // add padPctNb: 1px for each value in %
-                minPadPctLen = _minWidth * padPct / (100*256-padPct) + padPctNb;
-                maxPadPctLen = _maxWidth * padPct / (100*256-padPct) + padPctNb;
-                _minWidth += minPadPctLen;
-                _maxWidth += maxPadPctLen;
-            }
-            #ifdef DEBUG_GETRENDEREDWIDTHS
-                printf("GRW blk:  pad min+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, minPadPctLen);
-                printf("GRW blk:  pad max+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, maxPadPctLen);
-            #endif
         }
+        // Add the non-pct values to make our base to invert-apply padPct
+        _minWidth += padLeft + padRight;
+        _maxWidth += padLeft + padRight;
+        // For length in %, the % (P, padPct) should be from the outer width (L),
+        // but we have only the inner width (w). We have w and P, we want L-w (m).
+        //   m = L*P  and  w = L - m
+        //   w = L - L*P  =  L*(1-P)
+        //   L = w/(1-P)
+        //   m = L - w  =  w/(1-P) - w  =  w*(1 - (1-P))/(1-P) = w*P/(1-P)
+        // css_val_percent value are *256 (100% = 100*256)
+        // We ignore a total of 100% (no space for content, and division by zero here
+        int minPadPctLen = 0;
+        int maxPadPctLen = 0;
+        if (padPctNb > 0 && padPct != 100*256) {
+            // add padPctNb: 1px for each value in %
+            minPadPctLen = _minWidth * padPct / (100*256-padPct) + padPctNb;
+            maxPadPctLen = _maxWidth * padPct / (100*256-padPct) + padPctNb;
+            _minWidth += minPadPctLen;
+            _maxWidth += maxPadPctLen;
+        }
+        #ifdef DEBUG_GETRENDEREDWIDTHS
+            printf("GRW blk:  pad min+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, minPadPctLen);
+            printf("GRW blk:  pad max+ %d %d +%d%%=%d\n", padLeft, padRight, padPct, maxPadPctLen);
+        #endif
         // We must have been provided with maxWidth=0 and minWidth=0 (temporary
         // parameters set by outer calls), but do these regular checks anyway.
         if (_maxWidth > maxWidth)

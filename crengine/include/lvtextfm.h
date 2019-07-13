@@ -256,6 +256,7 @@ void lvtextAddSourceObject(
 class LVDrawBuf;
 class ldomMarkedRangeList;
 struct img_scaling_options_t;
+class BlockFloatFootprint;
 
 /* C++ wrapper class */
 class LFormattedText
@@ -318,7 +319,7 @@ public:
             flags, interval, valign_dy, margin, object, (lUInt16)offset, letter_spacing );
     }
 
-    lUInt32 Format(lUInt16 width, lUInt16 page_height);
+    lUInt32 Format(lUInt16 width, lUInt16 page_height, BlockFloatFootprint * float_footprint = NULL);
 
     int GetSrcCount()
     {

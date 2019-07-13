@@ -1831,7 +1831,7 @@ static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
 }
 
 // experimental formatter
-lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height)
+lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, BlockFloatFootprint * float_footprint)
 {
     // clear existing formatted data, if any
     freeFrmLines( m_pbuffer );
