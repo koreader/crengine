@@ -269,9 +269,13 @@ public:
     {
         if ( line == NULL )
             line = last;
-        int h = 0;
+        int h;
         if ( line && pagestart )
-            h += line->getEnd() - pagestart->getStart();
+            h = line->getEnd() - pagestart->getStart();
+        else if ( line )
+            h = line->getHeight();
+        else
+            h = 0;
         int footh = 0 /*currentFootnoteHeight()*/ + footheight;
         if ( footh )
             h += FOOTNOTE_MARGIN_REM*gRootFontSize + footh;
@@ -365,12 +369,23 @@ public:
                     pagestart->getStart(), last->getEnd(),
                     last->getEnd() - pagestart->getStart());
             #endif
-            if (line->getStart() < last->getEnd()) {
+            // Check if line has some backward part
+            if (line->getEnd() < last->getEnd()) {
                 #ifdef DEBUG_PAGESPLIT
-                    printf("PS:   BACKWARD, IGNORED\n");
+                    printf("PS:   FULLY BACKWARD, IGNORED\n");
                 #endif
                 return; // for table cells
-                // (Note: this would prevent using negative vertical margins)
+            }
+            else if (line->getStart() < last->getEnd()) {
+                #ifdef DEBUG_PAGESPLIT
+                    printf("PS:   SOME PART BACKWARD, CROPPED TO FORWARD PART\n");
+                #endif
+                // Make a new line with the forward part only, and avoid a
+                // split with previous line (which might not be enough if
+                // the backward spans over multiple past lines which had
+                // SPLIT_AUTO - but we can't change the past...)
+                lUInt16 flags = line->flags & ~RN_SPLIT_BEFORE_ALWAYS & RN_SPLIT_BEFORE_AVOID;
+                line = new LVRendLineInfo(last->getEnd(), line->getEnd(), flags);
             }
             unsigned flgSplit = CalcSplitFlag( last->getSplitAfter(), line->getSplitBefore() );
             //bool flgFit = currentHeight( next ? next : line ) <= page_h;
@@ -437,9 +452,22 @@ public:
                              // by AddToList() and reset by StartPage()
                 pageend = last;
                 AddToList();
-                last = line;
-                StartPage(line);
-                SplitLineIfOverflowPage(line); // may update 'last'
+                if ( flgSplit==RN_SPLIT_AUTO && (line->flags & RN_SPLIT_DISCARD_AT_START) ) {
+                    // Don't put this line at start of first page (this flag
+                    // is set on a margin line when page split auto, as it should
+                    // be seen when inside page, but should not be seen on top of
+                    // page - and can be kept if it fits at the end of previous page)
+                    StartPage(NULL);
+                    last = NULL; // and don't even put it on last page if it ends the book
+                    #ifdef DEBUG_PAGESPLIT
+                        printf("PS:   discarded discardable line at start of page %d\n", page_list->length());
+                    #endif
+                }
+                else {
+                    last = line;
+                    StartPage(line);
+                    SplitLineIfOverflowPage(line); // may update 'last'
+                }
             }
             else if (flgSplit==RN_SPLIT_ALWAYS) {
                 // Fits, but split is mandatory
@@ -562,7 +590,10 @@ public:
             }
 
             // Forget about SPLIT_AVOID when footnotes are in the way,
-            // keeping things simpler and natural
+            // keeping things simpler and natural.
+            // (But doing that will just cut an ongoing float...
+            // not obvious how to do that well: the alternative
+            // below seems sometimes better, sometimes worse...)
             pageend = last;
             AddToList(); // create a page with current text and footnotes
             StartPage(NULL);
