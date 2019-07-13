@@ -13,7 +13,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <lvtextfm.h>
+#include "../include/lvtextfm.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
@@ -2034,6 +2034,22 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         lvdom_element_render_method rm = enode->getRendMethod();
         if ( rm == erm_invisible )
             return; // don't draw invisible
+
+        if ( enode->isFloatingBox() && rm != erm_final ) {
+            // (A floating floatBox can't be erm_final: it is always erm_block,
+            // but let's just be sure of that.)
+            // If we meet a floatBox here, it's an embedded float (a float
+            // among other inlines elements). We just add a reference to it
+            // with AddSourceObject; nothing to do with it until a call
+            // to LFormattedTextRef->Format(width) where its width will
+            // be guessed and renderBlockElement() called to render it
+            // and get is height, so LFormattedText knows how to render
+            // this erm_final text around it.
+            txform->AddSourceObject(baseflags|LTEXT_SRC_IS_FLOAT, line_h, valign_dy, ident, enode );
+            baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+            return;
+        }
+
         bool is_object = false;
         const css_elem_def_props_t * ntype = enode->getElementTypePtr();
         if ( ntype && ntype->is_object )
@@ -2314,6 +2330,37 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
         }
 
+        // Firefox has some specific behaviour with floats, which
+        // is not obvious from the specs. Let's do as it does.
+        if ( enode->getParentNode() && enode->getParentNode()->isFloatingBox() ) {
+            if ( rm == erm_final && is_object ) {
+                // When an image is the single top final node in a float (which is
+                // the case for individual floating images (<IMG style="float: left">),
+                // Firefox does not enforce the strut, line-height, vertical-align and
+                // text-indent (but it does when in <SPAN style="float: left"><IMG/></SPAN>).
+                txform->setStrut(0, 0);
+                line_h = 0;
+                ident = 0;
+                valign_dy = 0;
+                // Also, when such a floating image has a width in %, this width
+                // has been used to set the width of the floating box. We need to
+                // update this % width to be 100%, otherwise the image would be
+                // again set to this % of the floating box width...
+                // This feels a bit hacky, there might be a better place to deal with that...
+                if (style->width.type == css_val_percent && style->width.value != 100*256) {
+                    css_style_ref_t oldstyle = enode->getStyle();
+                    css_style_ref_t newstyle(new css_style_rec_t);
+                    copystyle(oldstyle, newstyle);
+                    newstyle->width.value = 100*256; // 100%
+                    enode->setStyle(newstyle);
+                    style = enode->getStyle().get(); // update to the new style
+                }
+            }
+            // Also, the floating element vertical-align drift is dropped
+            valign_dy = 0;
+            // (Looks like nothing special to do with indent or line_h)
+        }
+
         if ( rm==erm_list_item ) { // obsolete rendering method (used only when gDOMVersionRequested < 20180524)
             // put item number/marker to list
             lString16 marker;
@@ -2350,7 +2397,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 marker += "\t";
                 txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy,
                                         margin, NULL );
-                flags &= ~LTEXT_FLAG_NEWLINE;
+                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
             }
         }
 
@@ -2367,7 +2414,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             int marker_width;
             lString16 marker = renderListItemMarker( enode, marker_width, txform, line_h, flags );
             if ( marker.length() ) {
-                flags &= ~LTEXT_FLAG_NEWLINE;
+                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
             }
         }
         if ( rm == erm_final ) {
@@ -2383,7 +2430,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 int marker_width;
                 lString16 marker = renderListItemMarker( list_item_block_parent, marker_width, txform, line_h, flags );
                 if ( marker.length() ) {
-                    flags &= ~LTEXT_FLAG_NEWLINE;
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
                 }
             }
         }
@@ -2429,7 +2476,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
                 txform->AddSourceObject(flags, line_h, valign_dy, ident, enode );
-                flags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
         else { // non-IMG element: render children (elements or text nodes)
@@ -2488,9 +2535,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // So, forward the newline state from flags to baseflags:
         if ( flags & LTEXT_FLAG_NEWLINE ) {
             baseflags |= flags & LTEXT_FLAG_NEWLINE;
+            // Also forward any CLEAR flag not consumed
+            baseflags |= flags & LTEXT_SRC_IS_CLEAR_BOTH;
         }
         else { // newline consumed
-            baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+            baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
         }
         if ( enode->getNodeId()==el_br ) {
             if (baseflags & LTEXT_FLAG_NEWLINE) {
@@ -2504,7 +2553,6 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
                 // No need to clear the flag, as we set it just below
                 // (any LTEXT_ALIGN_* set implies LTEXT_FLAG_NEWLINE)
-
             }
             // Re-set the newline and aligment flag for what's coming
             // after this <BR/>
@@ -2526,8 +2574,33 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             case css_ta_inherit:
                 break;
             }
+            // Among inline nodes, only <BR> can carry a "clear: left/right/both".
+            // (No need to check for BLOCK_RENDERING_G(FLOAT_FLOATBOXES), this
+            // should have no effect when there is not a single float in the way)
+            baseflags &= ~LTEXT_SRC_IS_CLEAR_BOTH; // clear previous one
+            switch (style->clear) {
+            case css_c_left:
+                baseflags |= LTEXT_SRC_IS_CLEAR_LEFT;
+                break;
+            case css_c_right:
+                baseflags |= LTEXT_SRC_IS_CLEAR_RIGHT;
+                break;
+            case css_c_both:
+                baseflags |= LTEXT_SRC_IS_CLEAR_BOTH;
+                break;
+            }
         }
         //baseflags &= ~LTEXT_RUNIN_FLAG;
+        if ( rm != erm_inline && (baseflags & LTEXT_SRC_IS_CLEAR_BOTH) ) {
+            // We're leaving the top final node with a clear: not consumed
+            // (set by a last or single <br clear=>), with no follow-up
+            // txform->AddSourceLine() that would have carried it.
+            // Add an empty source: this should be managed specifically
+            // by lvtextfm.cpp splitParagraphs() to not add this empty
+            // string to text, and just call floatClearText().
+            LVFont * font = enode->getFont().get();
+            txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags|LTEXT_SRC_IS_CLEAR_LAST|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+        }
     }
     else if ( enode->isText() ) {
         // text nodes
@@ -2620,7 +2693,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             if ( txt.length()>0 ) {
                 txform->AddSourceLine( txt.c_str(), txt.length(), cl, bgcl, font, baseflags | tflags,
                     line_h, valign_dy, ident, enode, 0, letter_spacing );
-                baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
+                baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
     }
@@ -6019,6 +6092,13 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // avoid split after so we stick to last line
                         line_flags |= RN_SPLIT_AFTER_AVOID;
 
+                    // Honor line's own flags (used when filling space when
+                    // clearing floats)
+                    if (line->flags & LTEXT_LINE_SPLIT_AVOID_BEFORE)
+                        line_flags |= RN_SPLIT_BEFORE_AVOID;
+                    if (line->flags & LTEXT_LINE_SPLIT_AVOID_AFTER)
+                        line_flags |= RN_SPLIT_AFTER_AVOID;
+
                     // Honor our own "page-break-inside: avoid" that hasn't been
                     // passed to "flow" (any upper "break-inside: avoid" will be
                     // enforced by flow->addContentLine())
@@ -6056,6 +6136,23 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                         }
                                     }
                                 }
+                            }
+                        }
+                        // Also add links gathered by floats in their content
+                        int fcount = txform->GetFloatCount();
+                        for (int f=0; f<fcount; f++) {
+                            const embedded_float_t * flt = txform->GetFloatInfo(f);
+                            if ( i < count-1 ) { // Unless we're the last line:
+                                // ignore this float if it ends after currently processed line
+                                if ( flt->y + flt->height > line->y + line->height ) {
+                                    continue;
+                                }
+                            }
+                            if ( flt->links && flt->links->length() > 0 ) {
+                                for ( int n=0; n<flt->links->length(); n++ ) {
+                                    flow->getPageContext()->addLink( flt->links->at(n) );
+                                }
+                                flt->links->clear(); // don't reprocess them if float met again with next lines
                             }
                         }
                     }
