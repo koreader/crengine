@@ -58,6 +58,19 @@ int scaleForRenderDPI( int value ) {
     return value;
 }
 
+int gRenderBlockRenderingFlags = DEF_RENDER_BLOCK_RENDERING_FLAGS;
+
+int validateBlockRenderingFlags(int f) {
+    // Check coherency and ensure dependancies of flags
+    if (f & ~BLOCK_RENDERING_ENHANCED) // If any other flag is set,
+        f |= BLOCK_RENDERING_ENHANCED; // set ENHANGED
+    if (f & BLOCK_RENDERING_FLOAT_FLOATBOXES)
+        f |= BLOCK_RENDERING_PREPARE_FLOATBOXES;
+    if (f & BLOCK_RENDERING_PREPARE_FLOATBOXES)
+        f |= BLOCK_RENDERING_WRAP_FLOATS;
+    return f;
+}
+
 //#define DEBUG_TREE_DRAW 3
 // define to non-zero (1..5) to see block bounds
 #define DEBUG_TREE_DRAW 0

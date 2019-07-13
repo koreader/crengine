@@ -364,6 +364,7 @@ lUInt32 calcGlobalSettingsHash(int documentId)
     hash = hash * 31 + HyphMan::getRightHyphenMin();
     hash = hash * 31 + HyphMan::getTrustSoftHyphens();
     hash = hash * 31 + gRenderDPI;
+    hash = hash * 31 + gRenderBlockRenderingFlags;
     hash = hash * 31 + gRootFontSize;
     hash = hash * 31 + gInterlineScaleFactor;
     return hash;
