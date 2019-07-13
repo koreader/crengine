@@ -17,6 +17,7 @@
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
 #include "../include/lvstream.h"
+#include "../include/lvrend.h"   // for -cr-only-if:
 
 // define to dump all tokens
 //#define DUMP_CSS_PARSING
@@ -105,6 +106,7 @@ enum css_decl_code {
     cssd_clear,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
+    cssd_cr_only_if,
     cssd_stop
 };
 
@@ -187,6 +189,7 @@ static const char * css_decl_name[] = {
     "clear",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
+    "-cr-only-if",
     NULL
 };
 
@@ -1036,7 +1039,35 @@ static const char * css_cr_hint_names[]={
         NULL
 };
 
-bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
+static const char * css_cr_only_if_names[]={
+        "any",
+        "always",
+        "never",
+        "legacy",
+        "enhanced",
+        "float-floatboxes",
+        "ensure-style-width",
+        "ensure-style-height",
+        "allow-style-w-h-absolute-units",
+        "full-featured",
+        "epub-document",
+        NULL
+};
+enum cr_only_if_t {
+    cr_only_if_any,    // always true, don't ignore
+    cr_only_if_always, // always true, don't ignore
+    cr_only_if_never,  // always false, do ignore
+    cr_only_if_legacy,
+    cr_only_if_enhanced,
+    cr_only_if_float_floatboxes,
+    cr_only_if_ensure_style_width,
+    cr_only_if_ensure_style_height,
+    cr_only_if_allow_style_w_h_absolute_units,
+    cr_only_if_full_featured,
+    cr_only_if_epub_document,
+};
+
+bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc )
 {
     SerialBuf buf(512, true);
 
@@ -1047,9 +1078,15 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
     if (*decl!='{')
         return false;
     decl++;
+    bool ignoring = false;
     while (*decl && *decl!='}') {
         skip_spaces( decl );
         css_decl_code prop_code = parse_property_name( decl );
+        if ( ignoring && prop_code != cssd_cr_only_if ) {
+            // Skip until next -cr-only-if:
+            next_property( decl );
+            continue;
+        }
         skip_spaces( decl );
         lString8 strValue;
         lUInt32 importance = higher_importance ? IMPORTANT_DECL_HIGHER : 0;
@@ -1071,6 +1108,68 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance )
                     }
                     else { // ignore the whole declaration too if not an integer
                         return false;
+                    }
+                }
+                break;
+            // non standard property to only apply next properties if rendering option enabled
+            case cssd_cr_only_if:
+                {
+                    // We may have multiple names, and they must all match
+                    ignoring = false;
+                    while ( *decl != ';' ) {
+                        skip_spaces( decl );
+                        bool invert = false;
+                        if ( *decl == '-' ) {
+                            invert = true;
+                            decl++;
+                        }
+                        bool match = false;
+                        int name = parse_name( decl, css_cr_only_if_names, -1 );
+                        if ( name == cr_only_if_any || name == cr_only_if_always ) {
+                            match = !invert;
+                        }
+                        else if ( name == cr_only_if_never ) {
+                            match = invert;
+                        }
+                        else if ( name == cr_only_if_legacy ) {
+                            match = ((bool)BLOCK_RENDERING_G(ENHANCED)) == invert;
+                        }
+                        else if ( name == cr_only_if_enhanced ) {
+                            match = ((bool)BLOCK_RENDERING_G(ENHANCED)) != invert;
+                        }
+                        else if ( name == cr_only_if_float_floatboxes ) {
+                            match = ((bool)BLOCK_RENDERING_G(FLOAT_FLOATBOXES)) != invert;
+                        }
+                        else if ( name == cr_only_if_ensure_style_width ) {
+                            match = ((bool)BLOCK_RENDERING_G(ENSURE_STYLE_WIDTH)) != invert;
+                        }
+                        else if ( name == cr_only_if_ensure_style_height ) {
+                            match = ((bool)BLOCK_RENDERING_G(ENSURE_STYLE_HEIGHT)) != invert;
+                        }
+                        else if ( name == cr_only_if_allow_style_w_h_absolute_units ) {
+                            match = ((bool)BLOCK_RENDERING_G(ALLOW_STYLE_W_H_ABSOLUTE_UNITS)) != invert;
+                        }
+                        else if ( name == cr_only_if_full_featured ) {
+                            match = (gRenderBlockRenderingFlags == BLOCK_RENDERING_FULL_FEATURED) != invert;
+                        }
+                        else if ( name == cr_only_if_epub_document ) {
+                            // 'doc' is NULL when parsing elements style= attribute,
+                            // but we don't expect to see -cr-only-if: in them.
+                            if (doc) {
+                                match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_epub;
+                                if (invert) {
+                                    match = !match;
+                                }
+                            }
+                        }
+                        else { // unknown option: ignore
+                            match = false;
+                        }
+                        if ( !match ) {
+                            ignoring = true;
+                            break; // no need to look at others
+                        }
+                        skip_spaces( decl );
                     }
                 }
                 break;
@@ -3259,7 +3358,7 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance )
             }
             // parse declaration
             LVCssDeclRef decl( new LVCssDeclaration );
-            if ( !decl->parse( str, higher_importance ) )
+            if ( !decl->parse( str, higher_importance, _doc ) )
             {
                 err = true;
                 err_count++;

@@ -10115,8 +10115,10 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar16 * nsname, const lChar1
     // none specified in node->getStyle().)
 
     // HTML align= => CSS text-align:
-    // (done for all elements - should this be restricted to some specific elements?)
-    if ( !lStr_cmp(attrname, "align") ) {
+    // Done for all elements, except IMG and TABLE (for those, it should
+    // translate to float:left/right, which is ensured by epub.css)
+    // Should this be restricted to some specific elements?
+    if ( !lStr_cmp(attrname, "align") && (id != el_img) && (id != el_table) ) {
         lString16 align = lString16(attrvalue).lowercase();
         if ( align == L"justify")
             appendStyle( L"text-align: justify" );
