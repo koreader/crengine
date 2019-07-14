@@ -13,11 +13,15 @@
         page-break-inside: avoid;
         page-break-after: avoid;
     }
-    /* Don't break page on headings in EPUBs: publishers may not expect it,
-     * as most EPUB renderers only break page on a new DocFragment. */
-    h1 {
+    /* Don't break page on headings or section in EPUBs: publishers may not
+     * expect it; most EPUB renderers only break page on a new DocFragment. */
+    section, h1 {
         -cr-only-if: -epub-document; /* only if NOT EPUB document */
             page-break-before: always;
+    }
+    section > h1:first-of-type, section section {
+        -cr-only-if: -epub-document; /* only if NOT EPUB document */
+            page-break-before: auto;
     }
     /* Element added for each empty line when rendering plain txt files */
     empty-line {
