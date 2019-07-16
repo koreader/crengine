@@ -1095,10 +1095,11 @@ void LVGrayDrawBuf::Resize( int dx, int dy )
     _dy = dy;
     _rowsize = _bpp<=2 ? (_dx * _bpp + 7) / 8 : _dx;
     if (dx > 0 && dy > 0) {
-        _data = (unsigned char *)malloc(_rowsize * _dy + 1);
+        _data = (unsigned char *)calloc(_rowsize * _dy + 1, sizeof(*_data));
         _data[_rowsize * _dy] = GUARD_BYTE;
+    } else {
+        Clear(0);
     }
-    Clear(0);
     SetClipRect( NULL );
 }
 
@@ -1142,9 +1143,8 @@ LVGrayDrawBuf::LVGrayDrawBuf(int dx, int dy, int bpp, void * auxdata )
         _data = (lUInt8 *) auxdata;
         _ownData = false;
     } else if (_dx && _dy) {
-        _data = (lUInt8 *) malloc(_rowsize * _dy + 1);
+        _data = (lUInt8 *) calloc(_rowsize * _dy + 1, sizeof(*_data));
         _data[_rowsize * _dy] = GUARD_BYTE;
-        Clear(0);
     }
     SetClipRect( NULL );
     CHECK_GUARD_BYTE;
