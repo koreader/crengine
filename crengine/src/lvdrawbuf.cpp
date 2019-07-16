@@ -265,8 +265,7 @@ void LVGrayDrawBuf::Rotate( cr_rotate_angle_t angle )
     }
     int newrowsize = _bpp<=2 ? (_dy * _bpp + 7) / 8 : _dy;
     sz = (newrowsize * _dx);
-    lUInt8 * dst = (lUInt8 *)malloc(sz);
-    memset( dst, 0, sz );
+    lUInt8 * dst = (lUInt8 *)calloc(sz, sizeof(*dst));
     for ( int y=0; y<_dy; y++ ) {
         lUInt8 * src = _data + _rowsize*y;
         int dstx, dsty;
@@ -1389,8 +1388,7 @@ void LVGrayDrawBuf::ConvertToBitmap(bool flgDither)
         return;
     // TODO: implement for byte per pixel mode
     int sz = GetRowSize();
-    lUInt8 * bitmap = (lUInt8*) malloc( sizeof(lUInt8) * sz );
-    memset( bitmap, 0, sz );
+    lUInt8 * bitmap = (lUInt8*) calloc(sz, sizeof(*bitmap));
     if (flgDither)
     {
         static const lUInt8 cmap[4][4] = {
@@ -1773,8 +1771,7 @@ void LVColorDrawBuf::Resize( int dx, int dy )
         _dy = dy;
         _rowsize = dx*(_bpp>>3);
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
-        BITMAPINFO bmi;
-        memset( &bmi, 0, sizeof(bmi) );
+        BITMAPINFO bmi = { 0 };
         bmi.bmiHeader.biSize = sizeof(bmi.bmiHeader);
         bmi.bmiHeader.biWidth = _dx;
         bmi.bmiHeader.biHeight = _dy;
@@ -1790,10 +1787,10 @@ void LVColorDrawBuf::Resize( int dx, int dy )
         _drawbmp = CreateDIBSection( NULL, &bmi, DIB_RGB_COLORS, (void**)(&_data), NULL, 0 );
         _drawdc = CreateCompatibleDC(NULL);
         SelectObject(_drawdc, _drawbmp);
-#else
-        _data = (lUInt8 *)malloc( (_bpp>>3) * _dx * _dy);
-#endif
         memset( _data, 0, _rowsize * _dy );
+#else
+        _data = (lUInt8 *)calloc((_bpp>>3) * _dx * _dy, sizeof(*_data));
+#endif
     }
     SetClipRect( NULL );
 }
