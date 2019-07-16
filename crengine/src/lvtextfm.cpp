@@ -55,15 +55,13 @@
 
 formatted_line_t * lvtextAllocFormattedLine( )
 {
-    formatted_line_t * pline = (formatted_line_t *)malloc(sizeof(formatted_line_t));
-    memset( pline, 0, sizeof(formatted_line_t) );
+    formatted_line_t * pline = (formatted_line_t *)calloc(1, sizeof(*pline));
     return pline;
 }
 
 formatted_line_t * lvtextAllocFormattedLineCopy( formatted_word_t * words, int word_count )
 {
-    formatted_line_t * pline = (formatted_line_t *)malloc(sizeof(formatted_line_t));
-    memset( pline, 0, sizeof(formatted_line_t) );
+    formatted_line_t * pline = (formatted_line_t *)calloc(1, sizeof(*pline));
     lUInt32 size = (word_count + FRM_ALLOC_SIZE-1) / FRM_ALLOC_SIZE * FRM_ALLOC_SIZE;
     pline->words = (formatted_word_t*)malloc( sizeof(formatted_word_t)*(size) );
     memcpy( pline->words, words, word_count * sizeof(formatted_word_t) );
@@ -112,8 +110,7 @@ formatted_line_t * lvtextAddFormattedLineCopy( formatted_text_fragment_t * pbuff
 
 embedded_float_t * lvtextAllocEmbeddedFloat( )
 {
-    embedded_float_t * flt = (embedded_float_t *)malloc(sizeof(embedded_float_t));
-    memset( flt, 0, sizeof(embedded_float_t) );
+    embedded_float_t * flt = (embedded_float_t *)calloc(1, sizeof(*flt));
     return flt;
 }
 
@@ -131,8 +128,7 @@ embedded_float_t * lvtextAddEmbeddedFloat( formatted_text_fragment_t * pbuffer )
 
 formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
 {
-    formatted_text_fragment_t * pbuffer = (formatted_text_fragment_t*)malloc( sizeof(formatted_text_fragment_t) );
-    memset( pbuffer, 0, sizeof(formatted_text_fragment_t));
+    formatted_text_fragment_t * pbuffer = (formatted_text_fragment_t*)calloc(1, sizeof(*pbuffer));
     pbuffer->width = width;
     pbuffer->strut_height = 0;
     pbuffer->strut_baseline = 0;
