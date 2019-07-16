@@ -2185,8 +2185,8 @@ bool tinyNodeCollection::loadNodeData()
         return false;
     if ( textcount<=0 )
         return false;
-    ldomNode * elemList[TNC_PART_COUNT] = { 0 };
-    ldomNode * textList[TNC_PART_COUNT] = { 0 };
+    ldomNode * elemList[TNC_PART_COUNT] = nullptr;
+    ldomNode * textList[TNC_PART_COUNT] = nullptr;
     if ( !loadNodeData( CBT_ELEM_NODE, elemList, elemcount+1 ) ) {
         for ( int i=0; i<TNC_PART_COUNT; i++ )
             if ( elemList[i] )
