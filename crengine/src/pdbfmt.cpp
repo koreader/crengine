@@ -750,7 +750,7 @@ public:
             if (!validateContent)
                 contentFormat = doc_format_pdb;
 
-            MobiPreamble preamble = { 0 };
+            MobiPreamble preamble = {};
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream, _mobiExtraDataFlags) )
                 return false; // invalid preamble

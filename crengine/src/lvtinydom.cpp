@@ -10554,7 +10554,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             registerEmbeddedFonts();
         }
 
-        DocFileHeader h = { 0 };
+        DocFileHeader h = {};
         SerialBuf hdrbuf(0,true);
         if ( !_cacheFile->read( CBT_REND_PARAMS, hdrbuf ) ) {
             CRLog::error("Error while reading header data");
