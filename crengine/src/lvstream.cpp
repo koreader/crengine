@@ -3046,7 +3046,7 @@ public:
 		m_bufsize = 4096;
 		m_size = 0;
 		m_pos = 0;
-        m_pBuffer = (lUInt8*)malloc((int)m_bufsize);
+		m_pBuffer = (lUInt8*)malloc((int)m_bufsize);
 		m_own_buffer = true;
 		m_mode = LVOM_READWRITE;
 		return LVERR_OK;
