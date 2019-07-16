@@ -427,8 +427,7 @@ inline void _lStr_memcpy(lChar16 * dst, const lChar16 * src, int count)
 
 inline void _lStr_memcpy(lChar8 * dst, const lChar8 * src, int count)
 {
-    while ( count-- > 0)
-        (*dst++ = *src++);
+    memcpy(dst, (const lChar8 *) src, count);
 }
 
 inline void _lStr_memset(lChar16 * dst, lChar16 value, int count)
@@ -439,8 +438,7 @@ inline void _lStr_memset(lChar16 * dst, lChar16 value, int count)
 
 inline void _lStr_memset(lChar8 * dst, lChar8 value, int count)
 {
-    while ( count-- > 0)
-        *dst++ = value;
+    memset(dst, (lChar8) value, count);
 }
 
 int lStr_len(const lChar16 * str)
