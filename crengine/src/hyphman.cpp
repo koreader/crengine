@@ -813,7 +813,7 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
         return false;
     if ( len>=WORD_LENGTH )
         len = WORD_LENGTH - 2;
-    lChar16 word[WORD_LENGTH+4];
+    lChar16 word[WORD_LENGTH+4] = { 0 };
     char mask[WORD_LENGTH+4] = { 0 };
 
     // Make word from str, with soft-hyphens stripped out.
@@ -828,9 +828,6 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
     }
     wlen = w-1;
     word[w++] = ' ';
-    word[w++] = 0;
-    word[w++] = 0;
-    word[w++] = 0;
     if ( wlen<=3 )
         return false;
     lStr_lowercase(word+1, wlen);
@@ -842,6 +839,7 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
 
     // Find matches from dict patterns, at any position in word.
     // Places where hyphenation is allowed are put into 'mask'.
+    memset( mask, '0', wlen+3 );	// 0x30!
     bool found = false;
     for ( int i=0; i<=wlen; i++ ) {
         found = match( word + i, mask + i ) || found;
