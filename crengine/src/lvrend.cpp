@@ -2259,7 +2259,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         if (is_object)
                             valign_dy += (pfh - pfb);
                         else
-                            valign_dy += (pfh - pfb) - (fh - fb);
+                            valign_dy += (pfh - pfb) - (fh - fb) - f_half_leading;
                         flags |= LTEXT_VALIGN_TEXT_BOTTOM;
                         break;
                     case css_va_text_top:
@@ -2269,7 +2269,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         if (is_object)
                             valign_dy -= pfb; // y for top of image (lvtextfm.cpp will know from flags)
                         else
-                            valign_dy -= pfb - fb;
+                            valign_dy -= pfb - fb - f_half_leading;
                         flags |= LTEXT_VALIGN_TEXT_TOP;
                         break;
                     case css_va_bottom:

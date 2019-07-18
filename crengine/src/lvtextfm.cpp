@@ -1639,10 +1639,10 @@ public:
                     // this point (at minima, the strut), even if frmline height and baseline might
                     // be moved by some coming up words
                     if ( vertical_align_flag == LTEXT_VALIGN_TOP ) {
-                        word->y = font->getBaseline() - frmline->baseline;
+                        word->y = font->getBaseline() - frmline->baseline + half_leading;
                     }
                     else if ( vertical_align_flag == LTEXT_VALIGN_BOTTOM ) {
-                        word->y = frmline->height - fh + font->getBaseline() - frmline->baseline;
+                        word->y = frmline->height - fh + font->getBaseline() - frmline->baseline - half_leading;
                     }
                     else {
                         // For others, vertical-align computation is done in lvrend.cpp renderFinalBlock()
