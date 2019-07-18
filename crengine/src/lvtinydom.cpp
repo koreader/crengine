@@ -442,10 +442,9 @@ struct CacheFileItem
 
 struct SimpleCacheFileHeader
 {
-    char _magic[CACHE_FILE_MAGIC_SIZE]; // magic
+    char _magic[CACHE_FILE_MAGIC_SIZE] = { 0 }; // magic
     lUInt32 _dirty;
     SimpleCacheFileHeader( lUInt32 dirtyFlag ) {
-        memset( _magic, 0, sizeof(_magic));
         memcpy( _magic, _compressCachedData ? COMPRESSED_CACHE_FILE_MAGIC : UNCOMPRESSED_CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE );
         _dirty = dirtyFlag;
     }
@@ -725,9 +724,8 @@ bool CacheFile::writeIndex()
         indexItem = findBlock(CBT_INDEX, 0);
         count = _index.length();
     }
-    CacheFileItem * index = new CacheFileItem[count];
+    CacheFileItem * index = new CacheFileItem[count]();
     int sz = count * sizeof(CacheFileItem);
-    memset(index, 0, sz);
     for ( int i = 0; i < count; i++ ) {
         memcpy( &index[i], _index[i], sizeof(CacheFileItem) );
         if (index[i]._dataType == CBT_INDEX) {
@@ -2187,10 +2185,8 @@ bool tinyNodeCollection::loadNodeData()
         return false;
     if ( textcount<=0 )
         return false;
-    ldomNode * elemList[TNC_PART_COUNT];
-    memset( elemList, 0, sizeof(elemList) );
-    ldomNode * textList[TNC_PART_COUNT];
-    memset( textList, 0, sizeof(textList) );
+    ldomNode * elemList[TNC_PART_COUNT] = { 0 };
+    ldomNode * textList[TNC_PART_COUNT] = { 0 };
     if ( !loadNodeData( CBT_ELEM_NODE, elemList, elemcount+1 ) ) {
         for ( int i=0; i<TNC_PART_COUNT; i++ )
             if ( elemList[i] )
@@ -2247,8 +2243,7 @@ ldomNode * tinyNodeCollection::allocTinyNode( int type )
                 crFatalError(1003, "allocTinyNode: can't create any more element nodes (hard limit)");
             ldomNode * part = _elemList[_elemCount >> TNC_PART_SHIFT];
             if ( !part ) {
-                part = (ldomNode*)malloc( sizeof(ldomNode) * TNC_PART_LEN );
-                memset( part, 0, sizeof(ldomNode) * TNC_PART_LEN );
+                part = (ldomNode*)calloc(TNC_PART_LEN, sizeof(*part));
                 _elemList[ _elemCount >> TNC_PART_SHIFT ] = part;
             }
             res = &part[_elemCount & TNC_PART_MASK];
@@ -2271,8 +2266,7 @@ ldomNode * tinyNodeCollection::allocTinyNode( int type )
                 crFatalError(1003, "allocTinyNode: can't create any more text nodes (hard limit)");
             ldomNode * part = _textList[_textCount >> TNC_PART_SHIFT];
             if ( !part ) {
-                part = (ldomNode*)malloc( sizeof(ldomNode) * TNC_PART_LEN );
-                memset( part, 0, sizeof(ldomNode) * TNC_PART_LEN );
+                part = (ldomNode*)calloc(TNC_PART_LEN, sizeof(*part));
                 _textList[ _textCount >> TNC_PART_SHIFT ] = part;
             }
             res = &part[_textCount & TNC_PART_MASK];
@@ -2758,8 +2752,7 @@ ldomTextStorageChunk::ldomTextStorageChunk(int preAllocSize, ldomDataStorageMana
 	, _type( manager->_type )
 	, _saved(false)
 {
-    _buf = (lUInt8*)malloc(preAllocSize);
-    memset(_buf, 0, preAllocSize);
+    _buf = (lUInt8*)calloc(preAllocSize, sizeof(*_buf));
     _manager->_uncompressedSize += _bufsize;
 }
 
@@ -2874,8 +2867,7 @@ int ldomTextStorageChunk::addText( lUInt32 dataIndex, lUInt32 parentIndex, const
     if ( !_buf ) {
         // create new buffer, if necessary
         _bufsize = _manager->_chunkSize > itemsize ? _manager->_chunkSize : itemsize;
-        _buf = (lUInt8*)malloc(sizeof(lUInt8) * _bufsize);
-        memset(_buf, 0, _bufsize );
+        _buf = (lUInt8*)calloc(_bufsize, sizeof(*_buf));
         _bufpos = 0;
         _manager->_uncompressedSize += _bufsize;
     }
@@ -2900,8 +2892,7 @@ int ldomTextStorageChunk::addElem(lUInt32 dataIndex, lUInt32 parentIndex, int ch
     if ( !_buf ) {
         // create new buffer, if necessary
         _bufsize = _manager->_chunkSize > itemsize ? _manager->_chunkSize : itemsize;
-        _buf = (lUInt8*)malloc(sizeof(lUInt8) * _bufsize);
-        memset(_buf, 0, _bufsize );
+        _buf = (lUInt8*)calloc(_bufsize, sizeof(*_buf));
         _bufpos = 0;
         _manager->_uncompressedSize += _bufsize;
     }
@@ -3050,8 +3041,7 @@ bool ldomUnpack( const lUInt8 * compbuf, int compsize, lUInt8 * &dstbuf, lUInt32
 {
     lUInt8 tmp[UNPACK_BUF_SIZE]; // 256K buffer for uncompressed data
     int ret;
-    z_stream z;
-    memset( &z, 0, sizeof(z) );
+    z_stream z = { 0 };
     z.zalloc = Z_NULL;
     z.zfree = Z_NULL;
     z.opaque = Z_NULL;
@@ -10564,8 +10554,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             registerEmbeddedFonts();
         }
 
-        DocFileHeader h;
-        memset(&h, 0, sizeof(h));
+        DocFileHeader h = {};
         SerialBuf hdrbuf(0,true);
         if ( !_cacheFile->read( CBT_REND_PARAMS, hdrbuf ) ) {
             CRLog::error("Error while reading header data");

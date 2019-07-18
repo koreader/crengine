@@ -672,9 +672,8 @@ public:
         _format = UNKNOWN;
         stream->SetPos(0);
         lUInt32 fsize = stream->GetSize();
-        PDBHdr hdr;
+        PDBHdr hdr = { 0 };
         PDBRecordEntry entry;
-        memset(&hdr, 0, sizeof(hdr)); // avoid cppcheck warning
         if ( !hdr.read(stream) )
             return false;
         if ( hdr.recordCount==0 )
@@ -715,8 +714,7 @@ public:
         if ( _format==EREADER ) {
             if ( _records[0].size<sizeof(EReaderHeader) )
                 return false;
-            EReaderHeader preamble;
-            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
+            EReaderHeader preamble = { 0 };
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream) )
                 return false; // invalid preamble
@@ -735,8 +733,7 @@ public:
                         stream->SetPos(_records[index].offset);
                         if ( stream->ReadByte()=='P' && stream->ReadByte()=='N' && stream->ReadByte()=='G' && stream->ReadByte()==' ' ) {
                             // header ok, adding item
-                            char name[33];
-                            memset(name, 0, 33);
+                            char name[33] = { 0 };
                             lvsize_t bytesRead = 0;
                             stream->Read(name, 32, &bytesRead);
                             if ( name[0] ) {
@@ -753,8 +750,7 @@ public:
             if (!validateContent)
                 contentFormat = doc_format_pdb;
 
-            MobiPreamble preamble;
-            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
+            MobiPreamble preamble = {};
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream, _mobiExtraDataFlags) )
                 return false; // invalid preamble
@@ -850,8 +846,7 @@ public:
         } else if (_format==PALMDOC ) {
             if ( _records[0].size<sizeof(PalmDocPreamble) )
                 return false;
-            PalmDocPreamble preamble;
-            memset(&preamble, 0, sizeof(preamble)); // avoid cppcheck warning
+            PalmDocPreamble preamble = { 0 };
             stream->SetPos(_records[0].offset);
             if ( !preamble.read(stream) )
                 return false; // invalid preamble

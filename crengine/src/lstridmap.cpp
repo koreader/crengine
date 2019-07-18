@@ -1,6 +1,6 @@
 /*******************************************************
 
-   CoolReader Engine DOM Tree 
+   CoolReader Engine DOM Tree
 
    LDOMNodeIdMap.cpp:  Name to Id map
 
@@ -153,10 +153,8 @@ LDOMNameIdMap::LDOMNameIdMap(lUInt16 maxId)
 {
     m_size = maxId+1;
     m_count = 0;
-    m_by_id   = new LDOMNameIdMapItem * [m_size];
-    memset( m_by_id, 0, sizeof(LDOMNameIdMapItem *)*m_size );  
-    m_by_name = new LDOMNameIdMapItem * [m_size];
-    memset( m_by_name, 0, sizeof(LDOMNameIdMapItem *)*m_size );  
+    m_by_id   = new LDOMNameIdMapItem * [m_size]();
+    m_by_name = new LDOMNameIdMapItem * [m_size]();
     m_sorted = true;
     m_changed = false;
 }

@@ -3982,8 +3982,7 @@ public:
     virtual bool Init( lString8 path )
     {
         LVColorDrawBuf drawbuf(1,1);
-        LOGFONTA lf;
-        memset(&lf, 0, sizeof(lf));
+        LOGFONTA lf = { 0 };
         lf.lfCharSet = ANSI_CHARSET;
         int res =
         EnumFontFamiliesExA(
@@ -4531,8 +4530,7 @@ bool LVBaseWin32Font::Create(int size, int weight, bool italic, css_font_family_
     if (!IsNull())
         Clear();
     //
-    LOGFONTA lf;
-    memset(&lf, 0, sizeof(LOGFONTA));
+    LOGFONTA lf = { 0 };
     lf.lfHeight = size;
     lf.lfWeight = weight;
     lf.lfItalic = italic?1:0;
@@ -4604,8 +4602,7 @@ int LVWin32DrawFont::getCharWidth( lChar16 ch, lChar16 def_char )
     if (_hfont==NULL)
         return 0;
     // measure character widths
-    GCP_RESULTSW gcpres;
-    memset( &gcpres, 0, sizeof(gcpres) );
+    GCP_RESULTSW gcpres = { 0 };
     gcpres.lStructSize = sizeof(gcpres);
     lChar16 str[2];
     str[0] = ch;
@@ -4683,8 +4680,7 @@ lUInt16 LVWin32DrawFont::measureText(
     }
     assert(pstr[len]==0);
     // measure character widths
-    GCP_RESULTSW gcpres;
-    memset( &gcpres, 0, sizeof(gcpres) );
+    GCP_RESULTSW gcpres = { 0 };
     gcpres.lStructSize = sizeof(gcpres);
     LVArray<int> dx( len+1, 0 );
     gcpres.lpDx = dx.ptr();

@@ -261,10 +261,10 @@ bool HyphDictionary::activate()
 bool HyphDictionaryList::activate( lString16 id )
 {
     CRLog::trace("HyphDictionaryList::activate(%s)", LCSTR(id));
-	HyphDictionary * p = find(id); 
-	if ( p ) 
-		return p->activate(); 
-	else 
+	HyphDictionary * p = find(id);
+	if ( p )
+		return p->activate();
+	else
 		return false;
 }
 
@@ -279,7 +279,7 @@ void HyphDictionaryList::addDefault()
 	if ( !find( lString16( HYPH_DICT_ID_SOFTHYPHENS ) ) ) {
 		_list.add( new HyphDictionary( HDT_SOFTHYPHENS, _16("[Soft-hyphens Hyphenation]"), lString16(HYPH_DICT_ID_SOFTHYPHENS), lString16(HYPH_DICT_ID_SOFTHYPHENS) ) );
 	}
-		
+
 }
 
 HyphDictionary * HyphDictionaryList::find( lString16 id )
@@ -328,7 +328,7 @@ bool HyphDictionaryList::open(lString16 hyphDirectory, bool clear)
                 t = HDT_DICT_TEX;
             } else
                 continue;
-            
+
 
 
 			lString16 filename = hyphDirectory + name;
@@ -336,7 +336,7 @@ bool HyphDictionaryList::open(lString16 hyphDirectory, bool clear)
 			lString16 title = name;
 			if ( title.endsWith( suffix ) )
 				title.erase( title.length() - suffix.length(), suffix.length() );
-            
+
 			_list.add( new HyphDictionary( t, title, id, filename ) );
             count++;
 		}
@@ -408,12 +408,12 @@ static int isCorrectHyphFile(LVStream * stream)
     stream->SetPos(0);
     lvByteOrderConv cnv;
     w=cnv.msf(HDR.numrec);
-    if (dw!=78 || w>0xff) 
+    if (dw!=78 || w>0xff)
         w = 0;
 
-    if (strncmp((const char*)&HDR.type, "HypHAlR4", 8) != 0) 
+    if (strncmp((const char*)&HDR.type, "HypHAlR4", 8) != 0)
         w = 0;
-        
+
     return w;
 }
 
@@ -639,13 +639,12 @@ bool TexHyph::load( LVStreamRef stream )
         stream->SetPos(p);
         if ( stream->SetPos(p)!=p )
             return false;
-        lChar16 charMap[256];
+        lChar16 charMap[256] = { 0 };
         unsigned char buf[0x10000];
-        memset( charMap, 0, sizeof( charMap ) );
         // make char map table
         for (i=0; i<hyph_count; i++)
         {
-            if ( stream->Read( &hyph, 522, &dw )!=LVERR_OK || dw!=522 ) 
+            if ( stream->Read( &hyph, 522, &dw )!=LVERR_OK || dw!=522 )
                 return false;
             cnv.msf( &hyph.len ); //rword(_main_hyph[i].len);
             lvpos_t newPos;
@@ -687,11 +686,11 @@ bool TexHyph::load( LVStreamRef stream )
         for (i=0; i<hyph_count; i++)
         {
             stream->Read( &hyph, 522, &dw );
-            if (dw!=522) 
+            if (dw!=522)
                 return false;
             cnv.msf( &hyph.len );
 
-            stream->Read(buf, hyph.len, &dw); 
+            stream->Read(buf, hyph.len, &dw);
             if (dw!=hyph.len)
                 return false;
 
@@ -814,8 +813,8 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
         return false;
     if ( len>=WORD_LENGTH )
         len = WORD_LENGTH - 2;
-    lChar16 word[WORD_LENGTH+4];
-    char mask[WORD_LENGTH+4];
+    lChar16 word[WORD_LENGTH+4] = { 0 };
+    char mask[WORD_LENGTH+4] = { 0 };
 
     // Make word from str, with soft-hyphens stripped out.
     // Prepend and append a space so patterns can match word boundaries.
@@ -829,9 +828,6 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
     }
     wlen = w-1;
     word[w++] = ' ';
-    word[w++] = 0;
-    word[w++] = 0;
-    word[w++] = 0;
     if ( wlen<=3 )
         return false;
     lStr_lowercase(word+1, wlen);
@@ -843,8 +839,7 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
 
     // Find matches from dict patterns, at any position in word.
     // Places where hyphenation is allowed are put into 'mask'.
-    memset( mask, '0', wlen+3 );
-    mask[wlen+3] = 0;
+    memset( mask, '0', wlen+3 );	// 0x30!
     bool found = false;
     for ( int i=0; i<=wlen; i++ ) {
         found = match( word + i, mask + i ) || found;
