@@ -69,7 +69,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.25k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x001A
+#define FORMATTING_VERSION_ID 0x001B
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -1855,6 +1855,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
+, _nodeStylesInvalidIfLoading(false)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -1890,6 +1891,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
+, _nodeStylesInvalidIfLoading(false)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -4194,8 +4196,9 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
     if ( !checkRenderContext() ) {
         if ( _nodeDisplayStyleHashInitial == NODE_DISPLAY_STYLE_HASH_UNITIALIZED ) { // happen when just loaded
             // For knowing/debugging cases when node styles set up during loading
-            // is invalid (should happen now only when EPUB has embedded fonts)
-            printf("CRE: document loaded, but styles re-init needed (possible epub with embedded fonts)\n");
+            // is invalid (should happen now only when EPUB has embedded fonts
+            // or some pseudoclass like :last-child has been met).
+            printf("CRE: styles re-init needed after load, re-rendering\n");
         }
         CRLog::info("rendering context is changed - full render required...");
         // Clear LFormattedTextRef cache
@@ -5756,7 +5759,13 @@ ldomDocumentWriter::~ldomDocumentWriter()
         //    CRLog::error("*** document style validation failed!!!");
         _document->updateRenderContext();
         _document->dumpStatistics();
+        if ( _document->_nodeStylesInvalidIfLoading ) {
+            // Some pseudoclass like :last-child has been met which has set this flag
+            printf("CRE: document loaded, but styles re-init needed (cause: peculiar CSS pseudoclasses met)\n");
+            _document->forceReinitStyles();
+        }
     }
+
 #endif
 }
 

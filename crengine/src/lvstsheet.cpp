@@ -2951,6 +2951,16 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         lString16 s( attrvalue );
         rule->setAttr(n, s);
         // printf("made pseudo class rule %d with %s\n", n, UnicodeToLocal(s).c_str());
+        if ( n >= csspc_last_child ) {
+            // Pseudoclasses after csspc_last_child can't be accurately checked
+            // in the initial loading phase: a re-render will be needed.
+            doc->setNodeStylesInvalidIfLoading();
+            // There might still be some issues if CSS would set some display: property
+            // as, when re-rendering, a cache might be present and prevent modifying
+            // the DOM for some needed autoBoxing - or the invalid styles set now
+            // while loading would have created some autoBoxing that we won't be
+            // able to remove...
+        }
         return rule;
     } else if (*str != '[')
         return NULL;

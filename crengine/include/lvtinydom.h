@@ -439,6 +439,7 @@ protected:
     lUInt32 _nodeStyleHash;
     lUInt32 _nodeDisplayStyleHash;
     lUInt32 _nodeDisplayStyleHashInitial;
+    bool _nodeStylesInvalidIfLoading;
 
     int calcFinalBlocks();
     void dropStyles();
@@ -564,6 +565,9 @@ public:
     bool isBuiltDomStale() {
         return _nodeDisplayStyleHashInitial != NODE_DISPLAY_STYLE_HASH_UNITIALIZED &&
                 _nodeDisplayStyleHash != _nodeDisplayStyleHashInitial;
+    }
+    void setNodeStylesInvalidIfLoading() {
+        _nodeStylesInvalidIfLoading = true;
     }
 
     /// if a cache file is in use
