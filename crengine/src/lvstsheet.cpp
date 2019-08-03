@@ -2437,17 +2437,17 @@ lUInt32 LVCssSelectorRule::getWeight() {
             break;
         case cssrt_attrset:           // E[foo]
         case cssrt_attreq:            // E[foo="value"]
-        case cssrt_attreq_i:          // E[foo="value i"]
+        case cssrt_attreq_i:          // E[foo="value" i]
         case cssrt_attrhas:           // E[foo~="value"]
-        case cssrt_attrhas_i:         // E[foo~="value i"]
+        case cssrt_attrhas_i:         // E[foo~="value" i]
         case cssrt_attrstarts_word:   // E[foo|="value"]
-        case cssrt_attrstarts_word_i: // E[foo|="value i"]
+        case cssrt_attrstarts_word_i: // E[foo|="value" i]
         case cssrt_attrstarts:        // E[foo^="value"]
-        case cssrt_attrstarts_i:      // E[foo^="value i"]
+        case cssrt_attrstarts_i:      // E[foo^="value" i]
         case cssrt_attrends:          // E[foo$="value"]
-        case cssrt_attrends_i:        // E[foo$="value i"]
+        case cssrt_attrends_i:        // E[foo$="value" i]
         case cssrt_attrcontains:      // E[foo*="value"]
-        case cssrt_attrcontains_i:    // E[foo*="value i"]
+        case cssrt_attrcontains_i:    // E[foo*="value" i]
         case cssrt_class:             // E.class
         case cssrt_pseudoclass:       // E:pseudo-class
             return 1 << 8;
@@ -2578,8 +2578,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attreq:        // E[foo="value"]
-    case cssrt_attreq_i:      // E[foo="value i"]
+    case cssrt_attreq_i:      // E[foo="value" i]
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             lString16 val = node->getAttributeValue(_attrid);
             if (_type == cssrt_attreq_i)
                 val.lowercase();
@@ -2587,9 +2589,11 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrhas:       // E[foo~="value"]
-    case cssrt_attrhas_i:     // E[foo~="value i"]
+    case cssrt_attrhas_i:     // E[foo~="value" i]
         // one of space separated values
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             lString16 val = node->getAttributeValue(_attrid);
             if (_type == cssrt_attrhas_i)
                 val.lowercase();
@@ -2603,8 +2607,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrstarts_word:    // E[foo|="value"]
-    case cssrt_attrstarts_word_i:  // E[foo|="value i"]
+    case cssrt_attrstarts_word_i:  // E[foo|="value" i]
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             // value can be exactly value or can begin with value
             // immediately followed by a hyphen
             lString16 val = node->getAttributeValue(_attrid);
@@ -2624,8 +2630,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrstarts:    // E[foo^="value"]
-    case cssrt_attrstarts_i:  // E[foo^="value i"]
+    case cssrt_attrstarts_i:  // E[foo^="value" i]
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             lString16 val = node->getAttributeValue(_attrid);
             int val_len = val.length();
             int value_len = _value.length();
@@ -2638,8 +2646,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrends:    // E[foo$="value"]
-    case cssrt_attrends_i:  // E[foo$="value i"]
+    case cssrt_attrends_i:  // E[foo$="value" i]
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             lString16 val = node->getAttributeValue(_attrid);
             int val_len = val.length();
             int value_len = _value.length();
@@ -2652,8 +2662,10 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         }
         break;
     case cssrt_attrcontains:    // E[foo*="value"]
-    case cssrt_attrcontains_i:  // E[foo*="value i"]
+    case cssrt_attrcontains_i:  // E[foo*="value" i]
         {
+            if ( !node->hasAttribute(_attrid) )
+                return false;
             lString16 val = node->getAttributeValue(_attrid);
             if (_value.length()>val.length())
                 return false;
