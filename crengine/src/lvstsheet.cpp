@@ -2871,16 +2871,18 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
         buf[pos] = 0;
         str += pos+1;
         skip_spaces( str );
+        // The trailing ' i' must be outside the quotes
+        if (parse_trailing_i) {
+            parse_trailing_i = false;
+            if (*str == 'i' || *str == 'I') {
+                parse_trailing_i = true;
+                str++;
+                skip_spaces( str );
+            }
+        }
         if (*str != stop_char)
             return false;
         str++;
-        if (parse_trailing_i && pos >=2) {
-            parse_trailing_i = false;
-            if ( (buf[pos-2]==' ') && (buf[pos-1]=='i' || buf[pos-1]=='I') ) {
-                parse_trailing_i = true;
-                buf[pos-2] = 0;
-            }
-        }
         return true;
     }
     else
@@ -2893,6 +2895,8 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
         int end_pos = pos;
         if (parse_trailing_i) {
             parse_trailing_i = false;
+            if (end_pos == 0) // Empty value, or some leading space: this is invalid
+                return false;
             if (str[pos] && str[pos]==' ' && str[pos+1] && (str[pos+1]=='i' || str[pos+1]=='I')) {
                 parse_trailing_i = true;
                 pos+=2;
