@@ -1039,6 +1039,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // set document font list, and register fonts
         m_doc->getEmbeddedFontList().set(fontList);
         m_doc->registerEmbeddedFonts();
+        printf("CRE: document loaded, but styles re-init needed (cause: embedded fonts)\n");
         m_doc->forceReinitStyles();
     }
 
