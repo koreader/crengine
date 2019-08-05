@@ -6583,13 +6583,23 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
     ldomNode * mainNode = p->getDocument()->getRootNode();
     for ( ; p; p = p->getParentNode() ) {
         int rm = p->getRendMethod();
-        if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
+        if ( rm == erm_final || rm == erm_table_caption ) {
             // With floats, we may get multiple erm_final when walking up
             // to root node: keep the first one met (but go on up to the
             // root node in case we're in some upper erm_invisible).
             if (!finalNode)
                 finalNode = p; // found final block
-        } else if ( p->getRendMethod() == erm_invisible ) {
+        }
+        else if (rm == erm_list_item) {
+            // This obsolete rendering method is considered just like erm_final
+            // for many purposes, but can contain real erm_final nodes.
+            // So, if we found an erm_final, and if we find an erm_list_item
+            // when going up, we should use it (unlike in previous case).
+            // (This is needed to correctly display highlights on books opened
+            // with some older DOM_VERSION.)
+            finalNode = p;
+        }
+        else if ( p->getRendMethod() == erm_invisible ) {
             return false; // invisible !!!
         }
         if ( p==mainNode )
