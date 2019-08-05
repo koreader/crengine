@@ -5140,7 +5140,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // Adjust box size and position
 
-    // <HR> gets its style width and height no matter flags
+    // <HR> gets its style width, height and margin:auto no matter flags
     bool is_hr = enode->getNodeId() == el_hr;
     // <EMPTY-LINE> block element with height added for empty lines in txt document
     bool is_empty_line_elem = enode->getNodeId() == el_empty_line;
@@ -5435,7 +5435,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             // by even overflow on each side?)
         }
         else { // We fit into container_width
-            if ( BLOCK_RENDERING(flags, ENSURE_MARGIN_AUTO_ALIGNMENT) ) {
+            if ( BLOCK_RENDERING(flags, ENSURE_MARGIN_AUTO_ALIGNMENT) || is_hr ) {
                 // https://www.hongkiat.com/blog/css-margin-auto/
                 //  "what do you think will happen when the value auto is given
                 //   to only one of those? A left or right margin with auto will
