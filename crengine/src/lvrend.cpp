@@ -2549,7 +2549,9 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // as wanted by a <BR/>.
                 // (This makes consecutive and stuck <br><br><br> work)
                 LVFont * font = enode->getFont().get();
-                txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags | LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
+                lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
+                txform->AddSourceLine( L" ", 1, cl, bgcl, font, baseflags | LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
                 // baseflags &= ~LTEXT_FLAG_NEWLINE; // clear newline flag
                 // No need to clear the flag, as we set it just below
                 // (any LTEXT_ALIGN_* set implies LTEXT_FLAG_NEWLINE)
@@ -2599,7 +2601,9 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // by lvtextfm.cpp splitParagraphs() to not add this empty
             // string to text, and just call floatClearText().
             LVFont * font = enode->getFont().get();
-            txform->AddSourceLine( L" ", 1, 0, 0, font, baseflags|LTEXT_SRC_IS_CLEAR_LAST|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+            lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
+            lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
+            txform->AddSourceLine( L" ", 1, cl, bgcl, font, baseflags|LTEXT_SRC_IS_CLEAR_LAST|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
         }
     }
     else if ( enode->isText() ) {
