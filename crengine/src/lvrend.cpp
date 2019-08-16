@@ -6673,25 +6673,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
 }
 void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y, int width, int height)
 {
+    // (The provided width and height gives the area we have to draw the background image on)
     css_style_ref_t style=enode->getStyle();
     if (!style->background_image.empty()) {
-        lString16 filename = lString16(style->background_image.c_str());
-        {//url("path") to path
-            if (lString16(filename).lowercase().startsWith("url")) filename = filename.substr(3);
-            filename.trim();
-            if (filename.startsWith("(")) filename = filename.substr(1);
-            if (filename.endsWith(")")) filename = filename.substr(0, filename.length() - 1);
-            filename.trim();
-            if (filename.startsWith("\"")) filename = filename.substr(1);
-            if (filename.endsWith("\"")) filename = filename.substr(0, filename.length() - 1);
-            filename.trim();
-            // This is probably wrong: we should have resolved the path at
-            // stylesheet parsing time (but the current code does not).
-            // Here, all files relative path information is no more accessible.
-            if (filename.startsWith("../")) filename = filename.substr(3);
-        }
-        // (The provided width and height gives the area we have to paint on)
-        LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filename);
+        lString16 filepath = lString16(style->background_image.c_str());
+        LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filepath);
         if (!img.isNull()) {
             int img_w =img->GetWidth();
             int img_h =img->GetHeight();
@@ -7383,6 +7369,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             LVCssDeclaration decl;
             lString8 s8 = UnicodeToUtf8(nodeStyle);
             const char * s = s8.c_str();
+            // We can't get the codeBase of this node anymore at this point, which
+            // would be needed to resolve "background-image: url(...)" relative
+            // file path... So these won't work when defined in a style= attribute.
             if ( decl.parse( s ) ) {
                 decl.apply( pstyle );
             }

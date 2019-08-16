@@ -80,7 +80,7 @@ private:
 public:
     void apply( css_style_rec_t * style );
     bool empty() { return _data==NULL; }
-    bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL );
+    bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL, lString16 codeBase=lString16::empty_str );
     lUInt32 getHash();
     LVCssDeclaration() : _data(NULL) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
@@ -273,7 +273,7 @@ public:
     /// copy constructor
     LVStyleSheet( LVStyleSheet & sheet );
     /// parse stylesheet, compile and add found rules to sheet
-    bool parse( const char * str, bool higher_importance=false );
+    bool parse( const char * str, bool higher_importance=false, lString16 codeBase=lString16::empty_str );
     /// apply stylesheet to node style
     void apply( const ldomNode * node, css_style_rec_t * style );
     /// calculate hash

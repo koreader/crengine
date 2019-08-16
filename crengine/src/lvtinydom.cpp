@@ -3993,7 +3993,7 @@ public:
             }
         }
         _nestingLevel -= 1;
-        return (_document->getStyleSheet()->parse(s) || ret);
+        return (_document->getStyleSheet()->parse(s, false, codeBase) || ret);
     }
 private:
     ldomDocument  *_document;
