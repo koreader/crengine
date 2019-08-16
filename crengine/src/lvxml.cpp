@@ -3110,7 +3110,13 @@ bool LVXMLParser::Parse()
                     attrname.lowercase();
                 }
                 if ( (flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING) && m_conv_table ) {
+                    // (only used when parding html from CHM document, not updating it
+                    // to use TXTFLG_PROCESS_ATTRIBUTE)
                     PreProcessXmlString( attrvalue, 0, m_conv_table );
+                }
+                else {
+                    // Process &#124; and HTML entities, but don't touch space
+                    PreProcessXmlString( attrvalue, TXTFLG_PROCESS_ATTRIBUTE );
                 }
                 attrvalue.trimDoubleSpaces(false,false,false);
                 m_callback->OnAttribute(attrns.c_str(), attrname.c_str(), attrvalue.c_str());
@@ -3465,6 +3471,7 @@ int PreProcessXmlString(lChar16 * str, int len, lUInt32 flags, const lChar16 * e
     bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
     if ( pre_para_splitting )
         pre = false;
+    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
     //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
     int j = 0;
     for (int i=0; i<len; ++i ) {
@@ -3483,7 +3490,7 @@ int PreProcessXmlString(lChar16 * str, int len, lUInt32 flags, const lChar16 * e
                 lch = ch;
                 continue;
             }
-        } else {
+        } else if ( !attribute ) {
             if (ch=='\r' || ch=='\n' || ch=='\t')
                 ch = ' ';
         }
@@ -3492,7 +3499,7 @@ int PreProcessXmlString(lChar16 * str, int len, lUInt32 flags, const lChar16 * e
             nch = 0;
         } else if (state == 0) {
             if (ch == ' ') {
-                if ( pre || !nsp )
+                if ( pre || attribute || !nsp )
                     str[j++] = ch;
                 nsp++;
             } else {
