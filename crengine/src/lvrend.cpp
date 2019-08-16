@@ -6671,7 +6671,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         }
     }
 }
-void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
+void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y, int width, int height)
 {
     css_style_ref_t style=enode->getStyle();
     if (!style->background_image.empty()) {
@@ -6690,117 +6690,123 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             // Here, all files relative path information is no more accessible.
             if (filename.startsWith("../")) filename = filename.substr(3);
         }
+        // (The provided width and height gives the area we have to paint on)
         LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filename);
         if (!img.isNull()) {
-            int repeat_times_x = 0, repeat_times_y = 0;
-            int position_x = 0, position_y = 0, direction_x = 1, direction_y = 1, center_x = 0, center_y = 0;
+            int img_w =img->GetWidth();
+            int img_h =img->GetHeight();
+            // We can use some crengine facilities for background repetition and position,
+            // which has the advantage that img will be decoded once even if tiling it many
+            // times and if the target is many screen-heights long (like <BODY> could be).
+            // Unfortunaly, it does not everything well when not using IMG_TRANSFORM_TILE,
+            // as it would fill the not-drawn part of the target buffer with garbage,
+            // instead of letting it as is.
+            ImageTransform hori_transform = IMG_TRANSFORM_NONE;
+            ImageTransform vert_transform = IMG_TRANSFORM_NONE;
+            int transform_w = img_w;
+            int transform_h = img_h;
             switch (style->background_repeat) {
                 case css_background_no_repeat:
-                    repeat_times_x = 0;
-                    repeat_times_y = 0;
+                case css_background_repeat_y:
                     break;
                 case css_background_repeat_x:
-                    repeat_times_x = fmt.getWidth() / img->GetWidth() ? fmt.getWidth() / img->GetWidth() :
-                                     fmt.getWidth() / img->GetWidth() + 1;
-                    repeat_times_y = 0;
+                case css_background_repeat:
+                default:
+                    // No need to tile if image is larger than target
+                    if ( width > img_w ) {
+                        hori_transform = IMG_TRANSFORM_TILE;
+                        transform_w = width;
+                    }
+                    break;
+            }
+            switch (style->background_repeat) {
+                case css_background_no_repeat:
+                case css_background_repeat_x:
                     break;
                 case css_background_repeat_y:
-                    repeat_times_x = 0;
-                    repeat_times_y = fmt.getHeight() / img->GetHeight() ? fmt.getHeight() / img->GetHeight() :
-                                     fmt.getHeight() / img->GetHeight() + 1;
-                    break;
                 case css_background_repeat:
-                    repeat_times_x = fmt.getWidth() / img->GetWidth() ? fmt.getWidth() / img->GetWidth() :
-                                     fmt.getWidth() / img->GetWidth() + 1;
-                    repeat_times_y = fmt.getHeight() / img->GetHeight() ? fmt.getHeight() / img->GetHeight() :
-                                     fmt.getHeight() / img->GetHeight() + 1;
+                default:
+                    // No need to tile if image is larger than target
+                    if ( height > img_h ) {
+                        vert_transform = IMG_TRANSFORM_TILE;
+                        transform_h = height;
+                    }
+                    break;
+            }
+            // Compute the position where to draw top left of image, as if
+            // it was a single image when no-repeat
+            int draw_x = 0;
+            int draw_y = 0;
+            switch (style->background_position) {
+                case css_background_left_top:
+                case css_background_left_center:
+                case css_background_left_bottom:
+                    break;
+                case css_background_center_top:
+                case css_background_center_center:
+                case css_background_center_bottom:
+                    draw_x = (width - img_w)/2;
+                    break;
+                case css_background_right_top:
+                case css_background_right_center:
+                case css_background_right_bottom:
+                    draw_x = width - img_w;
                     break;
                 default:
-                    repeat_times_x = fmt.getWidth() / img->GetWidth() ? fmt.getWidth() / img->GetWidth() :
-                                     fmt.getWidth() / img->GetWidth() + 1;
-                    repeat_times_y = fmt.getHeight() / img->GetHeight() ? fmt.getHeight() / img->GetHeight() :
-                                     fmt.getHeight() / img->GetHeight() + 1;
                     break;
             }
             switch (style->background_position) {
-                case css_background_center_bottom:
-                    position_x = fmt.getWidth() / 2 - img->GetWidth() / 2;
-                    position_y = fmt.getHeight() - img->GetHeight();
-                    center_x = 1;
-                    direction_y = -1;
-                    break;
-                case css_background_center_center:
-                    position_x = fmt.getWidth() / 2 - img->GetWidth() / 2;;
-                    position_y = fmt.getHeight() / 2 - img->GetHeight() / 2;
-                    center_x = 1;
-                    center_y = 1;
-                    break;
+                case css_background_left_top:
                 case css_background_center_top:
-                    position_x = fmt.getWidth() / 2 - img->GetWidth() / 2;;
-                    position_y = 0;
-                    center_x = 1;
-                    break;
-                case css_background_left_bottom:
-                    position_x = x0;
-                    position_y = fmt.getHeight() - img->GetHeight();
-                    direction_y = -1;
+                case css_background_right_top:
                     break;
                 case css_background_left_center:
-                    position_x = 0;
-                    position_y = fmt.getHeight() / 2 - img->GetHeight() / 2;
-                    center_y = 1;
-                    break;
-                case css_background_left_top:
-                    position_x = 0;
-                    position_y = 0;
-                    break;
-                case css_background_right_bottom:
-                    position_x = fmt.getWidth() - img->GetWidth();
-                    position_y = fmt.getHeight() - img->GetHeight();
-                    direction_x = -1;
-                    direction_y = -1;
-                    break;
+                case css_background_center_center:
                 case css_background_right_center:
-                    position_x = fmt.getWidth() - img->GetWidth();
-                    position_y = fmt.getHeight() / 2 - img->GetHeight() / 2;
-                    direction_x = -1;
-                    center_y = 1;
+                    draw_y = (height - img_h)/2;
                     break;
-                case css_background_right_top:
-                    position_x = fmt.getWidth() - img->GetWidth();
-                    position_y = 0;
-                    direction_x = -1;
+                case css_background_left_bottom:
+                case css_background_center_bottom:
+                case css_background_right_bottom:
+                    draw_y = height - img_h;
                     break;
                 default:
-                    position_x = 0;
-                    position_y = 0;
+                    break;
             }
-            LVDrawBuf *tmp = NULL;
-            // todo: fix this: with a background image set on body, or on
-            // a huge block element, this will create a super huge buffer
-            // (if body, the whole document or doc fragment height),
-            // and will draw the background image many many times on it,
-            // for, in the end, just draw a crop of that huge
-            // buffer on the single page height drawbuf...
-            // (10 seconds to draw a page on a 50 pages document on the emulator...)
-            tmp = new LVColorDrawBuf(fmt.getWidth(), fmt.getHeight(), 32);
-            for (int i = 0; i < repeat_times_x + 1; i++) {
-                for (int j = 0; j < repeat_times_y + 1; j++) {
-                    tmp->Draw(img, position_x + i * img->GetWidth() * direction_x,
-                              position_y + j * img->GetHeight() * direction_y,
-                              img->GetWidth(), img->GetHeight());
-                    if (center_x == 1)
-                        tmp->Draw(img, position_x - i * img->GetWidth() * direction_x,
-                                  position_y + j * img->GetHeight() * direction_y,
-                                  img->GetWidth(), img->GetHeight());
-                    if (center_y == 1)
-                        tmp->Draw(img, position_x + i * img->GetWidth() * direction_x,
-                                  position_y - j * img->GetHeight() * direction_y,
-                                  img->GetWidth(), img->GetHeight());
-                }
+            // If tiling, we need to adjust the transform x/y (the offset
+            // in img, so, a value between 0 and img_w/h) to the point
+            // inside image that should be at top left of target area
+            int transform_x = 0;
+            int transform_y = 0;
+            if ( hori_transform == IMG_TRANSFORM_TILE && draw_x ) {
+                transform_x = (draw_x % img_w);
+                draw_x = 0;
             }
-            tmp->DrawOnTop(&drawbuf, x0 + doc_x, y0 + doc_y);
-            delete tmp;
+            if ( vert_transform == IMG_TRANSFORM_TILE && draw_y ) {
+                // Strangely, using the following instead of what we did for x/w
+                // gives the expected result (not investigated, might be
+                // a bug in LVStretchImgSource::OnLineDecoded() )
+                transform_y = img_h - (draw_y % img_h);
+                draw_y = 0;
+            }
+            // Ready to have crengine do all the work.
+            // (Inspired from LVDocView::drawPageBackground(), we have to do it that complex
+            // way to avoid memory leaks; and we have to use a 16bpp LVColorDrawBuf,
+            // 32bpp would mess colors up).
+            LVRef<LVColorDrawBuf> buf = LVRef<LVColorDrawBuf>( new LVColorDrawBuf(img_w, img_h, 16) );
+            buf->Draw(img, 0, 0, img_w, img_h, false); // (dither=false doesn't matter with a color buffer)
+            LVImageSourceRef src = LVCreateDrawBufImageSource(buf.get(), false);
+            LVImageSourceRef transformed = LVCreateStretchFilledTransform(src, transform_w, transform_h,
+                                               hori_transform, vert_transform, transform_x, transform_y);
+            // We use the DrawBuf clip facility to ensure we don't draw outside this node fmt
+            lvRect orig_clip;
+            drawbuf.GetClipRect( &orig_clip ); // Backup the original one
+            // Set a new one to the target area
+            lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);;
+            drawbuf.SetClipRect( &target_clip );
+            // Draw
+            drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
+            drawbuf.SetClipRect( &orig_clip ); // Restore the original one
         }
     }
 }
@@ -6874,24 +6880,45 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             if ( draw_background )
                 drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
         }
-        if ( draw_background ) {
-            lString16 nodename=enode->getNodeName();    // CSS specific: <body> background does not obey margin rules
-            if (nodename.lowercase().compare("body")==0&&enode->getStyle()->background_image!=lString8(""))
-            {
-                int width=fmt.getWidth();
-                // todo: don't setWidth() here, just add params to
-                // DrawBackgroundImage(...width,height) and provide
-                // fmt.getWidth() and fmt.getHeight()
-                // Even, for BODY, we may even want to just remove the
-                // clip of drawbuf so it's not just drawn between page
-                // top and page bottom (which can be smaller than drabuf
-                // height) and fill top and bottom margins, like we do
-                // here for left and right margins.
-                fmt.setWidth(drawbuf.GetWidth());
-                DrawBackgroundImage(enode,drawbuf,0,y0,0,doc_y,fmt);
-                fmt.setWidth(width);
+        if ( draw_background && !enode->getStyle()->background_image.empty() ) {
+            if ( enode->getNodeId() == el_body ) {
+                // CSS specific: <body> background does not obey margin rules
+                // We don't draw on the fmt width, but on the drawbuf width.
+                // Also, when in page mode, we'd rather have a fully fixed background,
+                // (so, not respecting background-repeat and background-position)
+                // to avoid ghosting and refreshes issues on eInk.
+                // (This is not easy to ensure when there are multiple <BODY>, with
+                // possibly different background images, in the viewed page. Drawing
+                // a second background on the whole drawbuf would override the text
+                // of the previous body.)
+                lvRect curclip;
+                drawbuf.GetClipRect( &curclip );
+                // Cheap and possibly wrong (if 0-bottom margin and page just fits screen)
+                // detection of page mode:
+                bool is_page_mode = curclip.bottom != drawbuf.GetHeight();
+                if ( is_page_mode && doc_y <= 0 ) {
+                    // If doc_y > 0, we're a BODY starting on this page, and there
+                    // may be a previous one that had already set the background
+                    // image and draw text, that we'd rather not override with
+                    // a new full screen background image.
+                    // Remove the clip, so the background is drawn on the full page
+                    // even on pages with shorter text.
+                    drawbuf.SetClipRect(NULL);
+                    DrawBackgroundImage(enode, drawbuf, 0, 0, 0, 0, drawbuf.GetWidth(), drawbuf.GetHeight());
+                    drawbuf.SetClipRect(&curclip); // restore clip
+                }
+                else {
+                    // No fixed background.
+                    // This seems to work fine both in page and scroll modes, with proper
+                    // drawing if multiple body with different backgrounds, with some
+                    // occasional blank white space at DocFragment boundaries.
+                    DrawBackgroundImage(enode, drawbuf, 0, y0, 0, doc_y, drawbuf.GetWidth(), fmt.getHeight());
+                }
             }
-            else  DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+            else { // regular drawing
+                DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
+            }
+            // (Commented identical calls below as they seem redundant with what was just done here)
         }
         #if (DEBUG_TREE_DRAW!=0)
             lUInt32 color;
@@ -6973,7 +7000,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
-                        DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Don't shift by padding left, the list marker is outside padding left)
                         txform->Draw( &drawbuf, doc_x+x0, doc_y+y0 + padding_top, NULL, NULL );
                     }
@@ -7133,7 +7160,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
-                        DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Don't shift by padding left, the list marker is outside padding left)
                         txform->Draw( &drawbuf, doc_x+x0 - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
                     }
@@ -7162,11 +7189,11 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         crop_rc.top -= fmt.getTopOverflow();
                         crop_rc.bottom += fmt.getBottomOverflow();
                         ldomMarkedRangeList nmarks( marks, rc, &crop_rc );
-                        DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // Draw regular text with currently marked highlights
                         txform->Draw( &drawbuf, doc_x+x0 + padding_left, doc_y+y0 + padding_top, &nmarks, nbookmarks );
                     } else {
-                        DrawBackgroundImage(enode,drawbuf,x0,y0,doc_x,doc_y,fmt);
+                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // Draw regular text, no marks
                         txform->Draw( &drawbuf, doc_x+x0 + padding_left, doc_y+y0 + padding_top, marks, nbookmarks );
                     }
