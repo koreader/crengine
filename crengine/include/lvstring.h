@@ -19,21 +19,34 @@
 #include "lvtypes.h"
 #include "lvmemman.h"
 
-/// soft hyphen code
-#define UNICODE_SOFT_HYPHEN_CODE 0x00ad
+// (Note: some of these 0x have lowercase hex digit, to avoid
+// 'redefined' warnings as they are already defined in lowercase
+// in antiword/wordconst.h.)
+
+/// Unicode spaces
+#define UNICODE_NO_BREAK_SPACE            0x00A0
+#define UNICODE_ZERO_WIDTH_NO_BREAK_SPACE 0xfeff
+// All chars from U+2000 to U+200B allow wrap after, except U+2007
+#define UNICODE_EN_QUAD          0x2000
+#define UNICODE_FIGURE_SPACE     0x2007
 #define UNICODE_ZERO_WIDTH_SPACE 0x200b
-#define UNICODE_THIN_SPACE 0x2009
-#define UNICODE_NO_BREAK_SPACE   0x00a0
-#define UNICODE_HYPHEN   0x2010
-#define UNICODE_NB_HYPHEN   0x2011
+
+/// Unicode hyphens
+#define UNICODE_SOFT_HYPHEN_CODE 0x00AD
+#define UNICODE_ARMENIAN_HYPHEN  0x058A
+// All chars from U+2010 to U+2014 allow deprecated wrap after, except U+2011
+#define UNICODE_HYPHEN           0x2010
+#define UNICODE_NO_BREAK_HYPHEN  0x2011
+#define UNICODE_EM_DASH          0x2014
+
+// Punctuation and CJK ranges
+#define UNICODE_GENERAL_PUNCTUATION_BEGIN 0x2000
+#define UNICODE_GENERAL_PUNCTUATION_END 0x206F
 #define UNICODE_CJK_IDEOGRAPHS_BEGIN 0x3041
 #define UNICODE_CJK_IDEOGRAPHS_END 0x02CEAF
 #define UNICODE_CJK_IDEOGRAPHIC_SPACE 0x3000
 #define UNICODE_CJK_PUNCTUATION_BEGIN 0x3000
 #define UNICODE_CJK_PUNCTUATION_END 0x303F
-#define UNICODE_GENERAL_PUNCTUATION_BEGIN 0x2000
-#define UNICODE_GENERAL_PUNCTUATION_END 0x206F
-#define UNICODE_ZERO_WIDTH_NO_BREAK_SPACE 0xfeff
 // These may be wrong as this block contain katakana and hangul
 // letters, as well as ascii full-width chars:
 #define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN 0xFF01
