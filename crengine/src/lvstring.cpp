@@ -1985,7 +1985,7 @@ lString8 & lString8::appendHex(lUInt64 n)
             foundNz = true;
         if (foundNz)
             append(1, (lChar8)toHexDigit(digit));
-        n >>= 4;
+        n <<= 4;
     }
     return *this;
 }
@@ -2026,7 +2026,7 @@ lString16 & lString16::appendHex(lUInt64 n)
             foundNz = true;
         if (foundNz)
             append(1, toHexDigit(digit));
-        n >>= 4;
+        n <<= 4;
     }
     return *this;
 }

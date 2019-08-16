@@ -3511,7 +3511,7 @@ static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
 // Extended version of previous function for displaying selection HTML, with tunable output
 #define WRITENODEEX_TEXT_UNESCAPED               0x0001 ///< let &, < and > unescaped in text nodes (makes HTML invalid)
 #define WRITENODEEX_TEXT_MARK_NODE_BOUNDARIES    0x0002 ///< mark start and end of text nodes (useful when indented)
-#define WRITENODEEX_UNUSED_1                     0x0004 ///<
+#define WRITENODEEX_TEXT_SHOW_UNICODE_CODEPOINT  0x0004 ///< show unicode codepoint after char
 #define WRITENODEEX_UNUSED_2                     0x0008 ///<
 #define WRITENODEEX_INDENT_NEWLINE               0x0010 ///< indent newlines according to node level
 #define WRITENODEEX_NEWLINE_BLOCK_NODES          0x0020 ///< start only nodes rendered as block/final on a new line,
@@ -3657,7 +3657,15 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
             while ( txt.replace( cs16("<"), cs16("&lt;") ) ) ;
             while ( txt.replace( cs16(">"), cs16("&gt;") ) ) ;
         }
-        *stream << prefix << UnicodeToUtf8(txt) << suffix;
+        if ( WNEFLAG(TEXT_SHOW_UNICODE_CODEPOINT) ) {
+            *stream << prefix;
+            for ( int i=0; i<txt.length(); i++ )
+                *stream << UnicodeToUtf8(txt.substr(i, 1)) << "⟨U+" << lString8().appendHex(txt[i]) << "⟩";
+            *stream << suffix;
+        }
+        else {
+            *stream << prefix << UnicodeToUtf8(txt) << suffix;
+        }
         if (doNewLine)
             *stream << "\n";
         if ( isEndNode && WNEFLAG(NB_SKIPPED_NODES) ) {
