@@ -1990,15 +1990,15 @@ public:
                 maxWidth = getCurrentLineWidth();
             }
 
-            if ( visualAlignmentEnabled )
+            if ( visualAlignmentEnabled ) {
                 maxWidth -= visualAlignmentWidth;
-
-            spaceReduceWidth -= visualAlignmentWidth/2;
-            firstCharMargin += visualAlignmentWidth/2;
-            if (isCJKLeftPunctuation(m_text[pos])) {
-            	LVFont * fnt = (LVFont *)m_srcs[pos]->t.font;
-            	if (fnt) firstCharMargin -= fnt->getCharWidth(m_text[pos]);
-            	firstCharMargin = (x + firstCharMargin) > 0 ? firstCharMargin : 0;
+                spaceReduceWidth -= visualAlignmentWidth/2;
+                firstCharMargin += visualAlignmentWidth/2;
+                if (isCJKLeftPunctuation(m_text[pos])) {
+                    LVFont * fnt = (LVFont *)m_srcs[pos]->t.font;
+                    if (fnt) firstCharMargin -= fnt->getCharWidth(m_text[pos]);
+                    firstCharMargin = (x + firstCharMargin) > 0 ? firstCharMargin : 0;
+                }
             }
             // find candidates where end of line is possible
             bool seen_non_collapsed_space = false;
