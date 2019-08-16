@@ -706,6 +706,30 @@ bool parse_color_value( const char * & str, css_length_t & value )
     return false;
 }
 
+static void resolve_url_path( lString8 & str, lString16 codeBase ) {
+    // A URL (path to local or container's file) must be resolved
+    // at parsing time, as it is related to this stylesheet file
+    // path (and not to the HTML files that are linking to this
+    // stylesheet) - it wouldn't be possible to resolve it later.
+    lString16 path = Utf8ToUnicode(str);
+    path.trim();
+    if (path.startsWithNoCase(lString16("url"))) path = path.substr(3);
+    path.trim();
+    if (path.startsWith(L"(")) path = path.substr(1);
+    if (path.endsWith(L")")) path = path.substr(0, path.length() - 1);
+    path.trim();
+    if (path.startsWith(L"\"") || path.startsWith(L"'")) path = path.substr(1);
+    if (path.endsWith(L"\"") || path.endsWith(L"'")) path = path.substr(0, path.length() - 1);
+    path.trim();
+    // We assume it's a path to a local file in the container, so we don't try
+    // to check if it's a remote url (as we can't fetch its content anyway).
+    if ( !codeBase.empty() ) {
+        path = LVCombinePaths( codeBase, path );
+    }
+    // printf("url: [%s]+%s => %s\n", UnicodeToLocal(codeBase).c_str(), str.c_str(), UnicodeToUtf8(path).c_str());
+    str = UnicodeToUtf8(path);
+}
+
 static const char * css_d_names[] = 
 {
     "inherit",
@@ -1067,7 +1091,7 @@ enum cr_only_if_t {
     cr_only_if_epub_document,
 };
 
-bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc )
+bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString16 codeBase )
 {
     SerialBuf buf(512, true);
 
@@ -1950,10 +1974,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 lString8 str;
                 const char *tmp=decl;
                 int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!')
-                {tmp++;len++;}
+                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!') {
+                    tmp++; len++;
+                }
                 str.append(decl,len);
-                str.trim();
+                resolve_url_path(str, codeBase);
                 len=str.length();
                 buf<<(lUInt32) (prop_code | importance | parse_important(tmp));
                 buf<<(lUInt32) str.length();
@@ -1986,8 +2011,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 lString8 str;
                 const char *tmp=decl;
                 int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!')
-                {tmp++;len++;}
+                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!') {
+                    tmp++; len++;
+                }
                 str.append(decl,len);
                 str.trim();
                 tmp=str.c_str();
@@ -1999,7 +2025,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     len=len+1+offset;
                     str.clear();
                     str.append(decl,len);
-                    str.trim();
+                    resolve_url_path(str, codeBase);
                     decl+=len;
                     skip_spaces(decl);
                     int repeat=parse_name(decl,css_bg_repeat_names,-1);
@@ -3352,7 +3378,7 @@ lUInt32 LVStyleSheet::getHash()
     return hash;
 }
 
-bool LVStyleSheet::parse( const char * str, bool higher_importance )
+bool LVStyleSheet::parse( const char * str, bool higher_importance, lString16 codeBase )
 {
     LVCssSelector * selector = NULL;
     LVCssSelector * prev_selector;
@@ -3384,7 +3410,7 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance )
             }
             // parse declaration
             LVCssDeclRef decl( new LVCssDeclaration );
-            if ( !decl->parse( str, higher_importance, _doc ) )
+            if ( !decl->parse( str, higher_importance, _doc, codeBase ) )
             {
                 err = true;
                 err_count++;
