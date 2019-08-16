@@ -1360,6 +1360,8 @@ public:
         if ( preFormattedOnly || !align )
             align = LTEXT_ALIGN_LEFT;
 
+        // Note: in the code and comments, all these mean the same thing:
+        // visual alignment enabled, floating punctuation, hanging punctuation
         bool visualAlignmentEnabled = gFlgFloatingPunctuationEnabled!=0 && (align == LTEXT_ALIGN_WIDTH || align == LTEXT_ALIGN_RIGHT ||align==LTEXT_ALIGN_LEFT);
 
         bool splitBySpaces = (align == LTEXT_ALIGN_WIDTH) || needReduceSpace; // always true with current code
@@ -1735,33 +1737,50 @@ public:
                             endp--;
                             lastc = m_text[endp];
                         }
+                        // We reduce the word width from the hanging char width, so it's naturally pushed
+                        // outside in the margin by the alignLine code
                         if ( word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER ) {
                             word->width -= font->getHyphenWidth(); // TODO: strange fix - need some other solution
-                        } else if ( lastc=='.' || lastc==',' || lastc=='!' || lastc==':' || lastc==';' || lastc=='?') {
+                        }
+                        else if ( lastc=='.' || lastc==',' || lastc=='!' || lastc==':' || lastc==';' || lastc=='?') {
                             FONT_GUARD
                             int w = font->getCharWidth(lastc);
                             TR("floating: %c w=%d", lastc, w);
-                            if (frmline->width + w + wAlign + x >= maxWidth) word->width -= w; //fix russian "?" at line end
-                        } else if (lastc==L'。' || lastc==L'，' || lastc==L'！' || lastc==L'：' || lastc==L'；' ||
-                    		    lastc==L'”'  || lastc==L'’' || lastc==L'」' || lastc==L'』' || lastc==L'、') {
+                            if (frmline->width + w + wAlign + x >= maxWidth)
+                                word->width -= w; //fix russian "?" at line end
+                        }
+                        else if ( lastc==0x2019 || lastc==0x201d ||   // ’ ” right quotation marks
+                                  lastc==0x3001 || lastc==0x3002 ||   // 、 。 ideographic comma and full stop
+                                  lastc==0x300d || lastc==0x300f ||   // 」 』 ideographic right bracket
+                                  lastc==0xff01 || lastc==0xff0c ||   // ！ ， fullwidth ! and ,
+                                  lastc==0xff1a || lastc==0xff1b ) {  // ： ； fullwidth : and ;
                             FONT_GUARD
-                        	int w = font->getCharWidth(lastc);
-                        	if (frmline->width + w + wAlign + x >= maxWidth) word->width -= w;
-                            else if (w!=0){
-                                if (end - start == int((maxWidth - wAlign) / w)) word->width -= w; //Chinese floating punctuation
-                                else if (x/w>=1&&(end-start==int(maxWidth-wAlign-x)/w)-1)  word->width-=w;//first line with text-indent
+                            int w = font->getCharWidth(lastc);
+                            if (frmline->width + w + wAlign + x >= maxWidth)
+                                word->width -= w;
+                            else if (w!=0) {
+                                // (This looks like some awkward way of detecting if the line
+                                // is made out of solely same-fixed-width CJK ideographs,
+                                // which will fail if there's enough variable-width western
+                                // chars to fail the rounded division vs nb of char comparison.)
+                                if (end - start == int((maxWidth - wAlign) / w))
+                                    word->width -= w; // Chinese floating punctuation
+                                else if (x/w >= 1 && (end-start==int(maxWidth-wAlign-x)/w)-1)
+                                    word->width -= w; // first line with text-indent
                             }
                         }
-                        if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER){
+                        if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER) {
+                            // (Chinese) add spaces between words in last line or single line
+                            // (so they get visually aligned on a grid with the char on the
+                            // previous justified lines)
                             FONT_GUARD
-                            int properwordcount=maxWidth/font->getSize()-2;
-                            int extraSpace =maxWidth-properwordcount*font->getSize()-wAlign;
-                            int exccess=(frmline->width+x+word->width+extraSpace)-maxWidth;
-                            if (exccess>0&&exccess<maxWidth){
-                                extraSpace-=exccess;
-                            }//prevent the line exceeds screen boundary*/
-                            if ( extraSpace>0 )
-                            {
+                            int properwordcount = maxWidth/font->getSize() - 2;
+                            int extraSpace = maxWidth - properwordcount*font->getSize() - wAlign;
+                            int exccess = (frmline->width + x + word->width + extraSpace) - maxWidth;
+                            if ( exccess>0 && exccess<maxWidth ) { // prevent the line exceeds screen boundary
+                                extraSpace -= exccess;
+                            }
+                            if ( extraSpace>0 ) {
                                 int addSpacePoints = 0;
                                 int a;
                                 int points=0;
@@ -1769,7 +1788,7 @@ public:
                                     if ( frmline->words[a].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER )
                                         points++;
                                 }
-                                addSpacePoints=properwordcount-(frmline->word_count-1-points);
+                                addSpacePoints = properwordcount - (frmline->word_count - 1 - points);
                                 if (addSpacePoints > 0) {
                                     int addSpaceDiv = extraSpace / addSpacePoints;
                                     int addSpaceMod = extraSpace % addSpacePoints;
@@ -1787,16 +1806,21 @@ public:
                                 }
                             }
                             word->width+=extraSpace;
-                        }//(Chinese) add spaces between words in last line or single line
-                            if (first&&font->getSize()!=0&&(maxWidth/font->getSize()-2)!=0){
-                                FONT_GUARD
-                                int cnt=((x-wAlign/2)%font->getSize()==0)?(x-wAlign/2)/font->getSize():0;//ugly way to caculate text-indent value, I can not get text-indent from here
-                                int p=cnt*(cnt+1)/2;
-                                int asd=(2*font->getSize()-font->getCharWidth(lastc))/(maxWidth/font->getSize()-2);
-                                int width=p*asd+cnt;//same math as delta above
-                                if (width>0) frmline->x+=width;}///proportionally enlarge text-indent when visualAlignment or floating punctuation is enabled
+                        }
+                        if ( first && font->getSize()!=0 && (maxWidth/font->getSize()-2)!=0 ) {
+                            // proportionally enlarge text-indent when visualAlignment or
+                            // floating punctuation is enabled
+                            FONT_GUARD
+                            int cnt = ((x-wAlign/2)%font->getSize()==0) ? (x-wAlign/2)/font->getSize() : 0;
+                                // ugly way to caculate text-indent value, I can not get text-indent from here
+                            int p = cnt*(cnt+1)/2;
+                            int asd = (2*font->getSize()-font->getCharWidth(lastc)) / (maxWidth/font->getSize()-2);
+                            int width = p*asd + cnt; //same math as delta above
+                            if (width>0)
+                                frmline->x+=width;
+                        }
                         word->min_width = word->width;
-                    }
+                    } // done if floating punctuation enabled
                 }
 
                 // Adjust full line box height and baseline if needed:
@@ -1861,21 +1885,28 @@ public:
     }
 
     bool isCJKIdeograph(lChar16 c) {
-       return c >= UNICODE_CJK_IDEOGRAPHS_BEGIN && c <= UNICODE_CJK_IDEOGRAPHS_END&&(c<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN||
-                                                                                     c>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END);
+        return c >= UNICODE_CJK_IDEOGRAPHS_BEGIN &&
+               c <= UNICODE_CJK_IDEOGRAPHS_END   &&
+               ( c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN ||
+                 c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END );
     }
 
     bool isCJKPunctuation(lChar16 c) {
-       return (c >= UNICODE_CJK_PUNCTUATION_BEGIN && c <= UNICODE_CJK_PUNCTUATION_END) || \
-       (c >= UNICODE_GENERAL_PUNCTUATION_BEGIN && c <= UNICODE_GENERAL_PUNCTUATION_END && \
-        c!=0x2018 && c!=0x201a && c!=0x201b && c!=0x201c && c!=0x201e && c!=0x201f && \
-        c!=0x2035 && c!=0x2036 && c!=0x2037 && c!=0x2039 && c!=0x2045 && c!=0x204c  ) || \
-       (c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) || \
-        c == L'·';
+        return ( c >= UNICODE_CJK_PUNCTUATION_BEGIN && c <= UNICODE_CJK_PUNCTUATION_END ) ||
+               ( c >= UNICODE_GENERAL_PUNCTUATION_BEGIN && c <= UNICODE_GENERAL_PUNCTUATION_END &&
+                    c!=0x2018 && c!=0x201a && c!=0x201b &&    // ‘ ‚ ‛  left quotation marks
+                    c!=0x201c && c!=0x201e && c!=0x201f &&    // “ „ ‟  left double quotation marks
+                    c!=0x2035 && c!=0x2036 && c!=0x2037 &&    // ‵ ‶ ‷ reversed single/double/triple primes
+                    c!=0x2039 && c!=0x2045 && c!=0x204c  ) || // ‹ ⁅ ⁌ left angle quot mark, bracket, bullet
+               ( c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN &&
+                 c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END ) ||
+               ( c == 0x00b7 ); // · middle dot
     }
 
     bool isCJKLeftPunctuation(lChar16 c) {
-       return c==L'“' || c==L'‘' || c==L'「' || c==L'『' || c==L'《' || c==L'〈' || c==L'（' || c==L'【';
+        return c==0x2018 || c==0x201c || // ‘ “ left single and double quotation marks
+               c==0x3008 || c==0x300a || c==0x300c || c==0x300e || c==0x3010 || // 〈 《 「 『 【 CJK left brackets
+               c==0xff08; // （ fullwidth left parenthesis
     }
 
     /// Split paragraph into lines
@@ -1919,11 +1950,17 @@ public:
 
         int interval = m_srcs[0]->interval; // Note: no more used inside AddLine()
         int maxWidth = getCurrentLineWidth();
-#if 1
+
         // reservation of space for floating punctuation
         bool visualAlignmentEnabled = gFlgFloatingPunctuationEnabled!=0;
         int visualAlignmentWidth = 0;
         if ( visualAlignmentEnabled ) {
+            // We remove from the available width the max of the max width
+            // of -/./,/!/? (and other CJK ones) in all fonts used in that
+            // paragraph, to reserve room for it in case we get one hanging.
+            // (This will lead to messy variable paragraph widths if some
+            // paragraph use some bigger font for some inline parts, and
+            // others don't.)
             LVFont * font = NULL;
             for ( int i=start; i<end; i++ ) {
                 if ( !(m_pbuffer->srctext[i].flags & LTEXT_SRC_IS_OBJECT) ) {
@@ -1937,7 +1974,7 @@ public:
             }
             maxWidth -= visualAlignmentWidth;
         }
-#endif
+
         // split paragraph into lines, export lines
         int pos = 0;
         int upSkipPos = -1;
@@ -1990,17 +2027,20 @@ public:
                 maxWidth = getCurrentLineWidth();
             }
 
-            if ( visualAlignmentEnabled ) {
+            if ( visualAlignmentEnabled ) { // Floating punctuation
                 maxWidth -= visualAlignmentWidth;
                 spaceReduceWidth -= visualAlignmentWidth/2;
                 firstCharMargin += visualAlignmentWidth/2;
                 if (isCJKLeftPunctuation(m_text[pos])) {
+                    // Make that left punctuation left-hanging by reducing firstCharMargin
                     LVFont * fnt = (LVFont *)m_srcs[pos]->t.font;
-                    if (fnt) firstCharMargin -= fnt->getCharWidth(m_text[pos]);
+                    if (fnt)
+                        firstCharMargin -= fnt->getCharWidth(m_text[pos]);
                     firstCharMargin = (x + firstCharMargin) > 0 ? firstCharMargin : 0;
                 }
             }
-            // find candidates where end of line is possible
+
+            // Find candidates where end of line is possible
             bool seen_non_collapsed_space = false;
             for ( i=pos; i<m_length; i++ ) {
                 if (m_charindex[i] == FLOAT_CHAR_INDEX) { // float
@@ -2060,6 +2100,7 @@ public:
                     else
                         seen_non_collapsed_space = true;
                 }
+                // A space or a CJK ideograph make a normal allowed wrap
                 if ((flags & LCHAR_ALLOW_WRAP_AFTER) || isCJKIdeograph(m_text[i])) {
                     // Need to check if previous and next non-space char request a wrap on
                     // this space (or CJK char) to be avoided
@@ -2092,17 +2133,17 @@ public:
                     // Note that a wrap can happen AFTER a '-' (that has CH_PROP_AVOID_WRAP_AFTER)
                     // when lastDeprecatedWrap is prefered below.
                 }
-                else if ( i==m_length-1 )
+                else if ( i==m_length-1 ) // Last char
                     lastNormalWrap = i;
-                else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER )
+                else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER ) // Hyphens make a less priority wrap
                     lastDeprecatedWrap = i;
                 else if ( flags & LCHAR_ALLOW_HYPH_WRAP_AFTER ) // can't happen at this point as we haven't
                     lastHyphWrap = i;                           // gone thru HyphMan::hyphenate()
                 if ( !grabbedExceedingSpace &&
-                        m_pbuffer->min_space_condensing_percent!=100 &&
-                        i<m_length-1 &&
-                        (m_flags[i] & LCHAR_IS_SPACE) &&
-                        (i==m_length-1 || !(m_flags[i + 1] & LCHAR_IS_SPACE)) ) {
+                        m_pbuffer->min_space_condensing_percent != 100 &&
+                        i < m_length-1 &&
+                        ( m_flags[i] & LCHAR_IS_SPACE ) &&
+                        ( i==m_length-1 || !(m_flags[i + 1] & LCHAR_IS_SPACE) ) ) {
                     // Each space not followed by a space is candidate for space condensing
                     int dw = getMaxCondensedSpaceTruncation(i);
                     if ( dw>0 )
@@ -2124,14 +2165,22 @@ public:
                 lastNormalWrap = lastDeprecatedWrap;
             }
             // If, with normal wrapping, more than 5% of line is occupied by
-            // spaces, try to find a word (after where we stopped) to hyphenate
-            if ( lastMandatoryWrap<0 && lastNormalWrap<m_length-1 && unusedPercent > 5 && !(m_srcs[wordpos]->flags & LTEXT_SRC_IS_OBJECT) && (m_srcs[wordpos]->flags & LTEXT_HYPHENATE) ) {
+            // spaces, try to find a word (after where we stopped) to hyphenate,
+            // if hyphenation is not forbidden by CSS.
+            if ( lastMandatoryWrap<0 && lastNormalWrap<m_length-1 && unusedPercent > 5 &&
+                !(m_srcs[wordpos]->flags & LTEXT_SRC_IS_OBJECT) && (m_srcs[wordpos]->flags & LTEXT_HYPHENATE) ) {
                 // hyphenate word
                 int start, end;
+                // This will find the word contained at wordpos (or the previous word
+                // if wordpos happens to be a space or some punctuation - no issue
+                // with that as we'll rightly skip the hyphenation attempt below
+                // as 'end' will be < lastNormalWrap)
                 lStr_findWordBounds( m_text, m_length, wordpos, start, end );
                 int len = end-start;
                 if ( len<4 ) {
                     // too short word found, find next one
+                    // (This seems wrong and a no-op, as it looks like it will find
+                    // the exact same word as the previous call...)
                     lStr_findWordBounds( m_text, m_length, end-1, start, end );
                     len = end-start;
                 }
@@ -2139,7 +2188,7 @@ public:
                 if ( len>0 ) {
                     CRLog::trace("wordBounds(%s) unusedSpace=%d wordWidth=%d", LCSTR(lString16(m_text+start, len)), unusedSpace, m_widths[end]-m_widths[start]);
                     TR("wordBounds(%s) unusedSpace=%d wordWidth=%d", LCSTR(lString16(m_text+start, len)), unusedSpace, m_widths[end]-m_widths[start]);
-				}
+                }
 #endif
                 if ( start<end && start<wordpos && end>=lastNormalWrap && len>=MIN_WORD_LEN_TO_HYPHENATE ) {
                     if ( len > MAX_WORD_SIZE )
@@ -2177,6 +2226,8 @@ public:
                 if ( wrapPos<0 )
                     wrapPos = i-1;
                 if ( wrapPos<=upSkipPos ) {
+                    // Ensure that what, when dealing with previous line, we pushed to
+                    // next line (below) is actually on this new line.
                     //CRLog::trace("guard old wrapPos at %d", wrapPos);
                     wrapPos = upSkipPos+1;
                     //CRLog::trace("guard new wrapPos at %d", wrapPos);
@@ -2185,15 +2236,28 @@ public:
             }
             bool needReduceSpace = true; // todo: calculate whether space reducing required
             int endp = wrapPos+(lastMandatoryWrap<0 ? 1 : 0);
+            // The following looks left (up) and right (down) if there are any chars/punctuation
+            // that should be prevented from being at the end of line or start of line, and if
+            // yes adjust wrapPos so they are pushed to next line, or brought to this line.
+            // It might be a bit of a duplication of what's done above (for latin punctuations)
+            // in the avoidWrap section.
             int downSkipCount = 0;
             int upSkipCount = 0;
             if (endp > 1 && isCJKLeftPunctuation(*(m_text + endp))) {
+                // Next char will be fine at the start of next line.
                 //CRLog::trace("skip skip punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
             } else if (endp > 1 && endp < m_length - 1 && isCJKLeftPunctuation(*(m_text + endp - 1))) {
+                // Most right char is left punctuation: go back 1 char so this one
+                // goes onto next line.
                 upSkipPos = endp;
                 endp--; wrapPos--;
                 //CRLog::trace("up skip left punctuation %s, at index %d", LCSTR(lString16(m_text+endp, 1)), endp);
             } else if (endp > 1 && isCJKPunctuation(*(m_text + endp))) {
+                // Next char (start of next line) is some right punctuation that
+                // is not allowed at start of line.
+                // Look if it's better to wrap before (up) or after (down), and how
+                // much up or down we find an adequate wrap position, and decide
+                // which to use.
                 for (int epos = endp; epos<m_length; epos++, downSkipCount++) {
                    if ( !isCJKPunctuation(*(m_text + epos)) ) break;
                    //CRLog::trace("down skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
@@ -2203,10 +2267,15 @@ public:
                    //CRLog::trace("up skip punctuation %s, at index %d", LCSTR(lString16(m_text + epos, 1)), epos);
                 }
                 if (downSkipCount <= upSkipCount && downSkipCount <= 2 && visualAlignmentEnabled) {
+                   // Less skips if we bring next char on this line, and hanging
+                   // punctuation is enabled so this punctuation will naturally
+                   // find it's place in the reserved right area.
                    endp += downSkipCount;
                    wrapPos += downSkipCount;
                    //CRLog::trace("finally down skip punctuations %d", downSkipCount);
                 } else if (upSkipCount <= 2) {
+                   // Otherwise put it on next line (spaces or inter-ideograph spaces
+                   // will be expanded for justification).
                    upSkipPos = endp;
                    endp -= upSkipCount;
                    wrapPos -= upSkipCount;
@@ -2665,7 +2734,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     lvRect mark;
                     ldomMarkedRange * range = marks->get(i);
                     if ( range->intersects( lineRect, mark ) ) {
-						buf->InvertRect( mark.left + x, mark.top + y, mark.right + x, mark.bottom + y);
+                        buf->InvertRect( mark.left + x, mark.top + y, mark.right + x, mark.bottom + y);
                     }
                 }
             }
