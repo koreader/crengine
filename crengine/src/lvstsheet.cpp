@@ -231,7 +231,11 @@ inline char toLower( char c )
 static int substr_icompare( const char * sub, const char * & str )
 {
     int j;
-    for ( j=0; toLower(sub[j]) == toLower(str[j]) && sub[j] && str[j]; j++)
+
+    // Small optimisation: don't toLower() 'sub', as all the harcoded values
+    // we compare with are lowercase in this file.
+    // for ( j=0; toLower(sub[j]) == toLower(str[j]) && sub[j] && str[j]; j++)
+    for ( j=0; sub[j] == toLower(str[j]) && sub[j] && str[j]; j++)
         ;
     if (!sub[j])
     {
@@ -344,12 +348,13 @@ static bool parse_integer( const char * & str, int & value)
 }
 
 static bool parse_number_value( const char * & str, css_length_t & value,
-    bool accept_percent=true,
-    bool accept_negative=false,
-    bool accept_auto=false,
-    bool accept_normal=false,
-    bool is_font_size=false )
+                                    bool accept_percent=true,
+                                    bool accept_negative=false,
+                                    bool accept_auto=false,
+                                    bool accept_normal=false,
+                                    bool is_font_size=false )
 {
+    const char * orig_pos = str;
     value.type = css_val_unspecified;
     skip_spaces( str );
     // Here and below: named values and unit case should not matter
@@ -428,6 +433,7 @@ static bool parse_number_value( const char * & str, css_length_t & value,
     int n = 0;
     if (*str != '.') {
         if (*str<'0' || *str>'9') {
+            str = orig_pos; // revert our possible str++
             return false; // not a number
         }
         while (*str>='0' && *str<='9') {
@@ -471,8 +477,10 @@ static bool parse_number_value( const char * & str, css_length_t & value,
     else if ( substr_icompare( "%", str ) ) {
         if (accept_percent)
             value.type = css_val_percent;
-        else
+        else {
+            str = orig_pos; // revert our possible str++
             return false;
+        }
     }
     else if (n == 0 && frac == 0)
         value.type = css_val_px;
@@ -649,8 +657,17 @@ static int hexDigit( char c )
 
 bool parse_color_value( const char * & str, css_length_t & value )
 {
+    // Does not support "rgb(0, 127, 255)" nor "rgba(0,127,255)"
+    const char * orig_pos = str;
     value.type = css_val_unspecified;
     skip_spaces( str );
+    if ( substr_icompare( "transparent", str ) ) {
+        // Make it an invalid color, but a valid parsing so it
+        // can be inherited or flagged with !important
+        value.type = css_val_unspecified;
+        value.value = 0;
+        return true;
+    }
     if ( substr_compare( "inherit", str ) )
     {
         value.type = css_val_inherited;
@@ -686,8 +703,10 @@ bool parse_color_value( const char * & str, css_length_t & value )
             value.type = css_val_color;
             value.value = ((r * 256) | g) * 256 | b;
             return true;
-        } else
+        } else {
+            str = orig_pos; // revert our possible str++
             return false;
+        }
     }
     for ( int i=0; standard_color_table[i].name != NULL; i++ ) {
         if ( substr_icompare( standard_color_table[i].name, str ) ) {
@@ -696,13 +715,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
             return true;
         }
     }
-    if ( substr_icompare( "transparent", str ) ) {
-        // Make it an invalid color, but a valid parsing so it
-        // can be inherited or flagged with !important
-        value.type = css_val_unspecified;
-        value.value = 0;
-        return true;
-    }
+    str = orig_pos; // revert our possible str++
     return false;
 }
 
@@ -816,8 +829,8 @@ static const char * css_hyph_names[] =
 static const char * css_hyph_names2[] =
 {
     "inherit",
-    "optimizeSpeed",
-    "optimizeQuality",
+    "optimizespeed",
+    "optimizequality",
     NULL
 };
 // For "adobe-hyphenate:"
@@ -967,7 +980,7 @@ static const char * css_bg_attachment_names[]={
 };
 //background position names
 static const char * css_bg_position_names[]={
-        "left top",
+        "left top", // 0
         "left center",
         "left bottom",
         "right top",
@@ -975,8 +988,8 @@ static const char * css_bg_position_names[]={
         "right bottom",
         "center top",
         "center center",
-        "center bottom",
-        "top left",
+        "center bottom", // 8
+        "top left", // 9
         "center left",
         "bottom left",
         "top right",
@@ -984,14 +997,14 @@ static const char * css_bg_position_names[]={
         "bottom right",
         "top center",
         "center center",
-        "bottom center",
-        "center",
+        "bottom center", // 17
+        "center", // 18
         "left",
         "right",
         "top",
         "bottom",
-        "initial",
-        "inherit",
+        "initial", // 23
+        "inherit", // 24
         NULL
 };
 
@@ -1093,17 +1106,16 @@ enum cr_only_if_t {
 
 bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString16 codeBase )
 {
-    SerialBuf buf(512, true);
-
     if ( !decl )
         return false;
-
     skip_spaces( decl );
-    if (*decl!='{')
+    if ( *decl != '{' )
         return false;
     decl++;
+    SerialBuf buf(512, true);
+
     bool ignoring = false;
-    while (*decl && *decl!='}') {
+    while ( *decl && *decl != '}' ) {
         skip_spaces( decl );
         css_decl_code prop_code = parse_property_name( decl );
         if ( ignoring && prop_code != cssd_cr_only_if ) {
@@ -1115,8 +1127,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
         lString8 strValue;
         lUInt32 importance = higher_importance ? IMPORTANT_DECL_HIGHER : 0;
         lUInt32 parsed_important = 0; // for !important that may be parsed along the way
-        if (prop_code != cssd_unknown)
-        {
+        if (prop_code != cssd_unknown) {
             // parsed ok
             int n = -1;
             switch ( prop_code )
@@ -1313,18 +1324,14 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     int processed = splitPropertyValueList( decl, list );
                     decl += processed;
                     n = -1;
-                    if (list.length())
-                    {
-                        for (int i=list.length()-1; i>=0; i--)
-                        {
+                    if ( list.length() ) {
+                        for (int i=list.length()-1; i>=0; i--) {
                             const char * name = list[i].c_str();
                             int nn = parse_name( name, css_ff_names, -1 );
-                            if (n==-1 && nn!=-1)
-                            {
+                            if (n==-1 && nn!=-1) {
                                 n = nn;
                             }
-                            if (nn!=-1)
-                            {
+                            if (nn!=-1) {
                                 // remove family name from font list
                                 list.erase( i, 1 );
                             }
@@ -1337,7 +1344,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         strValue = joinPropertyValueList( list );
                     }
                     // default to serif generic font-family
-                    if (n == -1) n = 1;
+                    if (n == -1)
+                        n = 1;
                 }
                 break;
             case cssd_font_style:
@@ -1350,13 +1358,13 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 {
                     // read length
                     css_length_t len;
+                    const char * orig_pos = decl;
                     bool negative = false;
                     if ( *decl == '-' ) {
                         decl++;
                         negative = true;
                     }
-                    if ( parse_number_value( decl, len ) )
-                    {
+                    if ( parse_number_value( decl, len ) ) {
                         // read optional "hanging" flag
                         skip_spaces( decl );
                         int attr = parse_name( decl, css_ti_attribute_names, -1 );
@@ -1368,11 +1376,49 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
                     }
+                    else {
+                        decl = orig_pos; // revert any decl++
+                    }
                 }
                 break;
 
             // Next ones accept 1 length value (with possibly named values for borders
             // that we map to a length)
+            case cssd_border_bottom_width:
+            case cssd_border_top_width:
+            case cssd_border_left_width:
+            case cssd_border_right_width:
+                {
+                    int n1 = parse_name( decl, css_bw_names, -1 );
+                    if (n1 != -1) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        switch (n1) {
+                            case 0: // thin
+                                buf<<(lUInt32) css_val_px;
+                                buf<<(lUInt32) (1*256);
+                                break;
+                            case 1: // medium
+                                buf<<(lUInt32) css_val_px;
+                                buf<<(lUInt32) (3*256);
+                                break;
+                            case 2: // thick
+                                buf<<(lUInt32) css_val_px;
+                                buf<<(lUInt32) (5*256);
+                                break;
+                            case 3: // initial
+                                buf<<(lUInt32) css_val_px;
+                                buf<<(lUInt32) (3*256);
+                                break;
+                            case 4: // inherit
+                            default:
+                                buf<<(lUInt32) css_val_inherited;
+                                buf<<(lUInt32) 0;
+                                break;
+                        }
+                        break; // We found a named border-width, we're done
+                    }
+                }
+                // no named value found, don't break: continue checking if value is a number
             case cssd_line_height:
             case cssd_letter_spacing:
             case cssd_font_size:
@@ -1385,44 +1431,6 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_padding_left:
             case cssd_padding_right:
             case cssd_padding_top:
-            case cssd_border_bottom_width:
-            case cssd_border_top_width:
-            case cssd_border_left_width:
-            case cssd_border_right_width:
-            {
-                if (prop_code==cssd_border_bottom_width||prop_code==cssd_border_top_width||
-                        prop_code==cssd_border_left_width||prop_code==cssd_border_right_width){
-                const char*str=decl;
-                int n1=parse_name(str,css_bw_names,-1);
-                if (n1!=-1) {
-                    buf<<(lUInt32) (prop_code | importance | parse_important(str));
-                    switch (n1) {
-                        case 0:
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (1*256);
-                            break;
-                        case 1:
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (3*256);
-                            break;
-                        case 2:
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (5*256);
-                            break;
-                        case 3:
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (3*256);
-                            break;
-                        case 4:
-                            buf<<(lUInt32) css_val_inherited;
-                            buf<<(lUInt32) 0;
-                            break;
-                        default:break;
-                    }
-                    break;
-                }
-            }
-            }//continue if value is number
             case cssd_padding_bottom:
                 {
                     // borders don't accept length in %
@@ -1459,58 +1467,51 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 break;
             // Done with those that accept 1 length value.
 
-            // Next ones accept 4 length values (with possibly named values for borders
+            // Next ones accept 1 to 4 length values (with possibly named values for borders
             // that we map to a length)
-            case cssd_margin:
             case cssd_border_width:
-            {
-                if (prop_code==cssd_border_width){
-                const char*str=decl;
-                int n1=parse_name(str,css_bw_names,-1);
-                if (n1!=-1) {
-                    buf<<(lUInt32) (prop_code | importance | parse_important(str));
-                    switch (n1) {
-                        case 0:
-                            for (int i = 0; i < 4; ++i)
-                            {
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (1*256);
-                            }
-                            break;
-                        case 1:
-                            for (int i = 0; i < 4; ++i)
-                            {
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (3*256);
-                            }
-                            break;
-                        case 2:
-                            for (int i = 0; i < 4; ++i)
-                            {
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (5*256);
-                            }
-                            break;
-                        case 3:
-                            for (int i = 0; i < 4; ++i)
-                            {
-                            buf<<(lUInt32) css_val_px;
-                            buf<<(lUInt32) (3*256);
-                            }
-                            break;
-                        case 4:
-                            for (int i = 0; i < 4; ++i)
-                            {
-                            buf<<(lUInt32) css_val_inherited;
-                            buf<<(lUInt32) 0;
-                            }
-                            break;
-                        default:break;
+                {
+                    int n1 = parse_name( decl, css_bw_names, -1 );
+                    if (n1!=-1) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        switch (n1) {
+                            case 0: // thin
+                                for (int i = 0; i < 4; i++) {
+                                    buf<<(lUInt32) css_val_px;
+                                    buf<<(lUInt32) (1*256);
+                                }
+                                break;
+                            case 1: // medium
+                                for (int i = 0; i < 4; i++) {
+                                    buf<<(lUInt32) css_val_px;
+                                    buf<<(lUInt32) (3*256);
+                                }
+                                break;
+                            case 2: // thick
+                                for (int i = 0; i < 4; i++) {
+                                    buf<<(lUInt32) css_val_px;
+                                    buf<<(lUInt32) (5*256);
+                                }
+                                break;
+                            case 3: // initial
+                                for (int i = 0; i < 4; i++) {
+                                    buf<<(lUInt32) css_val_px;
+                                    buf<<(lUInt32) (3*256);
+                                }
+                                break;
+                            case 4: // inherit
+                            default:
+                                for (int i = 0; i < 4; i++) {
+                                    buf<<(lUInt32) css_val_inherited;
+                                    buf<<(lUInt32) 0;
+                                }
+                                break;
+                        }
+                        break; // We found a named border-width, we're done
                     }
-                    break;
                 }
-                }
-            }
+                // no named value found, don't break: continue checking if value is a number
+            case cssd_margin:
             case cssd_padding:
                 {
                     bool accept_percent = true;
@@ -1524,27 +1525,28 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     }
                     css_length_t len[4];
                     int i;
-                    for (i = 0; i < 4; ++i)
+                    for (i = 0; i < 4; i++) {
                         if (!parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto ))
                             break;
-                    if (i)
-                    {
-                        switch (i)
-                        {
+                    }
+                    if (i) {
+                        // If we found 1, it applies to 4 edges
+                        // If we found 2, 1st one apply to top and bottom, 2nd to right and left
+                        // If we found 3, 1st one apply to top 2nd to right and left, 3rd to bottom
+                        switch (i) {
                             case 1: len[1] = len[0]; /* fall through */
                             case 2: len[2] = len[0]; /* fall through */
                             case 3: len[3] = len[1];
                         }
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        for (i = 0; i < 4; ++i)
-                        {
+                        for (i = 0; i < 4; i++) {
                             buf<<(lUInt32) len[i].type;
                             buf<<(lUInt32) len[i].value;
                         }
                     }
                 }
                 break;
-            // Done with those that accept 4 length values.
+            // Done with those that accept 1 to 4 length values.
 
             case cssd_color:
             case cssd_background_color:
@@ -1552,108 +1554,69 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_border_right_color:
             case cssd_border_bottom_color:
             case cssd_border_left_color:
-            {
-                css_length_t len;
-                if ( parse_color_value( decl, len ) )
                 {
-                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                    buf<<(lUInt32) len.type;
-                    buf<<(lUInt32) len.value;
+                    css_length_t len;
+                    if ( parse_color_value( decl, len ) ) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        buf<<(lUInt32) len.type;
+                        buf<<(lUInt32) len.value;
+                    }
                 }
-            }
                 break;
             case cssd_border_color:
-            {
-                css_length_t len[4];
-                int i;
-                for (i = 0; i < 4; ++i)
-                    if (!parse_color_value( decl, len[i]))
-                        break;
-                if (i)
                 {
-                    switch (i)
-                    {
-                        case 1: len[1] = len[0]; /* fall through */
-                        case 2: len[2] = len[0]; /* fall through */
-                        case 3: len[3] = len[1];
-                    }
-                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                    for (i = 0; i < 4; ++i)
-                    {
-                        buf<<(lUInt32) len[i].type;
-                        buf<<(lUInt32) len[i].value;
+                    // Accepts 1 to 4 color values
+                    css_length_t len[4];
+                    int i;
+                    for (i = 0; i < 4; i++)
+                        if (!parse_color_value( decl, len[i]))
+                            break;
+                    if (i) {
+                        switch (i) {
+                            case 1: len[1] = len[0]; /* fall through */
+                            case 2: len[2] = len[0]; /* fall through */
+                            case 3: len[3] = len[1];
+                        }
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        for (i = 0; i < 4; i++) {
+                            buf<<(lUInt32) len[i].type;
+                            buf<<(lUInt32) len[i].value;
+                        }
                     }
                 }
-            }
                 break;
             case cssd_border_top_style:
             case cssd_border_right_style:
             case cssd_border_bottom_style:
             case cssd_border_left_style:
-            {
                 n = parse_name( decl, css_bst_names, -1 );
                 break;
-            }
-            case cssd_border_style: {
-                int n1=-1,n2=-1,n3=-1,n4=-1,sum=0;
-                n1 = parse_name(decl, css_bst_names, -1);
-                skip_spaces(decl);
-                if (n1!=-1) {
-                    sum=1;
-                    n2 = parse_name(decl, css_bst_names, -1);
-                    skip_spaces(decl);
-                    if (n2!=-1) {
-                        sum=2;
-                        n3 = parse_name(decl, css_bst_names, -1);
-                        skip_spaces(decl);
-                        if (n3!=-1) {
-                            sum=3;
-                            n4 = parse_name(decl, css_bst_names, -1);
+            case cssd_border_style:
+                {
+                    // Accepts 1 to 4 named values
+                    int name[4];
+                    int i;
+                    for (i = 0; i < 4; i++) {
+                        int n1 = parse_name( decl, css_bst_names, -1 );
+                        if ( n1 != -1 ) {
+                            name[i] = n1;
                             skip_spaces(decl);
-                            if (n4!=-1) sum=4;
+                            continue;
                         }
-                        }
-                    }
-                switch (sum) {
-                    case 1:
-                    {
-                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n1;
-                    }
                         break;
-                    case 2:
-                    {
-                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n2;
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n2;
                     }
-                    break;
-                    case 3:
-                    {
+                    if (i) {
+                        switch (i) {
+                            case 1: name[1] = name[0]; /* fall through */
+                            case 2: name[2] = name[0]; /* fall through */
+                            case 3: name[3] = name[1];
+                        }
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n2;
-                        buf<<(lUInt32) n3;
-                        buf<<(lUInt32) n2;
+                        for (i = 0; i < 4; i++) {
+                            buf<<(lUInt32) name[i];
+                        }
                     }
-                    break;
-                    case 4:
-                    {
-                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        buf<<(lUInt32) n1;
-                        buf<<(lUInt32) n2;
-                        buf<<(lUInt32) n3;
-                        buf<<(lUInt32) n4;
-                    }
-                    break;
-                    default:break;
                 }
-            }
                 break;
 
             // Next ones accept a triplet (possibly incomplete) like "2px solid blue".
@@ -1666,441 +1629,291 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_border_bottom:
             case cssd_border_left:
                 {
-                    css_length_t width,color;
-                    int n1=-1,n2=-1,n3=-1;
-                    lString8 tmp = lString8(decl);
-                    lString16 tmp1=lString16(tmp.c_str());
-                    tmp1.trimDoubleSpaces(false,false,true);//remove double spaces
-                    tmp=UnicodeToLocal(tmp1.c_str());
-                    const char *str1=tmp.c_str();
-                    if(!parse_color_value(str1,color))
-                    {   str1=tmp.c_str();
-                        if(!parse_number_value(str1,width,false)&&parse_name(str1,css_bw_names,-1)==-1) {
-                            str1=tmp.c_str();
-                            n1 = parse_name(str1, css_bst_names, -1);
-                            skip_spaces(str1);
-                            if (n1!=-1){
-                                const char * str2=str1;
-                                const char * str3=str1;
-                                if(!parse_color_value(str2,color)){
-                                    str2=str3;
-                                    if(parse_number_value(str2,width,false)) n3=1;
-                                    else{
-                                        int num=parse_name(str2,css_bw_names,-1);
-                                        if (num!=-1){
-                                            n3=1;
-                                            width.type=css_val_px;
-                                            switch (num){
-                                                case 0:
-                                                    width.value=1*256;
-                                                    break;
-                                                case 1:
-                                                    width.value=3*256;
-                                                    break;
-                                                case 2:
-                                                    width.value=5*256;
-                                                    break;
-                                                case 3:
-                                                    width.value=3*256;
-                                                    break;
-                                                case 4:
-                                                    width.type=css_val_inherited;
-                                                    width.value=0;
-                                                    break;
-                                                default:break;
-                                            }
-                                        }
-                                    }
-                                    skip_spaces(str2);
-                                    if(parse_color_value(str2,color)) n2=1;
-                                }
-                                else {
-                                    n2=1;
-                                    skip_spaces(str2);
-                                    if(parse_number_value(str2,width,false)) n3=1;
-                                    else{
-                                        int num=parse_name(str2,css_bw_names,-1);
-                                        if (num!=-1){
-                                            n3=1;
-                                            width.type=css_val_px;
-                                            switch (num){
-                                                case 0:
-                                                    width.value=1*256;
-                                                    break;
-                                                case 1:
-                                                    width.value=3*256;
-                                                    break;
-                                                case 2:
-                                                    width.value=5*256;
-                                                    break;
-                                                case 3:
-                                                    width.value=3*256;
-                                                    break;
-                                                case 4:
-                                                    width.type=css_val_inherited;
-                                                    width.value=0;
-                                                    break;
-                                                default:break;
-                                            }
-                                        }
-                                    }
-                                }
-                                parsed_important = parse_important(str2);
+                    bool found_style = false;
+                    bool found_width = false;
+                    bool found_color = false;
+                    int style_val = -1;
+                    css_length_t width;
+                    css_length_t color;
+                    // https://developer.mozilla.org/en-US/docs/Web/CSS/border-right
+                    // We look for 3 values at most, which are allowed to be in any order
+                    // and be missing.
+                    // If they are missing, we should set them to the default value:
+                    //   width: medium, style: none, color: currentColor
+                    // Note that the parse_* functions only advance the string when they
+                    // match. When they don't match, we stay at the position we were.
+                    for (int i=0; i<3; i++) {
+                        skip_spaces(decl);
+                        if ( !found_width ) {
+                            if ( parse_number_value( decl, width, false ) ) { // accept_percent=false
+                                found_width = true;
+                                continue;
                             }
-                        }
-                        else{
-                            if (width.type==css_val_unspecified){
-                                str1=tmp.c_str();
-                                int num=parse_name(str1,css_bw_names,-1);
-                                if (num!=-1){
-                                    n3=1;
-                                    width.type=css_val_px;
-                                    switch (num){
-                                        case 0:
-                                            width.value=1*256;
-                                            break;
-                                        case 1:
-                                            width.value=3*256;
-                                            break;
-                                        case 2:
-                                            width.value=5*256;
-                                            break;
-                                        case 3:
-                                            width.value=3*256;
-                                            break;
-                                        case 4:
-                                            width.type=css_val_inherited;
-                                            width.value=0;
-                                            break;
-                                        default:break;
-                                    }
-                                }
-                            }else n3=1;
-                            skip_spaces(str1);
-                            const char * str2=str1;
-                            if(!parse_color_value(str2,color)){
-                                str2=str1;
-                                skip_spaces(str2);
-                                n1 = parse_name(str1, css_bst_names, -1);
-                                if(parse_color_value(str1,color)) n2=1;
-                                parsed_important = parse_important(str1);
-                            }
-                            else{
-                                n2=1;
-                                skip_spaces(str2);
-                                n1 = parse_name(str2, css_bst_names, -1);
-                                parsed_important = parse_important(str2);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        n2=1;
-                        skip_spaces(str1);
-                        const char * str2=str1;
-                        if(!parse_number_value(str1,width,false)&&parse_name(str1,css_bw_names,-1)==-1) {
-                            str1=str2;
-                            n1 = parse_name(str1, css_bst_names, -1);
-                            skip_spaces(str1);
-                            if(parse_number_value(str1,width,false)) n3=1;
                             else {
-                                int num=parse_name(str1,css_bw_names,-1);
-                                if (num!=-1){
-                                    n3=1;
-                                    width.type=css_val_px;
+                                int num = parse_name( decl, css_bw_names, -1 );
+                                if ( num != -1 ) {
+                                    width.type = css_val_px;
                                     switch (num){
-                                        case 0:
-                                            width.value=1*256;
+                                        case 0: // thin
+                                            width.value = 1*256;
                                             break;
-                                        case 1:
-                                            width.value=3*256;
+                                        case 1: // medium
+                                            width.value = 3*256;
                                             break;
-                                        case 2:
-                                            width.value=5*256;
+                                        case 2: // thick
+                                            width.value = 5*256;
                                             break;
-                                        case 3:
-                                            width.value=3*256;
+                                        case 3: // initial
+                                            width.value = 3*256;
                                             break;
-                                        case 4:
-                                            width.type=css_val_inherited;
-                                            width.value=0;
+                                        case 4: // inherit
+                                        default:
+                                            width.type = css_val_inherited;
+                                            width.value = 0;
                                             break;
-                                        default:break;
                                     }
+                                    found_width = true;
+                                    continue;
                                 }
                             }
                         }
-                        else{
-                            if (width.type==css_val_unspecified){
-                                str1=str2;
-                                int num=parse_name(str1,css_bw_names,-1);
-                                if (num!=-1){
-                                    n3=1;
-                                    width.type=css_val_px;
-                                    switch (num){
-                                        case 0:
-                                            width.value=1*256;
-                                            break;
-                                        case 1:
-                                            width.value=3*256;
-                                            break;
-                                        case 2:
-                                            width.value=5*256;
-                                            break;
-                                        case 3:
-                                            width.value=3*256;
-                                            break;
-                                        case 4:
-                                            width.type=css_val_inherited;
-                                            width.value=0;
-                                            break;
-                                        default:break;
-                                    }
-                                }
-                            }else n3=1;
-                            skip_spaces(str1);
-                            n1 = parse_name(str1, css_bst_names, -1);
+                        if ( !found_style ) {
+                            style_val = parse_name( decl, css_bst_names, -1 );
+                            if ( style_val != -1 ) {
+                                found_style = true;
+                                continue;
+                            }
                         }
-                        parsed_important = parse_important(str1);
+                        if ( !found_color ) {
+                            if( parse_color_value( decl, color ) ){
+                                found_color = true;
+                                continue;
+                            }
+                        }
+                        // We have not found any usable name/color/width
+                        // in this loop: no need for more
+                        break;
                     }
+                    parsed_important = parse_important(decl);
 
-                    if (prop_code==cssd_border)
-                    {
-                        if (n1 != -1)
-                        {
-                            buf<<(lUInt32) (cssd_border_top_style | importance | parsed_important);
-                            buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_right_style | importance | parsed_important);
-                            buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_bottom_style | importance | parsed_important);
-                            buf<<(lUInt32) n1;
-                            buf<<(lUInt32) (cssd_border_left_style | importance | parsed_important);
-                            buf<<(lUInt32) n1;
-                            if (n2 != -1) {
-                                buf<<(lUInt32) (cssd_border_color | importance | parsed_important);
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) color.type;
-                                    buf<<(lUInt32) color.value;
-                                }
+                    // We expect to have at least found one of them
+                    if ( found_style || found_width || found_color ) {
+                        // We must set the not found properties to their default values
+                        if ( !found_style ) {
+                            // Default to "none"
+                            style_val = css_border_none;
+                        }
+                        if ( !found_width ) {
+                            // Default to "medium"
+                            width.type = css_val_px;
+                            width.value = 3*256;
+                        }
+                        if ( !found_color ) {
+                            // We don't support "currentColor": fallback to black
+                            color.type = css_val_color;
+                            color.value = 0x000000;
+                        }
+                        if ( prop_code==cssd_border ) {
+                            buf<<(lUInt32) (cssd_border_style | importance | parsed_important);
+                            for (int i = 0; i < 4; i++) {
+                                buf<<(lUInt32) style_val;
                             }
-                            if (n3 != -1) {
-                                buf<<(lUInt32) (cssd_border_width | importance | parsed_important);
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) width.type;
-                                    buf<<(lUInt32) width.value;
-                                }
+                            buf<<(lUInt32) (cssd_border_width | importance | parsed_important);
+                            for (int i = 0; i < 4; i++) {
+                                buf<<(lUInt32) width.type;
+                                buf<<(lUInt32) width.value;
+                            }
+                            buf<<(lUInt32) (cssd_border_color | importance | parsed_important);
+                            for (int i = 0; i < 4; i++) {
+                                buf<<(lUInt32) color.type;
+                                buf<<(lUInt32) color.value;
                             }
                         }
-                    }
-                    else {
-                    if (n1 != -1) {
-                        switch (prop_code){
-                            case cssd_border_top:
-                                buf<<(lUInt32) (cssd_border_top_style | importance | parsed_important);
-                                buf<<(lUInt32) n1;
-                                break;
-                            case cssd_border_right:
-                                buf<<(lUInt32) (cssd_border_right_style | importance | parsed_important);
-                                buf<<(lUInt32) n1;
-                                break;
-                            case cssd_border_bottom:
-                                buf<<(lUInt32) (cssd_border_bottom_style | importance | parsed_important);
-                                buf<<(lUInt32) n1;
-                                break;
-                            case cssd_border_left:
-                                buf<<(lUInt32) (cssd_border_left_style | importance | parsed_important);
-                                buf<<(lUInt32) n1;
-                                break;
-                            default:break;
-                        }
-                        if (n2 != -1) {
-                            switch (prop_code){
+                        else {
+                            css_decl_code prop_style, prop_width, prop_color;
+                            switch (prop_code) {
                                 case cssd_border_top:
-                                    buf<<(lUInt32) (cssd_border_top_color | importance | parsed_important);
-                                    buf<<(lUInt32) color.type;
-                                    buf<<(lUInt32) color.value;
+                                    prop_style = cssd_border_top_style;
+                                    prop_width = cssd_border_top_width;
+                                    prop_color = cssd_border_top_color;
                                     break;
                                 case cssd_border_right:
-                                    buf<<(lUInt32) (cssd_border_right_color | importance | parsed_important);
-                                    buf<<(lUInt32) color.type;
-                                    buf<<(lUInt32) color.value;
+                                    prop_style = cssd_border_right_style;
+                                    prop_width = cssd_border_right_width;
+                                    prop_color = cssd_border_right_color;
                                     break;
                                 case cssd_border_bottom:
-                                    buf<<(lUInt32) (cssd_border_bottom_color | importance | parsed_important);
-                                    buf<<(lUInt32) color.type;
-                                    buf<<(lUInt32) color.value;
+                                    prop_style = cssd_border_bottom_style;
+                                    prop_width = cssd_border_bottom_width;
+                                    prop_color = cssd_border_bottom_color;
                                     break;
                                 case cssd_border_left:
-                                    buf<<(lUInt32) (cssd_border_left_color | importance | parsed_important);
-                                    buf<<(lUInt32) color.type;
-                                    buf<<(lUInt32) color.value;
+                                default:
+                                    prop_style = cssd_border_left_style;
+                                    prop_width = cssd_border_left_width;
+                                    prop_color = cssd_border_left_color;
                                     break;
-                                default:break;
                             }
-                            }
-                        }
-                        if (n3 != -1) {
-                            switch (prop_code){
-                                case cssd_border_top:
-                                    buf<<(lUInt32) (cssd_border_top_width | importance | parsed_important);
-                                    buf<<(lUInt32) width.type;
-                                    buf<<(lUInt32) width.value;
-                                    break;
-                                case cssd_border_right:
-                                    buf<<(lUInt32) (cssd_border_right_width | importance | parsed_important);
-                                    buf<<(lUInt32) width.type;
-                                    buf<<(lUInt32) width.value;
-                                    break;
-                                case cssd_border_bottom:
-                                    buf<<(lUInt32) (cssd_border_bottom_width | importance | parsed_important);
-                                    buf<<(lUInt32) width.type;
-                                    buf<<(lUInt32) width.value;
-                                    break;
-                                case cssd_border_left:
-                                    buf<<(lUInt32) (cssd_border_left_width | importance | parsed_important);
-                                    buf<<(lUInt32) width.type;
-                                    buf<<(lUInt32) width.value;
-                                    break;
-                                default:break;
-                            }
-                            }
+                            buf<<(lUInt32) (prop_style | importance | parsed_important);
+                            buf<<(lUInt32) style_val;
+                            buf<<(lUInt32) (prop_width | importance | parsed_important);
+                            buf<<(lUInt32) width.type;
+                            buf<<(lUInt32) width.value;
+                            buf<<(lUInt32) (prop_color | importance | parsed_important);
+                            buf<<(lUInt32) color.type;
+                            buf<<(lUInt32) color.value;
                         }
                     }
-                    break;
+                }
+                break;
             // Done with those that accepts a triplet.
 
             case cssd_background_image:
-            {
-                lString8 str;
-                const char *tmp=decl;
-                int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!') {
-                    tmp++; len++;
+                {
+                    lString8 str;
+                    const char *tmp = decl;
+                    int len=0;
+                    while (*tmp && *tmp!=';' && *tmp!='}' && *tmp!='!') {
+                        tmp++; len++;
+                    }
+                    str.append(decl,len);
+                    decl += len;
+                    resolve_url_path(str, codeBase);
+                    len = str.length();
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                    buf<<(lUInt32) len;
+                    for (int i=0; i<len; i++)
+                        buf<<(lUInt32) str[i];
                 }
-                str.append(decl,len);
-                resolve_url_path(str, codeBase);
-                len=str.length();
-                buf<<(lUInt32) (prop_code | importance | parse_important(tmp));
-                buf<<(lUInt32) str.length();
-                for(int i=0;i<len;i++)
-                    buf<<(lUInt32) str[i];
-            }
                 break;
             case cssd_background_repeat:
-               n= parse_name(decl,css_bg_repeat_names,-1);
-               break;
+                n = parse_name( decl, css_bg_repeat_names, -1 );
+                break;
             case cssd_background_position:
-               n= parse_name(decl,css_bg_position_names,-1);
-                    if (n>8&&n<18) n=n-9;
-                    if (n==18) n=7;
-                    if (n==19) n=1;
-                    if (n==20) n=4;
-                    if (n==21) n=6;
-                    if (n==22) n=8;
-                    if (n==23) n=9;
-                    if (n==24) n=10;
-                    if (n==25) n=11;
-               break;
+                n = parse_name( decl, css_bg_position_names, -1 );
+                // Only values between 0 and 8 will be checked by the background drawing code
+                if ( n>8 ) {
+                    if ( n<18 ) n=n-9;       // "top left" = "left top"
+                    else if ( n==18 ) n=7;   // "center" = "center center"
+                    else if ( n==19 ) n=1;   // "left" = "left center"
+                    else if ( n==20 ) n=4;   // "right" = "right center"
+                    else if ( n==21 ) n=6;   // "top" = "center top"
+                    else if ( n==22 ) n=8;   // "bottom" = "center bottom"
+                    else if ( n==23 ) n=0;   // "initial" = "left top"
+                    else if ( n==24 ) n=0;   // "inherit" = "left top"
+                }
+                break;
             case cssd_background_attachment:
-               n= parse_name(decl,css_bg_attachment_names,-1);
-               break;
+                n = parse_name( decl, css_bg_attachment_names, -1 );
+                break;
             case cssd_background:
-            {
-                css_length_t color;
-                bool has_color = parse_color_value(decl, color);
-                lString8 str;
-                const char *tmp=decl;
-                int len=0;
-                while (*tmp && *tmp !=';' && *tmp!='}' && *tmp!='!') {
-                    tmp++; len++;
-                }
-                str.append(decl,len);
-                str.trim();
-                tmp=str.c_str();
-                int offset=len-str.length();//offset for removed spaces
-                if (Utf8ToUnicode(str).lowercase().startsWith("url")) {
-                    len=0;
-                    while (*tmp && *tmp !=';' && *tmp!='}'&&*tmp!=')')
-                    {tmp++;len++;}
-                    len=len+1+offset;
-                    str.clear();
-                    str.append(decl,len);
-                    resolve_url_path(str, codeBase);
-                    decl+=len;
-                    skip_spaces(decl);
-                    int repeat=parse_name(decl,css_bg_repeat_names,-1);
-                    if(repeat!=-1)
-                    {
-                        skip_spaces(decl);
-                    }
-                    int position=parse_name(decl,css_bg_position_names,-1);
-                    if (position!=-1)
-                    {
-                        if (position>8&&position<18) position=position-9;
-                        if (position==18) position=7;
-                        if (position==19) position=1;
-                        if (position==20) position=4;
-                        if (position==21) position=6;
-                        if (position==22) position=8;
-                        if (position==23) position=9;
-                        if (position==24) position=10;
-                        if (position==25) position=11;
-                    }
-                    parsed_important = parse_important(decl);
-                    buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
-                    buf<<(lUInt32) str.length();
-                    for (int i = 0; i < str.length(); i++)
-                        buf<<(lUInt32) str[i];
-                    if(repeat!=-1) {
-                        buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
-                        buf<<(lUInt32) repeat;
-                    }
-                    if (position!=-1) {
-                        buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
-                        buf<<(lUInt32) position;
-                    }
-                }
-                else { // no url, only color
-                    decl+=len;
-                    parsed_important = parse_important(decl);
-                }
-                if (has_color) {
-                    buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
-                    buf<<(lUInt32) color.type;
-                    buf<<(lUInt32) color.value;
-                }
-
-            }
-               break;
-            case cssd_border_spacing:
-            {
-                css_length_t len[2];
-                int i;
-                for (i = 0; i < 2; ++i)
-                    // border-spacing doesn't accept values in %
-                    if (!parse_number_value( decl, len[i], false))
-                        break;
-                if (i)
                 {
-                    if (i==1) len[1] = len[0];
-
-                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                    for (i = 0; i < 2; ++i)
-                    {
-                        buf<<(lUInt32) len[i].type;
-                        buf<<(lUInt32) len[i].value;
+                    // Limited parsing of this possibly complex property
+                    // We only support a single layer in these orders:
+                    //   - color
+                    //   - url(...) repeat position
+                    //   - color url(...) repeat position
+                    //   - color url(...) position repeat
+                    // (with repeat and position possibly absent or re-ordered)
+                    css_length_t color;
+                    bool has_color = parse_color_value(decl, color);
+                    skip_spaces(decl);
+                    const char *tmp = decl;
+                    int len = 0;
+                    while (*tmp && *tmp!=';' && *tmp!='}' && *tmp!='!') {
+                        tmp++; len++;
+                    }
+                    lString8 str;
+                    str.append(decl,len);
+                    if ( Utf8ToUnicode(str).lowercase().startsWith("url") ) {
+                        tmp = str.c_str();
+                        len = 0;
+                        while (*tmp && *tmp!=';' && *tmp!='}' && *tmp!=')') {
+                            tmp++; len++;
+                        }
+                        len = len + 1;
+                        str.clear();
+                        str.append(decl, len);
+                        decl += len;
+                        resolve_url_path(str, codeBase);
+                        len = str.length();
+                        // Try parsing following repeat and position
+                        skip_spaces(decl);
+                        int repeat = parse_name( decl, css_bg_repeat_names, -1 );
+                        if( repeat != -1 ) {
+                            skip_spaces(decl);
+                        }
+                        int position = parse_name( decl, css_bg_position_names, -1 );
+                        if ( position != -1 ) {
+                            // Only values between 0 and 8 will be checked by the background drawing code
+                            if ( position>8 ) {
+                                if ( position<18 ) position -= 9;    // "top left" = "left top"
+                                else if ( position==18 ) position=7; // "center" = "center center"
+                                else if ( position==19 ) position=1; // "left" = "left center"
+                                else if ( position==20 ) position=4; // "right" = "right center"
+                                else if ( position==21 ) position=6; // "top" = "center top"
+                                else if ( position==22 ) position=8; // "bottom" = "center bottom"
+                                else if ( position==23 ) position=0; // "initial" = "left top"
+                                else if ( position==24 ) position=0; // "inherit" = "left top"
+                            }
+                        }
+                        if( repeat == -1 ) { // Try parsing repeat after position
+                            skip_spaces(decl);
+                            repeat = parse_name( decl, css_bg_repeat_names, -1 );
+                        }
+                        parsed_important = parse_important(decl);
+                        buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
+                        buf<<(lUInt32) len;
+                        for (int i = 0; i < len; i++)
+                            buf<<(lUInt32) str[i];
+                        if(repeat != -1) {
+                            buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
+                            buf<<(lUInt32) repeat;
+                        }
+                        if (position != -1) {
+                            buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
+                            buf<<(lUInt32) position;
+                        }
+                    }
+                    else { // no url, only color
+                        decl += len; // skip any unsupported stuff until !
+                        parsed_important = parse_important(decl);
+                    }
+                    if ( has_color ) {
+                        buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
+                        buf<<(lUInt32) color.type;
+                        buf<<(lUInt32) color.value;
                     }
                 }
-            }
+                break;
+            case cssd_border_spacing:
+                {
+                    css_length_t len[2];
+                    int i;
+                    for (i = 0; i < 2; i++) {
+                        // border-spacing doesn't accept values in %
+                        if ( !parse_number_value( decl, len[i], false ) )
+                            break;
+                    }
+                    if (i) {
+                        if (i==1)
+                            len[1] = len[0];
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        for (i = 0; i < 2; i++) {
+                            buf<<(lUInt32) len[i].type;
+                            buf<<(lUInt32) len[i].value;
+                        }
+                    }
+                }
                 break;
             case cssd_border_collapse:
-                n=parse_name(decl,css_bc_names,-1);
+                n = parse_name( decl, css_bc_names, -1 );
                 break;
             case cssd_orphans:
-                n=parse_name(decl, css_orphans_widows_names, -1);
+                n = parse_name( decl, css_orphans_widows_names, -1 );
                 break;
             case cssd_widows:
-                n=parse_name(decl, css_orphans_widows_names, -1);
+                n = parse_name( decl, css_orphans_widows_names, -1 );
                 break;
             case cssd_float:
                 n = parse_name( decl, css_f_names, -1 );
@@ -2113,17 +1926,14 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             default:
                 break;
             }
-            if ( n!= -1)
-            {
+            if ( n!= -1) {
                 // add enum property
                 buf<<(lUInt32) (prop_code | importance | parsed_important | parse_important(decl));
                 buf<<(lUInt32) n;
             }
-            if (!strValue.empty())
-            {
+            if ( !strValue.empty() ) {
                 // add string property
-                if (prop_code==cssd_font_family)
-                {
+                if ( prop_code==cssd_font_family ) {
                     // font names
                     buf<<(lUInt32) (cssd_font_names | importance | parsed_important | parse_important(decl));
                     buf<<(lUInt32) strValue.length();
@@ -2132,16 +1942,14 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
             }
         }
-        else
-        {
-            // error: unknown property?
+        else {
+            // skip unknown property
         }
         next_property( decl );
     }
 
     // store parsed result
-    if (buf.pos())
-    {
+    if (buf.pos()) {
         buf<<(lUInt32) cssd_stop; // add end marker
         int sz = buf.pos()/4;
         _data = new int[sz];
@@ -2155,8 +1963,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
 
     // skip }
     skip_spaces( decl );
-    if (*decl == '}')
-    {
+    if (*decl == '}') {
         decl++;
         return true;
     }
@@ -2358,7 +2165,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_background_image:
         {
-            lString8 imagefile;
+                lString8 imagefile;
                 imagefile.reserve(64);
                 int l = *p++;
                 for (int i=0; i<l; i++)
@@ -2703,6 +2510,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     case cssrt_id:            // E#id
         {
             lString16 val = node->getAttributeValue(attr_id);
+            if ( val.empty() )
+                return false;
             /*lString16 ldomDocumentFragmentWriter::convertId( lString16 id ) adds codeBasePrefix to
              *original id name, I can not get codeBasePrefix from here so I add a space to identify the
              *real id name.*/
@@ -2718,6 +2527,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     case cssrt_class:         // E.class
         {
             lString16 val = node->getAttributeValue(attr_class);
+            if ( val.empty() )
+                return false;
             // val.lowercase(); // className should be case sensitive
             // if ( val.length() != _value.length() )
             //     return false;
@@ -3004,7 +2815,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
             // able to remove...
         }
         return rule;
-    } else if (*str != '[')
+    } else if (*str != '[') // We're looking for an attribute selector after here
         return NULL;
     str++;
     // We may find and skip spaces inside [...]
@@ -3154,7 +2965,12 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             // a few ones that are added explicitely by crengine): we need
             // to lowercase them here too to expect a match.
             lString16 element(ident);
-            if (element != "DocFragment" && element != "autoBoxing" & element != "floatBox" && element != "FictionBook" ) {
+            if ( element.length() < 8 ) {
+                // Avoid following string comparisons if element
+                // is shorter than the shortest of them (floatBox)
+                element = element.lowercase();
+            }
+            else if (element != "DocFragment" && element != "autoBoxing" & element != "floatBox" && element != "FictionBook" ) {
                 element = element.lowercase();
             }
             _id = doc->getElementNameIndex( element.c_str() );
