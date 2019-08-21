@@ -6789,6 +6789,11 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             drawbuf.GetClipRect( &orig_clip ); // Backup the original one
             // Set a new one to the target area
             lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);;
+            // But don't overflow page top and bottom, in case target spans multiple pages
+            if ( target_clip.top < orig_clip.top )
+                target_clip.top = orig_clip.top;
+            if ( target_clip.bottom > orig_clip.bottom )
+                target_clip.bottom = orig_clip.bottom;
             drawbuf.SetClipRect( &target_clip );
             // Draw
             drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
