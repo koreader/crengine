@@ -42,6 +42,14 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_OUTLINE_H   // for FT_Outline_Embolden()
+#include FT_SYNTHESIS_H // for FT_GlyphSlot_Embolden()
+
+// Use Freetype embolden API instead of LVFontBoldTransform to
+// make fake bold (for fonts that do not provide a bold face).
+// This gives a chance to get them working with Harfbuzz, even if
+// they won't look as nice as if they came with a real bold font.
+#define USE_FT_EMBOLDEN
 
 #if USE_HARFBUZZ==1
 #include <hb.h>
@@ -326,6 +334,18 @@ static lChar16 getReplacementChar( lUInt32 code ) {
 }
 
 
+// LVFontDef carries a font definition, and can be used to identify:
+// - registered fonts, from available font files (size=-1 if scalable)
+// - instantiated fonts from one of the registered fonts, with some
+//   update properties:
+//     - the specific size, > -1
+//     - italic=2 (if font has no real italic, and it is synthetized
+//       thanks to Freetype from the regular font glyphs)
+//     - _weight=601 (if no real bold font, and synthetized from
+//       the regular font glyphs)
+// It can be used as a key by caches to retrieve a registered font
+// or an instantiated one, and as a query to find in the cache an
+// exact or an approximate font.
 
 /**
     \brief Font properties definition
@@ -906,8 +926,8 @@ protected:
     int           _height; // full line height in pixels
     int           _hyphen_width;
     int           _baseline;
-    int           _weight;
-    int           _italic;
+    int           _weight; // 400: normal, 700: bold, 601: fake/synthetized bold, 100..900 thin..black
+    int           _italic; // 0: regular, 1: italic, 2: fake/synthetized italic
     LVFontGlyphUnsignedMetricCache   _wcache;   // glyph width cache
     LVFontGlyphSignedMetricCache     _lsbcache; // glyph left side bearing cache
     LVFontGlyphSignedMetricCache     _rsbcache; // glyph right side bearing cache
@@ -917,7 +937,8 @@ protected:
     kerning_mode_t _kerningMode;
     bool           _fallbackFontIsSet;
     LVFontRef      _fallbackFont;
-
+    bool           _embolden; // fake/synthetized bold
+    FT_Pos         _embolden_half_strength; // for emboldening with Harfbuzz
 #if USE_HARFBUZZ==1
     hb_font_t* _hb_font;
     //
@@ -960,6 +981,7 @@ public:
     virtual int getItalic() const { return _italic; }
     /// sets face name
     virtual void setFaceName( lString8 face ) { _faceName = face; }
+    virtual lString8 getFaceName() { return _faceName; }
 
     LVMutex & getMutex() { return _mutex; }
     FT_Library getLibrary() { return _library; }
@@ -967,7 +989,7 @@ public:
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
         : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL)
         , _size(0), _hyphen_width(0), _baseline(0)
-        , _weight(400), _italic(0)
+        , _weight(400), _italic(0), _embolden(false)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
         , _fallbackFontIsSet(false)
@@ -1096,6 +1118,53 @@ public:
         clearCache();
     }
     virtual bool getBitmapMode() { return _drawMonochrome; }
+
+    // Synthetized bold on a font that does not come with a bold variant.
+    void setEmbolden() {
+        _embolden = true;
+        // A real bold font has weight 700, vs 400 for the regular.
+        // LVFontBoldTransform did +200, so we get 600 (demibold).
+        // Let's do the same (even if I don't see why not +300).
+        _weight = (_weight + 200 > 900) ? 900 : _weight + 200;
+        // And add +1 so we can know it's a fake/synthetized font, so we
+        // can avoid getting it (and get the original regular font instead)
+        // when synthetizing an other variant of that font.
+        _weight += 1;
+        // When not using Harfbuzz, we will simply call FT_GlyphSlot_Embolden()
+        // to get the glyphinfo and glyph with synthetized bold and increased
+        // metrics, and everything should work naturally:
+        //   "Embolden a glyph by a 'reasonable' value (which is highly a matter
+        //   of taste) [...] For emboldened outlines the height, width, and
+        //   advance metrics are increased by the strength of the emboldening".
+        //
+        // When using Harfbuzz, which uses itself the font metrics, that we
+        // can't tweak at all from outside, we'll get positionning based on
+        // the not-bolded font. We can't increase them as that would totally
+        // mess HB work.
+        // We can only do as MuPDF does (source/fitz/font.c): keep the HB
+        // positions, offset and advances, embolden the glyph by some value
+        // of 'strength', and shift left/bottom by 1/2 'strength', so the
+        // boldened glyph is centered on its original: the glyph being a
+        // bit larger, it will blend over its neighbour glyphs, but it
+        // looks quite allright.
+        // Caveat: words in fake bold will be bolder, but not larger than
+        // the same word in the regular font (unlike with a real bold font
+        // were they would be bolder and larger).
+        // We need to compute the strength as done in FT_GlyphSlot_Embolden():
+        //   xstr = FT_MulFix( face->units_per_EM, face->size->metrics.y_scale ) / 24;
+        //   ystr = xstr;
+        //   FT_Outline_EmboldenXY( &slot->outline, xstr, ystr );
+        // and will do as MuPDF does (with some private value of 'strength'):
+        //   FT_Outline_Embolden(&face->glyph->outline, strength);
+        //   FT_Outline_Translate(&face->glyph->outline, -strength/2, -strength/2);
+        // (with strength: 0=no change; 64=1px embolden; 128=2px embolden and 1px x/y translation)
+        // int strength = (_face->units_per_EM * _face->size->metrics.y_scale) / 24;
+        FT_Pos embolden_strength = FT_MulFix(_face->units_per_EM, _face->size->metrics.y_scale) / 24;
+        // Make it slightly less bold than Freetype's bold, as we get less spacing
+        // around glyphs with HarfBuzz, by getting the unbolded advances.
+        embolden_strength = embolden_strength * 3/4; // (*1/2 is fine but a tad too light)
+        _embolden_half_strength = embolden_strength / 2;
+    }
 
     // Used when an embedded font (registered by RegisterDocumentFont()) is intantiated
     bool loadFromBuffer(LVByteArrayRef buf, int index, int size, css_font_family_t fontFamily,
@@ -1443,6 +1512,10 @@ public:
         if ( error )
             return false;
 
+        if (_embolden) { // Embolden so we get the real embolden metrics
+            // See setEmbolden() for details
+            FT_GlyphSlot_Embolden(_slot);
+        }
         glyph->blackBoxX = (lUInt16)(_slot->metrics.width >> 6);
         glyph->blackBoxY = (lUInt16)(_slot->metrics.height >> 6);
         glyph->originX =   (lInt16)(_slot->metrics.horiBearingX >> 6);
@@ -1865,6 +1938,11 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
+            if (_embolden) { // Don't render yet
+                rend_flags &= ~FT_LOAD_RENDER;
+                // Also disable any hinting, as it would be wrong after embolden
+                rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
 
             /* load glyph image into the slot (erase previous one) */
             updateTransform(); // no-op
@@ -1873,6 +1951,12 @@ public:
                     rend_flags );             /* load flags, see below */
             if ( error ) {
                 return NULL;  /* ignore errors */
+            }
+
+            if (_embolden) { // Embolden and render
+                // See setEmbolden() for details
+                FT_GlyphSlot_Embolden(_slot);
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
             }
 
             item = newItem( &_glyph_cache, ch, _slot ); //, _drawMonochrome
@@ -1899,6 +1983,12 @@ public:
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
 
+            if (_embolden) { // Don't render yet
+                rend_flags &= ~FT_LOAD_RENDER;
+                // Also disable any hinting, as it would be wrong after embolden
+                rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
+
             /* load glyph image into the slot (erase previous one) */
             updateTransform(); // no-op
             int error = FT_Load_Glyph( _face, /* handle to face object */
@@ -1906,6 +1996,15 @@ public:
                     rend_flags );             /* load flags, see below */
             if ( error ) {
                 return NULL;  /* ignore errors */
+            }
+
+            if (_embolden) { // Embolden and render
+                // See setEmbolden() for details
+                if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                    FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
+                    FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
+                }
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
             }
 
             item = newItem(index, _slot);
@@ -3330,12 +3429,18 @@ public:
         if (!item->getFont().isNull()) {
             int deltaWeight = weight - item->getDef()->getWeight();
             if ( deltaWeight >= 200 ) {
-                // embolden
-                CRLog::debug("font: apply Embolding to increase weight from %d to %d", newDef.getWeight(), newDef.getWeight() + 200 );
-                newDef.setWeight( newDef.getWeight() + 200 );
-                LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
-                _cache.update( &newDef, ref );
-                return ref;
+                // This instantiated cached font has a too low weight
+                #ifndef USE_FT_EMBOLDEN
+                    // embolden using LVFontBoldTransform
+                    CRLog::debug("font: apply Embolding to increase weight from %d to %d",
+                                        newDef.getWeight(), newDef.getWeight() + 200 );
+                    newDef.setWeight( newDef.getWeight() + 200 );
+                    LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
+                    _cache.update( &newDef, ref );
+                    return ref;
+                #endif
+                // when USE_FT_EMBOLDEN, ignore this low-weight cached font instance
+                // and go loading from the font file again to apply embolden.
             }
             else {
                 //fprintf(_log, "    : fount existing\n");
@@ -3361,7 +3466,7 @@ public:
 
         if ( !item->getDef()->isRealItalic() && italic ) {
             //CRLog::debug("font: fake italic");
-            newDef.setItalic(true);
+            newDef.setItalic(2);
             italicize = true;
         }
 
@@ -3387,15 +3492,27 @@ public:
             newDef.setSize( size );
             //item->setFont( ref );
             //_cache.update( def, ref );
-            _cache.update( &newDef, ref );
             int deltaWeight = weight - newDef.getWeight();
             if ( 1 && deltaWeight >= 200 ) {
                 // embolden
-                CRLog::debug("font: apply Embolding to increase weight from %d to %d", newDef.getWeight(), newDef.getWeight() + 200 );
-                newDef.setWeight( newDef.getWeight() + 200 );
-                ref = LVFontRef( new LVFontBoldTransform( ref, &_globalCache ) );
-                _cache.update( &newDef, ref );
+                #ifndef USE_FT_EMBOLDEN
+                    CRLog::debug("font: apply Embolding to increase weight from %d to %d",
+                                        newDef.getWeight(), newDef.getWeight() + 200 );
+                    // Create a wrapper with LVFontBoldTransform which will bolden the glyphs
+                    newDef.setWeight( newDef.getWeight() + 200 );
+                    ref = LVFontRef( new LVFontBoldTransform( ref, &_globalCache ) );
+                #else
+                    // Will make some of this font's methods do embolden the glyphs and widths
+                    font->setEmbolden();
+                    newDef.setWeight( font->getWeight() );
+                #endif
+                /*
+                printf("CRE: %s:%d [%s %d%s]: fake bold%s\n", fname.c_str(), item->getDef()->getIndex(),
+                        font->getFaceName().c_str(), font->getSize(),
+                        italic?" i":"", italicize?", fake italic":""); // font->getWeight());
+                */
             }
+            _cache.update( &newDef, ref );
             // int rsz = ref->getSize();
             // if ( rsz!=size ) {
             //     size++;
@@ -3755,6 +3872,12 @@ public:
             }
             _cache.update( &def, LVFontRef(NULL) );
             if ( scal && !def.getItalic() ) {
+                // If this font is not italic, create another definition
+                // with italic=2 (=fake italic) as we can italicize it.
+                // A real italic font (italic=1) will be found first
+                // when italic is requested.
+                // (Strange that italic and embolden are managed differently...
+                // maybe it makes the 2x2 combinations easier to manage?)
                 LVFontDef newDef( def );
                 newDef.setItalic(2); // can italicize
                 if ( !_cache.findDuplicate( &newDef ) )
@@ -4187,19 +4310,60 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     int italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1) ?
               256
             :   0;
+    // lower the score if any is fake italic
     if ( (_italic==2 || def._italic==2) && _italic>0 && def._italic>0 )
         italic_match = 128;
+
 
     // family
     int family_match = (_family==css_ff_inherit || def._family==css_ff_inherit || def._family == _family) ?
               256
             : ( (_family==css_ff_monospace)==(def._family==css_ff_monospace) ? 64 : 0 );
+              // lower score if one is monospace and the other is not
 
     // typeface
     int typeface_match = (_typeface == def._typeface) ? 256 : 0;
 
     // bias
     int bias = useBias ? _bias : 0;
+
+    // Special handling for synthetized fonts:
+    // The way this function is called:
+    // 'this' (or '', properties not prefixed) is either an instance of a
+    //     registered font, or a registered font definition,
+    // 'def' is the requested definition.
+    // 'def' can never be italic=2 (fake italic) or weight=601 (fake bold), but
+    //    either 0 or 1, or a 400,700,... any multiple of 100
+    // 'this' registered can be only 400 when the font has no bold sibling,
+    //           or 700 when 'this' is the bold sibling
+    // 'this' instantiated can be 400 (for the regular original)
+    //           or 700 when 'this' is the bold sibling instantiated
+    //           or 601 when it has been synthetised from the regular.
+    // We want to avoid an instantiated fake bold (resp. fake bold italic) to
+    // have a higher score than the registered original when a fake bold italic
+    // (resp. fake bold) is requested, so the italic/non italic requested can
+    // be re-synthetized. Otherwise, we'll get some italic when not wanting
+    // italic (or vice versa), depending on which has been instantiated first...
+    //
+    if ( _weight & 1) {           // 'this' is an instantiated fake bold font
+        if ( def._italic > 0 ) {  // italic requested
+            if ( _italic == 0 ) { // 'this' is fake bold but non-italic
+                weight_match = 0; // => drop score
+                italic_match = 0;
+                // The regular (italic or fake italic) is available
+                // and will get a better score than 'this'
+            }
+            // otherwise, 'this' is a fake bold italic, and it can match
+        }
+        else {                    // non-italic requested
+            if ( _italic > 0 ) {  // 'this' is fake bold of (real or fake) italic
+                weight_match = 0; // => drop score
+                italic_match = 0;
+                // The regular is available and will get a better score
+                // than 'this'
+            }
+        }
+    }
 
     // final score
     int score = bias
