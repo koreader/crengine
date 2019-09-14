@@ -289,11 +289,20 @@ public:
     {
         clear();
     }
-    void addLink( LVFootNote * note )
+    int getLinksCount()
+    {
+        if ( links==NULL )
+            return 0;
+        return links->length();
+    }
+    void addLink( LVFootNote * note, int pos=-1 )
     {
         if ( links==NULL )
             links = new LVFootNoteList();
-        links->add( note );
+        if ( pos >= 0 ) // insert at pos
+            links->insert( pos, note );
+        else // append
+            links->add( note );
         flags |= RN_SPLIT_FOOT_LINK;
     }
 };
@@ -371,8 +380,12 @@ public:
     }
     bool updateRenderProgress( int numFinalBlocksRendered );
 
-    /// append footnote link to last added line
-    void addLink( lString16 id );
+    /// Get the number of links in the current line links list, or
+    // in link_ids when no page_list
+    int getCurrentLinksCount();
+
+    /// append or insert footnote link to last added line
+    void addLink( lString16 id, int pos=-1 );
 
     /// get gathered links when no page_list
     // (returns a reference to avoid lString16Collection destructor from

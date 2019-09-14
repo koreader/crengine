@@ -71,17 +71,33 @@ bool LVRendPageContext::updateRenderProgress( int numFinalBlocksRendered )
     return false;
 }
 
-/// append footnote link to last added line
-void LVRendPageContext::addLink( lString16 id )
+/// Get the number of links in the current line links list, or
+// in link_ids when no page_list
+int LVRendPageContext::getCurrentLinksCount()
 {
     if ( !page_list ) {
-        link_ids.add( id ); // gather links even if no page_list
+        return link_ids.length();
+    }
+    if ( lines.empty() )
+        return 0;
+    return lines.last()->getLinksCount();
+}
+
+/// append or insert footnote link to last added line
+void LVRendPageContext::addLink( lString16 id, int pos )
+{
+    if ( !page_list ) {
+        // gather links even if no page_list
+        if ( pos >= 0 ) // insert at pos
+            link_ids.insert( pos, id );
+        else // append
+            link_ids.add( id );
         return;
     }
     if ( lines.empty() )
         return;
     LVFootNote * note = getOrCreateFootNote( id );
-    lines.last()->addLink(note);
+    lines.last()->addLink(note, pos);
 }
 
 /// mark start of foot note
