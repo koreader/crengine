@@ -13364,6 +13364,10 @@ bool ldomNode::getNodeListMarker( int & counterValue, lString16 & marker, int & 
                 css_style_ref_t cs = child->getStyle();
                 if ( cs.isNull() )
                     continue;
+                if ( cs->display!=css_d_list_item_block && cs->display!=css_d_list_item) {
+                    // Alien element among list item nodes, skip it to not mess numbering
+                    continue;
+                }
                 switch ( cs->list_style_type ) {
                 case css_lst_decimal:
                 case css_lst_lower_roman:
