@@ -10043,7 +10043,15 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar16 * nsname, const lCha
             parent->OnAttribute(nsname, attrname, attrvalue);
         }
     } else {
-        if ( styleDetectionState ) {
+        if (insideHtmlTag) {
+            // Grab attributes from <html dir="rtl" lang="he"> (not included in the DOM)
+            // to reinject them in <DocFragment>
+            if ( !lStr_cmp(attrname, "dir") )
+                htmlDir = attrvalue;
+            else if ( !lStr_cmp(attrname, "lang") )
+                htmlLang = attrvalue;
+        }
+        else if ( styleDetectionState ) {
             if ( !lStr_cmp(attrname, "rel") && lString16(attrvalue).lowercase() == L"stylesheet" )
                 styleDetectionState |= 2;
             else if ( !lStr_cmp(attrname, "type") ) {
@@ -10079,8 +10087,13 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar16 * nsname, const 
     } else {
         if ( !lStr_cmp(tagname, "link") )
             styleDetectionState = 1;
-        if ( !lStr_cmp(tagname, "style") )
+        else if ( !lStr_cmp(tagname, "style") )
             headStyleState = 1;
+        else if ( !lStr_cmp(tagname, "html") ) {
+            insideHtmlTag = true;
+            htmlDir.clear();
+            htmlLang.clear();
+        }
     }
 
     // When meeting the <body> of each of an EPUB's embedded HTML files,
@@ -10115,6 +10128,11 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar16 * nsname, const 
             }
             if ( !codeBasePrefix.empty() ) // add attribute <DocFragment id="..html_file_name"
                 parent->OnAttribute(L"", L"id", codeBasePrefix.c_str() );
+            if ( !htmlDir.empty() ) // add attribute <DocFragment dir="rtl" from <html dir="rtl"> tag
+                parent->OnAttribute(L"", L"dir", htmlDir.c_str() );
+            if ( !htmlLang.empty() ) // add attribute <DocFragment lang="ar" from <html lang="ar"> tag
+                parent->OnAttribute(L"", L"lang", htmlLang.c_str() );
+
             parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {
                 // add stylesheet element as child of <DocFragment>: <stylesheet href="...">
@@ -10177,6 +10195,9 @@ void ldomDocumentFragmentWriter::OnTagBody()
 {
     if ( insideTag ) {
         parent->OnTagBody();
+    }
+    else if ( insideHtmlTag ) {
+        insideHtmlTag = false;
     }
     if ( styleDetectionState == 11 ) {
         // incomplete <link rel="stylesheet", href="..." />; assuming type="text/css"
