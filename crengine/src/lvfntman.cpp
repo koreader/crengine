@@ -24,6 +24,10 @@
 #include "../include/lvstyles.h"
 #include "../include/lvthread.h"
 
+// Uncomment for debugging text measurement or drawing
+// #define DEBUG_MEASURE_TEXT
+// #define DEBUG_DRAW_TEXT
+
 // define to filter out all fonts except .ttf
 //#define LOAD_TTF_FONTS_ONLY
 // DEBUG ONLY
@@ -333,6 +337,28 @@ static lChar16 getReplacementChar( lUInt32 code ) {
     return 0;
 }
 
+
+#if USE_HARFBUZZ==1
+bool isScriptCursive( hb_script_t script ) {
+    // https://github.com/harfbuzz/harfbuzz/issues/64
+    // From https://android.googlesource.com/platform/frameworks/minikin/
+    //               +/refs/heads/experimental/libs/minikin/Layout.cpp
+    return  script == HB_SCRIPT_ARABIC ||
+            script == HB_SCRIPT_NKO ||
+            script == HB_SCRIPT_PSALTER_PAHLAVI ||
+            script == HB_SCRIPT_MANDAIC ||
+            script == HB_SCRIPT_MONGOLIAN ||
+            script == HB_SCRIPT_PHAGS_PA ||
+            script == HB_SCRIPT_DEVANAGARI ||
+            script == HB_SCRIPT_BENGALI ||
+            script == HB_SCRIPT_GURMUKHI ||
+            script == HB_SCRIPT_MODI ||
+            script == HB_SCRIPT_SHARADA ||
+            script == HB_SCRIPT_SYLOTI_NAGRI ||
+            script == HB_SCRIPT_TIRHUTA ||
+            script == HB_SCRIPT_OGHAM;
+}
+#endif
 
 // LVFontDef carries a font definition, and can be used to identify:
 // - registered fonts, from available font files (size=-1 if scalable)
@@ -855,7 +881,7 @@ lString8 familyName( FT_Face face )
 
 // The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
 // were: "LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER".
-// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_LIGATURE_TAIL
+// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_CLUSTER_TAIL
 // (as flags were lUInt8, and the 8 bits were used, one needed to be dropped - they
 // have since been upgraded to be lUInt16)
 static lUInt16 char_flags[] = {
@@ -1390,30 +1416,36 @@ public:
     }
 
 #if USE_HARFBUZZ==1
-    lChar16 filterChar(lChar16 code) {
-        lChar16 res;
-        if (code == '\t')
-            code = ' ';
+    // Used by Harfbuzz full
+    lChar16 filterChar(lChar16 code, lChar16 def_char=0) {
+        if (code == '\t')    // (FreeSerif doesn't have \t, get a space
+            code = ' ';      // rather than a '?')
+
         FT_UInt ch_glyph_index = FT_Get_Char_Index(_face, code);
-        if ( ch_glyph_index==0 && code >= 0xF000 && code <= 0xF0FF) {
+        if (ch_glyph_index != 0) { // found
+            return code;
+        }
+
+        if ( code >= 0xF000 && code <= 0xF0FF) {
             // If no glyph found and code is among the private unicode
             // area classically used by symbol fonts (range U+F020-U+F0FF),
             // try to switch to FT_ENCODING_MS_SYMBOL
-            if (FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
+            if (!FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
                 ch_glyph_index = FT_Get_Char_Index( _face, code );
                 // restore unicode charmap if there is one
                 FT_Select_Charmap(_face, FT_ENCODING_UNICODE);
+                if (ch_glyph_index != 0) { // glyph found: code is valid
+                    return code;
+                }
             }
         }
-        if (0 != ch_glyph_index) {
-            res = code;
-        }
-        else {
-            res = getReplacementChar(code);
-            if (0 == res)
-                res = code;
-        }
-        return res;
+        lChar16 res = getReplacementChar(code);
+        if (res != 0)
+            return res;
+        if (def_char != 0)
+            return def_char;
+        // If nothing found, let code be
+        return code;
     }
 
     bool hbCalcCharWidth(struct LVCharPosInfo* posInfo, const struct LVCharTriplet& triplet, lChar16 def_char) {
@@ -1422,14 +1454,14 @@ public:
         unsigned int segLen = 0;
         int cluster;
         hb_buffer_clear_contents(_hb_light_buffer);
-        if (0 != triplet.prevChar) {
+        if ( triplet.prevChar != 0 ) {
             hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.prevChar, segLen);
             segLen++;
         }
         hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.Char, segLen);
         cluster = segLen;
         segLen++;
-        if (0 != triplet.nextChar) {
+        if ( triplet.nextChar != 0 ) {
             hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.nextChar, segLen);
             segLen++;
         }
@@ -1440,29 +1472,38 @@ public:
         if (segLen == glyph_count) {
             hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_light_buffer, &glyph_count);
             hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_light_buffer, &glyph_count);
-            if (0 != glyph_info[cluster].codepoint) {        // glyph found for this char in this font
-                posInfo->offset = glyph_pos[cluster].x_offset >> 6;
-                posInfo->width = glyph_pos[cluster].x_advance >> 6;
+            // Ignore HB measurements when there is a single glyph not found,
+            // as it may be found in a fallback font
+            int codepoint_notfound_nb = 0;
+            for (int i=0; i<glyph_count; i++) {
+                if ( glyph_info[i].codepoint == 0 )
+                    codepoint_notfound_nb++;
+                // This does not look like it's really needed to ignore
+                // more measurements (I felt it was needed for hebrew with
+                // many diacritics).
+                // if ( glyph_pos[i].x_advance == 0 )
+                //    zero_advance_nb++;
             }
-            else {
-                // hb_shape() failed or glyph omitted in this font, use fallback font
-                glyph_info_t glyph;
-                LVFont *fallback = getFallbackFont();
-                if (fallback) {
-                    if (fallback->getGlyphInfo(triplet.Char, &glyph, def_char)) {
-                        posInfo->offset = 0;
-                        posInfo->width = glyph.width;
-                    }
+            if ( codepoint_notfound_nb == 0 ) {
+                // Be sure HB chosen glyph is the same as freetype chosen glyph,
+                // which will be the one that will be rendered
+                FT_UInt ch_glyph_index = FT_Get_Char_Index( _face, triplet.Char );
+                if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
+                    posInfo->offset = glyph_pos[cluster].x_offset >> 6;
+                    posInfo->width = glyph_pos[cluster].x_advance >> 6;
+                    return true;
                 }
             }
         }
-        else {
-            #ifdef _DEBUG
-            CRLog::debug("hbCalcCharWidthWithKerning(): hb_buffer_get_length() return %d, must be %d, return value (-1)", glyph_count, segLen);
-            #endif
-            return false;
+        // Otherwise, use plain Freetype getGlyphInfo() which will check
+        // again with this font, or the fallback one
+        glyph_info_t glyph;
+        if ( getGlyphInfo(triplet.Char, &glyph, def_char) ) {
+            posInfo->offset = 0;
+            posInfo->width = glyph.width;
+            return true;
         }
-        return true;
+        return false;
     }
 #endif // USE_HARFBUZZ==1
 
@@ -1587,6 +1628,11 @@ public:
     /** \brief measure text
         \param text is text string pointer
         \param len is number of characters to measure
+        \param max_width is maximum width to measure line
+        \param def_char is character to replace absent glyphs in font
+        \param letter_spacing is number of pixels to add between letters
+        \param allow_hyphenation whether to check for hyphenation if max_width reached
+        \param hints: hint flags (direction, begin/end of paragraph, for Harfbuzz - unrelated to font hinting)
         \return number of characters before max_width reached
     */
     virtual lUInt16 measureText(
@@ -1597,7 +1643,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing = 0,
-                        bool allow_hyphenation = true
+                        bool allow_hyphenation = true,
+                        lUInt32 hints=0
                      )
     {
         FONT_GUARD
@@ -1620,123 +1667,328 @@ public:
     #if USE_HARFBUZZ==1
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
 
+            /** from harfbuzz/src/hb-buffer.h
+             * hb_glyph_info_t:
+             * @codepoint: either a Unicode code point (before shaping) or a glyph index
+             *             (after shaping).
+             * @cluster: the index of the character in the original text that corresponds
+             *           to this #hb_glyph_info_t, or whatever the client passes to
+             *           hb_buffer_add(). More than one #hb_glyph_info_t can have the same
+             *           @cluster value, if they resulted from the same character (e.g. one
+             *           to many glyph substitution), and when more than one character gets
+             *           merged in the same glyph (e.g. many to one glyph substitution) the
+             *           #hb_glyph_info_t will have the smallest cluster value of them.
+             *           By default some characters are merged into the same cluster
+             *           (e.g. combining marks have the same cluster as their bases)
+             *           even if they are separate glyphs, hb_buffer_set_cluster_level()
+             *           allow selecting more fine-grained cluster handling.
+             */
             unsigned int glyph_count;
             hb_glyph_info_t* glyph_info = 0;
             hb_glyph_position_t* glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
-            hb_buffer_set_replacement_codepoint(_hb_buffer, def_char);
-            // fill HarfBuzz buffer with filtering
-            for (i = 0; i < len; i++)
-                hb_buffer_add(_hb_buffer, (hb_codepoint_t)filterChar(text[i]), i);
+
+            // hb_buffer_set_replacement_codepoint(_hb_buffer, def_char);
+            // /\ This would just set the codepoint to use when parsing
+            // invalid utf8/16/32. As we provide codepoints, Harfbuzz
+            // won't use it. This does NOT set the codepoint/glyph that
+            // would be used when a glyph does not exist in that for that
+            // codepoint. There is currently no way to specify that, and
+            // it's always the .notdef/tofu glyph that is measured/drawn.
+
+            // Fill HarfBuzz buffer
+            // No need to call filterChar() on the input: HarfBuzz seems to do
+            // the right thing with symbol fonts, and we'd better not replace
+            // bullets & al unicode chars with generic equivalents, as they
+            // may be found in the fallback font.
+            // So, we don't, unless the current font has no fallback font,
+            // in which case we need to get a replacement, in the worst case
+            // def_char (?), because the glyph for 0/.notdef (tofu) has so
+            // many different looks among fonts that it would mess the text.
+            // We'll then get the '?' glyph of the fallback font only.
+            // Note: not sure if Harfbuzz is able to be fine by using other
+            // glyphs when the main codepoint does not exist by itself in
+            // the font... in which case we'll mess things up.
+            // todo: (if needed) might need a pre-pass in the fallback case:
+            // full shaping without filterChar(), and if any .notdef
+            // codepoint, re-shape with filterChar()...
+            if ( getFallbackFont() ) { // It has a fallback font, add chars as-is
+                for (i = 0; i < len; i++) {
+                    hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
+                }
+            }
+            else { // No fallback font, check codepoint presence or get replacement char
+                for (i = 0; i < len; i++) {
+                    hb_buffer_add(_hb_buffer, (hb_codepoint_t)filterChar(text[i], def_char), i);
+                }
+            }
+            // Note: hb_buffer_add_codepoints(_hb_buffer, (hb_codepoint_t*)text, len, 0, len)
+            // would do the same kind of loop we did above, so no speedup gain using it; and we
+            // get to be sure of the cluster initial value we set to each of our added chars.
             hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
+
+            // If we are provided with direction and hints, let harfbuzz know
+            if ( hints ) {
+                if ( hints & LFNT_HINT_DIRECTION_KNOWN ) {
+                    if ( hints & LFNT_HINT_DIRECTION_IS_RTL )
+                        hb_buffer_set_direction(_hb_buffer, HB_DIRECTION_RTL);
+                    else
+                        hb_buffer_set_direction(_hb_buffer, HB_DIRECTION_LTR);
+                }
+                int hb_flags = HB_BUFFER_FLAG_DEFAULT; // (hb_buffer_flags_t won't let us do |= )
+                if ( hints & LFNT_HINT_BEGINS_PARAGRAPH )
+                    hb_flags |= HB_BUFFER_FLAG_BOT;
+                if ( hints & LFNT_HINT_ENDS_PARAGRAPH )
+                    hb_flags |= HB_BUFFER_FLAG_EOT;
+                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+            }
+            // Let HB guess what's not been set (script, direction, language)
             hb_buffer_guess_segment_properties(_hb_buffer);
+
+            // Some additional care might need to be taken, see:
+            //   https://www.w3.org/TR/css-text-3/#letter-spacing-property
+            if ( letter_spacing > 0 ) {
+                // Don't apply letter-spacing if the script is cursive
+                hb_script_t script = hb_buffer_get_script(_hb_buffer);
+                if ( isScriptCursive(script) )
+                    letter_spacing = 0;
+            }
+            // todo: if letter_spacing, ligatures should be disabled (-liga, -clig)
+            // todo: letter-spacing must not be applied at the beginning or at the end of a line
+            // todo: it should be applied half-before/half-after each grapheme
+            // cf in *some* minikin repositories: libs/minikin/Layout.cpp
+
             // Shape
             hb_shape(_hb_font, _hb_buffer, _hb_features, HARFBUZZ_FULL_FEATURES_NB);
+
+            // Harfbuzz has guessed and set a direction even if we did not provide one.
+            bool is_rtl = false;
+            if ( hb_buffer_get_direction(_hb_buffer) == HB_DIRECTION_RTL ) {
+                is_rtl = true;
+                // "For buffers in the right-to-left (RTL) or bottom-to-top (BTT) text
+                // flow direction, the directionality of the buffer itself is reversed
+                // for final output as a matter of design. Therefore, HarfBuzz inverts
+                // the monotonic property: client programs are guaranteed that
+                // monotonically increasing initial cluster values will be returned as
+                // monotonically decreasing final cluster values."
+                // hb_buffer_reverse_clusters() puts the advance on the last char of a
+                // cluster, unlike hb_buffer_reverse() which puts it on the first, which
+                // looks more natural (like it happens when LTR).
+                // But hb_buffer_reverse_clusters() is required to have the clusters
+                // ordered as our text indices, so we can map them back to our text.
+                hb_buffer_reverse_clusters(_hb_buffer);
+            }
 
             glyph_count = hb_buffer_get_length(_hb_buffer);
             glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, 0);
             glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, 0);
 
-            uint32_t j;
-            uint32_t cluster;
-            uint32_t prev_cluster = 0;
-            int skipped_chars = 0; // to add to 'i' at end of loop, as 'i' is used later and should be accurate
-            for (i = 0; i < (int)glyph_count; i++) {
-		/** from harfbuzz/src/hb-buffer.h
-		 * hb_glyph_info_t:
-		 * @codepoint: either a Unicode code point (before shaping) or a glyph index
-		 *             (after shaping).
-		 * @cluster: the index of the character in the original text that corresponds
-		 *           to this #hb_glyph_info_t, or whatever the client passes to
-		 *           hb_buffer_add(). More than one #hb_glyph_info_t can have the same
-		 *           @cluster value, if they resulted from the same character (e.g. one
-		 *           to many glyph substitution), and when more than one character gets
-		 *           merged in the same glyph (e.g. many to one glyph substitution) the
-		 *           #hb_glyph_info_t will have the smallest cluster value of them.
-		 *           By default some characters are merged into the same cluster
-		 *           (e.g. combining marks have the same cluster as their bases)
-		 *           even if they are separate glyphs, hb_buffer_set_cluster_level()
-		 *           allow selecting more fine-grained cluster handling.
-		 */
-                // Note: we use 'cluster' as an index similar to 'i' in 'text'
-                // but the docs warn about this, as it may be wrong with some "level"
-                // see https://harfbuzz.github.io/clusters.html for details
-                // But it seems to work in our case.
-                // Note: we deal with the "when more than one character gets merged in the
-                // same glyph" case. Not sure we do things correctly for the "More than one
-                // glyph can have the same cluster value, if they resulted from the same
-                // character (one to many glyph substitution)"...
+            #ifdef DEBUG_MEASURE_TEXT
+                printf("MTHB >>> measureText %x len %d is_rtl=%d [%s]\n", text, len, is_rtl, _faceName.c_str());
+                for (i = 0; i < (int)glyph_count; i++) {
+                    char glyphname[32];
+                    hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
+                    printf("MTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
+                                text[glyph_info[i].cluster], glyph_info[i].codepoint, glyphname,
+                                glyph_pos[i].x_advance>>6, glyph_pos[i].y_advance>>6);
+                    if (glyph_pos[i].x_offset || glyph_pos[i].y_offset)
+                        printf("\toffset=(%d,%d)", glyph_pos[i].x_offset>>6, glyph_pos[i].y_offset>>6);
+                    printf("\n");
+                }
+                printf("MTHB ---\n");
+            #endif
 
-                cluster = glyph_info[i].cluster;
-                lChar16 ch = text[cluster];
-                // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
-                // so HarfBuzz must already deal correctly with soft-hyphens.
-                // No need to do what we do in the Freetype alternative code below.
-                bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
-                flags[cluster] = GET_CHAR_FLAGS(ch); //calcCharFlags( ch );
-                hb_codepoint_t ch_glyph_index = glyph_info[i].codepoint;
-                if (0 != ch_glyph_index)        // glyph found for this char in this font
-                    widths[cluster] = prev_width + (glyph_pos[i].x_advance >> 6) + letter_spacing;
-                else {
-                    // hb_shape() failed or glyph skipped in this font, use fallback font
-                    int w = _wcache.get(ch);
-                    if ( w == CACHED_UNSIGNED_METRIC_NOT_SET ) {
-                        glyph_info_t glyph;
-                        LVFont *fallback = getFallbackFont();
-                        if (fallback) {
-                            if (fallback->getGlyphInfo(ch, &glyph, def_char)) {
-                                w = glyph.width;
-                                _wcache.put(ch, w);
-                            } else        // ignore (skip) this char
-                                widths[cluster] = prev_width;
-                        } else            // ignore (skip) this char
-                            widths[cluster] = prev_width;
+            // We need to set widths and flags on our original text.
+            // hb_shape has modified buffer to contain glyphs, and text
+            // and buffer may desync (because of clusters, ligatures...)
+            // in both directions in a same run.
+            // Also, a cluster must not be cut, so we want to set the same
+            // width to all our original text chars that are part of the
+            // same cluster (so 2nd+ chars in a cluster, will get a 0-width,
+            // and, when splitting lines, will fit in a word with the first
+            // char).
+            // So run along our original text (chars, t), and try to follow
+            // harfbuzz buffer (glyphs, hg), putting the advance of all
+            // the glyphs that belong to the same cluster (hcl) on the
+            // first char that started that cluster (and 0-width on the
+            // followup chars).
+            // It looks like Harfbuzz makes a cluster of combined glyphs
+            // even when the font does not have any or all of the required
+            // glyphs:
+            // When meeting a not-found glyph (codepoint=0, name=".notdef"),
+            // we record the original starting t of that cluster, and
+            // keep processing (possibly other chars with .notdef glyphs,
+            // giving them the width of the 'tofu' char), until we meet a char
+            // with a found glyph. We then hold on on this one, while we go
+            // measureText() the previous segment of text (that got .notdef
+            // glyphs) with the fallback font, and update the wrongs width
+            // and flags.
+
+            int prev_width = 0;
+            int cur_width = 0;
+            int cur_cluster = 0;
+            int hg = 0;  // index in glyph_info/glyph_pos
+            int hcl = 0; // cluster glyph at hg
+            bool is_cluster_tail = false;
+            int t_notdef_start = -1;
+            int t_notdef_end = -1;
+            for (int t = 0; t < len; t++) {
+                #ifdef DEBUG_MEASURE_TEXT
+                    printf("MTHB t%d (=%x) ", t, text[t]);
+                #endif
+                // Grab all glyphs that do not belong to a cluster greater that our char position
+                while ( hg < glyph_count ) {
+                    hcl = glyph_info[hg].cluster;
+                    if (hcl <= t) {
+                        int advance = 0;
+                        if ( glyph_info[hg].codepoint != 0 ) { // Codepoint found in this font
+                            #ifdef DEBUG_MEASURE_TEXT
+                                printf("(found cp=%x) ", glyph_info[hg].codepoint);
+                            #endif
+                            if ( t_notdef_start >= 0 ) { // But we have a segment of previous ".notdef"
+                                t_notdef_end = t;
+                                LVFont *fallback = getFallbackFont();
+                                // The code ensures the main fallback font has no fallback font
+                                if ( fallback ) {
+                                    // Let the fallback font replace the wrong values in widths and flags
+                                    #ifdef DEBUG_MEASURE_TEXT
+                                        printf("[...]\nMTHB ### measuring past failures with fallback font %d>%d\n",
+                                                                t_notdef_start, t_notdef_end);
+                                    #endif
+                                    // Drop BOT/EOT flags if this segment is not at start/end
+                                    lUInt32 fb_hints = hints;
+                                    if ( t_notdef_start > 0 )
+                                        fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
+                                    if ( t_notdef_end < len )
+                                        fb_hints &= ~LFNT_HINT_ENDS_PARAGRAPH;
+                                    fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
+                                                    widths + t_notdef_start, flags + t_notdef_start,
+                                                    max_width, def_char, letter_spacing, allow_hyphenation,
+                                                    fb_hints );
+                                    // Fix previous bad measurements
+                                    int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
+                                    for (int tn = t_notdef_start; tn < t_notdef_end; tn++) {
+                                        widths[tn] += last_good_width;
+                                    }
+                                    // And fix our current width
+                                    cur_width = widths[t_notdef_end-1];
+                                    prev_width = cur_width;
+                                    #ifdef DEBUG_MEASURE_TEXT
+                                        printf("MTHB ### measured past failures > W= %d\n[...]", cur_width);
+                                    #endif
+                                }
+                                else {
+                                    // No fallback font: stay with what's been measured: the notdef/tofu char
+                                    #ifdef DEBUG_MEASURE_TEXT
+                                        printf("[...]\nMTHB no fallback font to measure past failures, keeping def_char\nMTHB [...]");
+                                    #endif
+                                }
+                                t_notdef_start = -1;
+                                // And go on with the found glyph now that we fixed what was before
+                            }
+                            // Glyph found in this font
+                            advance = glyph_pos[hg].x_advance >> 6;
+                        }
+                        else {
+                            #ifdef DEBUG_MEASURE_TEXT
+                                printf("(glyph not found) ");
+                            #endif
+                            // Keep the advance of .notdef/tofu in case there is no fallback font to correct them
+                            advance = glyph_pos[hg].x_advance >> 6;
+                            if ( t_notdef_start < 0 ) {
+                                t_notdef_start = t;
+                            }
+                        }
+                        #ifdef DEBUG_MEASURE_TEXT
+                            printf("c%d+%d ", hcl, advance);
+                        #endif
+                        cur_width += advance;
+                        cur_cluster = hcl;
+                        hg++;
+                        continue; // keep grabbing glyphs
                     }
-                    widths[cluster] = prev_width + w + letter_spacing;
+                    break;
                 }
-                for (j = prev_cluster + 1; j < cluster; j++) {
-                    // fill flags and widths for chars skipped (because they are part of a
-                    // ligature and are accounted in the previous cluster - we didn't know
-                    // how many until we processed the next cluster)
-                    flags[j] = GET_CHAR_FLAGS(text[j]) | LCHAR_IS_LIGATURE_TAIL;
-                    widths[j] = prev_width; // so 2nd char of a ligature has width=0
-                    skipped_chars++;
-                    // This will ensure we get (with word "afloat"):
-                    //   glyph 14 cluster 14 flags=0:        glyph "a"
-                    //     widths[14] = 150, flags[14]=0     char "a"
-                    //   glyph 15 cluster 15 flags=0:        glyph "fl" (ligature)
-                    //     widths[15] = 163, flags[15]=0     char "f"
-                    //   glyph 16 cluster 17 flags=0:        glyph "o"
-                    //     widths[17] = 174, flags[17]=0     char "o"
-                    //       >widths[16] = 163, flags[16]=0  char "l"  (done here)
-                    //   glyph 17 cluster 18 flags=0:        glyph "a"
-                    //     widths[18] = 185, flags[18]=0     char "a"
-                    //   glyph 18 cluster 19 flags=0:        glyph "t"
-                    //     widths[19] = 192, flags[19]=0     char "t"
+                // Done grabbing clustered glyphs: they contributed to cur_width.
+                // All 't' lower than the next cluster will have that same cur_width.
+                if (cur_cluster < t) {
+                    // Our char is part of a cluster that started on a previous char
+                    flags[t] = LCHAR_IS_CLUSTER_TAIL;
+                    // todo: see at using HB_GLYPH_FLAG_UNSAFE_TO_BREAK to
+                    // set this flag instead/additionally
                 }
-                prev_cluster = cluster;
-                if (!isHyphen) // avoid soft hyphens inside text string
-                    prev_width = widths[cluster];
-                if (prev_width > max_width) {
-                    if (lastFitChar < cluster + 7)
+                else {
+                    // We're either a single char cluster, or the start
+                    // of a multi chars cluster.
+                    cur_width += letter_spacing; // only between clusters/graphemes
+                    flags[t] = GET_CHAR_FLAGS(text[t]);
+                    // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
+                    // so HarfBuzz must already deal correctly with soft-hyphens.
+                }
+                widths[t] = cur_width;
+                #ifdef DEBUG_MEASURE_TEXT
+                    printf("=> %d (flags=%d) => W=%d\n", cur_width - prev_width, flags[t], cur_width);
+                #endif
+                prev_width = cur_width;
+
+                // (Not sure about how that max_width limit could play and if it could mess things)
+                if (cur_width > max_width) {
+                    if (lastFitChar < hcl + 7)
                         break;
                 }
                 else {
-                    lastFitChar = cluster + 1;
+                    lastFitChar = t+1;
                 }
-            }
-            // For case when ligature is the last glyph in measured text
-            if (prev_cluster < (uint32_t)(len - 1) && prev_width < (lUInt16)max_width) {
-                for (j = prev_cluster + 1; j < (uint32_t)len; j++) {
-                    flags[j] = GET_CHAR_FLAGS(text[j]) | LCHAR_IS_LIGATURE_TAIL;
-                    widths[j] = prev_width;
-                    skipped_chars++;
-                }
-            }
-            // i is used below to "fill props for rest of chars", so make it accurate
-            i += skipped_chars;
+            } // process next char t
 
+            // Process .notdef glyphs at end of text (same logic as above)
+            if ( t_notdef_start >= 0 ) {
+                t_notdef_end = len;
+                LVFont *fallback = getFallbackFont();
+                if ( fallback ) {
+                    #ifdef DEBUG_MEASURE_TEXT
+                        printf("[...]\nMTHB ### measuring past failures at EOT with fallback font %d>%d\n",
+                                                t_notdef_start, t_notdef_end);
+                    #endif
+                    // Drop BOT flag if this segment is not at start (it is at end)
+                    lUInt32 fb_hints = hints;
+                    if ( t_notdef_start > 0 )
+                        fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
+                    int chars_measured = fallback->measureText( text + t_notdef_start, // start
+                                    t_notdef_end - t_notdef_start, // len
+                                    widths + t_notdef_start, flags + t_notdef_start,
+                                    max_width, def_char, letter_spacing, allow_hyphenation,
+                                    fb_hints );
+                    lastFitChar = t_notdef_start + chars_measured;
+                    int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
+                    for (int tn = t_notdef_start; tn < t_notdef_end; tn++) {
+                        widths[tn] += last_good_width;
+                    }
+                    // And add all that to our current width
+                    cur_width = widths[t_notdef_end-1];
+                    #ifdef DEBUG_MEASURE_TEXT
+                        printf("MTHB ### measured past failures at EOT > W= %d\n[...]", cur_width);
+                    #endif
+                }
+                else {
+                    #ifdef DEBUG_MEASURE_TEXT
+                        printf("[...]\nMTHB no fallback font to measure past failures at EOT, keeping def_char\nMTHB [...]");
+                    #endif
+                }
+            }
+
+            // i is used below to "fill props for rest of chars", so make it accurate
+            i = len; // actually make it do nothing
+
+            #ifdef DEBUG_MEASURE_TEXT
+                printf("MTHB <<< W=%d [%s]\n", cur_width, _faceName.c_str());
+                printf("MTHB dwidths[]: ");
+                for (int t = 0; t < len; t++)
+                    printf("%d:%d ", t, widths[t] - (t>0?widths[t-1]:0));
+                printf("\n");
+            #endif
         } // _kerningMode == KERNING_MODE_HARFBUZZ
+
         else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
             unsigned int glyph_count;
             hb_glyph_info_t* glyph_info = 0;
@@ -1782,8 +2034,8 @@ public:
                     lastFitChar = i + 1;
                 }
             }
-
         } // _kerningMode == KERNING_MODE_HARFBUZZ_LIGHT
+
         else { // _kerningMode == KERNING_MODE_DISABLED or KERNING_MODE_FREETYPE:
                // fallback to the non harfbuzz code
     #endif // USE_HARFBUZZ
@@ -1940,6 +2192,9 @@ public:
             }
             else {
                 // Fallback
+                // todo: find a way to adjust origin_y by this font and
+                // fallback font baseline difference, without modifying
+                // the item in the cache of the fallback font
                 return fallback->getGlyph(ch, def_char);
             }
         }
@@ -2154,8 +2409,8 @@ public:
         #endif
     }
 
-    /// draws text string
-    virtual void DrawTextString( LVDrawBuf * buf, int x, int y,
+    /// draws text string (returns x advance)
+    virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
                        lUInt32 flags, int letter_spacing, int width,
@@ -2163,7 +2418,7 @@ public:
     {
         FONT_GUARD
         if ( len <= 0 || _face==NULL )
-            return;
+            return 0;
         if ( letter_spacing < 0 ) {
             letter_spacing = 0;
         }
@@ -2174,7 +2429,7 @@ public:
         buf->GetClipRect( &clip );
         updateTransform(); // no-op
         if ( y + _height < clip.top || y >= clip.bottom )
-            return;
+            return 0;
 
         unsigned int i;
         //lUInt16 prev_width = 0;
@@ -2185,69 +2440,254 @@ public:
 
     #if USE_HARFBUZZ==1
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
+            // See measureText() for more comments on how to work with Harfbuzz,
+            // as we do and must work the same way here.
+            unsigned int glyph_count;
             hb_glyph_info_t *glyph_info = 0;
             hb_glyph_position_t *glyph_pos = 0;
-            unsigned int glyph_count;
-            int w;
-            unsigned int len_new = 0;
             hb_buffer_clear_contents(_hb_buffer);
-            hb_buffer_set_replacement_codepoint(_hb_buffer, 0);
-            // fill HarfBuzz buffer with filtering
-            for (i = 0; i < (unsigned int)len; i++) {
-                ch = text[i];
-                // don't draw any soft hyphens inside text string
-                bool isHyphen = (ch == UNICODE_SOFT_HYPHEN_CODE);
-                if (!isHyphen) { // skip any soft-hyphen
-                    // Also replace any chars to similar if glyph not found
-                    hb_buffer_add(_hb_buffer, (hb_codepoint_t)filterChar(ch), i);
-                    len_new++;
+            // Fill HarfBuzz buffer
+            if ( getFallbackFont() ) { // It has a fallback font, add chars as-is
+                for (i = 0; i < len; i++) {
+                    hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
+                }
+            }
+            else { // No fallback font, check codepoint presence or get replacement char
+                for (i = 0; i < len; i++) {
+                    hb_buffer_add(_hb_buffer, (hb_codepoint_t)filterChar(text[i], def_char), i);
                 }
             }
             hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
+
+            // If we are provided with direction and hints, let harfbuzz know
+            if ( flags ) {
+                if ( flags & LFNT_HINT_DIRECTION_KNOWN ) {
+                    // Trust direction decided by fribidi: if we made a word containing just '(',
+                    // harfbuzz wouldn't be able to determine its direction and would render
+                    // it LTR - while it could be in some RTL text and needs to be mirrored.
+                    if ( flags & LFNT_HINT_DIRECTION_IS_RTL )
+                        hb_buffer_set_direction(_hb_buffer, HB_DIRECTION_RTL);
+                    else
+                        hb_buffer_set_direction(_hb_buffer, HB_DIRECTION_LTR);
+                }
+                int hb_flags = HB_BUFFER_FLAG_DEFAULT; // (hb_buffer_flags_t won't let us do |= )
+                if ( flags & LFNT_HINT_BEGINS_PARAGRAPH )
+                    hb_flags |= HB_BUFFER_FLAG_BOT;
+                if ( flags & LFNT_HINT_ENDS_PARAGRAPH )
+                    hb_flags |= HB_BUFFER_FLAG_EOT;
+                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+            }
+            // Let HB guess what's not been set (script, direction, language)
             hb_buffer_guess_segment_properties(_hb_buffer);
+
+            // See measureText() for details
+            if ( letter_spacing > 0 ) {
+                // Don't apply letter-spacing if the script is cursive
+                hb_script_t script = hb_buffer_get_script(_hb_buffer);
+                if ( isScriptCursive(script) )
+                    letter_spacing = 0;
+            }
+
             // Shape
             hb_shape(_hb_font, _hb_buffer, _hb_features, HARFBUZZ_FULL_FEATURES_NB);
+
+            // If direction is RTL, hb_shape() has reversed the order of the glyphs, so
+            // they are in visual order and ready to be iterated and drawn. So,
+            // we do not revert them, unlike in measureText().
+            bool is_rtl = hb_buffer_get_direction(_hb_buffer) == HB_DIRECTION_RTL;
 
             glyph_count = hb_buffer_get_length(_hb_buffer);
             glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, 0);
             glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, 0);
 
-            for (i = 0; i < glyph_count; i++) {
-                if (0 == glyph_info[i].codepoint) {
-                    // If HarfBuzz can't find glyph in current font
-                    // using fallback font that used in getGlyph()
-                    ch = text[glyph_info[i].cluster];
-                    LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
-                    if (item) {
-                        w = item->advance;
-                        buf->Draw(x + item->origin_x,
-                              y + _baseline - item->origin_y,
-                              item->bmp,
-                              item->bmp_width,
-                              item->bmp_height,
-                              palette);
-                        x += w + letter_spacing;
+            #ifdef DEBUG_DRAW_TEXT
+                printf("DTHB >>> drawTextString %x len %d is_rtl=%d [%s]\n", text, len, is_rtl, _faceName.c_str());
+                for (i = 0; i < (int)glyph_count; i++) {
+                    char glyphname[32];
+                    hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
+                    printf("DTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
+                                text[glyph_info[i].cluster], glyph_info[i].codepoint, glyphname,
+                                glyph_pos[i].x_advance>>6, glyph_pos[i].y_advance>>6);
+                    if (glyph_pos[i].x_offset || glyph_pos[i].y_offset)
+                        printf("\toffset=(%d,%d)", glyph_pos[i].x_offset>>6, glyph_pos[i].y_offset>>6);
+                    printf("\n");
+                }
+                printf("DTHB ---\n");
+            #endif
+
+            // We want to do just like in measureText(): drawing found glyphs with
+            // this font, and .notdef glyphs with the fallback font, as a single segment,
+            // once a defined glyph is found, before drawing that defined glyph.
+            // The code is different from in measureText(), as the glyphs might be
+            // inverted for RTL drawing, and we can't uninvert them. We also loop
+            // thru glyphs here rather than chars.
+            int w;
+            LVFont *fallback = getFallbackFont();
+            bool has_fallback_font = (bool) fallback;
+
+            // Cluster numbers may increase or decrease (if RTL) while we walk the glyphs.
+            // We'll update fallback drawing text indices as we walk glyphs and cluster
+            // (cluster numbers are boundaries in text indices, but it's quite tricky
+            // to get right).
+            int fb_t_start = 0;
+            int fb_t_end = len;
+            int hg = 0;  // index in glyph_info/glyph_pos
+            while (hg < glyph_count) { // hg is the start of a new cluster at this point
+                bool draw_with_fallback = false;
+                int hcl = glyph_info[hg].cluster;
+                fb_t_start = hcl; // if fb drawing needed from this glyph: t[hcl:..]
+                    // /\ Logical if !is_rtl, but also needed if is_rtl and immediately
+                    // followed by a found glyph (so, a single glyph to draw with the
+                    // fallback font): = hclbad
+                #ifdef DEBUG_DRAW_TEXT
+                    printf("DTHB g%d c%d: ", hg, hcl);
+                #endif
+                int hg2 = hg;
+                while ( hg2 < glyph_count ) {
+                    int hcl2 = glyph_info[hg2].cluster;
+                    if ( hcl2 != hcl ) { // New cluster starts at hg2: we can draw hg > hg2-1
+                        #ifdef DEBUG_DRAW_TEXT
+                            printf("all found, ");
+                        #endif
+                        if (is_rtl)
+                            fb_t_end = hcl; // if fb drawing needed from next glyph: t[..:hcl]
+                        break;
                     }
+                    if ( glyph_info[hg2].codepoint != 0 || !has_fallback_font ) {
+                        // Glyph found in this font, or not but we have no
+                        // fallback font: we will draw the .notdef/tofu chars.
+                        hg2++;
+                        continue;
+                    }
+                    #ifdef DEBUG_DRAW_TEXT
+                        printf("g%d c%d notdef, ", hg2, hcl2);
+                    #endif
+                    // Glyph notdef but we have a fallback font
+                    // Go look ahead for a complete cluster, or segment of notdef,
+                    // so we can draw it all with the fallback using harfbuzz
+                    draw_with_fallback = true;
+                    // We will update hg2 and hcl2 to be the last glyph of
+                    // a cluster/segment with notdef
+                    int hclbad = hcl2;
+                    int hclgood = -1;
+                    int hg3 = hg2+1;
+                    while ( hg3 < glyph_count ) {
+                        int hcl3 = glyph_info[hg3].cluster;
+                        if ( hclgood >=0 && hcl3 != hclgood ) {
+                            // Found a complete cluster
+                            // We can draw hg > hg2-1 with fallback font
+                            #ifdef DEBUG_DRAW_TEXT
+                                printf("c%d complete, need redraw up to g%d", hclgood, hg2);
+                            #endif
+                            if (!is_rtl)
+                                fb_t_end = hclgood; // fb drawing t[..:hclgood]
+                            hg2 += 1; // set hg2 to the first ok glyph
+                            break;
+                        }
+                        if ( glyph_info[hg3].codepoint == 0 || hcl3 == hclbad) {
+                            #ifdef DEBUG_DRAW_TEXT
+                                printf("g%d c%d -, ", hg3, hcl3);
+                            #endif
+                            // notdef, or def but part of uncomplete previous cluster
+                            hcl2 = hcl3;
+                            hg2 = hg3; // move hg2 to this bad glyph
+                            hclgood = -1; // un'good found good cluster
+                            hclbad = hcl3;
+                            if (is_rtl)
+                                fb_t_start = hclbad; // fb drawing t[hclbad::..]
+                            hg3++;
+                            continue;
+                        }
+                        // Codepoint found, and we're not part of an uncomplete cluster
+                        #ifdef DEBUG_DRAW_TEXT
+                            printf("g%d c%d +, ", hg3, hcl3);
+                        #endif
+                        hclgood = hcl3;
+                        hg3++;
+                    }
+                    if ( hg3 == glyph_count ) { // no good cluster met till end of text
+                        hg2 = glyph_count; // get out of hg2 loop
+                        if (is_rtl)
+                            fb_t_start = 0;
+                        else
+                            fb_t_end = len;
+                    }
+                    break;
+                }
+                // Draw glyphs from hg to hg2 excluded
+                if (draw_with_fallback) {
+                    #ifdef DEBUG_DRAW_TEXT
+                        printf("[...]\nDTHB ### drawing past notdef with fallback font %d>%d ", hg, hg2);
+                        printf(" => %d > %d\n", fb_t_start, fb_t_end);
+                    #endif
+                    // Adjust DrawTextString() params for fallback drawing
+                    lUInt32 fb_flags = flags;
+                    fb_flags &= ~LFNT_DRAW_DECORATION_MASK; // main font will do text decoration
+                    // We must keep direction, but we should drop BOT/EOT flags
+                    // if this segment is not at start/end (this might be bogus
+                    // if the char at start or end is a space that could be drawn
+                    // with the main font).
+                    if (fb_t_start > 0)
+                        fb_flags &= ~LFNT_HINT_BEGINS_PARAGRAPH;
+                    if (fb_t_end < len)
+                        fb_flags &= ~LFNT_HINT_ENDS_PARAGRAPH;
+                    // Adjust fallback y so baselines of both fonts match
+                    int fb_y = y + _baseline - fallback->getBaseline();
+                    bool fb_addHyphen = false; // will be added by main font
+                    const lChar16 * fb_text = text + fb_t_start;
+                    int fb_len = fb_t_end - fb_t_start;
+                    // (width and text_decoration_back_gap are only used for
+                    // text decoration, that we dropped: no update needed)
+                    int fb_advance = fallback->DrawTextString( buf, x, fb_y,
+                       fb_text, fb_len,
+                       def_char, palette, fb_addHyphen, fb_flags, letter_spacing,
+                       width, text_decoration_back_gap );
+                    x += fb_advance;
+                    #ifdef DEBUG_DRAW_TEXT
+                        printf("DTHB ### drawn past notdef > X+= %d\n[...]", fb_advance);
+                    #endif
                 }
                 else {
-                    LVFontGlyphIndexCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
-                    if (item) {
-                        w = glyph_pos[i].x_advance >> 6;
-                        buf->Draw(x + item->origin_x + (glyph_pos[i].x_offset >> 6),
-                                  y + _baseline - item->origin_y + (glyph_pos[i].y_offset >> 6),
-                                  item->bmp,
-                                  item->bmp_width,
-                                  item->bmp_height,
-                                  palette);
-                        x += w + letter_spacing;
-                        // Wondered if item->origin_x and glyph_pos[i].x_offset must really
-                        // be added (harfbuzz' x_offset correcting Freetype's origin_x),
-                        // or are the same thing (harfbuzz' x_offset=0 replacing and
-                        // cancelling FreeType's origin_x) ?
-                        // Comparing screenshots seems to indicate they must be added.
+                    #ifdef DEBUG_DRAW_TEXT
+                        printf("regular g%d>%d cp%x: ", hg, hg2);
+                    #endif
+                    // Draw glyphs of this same cluster
+                    for (i = hg; i < hg2; i++) {
+                        LVFontGlyphIndexCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
+                        if (item) {
+                            int w = glyph_pos[i].x_advance >> 6;
+                            #ifdef DEBUG_DRAW_TEXT
+                                printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
+                                        item->origin_x + (glyph_pos[i].x_offset >> 6), w);
+                            #endif
+                            buf->Draw(x + item->origin_x + (glyph_pos[i].x_offset >> 6),
+                                      y + _baseline - item->origin_y + (glyph_pos[i].y_offset >> 6),
+                                      item->bmp,
+                                      item->bmp_width,
+                                      item->bmp_height,
+                                      palette);
+                            x += w;
+                        }
+                        #ifdef DEBUG_DRAW_TEXT
+                        else
+                            printf("SKIPPED %x", glyph_info[i].codepoint);
+                        #endif
                     }
+                    // Whole cluster drawn: add letter spacing
+                    x += letter_spacing;
                 }
+                hg = hg2;
+                #ifdef DEBUG_DRAW_TEXT
+                    printf("\n");
+                #endif
             }
+
+            // Wondered if item->origin_x and glyph_pos[hg].x_offset must really
+            // be added (harfbuzz' x_offset correcting Freetype's origin_x),
+            // or are the same thing (harfbuzz' x_offset=0 replacing and
+            // cancelling FreeType's origin_x) ?
+            // Comparing screenshots seems to indicate they must be added.
+
             if (addHyphen) {
                 ch = UNICODE_SOFT_HYPHEN_CODE;
                 LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
@@ -2259,7 +2699,7 @@ public:
                                item->bmp_width,
                                item->bmp_height,
                                palette);
-                    x  += w + letter_spacing;
+                    x  += w; // + letter_spacing; (let's not add any letter-spacing after hyphen)
                 }
             }
 
@@ -2273,11 +2713,13 @@ public:
             struct LVCharTriplet triplet;
             struct LVCharPosInfo posInfo;
             triplet.Char = 0;
+            bool is_rtl = (flags & LFNT_HINT_DIRECTION_KNOWN) && (flags & LFNT_HINT_DIRECTION_IS_RTL);
             for ( i=0; i<=(unsigned int)len; i++) {
                 if ( i==len && !addHyphen )
                     break;
                 if ( i<len ) {
-                    ch = text[i];
+                    // If RTL, draw glyphs starting from the of the node text
+                    ch = is_rtl ? text[len-1-i] : text[i];
                     if ( ch=='\t' )
                         ch = ' ';
                     // don't draw any soft hyphens inside text string
@@ -2287,7 +2729,6 @@ public:
                     ch = UNICODE_SOFT_HYPHEN_CODE;
                     isHyphen = false; // an hyphen, but not one to not draw
                 }
-                FT_UInt ch_glyph_index = getCharIndex( ch, def_char );
                 LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
                 if ( !item )
                     continue;
@@ -2295,7 +2736,7 @@ public:
                     triplet.prevChar = triplet.Char;
                     triplet.Char = ch;
                     if (i < (unsigned int)(len - 1))
-                        triplet.nextChar = text[i + 1];
+                        triplet.nextChar = is_rtl ? text[len-1-i-1] : text[i + 1];
                     else
                         triplet.nextChar = 0;
                     if (!_width_cache2.get(triplet, posInfo)) {
@@ -2326,11 +2767,23 @@ public:
         #if (ALLOW_KERNING==1)
         int use_kerning = _kerningMode != KERNING_MODE_DISABLED && FT_HAS_KERNING( _face );
         #endif
+        bool is_rtl = (flags & LFNT_HINT_DIRECTION_KNOWN) && (flags & LFNT_HINT_DIRECTION_IS_RTL);
         for ( i=0; i<=(unsigned int)len; i++) {
             if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
-                ch = text[i];
+                // If RTL, draw glyphs starting from the end of the node text segment
+                // It seems all is fine, with RTL, getting diacritics glyphs before
+                // the main glyph, while in LTR, they must come after. So no need for
+                // reordering these.
+                // Drawing a + diaresis:
+                //   drawing 61  adv=8 kerning=0  => w=8 o_x=0
+                //   drawing 308 adv=0 kerning=0  => w=0 o_x=-7 (origin_x going back)
+                // Drawing some hebrew char with 2 diacritics before:
+                //   drawing 5bc adv=0 kerning=0  => w=0 o_x=4 (diacritics don't advance)
+                //   drawing 5b6 adv=0 kerning=0  => w=0 o_x=3
+                //   drawing 5e1 adv=11 kerning=0 => w=11 o_x=0 (main char will advance)
+                ch = is_rtl ? text[len-1-i] : text[i];
                 if ( ch=='\t' )
                     ch = ' ';
                 // don't draw any soft hyphens inside text string
@@ -2375,7 +2828,8 @@ public:
         } // else fallback to the non harfbuzz code
     #endif
 
-        if ( flags & LTEXT_TD_MASK ) {
+        int advance = x - x0;
+        if ( flags & LFNT_DRAW_DECORATION_MASK ) {
             // text decoration: underline, etc.
             // Don't overflow the provided width (which may be lower than our
             // pen x if last glyph was a space not accounted in word width)
@@ -2386,20 +2840,21 @@ public:
             x0 -= text_decoration_back_gap;
             int h = _size > 30 ? 2 : 1;
             lUInt32 cl = buf->GetTextColor();
-            if ( (flags & LTEXT_TD_UNDERLINE) || (flags & LTEXT_TD_BLINK) ) {
+            if ( (flags & LFNT_DRAW_UNDERLINE) || (flags & LFNT_DRAW_BLINK) ) {
                 int liney = y + _baseline + h;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
-            if ( flags & LTEXT_TD_OVERLINE ) {
+            if ( flags & LFNT_DRAW_OVERLINE ) {
                 int liney = y + h;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
-            if ( flags & LTEXT_TD_LINE_THROUGH ) {
+            if ( flags & LFNT_DRAW_LINE_THROUGH ) {
                 // int liney = y + _baseline - _size/4 - h/2;
                 int liney = y + _baseline - _size*2/7;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
         }
+        return advance;
     }
 
     /// returns true if font is empty
@@ -2509,7 +2964,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing=0,
-                        bool allow_hyphenation=true
+                        bool allow_hyphenation=true,
+                        lUInt32 hints=0
                      )
     {
         CR_UNUSED(allow_hyphenation);
@@ -2519,7 +2975,9 @@ public:
                         flags,
                         max_width,
                         def_char,
-                        letter_spacing
+                        letter_spacing,
+                        allow_hyphenation,
+                        hints
                      );
         int w = 0;
         for ( int i=0; i<res; i++ ) {
@@ -2712,15 +3170,15 @@ public:
         return _baseFont->getFontFamily();
     }
 
-    /// draws text string
-    virtual void DrawTextString( LVDrawBuf * buf, int x, int y,
+    /// draws text string (returns x advance)
+    virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
                        lUInt32 flags, int letter_spacing, int width,
                        int text_decoration_back_gap )
     {
         if ( len <= 0 )
-            return;
+            return 0;
         if ( letter_spacing < 0 ) {
             letter_spacing = 0;
         }
@@ -2730,7 +3188,7 @@ public:
         lvRect clip;
         buf->GetClipRect( &clip );
         if ( y + _height < clip.top || y >= clip.bottom )
-            return;
+            return 0;
 
         //int error;
 
@@ -2741,11 +3199,12 @@ public:
         // measure character widths
         bool isHyphen = false;
         int x0 = x;
+        bool is_rtl = (flags & LFNT_HINT_DIRECTION_KNOWN) && (flags & LFNT_HINT_DIRECTION_IS_RTL);
         for ( i=0; i<=len; i++) {
             if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
-                ch = text[i];
+                ch = is_rtl ? text[len-1-i] : text[i];
                 isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
             }
             else {
@@ -2769,7 +3228,8 @@ public:
             }
             x  += w + letter_spacing;
         }
-        if ( flags & LTEXT_TD_MASK ) {
+        int advance = x - x0;
+        if ( flags & LFNT_DRAW_DECORATION_MASK ) {
             // text decoration: underline, etc.
             // Don't overflow the provided width (which may be lower than our
             // pen x if last glyph was a space not accounted in word width)
@@ -2780,19 +3240,20 @@ public:
             x0 -= text_decoration_back_gap;
             int h = _size > 30 ? 2 : 1;
             lUInt32 cl = buf->GetTextColor();
-            if ( (flags & LTEXT_TD_UNDERLINE) || (flags & LTEXT_TD_BLINK) ) {
+            if ( (flags & LFNT_DRAW_UNDERLINE) || (flags & LFNT_DRAW_BLINK) ) {
                 int liney = y + _baseline + h;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
-            if ( flags & LTEXT_TD_OVERLINE ) {
+            if ( flags & LFNT_DRAW_OVERLINE ) {
                 int liney = y + h;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
-            if ( flags & LTEXT_TD_LINE_THROUGH ) {
+            if ( flags & LFNT_DRAW_LINE_THROUGH ) {
                 int liney = y + _height/2 - h/2;
                 buf->FillRect( x0, liney, x, liney+h, cl );
             }
         }
+        return advance;
     }
 
     /// get bitmap mode (true=monochrome bitmap, false=antialiased)
@@ -4446,13 +4907,15 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
 }
 
 
-void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
+/// draws text string (returns x advance)
+int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
                    lChar16 def_char, lUInt32 * palette, bool addHyphen, lUInt32 , int , int, int )
 {
     //static lUInt8 glyph_buf[16384];
     //LVFont::glyph_info_t info;
     int baseline = getBaseline();
+    int x0 = x;
     while (len>=(addHyphen?0:1)) {
         if (len<=1 || *text != UNICODE_SOFT_HYPHEN_CODE) {
             lChar16 ch = ((len==0)?UNICODE_SOFT_HYPHEN_CODE:*text);
@@ -4497,6 +4960,7 @@ void LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
         len--;
         text++;
     }
+    return x - x0;
 }
 
 #if (USE_BITMAP_FONTS==1)
@@ -4520,7 +4984,8 @@ lUInt16 LBitmapFont::measureText(
                     int max_width,
                     lChar16 def_char,
                     int letter_spacing,
-                    bool allow_hyphenation
+                    bool allow_hyphenation,
+                    lUInt32 hints
                  )
 {
     return lvfontMeasureText( m_font, text, len, widths, flags, max_width, def_char );
@@ -4930,7 +5395,8 @@ lUInt16 LVWin32DrawFont::measureText(
                     int max_width,
                     lChar16 def_char,
                     int letter_spacing,
-                    bool allow_hyphenation
+                    bool allow_hyphenation,
+                    lUInt32 hints
                  )
 {
     if (_hfont==NULL)
@@ -5028,15 +5494,15 @@ lUInt16 LVWin32DrawFont::measureText(
     return nchars;
 }
 
-/// draws text string
-void LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
+/// draws text string (returns x advance)
+int LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
                    lChar16 def_char, lUInt32 * palette, bool addHyphen,
                    lUInt32 flags, int letter_spacing, int width,
                    int text_decoration_back_gap )
 {
     if (_hfont==NULL)
-        return;
+        return 0;
 
     lString16 str(text, len);
     // substitute soft hyphens with zero width spaces
@@ -5053,14 +5519,14 @@ void LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
     lvRect clip;
     buf->GetClipRect(&clip);
     if (y > clip.bottom || y+_height < clip.top)
-        return;
+        return 0;
     if (buf->GetBitsPerPixel()<16)
     {
         // draw using backbuffer
         SIZE sz;
         if ( !GetTextExtentPoint32W(_drawbuf.GetDC(),
                 str.c_str(), str.length(), &sz) )
-            return;
+            return 0;
         LVColorDrawBuf colorbuf( sz.cx, sz.cy );
         colorbuf.Clear(0xFFFFFF);
         HDC dc = colorbuf.GetDC();
@@ -5091,6 +5557,7 @@ void LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
             str.c_str(), str.length(), NULL );
         SelectObject( dc, oldfont );
     }
+    return 0; // advance not implemented
 }
 
 /** \brief get glyph image in 1 byte per pixel format
@@ -5290,7 +5757,8 @@ lUInt16 LVWin32Font::measureText(
                     int max_width,
                     lChar16 def_char,
                     int letter_spacing,
-                    bool allow_hyphenation
+                    bool allow_hyphenation,
+                    lUInt32 hints
                  )
 {
     if (_hfont==NULL)
