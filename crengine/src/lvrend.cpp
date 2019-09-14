@@ -2484,16 +2484,125 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 #ifdef DEBUG_DUMP_ENABLED
             logfile << "+BLOCK [" << cnt << "]";
 #endif
-            // usual elements
+            // Usual elements
             bool thisIsRunIn = enode->getStyle()->display==css_d_run_in;
             if ( thisIsRunIn )
                 flags |= LTEXT_RUNIN_FLAG;
+
+            // Some elements add some generated content
+            lUInt16 nodeElementId = enode->getNodeId();
+            // Don't handle dir= for the erm_final (<p dir="auto"), as it would "isolate"
+            // the whole content from the bidi algorithm and we woulds get a default paragraph
+            // direction of LTR. It is handled directly in lvtextfm.cpp.
+            bool hasDirAttribute = enode->hasAttribute( attr_dir ) && rm != erm_final;
+            bool addGeneratedContent = hasDirAttribute ||
+                                       nodeElementId == el_bdi ||
+                                       nodeElementId == el_bdo ||
+                                       nodeElementId == el_q;
+            bool closeWithPDI = false;
+            bool closeWithPDF = false;
+            bool closeWithPDFPDI = false;
+            if ( addGeneratedContent ) {
+                // Note: we need to explicitely clear newline flag after
+                // any txform->AddSourceLine(). If we delay that and add another
+                // char before, this other char would generate a new line.
+                LVFont * font = enode->getFont().get();
+                lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
+                lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
+                if ( nodeElementId == el_q ) {
+                    // Add default quoting opening char
+                    // We do not support showing a different char for multiple embedded <q>,
+                    // and neither the way to specify this with CSS, ie:
+                    //     q::before { content: open-quote; }
+                    //     :root { quotes: '\201c' '\201d' '\2018' '\2019'; }
+                    // Note: this specific char seem to not be mirrored (when using HarfBuzz) when
+                    // added to some RTL arabic text. But it appears that way with Firefox too!
+                    // But if we use another char (0x00AB / 0x00BB), it gets mirrored correctly.
+                    // Might be that HarfBuzz first substitute it with arabic quotes (which happen
+                    // to look inverted), and then mirror that?
+                    txform->AddSourceLine( L"\x201C", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+                // The following is needed for fribidi to do the right thing when the content creator
+                // has provided hints to explicite ambiguous cases.
+                // <bdi> and <bdo> are HTML5 tags allowing to inform or override the bidi algorithm.
+                // When meeting them, we add the equivalent unicode opening and closing chars so
+                // that fribidi (working on text only) can ensure what's specified with HTML tags.
+                // See http://unicode.org/reports/tr9/#Markup_And_Formatting
+                lString16 dir = enode->getAttributeValue( attr_dir );
+                dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
+                if ( nodeElementId == el_bdo ) {
+                    // <bdo> (bidirectional override): prevents the bidirectional algorithm from
+                    //       rearranging the sequence of characters it encloses
+                    //  dir=ltr  => LRO     U+202D  LEFT-TO-RIGHT OVERRIDE
+                    //  dir=rtl  => RLO     U+202E  RIGHT-TO-LEFT OVERRIDE
+                    //  leaving  => PDF     U+202C  POP DIRECTIONAL FORMATTING
+                    // The link above suggest using these combinations:
+                    //  dir=ltr  => FSI LRO
+                    //  dir=rtl  => FSI RLO
+                    //  leaving  => PDF PDI
+                    // but it then doesn't have the intended effect (fribidi bug or limitation?)
+                    if ( dir.compare("rtl") == 0 ) {
+                        // txform->AddSourceLine( L"\x2068\x202E", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        // closeWithPDFPDI = true;
+                        txform->AddSourceLine( L"\x202E", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        closeWithPDF = true;
+                        flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                    else if ( dir.compare("ltr") == 0 ) {
+                        // txform->AddSourceLine( L"\x2068\x202D", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        // closeWithPDFPDI = true;
+                        txform->AddSourceLine( L"\x202D", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        closeWithPDF = true;
+                        flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                }
+                else if ( hasDirAttribute || nodeElementId == el_bdi ) {
+                    // <bdi> (bidirectional isolate): isolates its content from the surrounding text,
+                    //   and to be used also for any inline elements with "dir=":
+                    //  dir=ltr  => LRI     U+2066  LEFT-TO-RIGHT ISOLATE
+                    //  dir=rtl  => RLI     U+2067  RIGHT-TO-LEFT ISOLATE
+                    //  dir=auto => FSI     U+2068  FIRST STRONG ISOLATE
+                    //  leaving  => PDI     U+2069  POP DIRECTIONAL ISOLATE
+                    if ( dir.compare("rtl") == 0 ) {
+                        txform->AddSourceLine( L"\x2067", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        closeWithPDI = true;
+                        flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                    else if ( dir.compare("ltr") == 0 ) {
+                        txform->AddSourceLine( L"\x2066", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        closeWithPDI = true;
+                        flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                    else if ( nodeElementId == el_bdi || dir.compare("auto") == 0 ) {
+                        txform->AddSourceLine( L"\x2068", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                        closeWithPDI = true;
+                        flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                    // Pre HTML5, we would have used for any inline tag with a dir= attribute:
+                    //  dir=ltr  => LRE     U+202A  LEFT-TO-RIGHT EMBEDDING
+                    //  dir=rtl  => RLE     U+202B  RIGHT-TO-LEFT EMBEDDING
+                    //  leaving  => PDF     U+202C  POP DIRECTIONAL FORMATTING
+                }
+                // Note: in lvtextfm, we have to explicitely ignore these (added by us,
+                // or already present in the HTML), in measurement and drawing, as
+                // FreeType could draw some real glyphes for these, when the font
+                // provide a glyph (ie: "[FSI]"). No issue when HarfBuzz is used.
+                //
+                // Note: if we wanted to support <ruby> tags, we could use the same kind
+                // of trick. Unicode provides U+FFF9 to U+FFFA to wrap ruby content.
+                // HarfBuzz does not support these (because multiple font sizes would
+                // be involved for drawing ruby), but lvtextfm could deal with these
+                // itself (by ignoring them in measurement, going back the previous
+                // advance, increasing the line height, drawing above...)
+            }
+
             // is_link_start is given to inner elements (to flag the first
             // text node part of a link), and will be reset to false by
             // the first non-space-only text node
             bool * is_link_start_p = is_link_start; // copy of orignal (possibly NULL) pointer
             bool tmp_is_link_start = true; // new bool, for new pointer if we're a <A>
-            if ( enode->getNodeId()==el_a ) {
+            if ( nodeElementId == el_a ) {
                 is_link_start_p = &tmp_is_link_start; // use new pointer
             }
             for (int i=0; i<cnt; i++)
@@ -2501,6 +2610,31 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 ldomNode * child = enode->getChildNode( i );
                 renderFinalBlock( child, txform, fmt, flags, ident, line_h, valign_dy, is_link_start_p );
             }
+
+            if ( addGeneratedContent ) {
+                LVFont * font = enode->getFont().get();
+                lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
+                lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
+                if ( nodeElementId == el_q ) {
+                    // Add default quoting closing char
+                    txform->AddSourceLine( L"\x201D", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+                // See comment above: these are the closing counterpart
+                if ( closeWithPDI ) {
+                    txform->AddSourceLine( L"\x2069", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+                else if ( closeWithPDFPDI ) {
+                    txform->AddSourceLine( L"\x202C\x2069", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+                else if ( closeWithPDF ) {
+                    txform->AddSourceLine( L"\x202C", 1, cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+            }
+
             // Note: CSS "display: run-in" is no longer used with our epub.css (it is
             // used with older css files for "body[name="notes"] section title", either
             // for crengine internal footnotes displaying, or some FB2 features)
@@ -8084,6 +8218,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         // and getRightSideBearing(). These should be called with the exact same
         // parameters as used in lvtextfm.cpp getAdditionalCharWidth() and
         // getAdditionalCharWidthOnLeft().
+        // todo: use fribidi and split measurement at fribidi level change,
+        // and beware left/right side bearing adjustments...
         while (true) {
             LVFont * font = node->getParentNode()->getFont().get();
             int chars_measured = font->measureText(
@@ -8094,6 +8230,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                     '?',    // replacement char
                     letter_spacing,
                     false); // no hyphenation
+                    // todo: provide direction and hints
             for (int i=0; i<chars_measured; i++) {
                 int w = widths[i] - (i>0 ? widths[i-1] : 0);
                 lChar16 c = *(txt + start + i);

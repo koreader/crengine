@@ -124,6 +124,8 @@ XS_TAG1I( span )
 XS_TAG1I( strong )
 XS_TAG1I( sub )
 XS_TAG1I( sup )
+XS_TAG1I( bdi )
+XS_TAG1I( bdo )
 
 // EPUB3 elements (in ns_epub - otherwise set to inline like any unknown element)
 XS_TAG1I( switch )  // <epub:switch>
