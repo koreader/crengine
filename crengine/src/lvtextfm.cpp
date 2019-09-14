@@ -1661,7 +1661,7 @@ public:
 //                    lChar16 lastch = m_text[i-1];
 //                    if ( lastch==UNICODE_NO_BREAK_SPACE )
 //                        CRLog::trace("last char is UNICODE_NO_BREAK_SPACE");
-                    if ( m_flags[wstart] & LCHAR_IS_LIGATURE_TAIL ) {
+                    if ( m_flags[wstart] & LCHAR_IS_CLUSTER_TAIL ) {
                         // The start of this word is part of a ligature that started
                         // in a previous word: some hyphenation wrap happened on
                         // this ligature, which will not be rendered as such.
@@ -1675,7 +1675,7 @@ public:
                         }
                     }
                     if ( m_flags[i-1] & LCHAR_ALLOW_HYPH_WRAP_AFTER ) {
-                        if ( m_flags[i] & LCHAR_IS_LIGATURE_TAIL ) {
+                        if ( m_flags[i] & LCHAR_IS_CLUSTER_TAIL ) {
                             // The end of this word is part of a ligature that, because
                             // of hyphenation, has been splitted onto next word.
                             // We are the first part of the hyphenated word, and
@@ -2715,6 +2715,8 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         buf->SetTextColor( cl );
                     if ( bgcl!=0xFFFFFFFF )
                         buf->SetBackgroundColor( bgcl );
+                    // Add drawing flags: text decoration (underline...)
+                    lUInt32 drawFlags = srcline->flags & LTEXT_TD_MASK;
                     font->DrawTextString(
                         buf,
                         x + frmline->x + word->x,
@@ -2724,7 +2726,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         '?',
                         NULL,
                         flgHyphen,
-                        srcline->flags & 0x0F00,
+                        drawFlags,
                         srcline->letter_spacing,
                         word->width,
                         text_decoration_back_gap);

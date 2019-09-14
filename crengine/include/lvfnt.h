@@ -231,7 +231,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
 #define LCHAR_ALLOW_HYPH_WRAP_AFTER  0x0008 ///< flag: line break after this char is allowed with addition of hyphen
                                             //         It is set by Hyphman when finding hyphenation points in a word.
 #define LCHAR_MANDATORY_NEWLINE      0x0010 ///< flag: this char must start with new line
-#define LCHAR_IS_LIGATURE_TAIL       0x0020 ///< flag: this char is a tail of a cluster (eg. ligature,
+#define LCHAR_IS_CLUSTER_TAIL        0x0020 ///< flag: this char is a tail of a cluster (eg. ligature,
                                             //         whose glyph is carried by first char)
                                             //         It is set by harfbuzz when used.
 
@@ -249,7 +249,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
 #define LCHAR_IS_CJK_PUNCT           0x6000 ///< flag: (for checking) this char is a CJK punctuation (neutral if set)
 #define LCHAR_IS_CJK                 0x7000 ///< flag: (for checking) this char is a CJK char
 
-// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_LIGATURE_TAIL
+// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_CLUSTER_TAIL
 // #define LCHAR_IS_EOL              0x0010 ///< flag: this char is CR or LF
 
 /** \brief returns true if character is unicode space 

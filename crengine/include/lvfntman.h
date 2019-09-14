@@ -172,6 +172,21 @@ enum kerning_mode_t {
 };
 
 
+// Hint flags for measuring and drawing (some used only with full Harfbuzz)
+// These 4 translate (after mask & shift) from LTEXT_WORD_* equivalents
+// (see lvtextfm.h). Keep them in sync.
+#define LFNT_HINT_DIRECTION_KNOWN        0x0001 /// segment direction is known
+#define LFNT_HINT_DIRECTION_IS_RTL       0x0002 /// segment direction is RTL
+#define LFNT_HINT_BEGINS_PARAGRAPH       0x0004 /// segment is at start of paragraph
+#define LFNT_HINT_ENDS_PARAGRAPH         0x0008 /// segment is at end of paragraph
+
+// These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
+#define LFNT_DRAW_UNDERLINE              0x0100 /// underlined text
+#define LFNT_DRAW_OVERLINE               0x0200 /// overlined text
+#define LFNT_DRAW_LINE_THROUGH           0x0400 /// striked through text
+#define LFNT_DRAW_BLINK                  0x0800 /// blinking text (implemented as underline)
+#define LFNT_DRAW_DECORATION_MASK        0x0F00
+
 /** \brief base class for fonts
 
     implements single interface for font of any engine
@@ -215,6 +230,7 @@ public:
         \param max_width is maximum width to measure line 
         \param def_char is character to replace absent glyphs in font
         \param letter_spacing is number of pixels to add between letters
+        \param hints: hint flags (direction, begin/end of paragraph, for Harfbuzz - unrelated to font hinting)
         \return number of characters before max_width reached 
     */
     virtual lUInt16 measureText( 
@@ -224,7 +240,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing=0,
-                        bool allow_hyphenation=true
+                        bool allow_hyphenation=true,
+                        lUInt32 hints=0
                      ) = 0;
 
     /** \brief measure text
@@ -269,8 +286,8 @@ public:
     virtual lString8 getTypeFace() const = 0;
     /// returns font family id
     virtual css_font_family_t getFontFamily() const = 0;
-    /// draws text string
-    virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
+    /// draws text string (returns x advance)
+    virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette = NULL, bool addHyphen = false,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
@@ -448,8 +465,8 @@ public:
     virtual lString8 getTypeFace() const { return _typeface; }
     /// returns font family id
     virtual css_font_family_t getFontFamily() const { return _family; }
-    /// draws text string
-    virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
+    /// draws text string (returns x advance)
+    virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
@@ -472,7 +489,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing=0,
-                        bool allow_hyphenation=true
+                        bool allow_hyphenation=true,
+                        lUInt32 hints=0
                      );
     /** \brief measure text
         \param text is text string pointer
@@ -633,7 +651,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing=0,
-                        bool allow_hyphenation=true
+                        bool allow_hyphenation=true,
+                        lUInt32 hints=0
                      );
     /** \brief measure text
         \param text is text string pointer
@@ -647,8 +666,8 @@ public:
     /// returns char width
     virtual int getCharWidth( lChar16 ch, lChar16 def_char=0 );
 
-    /// draws text string
-    virtual void DrawTextString( LVDrawBuf * buf, int x, int y, 
+    /// draws text string (returns x advance)
+    virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
@@ -810,7 +829,8 @@ public:
                         int max_width,
                         lChar16 def_char,
                         int letter_spacing=0,
-                        bool allow_hyphenation=true
+                        bool allow_hyphenation=true,
+                        lUInt32 hints=0
                      );
     /** \brief measure text
         \param text is text string pointer

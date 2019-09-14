@@ -57,6 +57,7 @@ extern "C" {
 #define LTEXT_TD_LINE_THROUGH  0x0400  /**< \brief striked through text */
 #define LTEXT_TD_BLINK         0x0800  /**< \brief blinking text */
 #define LTEXT_TD_MASK          0x0F00  /**< \brief text decoration mask */
+    // These 4 above translate to LFNT_DRAW_* equivalents (see lvfntman.h). Keep them in sync.
 
 #define LTEXT_SRC_IS_OBJECT    0x8000  /**< \brief object (image) */
 #define LTEXT_IS_LINK          0x4000  /**< \brief link */
