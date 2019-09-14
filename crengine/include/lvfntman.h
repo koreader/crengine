@@ -226,26 +226,27 @@ public:
                         int letter_spacing=0,
                         bool allow_hyphenation=true
                      ) = 0;
+
     /** \brief measure text
         \param text is text string pointer
         \param len is number of characters to measure
         \return width of specified string 
     */
-    virtual lUInt32 getTextWidth(
-                        const lChar16 * text, int len
-        ) = 0;
+    virtual lUInt32 getTextWidth( const lChar16 * text, int len ) = 0;
 
-//    /** \brief get glyph image in 1 byte per pixel format
-//        \param code is unicode character
-//        \param buf is buffer [width*height] to place glyph data
-//        \return true if glyph was found
-//    */
-//    virtual bool getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0) = 0;
+    // /** \brief get glyph image in 1 byte per pixel format
+    //     \param code is unicode character
+    //     \param buf is buffer [width*height] to place glyph data
+    //     \return true if glyph was found
+    // */
+    // virtual bool getGlyphImage(lUInt16 code, lUInt8 * buf, lChar16 def_char=0) = 0;
+
     /** \brief get glyph item
         \param code is unicode character
         \return glyph pointer if glyph was found, NULL otherwise
     */
     virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) = 0;
+
     /// returns font baseline offset
     virtual int getBaseline() = 0;
     /// returns font height including normal interline space
