@@ -6495,9 +6495,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 return ptr;
             }
         }
+        bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
         for ( int w=0; w<wc; w++ ) {
             const formatted_word_t * word = &frmline->words[w];
-            if ( x < word->x + word->width || w==wc-1 ) {
+            if ( ( !line_is_bidi && x < word->x + word->width ) ||
+                 ( line_is_bidi && x >= word->x && x < word->x + word->width ) ||
+                 ( w == wc-1 ) ) {
                 const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
                 // CRLog::debug(" word found [%d]: x=%d..%d, start=%d, len=%d  %08X",
                 //      w, word->x, word->x + word->width, word->t.start, word->t.len, src->object);
@@ -6543,14 +6546,30 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         break;
                 }
 
-                font->measureText( str.c_str()+word->t.start, word->t.len, width, flg, word->width+50, '?', src->letter_spacing);
-                for ( int i=0; i<word->t.len; i++ ) {
-                    int xx = ( i>0 ) ? (width[i-1] + width[i])/2 : width[i]/2;
-                    if ( x < word->x + xx ) {
-                        return ldomXPointer( node, src->t.offset + word->t.start + i );
+                lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
+                font->measureText( str.c_str()+word->t.start, word->t.len, width, flg,
+                                    word->width+50, '?', src->letter_spacing, false, hints);
+
+                bool word_is_rtl = word->flags & LTEXT_WORD_DIRECTION_IS_RTL;
+                if ( word_is_rtl ) {
+                    for ( int i=word->t.len-1; i>=0; i-- ) {
+                        int xx = ( i>0 ) ? (width[i-1] + width[i])/2 : width[i]/2;
+                        xx = word->width - xx;
+                        if ( x < word->x + xx ) {
+                            return ldomXPointer( node, src->t.offset + word->t.start + i );
+                        }
                     }
+                    return ldomXPointer( node, src->t.offset + word->t.start );
                 }
-                return ldomXPointer( node, src->t.offset + word->t.start + word->t.len );
+                else {
+                    for ( int i=0; i<word->t.len; i++ ) {
+                        int xx = ( i>0 ) ? (width[i-1] + width[i])/2 : width[i]/2;
+                        if ( x < word->x + xx ) {
+                            return ldomXPointer( node, src->t.offset + word->t.start + i );
+                        }
+                    }
+                    return ldomXPointer( node, src->t.offset + word->t.start + word->t.len );
+                }
             }
         }
     }
@@ -6733,15 +6752,251 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
             srcLen = lastLen;
             offset = lastOffset;
         }
+
+        // Some state for non-linear bidi word search
+        int nearestForwardSrcIndex = -1;
+        int nearestForwardSrcOffset = -1;
+        lvRect bestBidiRect = lvRect();
+        bool hasBestBidiRect = false;
+
         for ( int l = 0; l<txtform->GetLineCount(); l++ ) {
             const formatted_line_t * frmline = txtform->GetLineInfo(l);
+            bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
             for ( int w=0; w<(int)frmline->word_count; w++ ) {
                 const formatted_word_t * word = &frmline->words[w];
+                bool word_is_rtl = word->flags & LTEXT_WORD_DIRECTION_IS_RTL;
                 bool lastWord = (l == txtform->GetLineCount() - 1
                                  && w == frmline->word_count - 1);
+
+                if ( line_is_bidi ) {
+                    // When line is bidi, src text nodes may be shuffled, so we can't
+                    // just be done when meeting a forward src in logical order.
+                    // We'd better have a dedicated searching code to not mess with
+                    // the visual=logical order generic code below.
+                    // todo: see if additional tweaks according to
+                    // frmline->flags&LTEXT_LINE_PARA_IS_RTL may help adjusting
+                    // char rects depending on it vs word_is_rtl.
+                    if ( word->src_text_index>=srcIndex || lastWord ) {
+                        // Found word from same or forward src line
+                        if (word->src_text_index > srcIndex &&
+                               ( nearestForwardSrcIndex == -1 ||
+                                 word->src_text_index < nearestForwardSrcIndex ||
+                                 (word->src_text_index == nearestForwardSrcIndex &&
+                                    word->t.start < nearestForwardSrcOffset ) ) ) {
+                            // Found some word from a forward src that is nearest than previously found one:
+                            // get its start as a possible best result.
+                            bestBidiRect.top = rc.top + frmline->y;
+                            bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                            if ( word_is_rtl ) {
+                                bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
+                                bestBidiRect.left = bestBidiRect.right - 1;
+                            }
+                            else {
+                                bestBidiRect.left = word->x + rc.left + frmline->x;
+                                if (extended)
+                                    if (word->flags & LTEXT_WORD_IS_OBJECT && word->width > 0)
+                                        bestBidiRect.right = bestBidiRect.left + word->width; // width of image
+                                    else
+                                        bestBidiRect.right = bestBidiRect.left + 1;
+                            }
+                            hasBestBidiRect = true;
+                            nearestForwardSrcIndex = word->src_text_index;
+                            if (word->flags & LTEXT_WORD_IS_OBJECT)
+                                nearestForwardSrcOffset = 0;
+                            else
+                                nearestForwardSrcOffset = word->t.start;
+                        }
+                        else if (word->src_text_index == srcIndex) {
+                            // Found word in that exact source text node
+                            if ( word->flags & LTEXT_WORD_IS_OBJECT ) {
+                                // An image is the single thing in its srcIndex
+                                rect.top = rc.top + frmline->y;
+                                rect.bottom = rect.top + frmline->height;
+                                rect.left = word->x + rc.left + frmline->x;
+                                if (word->width > 0)
+                                    rect.right = rect.left + word->width; // width of image
+                                else
+                                    rect.right = rect.left + 1;
+                                return true;
+                            }
+                            // Target is in this text node. We may not find it part
+                            // of a word, so look at all words and keep the nearest
+                            // (forward if possible) in case we don't find an exact one
+                            if ( word->t.start > offset ) { // later word in logical order
+                                if (nearestForwardSrcIndex != word->src_text_index ||
+                                          word->t.start <= nearestForwardSrcOffset ) {
+                                    bestBidiRect.top = rc.top + frmline->y;
+                                    bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                                    if ( word_is_rtl ) { // right edge of next logical word, as it is drawn on the left
+                                        bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
+                                        bestBidiRect.left = bestBidiRect.right - 1;
+                                    }
+                                    else { // left edge of next logical word, as it is drawn on the right
+                                        bestBidiRect.left = word->x + rc.left + frmline->x;
+                                        bestBidiRect.right = bestBidiRect.left + 1;
+                                    }
+                                    hasBestBidiRect = true;
+                                    nearestForwardSrcIndex = word->src_text_index;
+                                    nearestForwardSrcOffset = word->t.start;
+                                }
+                            }
+                            else if ( word->t.start+word->t.len <= offset ) { // past word in logical order
+                                // Only if/while we haven't yet found one with the right src index and
+                                // a forward offset
+                                if (nearestForwardSrcIndex != word->src_text_index ||
+                                        ( nearestForwardSrcOffset < word->t.start &&
+                                          word->t.start+word->t.len > nearestForwardSrcOffset ) ) {
+                                    bestBidiRect.top = rc.top + frmline->y;
+                                    bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                                    if ( word_is_rtl ) { // left edge of previous logical word, as it is drawn on the right
+                                        bestBidiRect.left = word->x + rc.left + frmline->x;
+                                        bestBidiRect.right = bestBidiRect.left + 1;
+                                    }
+                                    else { // right edge of previous logical word, as it is drawn on the left
+                                        bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
+                                        bestBidiRect.left = bestBidiRect.right - 1;
+                                    }
+                                    hasBestBidiRect = true;
+                                    nearestForwardSrcIndex = word->src_text_index;
+                                    nearestForwardSrcOffset = word->t.start+word->t.len;
+                                }
+                            }
+                            else { // exact word found
+                                // Measure word
+                                LVFont *font = (LVFont *) txtform->GetSrcInfo(srcIndex)->t.font;
+                                lUInt16 w[512];
+                                lUInt8 flg[512];
+                                lString16 str = node->getText();
+                                if (offset == word->t.start && str.empty()) {
+                                    rect.left = word->x + rc.left + frmline->x;
+                                    rect.top = rc.top + frmline->y;
+                                    rect.right = rect.left + 1;
+                                    rect.bottom = rect.top + frmline->height;
+                                    return true;
+                                }
+                                // We need to transform the node text as it had been when
+                                // rendered (the transform may change chars widths) for the
+                                // rect to be correct
+                                switch ( node->getParentNode()->getStyle()->text_transform ) {
+                                    case css_tt_uppercase:
+                                        str.uppercase();
+                                        break;
+                                    case css_tt_lowercase:
+                                        str.lowercase();
+                                        break;
+                                    case css_tt_capitalize:
+                                        str.capitalize();
+                                        break;
+                                    case css_tt_full_width:
+                                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
+                                font->measureText(
+                                    str.c_str()+word->t.start,
+                                    word->t.len,
+                                    w,
+                                    flg,
+                                    word->width+50,
+                                    '?',
+                                    txtform->GetSrcInfo(srcIndex)->letter_spacing,
+                                    false,
+                                    hints);
+                                rect.top = rc.top + frmline->y;
+                                rect.bottom = rect.top + frmline->height;
+                                // chx is the width of previous chars in the word
+                                int chx = (offset > word->t.start) ? w[ offset - word->t.start - 1 ] : 0;
+                                if ( word_is_rtl ) {
+                                    rect.right = word->x + word->width - chx + rc.left + frmline->x;
+                                    rect.left = rect.right - 1;
+                                }
+                                else {
+                                    rect.left = word->x + chx + rc.left + frmline->x;
+                                    rect.right = rect.left + 1;
+                                }
+                                if (extended) { // get width of char at offset
+                                    if (offset == word->t.start && word->t.len == 1) {
+                                        // With CJK chars, the measured width seems
+                                        // less correct than the one measured while
+                                        // making words. So use the calculated word
+                                        // width for one-char-long words instead
+                                        if ( word_is_rtl )
+                                            rect.left = rect.right - word->width;
+                                        else
+                                            rect.right = rect.left + word->width;
+                                    }
+                                    else {
+                                        int chw = w[ offset - word->t.start ] - chx;
+                                        bool hyphen_added = false;
+                                        if ( offset == word->t.start + word->t.len - 1
+                                                && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
+                                                && !gFlgFloatingPunctuationEnabled ) {
+                                            // if offset is the end of word, and this word has
+                                            // been hyphenated, includes the hyphen width
+                                            // (but not when floating punctuation is enabled,
+                                            // to keep nice looking rectangles on multi lines
+                                            // text selection)
+                                            chw += font->getHyphenWidth();
+                                            // We then should not account for the right side
+                                            // bearing below
+                                            hyphen_added = true;
+                                        }
+                                        if ( word_is_rtl )
+                                            rect.left = rect.right - chw;
+                                        else
+                                            rect.right = rect.left + chw;
+                                        if (adjusted) {
+                                            // Extend left or right if this glyph overflows its
+                                            // origin/advance box (can happen with an italic font,
+                                            // or with a regular font on the right of the letter 'f'
+                                            // or on the left of the letter 'J').
+                                            // Only when negative (overflow) and not when positive
+                                            // (which are more frequent), mostly to keep some good
+                                            // looking rectangles on the sides when highlighting
+                                            // multiple lines.
+                                            rect.left += font->getLeftSideBearing(str[offset], true);
+                                            if ( !hyphen_added )
+                                                rect.right -= font->getRightSideBearing(str[offset], true);
+                                            // Should work wheter rtl or ltr
+                                        }
+                                    }
+                                    // Ensure we always return a non-zero width, even for zero-width
+                                    // chars or collapsed spaces (to avoid isEmpty() returning true
+                                    // which could be considered as a failure)
+                                    if ( rect.right <= rect.left ) {
+                                        if ( word_is_rtl )
+                                            rect.left = rect.right - 1;
+                                        else
+                                            rect.right = rect.left + 1;
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        if ( lastWord ) {
+                            // If no exact word found, return best candidate
+                            if (hasBestBidiRect) {
+                                rect = bestBidiRect;
+                                return true;
+                            }
+                            // Otherwise, return end of last word (?)
+                            rect.top = rc.top + frmline->y;
+                            rect.bottom = rect.top + frmline->height;
+                            rect.left = word->x + rc.left + frmline->x + word->width;
+                            rect.right = rect.left + 1;
+                            return true;
+                        }
+                    }
+                    continue;
+                } // end if line_is_bidi
+
+                // ================================
+                // Generic code when visual order = logical order
                 if ( word->src_text_index>=srcIndex || lastWord ) {
                     // found word from same src line
-                    if ( word->flags == LTEXT_WORD_IS_OBJECT
+                    if ( word->flags & LTEXT_WORD_IS_OBJECT
                             || word->src_text_index > srcIndex
                             || (!extended && offset <= word->t.start)
                             || (extended && offset < word->t.start)
@@ -6753,7 +7008,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended)
-                            if (word->flags == LTEXT_WORD_IS_OBJECT)
+                            if (word->flags & LTEXT_WORD_IS_OBJECT && word->width > 0)
                                 rect.right = rect.left + word->width; // width of image
                             else
                                 rect.right = rect.left + 1; // not the right word: no char width
@@ -6804,6 +7059,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             default:
                                 break;
                         }
+                        lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                         font->measureText(
                             str.c_str()+word->t.start,
                             word->t.len,
@@ -6811,7 +7067,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             flg,
                             word->width+50,
                             '?',
-                            txtform->GetSrcInfo(srcIndex)->letter_spacing);
+                            txtform->GetSrcInfo(srcIndex)->letter_spacing,
+                            false,
+                            hints );
                         // chx is the width of previous chars in the word
                         int chx = (offset > word->t.start) ? w[ offset - word->t.start - 1 ] : 0;
                         rect.left = word->x + chx + rc.left + frmline->x;
@@ -6856,6 +7114,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                         rect.right -= font->getRightSideBearing(str[offset], true);
                                 }
                             }
+                            // Ensure we always return a non-zero width, even for zero-width
+                            // chars or collapsed spaces (to avoid isEmpty() returning true
+                            // which could be considered as a failure)
+                            if ( rect.right <= rect.left )
+                                rect.right = rect.left + 1;
                         }
                         else
                             rect.right = rect.left + 1;
@@ -7777,6 +8040,14 @@ void ldomXRangeList::getRanges( ldomMarkedRangeList &dst )
         lvPoint ptEnd = range->getEnd().toPoint();
 //        // LVE:DEBUG
 //        CRLog::trace("selectRange( %d,%d : %d,%d : %s, %s )", ptStart.x, ptStart.y, ptEnd.x, ptEnd.y, LCSTR(range->getStart().toString()), LCSTR(range->getEnd().toString()) );
+        if ( ptStart.y > ptEnd.y || ( ptStart.y == ptEnd.y && ptStart.x >= ptEnd.x ) ) {
+            // Swap ptStart and ptEnd if coordinates seems inverted (or we would
+            // get item->empty()), which is needed for bidi/rtl.
+            // Hoping this has no side effect.
+            lvPoint ptTmp = ptStart;
+            ptStart = ptEnd;
+            ptEnd = ptTmp;
+        }
         ldomMarkedRange * item = new ldomMarkedRange( ptStart, ptEnd, range->getFlags() );
         if ( !item->empty() )
             dst.add( item );
@@ -7900,6 +8171,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
     // text on a line get the same .top and .bottom, even if they have a
     // smaller font size - but using ldomXRange.getRectEx() on multiple
     // text nodes gives wrong rects for the last chars on a line...)
+
+    // Note: someRect.extend(someOtherRect) and !someRect.isEmpty() expect
+    // a rect to have both width and height non-zero. So, make sure
+    // in getRectEx() that we always get a rect of width at least 1px,
+    // otherwise some lines may not be highlighted.
 
     // Note: the range end offset is NOT part of the range (it points to the
     // char after, or last char + 1 if it includes the whole text node text)
