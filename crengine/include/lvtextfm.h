@@ -111,7 +111,7 @@ typedef struct
    lUInt16  min_width;       /**< \brief index of source text line */
    lInt16   x;               /**< \brief word x position in line */
    lInt16   y;               /**< \brief baseline y position */
-   lUInt8   flags;           /**< \brief flags */
+   lUInt16  flags;           /**< \brief flags */
    union {
           /// for text word
        struct {
