@@ -836,7 +836,8 @@ lString8 familyName( FT_Face face )
 // The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
 // were: "LCHAR_IS_SPACE | LCHAR_IS_EOL | LCHAR_ALLOW_WRAP_AFTER".
 // LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_LIGATURE_TAIL
-// (as flags are usually lUInt8, and the 8 bits were used, one needed to be dropped).
+// (as flags were lUInt8, and the 8 bits were used, one needed to be dropped - they
+// have since been upgraded to be lUInt16)
 static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 0    00
     0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, // 8    08

@@ -21,7 +21,7 @@
 class HyphMethod
 {
 public:
-    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth ) = 0;
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 ) = 0;
     virtual ~HyphMethod() { }
 };
 
@@ -123,9 +123,9 @@ public:
     HyphMan();
     ~HyphMan();
 
-    inline static bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+    inline static bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 )
     {
-        return _method->hyphenate( str, len, widths, flags, hyphCharWidth, maxWidth );
+        return _method->hyphenate( str, len, widths, flags, hyphCharWidth, maxWidth, flagSize );
     }
 };
 

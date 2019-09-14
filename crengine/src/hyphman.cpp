@@ -71,7 +71,7 @@ class TexHyph : public HyphMethod
 public:
     int largest_overflowed_word;
     bool match( const lChar16 * str, char * mask );
-    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     void addPattern( TexPattern * pattern );
     TexHyph();
     virtual ~TexHyph();
@@ -83,21 +83,21 @@ public:
 class AlgoHyph : public HyphMethod
 {
 public:
-    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     virtual ~AlgoHyph();
 };
 
 class SoftHyphensHyph : public HyphMethod
 {
 public:
-    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth );
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     virtual ~SoftHyphensHyph();
 };
 
 class NoHyph : public HyphMethod
 {
 public:
-    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+    virtual bool hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
     {
         CR_UNUSED6(str, len, widths, flags, hyphCharWidth, maxWidth);
         return false;
@@ -361,23 +361,29 @@ HyphMan::~HyphMan()
 // and AlgoHyph::hyphenate(): if soft hyphens are found in the
 // provided word, trust and use them; don't do the regular patterns
 // and algorithm matching.
-static bool softhyphens_hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+static bool softhyphens_hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     bool soft_hyphens_found = false;
     for ( int i = 0; i<len; i++ ) {
         if ( widths[i] + hyphCharWidth > maxWidth )
             break;
         if ( str[i] == UNICODE_SOFT_HYPHEN_CODE ) {
-            flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            if ( flagSize == 2 ) {
+                lUInt16* flags16 = (lUInt16*) flags;
+                flags16[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            }
+            else {
+                flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            }
             soft_hyphens_found = true;
         }
     }
     return soft_hyphens_found;
 }
 
-bool SoftHyphensHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+bool SoftHyphensHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
-    return softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth);
+    return softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize);
 }
 
 SoftHyphensHyph::~SoftHyphensHyph()
@@ -803,10 +809,10 @@ bool TexHyph::match( const lChar16 * str, char * mask )
 //    return true;
 //}
 
-bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( HyphMan::_TrustSoftHyphens ) {
-        if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth) )
+        if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
             return true;
     }
     if ( len<=3 )
@@ -894,7 +900,13 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
         // p+2 because: +1 because word has a space prepended, and +1 because
         // mask[] holds the flag for char n on slot n+1
         if ( (mask[p+2-soft_hyphens_skipped]&1) && nw <= maxWidth ) {
-            flags[p] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            if ( flagSize == 2 ) {
+                lUInt16* flags16 = (lUInt16*) flags;
+                flags16[p] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            }
+            else {
+                flags[p] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            }
             // printf(" allowed after %c\n", str[p]);
             res = true;
         }
@@ -902,10 +914,10 @@ bool TexHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 
     return res;
 }
 
-bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth )
+bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( HyphMan::_TrustSoftHyphens ) {
-        if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth) )
+        if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
             return true;
     }
     lUInt16 chprops[WORD_LENGTH];
@@ -966,8 +978,15 @@ bool AlgoHyph::hyphenate( const lChar16 * str, int len, lUInt16 * widths, lUInt8
                                             disabled = true;
                                             break;
                                         }
-                                    if (!disabled)
-                                        flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+                                    if (!disabled) {
+                                        if ( flagSize == 2 ) {
+                                            lUInt16* flags16 = (lUInt16*) flags;
+                                            flags16[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+                                        }
+                                        else {
+                                            flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+                                        }
+                                    }
                                     //widths[i] = nw; // don't add hyph width
                                 }
                             }

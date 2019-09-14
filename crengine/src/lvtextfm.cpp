@@ -360,7 +360,7 @@ public:
     bool      m_staticBufs;
     static bool      m_staticBufs_inUse;
     lChar16 * m_text;
-    lUInt8 *  m_flags;
+    lUInt16 * m_flags;
     src_text_fragment_t * * m_srcs;
     lUInt16 * m_charindex;
     int *     m_widths;
@@ -793,7 +793,7 @@ public:
         } else {
             // static buffer space
             static lChar16 m_static_text[STATIC_BUFS_SIZE];
-            static lUInt8 m_static_flags[STATIC_BUFS_SIZE];
+            static lUInt16 m_static_flags[STATIC_BUFS_SIZE];
             static src_text_fragment_t * m_static_srcs[STATIC_BUFS_SIZE];
             static lUInt16 m_static_charindex[STATIC_BUFS_SIZE];
             static int m_static_widths[STATIC_BUFS_SIZE];
@@ -806,7 +806,7 @@ public:
             m_staticBufs_inUse = true;
             // printf("using static buffers\n");
         }
-        memset( m_flags, 0, sizeof(lUInt8)*m_length ); // start with all flags set to zero
+        memset( m_flags, 0, sizeof(lUInt16)*m_length ); // start with all flags set to zero
         pos = 0;
 
         // We set to zero the additional slot that the code may peek at (with
@@ -833,10 +833,12 @@ public:
                 m_srcs[pos] = src;
                 m_flags[pos] = LCHAR_IS_OBJECT;
                 m_charindex[pos] = FLOAT_CHAR_INDEX; //0xFFFE;
-                    // m_flags is a lUInt8, and there are already 8 LCHAR_IS_* bits/flags
-                    // so we can't add our own. But using LCHAR_IS_OBJECT should not hurt,
-                    // as we do the FLOAT tests before it is used.
-                    // m_charindex[pos] is the one to use to detect FLOATs
+                    // Note: m_flags was a lUInt8, and there were already 8 LCHAR_IS_* bits/flags
+                    //   so we couldn't add our own. But using LCHAR_IS_OBJECT should not hurt,
+                    //   as we do the FLOAT tests before it is used.
+                    //   m_charindex[pos] is the one to use to detect FLOATs
+                    // m_flags has since be updated to lUint16, but no real need
+                    // to change what we did for floats to use a new flag.
                 pos++;
                 // No need to update prev_was_space or last_non_space_pos
             }
@@ -2066,7 +2068,7 @@ public:
                     }
                     continue;
                 }
-                lUInt8 flags = m_flags[i];
+                lUInt16 flags = m_flags[i];
                 if ( m_text[i]=='\n' ) {
                     lastMandatoryWrap = i;
                     break;
@@ -2193,7 +2195,10 @@ public:
                 if ( start<end && start<wordpos && end>=lastNormalWrap && len>=MIN_WORD_LEN_TO_HYPHENATE ) {
                     if ( len > MAX_WORD_SIZE )
                         len = MAX_WORD_SIZE;
-                    lUInt8 * flags = m_flags + start;
+                    // HyphMan::hyphenate(), which is used by some other parts of the code,
+                    // expects a lUInt8 array. We added flagSize=1|2 so it can set the correct
+                    // flags on our upgraded (from lUInt8 to lUInt16) m_flags.
+                    lUInt8 * flags = (lUInt8*) (m_flags + start);
                     static lUInt16 widths[MAX_WORD_SIZE];
                     int wordStart_w = start>0 ? m_widths[start-1] : 0;
                     for ( int i=0; i<len; i++ ) {
@@ -2201,7 +2206,7 @@ public:
                     }
                     int max_width = maxWidth + spaceReduceWidth - x - (wordStart_w - w0) - firstCharMargin;
                     int _hyphen_width = ((LVFont*)m_srcs[wordpos]->t.font)->getHyphenWidth();
-                    if ( HyphMan::hyphenate(m_text+start, len, widths, flags, _hyphen_width, max_width) ) {
+                    if ( HyphMan::hyphenate(m_text+start, len, widths, flags, _hyphen_width, max_width, 2) ) {
                         for ( int i=0; i<len; i++ )
                             if ( (m_flags[start+i] & LCHAR_ALLOW_HYPH_WRAP_AFTER)!=0 ) {
                                 if ( widths[i]+_hyphen_width>max_width ) {
@@ -2580,6 +2585,12 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             //buf->FillRect( x+frmline->x, y + frmline->y, x+frmline->x + frmline->width, y + frmline->y + frmline->height, bgcl );
 
             // draw background for each word
+            // (if multiple consecutive words share the same bgcolor, this will
+            // actually fill a single rect encompassing these words)
+            // todo: the way background color (not inherited in lvrend.cpp) is
+            // handled here (only looking at the style of the inline node
+            // that contains the word, and not at its other inline parents),
+            // some words may not get their proper bgcolor
             lUInt32 lastWordColor = 0xFFFFFFFF;
             int lastWordStart = -1;
             int lastWordEnd = -1;
