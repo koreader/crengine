@@ -2029,7 +2029,6 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 // (todo: replace 'fmt' with 'int basewidth' to avoid confusion)
 void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy, bool * is_link_start )
 {
-    int txform_src_count = txform->GetSrcCount(); // to track if we added lines to txform
     if ( enode->isElement() ) {
         lvdom_element_render_method rm = enode->getRendMethod();
         if ( rm == erm_invisible )
@@ -2723,6 +2722,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
             case css_c_both:
                 baseflags |= LTEXT_SRC_IS_CLEAR_BOTH;
+                break;
+            default:
                 break;
             }
         }
@@ -3470,7 +3471,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                             // is erm_invisible)
                             // (No need to do anything when  list-style-type none.)
                             ldomNode * tmpnode = enode;
-                            while ( tmpnode->hasChildren() ) {
+                            while ( tmpnode && tmpnode->hasChildren() ) {
                                 tmpnode = tmpnode->getChildNode( 0 );
                                 if (tmpnode && tmpnode->getRendMethod() == erm_final) {
                                     // We need renderFinalBlock() to be able to reach the current
@@ -5827,7 +5828,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // is erm_invisible)
                         // (No need to do anything when  list-style-type none.)
                         ldomNode * tmpnode = enode;
-                        while ( tmpnode->hasChildren() ) {
+                        while ( tmpnode && tmpnode->hasChildren() ) {
                             tmpnode = tmpnode->getChildNode( 0 );
                             if (tmpnode && tmpnode->getRendMethod() == erm_final) {
                                 // We need renderFinalBlock() to be able to reach the current

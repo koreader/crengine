@@ -5392,7 +5392,7 @@ void ldomNode::initNodeRendMethod()
                 // (If new floats appear after loading, we won't render well, but
                 // a style hash mismatch will happen and the user will be
                 // suggested to reload the book with cache cleaned.)
-                if ( this->getDocument()->_cacheFile == NULL ) {
+                if ( parent && this->getDocument()->_cacheFile == NULL ) {
                     // Replace this element with a floatBox in its parent children collection,
                     // and move it inside, as the single child of this floatBox.
                     int pos = getNodeIndex();
@@ -5732,7 +5732,7 @@ ldomNode * ldomDocumentWriter::OnTagOpen( const lChar16 * nsname, const lChar16 
     // if we see a BODY coming and we are a DocFragment, its time to apply the
     // styles set to the DocFragment before switching to BODY (so the styles can
     // be applied to BODY)
-    if (id == el_body && _currNode->_element->getNodeId() == el_DocFragment) {
+    if (id == el_body && _currNode && _currNode->_element->getNodeId() == el_DocFragment) {
         _currNode->_stylesheetIsSet = _currNode->getElement()->applyNodeStylesheet();
         // _stylesheetIsSet will be used to pop() the stylesheet when
         // leaving/destroying this DocFragment ldomElementWriter
@@ -6604,7 +6604,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
         //CRLog::trace("ldomXPointer::getRect() - p==NULL");
     }
     //printf("getRect( p=%08X type=%d )\n", (unsigned)p, (int)p->getNodeType() );
-    if ( !p->getDocument() ) {
+    else if ( !p->getDocument() ) {
         //CRLog::trace("ldomXPointer::getRect() - p->getDocument()==NULL");
     }
     ldomNode * mainNode = p->getDocument()->getRootNode();
@@ -6793,11 +6793,12 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             }
                             else {
                                 bestBidiRect.left = word->x + rc.left + frmline->x;
-                                if (extended)
+                                if (extended) {
                                     if (word->flags & LTEXT_WORD_IS_OBJECT && word->width > 0)
                                         bestBidiRect.right = bestBidiRect.left + word->width; // width of image
                                     else
                                         bestBidiRect.right = bestBidiRect.left + 1;
+                                }
                             }
                             hasBestBidiRect = true;
                             nearestForwardSrcIndex = word->src_text_index;
@@ -7007,13 +7008,15 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                         rect.left = word->x + rc.left + frmline->x;
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
-                        if (extended)
+                        if (extended) {
                             if (word->flags & LTEXT_WORD_IS_OBJECT && word->width > 0)
                                 rect.right = rect.left + word->width; // width of image
                             else
                                 rect.right = rect.left + 1; // not the right word: no char width
-                        else
+                        }
+                        else {
                             rect.right = rect.left + 1;
+                        }
                         rect.bottom = rect.top + frmline->height;
                         return true;
                     } else if ( (offset < word->t.start+word->t.len)
@@ -10541,7 +10544,8 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
     lUInt16 id = _document->getElementNameIndex(tagname);
 
     // HTML title detection
-    if ( id==el_title && _currNode->_element->getParentNode()!= NULL && _currNode->_element->getParentNode()->getNodeId()==el_head ) {
+    if ( id==el_title && _currNode && _currNode->_element && _currNode->_element->getParentNode() != NULL
+                                   && _currNode->_element->getParentNode()->getNodeId() == el_head ) {
         lString16 s = _currNode->_element->getText();
         s.trim();
         if ( !s.empty() ) {
