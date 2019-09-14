@@ -19,6 +19,7 @@
 #include "../include/lvfnt.h"
 #include "../include/lvtextfm.h"
 #include "../include/lvdrawbuf.h"
+#include "../include/fb2def.h"
 
 #ifdef __cplusplus
 #include "../include/lvimg.h"
@@ -26,7 +27,12 @@
 #include "../include/lvrend.h"
 #endif
 
+#if (USE_FRIBIDI==1)
+#include <fribidi/fribidi.h>
+#endif
+
 #define MIN_SPACE_CONDENSING_PERCENT 50
+
 
 // to debug formatter
 
@@ -370,6 +376,17 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
+    #if (USE_FRIBIDI==1)
+        // Bidi/RTL support
+        FriBidiCharType *    m_bidi_ctypes;
+        FriBidiBracketType * m_bidi_btypes;
+        FriBidiLevel *       m_bidi_levels;
+        FriBidiParType       m_para_bidi_type;
+    #endif
+    // These default to false and LTR when USE_FRIBIDI==0,
+    // just to avoid too many "#if (USE_FRIBIDI==1)"
+    bool m_has_bidi; // true when Bidi (or pure RTL) detected
+    bool m_para_dir_is_rtl; // boolean shortcut of m_para_bidi_type
 
 #define OBJECT_CHAR_INDEX ((lUInt16)0xFFFF)
 #define FLOAT_CHAR_INDEX  ((lUInt16)0xFFFE)
@@ -389,6 +406,11 @@ public:
         m_has_float_to_position = false;
         m_has_ongoing_float = false;
         m_no_clear_own_floats = false;
+        #if (USE_FRIBIDI==1)
+            m_bidi_ctypes = NULL;
+            m_bidi_btypes = NULL;
+            m_bidi_levels = NULL;
+        #endif
     }
 
     ~LVFormatter()
@@ -788,6 +810,14 @@ public:
                 m_charindex = cr_realloc(m_staticBufs ? NULL : m_charindex, m_size);
                 m_srcs = cr_realloc(m_staticBufs ? NULL : m_srcs, m_size);
                 m_widths = cr_realloc(m_staticBufs ? NULL : m_widths, m_size);
+                #if (USE_FRIBIDI==1)
+                    // Note: we could here check for RTL chars (and have a flag
+                    // to then not do it in copyText()) so we don't need to allocate
+                    // the following ones if we won't be using them.
+                    m_bidi_ctypes = cr_realloc(m_staticBufs ? NULL : m_bidi_ctypes, m_size);
+                    m_bidi_btypes = cr_realloc(m_staticBufs ? NULL : m_bidi_btypes, m_size);
+                    m_bidi_levels = cr_realloc(m_staticBufs ? NULL : m_bidi_levels, m_size);
+                #endif
             }
             m_staticBufs = false;
         } else {
@@ -797,6 +827,11 @@ public:
             static src_text_fragment_t * m_static_srcs[STATIC_BUFS_SIZE];
             static lUInt16 m_static_charindex[STATIC_BUFS_SIZE];
             static int m_static_widths[STATIC_BUFS_SIZE];
+            #if (USE_FRIBIDI==1)
+                static FriBidiCharType m_static_bidi_ctypes[STATIC_BUFS_SIZE];
+                static FriBidiBracketType m_static_bidi_btypes[STATIC_BUFS_SIZE];
+                static FriBidiLevel m_static_bidi_levels[STATIC_BUFS_SIZE];
+            #endif
             m_text = m_static_text;
             m_flags = m_static_flags;
             m_charindex = m_static_charindex;
@@ -805,6 +840,11 @@ public:
             m_staticBufs = true;
             m_staticBufs_inUse = true;
             // printf("using static buffers\n");
+            #if (USE_FRIBIDI==1)
+                m_bidi_ctypes = m_static_bidi_ctypes;
+                m_bidi_btypes = m_static_bidi_btypes;
+                m_bidi_levels = m_static_bidi_levels;
+            #endif
         }
         memset( m_flags, 0, sizeof(lUInt16)*m_length ); // start with all flags set to zero
         pos = 0;
@@ -817,11 +857,26 @@ public:
         m_charindex[m_length] = 0;
         m_srcs[m_length] = NULL;
         m_widths[m_length] = 0;
+        #if (USE_FRIBIDI==1)
+            m_bidi_ctypes[m_length] = 0;
+            m_bidi_btypes[m_length] = 0;
+            m_bidi_levels[m_length] = 0;
+        #endif
     }
 
     /// copy text of current paragraph to buffers
     void copyText( int start, int end )
     {
+        m_has_bidi = false; // will be set if fribidi detects it is bidirectionnal text
+        m_para_dir_is_rtl = false;
+        bool has_rtl = false; // if no RTL char, no need for expensive bidi processing
+        // todo: according to https://www.w3.org/TR/css-text-3/#bidi-linebox
+        // the bidi direction, if determined from the text itself (no dir= from
+        // outer containers) must follow up to next paragraphs (separated by <BR/> or newlines).
+        // Here in lvtextfm, each gets its own call to copyText(), so we might need some state.
+        // This link also points out that line box direction and its text content direction
+        // might be different...
+
         int pos = 0;
         int i;
         bool prev_was_space = true; // start with true, to get rid of all leading spaces
@@ -914,7 +969,9 @@ public:
 
                 bool preformatted = (src->flags & LTEXT_FLAG_PREFORMATTED);
                 for ( int k=0; k<len; k++ ) {
-                    bool is_space = (m_text[pos] == ' ');
+                    lChar16 c = m_text[pos];
+
+                    bool is_space = (c == ' ');
                     if ( is_space && prev_was_space && !preformatted ) {
                         // On non-pre paragraphs, flag spaces following a space
                         // so we can discard them later.
@@ -940,11 +997,91 @@ public:
                     }
                     */
 
+                    // if ( ch == '-' || ch == 0x2010 || ch == '.' || ch == '+' || ch==UNICODE_NO_BREAK_SPACE )
+                    //     m_flags[pos] |= LCHAR_DEPRECATED_WRAP_AFTER;
+
+                    // Some of these (in the 2 commented lines just above) will be set
+                    // in lvfntman measureText().
+                    // We might want to have them all done here, for clarity.
+                    // We may also want to flags CJK chars to distinguish
+                    // left|right punctuations, and those that can have their
+                    // ideograph width expanded/collapsed if needed.
+
+                    // We flag some chars as we want them to be ignored: some font
+                    // would render a glyph (like "[PDI]") for some control chars
+                    // that shouldn't be rendered (Harfbuzz would skip them by itself,
+                    // but we also want to skip them when using FreeType directly).
+                    // We don't skip them when filling these buffer, as some of them
+                    // can give valuable information to the bidi algorithm.
+                    // Ignore the unicode direction hints (that we may have added ourselves
+                    // in lvrend.cpp when processing <bdi>, <bdo> and the dir= attribute).
+                    // Try to balance the searches:
+                    if ( c >= 0x202A ) {
+                        if ( c <= 0x2069 ) {
+                            if ( c <= 0x202E ) m_flags[pos] = LCHAR_IS_TO_IGNORE;      // 202A>202E
+                            else if ( c >= 0x2066 ) m_flags[pos] = LCHAR_IS_TO_IGNORE; // 2066>2069
+                        }
+                    }
+                    // We might want to add some others when we happen to meet them.
+                    // todo: see harfbuzz hb-unicode.hh is_default_ignorable() for how
+                    // to do this kind of check fast
+
+                    // Note: the overhead of using one of the following is quite minimal, so do if needed
+                    /*
+                    utf8proc_category_t uc = utf8proc_category(c);
+                    if (uc == UTF8PROC_CATEGORY_CF)
+                        printf("format char %x\n", c);
+                    else if (uc == UTF8PROC_CATEGORY_CC)
+                        printf("control char %x\n", c);
+                    // Alternative, using HarfBuzz:
+                    int uc = hb_unicode_general_category(hb_unicode_funcs_get_default(), c);
+                    if (uc == HB_UNICODE_GENERAL_CATEGORY_FORMAT)
+                        printf("format char %x\n", c);
+                    else if (uc == HB_UNICODE_GENERAL_CATEGORY_CONTROL)
+                        printf("control char %x\n", c);
+                    */
+
+                    #if (USE_FRIBIDI==1)
+                        // Also try to detect if we have RTL chars, so that if we don't have any,
+                        // we don't need to invoke expensive fribidi processing below (which
+                        // may add a 50% duration increase to the text rendering phase).
+                        // Looking at fribidi/lib/bidi-type.tab.i and its rules for tagging
+                        // a char as RTL, only the following ranges will trigger it:
+                        //   0590>08FF      Hebrew, Arabic, Syriac, Thaana, Nko, Samaritan...
+                        //   200F 202B 202E Right-To-Left mark, embedding, override format flags
+                        //   2067 2068      Right-To-Left isolate, first strong isolate format flags
+                        //   FB1D>FDFF      Hebrew and Arabic presentation forms
+                        //   FE70>FEFF      Arabic presentation forms
+                        //   10800>10FFF    Other rare scripts possibly RTL
+                        //   1E800>1EEBB    Other rare scripts possibly RTL
+                        // (There may be LTR chars in these ranges, but it's fine, we'll
+                        // invoke fribidi, which will say there's no bidi.)
+                        if ( !has_rtl ) {
+                            // Try to balance the searches
+                            if ( c >= 0x0590 ) {
+                                if ( c <= 0x2068 ) {
+                                    if ( c <= 0x08FF ) has_rtl = true;
+                                    else if ( c >= 0x200F ) {
+                                        if ( c >= 0x2067 ) has_rtl = true;
+                                        else if ( c == 0x200F || c == 0x202B || c == 0x202E ) has_rtl = true;
+                                    }
+                                }
+                                else if ( c >= 0xFB1D ) {
+                                    if ( c <= 0xFDFF ) has_rtl = true;
+                                    else if ( c <= 0xFEFF ) {
+                                        if ( c >= 0xFE70) has_rtl = true;
+                                    }
+                                    else if ( c <= 0x1EEBB ) {
+                                        if (c >= 0x1E800) has_rtl = true;
+                                        else if ( c <= 0x10FFF && c >= 0x10800 ) has_rtl = true;
+                                    }
+                                }
+                            }
+                        }
+                    #endif
+
                     m_charindex[pos] = k;
                     m_srcs[pos] = src;
-//                    lChar16 ch = m_text[pos];
-//                    if ( ch == '-' || ch == 0x2010 || ch == '.' || ch == '+' || ch==UNICODE_NO_BREAK_SPACE )
-//                        m_flags[pos] |= LCHAR_DEPRECATED_WRAP_AFTER;
                     pos++;
                 }
             }
@@ -960,6 +1097,95 @@ public:
             }
         }
         TR("%s", LCSTR(lString16(m_text, m_length)));
+
+        #if (USE_FRIBIDI==1)
+        if ( has_rtl ) {
+            // HarfBuzz reordering and shaping is different if paragraph is set
+            // to LTR or RTL, so we must get it right.
+            // m_para_bidi_type = FRIBIDI_PAR_LTR;
+            // m_para_bidi_type = FRIBIDI_PAR_RTL;
+            m_para_bidi_type = FRIBIDI_PAR_WLTR; // Weak LTR (= auto with a bias toward LTR)
+            // More work is needed in lvrend/lvstyles/lvstsheet to propertly support text
+            // direction via CSS and attributes (dir="rtl") according to the specs.
+            // But some specs say content creators should prefer setting text direction
+            // via the dir= attribute, rather than via CSS, so, for now, let's ensure just that.
+            // From the first text node of this paragraph, look at its parents until
+            // we find one with a dir= attribute. (This might be a bit expensive, but well,
+            // proper rtl can cost a bit more...)
+            // Note: this should better be done by renderBlockElementEnhanced and FlowState,
+            // and stored in the final block RenderRectAccessor.
+            for ( i=start; i<end; i++ ) {
+                src_text_fragment_t * src = &m_pbuffer->srctext[i];
+                if ( !src->object ) // might be NULL for added text (like list-item bullets)
+                    continue;
+                ldomNode * node = (ldomNode *) src->object; // text node or image
+                // todo: if we're going to keep the following, make it a
+                // ldomNode::getWrittingDirection() method, returning:
+                //   1=LTR -1=RTL 0=unspecified
+                while (node) {
+                    if ( node->getRendMethod() == erm_inline) {
+                        // Ignore inline wrapping nodes: we're interested only in
+                        // the attribute set on an upper block element (erm_final
+                        // and upper erm_block).
+                        node = node->getParentNode();
+                        continue;
+                    }
+                    if ( !node->hasAttribute( attr_dir ) ) {
+                        node = node->getParentNode();
+                        continue;
+                    }
+                    lString16 dir = node->getAttributeValue( attr_dir );
+                    dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
+                    if ( dir.compare("rtl") == 0 ) {
+                        m_para_bidi_type = FRIBIDI_PAR_RTL; // Strong RTL
+                    }
+                    else if ( dir.compare("ltr") == 0 ) {
+                        m_para_bidi_type = FRIBIDI_PAR_LTR; // Strong LTR
+                    }
+                    // otherwise ("auto" or bad value), stay with FRIBIDI_PAR_WLTR Weak LTR
+                    break;
+                }
+                break;
+            }
+
+            // Compute bidi levels
+            fribidi_get_bidi_types( (const FriBidiChar*)m_text, m_length, m_bidi_ctypes);
+            fribidi_get_bracket_types( (const FriBidiChar*)m_text, m_length, m_bidi_ctypes, m_bidi_btypes);
+            int max_level = fribidi_get_par_embedding_levels_ex(m_bidi_ctypes, m_bidi_btypes,
+                                m_length, (FriBidiParType*)&m_para_bidi_type, m_bidi_levels);
+            // If computed max level == 1, we are in plain and only LTR, so no need for
+            // more bidi work later.
+            if ( max_level > 1 ) {
+                m_has_bidi = true;
+            }
+            if ( m_para_bidi_type == FRIBIDI_PAR_RTL || m_para_bidi_type == FRIBIDI_PAR_WRTL )
+                m_para_dir_is_rtl = true;
+
+            // fribidi_shape(FRIBIDI_FLAG_SHAPE_MIRRORING, m_bidi_levels, m_length, NULL, (FriBidiChar*)m_text);
+            // No use mirroring at this point I think, as it's not the text that will
+            // be drawn. Hoping parens & al. have the same widths when mirrored.
+            // We'll do that in addLine() when processing words when meeting
+            // a rtl one, with fribidi_get_mirror_char().
+
+            /* For debugging:
+                printf("par_type %d , max_level %d\n", m_para_bidi_type, max_level);
+                for (int i=0; i<m_length; i++)
+                    printf("%d", m_bidi_levels[i]);
+                printf("\n");
+            // We get:
+            //   pure LTR: par_type 272 , max_level 1  0000000000
+            //   pure RTL: par_type 273 , max_level 2  1111111111
+            //   LTR at start with later some RTL: par_type 272 , max_level 2  00000111111000000000000000
+            //   RTL at start with later some LTR: par_type 273 , max_level 3  1111111111112222222222222221
+            */
+
+            // todo: other layout things we should adapt for RTL:
+            // - list items bullets go to the right of text
+            // - tables cells in a row should be reversed order
+            // - Supports CSS :dir() selector: https://developer.mozilla.org/en-US/docs/Web/CSS/:dir
+            //   looks impossible (styles are applied before text direction detection)
+        }
+        #endif
     }
 
     void resizeImage( int & width, int & height, int maxw, int maxh, bool isInline )
@@ -1101,6 +1327,7 @@ public:
         static lUInt8 flags[MAX_MEASURED_WORD_SIZE+1];
         if (word->t.len > MAX_MEASURED_WORD_SIZE)
             return false;
+        lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
         int chars_measured = srcfont->measureText(
                 str,
                 word->t.len,
@@ -1108,7 +1335,8 @@ public:
                 0x7FFF,
                 '?',
                 srcline->letter_spacing,
-                false);
+                false,
+                hints );
         width = widths[word->t.len-1];
         return true;
     }
@@ -1118,6 +1346,7 @@ public:
     {
         int i;
         LVFont * lastFont = NULL;
+        lInt16 lastLetterSpacing = 0;
         //src_text_fragment_t * lastSrc = NULL;
         int start = 0;
         int lastWidth = 0;
@@ -1125,8 +1354,13 @@ public:
         static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
         int tabIndex = -1;
+        #if (USE_FRIBIDI==1)
+            FriBidiLevel lastBidiLevel = 0;
+            FriBidiLevel newBidiLevel;
+        #endif
         for ( i=0; i<=m_length; i++ ) {
             LVFont * newFont = NULL;
+            lInt16 newLetterSpacing = 0;
             src_text_fragment_t * newSrc = NULL;
             if ( tabIndex<0 && m_text[i]=='\t' ) {
                 tabIndex = i;
@@ -1138,31 +1372,70 @@ public:
                 isObject = m_charindex[i] == OBJECT_CHAR_INDEX ||
                            m_charindex[i] == FLOAT_CHAR_INDEX;
                 newFont = isObject ? NULL : (LVFont *)newSrc->t.font;
+                newLetterSpacing = newSrc->letter_spacing; // 0 for objects
             }
             if (i > 0)
                 prevCharIsObject = m_charindex[i-1] == OBJECT_CHAR_INDEX ||
                                    m_charindex[i-1] == FLOAT_CHAR_INDEX;
             if ( !lastFont )
                 lastFont = newFont;
-            if ( i>start && (newFont!=lastFont
+            if (i == 0)
+                lastLetterSpacing = newLetterSpacing;
+            bool bidiLevelChanged = false;
+            int lastDirection = 0; // unknown
+            #if (USE_FRIBIDI==1)
+                lastDirection = 1; // direction known: LTR if no bidi found
+                if (m_has_bidi) {
+                    newBidiLevel = m_bidi_levels[i];
+                    if (i == 0)
+                        lastBidiLevel = newBidiLevel;
+                    else if ( newBidiLevel != lastBidiLevel )
+                        bidiLevelChanged = true;
+                    if ( FRIBIDI_LEVEL_IS_RTL(lastBidiLevel) )
+                        lastDirection = -1; // RTL
+                }
+            #endif
+            // Note: some additional tweaks (like disabling letter-spacing when
+            // a cursive script is detected) are done in measureText() and drawTextString().
+
+            // Make a new segment to measure when any property changes from previous char
+            if ( i>start && (   newFont != lastFont
+                             || newLetterSpacing != lastLetterSpacing
+                             || bidiLevelChanged
                              || isObject
                              || prevCharIsObject
-                             || i>=start+MAX_TEXT_CHUNK_SIZE
-                             || (m_flags[i]&LCHAR_MANDATORY_NEWLINE)) ) {
+                             || i >= start+MAX_TEXT_CHUNK_SIZE
+                             || (m_flags[i] & LCHAR_IS_TO_IGNORE)
+                             || (m_flags[i] & LCHAR_MANDATORY_NEWLINE) ) ) {
                 // measure start..i-1 chars
                 if ( m_charindex[i-1]!=OBJECT_CHAR_INDEX && m_charindex[i-1]!=FLOAT_CHAR_INDEX ) {
                     // measure text
+                    // Note: we provide text in the logical order, and measureText()
+                    // will apply kerning in that order, which might be wrong if some
+                    // text fragment happens to be RTL (except for Harfbuzz which will
+                    // do the right thing).
                     int len = i - start;
+                    // Provide direction and start/end of paragraph hints, for Harfbuzz
+                    lUInt32 hints = 0;
+                    if ( start == 0 ) hints |= LFNT_HINT_BEGINS_PARAGRAPH;
+                    if ( i == m_length ) hints |= LFNT_HINT_ENDS_PARAGRAPH;
+                    if ( lastDirection ) {
+                        hints |= LFNT_HINT_DIRECTION_KNOWN;
+                        if ( lastDirection < 0 )
+                            hints |= LFNT_HINT_DIRECTION_IS_RTL;
+                    }
                     int chars_measured = lastFont->measureText(
                             m_text + start,
                             len,
                             widths, flags,
                             0x7FFF, //pbuffer->width,
-                            //300, //TODO
                             '?',
-                            m_srcs[start]->letter_spacing,
-                            false);
+                            lastLetterSpacing,
+                            false,
+                            hints
+                            );
                     if ( chars_measured<len ) {
+                        // printf("######### chars_measured %d < %d\n", chars_measured, len);
                         // too long line
                         int newlen = chars_measured; // TODO: find best wrap position
                         i = start + newlen;
@@ -1171,6 +1444,13 @@ public:
                         // reset newFont (the font of the next text node), so
                         // it does not replace lastFont at the end of the loop.
                         newFont = NULL;
+                        // If we didn't measure the full text, letter spacing and
+                        // bidi level are to stay the same
+                        newLetterSpacing = lastLetterSpacing;
+                        #if (USE_FRIBIDI==1)
+                            if (m_has_bidi)
+                                newBidiLevel = lastBidiLevel;
+                        #endif
                     }
 
                     // Deal with chars flagged as collapsed spaces:
@@ -1202,13 +1482,9 @@ public:
                         // printf("  => w=%d\n", m_widths[start + k]);
                     }
 
-//                    // debug dump
-//                    lString16 buf;
-//                    for ( int k=0; k<len; k++ ) {
-//                        buf << L"_" << lChar16(m_text[start+k]) << L"_" << lString16::itoa(widths[k]);
-//                    }
-//                    TR("       %s", LCSTR(buf));
                     int dw = getAdditionalCharWidth(i-1, m_length);
+                    if ( lastDirection < 0 ) // ignore it for RTL (as right side bearing is measured)
+                        dw = 0;
                     if ( dw ) {
                         m_widths[i-1] += dw;
                         lastWidth += dw;
@@ -1244,11 +1520,25 @@ public:
                 }
                 start = i;
             }
-
+            // Skip measuring chars to ignore.
+            if ( m_flags[i] & LCHAR_IS_TO_IGNORE) {
+                m_widths[start] = lastWidth;
+                start++;
+                // This whole function here is very convoluted, it could really
+                // be made simpler and be more readable.
+                // This simple test here feels out of place, but it seems to
+                // work in the various cases (ignorable char at start, standalone,
+                // multiples, or at end).
+            }
             //
             if (newFont)
                 lastFont = newFont;
             //lastSrc = newSrc;
+            lastLetterSpacing = newLetterSpacing;
+            #if (USE_FRIBIDI==1)
+                if (m_has_bidi)
+                    lastBidiLevel = newBidiLevel;
+            #endif
         }
         if ( tabIndex>=0 ) {
             int tabPosition = -m_srcs[0]->margin;
@@ -1270,14 +1560,14 @@ public:
 #define MAX_WORD_SIZE 64
 
     /// align line: add or reduce widths of spaces to achieve desired text alignment
-    void alignLine( formatted_line_t * frmline, int alignment ) {
+    void alignLine( formatted_line_t * frmline, int alignment, int rightIndent=0 ) {
         // Fetch current line x offset and max width
         int x_offset;
         int width = getAvailableWidthAtY(m_y, m_pbuffer->strut_height, x_offset);
         // printf("alignLine %d+%d < %d\n", frmline->x, frmline->width, width);
 
         // (frmline->x may be different from x_offset when non-zero text-indent)
-        int available_width = x_offset + width - (frmline->x + frmline->width);
+        int available_width = x_offset + width - (frmline->x + frmline->width) - rightIndent;
         if ( available_width < 0 ) {
             // line is too wide
             // reduce spaces to fit line
@@ -1349,16 +1639,36 @@ public:
     {
         // Note: provided 'interval' is no more used
         int maxWidth = getCurrentLineWidth();
+        int rightIndent = 0;
+        if ( m_para_dir_is_rtl ) {
+            rightIndent = x;
+            maxWidth -= x; // put x/first char indent on the right: reduce width
+            x = getCurrentLineX(); // use shift induced by left floats
+        }
+        else {
+            x += getCurrentLineX(); // add shift induced by left floats
+        }
         //int w0 = start>0 ? m_widths[start-1] : 0;
         int align = para->flags & LTEXT_FLAG_NEWLINE;
         TR("addLine(%d, %d) y=%d  align=%d", start, end, m_y, align);
         // printf("addLine(%d, %d) y=%d  align=%d maxWidth=%d\n", start, end, m_y, align, maxWidth);
 
+        // For some reason, text_align_last inheritance is not ensured in lvrend.cpp,
+        // may be to be able to kill justification for the last (or a single) line as
+        // easily as what follows below.
+        // Here, text_align_last = 0 when it has not explicitely been set by the style
+        // of the erm_final node.
         int text_align_last = (para->flags >> LTEXT_LAST_LINE_ALIGN_SHIFT) & LTEXT_FLAG_NEWLINE;
         if ( last && !first && align==LTEXT_ALIGN_WIDTH && text_align_last!=0 )
             align = text_align_last;
-        else if ( align==LTEXT_ALIGN_WIDTH && last )
+        else if ( align==LTEXT_ALIGN_WIDTH && last ) {
+            // text-align-last: not specified, justification is in use, and this line
+            // is the last (or a single line): align it to the left.
             align = LTEXT_ALIGN_LEFT;
+            // Unless fribidi detected this paragraph is RTL: align it to the right
+            if ( m_para_dir_is_rtl )
+                align = LTEXT_ALIGN_RIGHT;
+        }
         if ( preFormattedOnly || !align )
             align = LTEXT_ALIGN_LEFT;
 
@@ -1373,6 +1683,174 @@ public:
             if ( last_align )
                 align = last_align;
         }
+
+        bool trustDirection = false;
+        bool lineIsBidi = false;
+        #if (USE_FRIBIDI==1)
+        trustDirection = true;
+        bool restore_last_width = false;
+        int last_width_to_restore;
+        if (m_has_bidi) {
+            // We don't want to mess too much with the follow up code, so we
+            // do the following, which might be expensive for full RTL documents:
+            // we just reorder all chars, flags, width and references to
+            // the original nodes, according to how fribidi decides the visual
+            // order of chars should be.
+            // We can mess with the m_* arrays (the range that spans the current
+            // line) as they won't be used anymore after this function.
+            // Except for the width of the last char (that we may modify
+            // while zeroing the widths of collapsed spaces) that will be
+            // used as the starting width of next line. We'll restore it
+            // when done with this line.
+            last_width_to_restore = m_widths[end-1];
+            restore_last_width = true;
+
+            // From fribidi documentation:
+            // fribidi_reorder_line() reorders the characters in a line of text
+            // from logical to final visual order. Note:
+            // - the embedding levels may change a bit
+            // - the bidi types and embedding levels are not reordered
+            // - last parameter is a map of string indices which is reordered to
+            //   reflect where each glyph ends up
+            //
+            // For re-ordering, we need some temporary buffers.
+            // We use static buffers, and don't bother with dynamic buffers
+            // in case we would overflow the static buffers.
+            // (4096, if some glyphs spans 4 composing unicode codepoints, would
+            // make 1000 glyphs, which with a small font of width 4px, would
+            // allow them to be displayed on a 4000px screen.
+            // Increase that if not enough.)
+            #define MAX_LINE_SIZE 4096
+            if ( end-start > MAX_LINE_SIZE ) {
+                // Show a warning and truncate to avoid a segfault.
+                printf("CRE WARNING: bidi processing line overflow (%d > %d)\n", end-start, MAX_LINE_SIZE);
+                end = start + MAX_LINE_SIZE;
+            }
+            static lChar16 bidi_tmp_text[MAX_LINE_SIZE];
+            static lUInt16 bidi_tmp_flags[MAX_LINE_SIZE];
+            static src_text_fragment_t * bidi_tmp_srcs[MAX_LINE_SIZE];
+            static lUInt16 bidi_tmp_charindex[MAX_LINE_SIZE];
+            static int     bidi_tmp_widths[MAX_LINE_SIZE];
+            // Map of string indices which is reordered to reflect where each
+            // glyph ends up. Note that fribidi will access it starting
+            // from 0 (and not from 'start'): this would need us to allocate
+            // it the size of the full m_text (instead of MAX_LINE_SIZE)!
+            // But we can trick that by providing a fake start address,
+            // shifted by 'start' (which is ugly and could cause a segfault
+            // if some other part than [start:end] would be accessed, but
+            // we know fribid doesn't - by contract as it shouldn't reorder
+            // any other part except between start:end).
+            static FriBidiStrIndex bidi_indices_map[MAX_LINE_SIZE];
+            for (int i=start; i<end; i++) {
+                bidi_indices_map[i-start] = i;
+            }
+            FriBidiStrIndex * _virtual_bidi_indices_map = bidi_indices_map - start;
+
+            FriBidiFlags bibi_flags = 0;
+            // We're not using bibi_flags=FRIBIDI_FLAG_REORDER_NSM (which is mostly
+            // needed for code drawing the resulting reordered result) as it would
+            // mess with our indices map, and the final result would be messy.
+            // (Looks like even Freetype drawing does not need the BIDI rule
+            // L3 (combining-marks-must-come-after-base-char) as it draws finely
+            // RTL when we draw the combining marks before base char.)
+            int max_level = fribidi_reorder_line(bibi_flags, m_bidi_ctypes, end-start, start,
+                                m_para_bidi_type, m_bidi_levels, NULL, _virtual_bidi_indices_map);
+            if (max_level > 1) {
+                lineIsBidi = true;
+                // bidi_tmp_* will contain things in the visual order, from which
+                // we will make words (exactly as if it had been LTR that way)
+                for (int i=start; i<end; i++) {
+                    int bidx = i - start;
+                    int j = bidi_indices_map[bidx]; // original indice in m_text, m_flags, m_bidi_levels...
+                    bidi_tmp_text[bidx] = m_text[j];
+                    bidi_tmp_srcs[bidx] = m_srcs[j];
+                    bidi_tmp_charindex[bidx] = m_charindex[j];
+                    // Add a flag if this char is part of a RTL segment
+                    if ( FRIBIDI_LEVEL_IS_RTL( m_bidi_levels[j] ) )
+                        m_flags[j] |= LCHAR_IS_RTL;
+                    else
+                        m_flags[j] &= ~LCHAR_IS_RTL;
+                    bidi_tmp_flags[bidx] = m_flags[j];
+                    // bidi_tmp_widths will contains each individual char width, that we
+                    // compute from the accumulated width. We'll make it a new
+                    // accumulated width in next loop
+                    bidi_tmp_widths[bidx] = m_widths[j] - (j > 0 ? m_widths[j-1] : 0);
+                    // todo: we should probably also need to update/move the
+                    // LCHAR_IS_CLUSTER_TAIL flag... haven't really checked
+                    // (might be easier or harder due to the fact that we
+                    // don't use FRIBIDI_FLAG_REORDER_NSM?)
+                }
+
+                // It looks like fribidi is quite good enough at taking
+                // care of collapsed spaces! No real extra space seen
+                // when testing, except at start and end.
+                // Anyway, we handle collapsed spaces and their widths
+                // as we would expect them to be with LTR text just out
+                // of copyText().
+                bool prev_was_space = true; // start as true to make leading spaces collapsed
+                int prev_non_collapsed_space = -1;
+                int w = start > 0 ? m_widths[start-1] : 0;
+                for (int i=start; i<end; i++) {
+                    int bidx = i - start;
+                    m_text[i] = bidi_tmp_text[bidx];
+                    m_flags[i] = bidi_tmp_flags[bidx];
+                    m_srcs[i] = bidi_tmp_srcs[bidx];
+                    m_charindex[i] = bidi_tmp_charindex[bidx];
+                    // Handle consecutive spaces at start and in the text
+                    if ( (m_srcs[i]->flags & LTEXT_FLAG_PREFORMATTED) ) {
+                        prev_was_space = false;
+                        prev_non_collapsed_space = -1;
+                        m_flags[i] &= ~LCHAR_IS_COLLAPSED_SPACE;
+                    }
+                    else {
+                        if ( m_text[i] == ' ' ) {
+                            if (prev_was_space) {
+                                m_flags[i] |= LCHAR_IS_COLLAPSED_SPACE;
+                                // Put this (now collapsed, but possibly previously non-collapsed)
+                                // space width on the preceeding now non-collapsed space
+                                int w_orig = bidi_tmp_widths[bidx];
+                                bidi_tmp_widths[bidx] = 0;
+                                if ( prev_non_collapsed_space >= 0 ) {
+                                    m_widths[prev_non_collapsed_space] += w_orig;
+                                    w += w_orig;
+                                }
+                            }
+                            else {
+                                m_flags[i] &= ~LCHAR_IS_COLLAPSED_SPACE;
+                                prev_was_space = true;
+                                prev_non_collapsed_space = i;
+                            }
+                        }
+                        else {
+                            prev_was_space = false;
+                            prev_non_collapsed_space = -1;
+                            m_flags[i] &= ~LCHAR_IS_COLLAPSED_SPACE;
+                        }
+                    }
+                    w += bidi_tmp_widths[bidx];
+                    m_widths[i] = w;
+                    // printf("%x:f%x,w%d ", m_text[i], m_flags[i], m_widths[i]);
+                }
+                // Also flag as collapsed the trailing spaces on the reordered line
+                if (prev_non_collapsed_space >= 0) {
+                    int prev_width = prev_non_collapsed_space > 0 ? m_widths[prev_non_collapsed_space-1] :0 ;
+                    for (int i=prev_non_collapsed_space; i<end; i++) {
+                        m_flags[i] |= LCHAR_IS_COLLAPSED_SPACE;
+                        m_widths[i] = prev_width;
+                    }
+                }
+
+            }
+            // Note: we reordered m_text and others, which are used from now on only
+            // to properly split words. When drawing the text, these are no more used,
+            // and the string is taken directly from the copy of the text node string
+            // stored as src_text_fragment_t->t.text, so FreeType and HarfBuzz will
+            // get the text in logical order (as HarfBuzz expects it).
+            // Also, when parens/brackets are involved in RTL text, only HarfBuzz
+            // will correctly mirror them. When not using Harfbuzz, we'll mirror
+            // mirrorable chars below when a word is RTL.
+        }
+        #endif
 
         int lastnonspace = 0;
         if ( align==LTEXT_ALIGN_WIDTH || splitBySpaces ) {
@@ -1434,6 +1912,17 @@ public:
             return;
         }
 
+        if ( lineIsBidi ) {
+            // Flag that line, so createXPointer() and getRect() know it's not
+            // a regular one and can't assume words and text nodes are linear.
+            frmline->flags |= LTEXT_LINE_IS_BIDI;
+        }
+        if ( m_para_dir_is_rtl ) {
+            frmline->flags |= LTEXT_LINE_PARA_IS_RTL;
+            // Not used yet, but might be useful (we may have a bidi line
+            // in a LTR paragraph).
+        }
+
         // Ignore space at start of line (this rarely happens, as line
         // splitting discards the space on which a split is made - but it
         // can happen in other rare wrap cases like lastDeprecatedWrap)
@@ -1453,6 +1942,11 @@ public:
         bool isSpace = false;
         //bool nextIsSpace = false;
         bool space = false;
+        // Bidi
+        bool lastIsRTL = false;
+        bool isRTL = false;
+        // Ignorables
+        bool isToIgnore = false;
         for ( int i=start; i<=end; i++ ) { // loop thru each char
             src_text_fragment_t * newSrc = i<end ? m_srcs[i] : NULL;
             if ( i<end ) {
@@ -1467,9 +1961,11 @@ public:
                 //     "inside a") and, when justify'ing text, space would not be
                 //     distributed between "inside" and "a"...
                 //     Not really sure what's the purpose of this last test...
+                isToIgnore = m_flags[i] & LCHAR_IS_TO_IGNORE;
             } else {
                 lastWord = true;
             }
+            isRTL = m_flags[i] & LCHAR_IS_RTL;
 
             // This loop goes thru each char, and create a new word when it meets:
             // - a non-space char that follows a space (this non-space char will be
@@ -1516,7 +2012,13 @@ public:
             // It would be drawn as a space, but the next CJKchar would override
             // it when it is drawn next.
 
-            if ( i>wstart && (newSrc!=lastSrc || space || lastWord || isCJKIdeograph(m_text[i])) ) {
+            if ( i>wstart && (   newSrc!=lastSrc
+                              || space
+                              || lastWord
+                              || isCJKIdeograph(m_text[i])
+                              || isRTL != lastIsRTL
+                              || isToIgnore
+                             ) ) {
                 // New HTML source node, space met just before, last word, or CJK char:
                 // create and add new word with chars from wstart to i-1
 
@@ -1525,9 +2027,10 @@ public:
                 // but they will be drawn as a space by Draw(). We need
                 // to increment the start index into the src_text_fragment_t
                 // for Draw() to start rendering the text from this position.
-                // Also skip floating nodes
+                // Also skip floating nodes and chars flagged as to be ignored.
                 while (wstart < i) {
                     if ( !(m_flags[wstart] & LCHAR_IS_COLLAPSED_SPACE) &&
+                         !(m_flags[wstart] & LCHAR_IS_TO_IGNORE) &&
                             !(m_srcs[wstart]->flags & LTEXT_SRC_IS_FLOAT) )
                         break;
                     // printf("_"); // to see when we remove one, before the TR() below
@@ -1547,6 +2050,14 @@ public:
                     if (lastWord && frmline->word_count == 0) {
                         if (!isLastPara) {
                             wstart--; // make a single word with a single collapsed space
+                            if (m_flags[wstart] & LCHAR_IS_TO_IGNORE) {
+                                // In this (edgy) case, we would be rendering this char we
+                                // want to ignore.
+                                // This is a bit hacky, but no other solution: just
+                                // replace that ignorable char with a space in the
+                                // src text
+                                *((lChar16 *) (m_srcs[wstart]->t.text + m_charindex[wstart])) = L' ';
+                            }
                         }
                         else { // Last or single para with no word
                             // A line has already been added: just make
@@ -1561,6 +2072,7 @@ public:
                         // no word made, get ready for next loop
                         lastSrc = newSrc;
                         lastIsSpace = isSpace;
+                        lastIsRTL = isRTL;
                         continue;
                     }
                 }
@@ -1653,8 +2165,51 @@ public:
 
                     word->x = frmline->width;
                     word->flags = 0;
-                    word->t.start = m_charindex[wstart];
-                    word->t.len = i - wstart;
+
+                    // For Harfbuzz, which may shape differently words at start or end of paragraph
+                    if (first && frmline->word_count == 1) // first line of paragraph + first word of line
+                        word->flags |= LTEXT_WORD_BEGINS_PARAGRAPH;
+                    if (last && lastWord) // last line of paragraph + last word of line
+                        word->flags |= LTEXT_WORD_ENDS_PARAGRAPH;
+
+                    if ( trustDirection)
+                        word->flags |= LTEXT_WORD_DIRECTION_KNOWN;
+                    if ( !m_has_bidi ) {
+                        // No bidi, everything is linear
+                        word->t.start = m_charindex[wstart];
+                        word->t.len = i - wstart;
+                    }
+                    else if ( m_flags[wstart] & LCHAR_IS_RTL ) {
+                        // Bidi and first char RTL.
+                        // As we split on bidi level change, the full word is RTL.
+                        // As we split on src text fragment, we are sure all chars
+                        // are in the same text node.
+                        // charindex may have been reordered, and may not be sync'ed with wstart/i-1,
+                        // but it is linearly decreasing between i-1 and wstart
+                        word->t.start = m_charindex[i-1];
+                        word->t.len = m_charindex[wstart] - m_charindex[i-1] + 1;
+                        word->flags |= LTEXT_WORD_DIRECTION_IS_RTL; // Draw glyphs in reverse order
+                        #if (USE_FRIBIDI==1)
+                        // If not using Harfbuzz, procede to mirror parens & al (don't
+                        // do that if Harfbuzz is used, as it does that by itself, and
+                        // would mirror back our mirrored chars!)
+                        if ( font->getKerningMode() != KERNING_MODE_HARFBUZZ) {
+                            lChar16 * str = (lChar16*)(srcline->t.text + word->t.start);
+                            FriBidiChar mirror;
+                            for (int i=0; i < word->t.len; i++) {
+                                if ( fribidi_get_mirror_char( (FriBidiChar)(str[i]), &mirror) )
+                                    str[i] = (lChar16)mirror;
+                            }
+                        }
+                        #endif
+                    }
+                    else {
+                        // Bidi and first char LTR. Same comments as above, except for last one:
+                        // it is linearly increasing between wstart and i-1
+                        word->t.start = m_charindex[wstart];
+                        word->t.len = m_charindex[i-1] + 1 - m_charindex[wstart];
+                    }
+
                     word->width = m_widths[i>0 ? i-1 : 0] - (wstart>0 ? m_widths[wstart-1] : 0);
                     word->min_width = word->width;
                     TR("addLine - word(%d, %d) x=%d (%d..%d)[%d] |%s|", wstart, i, frmline->width, wstart>0 ? m_widths[wstart-1] : 0, m_widths[i-1], word->width, LCSTR(lString16(m_text+wstart, i-wstart)));
@@ -1860,12 +2415,17 @@ public:
                 wstart = i;
             }
             lastIsSpace = isSpace;
+            lastIsRTL = isRTL;
         }
-        alignLine( frmline, align );
+        alignLine( frmline, align, rightIndent );
         m_y += frmline->height;
         m_pbuffer->height = m_y;
         checkOngoingFloat();
         positionDelayedFloats();
+        #if (USE_FRIBIDI==1)
+        if ( restore_last_width ) // bidi: restore last width to not mess with next line
+            m_widths[end-1] = last_width_to_restore;
+        #endif
     }
 
     int getMaxCondensedSpaceTruncation(int pos) {
@@ -1996,6 +2556,10 @@ public:
         int minWidth = 3 * m_pbuffer->strut_height;
 
         for (;pos<m_length;) { // each loop makes a line
+            // x is the initial line indent: it's set to text-indent value for the
+            // first line (when pos=0), or to the others when it is negative.
+            // (We use it like a x coordinates below, but we'll use it on the
+            // right in addLine() if para is RTL.)
             int x = indent >=0 ? (pos==0 ? indent : 0) : (pos==0 ? 0 : -indent);
             int w0 = pos>0 ? m_widths[pos-1] : 0;
             int i;
@@ -2012,6 +2576,16 @@ public:
             // (But as I don't know about the wanted effect with visualAlignmentEnabled,
             // and given it's only about italic chars, and that we would need to remove
             // stuff in getRenderedWidths... letting it as it is.)
+
+            if ( m_has_bidi ) {
+                // If bidi, our first char may be no more the first char
+                // inside AddLine, so reset firtCharMargin to 0.
+                firstCharMargin = 0;
+                // todo: probably some other things to avoid if bidi or
+                // if m_para_dir_is_rtl, like hyphenation.
+                // Also possible: scan chars as they fit on this line for
+                // bidi level > 1: if none, this line is pure LTR
+            }
 
             maxWidth = getCurrentLineWidth();
             if (maxWidth <= minWidth) {
@@ -2169,6 +2743,7 @@ public:
             // If, with normal wrapping, more than 5% of line is occupied by
             // spaces, try to find a word (after where we stopped) to hyphenate,
             // if hyphenation is not forbidden by CSS.
+            // todo: decide if we should hyphenate if bidi is happening up to now
             if ( lastMandatoryWrap<0 && lastNormalWrap<m_length-1 && unusedPercent > 5 &&
                 !(m_srcs[wordpos]->flags & LTEXT_SRC_IS_OBJECT) && (m_srcs[wordpos]->flags & LTEXT_HYPHENATE) ) {
                 // hyphenate word
@@ -2299,6 +2874,7 @@ public:
                 // that, we'll be ignoring multiple stuck OBJECTs at end of line.
                 // So, not touching it...
             }
+            // todo: probably need be avoided if bidi/rtl:
             int dw = lastnonspace>=start ? getAdditionalCharWidth(lastnonspace, lastnonspace+1) : 0;
             // If we ended the line with some hyphenation, no need to account for italic
             // right side bearing overflow, as the last glyph will be an hyphen.
@@ -2309,7 +2885,6 @@ public:
                 m_widths[lastnonspace] += dw;
             }
             if (endp>m_length) endp=m_length;
-            x += getCurrentLineX(); // add shift induced by left floats
             addLine(pos, endp, x + firstCharMargin, para, interval, pos==0, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace, isLastPara);
             pos = wrapPos + 1;
         }
@@ -2376,6 +2951,14 @@ public:
             m_srcs = NULL;
             m_charindex = NULL;
             m_widths = NULL;
+            #if (USE_FRIBIDI==1)
+                free( m_bidi_ctypes );
+                free( m_bidi_btypes );
+                free( m_bidi_levels );
+                m_bidi_ctypes = NULL;
+                m_bidi_btypes = NULL;
+                m_bidi_levels = NULL;
+            #endif
             m_staticBufs = true;
             // printf("freeing dynamic buffers\n");
         }
@@ -2682,9 +3265,21 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 else
                 {
                     bool flgHyphen = false;
-                    if ( (j==frmline->word_count-1) &&
-                        (word->flags&LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER))
-                        flgHyphen = true;
+                    if ( word->flags&LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) {
+                        if (j==frmline->word_count-1)
+                            flgHyphen = true;
+                        // Also do that even if it's not the last word in the line
+                        // AND the line is bidi: the hyphen may be in the middle of
+                        // the text, but it's fine for some people with bidi, see
+                        // conversation "Bidi reordering of soft hyphen" at:
+                        //   https://unicode.org/pipermail/unicode/2014-April/thread.html#348
+                        // If that's not desirable, just disable hyphenation lookup
+                        // in processParagraph() if m_has_bidi or if chars found in
+                        // line span multilple bidi levels (so that we don't get
+                        // a blank space for a hyphen not drawn after this word).
+                        else if (frmline->flags & LTEXT_LINE_IS_BIDI)
+                            flgHyphen = true;
+                    }
                     srcline = &m_pbuffer->srctext[word->src_text_index];
                     font = (LVFont *) srcline->t.font;
                     str = srcline->t.text + word->t.start;
@@ -2717,6 +3312,8 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         buf->SetBackgroundColor( bgcl );
                     // Add drawing flags: text decoration (underline...)
                     lUInt32 drawFlags = srcline->flags & LTEXT_TD_MASK;
+                    // and chars direction, and if word begins or ends paragraph (for Harfbuzz)
+                    drawFlags |= WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                     font->DrawTextString(
                         buf,
                         x + frmline->x + word->x,

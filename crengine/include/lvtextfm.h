@@ -128,24 +128,31 @@ typedef struct
 } formatted_word_t;
 
 // formatted_word_t flags
-/// can add space after this word
-#define LTEXT_WORD_CAN_ADD_SPACE_AFTER       1
-/// can break line after this word
-#define LTEXT_WORD_CAN_BREAK_LINE_AFTER      2
-/// can break with hyphenation after this word
-#define LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER 4
-/// must break line after this word
-#define LTEXT_WORD_MUST_BREAK_LINE_AFTER     8
-/// object flag
-#define LTEXT_WORD_IS_OBJECT         0x80
-/// first word of link flag
-#define LTEXT_WORD_IS_LINK_START     0x40
+#define LTEXT_WORD_CAN_ADD_SPACE_AFTER       0x0001 /// can add space after this word
+#define LTEXT_WORD_CAN_BREAK_LINE_AFTER      0x0002 /// can break line after this word (not used anywhere)
+#define LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER 0x0004 /// can break with hyphenation after this word
+#define LTEXT_WORD_MUST_BREAK_LINE_AFTER     0x0008 /// must break line after this word (not used anywhere)
+
+#define LTEXT_WORD_IS_LINK_START             0x0010 /// first word of link flag
+#define LTEXT_WORD_IS_OBJECT                 0x0020 /// object flag
+
+#define LTEXT_WORD_DIRECTION_KNOWN           0x0100 /// word has been thru bidi: if next flag is unset, it is LTR.
+#define LTEXT_WORD_DIRECTION_IS_RTL          0x0200 /// word is RTL
+#define LTEXT_WORD_BEGINS_PARAGRAPH          0x0400 /// word is the first word of a paragraph
+#define LTEXT_WORD_ENDS_PARAGRAPH            0x0800 /// word is the last word of a paragraph
+    // These 4 translate (after mask & shift) to LFNT_HINT_* equivalents
+    // (see lvfntman.h). Keep them in sync.
+#define LTEXT_WORD_DIRECTION_PARA_MASK       0x0F00
+#define LTEXT_WORD_DIRECTION_PARA_TO_LFNT_SHIFT   8
+#define WORD_FLAGS_TO_FNT_FLAGS(f) ( (f & LTEXT_WORD_DIRECTION_PARA_MASK)>>LTEXT_WORD_DIRECTION_PARA_TO_LFNT_SHIFT)
 
 //#define LTEXT_BACKGROUND_MARK_FLAGS 0xFFFF0000l
 
 // formatted_line_t flags
-#define LTEXT_LINE_SPLIT_AVOID_BEFORE        1
-#define LTEXT_LINE_SPLIT_AVOID_AFTER         2
+#define LTEXT_LINE_SPLIT_AVOID_BEFORE        0x01
+#define LTEXT_LINE_SPLIT_AVOID_AFTER         0x02
+#define LTEXT_LINE_IS_BIDI                   0x04
+#define LTEXT_LINE_PARA_IS_RTL               0x08
 
 /** \brief Text formatter formatted line
 */
