@@ -2456,6 +2456,10 @@ private:
     lString8 headStyleText;
     int headStyleState;
 
+    lString16 htmlDir;
+    lString16 htmlLang;
+    bool insideHtmlTag;
+
 public:
 
     /// return content of html/head/style element
@@ -2486,6 +2490,9 @@ public:
         insideTag = false;
         headStyleText.clear();
         headStyleState = 0;
+        insideHtmlTag = false;
+        htmlDir.clear();
+        htmlLang.clear();
     }
     /// called on parsing end
     virtual void OnStop()
@@ -2525,7 +2532,8 @@ public:
     /// constructor
     ldomDocumentFragmentWriter( LVXMLParserCallback * parentWriter, lString16 baseTagName, lString16 baseTagReplacementName, lString16 fragmentFilePath )
     : parent(parentWriter), baseTag(baseTagName), baseTagReplacement(baseTagReplacementName),
-    insideTag(false), styleDetectionState(0), pathSubstitutions(100), baseElement(NULL), lastBaseElement(NULL), headStyleState(0)
+    insideTag(false), styleDetectionState(0), pathSubstitutions(100), baseElement(NULL), lastBaseElement(NULL),
+    headStyleState(0), insideHtmlTag(false)
     {
         setCodeBase( fragmentFilePath );
     }
