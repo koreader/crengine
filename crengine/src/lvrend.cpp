@@ -3657,6 +3657,12 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     }
                     // footnote links analysis
                     if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) { // disable footnotes for footnotes
+                        // If paragraph is RTL, we are meeting words in the reverse of the reading order:
+                        // so, insert each link for this line at the same position, instead of at the end.
+                        int link_insert_pos = -1; // append
+                        if ( line->flags & LTEXT_LINE_PARA_IS_RTL ) {
+                            link_insert_pos = context.getCurrentLinksCount();
+                        }
                         for ( int w=0; w<line->word_count; w++ ) {
                             // check link start flag for every word
                             if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
@@ -3674,7 +3680,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                         lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
                                         if ( href.length()>0 && href.at(0)=='#' ) {
                                             href.erase(0,1);
-                                            context.addLink( href );
+                                            context.addLink( href, link_insert_pos );
                                         }
                                     }
                                 }
@@ -3690,6 +3696,12 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                 for (int i=0; i<count; i++) {
                     const formatted_line_t * line = txform->GetLineInfo(i);
                     if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
+                        // If paragraph is RTL, we are meeting words in the reverse of the reading order:
+                        // so, insert each link for this line at the same position, instead of at the end.
+                        int link_insert_pos = -1; // append
+                        if ( line->flags & LTEXT_LINE_PARA_IS_RTL ) {
+                            link_insert_pos = context.getCurrentLinksCount();
+                        }
                         for ( int w=0; w<line->word_count; w++ ) {
                             // check link start flag for every word
                             if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
@@ -3703,7 +3715,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                         lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
                                         if ( href.length()>0 && href.at(0)=='#' ) {
                                             href.erase(0,1);
-                                            context.addLink( href );
+                                            context.addLink( href, link_insert_pos );
                                         }
                                     }
                                 }
@@ -6253,6 +6265,12 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // a reference to it so page splitting can bring the footnotes
                     // text on this page, and then decide about page split.
                     if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) { // disable footnotes for footnotes
+                        // If paragraph is RTL, we are meeting words in the reverse of the reading order:
+                        // so, insert each link for this line at the same position, instead of at the end.
+                        int link_insert_pos = -1; // append
+                        if ( line->flags & LTEXT_LINE_PARA_IS_RTL ) {
+                            link_insert_pos = flow->getPageContext()->getCurrentLinksCount();
+                        }
                         for ( int w=0; w<line->word_count; w++ ) {
                             // check link start flag for every word
                             if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
@@ -6270,7 +6288,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                         lString16 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
                                         if ( href.length()>0 && href.at(0)=='#' ) {
                                             href.erase(0,1);
-                                            flow->getPageContext()->addLink( href );
+                                            flow->getPageContext()->addLink( href, link_insert_pos );
                                         }
                                     }
                                 }
