@@ -970,7 +970,7 @@ public:
             return _fallbackFont.get();
         // To avoid circular link, disable fallback for fallback font:
         if ( fontMan->GetFallbackFontFace()!=_faceName )
-            _fallbackFont = fontMan->GetFallbackFont(_size);
+            _fallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic);
         _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
@@ -1263,6 +1263,15 @@ public:
         if ( error ) {
             return false;
         }
+
+        // If no unicode charmap, select any symbol charmap.
+        // This is needed with Harfbuzz shaping (with Freetype, we switch charmap
+        // when needed). It might not be needed with a Harfbuzz newer than 2.6.1
+        // that will include https://github.com/harfbuzz/harfbuzz/pull/1948.
+        if (FT_Select_Charmap(_face, FT_ENCODING_UNICODE)) // non-zero means failure
+            // If no unicode charmap found, try symbol charmap
+            FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL);
+
         return true;
     }
 
@@ -1368,6 +1377,15 @@ public:
             // error
             return false;
         }
+
+        // If no unicode charmap, select any symbol charmap.
+        // This is needed with Harfbuzz shaping (with Freetype, we switch charmap
+        // when needed). It might not be needed with a Harfbuzz newer than 2.6.1
+        // that will include https://github.com/harfbuzz/harfbuzz/pull/1948.
+        if (FT_Select_Charmap(_face, FT_ENCODING_UNICODE)) // non-zero means failure
+            // If no unicode charmap found, try symbol charmap
+            FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL);
+
         return true;
     }
 
@@ -1456,7 +1474,7 @@ public:
             // If no glyph found and code is among the private unicode
             // area classically used by symbol fonts (range U+F020-U+F0FF),
             // try to switch to FT_ENCODING_MS_SYMBOL
-            if (FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
+            if (!FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL)) {
                 ch_glyph_index = FT_Get_Char_Index( _face, code );
                 // restore unicode charmap if there is one
                 FT_Select_Charmap(_face, FT_ENCODING_UNICODE);
@@ -2911,6 +2929,25 @@ public:
         return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFace, -1);
     }
 
+    /// returns fallback font for specified size, weight and italic
+    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false) {
+        FONT_MAN_GUARD
+        if ( _fallbackFontFace.empty() )
+            return LVFontRef();
+        // reduce number of possible distinct sizes for fallback font
+        if ( size>40 )
+            size &= 0xFFF8;
+        else if ( size>28 )
+            size &= 0xFFFC;
+        else if ( size>16 )
+            size &= 0xFFFE;
+        // We don't use/extend findFallback(), which was made to work
+        // assuming the fallback font is a standalone regular font
+        // without any bold/italic sibling.
+        // GetFont() works just as fine when we need specified weigh and italic.
+        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFace, -1);
+    }
+
     bool isBitmapModeForSize( int size )
     {
         bool bitmap = false;
@@ -3250,7 +3287,11 @@ public:
                 fprintf(_log, "=========================== LOGGING STARTED ===================\n");
             }
         #endif
-        _requiredChars = L"azAZ09";//\x0410\x042F\x0430\x044F";
+        // _requiredChars = L"azAZ09";//\x0410\x042F\x0430\x044F";
+        // Some fonts come without any of these (ie. NotoSansMyanmar.ttf), there's
+        // no reason to prevent them from being used.
+        // So, check only for the presence of the space char, hoping it's there in any font.
+        _requiredChars = L" ";
     }
 
     virtual void gc() // garbage collector

@@ -375,6 +375,8 @@ public:
     virtual lString8 GetFallbackFontFace() { return lString8::empty_str; }
     /// returns fallback font for specified size
     virtual LVFontRef GetFallbackFont(int /*size*/) { return LVFontRef(); }
+    /// returns fallback font for specified size, weight and italic
+    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false ) { return LVFontRef(); }
     /// registers font by name
     virtual bool RegisterFont( lString8 name ) = 0;
     /// registers font by name and face
