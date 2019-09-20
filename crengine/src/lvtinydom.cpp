@@ -14510,6 +14510,21 @@ void tinyNodeCollection::dumpStatistics()
                 _itemCount, _itemCount*16/1024,
                 _tinyElementCount, _tinyElementCount*(sizeof(tinyElement)+8*4)/1024 );
 }
+lString16 tinyNodeCollection::getStatistics()
+{
+    lString16 s;
+    s << "Elements: " << fmt::decimal(_elemCount) << ", " << fmt::decimal(_elemStorage.getUncompressedSize()/1024) << " KB\n";
+    s << "Text nodes: " << fmt::decimal(_textCount) << ", " << fmt::decimal(_textStorage.getUncompressedSize()/1024) << " KB\n";
+    s << "Styles: " << fmt::decimal(_styles.length()) << ", " << fmt::decimal(_styleStorage.getUncompressedSize()/1024) << " KB\n";
+    s << "Font instances: " << fmt::decimal(_fonts.length()) << "\n";
+    s << "Rects: " << fmt::decimal(_rectStorage.getUncompressedSize()/1024) << " KB\n";
+    #if BUILD_LITE!=1
+    s << "Cached rendered blocks: " << fmt::decimal(((ldomDocument*)this)->_renderedBlockCache.length()) << "\n";
+    #endif
+    s << "Total nodes: " << fmt::decimal(_itemCount) << ", " << fmt::decimal(_itemCount*16/1024) << " KB\n";
+    s << "Mutable elements: " << fmt::decimal(_tinyElementCount) << ", " << fmt::decimal(_tinyElementCount*(sizeof(tinyElement)+8*4)/1024) << " KB";
+    return s;
+}
 
 
 /// returns position pointer

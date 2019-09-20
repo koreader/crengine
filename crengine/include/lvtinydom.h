@@ -581,6 +581,8 @@ public:
     void compact();
     /// dumps memory usage statistics to debug log
     void dumpStatistics();
+    /// get memory usage statistics
+    lString16 getStatistics();
 
     /// get ldomNode instance pointer
     ldomNode * getTinyNode( lUInt32 index );
