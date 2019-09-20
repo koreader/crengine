@@ -116,7 +116,7 @@ void ReadEpubToc( ldomDocument * doc, ldomNode * mapRoot, LVTocItem * baseToc, l
         if ( href.empty() || title.empty() )
             continue;
         //CRLog::trace("TOC href before convert: %s", LCSTR(href));
-	href = DecodeHTMLUrlString(href);
+        href = DecodeHTMLUrlString(href);
         href = appender.convertHref(href);
         //CRLog::trace("TOC href after convert: %s", LCSTR(href));
         if ( href.empty() || href[0]!='#' )
@@ -213,7 +213,7 @@ public:
             insideCipherData = true;
         else if (!lStr_cmp(tagname, "CipherReference"))
             insideCipherReference = true;
-		return NULL;
+        return NULL;
     }
     /// called on tag close
     virtual void OnTagClose( const lChar16 * nsname, const lChar16 * tagname ) {
@@ -527,21 +527,22 @@ public:
                 if (!_url.empty()) {
 //                    CRLog::trace("@font { face: %s; bold: %s; italic: %s; url: %s", _face.c_str(), _bold ? "yes" : "no",
 //                                 _italic ? "yes" : "no", LCSTR(_url));
-			  if (islocal.length()==5 and _basePath.length()!=0) _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
-                    if (_fontList.findByUrl(_url)) _url=_url.append(lString16(" "));//avoid add() replaces existing local name
+                    if (islocal.length()==5 and _basePath.length()!=0)
+                        _url = _url.substr((_basePath.length()+1), (_url.length()-_basePath.length()));
+                    if (_fontList.findByUrl(_url))
+                        _url=_url.append(lString16(" ")); //avoid add() replaces existing local name
                     _fontList.add(_url, _face, _bold, _italic);
                 }
             }
             _state = 0;
             break;
-		case ',':
+        case ',':
             if (_state == 2) {
-                if (!_url.empty())
-           	    {
+                if (!_url.empty()) {
                       if (islocal.length() == 5 and _basePath.length()!=0) _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
                         if (_fontList.findByUrl(_url)) _url=_url.append(lString16(" "));
                     _fontList.add(_url, _face, _bold, _italic);
-			}
+                }
                 _state = 11;
             }
             break;
@@ -589,16 +590,14 @@ public:
                 _italic = true;
             _state = 2;
         } else if (_state == 11) {
-            if (t == "url")
-		{
+            if (t == "url") {
                 _state = 12;
-		islocal=t;
-	        }
-            else if (t=="local")
-            	{
+                islocal=t;
+            }
+            else if (t=="local") {
                 _state=12;
                 islocal=t;
-            	}
+            }
             else
                 _state = 2;
         }
@@ -622,56 +621,65 @@ public:
         }
         token.clear();
     }
-    lString8 deletecomment(lString8 css)
-     {
-             int state;
-             lString8 tmp=lString8("");
-             char c;
-             state = 0;
-         for (int i=0;i<css.length();i++){
-                     c=css[i];
-                     if (state == 0 && c == ('/'))         // ex. [/]
-                             state = 1;
-                     else if (state == 1 && c == ('*'))     // ex. [/*]
-                             state = 2;
-                     else if (state == 1) {                // ex. [<secure/_stdio.h> or 5/3]
-                             tmp<<('/');
-                             state = 0;
-                         }
-                     else if (state == 2 && c == ('*'))    // ex. [/*he*]
-                             state = 3;
-                     else if (state == 2)                // ex. [/*heh]
-                             state = 2;
-                     else if (state == 3 && c == ('/'))    // ex. [/*heh*/]
-                             state = 0;
-                     else if (state == 3)                // ex. [/*heh*e]
-                             state = 2;
-                     else if (state == 0 && c == ('\'') )    // ex. [']
-                             state = 5;
-                     else if (state == 5 && c == ('\\'))     // ex. ['\]
-                             state = 6;
-                     else if (state == 6)                // ex. ['\n or '\' or '\t etc.]
-                             state = 5;
-                     else if (state == 5 && c == ('\'') )   // ex. ['\n' or '\'' or '\t' ect.]
-                             state = 0;
-                     else if (state == 0 && c == ('\"'))    // ex. ["]
-                             state = 7;
-                     else if (state == 8)                // ex. ["\n or "\" or "\t ect.]
-                             state = 7;
-                     else if (state == 7 && c == ('\"'))    // ex. ["\n" or "\"" or "\t" ect.]
-                             state = 0;
-                     if ((state == 0 && c != ('/')) || state == 5 || state == 6 || state == 7 || state == 8)
-                             tmp<<c;
-                 }
-         return tmp;
-         }
+    lString8 deletecomment(lString8 css) {
+        int state;
+        lString8 tmp=lString8("");
+        tmp.reserve( css.length() );
+        char c;
+        state = 0;
+        for (int i=0;i<css.length();i++) {
+            c=css[i];
+            if (state == 0 ) {
+                if (c == ('/'))           // ex. [/]
+                    state = 1;
+                else if (c == ('\'') )    // ex. [']
+                    state = 5;
+                else if (c == ('\"'))     // ex. ["]
+                    state = 7;
+            }
+            else if (state == 1 && c == ('*'))     // ex. [/*]
+                    state = 2;
+            else if (state == 1) {                // ex. [<secure/_stdio.h> or 5/3]
+                    tmp<<('/');
+                    state = 0;
+            }
+            else if (state == 2 && c == ('*'))    // ex. [/*he*]
+                    state = 3;
+            else if (state == 2)                // ex. [/*heh]
+                    state = 2;
+            else if (state == 3 && c == ('/'))    // ex. [/*heh*/]
+                    state = 0;
+            else if (state == 3)                // ex. [/*heh*e]
+                    state = 2;
+            /* Moved up for faster normal path:
+            else if (state == 0 && c == ('\'') )    // ex. [']
+                    state = 5;
+            */
+            else if (state == 5 && c == ('\\'))     // ex. ['\]
+                    state = 6;
+            else if (state == 6)                // ex. ['\n or '\' or '\t etc.]
+                    state = 5;
+            else if (state == 5 && c == ('\'') )   // ex. ['\n' or '\'' or '\t' ect.]
+                    state = 0;
+            /* Moved up for faster normal path:
+            else if (state == 0 && c == ('\"'))    // ex. ["]
+                    state = 7;
+            */
+            else if (state == 8)                // ex. ["\n or "\" or "\t ect.]
+                    state = 7;
+            else if (state == 7 && c == ('\"'))    // ex. ["\n" or "\"" or "\t" ect.]
+                    state = 0;
+            if ((state == 0 && c != ('/')) || state == 5 || state == 6 || state == 7 || state == 8)
+                    tmp<<c;
+        }
+        return tmp;
+    }
     void parse(lString16 basePath, const lString8 & css) {
         _state = 0;
         _basePath = basePath;
         lString8 token;
         char insideQuotes = 0;
-        lString8 css_=css;
-        css_=deletecomment(css);
+        lString8 css_ = deletecomment(css);
         for (int i=0; i<css_.length(); i++) {
             char ch = css_[i];
             if (insideQuotes || _state == 13) {
@@ -712,7 +720,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     // check root media type
     lString16 rootfilePath = EpubGetRootFilePath(arc);
     if ( rootfilePath.empty() )
-    	return false;
+        return false;
 
     EncryptedDataContainer * decryptor = new EncryptedDataContainer(arc);
     if (decryptor->open()) {
