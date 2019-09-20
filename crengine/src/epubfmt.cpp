@@ -737,6 +737,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
     m_doc->setContainer(m_arc);
 
+    if ( progressCallback )
+        progressCallback->OnLoadFileProgress(1);
+
     // read content.opf
     EpubItems epubItems;
     //EpubItem * epubToc = NULL; //TODO
@@ -844,7 +847,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // key if any.
         if (!metadataOnly) {
             CRLog::debug("Trying loading from cache");
-            if ( m_doc->openFromCache(formatCallback) ) {
+            if ( m_doc->openFromCache(formatCallback, progressCallback) ) {
                 CRLog::debug("Loaded from cache");
                 if ( progressCallback ) {
                     progressCallback->OnLoadFileEnd( );
@@ -879,6 +882,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             delete doc;
             return true;
         }
+
+        if ( progressCallback )
+            progressCallback->OnLoadFileProgress(2);
 
         // items
         CRLog::debug("opf: reading items");
@@ -933,9 +939,16 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     //CRLog::trace("style: %s", cssFile.c_str());
                     styleParser.parse(base, cssFile);
                 }
+                // Huge CSS files may take some time being parsed, so update progress
+                // after each one to get a chance of it being displayed at this point.
+                if ( progressCallback )
+                    progressCallback->OnLoadFileProgress(3);
             }
         }
         CRLog::debug("opf: reading items done.");
+
+        if ( progressCallback )
+            progressCallback->OnLoadFileProgress(4);
 
         // spine == itemrefs
         if ( epubItems.length()>0 ) {
@@ -971,6 +984,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     if (metadataOnly)
         return true; // no need for more work
 
+    if ( progressCallback )
+        progressCallback->OnLoadFileProgress(5);
+
     lUInt32 saveFlags = m_doc->getDocFlags();
     m_doc->setDocFlags( saveFlags );
     m_doc->setContainer( m_arc );
@@ -987,7 +1003,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     writer.OnStart(NULL);
     writer.OnTagOpenNoAttr(L"", L"body");
     int fragmentCount = 0;
-    for ( int i=0; i<spineItems.length(); i++ ) {
+    int spineItemsNb = spineItems.length();
+    for ( int i=0; i<spineItemsNb; i++ ) {
         if (spineItems[i]->mediaType == "application/xhtml+xml") {
             lString16 name = LVCombinePaths(codeBase, spineItems[i]->href);
             lString16 subst = cs16("_doc_fragment_") + fmt::decimal(i);
@@ -995,7 +1012,15 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             //CRLog::trace("subst: %s => %s", LCSTR(name), LCSTR(subst));
         }
     }
-    for ( int i=0; i<spineItems.length(); i++ ) {
+    int lastProgressPercent = 5;
+    for ( int i=0; i<spineItemsNb; i++ ) {
+        if ( progressCallback ) {
+            int percent = 5 + 95 * i / spineItemsNb;
+            if ( percent > lastProgressPercent ) {
+                progressCallback->OnLoadFileProgress(percent);
+                lastProgressPercent = percent;
+            }
+        }
         if (spineItems[i]->mediaType == "application/xhtml+xml") {
             lString16 name = LVCombinePaths(codeBase, spineItems[i]->href);
             {

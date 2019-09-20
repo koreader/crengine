@@ -3819,7 +3819,7 @@ bool LVDocView::LoadDocument(const lChar16 * fname, bool metadataOnly) {
 
 void LVDocView::close() {
     if ( m_doc )
-        m_doc->updateMap();
+        m_doc->updateMap(m_callback); // show save cache file progress
     createDefaultDocument(lString16::empty_str, lString16::empty_str);
 }
 
@@ -4363,7 +4363,7 @@ bool LVDocView::ParseDocument() {
 		//m_doc->getStyleSheet()->parse(m_stylesheet.c_str());
 
 		setRenderProps(0, 0); // to allow apply styles and rend method while loading
-        if (m_doc->openFromCache(this)) {
+        if (m_doc->openFromCache(this, m_callback)) {
 			CRLog::info("Document is found in cache, will reuse");
 
 
