@@ -6394,6 +6394,17 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
     bw = enode->getStyle()->border_width[3];
     hasleftBorder = hasleftBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
 
+    // Check for explicit 'border-color: transparent' which means no border to draw
+    css_length_t bc;
+    bc = enode->getStyle()->border_color[0];
+    hastopBorder = hastopBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
+    bc = enode->getStyle()->border_color[1];
+    hasrightBorder = hasrightBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
+    bc = enode->getStyle()->border_color[2];
+    hasbottomBorder = hasbottomBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
+    bc = enode->getStyle()->border_color[3];
+    hasleftBorder = hasleftBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
+
     if (hasbottomBorder or hasleftBorder or hasrightBorder or hastopBorder) {
         lUInt32 shadecolor=0x555555;
         lUInt32 lightcolor=0xAAAAAA;

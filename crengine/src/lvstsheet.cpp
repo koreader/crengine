@@ -665,7 +665,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
         // Make it an invalid color, but a valid parsing so it
         // can be inherited or flagged with !important
         value.type = css_val_unspecified;
-        value.value = 0;
+        value.value = css_generic_transparent;
         return true;
     }
     if ( substr_compare( "inherit", str ) )
