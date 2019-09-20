@@ -4201,6 +4201,7 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
 //        CRLog::trace("reusing existing format data...");
 //    }
 
+    bool was_just_rendered_from_cache = _just_rendered_from_cache; // cleared by checkRenderContext()
     if ( !checkRenderContext() ) {
         if ( _nodeDisplayStyleHashInitial == NODE_DISPLAY_STYLE_HASH_UNITIALIZED ) { // happen when just loaded
             // For knowing/debugging cases when node styles set up during loading
@@ -4228,7 +4229,7 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         _stylesheet.push();
         CRLog::trace("Init node styles...");
         applyDocumentStyleSheet();
-        getRootNode()->initNodeStyleRecursive();
+        getRootNode()->initNodeStyleRecursive( callback );
         CRLog::trace("Restoring stylesheet...");
         _stylesheet.pop();
 
@@ -4248,6 +4249,9 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         _rendered = false;
     }
     if ( !_rendered ) {
+        if ( callback ) {
+            callback->OnFormatStart();
+        }
         setCacheFileStale(true); // new rendering: cache file will be updated
         _toc_from_cache_valid = false;
         // force recalculation of page numbers (even if not computed in this
@@ -4292,6 +4296,7 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
 
         if ( callback ) {
             callback->OnFormatEnd();
+            callback->OnDocumentReady();
         }
 
         //saveChanges();
@@ -4306,6 +4311,10 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
             pages->deserialize( _pagesData );
         }
         CRLog::info("%d rendered pages found", pages->length() );
+
+        if ( was_just_rendered_from_cache && callback )
+            callback->OnDocumentReady();
+
         return getFullHeight();
     }
 
@@ -10782,7 +10791,7 @@ void ldomDocument::clear()
 }
 
 #if BUILD_LITE!=1
-bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
+bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback, LVDocViewCallback * progressCallback )
 {
     setCacheFileStale(true);
     if ( !openCacheFile() ) {
@@ -10790,7 +10799,7 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
         clear();
         return false;
     }
-    if ( !loadCacheFileContent(formatCallback) ) {
+    if ( !loadCacheFileContent(formatCallback, progressCallback) ) {
         CRLog::info("Error while loading document content from cache file.");
         clear();
         return false;
@@ -10814,11 +10823,12 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback )
 }
 
 /// load document cache file content, @see saveChanges()
-bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
+bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback, LVDocViewCallback * progressCallback)
 {
 
     CRLog::trace("ldomDocument::loadCacheFileContent()");
     {
+        if (progressCallback) progressCallback->OnLoadFileProgress(5);
         SerialBuf propsbuf(0, true);
         if ( !_cacheFile->read( CBT_PROP_DATA, propsbuf ) ) {
             CRLog::error("Error while reading props data");
@@ -10839,6 +10849,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             formatCallback->OnCacheFileFormatDetected((doc_format_t)fmt);
         }
 
+        if (progressCallback) progressCallback->OnLoadFileProgress(10);
         CRLog::trace("ldomDocument::loadCacheFileContent() - ID data");
         SerialBuf idbuf(0, true);
         if ( !_cacheFile->read( CBT_MAPS_DATA, idbuf ) ) {
@@ -10851,6 +10862,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             return false;
         }
 
+        if (progressCallback) progressCallback->OnLoadFileProgress(15);
         CRLog::trace("ldomDocument::loadCacheFileContent() - page data");
         SerialBuf pagebuf(0, true);
         if ( !_cacheFile->read( CBT_PAGE_DATA, pagebuf ) ) {
@@ -10868,6 +10880,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
         CRLog::info("%d pages read from cache file", pages.length());
         //_pagesData.setPos( 0 );
 
+        if (progressCallback) progressCallback->OnLoadFileProgress(20);
         CRLog::trace("ldomDocument::loadCacheFileContent() - embedded font data");
         {
             SerialBuf buf(0, true);
@@ -10882,6 +10895,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
             registerEmbeddedFonts();
         }
 
+        if (progressCallback) progressCallback->OnLoadFileProgress(25);
         DocFileHeader h = {};
         SerialBuf hdrbuf(0,true);
         if ( !_cacheFile->read( CBT_REND_PARAMS, hdrbuf ) ) {
@@ -10896,34 +10910,39 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
                 _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
     }
 
+    if (progressCallback) progressCallback->OnLoadFileProgress(30);
     CRLog::trace("ldomDocument::loadCacheFileContent() - node data");
     if ( !loadNodeData() ) {
         CRLog::error("Error while reading node instance data");
         return false;
     }
 
-
+    if (progressCallback) progressCallback->OnLoadFileProgress(40);
     CRLog::trace("ldomDocument::loadCacheFileContent() - element storage");
     if ( !_elemStorage.load() ) {
         CRLog::error("Error while loading element data");
         return false;
     }
+    if (progressCallback) progressCallback->OnLoadFileProgress(50);
     CRLog::trace("ldomDocument::loadCacheFileContent() - text storage");
     if ( !_textStorage.load() ) {
         CRLog::error("Error while loading text data");
         return false;
     }
+    if (progressCallback) progressCallback->OnLoadFileProgress(60);
     CRLog::trace("ldomDocument::loadCacheFileContent() - rect storage");
     if ( !_rectStorage.load() ) {
         CRLog::error("Error while loading rect data");
         return false;
     }
+    if (progressCallback) progressCallback->OnLoadFileProgress(70);
     CRLog::trace("ldomDocument::loadCacheFileContent() - node style storage");
     if ( !_styleStorage.load() ) {
         CRLog::error("Error while loading node style data");
         return false;
     }
 
+    if (progressCallback) progressCallback->OnLoadFileProgress(80);
     CRLog::trace("ldomDocument::loadCacheFileContent() - TOC");
     {
         SerialBuf tocbuf(0,true);
@@ -10936,6 +10955,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
         }
     }
 
+    if (progressCallback) progressCallback->OnLoadFileProgress(90);
     if ( loadStylesData() ) {
         CRLog::trace("ldomDocument::loadCacheFileContent() - using loaded styles");
         updateLoadedStyles( true );
@@ -10950,6 +10970,7 @@ bool ldomDocument::loadCacheFileContent(CacheLoadingCallback * formatCallback)
     }
 
     CRLog::trace("ldomDocument::loadCacheFileContent() - completed successfully");
+    if (progressCallback) progressCallback->OnLoadFileProgress(95);
 
     return true;
 }
@@ -10960,10 +10981,12 @@ static const char * styles_magic = "CRSTYLES";
     if ( maxTime.expired() ) { CRLog::info("timer expired while " s); return CR_TIMEOUT; }
 
 /// saves changes to cache file, limited by time interval (can be called again to continue after TIMEOUT)
-ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
+ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime, LVDocViewCallback * progressCallback )
 {
     if ( !_cacheFile )
         return CR_DONE;
+
+    if (progressCallback) progressCallback->OnSaveCacheFileStart();
 
     if (maxTime.infinite()) {
         _mapSavingStage = 0; // all stages from the beginning
@@ -10987,6 +11010,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
 
         persist( maxTime );
         CHECK_EXPIRATION("persisting of node data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(0);
 
         // fall through
     case 1:
@@ -10998,6 +11022,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             return CR_ERROR;
         }
         CHECK_EXPIRATION("saving element storate")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(10);
         // fall through
     case 2:
         _mapSavingStage = 2;
@@ -11007,6 +11032,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             return CR_ERROR;
         }
         CHECK_EXPIRATION("saving text storate")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(20);
         // fall through
     case 3:
         _mapSavingStage = 3;
@@ -11017,6 +11043,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             return CR_ERROR;
         }
         CHECK_EXPIRATION("saving rect storate")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(30);
         // fall through
     case 41:
         _mapSavingStage = 41;
@@ -11029,6 +11056,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving blob storage data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(35);
         // fall through
     case 4:
         _mapSavingStage = 4;
@@ -11041,6 +11069,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving node style storage")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(40);
         // fall through
     case 5:
         _mapSavingStage = 5;
@@ -11056,6 +11085,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving props data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(45);
         // fall through
     case 6:
         _mapSavingStage = 6;
@@ -11071,6 +11101,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving ID data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(50);
         // fall through
     case 7:
         _mapSavingStage = 7;
@@ -11086,6 +11117,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving page data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(60);
         // fall through
     case 8:
         _mapSavingStage = 8;
@@ -11098,6 +11130,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving node data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(70);
         // fall through
     case 9:
         _mapSavingStage = 9;
@@ -11115,6 +11148,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         CRLog::info("Saving render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x, nodeDisplayStyleHash=%x",
                     _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
 
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(75);
 
         CRLog::trace("ldomDocument::saveChanges() - TOC");
         {
@@ -11130,6 +11164,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
         if (!maxTime.infinite())
             _cacheFile->flush(false, maxTime); // intermediate flush
         CHECK_EXPIRATION("saving TOC data")
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(80);
         // fall through
     case 10:
         _mapSavingStage = 10;
@@ -11138,6 +11173,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             CRLog::error("Error while writing style data");
             return CR_ERROR;
         }
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(90);
         // fall through
     case 11:
         _mapSavingStage = 11;
@@ -11151,6 +11187,7 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             }
             CHECK_EXPIRATION("saving embedded fonts")
         }
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(95);
         // fall through
     case 12:
         _mapSavingStage = 12;
@@ -11163,12 +11200,14 @@ ContinuousOperationResult ldomDocument::saveChanges( CRTimerUtil & maxTime )
             }
             CHECK_EXPIRATION("flushing")
         }
+        if (progressCallback) progressCallback->OnSaveCacheFileProgress(100);
         // fall through
     case 13:
         _mapSavingStage = 13;
         setCacheFileStale(false);
     }
     CRLog::trace("ldomDocument::saveChanges() - done");
+    if (progressCallback) progressCallback->OnSaveCacheFileEnd();
     return CR_DONE;
 }
 
@@ -11485,7 +11524,7 @@ ContinuousOperationResult ldomDocument::swapToCache( CRTimerUtil & maxTime )
 }
 
 /// saves recent changes to mapped file
-ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime)
+ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime, LVDocViewCallback * progressCallback)
 {
     if ( !_cacheFile || !_mapped )
         return CR_DONE;
@@ -11502,7 +11541,7 @@ ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime)
     }
     CRLog::info("Updating cache file");
 
-    ContinuousOperationResult res = saveChanges(maxTime);
+    ContinuousOperationResult res = saveChanges(maxTime, progressCallback);
     if ( res==CR_ERROR )
     {
         CRLog::error("Error while saving changes to cache file");
@@ -13143,7 +13182,7 @@ static void updateStyleData( ldomNode * node )
 #endif
 
 #if BUILD_LITE!=1
-static void updateStyleDataRecursive( ldomNode * node )
+static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progressCallback, int & lastProgressPercent )
 {
     if ( !node->isElement() )
         return;
@@ -13151,26 +13190,42 @@ static void updateStyleDataRecursive( ldomNode * node )
 
     // DocFragment (for epub) and body (for html) may hold some stylesheet
     // as first child or a link to stylesheet file in attribute
-    if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body )
+    if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body ) {
         styleSheetChanged = node->applyNodeStylesheet();
+        // We don't have access to much metric to show the progress of
+        // this recursive phase. Do that anyway as we progress among
+        // the collection of DocFragments.
+        if ( progressCallback && node->getNodeId()==el_DocFragment ) {
+            int percent = 100 * node->getNodeIndex() / node->getParentNode()->getChildCount();
+            if ( percent != lastProgressPercent ) {
+                progressCallback->OnNodeStylesUpdateProgress( percent );
+                lastProgressPercent = percent;
+            }
+        }
+    }
 
     node->initNodeStyle();
     int n = node->getChildCount();
     for ( int i=0; i<n; i++ ) {
         ldomNode * child = node->getChildNode(i);
         if ( child->isElement() )
-            updateStyleDataRecursive( child );
+            updateStyleDataRecursive( child, progressCallback, lastProgressPercent );
     }
     if ( styleSheetChanged )
         node->getDocument()->getStyleSheet()->pop();
 }
 
 /// init render method for the whole subtree
-void ldomNode::initNodeStyleRecursive()
+void ldomNode::initNodeStyleRecursive( LVDocViewCallback * progressCallback )
 {
+    if (progressCallback)
+        progressCallback->OnNodeStylesUpdateStart();
     getDocument()->_fontMap.clear();
-    updateStyleDataRecursive( this );
+    int lastProgressPercent = -1;
+    updateStyleDataRecursive( this, progressCallback, lastProgressPercent );
     //recurseElements( updateStyleData );
+    if (progressCallback)
+        progressCallback->OnNodeStylesUpdateEnd();
 }
 #endif
 

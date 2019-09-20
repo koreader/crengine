@@ -181,22 +181,36 @@ public:
     virtual void OnLoadFileFirstPagesReady() { }
     /// file progress indicator, called with values 0..100
     virtual void OnLoadFileProgress( int /*percent*/) { }
+    /// file load finiished with error
+    virtual void OnLoadFileError(lString16 /*message*/) { }
+    /// node style update started
+    virtual void OnNodeStylesUpdateStart() { }
+    /// node style update finished
+    virtual void OnNodeStylesUpdateEnd() { }
+    /// node style update progress, called with values 0..100
+    virtual void OnNodeStylesUpdateProgress(int /*percent*/) { }
     /// document formatting started
     virtual void OnFormatStart() { }
     /// document formatting finished
     virtual void OnFormatEnd() { }
     /// format progress, called with values 0..100
     virtual void OnFormatProgress(int /*percent*/) { }
+    /// document fully loaded and rendered (follows OnFormatEnd(), or OnLoadFileEnd() when loaded from cache)
+    virtual void OnDocumentReady() { }
     /// format progress, called with values 0..100
     virtual void OnExportProgress(int /*percent*/) { }
-    /// file load finiished with error
-    virtual void OnLoadFileError(lString16 /*message*/) { }
     /// Override to handle external links
     virtual void OnExternalLink(lString16 /*url*/, ldomNode * /*node*/) { }
     /// Called when page images should be invalidated (clearImageCache() called in LVDocView)
     virtual void OnImageCacheClear() { }
     /// return true if reload will be processed by external code, false to let internal code process it
     virtual bool OnRequestReload() { return false; }
+    /// save cache file started
+    virtual void OnSaveCacheFileStart() { }
+    /// save cache file finished
+    virtual void OnSaveCacheFileEnd() { }
+    /// save cache file progress, called with values 0..100
+    virtual void OnSaveCacheFileProgress(int /*percent*/) { }
     /// destructor
     virtual ~LVDocViewCallback() { }
 };
@@ -513,13 +527,13 @@ public:
     /// swaps to cache file or saves changes, limited by time interval (can be called again to continue after TIMEOUT)
     virtual ContinuousOperationResult swapToCache(CRTimerUtil & maxTime) = 0;
     /// try opening from cache file, find by source file name (w/o path) and crc32
-    virtual bool openFromCache( CacheLoadingCallback * formatCallback ) = 0;
+    virtual bool openFromCache( CacheLoadingCallback * formatCallback, LVDocViewCallback * progressCallback=NULL ) = 0;
     /// saves recent changes to mapped file, with timeout (can be called again to continue after TIMEOUT)
-    virtual ContinuousOperationResult updateMap(CRTimerUtil & maxTime) = 0;
+    virtual ContinuousOperationResult updateMap(CRTimerUtil & maxTime, LVDocViewCallback * progressCallback=NULL) = 0;
     /// saves recent changes to mapped file
-    virtual bool updateMap() {
+    virtual bool updateMap(LVDocViewCallback * progressCallback=NULL) {
         CRTimerUtil infinite;
-        return updateMap(infinite)!=CR_ERROR;
+        return updateMap(infinite, progressCallback)!=CR_ERROR;
     }
 
     bool swapToCacheIfNecessary();
@@ -768,7 +782,7 @@ public:
     /// init render method for the whole subtree
     void initNodeRendMethodRecursive();
     /// init render method for the whole subtree
-    void initNodeStyleRecursive();
+    void initNodeStyleRecursive( LVDocViewCallback * progressCallback );
 #endif
 
 
@@ -2155,12 +2169,12 @@ private:
 
 #if BUILD_LITE!=1
     /// load document cache file content
-    bool loadCacheFileContent(CacheLoadingCallback * formatCallback);
+    bool loadCacheFileContent(CacheLoadingCallback * formatCallback, LVDocViewCallback * progressCallback=NULL);
 
     /// save changes to cache file
     bool saveChanges();
     /// saves changes to cache file, limited by time interval (can be called again to continue after TIMEOUT)
-    virtual ContinuousOperationResult saveChanges( CRTimerUtil & maxTime );
+    virtual ContinuousOperationResult saveChanges( CRTimerUtil & maxTime, LVDocViewCallback * progressCallback=NULL );
 #endif
 
 protected:
@@ -2217,15 +2231,15 @@ public:
 
 #if BUILD_LITE!=1
     /// try opening from cache file, find by source file name (w/o path) and crc32
-    virtual bool openFromCache( CacheLoadingCallback * formatCallback );
+    virtual bool openFromCache( CacheLoadingCallback * formatCallback, LVDocViewCallback * progressCallback=NULL );
     /// saves recent changes to mapped file
-    virtual ContinuousOperationResult updateMap(CRTimerUtil & maxTime);
+    virtual ContinuousOperationResult updateMap(CRTimerUtil & maxTime, LVDocViewCallback * progressCallback=NULL);
     /// swaps to cache file or saves changes, limited by time interval
     virtual ContinuousOperationResult swapToCache( CRTimerUtil & maxTime );
     /// saves recent changes to mapped file
-    virtual bool updateMap() {
+    virtual bool updateMap(LVDocViewCallback * progressCallback=NULL) {
         CRTimerUtil infinite;
-        return updateMap(infinite)!=CR_ERROR;
+        return updateMap(infinite, progressCallback)!=CR_ERROR;
     }
 #endif
 
