@@ -14275,6 +14275,11 @@ void ldomDocument::registerEmbeddedFonts()
         }
     }
 }
+/// unregister embedded document fonts in font manager, if any exist in document
+void ldomDocument::unregisterEmbeddedFonts()
+{
+    fontMan->UnregisterDocumentFonts(_docIndex);
+}
 
 /// returns object image stream
 LVStreamRef ldomDocument::getObjectImageStream( lString16 refName )
