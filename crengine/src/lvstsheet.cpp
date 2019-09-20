@@ -1328,7 +1328,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         for (int i=list.length()-1; i>=0; i--) {
                             const char * name = list[i].c_str();
                             int nn = parse_name( name, css_ff_names, -1 );
-                            if (n==-1 && nn!=-1) {
+                            // Ignore "inherit" (nn=0) in font-family, as its the default
+                            // behaviour, and it may prevent (the way we handle
+                            // it in setNodeStyle()) the use of the font names
+                            // specified alongside.
+                            if (n==-1 && nn!=-1 && nn!=0) {
                                 n = nn;
                             }
                             if (nn!=-1) {
