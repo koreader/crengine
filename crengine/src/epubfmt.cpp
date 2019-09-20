@@ -999,6 +999,13 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 #endif
     //m_doc->setCodeBase( codeBase );
 
+    int fontList_nb_before_head_parsing = fontList.length();
+    if (!fontList.empty()) {
+        // set document font list, and register fonts
+        m_doc->getEmbeddedFontList().set(fontList);
+        m_doc->registerEmbeddedFonts();
+    }
+
     ldomDocumentFragmentWriter appender(&writer, cs16("body"), cs16("DocFragment"), lString16::empty_str );
     writer.OnStart(NULL);
     writer.OnTagOpenNoAttr(L"", L"body");
@@ -1068,7 +1075,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     writer.OnStop();
     CRLog::debug("EPUB: %d documents merged", fragmentCount);
 
-    if (!fontList.empty()) {
+    if ( fontList.length() != fontList_nb_before_head_parsing ) {
+        // New fonts met when parsing <head><style> of some DocFragments
+        m_doc->unregisterEmbeddedFonts();
         // set document font list, and register fonts
         m_doc->getEmbeddedFontList().set(fontList);
         m_doc->registerEmbeddedFonts();

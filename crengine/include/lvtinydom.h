@@ -2212,6 +2212,8 @@ public:
     LVEmbeddedFontList & getEmbeddedFontList() { return _fontList; }
     /// register embedded document fonts in font manager, if any exist in document
     void registerEmbeddedFonts();
+    /// unregister embedded document fonts in font manager, if any exist in document
+    void unregisterEmbeddedFonts();
 #endif
 
     /// returns pointer to TOC root node
