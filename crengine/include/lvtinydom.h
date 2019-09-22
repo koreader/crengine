@@ -973,7 +973,7 @@ public:
     /// returns object image source
     LVImageSourceRef getObjectImageSource();
     /// returns object image ref name
-    lString16 getObjectImageRefName();
+    lString16 getObjectImageRefName( bool percentDecode=true );
     /// returns object image stream
     LVStreamRef getObjectImageStream();
     /// returns the sum of this node and its parents' top and bottom margins, borders and paddings
