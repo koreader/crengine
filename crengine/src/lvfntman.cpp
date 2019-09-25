@@ -1132,6 +1132,29 @@ public:
         _hintingMode = mode;
         _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
         clearCache();
+        #if USE_HARFBUZZ==1
+        // Also update HB load flags with the updated hinting mode.
+        // We need this destroy/create, as only these will clear some internal HB caches
+        // (ft_font->advance_cache, ft_font->cached_x_scale); hb_ft_font_set_load_flags will not.
+        if (_hb_font)
+            hb_font_destroy(_hb_font);
+        _hb_font = hb_ft_font_create(_face, NULL);
+        if (_hb_font) {
+            // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
+            int flags = FT_LOAD_DEFAULT;
+            flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+            if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                flags |= FT_LOAD_NO_AUTOHINT;
+            }
+            else if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                flags |= FT_LOAD_FORCE_AUTOHINT;
+            }
+            else if (_hintingMode == HINTING_MODE_DISABLED) {
+                flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
+            hb_ft_font_set_load_flags(_hb_font, flags);
+        }
+        #endif
     }
     virtual hinting_mode_t  getHintingMode() const { return _hintingMode; }
 
@@ -1240,8 +1263,6 @@ public:
                 error = FT_Err_Invalid_Argument;
             }
             else {
-                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
-                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
@@ -1255,7 +1276,6 @@ public:
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
-                */
             }
         }
         #endif
@@ -1353,8 +1373,6 @@ public:
                 error = FT_Err_Invalid_Argument;
             }
             else {
-                // NOTE: Commented out for now, it's prohibitively expensive. c.f., #230
-                /*
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
                 flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
@@ -1368,7 +1386,6 @@ public:
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
                 hb_ft_font_set_load_flags(_hb_font, flags);
-                */
             }
         }
         #endif
@@ -2812,6 +2829,10 @@ public:
                 continue;
             if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
                 int w = item->advance + (kerning >> 6);
+                #ifdef DEBUG_DRAW_TEXT
+                    printf("DTFT drawing %x adv=%d kerning=%d => w=%d o_x=%d\n",
+                                ch, item->advance, kerning >> 6, w, item->origin_x);
+                #endif
                 buf->Draw( x + (kerning>>6) + item->origin_x,
                     y + _baseline - item->origin_y,
                     item->bmp,
