@@ -42,7 +42,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
            (lUInt32)(rec.important >> 32)) * 31
          + (lUInt32)(rec.important & 0xFFFFFFFFULL)) * 31
          + (lUInt32)(rec.importance >> 32)) * 31
@@ -100,6 +100,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.widows) * 31
          + (lUInt32)rec.float_) * 31
          + (lUInt32)rec.clear) * 31
+         + (lUInt32)rec.direction) * 31
          + (lUInt32)rec.cr_hint) * 31
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash());
@@ -164,6 +165,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.widows==r2.widows&&
            r1.float_ == r2.float_&&
            r1.clear == r2.clear&&
+           r1.direction == r2.direction&&
            r1.cr_hint==r2.cr_hint;
 }
 
@@ -349,6 +351,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(widows);
     ST_PUT_ENUM(float_);
     ST_PUT_ENUM(clear);
+    ST_PUT_ENUM(direction);
     ST_PUT_ENUM(cr_hint);
     lUInt32 hash = calcHash(*this);
     buf << hash;
@@ -406,6 +409,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_orphans_widows_value_t, widows);
     ST_GET_ENUM(css_float_t, float_);
     ST_GET_ENUM(css_clear_t, clear);
+    ST_GET_ENUM(css_direction_t, direction);
     ST_GET_ENUM(css_cr_hint_t, cr_hint);
     lUInt32 hash = 0;
     buf >> hash;
