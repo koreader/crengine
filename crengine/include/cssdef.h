@@ -57,7 +57,9 @@ enum css_text_align_t {
     css_ta_left,
     css_ta_right,
     css_ta_center,
-    css_ta_justify
+    css_ta_justify,
+    css_ta_start, // = left if LTR, right if RTL
+    css_ta_end    // = right if LTR, left if LTR
 };
 
 /// vertical-align property values

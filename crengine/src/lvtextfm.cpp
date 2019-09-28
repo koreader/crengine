@@ -376,6 +376,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
+    int m_specified_para_dir;
     #if (USE_FRIBIDI==1)
         // Bidi/RTL support
         FriBidiCharType *    m_bidi_ctypes;
@@ -406,6 +407,7 @@ public:
         m_has_float_to_position = false;
         m_has_ongoing_float = false;
         m_no_clear_own_floats = false;
+        m_specified_para_dir = REND_DIRECTION_UNSET;
         #if (USE_FRIBIDI==1)
             m_bidi_ctypes = NULL;
             m_bidi_btypes = NULL;
@@ -555,7 +557,9 @@ public:
         }
         if ( !already_rendered ) {
             LVRendPageContext emptycontext( NULL, m_pbuffer->page_height );
-            renderBlockElement( emptycontext, node, 0, 0, m_pbuffer->width );
+            // We render the float with the specified direction (from upper dir=), even
+            // if UNSET (and not with the direction determined by fribidi from the text).
+            renderBlockElement( emptycontext, node, 0, 0, m_pbuffer->width, m_specified_para_dir );
             // (renderBlockElement will ensure style->height if requested.)
             // Gather footnotes links accumulated by emptycontext
             // (We only need to gather links in the rendering phase, for
@@ -875,7 +879,12 @@ public:
         // outer containers) must follow up to next paragraphs (separated by <BR/> or newlines).
         // Here in lvtextfm, each gets its own call to copyText(), so we might need some state.
         // This link also points out that line box direction and its text content direction
-        // might be different...
+        // might be different... Could be we have that right (or not).
+        // If this para final node or some upper block node specifies dir=rtl, assume fribidi
+        // is needed, and avoid checking for rtl chars
+        if ( m_specified_para_dir == REND_DIRECTION_RTL ) {
+            has_rtl = true;
+        }
 
         int pos = 0;
         int i;
@@ -1100,52 +1109,16 @@ public:
 
         #if (USE_FRIBIDI==1)
         if ( has_rtl ) {
-            // HarfBuzz reordering and shaping is different if paragraph is set
-            // to LTR or RTL, so we must get it right.
-            // m_para_bidi_type = FRIBIDI_PAR_LTR;
-            // m_para_bidi_type = FRIBIDI_PAR_RTL;
-            m_para_bidi_type = FRIBIDI_PAR_WLTR; // Weak LTR (= auto with a bias toward LTR)
-            // More work is needed in lvrend/lvstyles/lvstsheet to propertly support text
-            // direction via CSS and attributes (dir="rtl") according to the specs.
-            // But some specs say content creators should prefer setting text direction
-            // via the dir= attribute, rather than via CSS, so, for now, let's ensure just that.
-            // From the first text node of this paragraph, look at its parents until
-            // we find one with a dir= attribute. (This might be a bit expensive, but well,
-            // proper rtl can cost a bit more...)
-            // Note: this should better be done by renderBlockElementEnhanced and FlowState,
-            // and stored in the final block RenderRectAccessor.
-            for ( i=start; i<end; i++ ) {
-                src_text_fragment_t * src = &m_pbuffer->srctext[i];
-                if ( !src->object ) // might be NULL for added text (like list-item bullets)
-                    continue;
-                ldomNode * node = (ldomNode *) src->object; // text node or image
-                // todo: if we're going to keep the following, make it a
-                // ldomNode::getWrittingDirection() method, returning:
-                //   1=LTR -1=RTL 0=unspecified
-                while (node) {
-                    if ( node->getRendMethod() == erm_inline) {
-                        // Ignore inline wrapping nodes: we're interested only in
-                        // the attribute set on an upper block element (erm_final
-                        // and upper erm_block).
-                        node = node->getParentNode();
-                        continue;
-                    }
-                    if ( !node->hasAttribute( attr_dir ) ) {
-                        node = node->getParentNode();
-                        continue;
-                    }
-                    lString16 dir = node->getAttributeValue( attr_dir );
-                    dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
-                    if ( dir.compare("rtl") == 0 ) {
-                        m_para_bidi_type = FRIBIDI_PAR_RTL; // Strong RTL
-                    }
-                    else if ( dir.compare("ltr") == 0 ) {
-                        m_para_bidi_type = FRIBIDI_PAR_LTR; // Strong LTR
-                    }
-                    // otherwise ("auto" or bad value), stay with FRIBIDI_PAR_WLTR Weak LTR
-                    break;
-                }
-                break;
+            // Trust the direction determined by renderBlockElementEnhanced() from the
+            // upper nodes dir= attributes or CSS style->direction.
+            if ( m_specified_para_dir == REND_DIRECTION_RTL ) {
+                m_para_bidi_type = FRIBIDI_PAR_RTL; // Strong RTL
+            }
+            else if ( m_specified_para_dir == REND_DIRECTION_LTR ) {
+                m_para_bidi_type = FRIBIDI_PAR_LTR; // Strong LTR
+            }
+            else { // REND_DIRECTION_UNSET
+                m_para_bidi_type = FRIBIDI_PAR_WLTR; // Weak LTR (= auto with a bias toward LTR)
             }
 
             // Compute bidi levels
@@ -1178,12 +1151,6 @@ public:
             //   LTR at start with later some RTL: par_type 272 , max_level 2  00000111111000000000000000
             //   RTL at start with later some LTR: par_type 273 , max_level 3  1111111111112222222222222221
             */
-
-            // todo: other layout things we should adapt for RTL:
-            // - list items bullets go to the right of text
-            // - tables cells in a row should be reversed order
-            // - Supports CSS :dir() selector: https://developer.mozilla.org/en-US/docs/Web/CSS/:dir
-            //   looks impossible (styles are applied before text direction detection)
         }
         #endif
     }
@@ -1397,6 +1364,11 @@ public:
             #endif
             // Note: some additional tweaks (like disabling letter-spacing when
             // a cursive script is detected) are done in measureText() and drawTextString().
+
+            // todo: we should also split measureText() segment on "unicode script" change, and
+            // not only on direction change (mixed hebrew and arabic in a single text node should
+            // be split into different segments - currently, they are handled as one, and Harfbuzz
+            // shapes the whole text with the script of the first kind of text it meets...)
 
             // Make a new segment to measure when any property changes from previous char
             if ( i>start && (   newFont != lastFont
@@ -3013,7 +2985,7 @@ static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
 }
 
 // experimental formatter
-lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, BlockFloatFootprint * float_footprint)
+lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, int para_direction, BlockFloatFootprint * float_footprint)
 {
     // clear existing formatted data, if any
     freeFrmLines( m_pbuffer );
@@ -3023,6 +2995,10 @@ lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, BlockFloatFoo
     m_pbuffer->page_height = page_height;
     // format text
     LVFormatter formatter( m_pbuffer );
+
+    // Set specified para direction (can be REND_DIRECTION_UNSET, in which case
+    // it will be detected by fribidi)
+    formatter.m_specified_para_dir = para_direction;
 
     if (float_footprint) {
         formatter.m_no_clear_own_floats = float_footprint->no_clear_own_floats;

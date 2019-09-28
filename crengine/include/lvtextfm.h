@@ -356,7 +356,9 @@ public:
             flags, interval, valign_dy, margin, object, (lUInt16)offset, letter_spacing );
     }
 
-    lUInt32 Format(lUInt16 width, lUInt16 page_height, BlockFloatFootprint * float_footprint = NULL);
+    lUInt32 Format(lUInt16 width, lUInt16 page_height,
+                        int para_direction=0, // = REND_DIRECTION_UNSET in lvrend.h
+                        BlockFloatFootprint * float_footprint = NULL );
 
     int GetSrcCount()
     {
@@ -393,7 +395,7 @@ public:
         return m_pbuffer->floats[index];
     }
 
-    void Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * marks,  ldomMarkedRangeList *bookmarks = NULL );
+    void Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * marks = NULL,  ldomMarkedRangeList *bookmarks = NULL );
 
     LFormattedText() { m_pbuffer = lvtextAllocFormatter( 0 ); }
 

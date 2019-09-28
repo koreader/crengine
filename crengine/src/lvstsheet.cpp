@@ -785,6 +785,8 @@ static const char * css_ta_names[] =
     "right",
     "center",
     "justify",
+    "start",
+    "end",
     NULL
 };
 
