@@ -13438,17 +13438,26 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
         // We are given a x>0 when tap/hold to highlight text or find
         // a link, and checking x vs fmt.x and width allows for doing
         // that correctly in 2nd+ table cells.
-        // (No need to check if ( pt.x < fmt.getX() ): we probably
-        // meet the multiple elements that can be formatted on a same
-        // line in the order they appear as children of their parent,
-        // we can simply just ignore those who end before our pt.x)
         if ( pt.x >= fmt.getX() + fmt.getWidth() ) {
             return NULL;
         }
+        // No more true:
+        //   (No need to check if ( pt.x < fmt.getX() ): we probably
+        //   meet the multiple elements that can be formatted on a same
+        //   line in the order they appear as children of their parent,
+        //   we can simply just ignore those who end before our pt.x)
         // But check x if we happen to be on a floating node (which,
         // with float:right, can appear first in the DOM but be
         // displayed at a higher x)
-        if ( pt.x < fmt.getX() && enode->isFloatingBox() ) {
+        //  if ( pt.x < fmt.getX() && enode->isFloatingBox() ) {
+        //      return NULL;
+        //  }
+        //
+        // Now that we support RTL tables, we can meet cells
+        // no more in logical order.
+        // We could add more conditions (like parentNode->getRendMethod()>=erm_table),
+        // but let's just check this in all cases.
+        if ( pt.x < fmt.getX() ) {
             return NULL;
         }
     }
