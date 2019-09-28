@@ -120,8 +120,9 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 /// renders block which contains subblocks
 int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction, int rend_flags );
 /// renders table element
-int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit,
-                 int & fitted_width, bool pb_inside_avoid=false, bool enhanced_rendering=false );
+int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width,
+                 bool shrink_to_fit, int & fitted_width, int direction=REND_DIRECTION_UNSET,
+                 bool pb_inside_avoid=false, bool enhanced_rendering=false );
 /// sets node style
 void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font );
 /// copy style

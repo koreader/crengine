@@ -155,6 +155,8 @@ class CCRTableCell {
 public:
     CCRTableCol * col;
     CCRTableRow * row;
+    int col_index; // copy of col->index, only filled and used if RTL table for re-ordering cells
+    int direction;
     int width;
     int height;
     int percent;
@@ -166,6 +168,7 @@ public:
     char valign;
     ldomNode * elem;
     CCRTableCell() : col(NULL), row(NULL)
+    , direction(REND_DIRECTION_UNSET)
     , width(0)
     , height(0)
     , percent(0)
@@ -230,7 +233,7 @@ public:
     int nrows;
     int x;      // sum of previous col widths
     bool width_auto; // true when no width or percent is specified
-    LVPtrVector<CCRTableCell, false> cells;
+    // LVPtrVector<CCRTableCell, false> cells; // not used
     ldomNode * elem;
     CCRTableCol() :
     index(0)
@@ -311,12 +314,15 @@ class CCRTable {
 public:
     int table_width;
     int digitwidth;
+    int direction;
+    bool is_rtl;
     bool shrink_to_fit;
     bool avoid_pb_inside;
     bool enhanced_rendering;
     ldomNode * elem;
     ldomNode * caption;
     int caption_h;
+    int caption_direction;
     LVPtrVector<CCRTableRow> rows;
     LVPtrVector<CCRTableCol> cols;
     LVPtrVector<CCRTableRowGroup> rowgroups;
@@ -331,15 +337,39 @@ public:
         }
     }
 
-    int LookupElem( ldomNode * el, int state ) {
+    int LookupElem( ldomNode * el, int elem_direction, int state ) {
         if (!el->getChildCount())
             return 0;
         int colindex = 0;
-        int tdindex = 0;
         for (int i=0; i<el->getChildCount(); i++) {
             ldomNode * item = el->getChildElementNode(i);
             if ( item ) {
                 // for each child element
+                css_style_rec_t * style = item->getStyle().get();
+
+                int item_direction = elem_direction;
+                if ( item->hasAttribute( attr_dir ) ) {
+                    lString16 dir = item->getAttributeValue( attr_dir );
+                    dir = dir.lowercase();
+                    if ( dir.compare("rtl") == 0 ) {
+                        item_direction = REND_DIRECTION_RTL;
+                    }
+                    else if ( dir.compare("ltr") == 0 ) {
+                        item_direction = REND_DIRECTION_LTR;
+                    }
+                    else if ( dir.compare("auto") == 0 ) {
+                        item_direction = REND_DIRECTION_UNSET;
+                    }
+                }
+                if ( style->direction != css_dir_inherit ) {
+                    if ( style->direction == css_dir_rtl )
+                        item_direction = REND_DIRECTION_RTL;
+                    else if ( style->direction == css_dir_ltr )
+                        item_direction = REND_DIRECTION_LTR;
+                    else if ( style->direction == css_dir_unset )
+                        item_direction = REND_DIRECTION_UNSET;
+                }
+
                 lvdom_element_render_method rendMethod = item->getRendMethod();
                 //CRLog::trace("LookupElem[%d] (%s, %d) %d", i, LCSTR(item->getNodeName()), state, (int)item->getRendMethod() );
                 switch ( rendMethod ) {
@@ -358,14 +388,14 @@ public:
                         currentRowGroup->elem = item;
                         currentRowGroup->index = rowgroups.length();
                         rowgroups.add( currentRowGroup );
-                        LookupElem( item, 0 );
+                        LookupElem( item, item_direction, 0 );
                         currentRowGroup = NULL;
                     } else {
                     }
                     break;
                 case erm_table_column_group: // table column group
                     // just fall into groups
-                    LookupElem( item, 0 );
+                    LookupElem( item, item_direction, 0 );
                     break;
                 case erm_table_row: // table row
                     {
@@ -387,7 +417,7 @@ public:
                         }
                         // recursion: search for inner elements
                         //int res =
-                        LookupElem( item, 1 ); // lookup row
+                        LookupElem( item, item_direction, 1 ); // lookup row
                     }
                     break;
                 case erm_table_column: // table column
@@ -407,7 +437,7 @@ public:
                                 col->width = wn;
                         }
                         */
-                        css_length_t w = item->getStyle()->width;
+                        css_length_t w = style->width;
                         if ( w.type == css_val_percent ) { // %
                             col->percent = w.value / 256;
                         }
@@ -488,8 +518,6 @@ public:
                         // not with EPUBs.
                         // todo: see if needed with EPUBs
 
-                        css_style_rec_t * style = item->getStyle().get();
-
                         css_length_t w = style->width;
                         if ( w.type == css_val_percent ) { // %
                             cell->percent = w.value / 256;
@@ -500,7 +528,7 @@ public:
                         }
                         // else: cell->percent and cell->width stay at 0
 
-                        // This is not used here, but getStyle()->text_align will
+                        // This is not used here, but style->text_align will
                         // be naturally handled when cells are rendered
                         css_text_align_t ta = style->text_align;
                         if ( ta == css_ta_center )
@@ -516,16 +544,17 @@ public:
                                 cell->valign = 2; // bottom
                         }
 
+                        cell->direction = item_direction;
                         cell->row = rows[rows.length()-1];
                         cell->row->cells.add( cell );
                         cell->row->numcols += cell->colspan;
                         ExtendCols( cell->row->numcols ); // update col count
-                        tdindex++;
                     }
                     break;
                 case erm_table_caption: // table caption
                     {
                         caption = item;
+                        caption_direction = item_direction;
                     }
                     break;
                 case erm_inline:
@@ -646,6 +675,8 @@ public:
                     cell->colspan = max_used_x - cell->col->index + 1;
                 if (cell->row->index + cell->rowspan - 1 > max_used_y)
                     cell->rowspan = max_used_y - cell->row->index + 1;
+                if (is_rtl) // set up col_index, used for RTL re-ordering of cells
+                    cell->col_index = cell->col->index;
             }
         }
         #ifdef DEBUG_TABLE_RENDERING
@@ -661,6 +692,27 @@ public:
         for (i=cols.length()-1; i>max_used_x; i--) {
             delete cols.remove(i);
             // No need to adjust cols[x]->nrows, we don't use it from now
+        }
+
+        // If RTL table, we need to draw cells from right to left.
+        // So, just swap their order and update pointers at every place relevant
+        if ( is_rtl ) {
+            // Reverse cols (CCRTableCol):
+            cols.reverse();
+            int nbcols = cols.length();
+            for (i=0; i<nbcols; i++)
+                cols[i]->index = i;
+            // Reverse cells in each row
+            for (i=0; i<rows.length(); i++) {
+                rows[i]->cells.reverse();
+                // and update each cell pointer to the right CCRTableCol
+                for (j=0; j<rows[i]->cells.length(); j++) {
+                    CCRTableCell * cell = rows[i]->cells[j];
+                    cell->col = cols[nbcols-1 - cell->col_index - (cell->colspan-1)];
+                    // cell->col_index has been set up above, and reflects
+                    // the original index before we reversed cols.
+                }
+            }
         }
 
         css_style_ref_t table_style = elem->getStyle();
@@ -792,7 +844,7 @@ public:
             for (j=0; j<rows[i]->cells.length(); j++) {
                 // rows[i]->cells contains only real cells made from node elements
                 CCRTableCell * cell = (rows[i]->cells[j]);
-                getRenderedWidths(cell->elem, cell->max_content_width, cell->min_content_width);
+                getRenderedWidths(cell->elem, cell->max_content_width, cell->min_content_width, cell->direction);
                 #ifdef DEBUG_TABLE_RENDERING
                     printf("TABLE: cell[%d,%d] getRenderedWidths: %d (min %d)\n",
                         j, i, cell->max_content_width, cell->min_content_width);
@@ -1293,6 +1345,7 @@ public:
                 fmt.setInnerY( padding_top );
                 fmt.setInnerWidth( w - padding_left - padding_right );
                 RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+                RENDER_RECT_SET_DIRECTION(fmt, caption_direction);
             }
             fmt.push();
             caption_h = caption->renderFinalBlock( txform, &fmt, w - padding_left - padding_right );
@@ -1354,6 +1407,7 @@ public:
                             fmt.setInnerY( padding_top );
                             fmt.setInnerWidth( cell->width - padding_left - padding_right );
                             RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+                            RENDER_RECT_SET_DIRECTION(fmt, cell->direction);
                         }
                         fmt.push();
                         int h = cell->elem->renderFinalBlock( txform, &fmt, cell->width - padding_left - padding_right);
@@ -1394,7 +1448,7 @@ public:
                         // main context. Their heights will already be accounted
                         // in their row's height (added to main context below).
                         LVRendPageContext emptycontext( NULL, context.getPageHeight() );
-                        int h = renderBlockElement( emptycontext, cell->elem, 0, 0, cell->width);
+                        int h = renderBlockElement( emptycontext, cell->elem, 0, 0, cell->width, cell->direction);
                         cell->height = h;
                         // Gather footnotes links accumulated by emptycontext
                         lString16Collection * link_ids = emptycontext.getLinkIds();
@@ -1413,7 +1467,7 @@ public:
                     fmt.setX(cell->col->x); // relative to its TR (border_spacing_h is
                                             // already accounted in col->x)
                     fmt.setY(0); // relative to its TR
-                    fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
+                    fmt.setWidth( cell->width );
                     fmt.setHeight( cell->height );
                     fmt.push();
                     // Some fmt.set* may be updated below
@@ -1701,30 +1755,33 @@ public:
         return table_h;
     }
 
-    CCRTable(ldomNode * tbl_elem, int tbl_width, bool tbl_shrink_to_fit, bool tbl_avoid_pb_inside,
+    CCRTable(ldomNode * tbl_elem, int tbl_width, bool tbl_shrink_to_fit, int tbl_direction, bool tbl_avoid_pb_inside,
                                 bool tbl_enhanced_rendering, int dwidth) : digitwidth(dwidth) {
         currentRowGroup = NULL;
         caption = NULL;
         caption_h = 0;
+        caption_direction = REND_DIRECTION_UNSET;
         elem = tbl_elem;
         table_width = tbl_width;
         shrink_to_fit = tbl_shrink_to_fit;
+        direction = tbl_direction;
+        is_rtl = direction == REND_DIRECTION_RTL;
         avoid_pb_inside = tbl_avoid_pb_inside;
         enhanced_rendering = tbl_enhanced_rendering;
         #ifdef DEBUG_TABLE_RENDERING
             printf("TABLE: ============ parsing new table %s\n",
                 UnicodeToLocal(ldomXPointer(elem, 0).toString()).c_str());
         #endif
-        LookupElem( tbl_elem, 0 );
+        LookupElem( tbl_elem, direction, 0 );
         PlaceCells();
     }
 };
 
 int renderTable( LVRendPageContext & context, ldomNode * node, int x, int y, int width, bool shrink_to_fit,
-                 int & fitted_width, bool avoid_pb_inside, bool enhanced_rendering )
+                 int & fitted_width, int direction, bool avoid_pb_inside, bool enhanced_rendering )
 {
     CR_UNUSED2(x, y);
-    CCRTable table( node, width, shrink_to_fit, avoid_pb_inside, enhanced_rendering, 10 );
+    CCRTable table( node, width, shrink_to_fit, direction, avoid_pb_inside, enhanced_rendering, 10 );
     int h = table.renderCells( context );
     if (shrink_to_fit)
         fitted_width = table.table_width;
@@ -5929,7 +5986,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // renderTable has not been updated to use 'flow', and it looks
                 // like it does not really need to.
                 int h = renderTable( *(flow->getPageContext()), enode, 0, flow->getCurrentRelativeY(),
-                            table_width, table_shrink_to_fit, fitted_width, avoid_pb_inside, true );
+                            table_width, table_shrink_to_fit, fitted_width, direction, avoid_pb_inside, true );
                 // (It feels like we don't need to ensure a table specified height.)
                 fmt.setHeight( h );
                 // Update table width if it was fitted/shrunk

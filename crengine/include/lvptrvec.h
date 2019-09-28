@@ -198,6 +198,17 @@ public:
         }
         _list[ indexTo ] = p;
     }
+    /// reverse items
+    void reverse()
+    {
+        if ( empty() )
+            return;
+        for ( int i=0; i < _count/2; i++ ) {
+            T * tmp = _list[i];
+            _list[i] = _list[_count-1 - i];
+            _list[_count-1 - i] = tmp;
+        }
+    }
     /// copy constructor
     LVPtrVector( const LVPtrVector & v )
         : _list(NULL), _size(0), _count(0)
