@@ -484,7 +484,10 @@ public:
                         //   valign= has been translated to elem style->vertical_align
                         // (This allows overriding them with Style tweaks to remove
                         // publisher alignments and specified widths)
-                        css_length_t w = item->getStyle()->width;
+
+                        css_style_rec_t * style = item->getStyle().get();
+
+                        css_length_t w = style->width;
                         if ( w.type == css_val_percent ) { // %
                             cell->percent = w.value / 256;
                         }
@@ -496,13 +499,13 @@ public:
 
                         // This is not used here, but getStyle()->text_align will
                         // be naturally handled when cells are rendered
-                        css_length_t ta = item->getStyle()->text_align;
+                        css_length_t ta = style->text_align;
                         if ( ta == css_ta_center )
                             cell->halign = 1; // center
                         else if ( ta == css_ta_right )
                             cell->halign = 2; // right
 
-                        css_length_t va = item->getStyle()->vertical_align;
+                        css_length_t va = style->vertical_align;
                         if ( va.type == css_val_unspecified ) {
                             if ( va.value == css_va_middle )
                                 cell->valign = 1; // middle
@@ -657,10 +660,11 @@ public:
             // No need to adjust cols[x]->nrows, we don't use it from now
         }
 
+        css_style_ref_t table_style = elem->getStyle();
         int table_em = elem->getFont()->getSize();
         // border-spacing does not accept values in % unit
-        int borderspacing_h = lengthToPx(elem->getStyle()->border_spacing[0], 0, table_em);
-        bool border_collapse = (elem->getStyle()->border_collapse == css_border_collapse);
+        int borderspacing_h = lengthToPx(table_style->border_spacing[0], 0, table_em);
+        bool border_collapse = (table_style->border_collapse == css_border_collapse);
 
         if (border_collapse) {
             borderspacing_h = 0; // no border spacing when table collapse
@@ -907,8 +911,8 @@ public:
         }
         else { // no collapse
             // Remove table outer paddings (margin and padding indexes are LRTB)
-            assignable_width -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
-            assignable_width -= lengthToPx(elem->getStyle()->padding[1], table_width, table_em);
+            assignable_width -= lengthToPx(table_style->padding[0], table_width, table_em);
+            assignable_width -= lengthToPx(table_style->padding[1], table_width, table_em);
             // Remove (nb cols + 1) border-spacing
             assignable_width -= (cols.length() + 1) * borderspacing_h;
         }
@@ -1096,11 +1100,11 @@ public:
             // distribute restw to columns, but shrink table width
             // Table padding may be in %, and need to be corrected
             int correction = 0;
-            correction += lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
-            correction += lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            correction += lengthToPx(table_style->padding[0], table_width, table_em);
+            correction += lengthToPx(table_style->padding[0], table_width, table_em);
             table_width -= restw;
-            correction -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
-            correction -= lengthToPx(elem->getStyle()->padding[0], table_width, table_em);
+            correction -= lengthToPx(table_style->padding[0], table_width, table_em);
+            correction -= lengthToPx(table_style->padding[0], table_width, table_em);
             table_width -= correction;
             assignable_width -= restw + correction; // (for debug printf() below)
             #ifdef DEBUG_TABLE_RENDERING
@@ -1275,10 +1279,11 @@ public:
             fmt.setY( table_h );
             fmt.setWidth( w ); // fmt.width must be set before 'caption->renderFinalBlock'
                                // to have text-indent in % not mess up at render time
-            int padding_left = lengthToPx( caption->getStyle()->padding[0], w, em ) + measureBorder(caption, 3);
-            int padding_right = lengthToPx( caption->getStyle()->padding[1], w, em ) + measureBorder(caption,1);
-            int padding_top = lengthToPx( caption->getStyle()->padding[2], w, em ) + measureBorder(caption,0);
-            int padding_bottom = lengthToPx( caption->getStyle()->padding[3], w, em ) + measureBorder(caption,2);
+            css_style_ref_t caption_style = caption->getStyle();
+            int padding_left = lengthToPx( caption_style->padding[0], w, em ) + measureBorder(caption, 3);
+            int padding_right = lengthToPx( caption_style->padding[1], w, em ) + measureBorder(caption,1);
+            int padding_top = lengthToPx( caption_style->padding[2], w, em ) + measureBorder(caption,0);
+            int padding_bottom = lengthToPx( caption_style->padding[3], w, em ) + measureBorder(caption,2);
             if ( enhanced_rendering ) {
                 // As done in renderBlockElementEnhanced when erm_final
                 fmt.setInnerX( padding_left );
@@ -1333,10 +1338,11 @@ public:
                     if ( cell->elem->getRendMethod() == erm_final ) {
                         LFormattedTextRef txform;
                         int em = cell->elem->getFont()->getSize();
-                        int padding_left = lengthToPx( cell->elem->getStyle()->padding[0], cell->width, em ) + measureBorder(cell->elem,3);
-                        int padding_right = lengthToPx( cell->elem->getStyle()->padding[1], cell->width, em ) + measureBorder(cell->elem,1);
-                        int padding_top = lengthToPx( cell->elem->getStyle()->padding[2], cell->width, em ) + measureBorder(cell->elem,0);
-                        int padding_bottom = lengthToPx( cell->elem->getStyle()->padding[3], cell->width, em ) + measureBorder(cell->elem,2);
+                        css_style_ref_t elem_style = cell->elem->getStyle();
+                        int padding_left = lengthToPx( elem_style->padding[0], cell->width, em ) + measureBorder(cell->elem,3);
+                        int padding_right = lengthToPx( elem_style->padding[1], cell->width, em ) + measureBorder(cell->elem,1);
+                        int padding_top = lengthToPx( elem_style->padding[2], cell->width, em ) + measureBorder(cell->elem,0);
+                        int padding_bottom = lengthToPx( elem_style->padding[3], cell->width, em ) + measureBorder(cell->elem,2);
                         RenderRectAccessor fmt( cell->elem );
                         fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
                         if ( enhanced_rendering ) {
@@ -2484,7 +2490,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             logfile << "+BLOCK [" << cnt << "]";
 #endif
             // Usual elements
-            bool thisIsRunIn = enode->getStyle()->display==css_d_run_in;
+            bool thisIsRunIn = style->display==css_d_run_in;
             if ( thisIsRunIn )
                 flags |= LTEXT_RUNIN_FLAG;
 
@@ -3067,44 +3073,46 @@ int measureBorder(ldomNode *enode,int border) {
         // return 0. Later, at drawing time, fmt.getWidth() will return the real
         // width, which could cause rendering of borders over child elements,
         // as these were positionned with a border=0.)
+        css_style_rec_t * style = enode->getStyle().get();
         if (border==0){
-                bool hastopBorder = (enode->getStyle()->border_style_top >= css_border_solid &&
-                                     enode->getStyle()->border_style_top <= css_border_outset);
+                bool hastopBorder = (style->border_style_top >= css_border_solid &&
+                                     style->border_style_top <= css_border_outset);
                 if (!hastopBorder) return 0;
-                css_length_t bw = enode->getStyle()->border_width[0];
+                css_length_t bw = style->border_width[0];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
                 int topBorderwidth = lengthToPx(bw, width, em);
                 topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
                 return topBorderwidth;}
-            else if (border==1){
-                bool hasrightBorder = (enode->getStyle()->border_style_right >= css_border_solid &&
-                                       enode->getStyle()->border_style_right <= css_border_outset);
+        else if (border==1){
+                bool hasrightBorder = (style->border_style_right >= css_border_solid &&
+                                       style->border_style_right <= css_border_outset);
                 if (!hasrightBorder) return 0;
-                css_length_t bw = enode->getStyle()->border_width[1];
+                css_length_t bw = style->border_width[1];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
                 int rightBorderwidth = lengthToPx(bw, width, em);
                 rightBorderwidth = rightBorderwidth != 0 ? rightBorderwidth : DEFAULT_BORDER_WIDTH;
                 return rightBorderwidth;}
-            else if (border ==2){
-                bool hasbottomBorder = (enode->getStyle()->border_style_bottom >= css_border_solid &&
-                                        enode->getStyle()->border_style_bottom <= css_border_outset);
+        else if (border ==2){
+                bool hasbottomBorder = (style->border_style_bottom >= css_border_solid &&
+                                        style->border_style_bottom <= css_border_outset);
                 if (!hasbottomBorder) return 0;
-                css_length_t bw = enode->getStyle()->border_width[2];
+                css_length_t bw = style->border_width[2];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
                 int bottomBorderwidth = lengthToPx(bw, width, em);
                 bottomBorderwidth = bottomBorderwidth != 0 ? bottomBorderwidth : DEFAULT_BORDER_WIDTH;
                 return bottomBorderwidth;}
-            else if (border==3){
-                bool hasleftBorder = (enode->getStyle()->border_style_left >= css_border_solid &&
-                                      enode->getStyle()->border_style_left <= css_border_outset);
+        else if (border==3){
+                bool hasleftBorder = (style->border_style_left >= css_border_solid &&
+                                      style->border_style_left <= css_border_outset);
                 if (!hasleftBorder) return 0;
-                css_length_t bw = enode->getStyle()->border_width[3];
+                css_length_t bw = style->border_width[3];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
                 int leftBorderwidth = lengthToPx(bw, width, em);
                 leftBorderwidth = leftBorderwidth != 0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
                 return leftBorderwidth;}
-           else return 0;
-        }
+        else
+            return 0;
+}
 
 // Only used by renderBlockElementLegacy()
 //calculate total margin+padding before node,if >0 don't do campulsory page split
@@ -3170,11 +3178,12 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
 {
     if ( enode->isElement() )
     {
+        css_style_rec_t * style = enode->getStyle().get();
         bool isFootNoteBody = false;
         lString16 footnoteId;
         // Allow displaying footnote content at the bottom of all pages that contain a link
         // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
-        if ( enode->getStyle()->cr_hint == css_cr_hint_footnote_inpage &&
+        if ( style->cr_hint == css_cr_hint_footnote_inpage &&
                     enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
             footnoteId = enode->getFirstInnerAttributeValue(attr_id);
             if ( !footnoteId.empty() )
@@ -3212,16 +3221,16 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
 //            x = x;
 
         int em = enode->getFont()->getSize();
-        int margin_left = lengthToPx( enode->getStyle()->margin[0], width, em ) + DEBUG_TREE_DRAW;
-        int margin_right = lengthToPx( enode->getStyle()->margin[1], width, em ) + DEBUG_TREE_DRAW;
-        int margin_top = lengthToPx( enode->getStyle()->margin[2], width, em ) + DEBUG_TREE_DRAW;
-        int margin_bottom = lengthToPx( enode->getStyle()->margin[3], width, em ) + DEBUG_TREE_DRAW;
+        int margin_left = lengthToPx( style->margin[0], width, em ) + DEBUG_TREE_DRAW;
+        int margin_right = lengthToPx( style->margin[1], width, em ) + DEBUG_TREE_DRAW;
+        int margin_top = lengthToPx( style->margin[2], width, em ) + DEBUG_TREE_DRAW;
+        int margin_bottom = lengthToPx( style->margin[3], width, em ) + DEBUG_TREE_DRAW;
         int border_top = measureBorder(enode,0);
         int border_bottom = measureBorder(enode,2);
-        int padding_left = lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,3);
-        int padding_right = lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,1);
-        int padding_top = lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW + border_top;
-        int padding_bottom = lengthToPx( enode->getStyle()->padding[3], width, em ) + DEBUG_TREE_DRAW + border_bottom;
+        int padding_left = lengthToPx( style->padding[0], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,3);
+        int padding_right = lengthToPx( style->padding[1], width, em ) + DEBUG_TREE_DRAW + measureBorder(enode,1);
+        int padding_top = lengthToPx( style->padding[2], width, em ) + DEBUG_TREE_DRAW + border_top;
+        int padding_bottom = lengthToPx( style->padding[3], width, em ) + DEBUG_TREE_DRAW + border_bottom;
         // If there is a border at top/bottom, the AddLine(padding), which adds the room
         // for the border too, should avoid a page break between the node and its border
         int padding_top_split_flag = border_top ? RN_SPLIT_AFTER_AVOID : 0;
@@ -3245,7 +3254,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
         // with possibly some margin/padding/indentation/border, of the document height),
         // we don't want to waste reading width with blank areas (as we are not sure
         // the content producer intended them because of crengine limitations).
-        css_length_t style_width = enode->getStyle()->width;
+        css_length_t style_width = style->width;
         if (style_width.type != css_val_unspecified) {
             // printf("style_width.type: %d (%d)\n", style_width.value, style_width.type);
 
@@ -3262,7 +3271,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                 style_width_pct_em_only = false; // width for <hr> is safe, whether px or %
             }
 
-            if (apply_style_width && enode->getStyle()->display >= css_d_table ) {
+            if (apply_style_width && style->display >= css_d_table ) {
                 // table elements are managed elsewhere: we'd rather not mess with the table
                 // layout algorithm by applying styles width here (even if this algorithm
                 // is not perfect, it looks like applying width here does not make it better).
@@ -3367,7 +3376,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     bool shrink_to_fit = false;
                     int fitted_width = -1;
                     int table_width = width;
-                    int specified_width = lengthToPx( enode->getStyle()->width, width, em );
+                    int specified_width = lengthToPx( style->width, width, em );
                     if (specified_width <= 0) {
                         // We get 0 when width unspecified (not set or when "width: auto"):
                         // use container width, but allow table to shrink
@@ -3381,7 +3390,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     }
                     int h = renderTable( context, enode, 0, y, table_width, shrink_to_fit, fitted_width );
                     // Should we really apply a specified height ?!
-                    int st_h = lengthToPx( enode->getStyle()->height, em, em );
+                    int st_h = lengthToPx( style->height, em, em );
                     if ( h < st_h )
                         h = st_h;
                     fmt.setHeight( h );
@@ -3392,8 +3401,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     if (table_width < width) {
                         // See for margin: auto, to center or align right the table
                         int shift_x = 0;
-                        css_length_t m_left = enode->getStyle()->margin[0];
-                        css_length_t m_right = enode->getStyle()->margin[1];
+                        css_length_t m_left = style->margin[0];
+                        css_length_t m_right = style->margin[1];
                         bool left_auto = m_left.type == css_val_unspecified && m_left.value == css_generic_auto;
                         bool right_auto = m_right.type == css_val_unspecified && m_right.value == css_generic_auto;
                         if (left_auto) {
@@ -3448,22 +3457,22 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     // List item marker rendering when css_d_list_item_block
                     int list_marker_padding = 0; // set to non-zero when list-style-position = outside
                     int list_marker_height = 0;
-                    if ( enode->getStyle()->display == css_d_list_item_block ) {
+                    if ( style->display == css_d_list_item_block ) {
                         // list_item_block rendered as block (containing text and block elements)
                         // Get marker width and height
                         LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                         int list_marker_width;
                         lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                         list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                        if ( enode->getStyle()->list_style_position == css_lsp_outside &&
-                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                        if ( style->list_style_position == css_lsp_outside &&
+                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the whole block
                             // to the right and reduce the available width, which is done
                             // below when calling renderBlockElement() for each child
                             // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
                             list_marker_padding = list_marker_width;
                         }
-                        else if ( enode->getStyle()->list_style_type != css_lst_none ) {
+                        else if ( style->list_style_type != css_lst_none ) {
                             // When list_style_position = inside, we need to let renderFinalBlock()
                             // know there is a marker to prepend when rendering the first of our
                             // children (or grand-children, depth first) that is erm_final
@@ -3505,7 +3514,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                         y += list_marker_height - block_height;
                     }
 
-                    int st_y = lengthToPx( enode->getStyle()->height, em, em );
+                    int st_y = lengthToPx( style->height, em, em );
                     if ( y < st_y )
                         y = st_y;
                     fmt.setHeight( y + padding_bottom ); //+ margin_top + margin_bottom ); //???
@@ -3545,11 +3554,11 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
             case erm_table_cell:
                 {
 
-                    if ( enode->getStyle()->display == css_d_list_item_block ) {
+                    if ( style->display == css_d_list_item_block ) {
                         // list_item_block rendered as final (containing only text and inline elements)
                         // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                        if ( enode->getStyle()->list_style_position == css_lsp_outside &&
-                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                        if ( style->list_style_position == css_lsp_outside &&
+                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
                             int list_marker_width;
@@ -3621,8 +3630,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                 int break_after = CssPageBreak2Flags( after );
                 int break_inside = CssPageBreak2Flags( inside );
                 int count = txform->GetLineCount();
-                int orphans = (int)(enode->getStyle()->orphans) - (int)(css_orphans_widows_1) + 1;
-                int widows = (int)(enode->getStyle()->widows) - (int)(css_orphans_widows_1) + 1;
+                int orphans = (int)(style->orphans) - (int)(css_orphans_widows_1) + 1;
+                int widows = (int)(style->widows) - (int)(css_orphans_widows_1) + 1;
                 for (int i=0; i<count; i++) {
                     const formatted_line_t * line = txform->GetLineInfo(i);
                     int line_flags = 0; //TODO
@@ -5218,12 +5227,14 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     if (m == erm_invisible) // don't render invisible blocks
         return;
 
+    css_style_rec_t * style = enode->getStyle().get();
+
     // See if this block is a footnote container, so we can deal with it accordingly
     bool isFootNoteBody = false;
     lString16 footnoteId;
     // Allow displaying footnote content at the bottom of all pages that contain a link
     // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
-    if ( enode->getStyle()->cr_hint == css_cr_hint_footnote_inpage &&
+    if ( style->cr_hint == css_cr_hint_footnote_inpage &&
                 enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
         footnoteId = enode->getFirstInnerAttributeValue(attr_id);
         if ( !footnoteId.empty() )
@@ -5261,22 +5272,22 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     int em = enode->getFont()->getSize();
 
-    int padding_left   = lengthToPx( enode->getStyle()->padding[0], container_width, em )
+    int padding_left   = lengthToPx( style->padding[0], container_width, em )
                             + measureBorder(enode, 3) + DEBUG_TREE_DRAW;
-    int padding_right  = lengthToPx( enode->getStyle()->padding[1], container_width, em )
+    int padding_right  = lengthToPx( style->padding[1], container_width, em )
                             + measureBorder(enode, 1) + DEBUG_TREE_DRAW;
-    int padding_top    = lengthToPx( enode->getStyle()->padding[2], container_width, em )
+    int padding_top    = lengthToPx( style->padding[2], container_width, em )
                             + measureBorder(enode, 0) + DEBUG_TREE_DRAW;
-    int padding_bottom = lengthToPx( enode->getStyle()->padding[3], container_width, em )
+    int padding_bottom = lengthToPx( style->padding[3], container_width, em )
                             + measureBorder(enode, 2) + DEBUG_TREE_DRAW;
 
-    css_length_t css_margin_left  = enode->getStyle()->margin[0];
-    css_length_t css_margin_right = enode->getStyle()->margin[1];
+    css_length_t css_margin_left  = style->margin[0];
+    css_length_t css_margin_right = style->margin[1];
 
     int margin_left   = lengthToPx( css_margin_left, container_width, em ) + DEBUG_TREE_DRAW;
     int margin_right  = lengthToPx( css_margin_right, container_width, em ) + DEBUG_TREE_DRAW;
-    int margin_top    = lengthToPx( enode->getStyle()->margin[2], container_width, em ) + DEBUG_TREE_DRAW;
-    int margin_bottom = lengthToPx( enode->getStyle()->margin[3], container_width, em ) + DEBUG_TREE_DRAW;
+    int margin_top    = lengthToPx( style->margin[2], container_width, em ) + DEBUG_TREE_DRAW;
+    int margin_bottom = lengthToPx( style->margin[3], container_width, em ) + DEBUG_TREE_DRAW;
 
     if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_NEGATIVE_MARGINS) ) {
         if (margin_left < 0) margin_left = 0;
@@ -5310,7 +5321,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     else if ( is_hr || is_empty_line_elem || BLOCK_RENDERING(flags, ENSURE_STYLE_HEIGHT) ) {
         // We always use the style height for <HR>, to actually have
         // a height to fill with its color
-        style_height = enode->getStyle()->height;
+        style_height = style->height;
         style_height_base_em = em;
         apply_style_height = true;
     }
@@ -5447,8 +5458,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     }
     else { // regular element (non-float)
         bool apply_style_width = false;
-        css_length_t style_width = enode->getStyle()->width;
-        if ( enode->getStyle()->display > css_d_table ) {
+        css_length_t style_width = style->width;
+        if ( style->display > css_d_table ) {
             // table sub-elements widths are managed by the table layout algorithm
             apply_style_width = false;
         }
@@ -5467,7 +5478,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     apply_style_width = true;
                 }
             }
-            else if ( enode->getStyle()->display == css_d_table ) {
+            else if ( style->display == css_d_table ) {
                 // Table with no style width can shrink.
                 // If we are not ensuring style widths above, tables with
                 // a width will not shrink and will fit container width.
@@ -5482,7 +5493,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             // of the border box (content box + paddings + borders).
             // If we use what we got directly, we are in the traditional
             // box model (Netscape / IE5 / crengine legacy/default).
-            if ( enode->getStyle()->display == css_d_table ) {
+            if ( style->display == css_d_table ) {
                 // TABLE style width always specifies its border box.
                 // It's an exception to the W3C box model, as witnessed
                 // with Firefox, and discussed at:
@@ -5660,9 +5671,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     //   https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Box_Model/Mastering_margin_collapsing
     // (Test suite for margin collapsing: http://test.weasyprint.org/suite-css21/chapter8/section3/)
     // All of this is mostly ensured in flow->pushVerticalMargin()
-    int break_before = CssPageBreak2Flags( enode->getStyle()->page_break_before );
-    int break_after = CssPageBreak2Flags( enode->getStyle()->page_break_after );
-    int break_inside = CssPageBreak2Flags( enode->getStyle()->page_break_inside );
+    int break_before = CssPageBreak2Flags( style->page_break_before );
+    int break_after = CssPageBreak2Flags( style->page_break_after );
+    int break_inside = CssPageBreak2Flags( style->page_break_inside );
     // Note: some test suites seem to indicate that an inner "break-inside: auto"
     // can override an outer "break-inside: avoid". We don't ensure that.
 
@@ -5805,22 +5816,22 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // List item marker rendering when css_d_list_item_block
                 int list_marker_padding = 0; // set to non-zero when list-style-position = outside
                 int list_marker_height = 0;
-                if ( enode->getStyle()->display == css_d_list_item_block ) {
+                if ( style->display == css_d_list_item_block ) {
                     // list_item_block rendered as block (containing text and block elements)
                     // Get marker width and height
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     int list_marker_width;
                     lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                     list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                    if ( enode->getStyle()->list_style_position == css_lsp_outside &&
-                        enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                    if ( style->list_style_position == css_lsp_outside &&
+                        style->text_align != css_ta_center && style->text_align != css_ta_right) {
                         // When list_style_position = outside, we have to shift the whole block
                         // to the right and reduce the available width, which is done
                         // below when calling renderBlockElement() for each child
                         // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
                         list_marker_padding = list_marker_width;
                     }
-                    else if ( enode->getStyle()->list_style_type != css_lst_none ) {
+                    else if ( style->list_style_type != css_lst_none ) {
                         // When list_style_position = inside, we need to let renderFinalBlock()
                         // know there is a marker to prepend when rendering the first of our
                         // children (or grand-children, depth first) that is erm_final
@@ -5875,6 +5886,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int cnt = enode->getChildCount();
                 for (int i=0; i<cnt; i++) {
                     ldomNode * child = enode->getChildNode( i );
+                    css_style_ref_t child_style = child->getStyle();
 
                     // We must deal differently with children that are floating nodes.
                     // Different behaviors with "clear:"
@@ -5889,7 +5901,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // margin, without actually globally pushing it, and without
                         // collapsing with it.
                         int flt_vertical_margin = flow->getCurrentVerticalMargin();
-                        bool is_right = child->getStyle()->float_ == css_f_right;
+                        bool is_right = child_style->float_ == css_f_right;
                         // (style->clear has not been copied to the floatBox: we must
                         // get it from the floatBox single child)
                         css_clear_t child_clear = child->getChildNode(0)->getStyle()->clear;
@@ -5915,9 +5927,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         }
                     }
                     else {
-                        css_clear_t child_clear = child->getStyle()->clear;
+                        css_clear_t child_clear = child_style->clear;
                         // If this child is going to split page, clear all floats before
-                        if ( CssPageBreak2Flags( child->getStyle()->page_break_before ) == RN_SPLIT_ALWAYS )
+                        if ( CssPageBreak2Flags( child_style->page_break_before ) == RN_SPLIT_ALWAYS )
                             child_clear = css_c_both;
                         flow->clearFloats( child_clear );
                         renderBlockElementEnhanced( flow, child, list_marker_padding + padding_left,
@@ -6073,11 +6085,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             {
                 // Deal with list item marker
                 int list_marker_padding = 0;;
-                if ( enode->getStyle()->display == css_d_list_item_block ) {
+                if ( style->display == css_d_list_item_block ) {
                     // list_item_block rendered as final (containing only text and inline elements)
                     // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                    if ( enode->getStyle()->list_style_position == css_lsp_outside &&
-                        enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                    if ( style->list_style_position == css_lsp_outside &&
+                        style->text_align != css_ta_center && style->text_align != css_ta_right) {
                         // When list_style_position = outside, we have to shift the final block
                         // to the right and reduce its width
                         lString16 marker = renderListItemMarker( enode, list_marker_padding, NULL, -1, 0 );
@@ -6220,8 +6232,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // We have lines of text in 'txform', that we should register
                 // into flow/context for later page splitting.
                 int count = txform->GetLineCount();
-                int orphans = (int)(enode->getStyle()->orphans) - (int)(css_orphans_widows_1) + 1;
-                int widows = (int)(enode->getStyle()->widows) - (int)(css_orphans_widows_1) + 1;
+                int orphans = (int)(style->orphans) - (int)(css_orphans_widows_1) + 1;
+                int widows = (int)(style->widows) - (int)(css_orphans_widows_1) + 1;
                 for (int i=0; i<count; i++) {
                     const formatted_line_t * line = txform->GetLineInfo(i);
                     int line_flags = 0;
@@ -6378,31 +6390,32 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 //draw border lines,support color,width,all styles, not support border-collapse
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
-    bool hastopBorder = (enode->getStyle()->border_style_top >=css_border_solid&&enode->getStyle()->border_style_top<=css_border_outset);
-    bool hasrightBorder = (enode->getStyle()->border_style_right >=css_border_solid&&enode->getStyle()->border_style_right<=css_border_outset);
-    bool hasbottomBorder = (enode->getStyle()->border_style_bottom >=css_border_solid&&enode->getStyle()->border_style_bottom<=css_border_outset);
-    bool hasleftBorder = (enode->getStyle()->border_style_left >=css_border_solid&&enode->getStyle()->border_style_left<=css_border_outset);
+    css_style_rec_t * style = enode->getStyle().get();
+    bool hastopBorder = (style->border_style_top >=css_border_solid&&style->border_style_top<=css_border_outset);
+    bool hasrightBorder = (style->border_style_right >=css_border_solid&&style->border_style_right<=css_border_outset);
+    bool hasbottomBorder = (style->border_style_bottom >=css_border_solid&&style->border_style_bottom<=css_border_outset);
+    bool hasleftBorder = (style->border_style_left >=css_border_solid&&style->border_style_left<=css_border_outset);
 
     // Check for explicit 'border-width: 0' which means no border.
     css_length_t bw;
-    bw = enode->getStyle()->border_width[0];
+    bw = style->border_width[0];
     hastopBorder = hastopBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = enode->getStyle()->border_width[1];
+    bw = style->border_width[1];
     hasrightBorder = hasrightBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = enode->getStyle()->border_width[2];
+    bw = style->border_width[2];
     hasbottomBorder = hasbottomBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = enode->getStyle()->border_width[3];
+    bw = style->border_width[3];
     hasleftBorder = hasleftBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
 
     // Check for explicit 'border-color: transparent' which means no border to draw
     css_length_t bc;
-    bc = enode->getStyle()->border_color[0];
+    bc = style->border_color[0];
     hastopBorder = hastopBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = enode->getStyle()->border_color[1];
+    bc = style->border_color[1];
     hasrightBorder = hasrightBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = enode->getStyle()->border_color[2];
+    bc = style->border_color[2];
     hasbottomBorder = hasbottomBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = enode->getStyle()->border_color[3];
+    bc = style->border_color[3];
     hasleftBorder = hasleftBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
 
     if (hasbottomBorder or hasleftBorder or hasrightBorder or hastopBorder) {
@@ -6410,23 +6423,23 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         lUInt32 lightcolor=0xAAAAAA;
         int em = enode->getFont()->getSize();
         int width = 0; // values in % are invalid for borders, so we shouldn't get any
-        int topBorderwidth = lengthToPx(enode->getStyle()->border_width[0],width,em);
+        int topBorderwidth = lengthToPx(style->border_width[0],width,em);
         topBorderwidth = topBorderwidth!=0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
-        int rightBorderwidth = lengthToPx(enode->getStyle()->border_width[1],width,em);
+        int rightBorderwidth = lengthToPx(style->border_width[1],width,em);
         rightBorderwidth = rightBorderwidth!=0 ? rightBorderwidth : DEFAULT_BORDER_WIDTH;
-        int bottomBorderwidth = lengthToPx(enode->getStyle()->border_width[2],width,em);
+        int bottomBorderwidth = lengthToPx(style->border_width[2],width,em);
         bottomBorderwidth = bottomBorderwidth!=0 ? bottomBorderwidth : DEFAULT_BORDER_WIDTH;
-        int leftBorderwidth = lengthToPx(enode->getStyle()->border_width[3],width,em);
+        int leftBorderwidth = lengthToPx(style->border_width[3],width,em);
         leftBorderwidth = leftBorderwidth!=0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
         int tbw=topBorderwidth,rbw=rightBorderwidth,bbw=bottomBorderwidth,lbw=leftBorderwidth;
         if (hastopBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 topBordercolor = enode->getStyle()->border_color[0].value;
+            lUInt32 topBordercolor = style->border_color[0].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (enode->getStyle()->border_color[0].type==css_val_color)
+            if (style->border_color[0].type==css_val_color)
             {
                 lUInt32 r,g,b;
                 r=g=b=topBordercolor;
@@ -6439,8 +6452,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
             right=(hasrightBorder)?0:1;
-            left=(enode->getStyle()->border_style_left==css_border_dotted||enode->getStyle()->border_style_left==css_border_dashed)?0:left;
-            right=(enode->getStyle()->border_style_right==css_border_dotted||enode->getStyle()->border_style_right==css_border_dashed)?0:right;
+            left=(style->border_style_left==css_border_dotted||style->border_style_left==css_border_dashed)?0:left;
+            right=(style->border_style_right==css_border_dotted||style->border_style_right==css_border_dashed)?0:right;
             lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y),
                     leftpoint2=lvPoint(x0+doc_x,y0+doc_y+0.5*topBorderwidth),
                     leftpoint3=lvPoint(x0+doc_x,doc_y+y0+topBorderwidth),
@@ -6466,7 +6479,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 rightpoint3.y=doc_y+y0+topBorderwidth;
             } else rightBorderwidth=0;
             rightrate=(double)rightBorderwidth/(double)topBorderwidth;
-            switch (enode->getStyle()->border_style_top){
+            switch (style->border_style_top){
                 case css_border_dotted:
                     dot=interval=topBorderwidth;
                     for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
@@ -6526,12 +6539,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //right
         if (hasrightBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 rightBordercolor = enode->getStyle()->border_color[1].value;
+            lUInt32 rightBordercolor = style->border_color[1].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (enode->getStyle()->border_color[1].type==css_val_color)
+            if (style->border_color[1].type==css_val_color)
             {
                 lUInt32 r,g,b;
                 r=g=b=rightBordercolor;
@@ -6544,8 +6557,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             int up=1,down=1;
             up=(hastopBorder)?0:1;
             down=(hasbottomBorder)?0:1;
-            up=(enode->getStyle()->border_style_top==css_border_dotted||enode->getStyle()->border_style_top==css_border_dashed)?1:up;
-            down=(enode->getStyle()->border_style_bottom==css_border_dotted||enode->getStyle()->border_style_bottom==css_border_dashed)?1:down;
+            up=(style->border_style_top==css_border_dotted||style->border_style_top==css_border_dashed)?1:up;
+            down=(style->border_style_bottom==css_border_dotted||style->border_style_bottom==css_border_dashed)?1:down;
             lvPoint toppoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0),
                     toppoint2=lvPoint(x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth,doc_y+y0),
                     toppoint3=lvPoint(x0+doc_x+fmt.getWidth()-1-rightBorderwidth,doc_y+y0),
@@ -6563,7 +6576,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
             } else bottomBorderwidth=0;
             bottomrate=(double)bottomBorderwidth/(double)rightBorderwidth;
-            switch (enode->getStyle()->border_style_right){
+            switch (style->border_style_right){
                 case css_border_dotted:
                     dot=interval=rightBorderwidth;
                     for (int i=0;i<toppoint1.x-toppoint3.x;i++){
@@ -6633,12 +6646,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //bottom
         if (hasbottomBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 bottomBordercolor = enode->getStyle()->border_color[2].value;
+            lUInt32 bottomBordercolor = style->border_color[2].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (enode->getStyle()->border_color[2].type==css_val_color)
+            if (style->border_color[2].type==css_val_color)
             {
                 lUInt32 r,g,b;
                 r=g=b=bottomBordercolor;
@@ -6651,8 +6664,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
             right=(hasrightBorder)?0:1;
-            left=(enode->getStyle()->border_style_left==css_border_dotted||enode->getStyle()->border_style_left==css_border_dashed)?1:left;
-            right=(enode->getStyle()->border_style_right==css_border_dotted||enode->getStyle()->border_style_right==css_border_dashed)?1:right;
+            left=(style->border_style_left==css_border_dotted||style->border_style_left==css_border_dashed)?1:left;
+            right=(style->border_style_right==css_border_dotted||style->border_style_right==css_border_dashed)?1:right;
             lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y+fmt.getHeight()-1),
                     leftpoint2=lvPoint(x0+doc_x,y0+doc_y-0.5*bottomBorderwidth+fmt.getHeight()-1),
                     leftpoint3=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-1-bottomBorderwidth),
@@ -6670,7 +6683,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 rightpoint2.x=x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth;
             } else rightBorderwidth=0;
             rightrate=(double)rightBorderwidth/(double)bottomBorderwidth;
-            switch (enode->getStyle()->border_style_bottom){
+            switch (style->border_style_bottom){
                 case css_border_dotted:
                     dot=interval=bottomBorderwidth;
                     for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
@@ -6729,12 +6742,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //left
         if (hasleftBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 leftBordercolor = enode->getStyle()->border_color[3].value;
+            lUInt32 leftBordercolor = style->border_color[3].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (enode->getStyle()->border_color[3].type==css_val_color)
+            if (style->border_color[3].type==css_val_color)
             {
                 lUInt32 r,g,b;
                 r=g=b=leftBordercolor;
@@ -6747,8 +6760,8 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             int up=1,down=1;
             up=(hastopBorder)?0:1;
             down=(hasbottomBorder)?0:1;
-            up=(enode->getStyle()->border_style_top==css_border_dotted||enode->getStyle()->border_style_top==css_border_dashed)?1:up;
-            down=(enode->getStyle()->border_style_bottom==css_border_dotted||enode->getStyle()->border_style_bottom==css_border_dashed)?1:down;
+            up=(style->border_style_top==css_border_dotted||style->border_style_top==css_border_dashed)?1:up;
+            down=(style->border_style_bottom==css_border_dotted||style->border_style_bottom==css_border_dashed)?1:down;
             lvPoint toppoint1=lvPoint(x0+doc_x,doc_y+y0),
                     toppoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0),
                     toppoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0),
@@ -6766,7 +6779,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
             } else bottomBorderwidth=0;
             bottomrate=(double)bottomBorderwidth/(double)leftBorderwidth;
-            switch (enode->getStyle()->border_style_left){
+            switch (style->border_style_left){
                 case css_border_dotted:
                     dot=interval=leftBorderwidth;
                     for (int i=0;i<toppoint3.x-toppoint1.x;i++){
@@ -7018,8 +7031,10 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             }
         }
 
+        css_style_rec_t * style = enode->getStyle().get();
+
         // Check and draw background
-        css_length_t bg = enode->getStyle()->background_color;
+        css_length_t bg = style->background_color;
         lUInt32 oldColor = 0;
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
         // override bgcolor of cells with rowspan > 1. We spread, in setNodeStyle(),
@@ -7035,7 +7050,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             if ( draw_background )
                 drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
         }
-        if ( draw_background && !enode->getStyle()->background_image.empty() ) {
+        if ( draw_background && !style->background_image.empty() ) {
             if ( enode->getNodeId() == el_body ) {
                 // CSS specific: <body> background does not obey margin rules
                 // We don't draw on the fmt width, but on the drawbuf width.
@@ -7134,9 +7149,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 // and list_item_block rendered as block (containing text and block elements)
                 // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
                 // (if list-style-position = inside, drawing is managed by renderFinalBlock())
-                if ( enode->getStyle()->display == css_d_list_item_block &&
-                        enode->getStyle()->list_style_position == css_lsp_outside &&
-                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                if ( style->display == css_d_list_item_block &&
+                        style->list_style_position == css_lsp_outside &&
+                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
                     int width = fmt.getWidth();
                     int base_width = 0; // for padding_top in %
                     ldomNode * parent = enode->getParentNode();
@@ -7145,7 +7160,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         base_width = pfmt.getWidth();
                     }
                     int em = enode->getFont()->getSize();
-                    int padding_top = lengthToPx( enode->getStyle()->padding[2], base_width, em ) + measureBorder(enode,0) + DEBUG_TREE_DRAW;
+                    int padding_top = lengthToPx( style->padding[2], base_width, em ) + measureBorder(enode,0) + DEBUG_TREE_DRAW;
                     // We already adjusted all children blocks' left-padding and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
@@ -7292,9 +7307,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // apply against the parent container width, not this block width.
                     int em = enode->getFont()->getSize();
                     bool draw_padding_bg = true; //( enode->getRendMethod()==erm_final );
-                    padding_left = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
-                    int padding_right = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
-                    padding_top = !draw_padding_bg ? 0 : lengthToPx( enode->getStyle()->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
+                    padding_left = !draw_padding_bg ? 0 : lengthToPx( style->padding[0], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,3);
+                    int padding_right = !draw_padding_bg ? 0 : lengthToPx( style->padding[1], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,1);
+                    padding_top = !draw_padding_bg ? 0 : lengthToPx( style->padding[2], width, em ) + DEBUG_TREE_DRAW+measureBorder(enode,0);
                     inner_width = width - padding_left - padding_right;
                 }
 
@@ -7302,9 +7317,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 // and list_item_block rendered as final (containing only text and inline elements)
                 // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
                 // (if list-style-position = inside, drawing is managed by renderFinalBlock())
-                if ( enode->getStyle()->display == css_d_list_item_block &&
-                        enode->getStyle()->list_style_position == css_lsp_outside &&
-                            enode->getStyle()->text_align != css_ta_center && enode->getStyle()->text_align != css_ta_right) {
+                if ( style->display == css_d_list_item_block &&
+                        style->list_style_position == css_lsp_outside &&
+                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
                     // We already adjusted our block X and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made on the left of
                     // this node.
@@ -7878,6 +7893,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         int m = node->getRendMethod();
         if (m == erm_invisible)
             return;
+        css_style_rec_t * style = node->getStyle().get();
 
         // Get image size early
         bool is_img = false;
@@ -7895,7 +7911,6 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
             width = scaleForRenderDPI(width);
             height = scaleForRenderDPI(height);
             // Adjust if size defined by CSS
-            css_style_ref_t style = node->getStyle();
             int w = 0, h = 0;
             int em = node->getFont()->getSize();
             w = lengthToPx(style->width, 100, em);
@@ -7996,20 +8011,20 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         // as indent, or as left padding
         int list_marker_width = 0;
         bool list_marker_width_as_padding = false;
-        if ( node->getStyle()->display == css_d_list_item_block ) {
+        if ( style->display == css_d_list_item_block ) {
             LFormattedTextRef txform( node->getDocument()->createFormattedText() );
             lString16 marker = renderListItemMarker( node, list_marker_width, txform.get(), -1, 0);
             #ifdef DEBUG_GETRENDEREDWIDTHS
                 printf("GRW: list_marker_width: %d\n", list_marker_width);
             #endif
-            if ( node->getStyle()->list_style_position == css_lsp_outside &&
-                    node->getStyle()->text_align != css_ta_center &&
-                    node->getStyle()->text_align != css_ta_right) {
+            if ( style->list_style_position == css_lsp_outside &&
+                    style->text_align != css_ta_center &&
+                    style->text_align != css_ta_right) {
                 // (same hack as in rendering code: we render 'outside' just
                 // like 'inside' when center or right aligned)
                 list_marker_width_as_padding = true;
             }
-            else if ( node->getStyle()->list_style_type == css_lst_none ) {
+            else if ( style->list_style_type == css_lst_none ) {
                 // When css_lsp_inside, or with that hack when outside & center/right,
                 // no space should be used if list-style-type: none.
                 list_marker_width = 0;
@@ -8021,9 +8036,9 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         int _minWidth = 0;
 
         bool use_style_width = false;
-        css_length_t style_width = node->getStyle()->width;
+        css_length_t style_width = style->width;
         if ( BLOCK_RENDERING(rendFlags, ENSURE_STYLE_WIDTH) ) {
-            if ( node->getStyle()->display > css_d_table ) {
+            if ( style->display > css_d_table ) {
                 // ignore width for table sub-elements
             }
             else {
@@ -8059,7 +8074,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 // We don't have any width yet to use for text-indent in % units,
                 // but this is very rare - use em as we must use something
                 int em = node->getFont()->getSize();
-                indent = lengthToPx(node->getStyle()->text_indent, em, em);
+                indent = lengthToPx(style->text_indent, em, em);
                 // curMaxWidth and curWordWidth are not used in our parents (which
                 // are block-like elements), we can just reset them.
                 // First word will have text-indent has its width
@@ -8133,7 +8148,6 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         int padPct = 0; // cumulative percent
         int padPctNb = 0; // nb of styles in % (to add 1px)
         int em = node->getFont()->getSize();
-        css_style_ref_t style = node->getStyle();
         // margin
         if (!ignoreMargin) {
             if (style->margin[0].type == css_val_percent) {
@@ -8216,9 +8230,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
         // letter-spacing
         LVFont * font = parent->getFont().get();
         int em = font->getSize();
-        int letter_spacing = lengthToPx(parent->getStyle()->letter_spacing, em, em);
+        css_style_rec_t * parent_style = parent->getStyle().get();
+        int letter_spacing = lengthToPx(parent_style->letter_spacing, em, em);
         // text-transform
-        switch (parent->getStyle()->text_transform) {
+        switch (parent_style->text_transform) {
             case css_tt_uppercase:
                 nodeText.uppercase();
                 break;

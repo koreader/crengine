@@ -14364,10 +14364,11 @@ int ldomNode::getSurroundingAddedHeight()
                 base_width = fmt.getWidth();
             }
             int em = n->getFont()->getSize();
-            h += lengthToPx( n->getStyle()->margin[2], base_width, em );  // top margin
-            h += lengthToPx( n->getStyle()->margin[3], base_width, em );  // bottom margin
-            h += lengthToPx( n->getStyle()->padding[2], base_width, em ); // top padding
-            h += lengthToPx( n->getStyle()->padding[3], base_width, em ); // bottom padding
+            css_style_ref_t style = n->getStyle();
+            h += lengthToPx( style->margin[2], base_width, em );  // top margin
+            h += lengthToPx( style->margin[3], base_width, em );  // bottom margin
+            h += lengthToPx( style->padding[2], base_width, em ); // top padding
+            h += lengthToPx( style->padding[3], base_width, em ); // bottom padding
             h += measureBorder(n, 0); // top border
             h += measureBorder(n, 2); // bottom border
         }
