@@ -91,6 +91,8 @@ typedef LVRef<LVCssDeclaration> LVCssDeclRef;
 // See https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes
 enum LVCssSelectorPseudoClass
 {
+    csspc_root,             // :root
+    csspc_dir,              // :dir(rtl), :dir(ltr)
     csspc_first_child,      // :first-child
     csspc_first_of_type,    // :first-of-type
     csspc_nth_child,        // :nth-child(even), :nth-child(3n+4)
@@ -107,10 +109,13 @@ enum LVCssSelectorPseudoClass
     csspc_nth_last_of_type, // :nth-last-of-type()
     csspc_only_child,       // :only-child
     csspc_only_of_type,     // :only-of-type
+    csspc_empty,            // :empty
 };
 
 static const char * css_pseudo_classes[] =
 {
+    "root",
+    "dir",
     "first-child",
     "first-of-type",
     "nth-child",
@@ -121,6 +126,7 @@ static const char * css_pseudo_classes[] =
     "nth-last-of-type",
     "only-child",
     "only-of-type",
+    "empty",
     NULL
 };
 

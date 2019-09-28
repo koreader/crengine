@@ -2583,6 +2583,53 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
             int index = node->getNodeIndex();
             ldomNode * parent = node->getParentNode();
             switch (_attrid) {
+                case csspc_root:
+                {
+                    // We never have any CSS when meeting the crengine root node.
+                    // Only when using :root in our cr3gui/data/*.css we get a chance
+                    // to meet the root node's first child node, which is not always <html>.
+                    // The elements hierarchy may be:
+                    //   <html> <body> with plain HTML files.
+                    //   <body> <DocFragment> <body> with EPUB documents.
+                    // The embedded stylesheets, being stored as attribute/child of <body>
+                    // or <DocFragment> are not yet there when metting the <html> or the
+                    // first <body> node.
+                    // So, we can only try to match the <body> that is a child of
+                    // <html> or <DocFragment>, and apply this style to it.
+                    // If we were to use :root in our cr3gui/data/*.css, we would meet
+                    // the first <body> or the <html> node, but to avoid applyng the
+                    // style twice (to the 2 <body>s), we want to NOT match the first
+                    // node.
+                    if ( !parent || parent->isRoot() )
+                        return false; // we do not want to return true;
+                    lUInt16 parentNodeId = parent->getNodeId();
+                    return parentNodeId == el_DocFragment || parentNodeId == el_html;
+                    // Note: to override, with style tweaks, styles set with :root,
+                    // it should be enough to use body { ... !important }.
+                    // The '!important' is needed because :root has a higher
+                    // specificity that a simple body {}.
+                }
+                break;
+                case csspc_empty:
+                    return node->getChildCount() == 0;
+                break;
+                case csspc_dir:
+                {
+		    while (node) {
+			if ( !node->hasAttribute( attr_dir ) ) {
+			    node = node->getParentNode();
+			    continue;
+			}
+			lString16 dir = node->getAttributeValue( attr_dir );
+			dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
+			if ( dir.compare(_value) == 0 )
+                            return true;
+                        // We could ignore invalide values, but for now, just stop looking.
+			return false;
+		    }
+                    return false;
+                }
+                break;
                 case csspc_first_child:
                 case csspc_first_of_type:
                 {
@@ -2821,11 +2868,14 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
             str++;
             if ( !parse_attr_value( str, attrvalue, ')') )
                 return NULL;
-            // we don't parse the value here, it may have specific meaning
+            // We don't parse the value here, it may have specific meaning
             // per pseudo-class type
+            // But for the ones we handle, we only compare strings to a fixed set of target
+            // values, so trim() and lowercase() below to avoid doing it on each check.
         }
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
         lString16 s( attrvalue );
+        s.trim().lowercase();
         rule->setAttr(n, s);
         // printf("made pseudo class rule %d with %s\n", n, UnicodeToLocal(s).c_str());
         if ( n >= csspc_last_child ) {
@@ -2972,6 +3022,10 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             _id = 0;
         } 
         else if ( *str == '.' ) // classname follows
+        {
+            _id = 0;
+        }
+        else if ( *str == ':' ) // pseudoclass follows
         {
             _id = 0;
         }
