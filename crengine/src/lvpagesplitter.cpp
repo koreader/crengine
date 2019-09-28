@@ -163,6 +163,10 @@ public:
     LVArray<LVPageFootNoteInfo> footnotes;
     LVArray<LVFootNote *> page_footnotes; // foonotes already on this page, to avoid duplicates
     int lastpageend;
+    int nb_lines;
+    int nb_lines_rtl;
+    int nb_footnotes_lines;
+    int nb_footnotes_lines_rtl;
 
     PageSplitState(LVRendPageList * pl, int pageHeight)
         : page_h(pageHeight)
@@ -177,6 +181,10 @@ public:
         , footend(NULL)
         , footlast(NULL)
         , lastpageend(0)
+        , nb_lines(0)
+        , nb_lines_rtl(0)
+        , nb_footnotes_lines(0)
+        , nb_footnotes_lines_rtl(0)
     {
     }
 
@@ -190,6 +198,37 @@ public:
         if (flg1==RN_SPLIT_ALWAYS || flg2==RN_SPLIT_ALWAYS)
             return RN_SPLIT_ALWAYS;
         return RN_SPLIT_AUTO;
+    }
+
+    void ResetLineAccount(bool reset_footnotes=false)
+    {
+        nb_lines = 0;
+        nb_lines_rtl = 0;
+        if (reset_footnotes) {
+            nb_footnotes_lines = 0;
+            nb_footnotes_lines_rtl = 0;
+        }
+    }
+    void AccountLine( const LVRendLineInfo * line )
+    {
+        nb_lines++;
+        if ( line->flags & RN_LINE_IS_RTL )
+            nb_lines_rtl++;
+    }
+    void AccountFootnoteLine( const LVRendLineInfo * line )
+    {
+        nb_footnotes_lines++;
+        if ( line->flags & RN_LINE_IS_RTL )
+            nb_footnotes_lines_rtl++;
+    }
+    int getLineTypeFlags()
+    {
+        int flags = 0;
+        if ( nb_lines_rtl > nb_lines / 2 )
+            flags |= RN_PAGE_MOSTLY_RTL;
+        if ( nb_footnotes_lines_rtl > nb_footnotes_lines / 2 )
+            flags |= RN_PAGE_FOOTNOTES_MOSTLY_RTL;
+        return flags;
     }
 
     void StartPage( const LVRendLineInfo * line )
@@ -226,6 +265,9 @@ public:
                 last ? last->getEnd() : -111111111,
                 pagestart && last ? last->getEnd() - pagestart->getStart() : -111111111);
         #endif
+        ResetLineAccount();
+        if (line)
+            AccountLine(line);
     }
     void AddToList()
     {
@@ -252,7 +294,7 @@ public:
             if (footheight || hasFootnotes)
                 printf(" (+ %d footnotes, fh=%d => h=%d)", footnotes.length(),
                     footheight, h+footheight+FOOTNOTE_MARGIN_REM*gRootFontSize);
-            printf("\n");
+            printf(" [rtl l:%d/%d fl:%d/%d]\n", nb_lines_rtl, nb_lines, nb_footnotes_lines_rtl, nb_footnotes_lines);
         #endif
         LVRendPageInfo * page = new LVRendPageInfo(start, h, page_list->length());
         lastpageend = start + h;
@@ -271,6 +313,8 @@ public:
             // it's better than seeing again the same duplicated footnote text)
             page_footnotes.add(footnote);
         }
+        page->flags |= getLineTypeFlags();
+        ResetLineAccount(true);
         page_list->add(page);
     }
     int currentFootnoteHeight()
@@ -329,12 +373,16 @@ public:
         #endif
         bool did_slice = false;
         while (line->getEnd() - slice_start > page_h) {
+            if (did_slice)
+                AccountLine(line);
             // Greater than page height: we need to cut
             LVRendPageInfo * page = new LVRendPageInfo(slice_start, page_h, page_list->length());
             #ifdef DEBUG_PAGESPLIT
                 printf("PS: ==== SPLITTED AS PAGE %d: %d > %d h=%d\n",
                     page_list->length(), slice_start, slice_start+page_h, page_h);
             #endif
+            page->flags |= getLineTypeFlags();
+            ResetLineAccount();
             page_list->add(page);
             slice_start += page_h;
             lastpageend = slice_start;
@@ -508,6 +556,7 @@ public:
                 pageend = last;
                 next = line;
                 last = line;
+                AccountLine(line); // might be wrong if we split backward, but well...
             }
             else if (flgSplit==RN_SPLIT_AVOID) {
                 #ifdef DEBUG_PAGESPLIT
@@ -517,6 +566,7 @@ public:
                 // were updated on last AUTO or ALWAYS), so we know
                 // we can still split on these if needed.
                 last = line;
+                AccountLine(line); // might be wrong if we split backward, but well...
             }
             else { // should not happen
                 #ifdef DEBUG_PAGESPLIT
@@ -638,6 +688,7 @@ public:
 
             footstart = footlast = line;
             footend = NULL;
+            AccountFootnoteLine(line);
             return;
         }
         if ( footstart==NULL ) {
@@ -653,6 +704,7 @@ public:
             footend = line;
             footlast = line;
         }
+        AccountFootnoteLine(line);
     }
     bool IsFootNoteInCurrentPage( LVFootNote* note )
     {
@@ -765,9 +817,9 @@ bool LVRendPageInfo::serialize( SerialBuf & buf )
 {
     if ( buf.error() )
         return false;
-    buf << (lUInt32)start; /// start of page
+    buf << (lUInt32)start;  /// start of page
     buf << (lUInt16)height; /// height of page, does not include footnotes
-    buf << (lUInt8) type;   /// type: PAGE_TYPE_NORMAL, PAGE_TYPE_COVER
+    buf << (lUInt8) flags;  /// RN_PAGE_*
     lUInt16 len = footnotes.length();
     buf << len;
     for ( int i=0; i<len; i++ ) {
@@ -789,7 +841,7 @@ bool LVRendPageInfo::deserialize( SerialBuf & buf )
 
     start = n1;
     height = n2;
-    type = n3;
+    flags = n3;
 
     lUInt16 len;
     buf >> len;

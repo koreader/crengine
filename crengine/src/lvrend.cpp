@@ -1376,6 +1376,8 @@ public:
                 // but not if called from RenderBlockElementEnhanced, where
                 // margins handle page splitting a bit differently
                 line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AVOID;
+            if (is_rtl)
+                line_flags |= RN_LINE_IS_RTL;
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h;
         }
@@ -1621,6 +1623,8 @@ public:
                     else
                         line_flags = RN_SPLIT_BEFORE_AUTO | RN_SPLIT_AFTER_AUTO;
                 }
+                if (is_rtl)
+                    line_flags |= RN_LINE_IS_RTL;
                 context.AddLine(last_y, table_y0 + table_h, line_flags);
                 last_y = table_y0 + table_h;
             }
@@ -1648,6 +1652,8 @@ public:
                 // but not if called from RenderBlockElementEnhanced, where
                 // margins handle page splitting a bit differently
                 line_flags = RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AUTO;
+            if (is_rtl)
+                line_flags |= RN_LINE_IS_RTL;
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h;
         }
@@ -4108,6 +4114,7 @@ public:
         // along the way
         if (endy - starty <= 0)
             return;
+        int line_dir_flag = direction == REND_DIRECTION_RTL ? RN_LINE_IS_RTL : 0;
         // Ensure avoid_pb_inside
         if ( avoid_pb_inside_just_toggled_off ) {
             avoid_pb_inside_just_toggled_off = false;
@@ -4115,7 +4122,7 @@ public:
                 // Previous added line may have RN_SPLIT_AFTER_AVOID, but
                 // we want to allow a split between it and this new line:
                 // just add an empty line to cancel the split avoid
-                context.AddLine( starty, starty, RN_SPLIT_BOTH_AUTO );
+                context.AddLine( starty, starty, RN_SPLIT_BOTH_AUTO|line_dir_flag );
                 last_split_after_flag = RN_SPLIT_AUTO;
             }
         }
@@ -4154,6 +4161,7 @@ public:
                 flags |= RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
             if ( hasFloatRunningAtY(y0) )
                 flags |= RN_SPLIT_BEFORE_AVOID;
+            flags |= line_dir_flag;
             context.AddLine(y0, y1, flags);
             y0 = y1;
             is_first = false;
@@ -4166,6 +4174,7 @@ public:
         // (needed when adding bottom padding that may push inner vertical
         // margins, which should be accounted in the element height).
         int start_c_y = c_y;
+        int line_dir_flag = direction == REND_DIRECTION_RTL ? RN_LINE_IS_RTL : 0;
         // Ensure avoid_pb_inside
         if ( avoid_pb_inside_just_toggled_off ) {
             avoid_pb_inside_just_toggled_off = false;
@@ -4174,7 +4183,7 @@ public:
             // line or the coming pushed vertical margin:
             // just add an empty line to cancel the split avoid
             if ( !(flags & RN_SPLIT_BEFORE_AVOID) && !hasFloatRunningAtY(c_y) ) {
-                context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO );
+                context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO|line_dir_flag );
                 last_split_after_flag = RN_SPLIT_AUTO;
             }
         }
@@ -4201,6 +4210,7 @@ public:
         // avoid calling hasFloatRunningAtY() when not needed
         if ( !(flags & RN_SPLIT_BEFORE_AVOID) && hasFloatRunningAtY(c_y) )
             flags |= RN_SPLIT_BEFORE_AVOID;
+        flags |= line_dir_flag;
         context.AddLine( c_y, c_y + height, flags );
         last_split_after_flag = RN_GET_SPLIT_AFTER(flags);
         if ( !is_padding )
@@ -4415,6 +4425,8 @@ public:
     void pushVerticalMargin( int next_split_before_flag=RN_SPLIT_AUTO ) {
         if ( vm_disabled )
             return;
+        int line_dir_flag = direction == REND_DIRECTION_RTL ? RN_LINE_IS_RTL : 0;
+
         // Compute the single margin to add along our flow y and to pages context.
         int margin = getCurrentVerticalMargin();
         vm_back_usable_as_margin = 0;
@@ -4429,7 +4441,7 @@ public:
         if (is_main_flow && margin < 0) { // can only happen if ALLOW_NEGATIVE_COLLAPSED_MARGINS
             // We're moving backward and don't know what was before and what's
             // coming next. Add an empty line to avoid a split there.
-            context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AVOID );
+            context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AVOID|line_dir_flag );
         }
         else if (is_main_flow) {
             // When this is called, whether we have some positive resulting vertical
@@ -4555,7 +4567,7 @@ public:
                     // prevent our RN_SPLIT_ALWAYS to have effect.
                     // It seems that per-specs, the SPLIT_ALWAYS should win.
                     // So, kill the SPLIT_AVOID with an empty line.
-                    context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO );
+                    context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO|line_dir_flag );
                     // Note: keeping the RN_SPLIT_AVOID could help avoiding
                     // consecutive page splits in some normal cases (we send
                     // SPLIT_BEFORE_ALWAYS with SPLIT_AFTER_AVOID, and top
@@ -4565,6 +4577,7 @@ public:
                     // above where we just not use RN_SPLIT_ALWAYS if it
                     // hasn't been reset.
                 }
+                flags |= line_dir_flag;
                 context.AddLine( c_y, c_y + margin, flags );
                 // Note: we don't use AddSpace, a margin does not have to be arbitrarily
                 // splitted, RN_SPLIT_DISCARD_AT_START ensures it does not continue
@@ -5954,9 +5967,6 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     switch( m ) {
         case erm_table:
             {
-                if ( isFootNoteBody )
-                    flow->getPageContext()->enterFootNote( footnoteId );
-
                 // As we don't support laying tables aside floats, just clear
                 // all floats and push all margins
                 flow->clearFloats( css_c_both );
