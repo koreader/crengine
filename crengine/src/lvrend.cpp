@@ -2945,6 +2945,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->widows = source->widows;
     dest->float_ = source->float_;
     dest->clear = source->clear;
+    dest->direction = source->direction;
     dest->cr_hint = source->cr_hint;
 }
 
@@ -7680,6 +7681,10 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( widows, css_orphans_widows_inherit );
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );
+
+    // Note: we don't inherit "direction" (which should be inherited per specs);
+    // We'll handle inheritance of direction in renderBlockEnhanced, because
+    // it is also specified, with higher priority, by dir= attributes.
 
     // page_break_* should not be inherited per CSS specs, and as we set
     // each node to start with css_pb_auto, they shouldn't get a chance

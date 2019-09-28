@@ -274,6 +274,14 @@ enum css_clear_t {
     css_c_both
 };
 
+/// direction property values
+enum css_direction_t {
+    css_dir_inherit,
+    css_dir_unset,
+    css_dir_ltr,
+    css_dir_rtl
+};
+
 enum css_generic_value_t {
     css_generic_auto = -1,   // (css_val_unspecified, css_generic_auto), for "margin: auto"
     css_generic_normal = -2, // (css_val_unspecified, css_generic_normal), for "line-height: normal"

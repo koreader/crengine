@@ -104,6 +104,7 @@ enum css_decl_code {
     cssd_widows,
     cssd_float,
     cssd_clear,
+    cssd_direction,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
     cssd_cr_only_if,
@@ -187,6 +188,7 @@ static const char * css_decl_name[] = {
     "widows",
     "float",
     "clear",
+    "direction",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
     "-cr-only-if",
@@ -1052,6 +1054,16 @@ static const char * css_c_names[] =
     "left",
     "right",
     "both",
+    NULL
+};
+
+// direction value names
+static const char * css_dir_names[] =
+{
+    "inherit",
+    "unset",
+    "ltr",
+    "rtl",
     NULL
 };
 
@@ -1925,6 +1937,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_clear:
                 n = parse_name( decl, css_c_names, -1 );
                 break;
+            case cssd_direction:
+                n = parse_name( decl, css_dir_names, -1 );
+                break;
             case cssd_stop:
             case cssd_unknown:
             default:
@@ -2205,6 +2220,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_clear:
             style->Apply( (css_clear_t) *p++, &style->clear, imp_bit_clear, is_important );
+            break;
+        case cssd_direction:
+            style->Apply( (css_direction_t) *p++, &style->direction, imp_bit_direction, is_important );
             break;
         case cssd_cr_hint:
             style->Apply( (css_cr_hint_t) *p++, &style->cr_hint, imp_bit_cr_hint, is_important );
