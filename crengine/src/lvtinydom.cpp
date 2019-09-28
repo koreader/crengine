@@ -4013,8 +4013,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     css_style_ref_t s( new css_style_rec_t );
     s->display = css_d_block;
     s->white_space = css_ws_normal;
-    s->text_align = css_ta_left;
-    s->text_align_last = css_ta_left;
+    s->text_align = css_ta_start;
+    s->text_align_last = css_ta_start;
     s->text_decoration = css_td_none;
     s->text_transform = css_tt_none;
     s->hyphenate = css_hyph_auto;
@@ -14408,7 +14408,8 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
         return 0;
     //RenderRectAccessor fmt( this );
     /// render whole node content as single formatted object
-    int flags = styleToTextFmtFlags( getStyle(), 0 );
+    int direction = RENDER_RECT_PTR_GET_DIRECTION(fmt);
+    int flags = styleToTextFmtFlags( getStyle(), 0, direction );
     ::renderFinalBlock( this, f.get(), fmt, flags, 0, -1 );
     cache.set( this, f );
     bool flg=gFlgFloatingPunctuationEnabled;
@@ -14431,7 +14432,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
         float_footprint = &restored_float_footprint;
         float_footprint->restore( this, (lUInt16)width );
     }
-    int h = f->Format((lUInt16)width, (lUInt16)page_h, float_footprint);
+    int h = f->Format((lUInt16)width, (lUInt16)page_h, direction, float_footprint);
     gFlgFloatingPunctuationEnabled=flg;
     frmtext = f;
     //CRLog::trace("Created new formatted object for node #%08X", (lUInt32)this);

@@ -16,16 +16,37 @@
 
 #include "lvtinydom.h"
 
+// Current direction, from dir="ltr" or dir="rtl" element attribute
+// Should map directly to the RENDER_RECT_FLAG_DIRECTION_* below
+// (bit 0: 0=unset 1=set - bit 1: 0=normal 1=inverted - bit 2: 0=horizontal 1=vertical)
+#define REND_DIRECTION_UNSET  0X00
+#define REND_DIRECTION_LTR    0X01 // 0b001
+#define REND_DIRECTION_RTL    0X03 // 0b011
+// Not supported:
+// #define REND_DIRECTION_TTB 0X05 // 0b101
+// #define REND_DIRECTION_BTT 0X07 // 0b111
+
 // Flags for RenderRectAccessor
-#define RENDER_RECT_FLAG_INNER_FIELDS_SET                   0x0001
-#define RENDER_RECT_FLAG_NO_CLEAR_OWN_FLOATS                0x0002
-#define RENDER_RECT_FLAG_FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS 0x0004
-#define RENDER_RECT_FLAG_FLOATBOX_IS_RIGHT                  0x0008
-#define RENDER_RECT_FLAG_FLOATBOX_IS_RENDERED               0x0010
+#define RENDER_RECT_FLAG_DIRECTION_SET                      0x0001
+#define RENDER_RECT_FLAG_DIRECTION_INVERTED                 0x0002
+#define RENDER_RECT_FLAG_DIRECTION_VERTICAL                 0x0004 // only horizontal supported
+#define RENDER_RECT_FLAG_INNER_FIELDS_SET                   0x0008
+#define RENDER_RECT_FLAG_NO_CLEAR_OWN_FLOATS                0x0010
+#define RENDER_RECT_FLAG_FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS 0x0020
+#define RENDER_RECT_FLAG_FLOATBOX_IS_RIGHT                  0x0040
+#define RENDER_RECT_FLAG_FLOATBOX_IS_RENDERED               0x0080
 
 #define RENDER_RECT_SET_FLAG(r, f)   ( r.setFlags( r.getFlags() | RENDER_RECT_FLAG_##f ) )
 #define RENDER_RECT_UNSET_FLAG(r, f) ( r.setFlags( r.getFlags() & ~RENDER_RECT_FLAG_##f ) )
-#define RENDER_RECT_HAS_FLAG(v, f)   ( (bool)(v.getFlags() & RENDER_RECT_FLAG_##f) )
+#define RENDER_RECT_HAS_FLAG(r, f)   ( (bool)(r.getFlags() & RENDER_RECT_FLAG_##f) )
+
+#define RENDER_RECT_FLAG_DIRECTION_MASK                     0x0007
+#define RENDER_RECT_SET_DIRECTION(r, d)   ( r.setFlags( r.getFlags() | d ) )
+#define RENDER_RECT_GET_DIRECTION(r)      ( r.getFlags() & RENDER_RECT_FLAG_DIRECTION_MASK )
+#define RENDER_RECT_PTR_GET_DIRECTION(r)  ( r->getFlags() & RENDER_RECT_FLAG_DIRECTION_MASK )
+#define RENDER_RECT_HAS_DIRECTION(r)      ( (bool)(r.getFlags() & RENDER_RECT_FLAG_DIRECTION_SET) )
+#define RENDER_RECT_HAS_DIRECTION_RTL(r)  ( (bool)(r.getFlags() & RENDER_RECT_FLAG_DIRECTION_MASK == REND_DIRECTION_RTL) )
+#define RENDER_RECT_PTR_HAS_DIRECTION_RTL(r)  ( (bool)(r->getFlags() & RENDER_RECT_FLAG_DIRECTION_MASK == REND_DIRECTION_RTL) )
 
 class FlowState;
 
@@ -90,14 +111,14 @@ void initFormatData( ldomNode * node );
 /// initializes rendering method for node
 int initRendMethod( ldomNode * node, bool recurseChildren, bool allowAutoboxing );
 /// converts style to text formatting API flags
-int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags );
+int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags, int direction=REND_DIRECTION_UNSET );
 /// renders block as single text formatter object
 void renderFinalBlock( ldomNode * node, LFormattedText * txform, RenderRectAccessor * fmt, int & flags,
                        int ident, int line_h, int valign_dy=0, bool * is_link_start=NULL );
 /// renders block which contains subblocks (with gRenderBlockRenderingFlags as flags)
-int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int y, int width );
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction=REND_DIRECTION_UNSET );
 /// renders block which contains subblocks
-int renderBlockElement( LVRendPageContext & context, ldomNode * node, int x, int y, int width, int rend_flags );
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction, int rend_flags );
 /// renders table element
 int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width, bool shrink_to_fit,
                  int & fitted_width, bool pb_inside_avoid=false, bool enhanced_rendering=false );
@@ -115,10 +136,10 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx,
 //   maxWidth: width if it would be rendered on an infinite width area
 //   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
 // full function for recursive use:
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding, int rendFlags,
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direction, bool ignorePadding, int rendFlags,
             int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent);
 // simpler function for first call:
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignorePadding=false, int rendFlags=0);
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direction=REND_DIRECTION_UNSET, bool ignorePadding=false, int rendFlags=0);
 
 #define STYLE_FONT_EMBOLD_MODE_NORMAL 0
 #define STYLE_FONT_EMBOLD_MODE_EMBOLD 300

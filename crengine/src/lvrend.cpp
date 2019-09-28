@@ -484,6 +484,9 @@ public:
                         //   valign= has been translated to elem style->vertical_align
                         // (This allows overriding them with Style tweaks to remove
                         // publisher alignments and specified widths)
+                        // Note: this is only done with plain .html files, but
+                        // not with EPUBs.
+                        // todo: see if needed with EPUBs
 
                         css_style_rec_t * style = item->getStyle().get();
 
@@ -499,7 +502,7 @@ public:
 
                         // This is not used here, but getStyle()->text_align will
                         // be naturally handled when cells are rendered
-                        css_length_t ta = style->text_align;
+                        css_text_align_t ta = style->text_align;
                         if ( ta == css_ta_center )
                             cell->halign = 1; // center
                         else if ( ta == css_ta_right )
@@ -1799,7 +1802,7 @@ LVFontRef getFont(css_style_rec_t * style, int documentId)
     return fnt;
 }
 
-int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
+int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags, int direction )
 {
     int flg = oldflags;
     if ( style->display == css_d_run_in ) {
@@ -1823,6 +1826,12 @@ int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
             case css_ta_justify:
                 flg |= LTEXT_ALIGN_WIDTH;
                 break;
+            case css_ta_start:
+                flg |= (direction == REND_DIRECTION_RTL ? LTEXT_ALIGN_RIGHT : LTEXT_ALIGN_LEFT);
+                break;
+            case css_ta_end:
+                flg |= (direction == REND_DIRECTION_RTL ? LTEXT_ALIGN_LEFT : LTEXT_ALIGN_RIGHT);
+                break;
             case css_ta_inherit:
                 break;
             }
@@ -1839,6 +1848,12 @@ int styleToTextFmtFlags( const css_style_ref_t & style, int oldflags )
                 break;
             case css_ta_justify:
                 flg |= LTEXT_LAST_LINE_ALIGN_LEFT;
+                break;
+            case css_ta_start:
+                flg |= (direction == REND_DIRECTION_RTL ? LTEXT_ALIGN_RIGHT : LTEXT_ALIGN_LEFT);
+                break;
+            case css_ta_end:
+                flg |= (direction == REND_DIRECTION_RTL ? LTEXT_ALIGN_LEFT : LTEXT_ALIGN_RIGHT);
                 break;
             case css_ta_inherit:
                 break;
@@ -1986,6 +2001,11 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
         listProps = ListNumberingPropsRef( new ListNumberingProps(counterValue, maxWidth) );
         enode->getDocument()->setNodeNumberingProps( parent->getDataIndex(), listProps );
     }
+    // Note: node->getNodeListMarker() uses font->getTextWidth() without any hint about
+    // text direction, so the marker is measured LTR.. We should probably upgrade them
+    // to measureText() with the right direction, to get a correct marker_width...
+    // For now, as node->getNodeListMarker() adds some whitespace and padding, we should
+    // be fine with any small error due to different measuring with LTR vs RTL.
     int counterValue = 0;
     if ( enode->getNodeListMarker( counterValue, marker, marker_width ) ) {
         if ( !listProps.isNull() )
@@ -2008,6 +2028,16 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
                 line_h = (line_h * gInterlineScaleFactor) >> INTERLINE_SCALE_FACTOR_SHIFT;
         }
         marker += "\t";
+        // Not sure what that "\t" was used for, but coincidentally, it acts for fribidi
+        // as a text segment separator (SS) which will bidi-isolate the marker from the
+        // followup text, and will ensure, for example, that:
+        //   <li style="list-style-type: lower-roman; list-style-type: inside">Some text</li>
+        // in a RTL direction context, will be rightly rendered as:
+        //   "Some text   xviii"
+        // and not wrongly (like it would if we were to use a space instead of \t):
+        //   "xviii Some text"
+        // (the "xviii" marker will be in its own LTR segment, and the followup text
+        // in another LTR segment)
         if ( txform ) {
             txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, 0);
         }
@@ -2015,6 +2045,32 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
     return marker;
 }
 
+// (Common condition used at multiple occasions, made as as function for clarity)
+bool renderAsListStylePositionInside( const css_style_rec_t * style, bool is_rtl=false ) {
+    bool render_as_lsp_inside = false;
+    if ( style->list_style_position == css_lsp_inside ) {
+        return true;
+    }
+    else if ( style->list_style_position == css_lsp_outside ) {
+        // Rendering hack: we do that too when list-style-position = outside AND
+        // (with LTR) text-align "right" or "center", as this will draw the marker
+        // at the near left of the text (otherwise, the marker would be drawn on
+        // the far left of the whole available width, which is ugly)
+        css_text_align_t ta = style->text_align;
+        if ( ta == css_ta_end ) {
+            return true;
+        }
+        else if ( is_rtl ) {
+            if (ta == css_ta_center || ta == css_ta_left )
+                return true;
+        }
+        else {
+            if (ta == css_ta_center || ta == css_ta_right )
+                return true;
+        }
+    }
+    return false;
+}
 
 //=======================================================================
 // Render final block
@@ -2030,9 +2086,10 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
 // this 'void renderFinalBlock()' here, calls:
 //   int h = LFormattedTextRef->Format((lUInt16)width, (lUInt16)page_h)
 // to do the actual width-constrained rendering of the AddSource*'ed objects.
-// Note: here, RenderRectAccessor * fmt is only used to get the width of the container,
-// which is only needed to compute: ident = lengthToPx(style->text_indent, width, em)
-// (todo: replace 'fmt' with 'int basewidth' to avoid confusion)
+// Note: fmt is the RenderRectAccessor of the final block itself, and is passed
+// as is to the inline children elements: it is only used to get the width of
+// the container, which is only needed to compute ident (text-indent) values in %,
+// and to get paragraph direction (LTR/RTL/UNSET).
 void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, int & baseflags, int ident, int line_h, int valign_dy, bool * is_link_start )
 {
     if ( enode->isElement() ) {
@@ -2062,11 +2119,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         //RenderRectAccessor fmt2( enode );
         //fmt = &fmt2;
 
+        int direction = RENDER_RECT_PTR_GET_DIRECTION(fmt);
+        bool is_rtl = direction == REND_DIRECTION_RTL;
+
         // About styleToTextFmtFlags:
         // - with inline nodes, it only updates LTEXT_FLAG_PREFORMATTED flag when css_ws_pre
         // - with block nodes (so, only with the first "final" node, and not when
         // recursing its children which are inline), it will set horitontal alignment flags
-        int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
+        int flags = styleToTextFmtFlags( enode->getStyle(), baseflags, direction );
         // Note:
         // - baseflags (passed by reference) is shared and re-used by this node's siblings
         //   (all inline); it should carry newline/horizontal aligment flag, which should
@@ -2408,18 +2468,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
 
         // List item marker rendering when css_d_list_item_block and list-style-position = inside:
         // render the marker if any, and continue rendering text on same line
-        // Rendering hack: we do that too when list-style-position = outside AND text-align "right"
-        // or "center", as this will draw the marker at the near left of the text (otherwise,
-        // the marker would be drawn on the far left of the whole available width, which is
-        // ugly) - but we don't draw anything when list-style-type=none.
-        if ( style->display == css_d_list_item_block && ( style->list_style_position == css_lsp_inside ||
-                (style->list_style_position == css_lsp_outside && style->list_style_type != css_lst_none &&
-                    (style->text_align == css_ta_center || style->text_align == css_ta_right)) ) ) {
+        if ( style->display == css_d_list_item_block ) {
             // list_item_block rendered as final (containing only text and inline elements)
-            int marker_width;
-            lString16 marker = renderListItemMarker( enode, marker_width, txform, line_h, flags );
-            if ( marker.length() ) {
-                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
+            // (we don't draw anything when list-style-type=none)
+            if ( renderAsListStylePositionInside(style, is_rtl) && style->list_style_type != css_lst_none ) {
+                int marker_width;
+                lString16 marker = renderListItemMarker( enode, marker_width, txform, line_h, flags );
+                if ( marker.length() ) {
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
+                }
             }
         }
         if ( rm == erm_final ) {
@@ -2429,6 +2486,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // In renderBlockElement(), we saved the list item node index into the
             // RenderRectAccessor of the first child rendered as final.
             // So if we find one, we know we have to add the marker here.
+            // (Nothing specific to do if RTL: we just add the marker to the txform content,
+            // which is still done in logical order.)
             int listPropNodeIndex = fmt->getListPropNodeIndex();
             if ( listPropNodeIndex ) {
                 ldomNode * list_item_block_parent = enode->getDocument()->getTinyNode( listPropNodeIndex );
@@ -2447,7 +2506,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             bool isBlock = style->display == css_d_block;
             if ( isBlock ) {
                 // If block image, forget any current flags and start from baseflags (?)
-                int flags = styleToTextFmtFlags( enode->getStyle(), baseflags );
+                int flags = styleToTextFmtFlags( enode->getStyle(), baseflags, direction );
                 //txform->AddSourceLine(L"title", 5, 0x000000, 0xffffff, font, baseflags, interval, margin, NULL, 0, 0);
                 LVFont * font = enode->getFont().get();
                 lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
@@ -2711,6 +2770,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             case css_ta_justify:
                 baseflags |= LTEXT_ALIGN_WIDTH;
                 ident = 0;
+                break;
+            case css_ta_start:
+                baseflags |= (is_rtl ? LTEXT_ALIGN_RIGHT : LTEXT_ALIGN_LEFT);
+                break;
+            case css_ta_end:
+                baseflags |= (is_rtl ? LTEXT_ALIGN_LEFT : LTEXT_ALIGN_RIGHT);
                 break;
             case css_ta_inherit:
                 break;
@@ -3166,9 +3231,9 @@ int pagebreakhelper(ldomNode *enode,int width)
 // block nodes, nothing much else with them, until we reach a final node
 // and we can draw its text and images.
 
-// Prototype of the entry point functions for rendering the root node, a table cell or a float
-int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width );
-int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int rend_flags );
+// Prototype of the entry point functions for rendering the root node, a table cell or a float, as defined in lvrend.h:
+// int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction=REND_DIRECTION_UNSET );
+// int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction, int rend_flags );
 
 // Prototypes of the 2 alternative block rendering recursive functions
 int  renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int x, int y, int width );
@@ -3800,13 +3865,17 @@ private:
     // BlockShift: backup of some FlowState fields when entering
     // an inner block (so, making a sub-level).
     class BlockShift { public:
+        int direction;
+        ldomNode * lang_node;
         int x_min;
         int x_max;
         int l_y;
         int in_y_min;
         int in_y_max;
         bool avoid_pb_inside;
-        void reset(int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) {
+        void reset(int dir, ldomNode * langnode, int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) {
+            direction = dir;
+            lang_node = langnode;
             x_min = xmin;
             x_max = xmax;
             l_y = ly;
@@ -3814,7 +3883,9 @@ private:
             in_y_max = iymax;
             avoid_pb_inside = avoidpbinside;
         }
-        BlockShift(int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) :
+        BlockShift(int dir, ldomNode * langnode, int xmin, int xmax, int ly, int iymin, int iymax, bool avoidpbinside) :
+                direction(dir),
+                lang_node(langnode),
                 x_min(xmin),
                 x_max(xmax),
                 l_y(ly),
@@ -3838,6 +3909,13 @@ private:
                 node(n)
                 { }
     };
+    int direction; // flow inline direction (LTR/RTL)
+    ldomNode * lang_node; // nearest upper node with a lang="" attribute (NULL if none)
+                    // We don't need to know its value in here, the idx of this node
+                    // will be saved in the final block RenderRectAccessor so it can
+                    // be fetched from the node when needed, when laying out text).
+                    // todo: currently not used, should be saved in RenderRectAccessor
+                    // and used by lvtextfm.cpp for typography
     LVRendPageContext & context;
     LVPtrVector<BlockShift>  _shifts;
     LVPtrVector<BlockFloat>  _floats;
@@ -3871,7 +3949,9 @@ private:
     int  vm_back_usable_as_margin; // previously moved vertical space where next margin could be accounted in
 
 public:
-    FlowState( LVRendPageContext & ctx, int width, int rendflags ):
+    FlowState( LVRendPageContext & ctx, int width, int rendflags, int dir=REND_DIRECTION_UNSET, ldomNode * langnode=NULL ):
+        direction(dir),
+        lang_node(langnode),
         context(ctx),
         rend_flags(rendflags),
         level(0),
@@ -3916,6 +3996,9 @@ public:
         }
     }
 
+    int getDirection() {
+        return direction;
+    }
     bool isMainFlow() {
         return is_main_flow;
     }
@@ -4549,15 +4632,18 @@ public:
 
     // Enter/leave a block level: backup/restore some of this FlowState
     // fields, and do some housekeeping.
-    void newBlockLevel( int width, int d_left, bool avoid_pb ) {
+    void newBlockLevel( int width, int d_left, bool avoid_pb, int dir, ldomNode * langnode ) {
         // Don't new/delete to avoid too many malloc/free, keep and re-use/reset
         // the ones already created
         if ( _shifts.length() <= level ) {
-            _shifts.push( new BlockShift( x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside ) );
+            _shifts.push( new BlockShift( direction, lang_node, x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside ) );
         }
         else {
-            _shifts[level]->reset( x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside );
+            _shifts[level]->reset( direction, lang_node, x_min, x_max, l_y, in_y_min, in_y_max, avoid_pb_inside );
         }
+        direction = dir;
+        if (langnode != NULL)
+            lang_node = langnode;
         x_min += d_left;
         x_max = x_min + width;
         l_y = c_y;
@@ -4577,6 +4663,8 @@ public:
         top_overflow = in_y_min < start_c_y ? start_c_y - in_y_min : 0;  // positive value
         bottom_overflow = in_y_max > last_c_y ? in_y_max - last_c_y : 0; // positive value
         BlockShift * prev = _shifts[level-1];
+        direction = prev->direction;
+        lang_node = prev->lang_node;
         x_min = prev->x_min;
         x_max = prev->x_max;
         l_y = prev->l_y;
@@ -5230,6 +5318,47 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     css_style_rec_t * style = enode->getStyle().get();
 
+    // See if dir= attribute or CSS specified direction
+    int direction = flow->getDirection();
+    if ( enode->hasAttribute( attr_dir ) ) {
+        lString16 dir = enode->getAttributeValue( attr_dir );
+        dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
+        if ( dir.compare("rtl") == 0 ) {
+            direction = REND_DIRECTION_RTL;
+        }
+        else if ( dir.compare("ltr") == 0 ) {
+            direction = REND_DIRECTION_LTR;
+        }
+        else if ( dir.compare("auto") == 0 ) {
+            direction = REND_DIRECTION_UNSET; // let fribidi detect direction
+        }
+    }
+    // Allow CSS direction to override the attribute one (content creators are
+    // advised to use the dir= attribute and not CSS direction - as CSS should
+    // be less common, we allow tweaking direction via styles).
+    if ( style->direction != css_dir_inherit ) {
+        if ( style->direction == css_dir_rtl )
+            direction = REND_DIRECTION_RTL;
+        else if ( style->direction == css_dir_ltr )
+            direction = REND_DIRECTION_LTR;
+        else if ( style->direction == css_dir_unset )
+            direction = REND_DIRECTION_UNSET;
+    }
+    bool is_rtl = direction == REND_DIRECTION_RTL; // shortcut for followup tests
+
+    // See if lang= attribute
+    bool has_lang_attribute = false;
+    if ( enode->hasAttribute( attr_lang ) ) {
+        // We'll probably have to check it is a valid lang specification
+        // before overriding the upper one.
+        //   lString16 lang = enode->getAttributeValue( attr_lang );
+        //   LangManager->check(lang)...
+        // In here, we don't care about the language, we just need to
+        // know if this node specifies one, so children final blocks
+        // can fetch if from it.
+        has_lang_attribute = true;
+    }
+
     // See if this block is a footnote container, so we can deal with it accordingly
     bool isFootNoteBody = false;
     lString16 footnoteId;
@@ -5436,7 +5565,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // they are floating.
         int rend_flags = flags | BLOCK_RENDERING_ENSURE_STYLE_WIDTH | BLOCK_RENDERING_ALLOW_STYLE_W_H_ABSOLUTE_UNITS;
         // (ignoreMargin=true to ignore the child node margins as we already have them)
-        getRenderedWidths(child, max_content_width, min_content_width, true, rend_flags);
+        getRenderedWidths(child, max_content_width, min_content_width, direction, true, rend_flags);
         // We should not exceed our container_width
         if (max_content_width + child_margins + floatBox_paddings < container_width) {
             width = max_content_width + child_margins + floatBox_paddings;
@@ -5447,6 +5576,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             // the longest word length: we take the full container_width.
             width = container_width;
         }
+        auto_width = true; // no more width tweaks (nor any x adjustment if is_rtl)
         // printf("floatBox width: max_w=%d min_w=%d => %d", max_content_width, min_content_width, width);
     }
     else if ( is_floatbox_child ) {
@@ -5591,13 +5721,20 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     if ( !auto_width ) { // We have a width that may not fill all available space
         // printf("fixed width: %d\n", width);
         if ( width + margin_left + margin_right > container_width ) {
-            margin_right = 0; // drop margin_right
+            if ( is_rtl ) {
+                margin_left = 0; // drop margin_left if RTL
+                dx = 0;
+            }
+            else {
+                margin_right = 0; // drop margin_right otherwise
+            }
         }
         if ( width + margin_left + margin_right > container_width ) {
             // We can't ensure any auto (or should we? ensure centering
             // by even overflow on each side?)
         }
         else { // We fit into container_width
+            bool margin_auto_ensured = false;
             if ( BLOCK_RENDERING(flags, ENSURE_MARGIN_AUTO_ALIGNMENT) || is_hr ) {
                 // https://www.hongkiat.com/blog/css-margin-auto/
                 //  "what do you think will happen when the value auto is given
@@ -5610,11 +5747,23 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // (if margin_left_auto, we have until now: dx = margin_left = 0)
                 if ( margin_left_auto && margin_right_auto ) {
                     dx = (container_width - width) / 2;
+                    margin_auto_ensured = true;
                 }
                 else if ( margin_left_auto ) {
                     dx = container_width - width;
+                    margin_auto_ensured = true;
                 }
-                // else if ( margin_right_auto ): nothing to do
+                else if ( margin_right_auto ) {
+                    // No dx tweak needed
+                    margin_auto_ensured = true;
+                }
+            }
+            if ( !margin_auto_ensured ) {
+                // Nothing else needed for LTR: stay stuck to the left
+                // For RTL: stick it to the right
+                if (is_rtl) {
+                    dx = container_width - width;
+                }
             }
         }
     }
@@ -5690,6 +5839,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // Set what we know till now about this block
     RenderRectAccessor fmt( enode );
+    // Set direction for all blocks (needed for text in erm_final, but also for list item
+    // markers in erm_block, so that DrawDocument can draw it on the right if rtl).
+    RENDER_RECT_SET_DIRECTION(fmt, direction);
+    // todo: also set/store lang_node when we'll start implementing it
     fmt.setX( x );
     fmt.setY( flow->getCurrentRelativeY() );
     fmt.setWidth( width );
@@ -5788,6 +5941,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // again if the table width was shrunk.
                     // See for margin: auto, to center or align right the table
                     int shift_x = 0;
+                    if (is_rtl) { // right align
+                        shift_x = (width - table_width);
+                    }
                     if (margin_left_auto) {
                         if (margin_right_auto) { // center align
                             shift_x = (width - table_width)/2;
@@ -5823,13 +5979,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     int list_marker_width;
                     lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
-                    list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                    if ( style->list_style_position == css_lsp_outside &&
-                        style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                    list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight(), direction );
+                    if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
                         // When list_style_position = outside, we have to shift the whole block
                         // to the right and reduce the available width, which is done
                         // below when calling renderBlockElement() for each child
-                        // Rendering hack: we treat it just as "inside" when text-align "right" or "center"
                         list_marker_padding = list_marker_width;
                     }
                     else if ( style->list_style_type != css_lst_none ) {
@@ -5838,7 +5992,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // children (or grand-children, depth first) that is erm_final
                         // (caveat: the marker will not be shown if any of the first children
                         // is erm_invisible)
-                        // (No need to do anything when  list-style-type none.)
+                        // (No need to do anything when list-style-type none.)
                         ldomNode * tmpnode = enode;
                         while ( tmpnode && tmpnode->hasChildren() ) {
                             tmpnode = tmpnode->getChildNode( 0 );
@@ -5870,8 +6024,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // Shrink flow state area: children that are float will be
                 // constrained into this area
                 // ('width' already had margin_left/_right substracted)
-                flow->newBlockLevel(width - list_marker_padding - padding_left - padding_right,
-                       margin_left + list_marker_padding + padding_left, break_inside==RN_SPLIT_AVOID);
+                flow->newBlockLevel(width - list_marker_padding - padding_left - padding_right, // width
+                       margin_left + (is_rtl ? 0 : list_marker_padding) + padding_left, // d_left
+                       break_inside==RN_SPLIT_AVOID,
+                       direction,
+                       has_lang_attribute ? enode : NULL);
 
                 if (padding_top>0) {
                     // This may push accumulated vertical margin
@@ -5897,6 +6054,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     //   float on that side BUT the following non-floating blocks should
                     //   not move and continue being rendered at the current y
 
+                    // todo: if needed, implement float: and clear: inline-start / inline-end
+
                     if ( child->isFloatingBox() ) {
                         // Block floats are positionned respecting the current collapsed
                         // margin, without actually globally pushing it, and without
@@ -5916,8 +6075,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // padding-left/right) for the flow to correctly position inner floats:
                         // flow->addFloat() will additionally shift its positionning by the
                         // child x/y set by this renderBlockElement().
-                        renderBlockElement( emptycontext, child, list_marker_padding + padding_left, padding_top,
-                                    width - list_marker_padding - padding_left - padding_right );
+                        renderBlockElement( emptycontext, child, (is_rtl ? 0 : list_marker_padding) + padding_left,
+                                    padding_top, width - list_marker_padding - padding_left - padding_right, direction );
                         flow->addFloat(child, child_clear, is_right, flt_vertical_margin);
                         // Gather footnotes links accumulated by emptycontext
                         lString16Collection * link_ids = emptycontext.getLinkIds();
@@ -5933,7 +6092,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         if ( CssPageBreak2Flags( child_style->page_break_before ) == RN_SPLIT_ALWAYS )
                             child_clear = css_c_both;
                         flow->clearFloats( child_clear );
-                        renderBlockElementEnhanced( flow, child, list_marker_padding + padding_left,
+                        renderBlockElementEnhanced( flow, child, (is_rtl ? 0 : list_marker_padding )+ padding_left,
                             width - list_marker_padding - padding_left - padding_right, flags );
                         // Vertical margins collapsing is mostly ensured in flow->pushVerticalMargin()
                         //
@@ -6088,16 +6247,16 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int list_marker_padding = 0;;
                 if ( style->display == css_d_list_item_block ) {
                     // list_item_block rendered as final (containing only text and inline elements)
-                    // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                    if ( style->list_style_position == css_lsp_outside &&
-                        style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                    if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
                         // When list_style_position = outside, we have to shift the final block
-                        // to the right and reduce its width
+                        // to the right (or to the left if RTL) and reduce its width
                         lString16 marker = renderListItemMarker( enode, list_marker_padding, NULL, -1, 0 );
                         // With css_lsp_outside, the marker is outside: it shifts x left and reduces width
                         width -= list_marker_padding;
                         fmt.setWidth( width );
-                        fmt.setX( fmt.getX() + list_marker_padding );
+                        // when is_rtl, just reducing width is enough
+                        if (!is_rtl)
+                            fmt.setX( fmt.getX() + list_marker_padding );
                         fmt.push();
                     }
                 }
@@ -6166,7 +6325,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // object, that will provide at most 5 rectangles representing outer
                 // floats (either real floats, or fake floats).
                 BlockFloatFootprint float_footprint = flow->getFloatFootprint( enode,
-                    margin_left + list_marker_padding + padding_left, margin_right + padding_right, padding_top );
+                    margin_left + (is_rtl ? 0: list_marker_padding) + padding_left,
+                    margin_right + (is_rtl ? list_marker_padding : 0) + padding_right,
+                    padding_top );
                     // (No need to account for margin-top, as we pushed vertical margin
                     // just above if there were floats.)
 
@@ -6205,7 +6366,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 //   super safe (push() sets dirty only if modified,
                 //   a getX() resets _dirty, and you can't set _dirty
                 //   explicitely when you know a 2nd instance will be
-                //   created and will modify the date).
+                //   created and will modify the state).
                 //   So, safer to create a new instance to be sure
                 //   to get fresh data.
                 fmt = RenderRectAccessor( enode );
@@ -6364,7 +6525,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 }
 
 // Entry points for rendering the root node, a table cell or a float
-int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int rend_flags )
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction, int rend_flags )
 {
     if ( BLOCK_RENDERING(rend_flags, ENHANCED) ) {
         // Create a flow state (aka "block formatting context") for the rendering
@@ -6372,20 +6533,21 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
         // (We are called when rendering the root node, and when rendering each float
         // met along walking the root node hierarchy - and when meeting a new float
         // in a float, etc...)
-        FlowState flow( context, width, rend_flags );
+        FlowState flow( context, width, rend_flags, direction );
         renderBlockElementEnhanced( &flow, enode, x, width, rend_flags );
         // The block height is c_y when we are done
         return flow.getCurrentAbsoluteY();
     }
     else {
+        // (Legacy rendering does not support direction)
         return renderBlockElementLegacy( context, enode, x, y, width);
     }
 }
-int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width )
+int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width, int direction )
 {
     // Use global rendering flags
     // Note: we're not currently using it with other flags that the global ones.
-    return renderBlockElement( context, enode, x, y, width, gRenderBlockRenderingFlags );
+    return renderBlockElement( context, enode, x, y, width, direction, gRenderBlockRenderingFlags );
 }
 
 //draw border lines,support color,width,all styles, not support border-collapse
@@ -7032,6 +7194,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             }
         }
 
+        int direction = RENDER_RECT_GET_DIRECTION(fmt);
+        bool is_rtl = direction == REND_DIRECTION_RTL; // shortcut for followup tests
+
         css_style_rec_t * style = enode->getStyle().get();
 
         // Check and draw background
@@ -7148,11 +7313,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as block (containing text and block elements)
-                // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                // (if list-style-position = inside, drawing is managed by renderFinalBlock())
-                if ( style->display == css_d_list_item_block &&
-                        style->list_style_position == css_lsp_outside &&
-                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                // Rendering hack (in renderAsListStylePositionInside(): not when text-align "right"
+                // or "center", we treat it just as "inside", and drawing is managed by renderFinalBlock())
+                if ( style->display == css_d_list_item_block && !renderAsListStylePositionInside(style, is_rtl) ) {
                     int width = fmt.getWidth();
                     int base_width = 0; // for padding_top in %
                     ldomNode * parent = enode->getParentNode();
@@ -7165,15 +7328,23 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // We already adjusted all children blocks' left-padding and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
+                    // If RTL, have the marker aligned to the right inside list_marker_width
+                    int txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : 0;
                     int list_marker_width;
-                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
-                    lUInt32 h = txform->Format( (lUInt16)width, (lUInt16)page_height );
+                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
+                    lUInt32 h = txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
-                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
-                        // (Don't shift by padding left, the list marker is outside padding left)
-                        txform->Draw( &drawbuf, doc_x+x0, doc_y+y0 + padding_top, NULL, NULL );
+                        // In both LTR and RTL, for erm_block, we draw the marker inside 'width',
+                        // (only the child elements got their width shrinked by list_marker_width).
+                        if ( is_rtl ) {
+                            txform->Draw( &drawbuf, doc_x+x0 + width - list_marker_width, doc_y+y0 + padding_top );
+                        }
+                        else {
+                            // (Don't shift by padding left, the list marker is outside padding left)
+                            txform->Draw( &drawbuf, doc_x+x0, doc_y+y0 + padding_top );
+                        }
                     }
                 }
 
@@ -7316,24 +7487,29 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
 
                 // List item marker drawing when css_d_list_item_block and list-style-position = outside
                 // and list_item_block rendered as final (containing only text and inline elements)
-                // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                // (if list-style-position = inside, drawing is managed by renderFinalBlock())
-                if ( style->display == css_d_list_item_block &&
-                        style->list_style_position == css_lsp_outside &&
-                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                // Rendering hack (in renderAsListStylePositionInside(): not when text-align "right"
+                // or "center", we treat it just as "inside", and drawing is managed by renderFinalBlock())
+                if ( style->display == css_d_list_item_block && !renderAsListStylePositionInside(style, is_rtl) ) {
                     // We already adjusted our block X and width in renderBlockElement(),
                     // we just need to draw the marker in the space we made on the left of
                     // this node.
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
+                    // If RTL, have the marker aligned to the right inside list_marker_width
+                    int txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : 0;
                     int list_marker_width;
-                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
-                    lUInt32 h = txform->Format( (lUInt16)width, (lUInt16)page_height );
+                    lString16 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
+                    lUInt32 h = txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
                     lvRect clip;
                     drawbuf.GetClipRect( &clip );
                     if (doc_y + h <= clip.bottom) { // draw only if marker fully fits on page
-                        // DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
-                        // (Don't shift by padding left, the list marker is outside padding left)
-                        txform->Draw( &drawbuf, doc_x+x0 - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
+                        // In both LTR and RTL, for erm_final, we draw the marker outside 'width',
+                        // as 'width' has already been shrinked by list_marker_width.
+                        if ( is_rtl ) {
+                            txform->Draw( &drawbuf, doc_x+x0 + width, doc_y+y0 + padding_top, NULL, NULL );
+                        }
+                        else {
+                            txform->Draw( &drawbuf, doc_x+x0 - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
+                        }
                     }
                     // Note: if there's a float on the left of the list item, we let
                     // the marker where it would be if there were no float, while Firefox
@@ -7872,7 +8048,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 // Estimate width of node when rendered:
 //   maxWidth: width if it would be rendered on an infinite width area
 //   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignoreMargin, int rendFlags) {
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direction, bool ignoreMargin, int rendFlags) {
     // Setup passed-by-reference parameters for recursive calls
     int curMaxWidth = 0;    // reset on <BR/> or on new block nodes
     int curWordWidth = 0;   // may not be reset to correctly estimate multi-nodes single-word ("I<sup>er</sup>")
@@ -7881,11 +8057,11 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
     // These do not need to be passed by reference, as they are only valid for inner nodes/calls
     int indent = 0;         // text-indent: used on first text, and set again on <BR/>
     // Start measurements and recursions:
-    getRenderedWidths(node, maxWidth, minWidth, ignoreMargin, rendFlags,
+    getRenderedWidths(node, maxWidth, minWidth, direction, ignoreMargin, rendFlags,
         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
 }
 
-void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignoreMargin, int rendFlags,
+void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direction, bool ignoreMargin, int rendFlags,
     int &curMaxWidth, int &curWordWidth, bool &collapseNextSpace, int &lastSpaceWidth, int indent)
 {
     // This does mostly what renderBlockElement, renderFinalBlock and lvtextfm.cpp
@@ -7893,6 +8069,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
     // (with no width constraint, so no line splitting and hyphenation - and we
     // don't care about vertical spacing and alignment).
     // Limitations: no support for css_d_run_in (hardly ever used, we don't care)
+    // todo : probably more tweaking to do when direction=RTL, and we should
+    // also handle direction change when walking inner elements... (For now,
+    // we only handle list-style-position/text-align combinations vs direction,
+    // which have different rendering methods.)
 
     if ( node->isElement() ) {
         int m = node->getRendMethod();
@@ -7999,7 +8179,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 ldomNode * child = node->getChildNode(i);
                 // Nothing more to do with inline elements: they just carry some
                 // styles that will be grabbed by children text nodes
-                getRenderedWidths(child, maxWidth, minWidth, false, rendFlags,
+                getRenderedWidths(child, maxWidth, minWidth, direction, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
             }
             return;
@@ -8022,9 +8202,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
             #ifdef DEBUG_GETRENDEREDWIDTHS
                 printf("GRW: list_marker_width: %d\n", list_marker_width);
             #endif
-            if ( style->list_style_position == css_lsp_outside &&
-                    style->text_align != css_ta_center &&
-                    style->text_align != css_ta_right) {
+            bool is_rtl = direction == REND_DIRECTION_RTL;
+            if ( !renderAsListStylePositionInside(style, is_rtl) ) {
                 // (same hack as in rendering code: we render 'outside' just
                 // like 'inside' when center or right aligned)
                 list_marker_width_as_padding = true;
@@ -8095,7 +8274,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 // Process children, which are either erm_inline or text nodes
                 for (int i = 0; i < node->getChildCount(); i++) {
                     ldomNode * child = node->getChildNode(i);
-                    getRenderedWidths(child, _maxWidth, _minWidth, false, rendFlags,
+                    getRenderedWidths(child, _maxWidth, _minWidth, direction, false, rendFlags,
                         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
                     // A <BR/> can happen deep among our children, so we deal with that when erm_inline above
                 }
@@ -8123,7 +8302,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, bool ignor
                 int _maxw = 0;
                 int _minw = 0;
                 ldomNode * child = node->getChildNode(i);
-                getRenderedWidths(child, _maxw, _minw, false, rendFlags,
+                getRenderedWidths(child, _maxw, _minw, direction, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent);
                 if (_maxw > _maxWidth)
                     _maxWidth = _maxw;
