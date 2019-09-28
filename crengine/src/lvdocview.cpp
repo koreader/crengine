@@ -1865,10 +1865,10 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	// end of line with some fonts) to not be cut by this clipping.
 	clip.left = pageRect->left;
 	clip.right = pageRect->left + pageRect->width();
-	if (page.type == PAGE_TYPE_COVER)
+	if (page.flags & RN_PAGE_TYPE_COVER)
 		clip.top = pageRect->top + m_pageMargins.top;
-    if (((m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && page.type
-            != PAGE_TYPE_COVER) && getViewMode() == DVM_PAGES) {
+	if ( ( (m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && (page.flags & RN_PAGE_TYPE_NORMAL) )
+				&& getViewMode() == DVM_PAGES ) {
 		int phi = m_pageHeaderInfo;
 		if (getVisiblePageCount() == 2) {
 			if (page.index & 1) {
@@ -1892,7 +1892,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	}
 	drawbuf->SetClipRect(&clip);
 	if (m_doc) {
-		if (page.type == PAGE_TYPE_COVER) {
+		if (page.flags & RN_PAGE_TYPE_COVER) {
 			lvRect rc = *pageRect;
 			drawbuf->SetClipRect(&rc);
 			//if ( m_pageMargins.bottom > m_pageMargins.top )
@@ -1962,8 +1962,17 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				// The line separator was using the full page width:
 				//   int x1 = pageRect->right - m_pageMargins.right;
 				// but 1/7 of page width looks like what we can see in some books
-				int x1 = pageRect->left + m_pageMargins.left + (pageRect->right-pageRect->left)/7;
-				drawbuf->FillRect(pageRect->left + m_pageMargins.left, fny, x1, fny+1, cl);
+				int sep_width = (pageRect->right - pageRect->left) / 7;
+				int x0, x1;
+				if ( page.flags & RN_PAGE_FOOTNOTES_MOSTLY_RTL ) { // draw separator on the right
+					x1 = pageRect->right - m_pageMargins.right;
+					x0 = x1 - sep_width;
+				}
+				else {
+					x0 = pageRect->left + m_pageMargins.left;
+					x1 = x0 + sep_width;
+				}
+				drawbuf->FillRect(x0, fny, x1, fny+1, cl);
 			}
 		}
 	}
@@ -2254,7 +2263,7 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 		drawbuf.SetClipRect(NULL);
         drawPageBackground(drawbuf, 0, position);
         int cover_height = 0;
-		if (m_pages.length() > 0 && m_pages[0]->type == PAGE_TYPE_COVER)
+		if (m_pages.length() > 0 && (m_pages[0]->flags & RN_PAGE_TYPE_COVER))
 			cover_height = m_pages[0]->height;
 		if (position < cover_height) {
 			lvRect rc;
@@ -2536,7 +2545,7 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
             pageIndex = getCurPage();
         if (pageIndex >= 0 && pageIndex < m_pages.length()) {
             LVRendPageInfo * page = m_pages[pageIndex];
-            if (page->type != PAGE_TYPE_NORMAL)
+            if (page->flags & RN_PAGE_TYPE_COVER)
                 return res;
             start_y = page->start;
             end_y = page->start + page->height;
@@ -4664,7 +4673,7 @@ ldomXPointer LVDocView::getCurrentPageMiddleParagraph() {
 			pageIndex = getCurPage();
 		if (pageIndex >= 0 && pageIndex < m_pages.length()) {
 			LVRendPageInfo *page = m_pages[pageIndex];
-			if (page->type == PAGE_TYPE_NORMAL)
+			if (page->flags & RN_PAGE_TYPE_NORMAL)
 				ptr = m_doc->createXPointer(lvPoint(0, page->start + page->height / 2));
 		}
 	}

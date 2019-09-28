@@ -52,13 +52,15 @@
 
 #define RN_SPLIT_DISCARD_AT_START 0x400
 
+#define RN_LINE_IS_RTL 0x1000
+
 #define RN_GET_SPLIT_BEFORE(flags) (flags & 0x7)
 #define RN_GET_SPLIT_AFTER(flags) (flags >> 3)
 
-enum page_type_t {
-    PAGE_TYPE_NORMAL = 0,
-    PAGE_TYPE_COVER = 1
-};
+#define RN_PAGE_TYPE_NORMAL           0x01
+#define RN_PAGE_TYPE_COVER            0x02
+#define RN_PAGE_MOSTLY_RTL            0x10
+#define RN_PAGE_FOOTNOTES_MOSTLY_RTL  0x20
 
 /// footnote fragment inside page
 class LVPageFootNoteInfo {
@@ -215,14 +217,14 @@ public:
     int start; /// start of page
     int index;  /// index of page
     lInt16 height; /// height of page, does not include footnotes
-    lInt16 type;   /// type: PAGE_TYPE_NORMAL, PAGE_TYPE_COVER
+    lInt8 flags;   /// RN_PAGE_*
     CompactArray<LVPageFootNoteInfo, 1, 4> footnotes; /// footnote fragment list for page
     LVRendPageInfo(int pageStart, lUInt16 pageHeight, int pageIndex)
-    : start(pageStart), index(pageIndex), height(pageHeight), type(PAGE_TYPE_NORMAL) {}
+    : start(pageStart), index(pageIndex), height(pageHeight), flags(RN_PAGE_TYPE_NORMAL) {}
     LVRendPageInfo(lUInt16 coverHeight)
-    : start(0), index(0), height(coverHeight), type(PAGE_TYPE_COVER) {}
+    : start(0), index(0), height(coverHeight), flags(RN_PAGE_TYPE_COVER) {}
     LVRendPageInfo() 
-    : start(0), index(0), height(0), type(PAGE_TYPE_NORMAL) { }
+    : start(0), index(0), height(0), flags(RN_PAGE_TYPE_NORMAL) { }
     bool serialize( SerialBuf & buf );
     bool deserialize( SerialBuf & buf );
 };
