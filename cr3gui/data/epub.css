@@ -51,6 +51,10 @@ blockquote {
     margin-left: 2em;
     margin-right: 1em;
 }
+blockquote:dir(rtl) {
+    margin-left: 1em;
+    margin-right: 2em;
+}
 hr {
     height: 2px;
     background-color: #808080;
@@ -69,6 +73,10 @@ ol {
     list-style-type: decimal;
     margin-left: 1em;
 }
+ul:dir(rtl), ol:dir(rtl) {
+    margin-left: 0;
+    margin-right: 1em;
+}
 li {
     display: list-item;
     text-indent: 0;
@@ -85,6 +93,10 @@ dt {
 }
 dd {
     margin-left: 1.3em;
+}
+dd:dir(rtl) {
+    margin-left: 0;
+    margin-right: 1.3em;
 }
 
 /* Tables */
