@@ -4703,7 +4703,9 @@ ldomXPointer LVDocView::getBookmark() {
 				bool found = false;
 				ldomXPointer fallback_ptr;
 				for (int y = page->start; y < page->start + page->height; y++) {
-					ptr = m_doc->createXPointer(lvPoint(0, y));
+					// Use direction=1 to avoid any x check (in case there
+					// is some left margin)
+					ptr = m_doc->createXPointer(lvPoint(0, y), 1);
 					lvPoint pt = ptr.toPoint();
 					if (pt.y >= page->start) {
 						if (!fallback_ptr)
@@ -4747,7 +4749,7 @@ ldomXPointer LVDocView::getBookmark() {
 			// Let's do the same in that case: get the previous text node
 			// position
 			for (int y = _pos; y >= 0; y--) {
-				ptr = m_doc->createXPointer(lvPoint(0, y));
+				ptr = m_doc->createXPointer(lvPoint(0, y), -1);
 				if (!ptr.isNull())
 					break;
 			}
