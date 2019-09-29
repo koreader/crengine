@@ -13430,36 +13430,44 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction )
         }
     }
 
-    if (!direction && pt.x != 0) {
+    if ( !direction ) {
         // We shouldn't do the following if we are given a direction
         // (full text search) as we may get locked on some page.
-        // We also don't need to do it if pt.x=0, which is often used
-        // to get current page top or range xpointers.
-        // We are given a x>0 when tap/hold to highlight text or find
-        // a link, and checking x vs fmt.x and width allows for doing
-        // that correctly in 2nd+ table cells.
+        // When interested only in finding the slice of a page
+        // at y (to get the current page top or range xpointers),
+        // use direction=1 or -1.
+        // Use direction=0 to exactly find the final node at y AND x,
+        // which is necessary when selecting text or finding links
+        // in table cells or floats.
         if ( pt.x >= fmt.getX() + fmt.getWidth() ) {
             return NULL;
         }
-        // No more true:
-        //   (No need to check if ( pt.x < fmt.getX() ): we probably
-        //   meet the multiple elements that can be formatted on a same
-        //   line in the order they appear as children of their parent,
-        //   we can simply just ignore those who end before our pt.x)
-        // But check x if we happen to be on a floating node (which,
-        // with float:right, can appear first in the DOM but be
-        // displayed at a higher x)
-        //  if ( pt.x < fmt.getX() && enode->isFloatingBox() ) {
-        //      return NULL;
-        //  }
-        //
-        // Now that we support RTL tables, we can meet cells
-        // no more in logical order.
-        // We could add more conditions (like parentNode->getRendMethod()>=erm_table),
-        // but let's just check this in all cases.
         if ( pt.x < fmt.getX() ) {
             return NULL;
         }
+        // We now do this above check in all cases.
+        // Previously:
+        //
+        //   We also don't need to do it if pt.x=0, which is often used
+        //   to get current page top or range xpointers.
+        //   We are given a x>0 when tap/hold to highlight text or find
+        //   a link, and checking x vs fmt.x and width allows for doing
+        //   that correctly in 2nd+ table cells.
+        //
+        //   No need to check if ( pt.x < fmt.getX() ): we probably
+        //   meet the multiple elements that can be formatted on a same
+        //   line in the order they appear as children of their parent,
+        //   we can simply just ignore those who end before our pt.x.
+        //   But check x if we happen to be on a floating node (which,
+        //   with float:right, can appear first in the DOM but be
+        //   displayed at a higher x)
+        //    if ( pt.x < fmt.getX() && enode->isFloatingBox() ) {
+        //        return NULL;
+        //    }
+        // This is no more true, now that we support RTL tables and
+        // we can meet cells in the reverse of their logical order.
+        // We could add more conditions (like parentNode->getRendMethod()>=erm_table),
+        // but let's just check this in all cases when direction=0.
     }
     if ( rm == erm_final || rm == erm_list_item || rm == erm_table_caption ) {
         // Final node, that's what we looked for
