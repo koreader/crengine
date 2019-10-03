@@ -638,7 +638,9 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
     FT_Bitmap*  bitmap = &slot->bitmap;
     int w = bitmap->width;
     int h = bitmap->rows;
-    LVFontGlyphCacheItem * item = LVFontGlyphCacheItem::newItem(local_cache, ch, w, h );
+    LVFontGlyphCacheItem * item = LVFontGlyphCacheItem::newItem(local_cache, ch, w, h);
+    if (!item)
+        return 0;
     if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
         lUInt8 mask = 0x80;
         const lUInt8 * ptr = (const lUInt8 *)bitmap->buffer;
@@ -688,13 +690,13 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
 }
 
 #if USE_HARFBUZZ==1
-static LVFontGlyphIndexCacheItem * newItem(lUInt32 index, FT_GlyphSlot slot )
+static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt32 index, FT_GlyphSlot slot )
 {
     FONT_LOCAL_GLYPH_CACHE_GUARD
     FT_Bitmap*  bitmap = &slot->bitmap;
     int w = bitmap->width;
     int h = bitmap->rows;
-    LVFontGlyphIndexCacheItem* item = LVFontGlyphIndexCacheItem::newItem(index, w, h );
+    LVFontGlyphCacheItem *item = LVFontGlyphCacheItem::newItem(local_cache, index, w, h);
     if (!item)
         return 0;
     if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
@@ -754,18 +756,33 @@ void LVFontLocalGlyphCache::clear()
     }
 }
 
-LVFontGlyphCacheItem * LVFontLocalGlyphCache::get( lUInt32 ch )
+LVFontGlyphCacheItem * LVFontLocalGlyphCache::getByChar(lChar16 ch)
 {
     FONT_LOCAL_GLYPH_CACHE_GUARD
     LVFontGlyphCacheItem * ptr = head;
     for ( ; ptr; ptr = ptr->next_local ) {
-        if ( ptr->ch == ch ) {
+        if ( ptr->data.ch == ch ) {
             global_cache->refresh( ptr );
             return ptr;
         }
     }
     return NULL;
 }
+
+#if USE_HARFBUZZ==1
+LVFontGlyphCacheItem * LVFontLocalGlyphCache::getByIndex(lUInt32 index)
+{
+    FONT_LOCAL_GLYPH_CACHE_GUARD
+    LVFontGlyphCacheItem *ptr = head;
+    for (; ptr; ptr = ptr->next_local) {
+        if (ptr->data.gindex == index) {
+            global_cache->refresh( ptr );
+            return ptr;
+        }
+    }
+    return NULL;
+}
+#endif
 
 void LVFontLocalGlyphCache::put( LVFontGlyphCacheItem * item )
 {
@@ -907,6 +924,7 @@ static lUInt16 char_flags[] = {
         (ch>=UNICODE_EN_QUAD && ch<=UNICODE_ZERO_WIDTH_SPACE ? LCHAR_ALLOW_WRAP_AFTER: \
          0)))))))
 
+#if USE_HARFBUZZ==1
 // For use with Harfbuzz light
 struct LVCharTriplet
 {
@@ -936,6 +954,7 @@ inline lUInt32 getHash( const struct LVCharTriplet& triplet )
                         + (((lUInt64)triplet.nextChar)<<32) );
     return hash;
 }
+#endif
 
 class LVFreeTypeFace : public LVFont
 {
@@ -972,7 +991,7 @@ protected:
     #define HARFBUZZ_FULL_FEATURES_NB 2
     hb_buffer_t* _hb_buffer;
     hb_feature_t _hb_features[HARFBUZZ_FULL_FEATURES_NB];
-    LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*> _glyph_cache2;
+    LVFontLocalGlyphCache _glyph_cache2;
     //
     // For use with KERNING_MODE_HARFBUZZ_LIGHT:
     #define HARFBUZZ_LIGHT_FEATURES_NB 22
@@ -1020,7 +1039,7 @@ public:
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
         , _fallbackFontIsSet(false)
         #if USE_HARFBUZZ==1
-        , _glyph_cache2(256)
+        , _glyph_cache2(globalCache)
         , _width_cache2(1024)
         #endif
     {
@@ -1096,13 +1115,6 @@ public:
         _lsbcache.clear();
         _rsbcache.clear();
         #if USE_HARFBUZZ==1
-        LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::pair* pair;
-        LVHashTable<lUInt32, LVFontGlyphIndexCacheItem*>::iterator it = _glyph_cache2.forwardIterator();
-        while ((pair = it.next())) {
-            LVFontGlyphIndexCacheItem* item = pair->value;
-            if (item)
-                LVFontGlyphIndexCacheItem::freeItem(item);
-        }
         _glyph_cache2.clear();
         _width_cache2.clear();
         #endif
@@ -2215,7 +2227,7 @@ public:
                 return fallback->getGlyph(ch, def_char);
             }
         }
-        LVFontGlyphCacheItem * item = _glyph_cache.get( ch );
+        LVFontGlyphCacheItem * item = _glyph_cache.getByChar( ch );
         if ( !item ) {
             int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO );
                                                     //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
@@ -2249,17 +2261,18 @@ public:
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
             }
 
-            item = newItem( &_glyph_cache, ch, _slot ); //, _drawMonochrome
-            _glyph_cache.put( item );
+            item = newItem( &_glyph_cache, (lChar16)ch, _slot ); //, _drawMonochrome
+            if (item)
+                _glyph_cache.put( item );
         }
         return item;
     }
 
 #if USE_HARFBUZZ==1
-    LVFontGlyphIndexCacheItem * getGlyphByIndex(lUInt32 index) {
+    LVFontGlyphCacheItem * getGlyphByIndex(lUInt32 index) {
         //FONT_GUARD
-        LVFontGlyphIndexCacheItem * item = 0;
-        if (!_glyph_cache2.get(index, item)) {
+        LVFontGlyphCacheItem *item = _glyph_cache2.getByIndex(index);
+        if (!item) {
             // glyph not found in cache, rendering...
             int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO );
                                                     //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
@@ -2297,9 +2310,9 @@ public:
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
             }
 
-            item = newItem(index, _slot);
+            item = newItem(&_glyph_cache2, index, _slot);
             if (item)
-                _glyph_cache2.set(index, item);
+                _glyph_cache2.put(item);
         }
         return item;
     }
@@ -2670,7 +2683,7 @@ public:
                     #endif
                     // Draw glyphs of this same cluster
                     for (i = hg; i < hg2; i++) {
-                        LVFontGlyphIndexCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
+                        LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
                         if (item) {
                             int w = glyph_pos[i].x_advance >> 6;
                             #ifdef DEBUG_DRAW_TEXT
@@ -3039,7 +3052,7 @@ public:
     */
     virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) {
 
-        LVFontGlyphCacheItem * item = _glyph_cache.get( ch );
+        LVFontGlyphCacheItem * item = _glyph_cache.getByChar( ch );
         if ( item )
             return item;
 
@@ -3052,32 +3065,34 @@ public:
         int dx = oldx ? oldx + _hShift : 0;
         int dy = oldy ? oldy + _vShift : 0;
 
-        item = LVFontGlyphCacheItem::newItem( &_glyph_cache, ch, dx, dy ); //, _drawMonochrome
-        item->advance = olditem->advance + _hShift;
-        item->origin_x = olditem->origin_x;
-        item->origin_y = olditem->origin_y;
+        item = LVFontGlyphCacheItem::newItem( &_glyph_cache, (lChar16)ch, dx, dy ); //, _drawMonochrome
+        if (item) {
+            item->advance = olditem->advance + _hShift;
+            item->origin_x = olditem->origin_x;
+            item->origin_y = olditem->origin_y;
 
-        if ( dx && dy ) {
-            for ( int y=0; y<dy; y++ ) {
-                lUInt8 * dst = item->bmp + y*dx;
-                for ( int x=0; x<dx; x++ ) {
-                    int s = 0;
-                    for ( int yy=-_vShift; yy<=0; yy++ ) {
-                        int srcy = y+yy;
-                        if ( srcy<0 || srcy>=oldy )
-                            continue;
-                        lUInt8 * src = olditem->bmp + srcy*oldx;
-                        for ( int xx=-_hShift; xx<=0; xx++ ) {
-                            int srcx = x+xx;
-                            if ( srcx>=0 && srcx<oldx && src[srcx] > s )
-                                s = src[srcx];
+            if ( dx && dy ) {
+                for ( int y=0; y<dy; y++ ) {
+                    lUInt8 * dst = item->bmp + y*dx;
+                    for ( int x=0; x<dx; x++ ) {
+                        int s = 0;
+                        for ( int yy=-_vShift; yy<=0; yy++ ) {
+                            int srcy = y+yy;
+                            if ( srcy<0 || srcy>=oldy )
+                                continue;
+                            lUInt8 * src = olditem->bmp + srcy*oldx;
+                            for ( int xx=-_hShift; xx<=0; xx++ ) {
+                                int srcx = x+xx;
+                                if ( srcx>=0 && srcx<oldx && src[srcx] > s )
+                                    s = src[srcx];
+                            }
                         }
+                        dst[x] = s;
                     }
-                    dst[x] = s;
                 }
             }
+            _glyph_cache.put( item );
         }
-        _glyph_cache.put( item );
         return item;
     }
 
