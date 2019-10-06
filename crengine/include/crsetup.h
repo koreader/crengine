@@ -42,6 +42,7 @@
 #define USE_GIF                              0
 #define USE_FREETYPE                         0
 #define USE_HARFBUZZ                         0
+#define USE_GLYPHCACHE_HASHTABLE             0
 #define GLYPH_CACHE_SIZE                     0x1000
 #define ZIP_STREAM_BUFFER_SIZE               0x1000
 #define FILE_STREAM_BUFFER_SIZE              0x1000
@@ -53,6 +54,7 @@
 #define USE_GIF                              1
 #define USE_FREETYPE                         1
 #define USE_HARFBUZZ                         1
+#define USE_GLYPHCACHE_HASHTABLE             0
 #define GLYPH_CACHE_SIZE                     0x20000
 #define ZIP_STREAM_BUFFER_SIZE               0x80000
 #define FILE_STREAM_BUFFER_SIZE              0x40000
@@ -76,6 +78,7 @@
 #define GRAY_INVERSE                         0
 #define USE_FREETYPE                         1
 #define USE_HARFBUZZ                         1
+#define USE_GLYPHCACHE_HASHTABLE             0
 
 #ifndef ANDROID
 #ifndef MAC
@@ -113,6 +116,7 @@
 #define USE_HARFBUZZ                         1
 #endif
 #define ALLOW_KERNING                        1
+#define USE_GLYPHCACHE_HASHTABLE             0
 #define GLYPH_CACHE_SIZE                     0x20000
 #define ZIP_STREAM_BUFFER_SIZE               0x80000
 #define FILE_STREAM_BUFFER_SIZE              0x40000
@@ -293,6 +297,10 @@
 
 #ifndef MAX_IMAGE_SCALE_MUL
 #define MAX_IMAGE_SCALE_MUL 2
+#endif
+
+#ifndef USE_GLYPHCACHE_HASHTABLE
+#define USE_GLYPHCACHE_HASHTABLE 0
 #endif
 
 #endif//CRSETUP_H_INCLUDED
