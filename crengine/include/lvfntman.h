@@ -31,9 +31,31 @@ extern "C" {
 }
 #endif
 
-class LVDrawBuf;
+#if USE_GLYPHCACHE_HASHTABLE==1
+#include "lvhashtable.h"
+#define GLYPHCACHE_TABLE_SZ         256
+#endif
 
 struct LVFontGlyphCacheItem;
+
+union GlyphCacheItemData {
+	lChar16 ch;
+#if USE_HARFBUZZ==1
+	lUInt32 gindex;
+#endif
+};
+
+#if USE_GLYPHCACHE_HASHTABLE == 1
+inline lUInt32 getHash(GlyphCacheItemData data)
+{
+    return getHash(*((lUInt32*)&data));
+}
+
+inline bool operator==(GlyphCacheItemData data1, GlyphCacheItemData data2)
+{
+    return (*((lUInt32*)&data1)) == (*((lUInt32*)&data2));
+}
+#endif
 
 class LVFontGlobalGlyphCache
 {
@@ -55,21 +77,32 @@ public:
     }
     void put( LVFontGlyphCacheItem * item );
     void remove( LVFontGlyphCacheItem * item );
+#if USE_GLYPHCACHE_HASHTABLE != 1
     void refresh( LVFontGlyphCacheItem * item );
+#endif
     void clear();
 };
 
 class LVFontLocalGlyphCache
 {
 private:
+    LVFontGlobalGlyphCache *global_cache;
+#if USE_GLYPHCACHE_HASHTABLE == 1
+    LVHashTable<GlyphCacheItemData, struct LVFontGlyphCacheItem*> hashTable;
+#else
     LVFontGlyphCacheItem * head;
     LVFontGlyphCacheItem * tail;
-    LVFontGlobalGlyphCache * global_cache;
+#endif
     //int size;
 public:
     LVFontLocalGlyphCache( LVFontGlobalGlyphCache * globalCache )
-        : head(NULL), tail(NULL), global_cache( globalCache )
-    { }
+    : global_cache(globalCache),
+#if USE_GLYPHCACHE_HASHTABLE == 1
+    hashTable(GLYPHCACHE_TABLE_SZ)
+#else
+    head(NULL), tail(NULL)
+#endif
+    {}
     ~LVFontLocalGlyphCache()
     {
         clear();
@@ -90,12 +123,7 @@ struct LVFontGlyphCacheItem
     LVFontGlyphCacheItem * prev_local;
     LVFontGlyphCacheItem * next_local;
     LVFontLocalGlyphCache * local_cache;
-    union {
-        lChar16 ch;
-        #if USE_HARFBUZZ==1
-        lUInt32 gindex;
-        #endif
-    } data;
+    GlyphCacheItemData data;
     lUInt16 bmp_width;
     lUInt16 bmp_height;
     lInt16  origin_x;
@@ -184,6 +212,8 @@ enum kerning_mode_t {
 #define LFNT_DRAW_LINE_THROUGH           0x0400 /// striked through text
 #define LFNT_DRAW_BLINK                  0x0800 /// blinking text (implemented as underline)
 #define LFNT_DRAW_DECORATION_MASK        0x0F00
+
+class LVDrawBuf;
 
 /** \brief base class for fonts
 
