@@ -189,7 +189,7 @@ p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline;
 /* With dom_version < 20180528, unknown elements defaulted to 'display: inherit'
  * These ones here were explicitely set to inline (and some others not
  * specified here were also set to inline in fb2def.h */
-b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, sa mp, kbd, code {
+b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, samp, kbd, code {
     -cr-ignore-if-dom-version-greater-or-equal: 20180528;
     display: inline;
 }
