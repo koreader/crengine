@@ -1,0 +1,129 @@
+/* DOCX stylesheet:
+ * Our implementation only use a subset of the classic
+ * HTML elements.
+ * Below, we re-use the same styles that are set in epub.css
+ * for the equivalent elements
+ */
+body {
+    text-indent: 0;
+    margin: 0;
+    text-align: justify;
+}
+
+/* Headings */
+/* Various ways to build the DOM with #define in docxfmt.cpp */
+h1, h2, h3, h4, h5, h6,
+p.h1, p.h2, p.h3, p.h4, p.h5, p.h6,
+title.h1, title.h2, title.h3, title.h4, title.h5, title.h6 {
+    display: block;
+    margin-top: 0.7em;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+    text-indent: 0;
+    hyphens: none;
+    page-break-inside: avoid;
+    page-break-after: avoid;
+}
+p.h1, p.h2, p.h3, p.h4, p.h5, p.h6,
+title.h1 p, title.h2 p, title.h3 p, title.h4 p, title.h5 p, title.h6 p {
+    text-indent: 0;
+}
+h1, p.h1, title.h1 { font-size: 150% }
+h2, p.h2, title.h2 { font-size: 140% }
+h3, p.h3, title.h3 { font-size: 130% }
+h4, p.h4, title.h4 { font-size: 120% }
+h5, p.h5, title.h5 { font-size: 110% }
+
+/* Block elements */
+p {
+    text-indent: 1.2em;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+empty-line {
+    height: 1em;
+}
+
+/* Lists ("ul" is not used) */
+ol {
+    list-style-type: decimal;
+    margin-left: 1em;
+}
+li {
+    display: list-item;
+    text-indent: 0;
+}
+
+/* Tables */
+table {
+    font-size: 80%;
+    margin: 3px 0;
+}
+table table { /* stop imbricated tables from getting smaller */
+    font-size: 100%;
+}
+td, th {
+    text-indent: 0;
+    padding: 3px;
+}
+th {
+    font-weight: bold;
+    text-align: center;
+    background-color: #DDD;
+}
+table caption {
+    text-indent: 0;
+    padding: 4px;
+    background-color: #EEE;
+}
+
+/* Inline elements */
+strong, em, u, s, sub, sup {
+   display: inline;
+}
+sup       { font-size: 70%; vertical-align: super; }
+sub       { font-size: 70%; vertical-align: sub; }
+strong    { font-weight: bold; }
+em        { font-style: italic; }
+u         { text-decoration: underline; }
+s         { text-decoration: line-through; }
+
+a              { text-decoration: underline; color: gray; }
+a[type="note"] { vertical-align: super; font-size: 70%; }
+
+/* Footnotes and Endnotes */
+body[name="notes"],
+body[name="comments"] {
+    font-size: 80%;
+}
+body[name="notes"] section title,
+body[name="comments"] section title
+{
+    display: run-in;
+    text-align: left;
+    font-size: 110%;
+    page-break-before: auto;
+    page-break-inside: auto;
+    page-break-after: auto;
+}
+body[name="notes"] section title p,
+body[name="comments"] section title p {
+    display: inline;
+}
+
+/* FB2 wrapper elements, some ignorable, some should not be met (?) */
+description { display: block; }
+title-info  { display: block; }
+date        { display: block; font-size: 80%; font-style: italic; text-align: center }
+annotation  { font-size: 80%; font-style: italic; text-indent: 1.2em; text-align: justify; margin-left: 1em; margin-right: 1em; }
+genre         { display: none; }
+author        { display: none; }
+book-title    { display: none; }
+keywords      { display: none; }
+lang          { display: none; }
+src-lang      { display: none; }
+translator    { display: none; }
+document-info { display: none; }
+publish-info  { display: none; }
+custom-info   { display: none; }
+coverpage     { display: none }
