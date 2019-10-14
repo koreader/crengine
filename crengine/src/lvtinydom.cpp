@@ -14710,19 +14710,28 @@ bool LVTocItem::deserialize( ldomDocument * doc, SerialBuf & buf )
 //}
 
 
-static void makeTocFromCrHintsOrHeadings( ldomNode * node )
+static inline void makeTocFromCrHintsOrHeadings( ldomNode * node, bool ensure_cr_hints )
 {
-    css_cr_hint_t hint = node->getStyle()->cr_hint;
-    if ( hint == css_cr_hint_toc_ignore )
-        return; // requested to be ignored via style tweaks
     int level;
-    if ( hint >= css_cr_hint_toc_level1 && hint <= css_cr_hint_toc_level6 )
-        level = hint - css_cr_hint_toc_level1 + 1;
-    else if ( node->getNodeId() >= el_h1 && node->getNodeId() <= el_h6 )
-        // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
-        level = node->getNodeId() - el_h1 + 1;
-    else
-        return;
+    if ( ensure_cr_hints ) {
+        css_cr_hint_t hint = node->getStyle()->cr_hint;
+        if ( hint == css_cr_hint_toc_ignore )
+            return; // requested to be ignored via style tweaks
+        if ( hint >= css_cr_hint_toc_level1 && hint <= css_cr_hint_toc_level6 )
+            level = hint - css_cr_hint_toc_level1 + 1;
+        else if ( node->getNodeId() >= el_h1 && node->getNodeId() <= el_h6 )
+            // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
+            level = node->getNodeId() - el_h1 + 1;
+        else
+            return;
+    }
+    else {
+        if ( node->getNodeId() >= el_h1 && node->getNodeId() <= el_h6 )
+            // el_h1 .. el_h6 are consecutive and ordered in include/fb2def.h
+            level = node->getNodeId() - el_h1 + 1;
+        else
+            return;
+    }
     lString16 title = removeSoftHyphens( node->getText(' ') );
     ldomXPointer xp = ldomXPointer(node, 0);
     LVTocItem * root = node->getDocument()->getToc();
@@ -14745,6 +14754,15 @@ static void makeTocFromCrHintsOrHeadings( ldomNode * node )
     parent->addChild(title, xp, lString16::empty_str);
 }
 
+static void makeTocFromHeadings( ldomNode * node )
+{
+    makeTocFromCrHintsOrHeadings( node, false );
+}
+
+static void makeTocFromCrHintsOrHeadings( ldomNode * node )
+{
+    makeTocFromCrHintsOrHeadings( node, true );
+}
 
 static void makeTocFromDocFragments( ldomNode * node )
 {
@@ -14754,6 +14772,12 @@ static void makeTocFromDocFragments( ldomNode * node )
     ldomXPointer xp = ldomXPointer(node, 0);
     LVTocItem * root = node->getDocument()->getToc();
     root->addChild(L"", xp, lString16::empty_str);
+}
+
+void ldomDocument::buildTocFromHeadings()
+{
+    m_toc.clear();
+    getRootNode()->recurseElements(makeTocFromHeadings);
 }
 
 void ldomDocument::buildAlternativeToc()
