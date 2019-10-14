@@ -2218,9 +2218,11 @@ public:
 
     /// returns pointer to TOC root node
     LVTocItem * getToc() { return &m_toc; }
-    /// build alternative TOC from document heading elements (H1 to H6)
+    /// build alternative TOC from document heading elements (H1 to H6) and cr-hints, or docFragments
     void buildAlternativeToc();
     bool isTocAlternativeToc() { return m_toc.hasAlternativeTocFlag(); }
+    /// build TOC from headings
+    void buildTocFromHeadings();
 
     bool isTocFromCacheValid() { return _toc_from_cache_valid; }
 
