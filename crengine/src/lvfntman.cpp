@@ -938,6 +938,8 @@ lString8 familyName( FT_Face face )
 // LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_CLUSTER_TAIL
 // (as flags were lUInt8, and the 8 bits were used, one needed to be dropped - they
 // have since been upgraded to be lUInt16)
+// (LCHAR_DEPRECATED_WRAP_AFTER for '-' and '/', as they may be used to
+// separate words.)
 static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 0    00
     0, 0, LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, // 8    08
@@ -945,7 +947,7 @@ static lUInt16 char_flags[] = {
     0, 0, 0, 0, 0, 0, 0, 0, // 16   10
     0, 0, 0, 0, 0, 0, 0, 0, // 24   18
     LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER, 0, 0, 0, 0, 0, 0, 0, // 32   20
-    0, 0, 0, 0, 0, LCHAR_DEPRECATED_WRAP_AFTER, 0, 0, // 40   28
+    0, 0, 0, 0, 0, LCHAR_DEPRECATED_WRAP_AFTER, 0, LCHAR_DEPRECATED_WRAP_AFTER, // 40   28
     0, 0, 0, 0, 0, 0, 0, 0, // 48   30
 };
 
