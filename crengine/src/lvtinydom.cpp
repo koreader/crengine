@@ -4221,6 +4221,18 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         dropStyles();
         //CRLog::debug( "root style after drop style %d", getNodeStyleIndex(getRootNode()->getDataIndex()));
 
+        // After having dropped styles, which should have dropped most references
+        // to fonts instances, we want to drop these fonts instances.
+        // Mostly because some fallback fonts, possibly synthetized (fake bold and
+        // italic) may have been instantiated in the late phase of text rendering.
+        // We don't want such instances to be used for styles as it could cause some
+        // cache check issues (perpetual "style hash mismatch", as these synthetised
+        // fonts would not yet be there when loading from cache).
+        // We need 2 gc() for a complete cleanup. The performance impact of
+        // reinstantiating the fonts is minimal.
+        gc(); // drop font instances that were only referenced by dropped styles
+        gc(); // drop fallback font instances that were only referenced by dropped fonts
+
         //ldomNode * root = getRootNode();
         //css_style_ref_t roots = root->getStyle();
         //CRLog::trace("validate 2...");

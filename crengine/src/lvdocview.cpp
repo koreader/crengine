@@ -532,6 +532,10 @@ void LVDocView::Clear() {
 	}
 	clearImageCache();
 	_navigationHistory.clear();
+	// Also drop font instances from previous document (see
+	// lvtinydom.cpp ldomDocument::render() for the reason)
+	fontMan->gc();
+	fontMan->gc();
 }
 
 /// invalidate image cache, request redraw
