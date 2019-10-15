@@ -1312,9 +1312,9 @@ public:
     void measureText()
     {
         int i;
+        src_text_fragment_t * lastSrc = NULL;
         LVFont * lastFont = NULL;
         lInt16 lastLetterSpacing = 0;
-        //src_text_fragment_t * lastSrc = NULL;
         int start = 0;
         int lastWidth = 0;
 #define MAX_TEXT_CHUNK_SIZE 4096
@@ -1346,8 +1346,20 @@ public:
                                    m_charindex[i-1] == FLOAT_CHAR_INDEX;
             if ( !lastFont )
                 lastFont = newFont;
-            if (i == 0)
+            if (i == 0) {
+                lastSrc = newSrc;
                 lastLetterSpacing = newLetterSpacing;
+            }
+            // When 2 contiguous text nodes have the same font, we measure the
+            // whole combined segment. But when making words, we split on
+            // text node change. When using full harfbuzz, we don't want it
+            // to make ligatures at such text nodes boundaries: we need to
+            // measure each text node individually.
+            bool srcChangedAndUsingHarfbuzz = false;
+            if ( newFont && newFont == lastFont && newSrc != lastSrc) {
+                if ( newFont->getKerningMode() == KERNING_MODE_HARFBUZZ )
+                    srcChangedAndUsingHarfbuzz = true;
+            }
             bool bidiLevelChanged = false;
             int lastDirection = 0; // unknown
             #if (USE_FRIBIDI==1)
@@ -1373,6 +1385,7 @@ public:
             // Make a new segment to measure when any property changes from previous char
             if ( i>start && (   newFont != lastFont
                              || newLetterSpacing != lastLetterSpacing
+                             || srcChangedAndUsingHarfbuzz
                              || bidiLevelChanged
                              || isObject
                              || prevCharIsObject
@@ -1416,8 +1429,9 @@ public:
                         // reset newFont (the font of the next text node), so
                         // it does not replace lastFont at the end of the loop.
                         newFont = NULL;
-                        // If we didn't measure the full text, letter spacing and
+                        // If we didn't measure the full text, src, letter spacing and
                         // bidi level are to stay the same
+                        newSrc = lastSrc;
                         newLetterSpacing = lastLetterSpacing;
                         #if (USE_FRIBIDI==1)
                             if (m_has_bidi)
@@ -1505,7 +1519,7 @@ public:
             //
             if (newFont)
                 lastFont = newFont;
-            //lastSrc = newSrc;
+            lastSrc = newSrc;
             lastLetterSpacing = newLetterSpacing;
             #if (USE_FRIBIDI==1)
                 if (m_has_bidi)
