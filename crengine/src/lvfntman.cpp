@@ -1193,7 +1193,7 @@ public:
         if (_hb_font) {
             // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
             int flags = FT_LOAD_DEFAULT;
-            flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+            flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
             if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                 flags |= FT_LOAD_NO_AUTOHINT;
             }
@@ -1316,7 +1316,7 @@ public:
             else {
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
-                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
                 if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                     flags |= FT_LOAD_NO_AUTOHINT;
                 }
@@ -1426,7 +1426,7 @@ public:
             else {
                 // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
                 int flags = FT_LOAD_DEFAULT;
-                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
                 if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                     flags |= FT_LOAD_NO_AUTOHINT;
                 }
@@ -1621,7 +1621,7 @@ public:
         }
 
         int flags = FT_LOAD_DEFAULT;
-        flags |= (!_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO);
+        flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
         if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
             flags |= FT_LOAD_NO_AUTOHINT;
         }
@@ -2268,7 +2268,7 @@ public:
         }
         LVFontGlyphCacheItem * item = _glyph_cache.getByChar( ch );
         if ( !item ) {
-            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO );
+            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO );
                                                     //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
             if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT;
@@ -2297,7 +2297,7 @@ public:
             if (_embolden) { // Embolden and render
                 // See setEmbolden() for details
                 FT_GlyphSlot_Embolden(_slot);
-                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
 
             item = newItem( &_glyph_cache, (lChar16)ch, _slot ); //, _drawMonochrome
@@ -2313,7 +2313,7 @@ public:
         LVFontGlyphCacheItem *item = _glyph_cache2.getByIndex(index);
         if (!item) {
             // glyph not found in cache, rendering...
-            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO );
+            int rend_flags = FT_LOAD_RENDER | ( !_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO );
                                                     //|FT_LOAD_MONOCHROME|FT_LOAD_FORCE_AUTOHINT
             if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT;
@@ -2346,7 +2346,7 @@ public:
                     FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
                     FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
                 }
-                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_NORMAL);
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
 
             item = newItem(&_glyph_cache2, index, _slot);
