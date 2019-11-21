@@ -2700,6 +2700,12 @@ public:
                         hclgood = hcl3;
                         hg3++;
                     }
+                    if ( hg3 == glyph_count && hclgood >=0 ) { // last glyph was a good cluster
+                        if (!is_rtl)
+                            fb_t_end = hclgood; // fb drawing t[..:hclgood]
+                        hg2 += 1; // set hg2 to the first ok glyph (so, the single last one)
+                        break;
+                    }
                     if ( hg3 == glyph_count ) { // no good cluster met till end of text
                         hg2 = glyph_count; // get out of hg2 loop
                         if (is_rtl)
@@ -2744,7 +2750,7 @@ public:
                 }
                 else {
                     #ifdef DEBUG_DRAW_TEXT
-                        printf("regular g%d>%d cp%x: ", hg, hg2);
+                        printf("regular g%d>%d: ", hg, hg2);
                     #endif
                     // Draw glyphs of this same cluster
                     for (i = hg; i < hg2; i++) {
