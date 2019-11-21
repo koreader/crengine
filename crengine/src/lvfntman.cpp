@@ -1644,6 +1644,11 @@ public:
             _face,          /* handle to face object */
             glyph_index,   /* glyph index           */
             flags );  /* load flags, see below */
+        if ( error == FT_Err_Execution_Too_Long && _hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR ) {
+            // Native hinting bytecode may fail with some bad fonts: try again with no hinting
+            flags |= FT_LOAD_NO_HINTING;
+            error = FT_Load_Glyph( _face, glyph_index, flags );
+        }
         if ( error )
             return false;
 
@@ -2300,6 +2305,11 @@ public:
             int error = FT_Load_Glyph( _face, /* handle to face object */
                     ch_glyph_index,           /* glyph index           */
                     rend_flags );             /* load flags, see below */
+            if ( error == FT_Err_Execution_Too_Long && _hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR ) {
+                // Native hinting bytecode may fail with some bad fonts: try again with no hinting
+                rend_flags |= FT_LOAD_NO_HINTING;
+                error = FT_Load_Glyph( _face, ch_glyph_index, rend_flags );
+            }
             if ( error ) {
                 return NULL;  /* ignore errors */
             }
@@ -2346,6 +2356,11 @@ public:
             int error = FT_Load_Glyph( _face, /* handle to face object */
                     index,                    /* glyph index           */
                     rend_flags );             /* load flags, see below */
+            if ( error == FT_Err_Execution_Too_Long && _hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR ) {
+                // Native hinting bytecode may fail with some bad fonts: try again with no hinting
+                rend_flags |= FT_LOAD_NO_HINTING;
+                error = FT_Load_Glyph( _face, index, rend_flags );
+            }
             if ( error ) {
                 return NULL;  /* ignore errors */
             }
