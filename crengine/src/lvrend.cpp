@@ -2905,10 +2905,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             css_style_ref_t style = parent->getStyle();
             lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
             lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
-            if(!enode->getParentNode()->getParentNode()->isNull())
-                if((enode->getParentNode()->getParentNode()->getStyle()->background_color.value)==
-                        lInt32(bgcl))
+            ldomNode * gparent = parent->getParentNode();
+            if( gparent && !gparent->isNull() ) {
+                css_length_t gparent_bgcolor = gparent->getStyle()->background_color;
+                if ( gparent_bgcolor.type == css_val_color && (lUInt32)gparent_bgcolor.value == bgcl ) {
+                    // Avoid painting same background color, as it may cover any background image
                     bgcl=0xFFFFFFFF;
+                }
+            }
 
             switch (style->text_transform) {
             case css_tt_uppercase:
