@@ -190,7 +190,7 @@ struct MobiPreamble : public PalmDocPreamble
             return false; // unsupported type
         if ( mobiEncryption!=0 )
             return false; // encryption is not supported
-        if (hederLength == 0xE4 || hederLength == 0xE8) {
+        if ( hederLength >= 0xE4 ) {
             stream->Seek(242-180, LVSEEK_CUR, NULL);
             stream->Read(&extraDataFlags);
             if ( cnv.lsf() )
