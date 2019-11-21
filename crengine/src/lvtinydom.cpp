@@ -67,7 +67,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.29k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.30k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x001D
 
@@ -3372,6 +3372,14 @@ ldomDocument::ldomDocument()
 , lists(100)
 {
     allocTinyElement(NULL, 0, 0);
+    // Note: valgrind reports (sometimes, when some document is opened or closed,
+    // with metadataOnly or not) a memory leak (64 bytes in 1 blocks are definitely
+    // lost), about this, created in allocTinyElement():
+    //    tinyElement * elem = new tinyElement(...)
+    // possibly because it's not anchored anywhere.
+    // Attempt at anchoring into a _nullNode, and calling ->detroy()
+    // in ~ldomDocument(), did not prevent this report, and caused other ones...
+
     //new ldomElement( this, NULL, 0, 0, 0 );
     //assert( _instanceMapCount==2 );
 }
