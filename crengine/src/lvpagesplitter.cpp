@@ -162,6 +162,7 @@ public:
     const LVRendLineInfo * footlast;
     LVArray<LVPageFootNoteInfo> footnotes;
     LVArray<LVFootNote *> page_footnotes; // foonotes already on this page, to avoid duplicates
+    LVPtrVector<const LVRendLineInfo> own_lines; // to store our own made lines, so we can clear them when done
     int lastpageend;
     int nb_lines;
     int nb_lines_rtl;
@@ -387,6 +388,7 @@ public:
             slice_start += page_h;
             lastpageend = slice_start;
             last = new LVRendLineInfo(slice_start, line->getEnd(), line->flags);
+            own_lines.add( last ); // so we can have it 'delete'd in Finalize()
             pageend = last;
             did_slice = true;
         }
@@ -583,6 +585,7 @@ public:
         // Add remaining line to current page
         pageend = last;
         AddToList();
+        own_lines.clear();
     }
     void StartFootNote( LVFootNote * note )
     {
