@@ -2904,11 +2904,18 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             LVFont * font = parent->getFont().get();
             css_style_ref_t style = parent->getStyle();
             lUInt32 cl = style->color.type!=css_val_color ? 0xFFFFFFFF : style->color.value;
-            lUInt32 bgcl = style->background_color.type!=css_val_color ? 0xFFFFFFFF : style->background_color.value;
-            if(!enode->getParentNode()->getParentNode()->isNull())
-                if((enode->getParentNode()->getParentNode()->getStyle()->background_color.value)==
-                        lInt32(bgcl))
-                    bgcl=0xFFFFFFFF;
+            lUInt32 bgcl = 0xFFFFFFFF;
+            if ( style->background_color.type == css_val_color && (lUInt32)style->background_color.value != 0xFFFFFFFF ) {
+                bgcl = style->background_color.value;
+                // Avoid painting same background color as upper node, as it may cover any background image
+                ldomNode * gparent = parent->getParentNode();
+                if( gparent && !gparent->isNull() ) {
+                    css_length_t gparent_bgcolor = gparent->getStyle()->background_color;
+                    if ( gparent_bgcolor.type == css_val_color && (lUInt32)gparent_bgcolor.value == bgcl ) {
+                        bgcl=0xFFFFFFFF;
+                    }
+                }
+            }
 
             switch (style->text_transform) {
             case css_tt_uppercase:
