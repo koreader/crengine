@@ -27,6 +27,10 @@
 #include "../include/lvrend.h"
 #endif
 
+#if USE_HARFBUZZ==1
+#include <hb.h>
+#endif
+
 #if (USE_FRIBIDI==1)
 #include <fribidi/fribidi.h>
 #endif
@@ -376,6 +380,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
+    bool m_has_multiple_scripts;
     int m_specified_para_dir;
     #if (USE_FRIBIDI==1)
         // Bidi/RTL support
@@ -407,6 +412,7 @@ public:
         m_has_float_to_position = false;
         m_has_ongoing_float = false;
         m_no_clear_own_floats = false;
+        m_has_multiple_scripts = false;
         m_specified_para_dir = REND_DIRECTION_UNSET;
         #if (USE_FRIBIDI==1)
             m_bidi_ctypes = NULL;
@@ -1057,8 +1063,8 @@ public:
                         // Looking at fribidi/lib/bidi-type.tab.i and its rules for tagging
                         // a char as RTL, only the following ranges will trigger it:
                         //   0590>08FF      Hebrew, Arabic, Syriac, Thaana, Nko, Samaritan...
-                        //   200F 202B 202E Right-To-Left mark, embedding, override format flags
-                        //   2067 2068      Right-To-Left isolate, first strong isolate format flags
+                        //   200F 202B      Right-To-Left mark/embedding control chars
+                        //   202E 2067      Right-To-Left override/isolate control chars
                         //   FB1D>FDFF      Hebrew and Arabic presentation forms
                         //   FE70>FEFF      Arabic presentation forms
                         //   10800>10FFF    Other rare scripts possibly RTL
@@ -1068,11 +1074,10 @@ public:
                         if ( !has_rtl ) {
                             // Try to balance the searches
                             if ( c >= 0x0590 ) {
-                                if ( c <= 0x2068 ) {
+                                if ( c <= 0x2067 ) {
                                     if ( c <= 0x08FF ) has_rtl = true;
                                     else if ( c >= 0x200F ) {
-                                        if ( c >= 0x2067 ) has_rtl = true;
-                                        else if ( c == 0x200F || c == 0x202B || c == 0x202E ) has_rtl = true;
+                                        if ( c == 0x200F || c == 0x202B || c == 0x202E || c == 0x2067 ) has_rtl = true;
                                     }
                                 }
                                 else if ( c >= 0xFB1D ) {
@@ -1317,13 +1322,20 @@ public:
         lInt16 lastLetterSpacing = 0;
         int start = 0;
         int lastWidth = 0;
-#define MAX_TEXT_CHUNK_SIZE 4096
+        #define MAX_TEXT_CHUNK_SIZE 4096
         static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
         int tabIndex = -1;
         #if (USE_FRIBIDI==1)
             FriBidiLevel lastBidiLevel = 0;
             FriBidiLevel newBidiLevel;
+        #endif
+        #if (USE_HARFBUZZ==1)
+            bool checkIfHarfbuzz = true;
+            bool usingHarfbuzz = false;
+            // Unicode script change (note: hb_script_t is uint32_t)
+            lUInt32 prevScript = HB_SCRIPT_COMMON;
+            hb_unicode_funcs_t* _hb_unicode_funcs = hb_unicode_funcs_get_default();
         #endif
         for ( i=0; i<=m_length; i++ ) {
             LVFont * newFont = NULL;
@@ -1340,6 +1352,15 @@ public:
                            m_charindex[i] == FLOAT_CHAR_INDEX;
                 newFont = isObject ? NULL : (LVFont *)newSrc->t.font;
                 newLetterSpacing = newSrc->letter_spacing; // 0 for objects
+                #if (USE_HARFBUZZ==1)
+                    // Check if we are using Harfbuzz kerning with the first font met
+                    if ( checkIfHarfbuzz && newFont ) {
+                        if ( newFont->getKerningMode() == KERNING_MODE_HARFBUZZ ) {
+                            usingHarfbuzz = true;
+                        }
+                        checkIfHarfbuzz = false;
+                    }
+                #endif
             }
             if (i > 0)
                 prevCharIsObject = m_charindex[i-1] == OBJECT_CHAR_INDEX ||
@@ -1350,16 +1371,17 @@ public:
                 lastSrc = newSrc;
                 lastLetterSpacing = newLetterSpacing;
             }
-            // When 2 contiguous text nodes have the same font, we measure the
-            // whole combined segment. But when making words, we split on
-            // text node change. When using full harfbuzz, we don't want it
-            // to make ligatures at such text nodes boundaries: we need to
-            // measure each text node individually.
             bool srcChangedAndUsingHarfbuzz = false;
-            if ( newFont && newFont == lastFont && newSrc != lastSrc) {
-                if ( newFont->getKerningMode() == KERNING_MODE_HARFBUZZ )
+            #if (USE_HARFBUZZ==1)
+                // When 2 contiguous text nodes have the same font, we measure the
+                // whole combined segment. But when making words, we split on
+                // text node change. When using full harfbuzz, we don't want it
+                // to make ligatures at such text nodes boundaries: we need to
+                // measure each text node individually.
+                if ( usingHarfbuzz && newSrc != lastSrc && newFont && newFont == lastFont ) {
                     srcChangedAndUsingHarfbuzz = true;
-            }
+                }
+            #endif
             bool bidiLevelChanged = false;
             int lastDirection = 0; // unknown
             #if (USE_FRIBIDI==1)
@@ -1374,19 +1396,36 @@ public:
                         lastDirection = -1; // RTL
                 }
             #endif
+            // When measuring with Harfbuzz, we should also split on Unicode script change,
+            // even in a same bidi level (mixed hebrew and arabic in a single text node
+            // should be handled as multiple segments, or Harfbuzz would shape the whole
+            // text with the script of the first kind of text it meets).
+            bool scriptChanged = false;
+            #if (USE_HARFBUZZ==1)
+                if ( usingHarfbuzz && !isObject ) {
+                    hb_script_t script = hb_unicode_script(_hb_unicode_funcs, m_text[i]);
+                    if ( script != HB_SCRIPT_COMMON && script != HB_SCRIPT_INHERITED && script != HB_SCRIPT_UNKNOWN ) {
+                        if ( prevScript != HB_SCRIPT_COMMON && script != prevScript ) {
+                            // We previously met a real script, and we're meeting a new one
+                            scriptChanged = true;
+                            m_has_multiple_scripts = true;
+                            // When only a single script found in a paragraph, we don't need
+                            // to do that same kind of work in AddLine() to split on script
+                            // change, as there's only one.
+                        }
+                        prevScript = script; // Real script met
+                    }
+                }
+            #endif
             // Note: some additional tweaks (like disabling letter-spacing when
             // a cursive script is detected) are done in measureText() and drawTextString().
-
-            // todo: we should also split measureText() segment on "unicode script" change, and
-            // not only on direction change (mixed hebrew and arabic in a single text node should
-            // be split into different segments - currently, they are handled as one, and Harfbuzz
-            // shapes the whole text with the script of the first kind of text it meets...)
 
             // Make a new segment to measure when any property changes from previous char
             if ( i>start && (   newFont != lastFont
                              || newLetterSpacing != lastLetterSpacing
                              || srcChangedAndUsingHarfbuzz
                              || bidiLevelChanged
+                             || scriptChanged
                              || isObject
                              || prevCharIsObject
                              || i >= start+MAX_TEXT_CHUNK_SIZE
@@ -1505,6 +1544,9 @@ public:
                     m_widths[start] = lastWidth;
                 }
                 start = i;
+                #if (USE_HARFBUZZ==1)
+                    prevScript = HB_SCRIPT_COMMON; // Reset as next segment can start with any script
+                #endif
             }
             // Skip measuring chars to ignore.
             if ( m_flags[i] & LCHAR_IS_TO_IGNORE) {
@@ -1732,14 +1774,14 @@ public:
             }
             FriBidiStrIndex * _virtual_bidi_indices_map = bidi_indices_map - start;
 
-            FriBidiFlags bibi_flags = 0;
-            // We're not using bibi_flags=FRIBIDI_FLAG_REORDER_NSM (which is mostly
+            FriBidiFlags bidi_flags = 0;
+            // We're not using bidi_flags=FRIBIDI_FLAG_REORDER_NSM (which is mostly
             // needed for code drawing the resulting reordered result) as it would
             // mess with our indices map, and the final result would be messy.
             // (Looks like even Freetype drawing does not need the BIDI rule
             // L3 (combining-marks-must-come-after-base-char) as it draws finely
             // RTL when we draw the combining marks before base char.)
-            int max_level = fribidi_reorder_line(bibi_flags, m_bidi_ctypes, end-start, start,
+            int max_level = fribidi_reorder_line(bidi_flags, m_bidi_ctypes, end-start, start,
                                 m_para_bidi_type, m_bidi_levels, NULL, _virtual_bidi_indices_map);
             if (max_level > 1) {
                 lineIsBidi = true;
@@ -1931,6 +1973,12 @@ public:
         // Bidi
         bool lastIsRTL = false;
         bool isRTL = false;
+        // Unicode script change
+        bool scriptChanged = false;
+        #if (USE_HARFBUZZ==1)
+            lUInt32 prevScript = HB_SCRIPT_COMMON;
+            hb_unicode_funcs_t* _hb_unicode_funcs = hb_unicode_funcs_get_default();
+        #endif
         // Ignorables
         bool isToIgnore = false;
         for ( int i=start; i<=end; i++ ) { // loop thru each char
@@ -1947,6 +1995,19 @@ public:
                 //     "inside a") and, when justify'ing text, space would not be
                 //     distributed between "inside" and "a"...
                 //     Not really sure what's the purpose of this last test...
+                #if (USE_HARFBUZZ==1)
+                    // To be done only when we met multiple scripts in a same paragraph
+                    // while measuring (which we checked only when using Harfbuzz kerning)
+                    if ( m_has_multiple_scripts && !(m_flags[i] & LCHAR_IS_OBJECT) ) {
+                        hb_script_t script = hb_unicode_script(_hb_unicode_funcs, m_text[i]);
+                        if ( script != HB_SCRIPT_COMMON && script != HB_SCRIPT_INHERITED && script != HB_SCRIPT_UNKNOWN ) {
+                            if ( prevScript != HB_SCRIPT_COMMON && script != prevScript ) {
+                                scriptChanged = true;
+                            }
+                            prevScript = script;
+                        }
+                    }
+                #endif
                 isToIgnore = m_flags[i] & LCHAR_IS_TO_IGNORE;
             } else {
                 lastWord = true;
@@ -2003,10 +2064,19 @@ public:
                               || lastWord
                               || isCJKIdeograph(m_text[i])
                               || isRTL != lastIsRTL
+                              || scriptChanged
                               || isToIgnore
                              ) ) {
                 // New HTML source node, space met just before, last word, or CJK char:
                 // create and add new word with chars from wstart to i-1
+
+                #if (USE_HARFBUZZ==1)
+                    if ( m_has_multiple_scripts ) {
+                        // Reset as next segment can start with any script
+                        prevScript = HB_SCRIPT_COMMON;
+                        scriptChanged = false;
+                    }
+                #endif
 
                 // Remove any collapsed space at start of word: they
                 // may have a zero width and not influence positionning,
