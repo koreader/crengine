@@ -51,6 +51,8 @@ inline lUInt32 getHash(GlyphCacheItemData data)
     return getHash(*((lUInt32*)&data));
 }
 
+// Note: this may cause some issue when building on Win32 (or anywhere lChar16
+// is not 32bits), see https://github.com/buggins/coolreader/pull/117
 inline bool operator==(GlyphCacheItemData data1, GlyphCacheItemData data2)
 {
     return (*((lUInt32*)&data1)) == (*((lUInt32*)&data2));

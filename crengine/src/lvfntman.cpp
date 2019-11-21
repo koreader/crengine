@@ -67,6 +67,14 @@
 
 #endif
 
+// Helpers with font metrics (units are 1/64 px)
+// #define FONT_METRIC_FLOOR(x)    ((x) & -64)
+// #define FONT_METRIC_CEIL(x)     (((x)+63) & -64)
+// #define FONT_METRIC_ROUND(x)    (((x)+32) & -64)
+// #define FONT_METRIC_TRUNC(x)    ((x) >> 6)
+#define FONT_METRIC_TO_PX(x)    (((x)+32) >> 6) // ROUND + TRUNC
+// Uncomment to use the former >>6 (trunc) with no rounding (instead of previous one)
+// #define FONT_METRIC_TO_PX(x)    ((x) >> 6)
 
 #if COLOR_BACKBUFFER==0
 //#define USE_BITMAP_FONT
@@ -685,7 +693,7 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
-    item->advance =    (lUInt16)(myabs(slot->metrics.horiAdvance) >> 6);
+    item->advance =    (lUInt16)(FONT_METRIC_TO_PX( myabs(slot->metrics.horiAdvance) ));
     return item;
 }
 
@@ -726,7 +734,7 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
-    item->advance =    (lUInt16)(myabs(slot->metrics.horiAdvance) >> 6);
+    item->advance =    (lUInt16)(FONT_METRIC_TO_PX( myabs(slot->metrics.horiAdvance) ));
     return item;
 }
 #endif
@@ -1345,9 +1353,9 @@ public:
             (size * targetheight + nheight/2)/ nheight );  /* pixel_height */
         #endif
 
-        _height = _face->size->metrics.height >> 6;
+        _height = FONT_METRIC_TO_PX( _face->size->metrics.height );
         _size = size; //(_face->size->metrics.height >> 6);
-        _baseline = _height + (_face->size->metrics.descender >> 6);
+        _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
         _weight = _face->style_flags & FT_STYLE_FLAG_BOLD ? 700 : 400;
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
@@ -1455,9 +1463,9 @@ public:
             (size * targetheight + nheight/2)/ nheight );  /* pixel_height          */
         #endif
 
-        _height = _face->size->metrics.height >> 6;
+        _height = FONT_METRIC_TO_PX( _face->size->metrics.height );
         _size = size; //(_face->size->metrics.height >> 6);
-        _baseline = _height + (_face->size->metrics.descender >> 6);
+        _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
         _weight = _face->style_flags & FT_STYLE_FLAG_BOLD ? 700 : 400;
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
@@ -1557,8 +1565,8 @@ public:
                 // which will be the one that will be rendered
                 FT_UInt ch_glyph_index = FT_Get_Char_Index( _face, triplet.Char );
                 if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
-                    posInfo->offset = glyph_pos[cluster].x_offset >> 6;
-                    posInfo->width = glyph_pos[cluster].x_advance >> 6;
+                    posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
+                    posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
                     return true;
                 }
             }
@@ -1643,19 +1651,19 @@ public:
             // See setEmbolden() for details
             FT_GlyphSlot_Embolden(_slot);
         }
-        glyph->blackBoxX = (lUInt16)(_slot->metrics.width >> 6);
-        glyph->blackBoxY = (lUInt16)(_slot->metrics.height >> 6);
-        glyph->originX =   (lInt16)(_slot->metrics.horiBearingX >> 6);
-        glyph->originY =   (lInt16)(_slot->metrics.horiBearingY >> 6);
-        glyph->width =     (lUInt16)(myabs(_slot->metrics.horiAdvance) >> 6);
+        glyph->blackBoxX = (lUInt16)( FONT_METRIC_TO_PX( _slot->metrics.width ) );
+        glyph->blackBoxY = (lUInt16)( FONT_METRIC_TO_PX( _slot->metrics.height ) );
+        glyph->originX =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingX ) );
+        glyph->originY =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingY ) );
+        glyph->width =     (lUInt16)( FONT_METRIC_TO_PX( myabs(_slot->metrics.horiAdvance )) );
         if (glyph->blackBoxX == 0) // If a glyph has no blackbox (a spacing
             glyph->rsb =   0;      // character), there is no bearing
         else
-            glyph->rsb =   (lInt16)( (myabs(_slot->metrics.horiAdvance)
-                            - _slot->metrics.horiBearingX - _slot->metrics.width) >> 6);
+            glyph->rsb =   (lInt16)(FONT_METRIC_TO_PX( (myabs(_slot->metrics.horiAdvance)
+                                        - _slot->metrics.horiBearingX - _slot->metrics.width) ) );
         // printf("%c: %d + %d + %d = %d (y: %d + %d)\n", code, glyph->originX, glyph->blackBoxX,
         //                            glyph->rsb, glyph->width, glyph->originY, glyph->blackBoxY);
-        // Note: these >>6 on a negative number will floor() it, so we'll get
+        // (Old) Note: these >>6 on a negative number will floor() it, so we'll get
         // a ceil()'ed value when considering negative numbers as some overflow,
         // which is good when we're using it for adding some padding.
         //
@@ -1858,9 +1866,11 @@ public:
                     hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
                     printf("MTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
                                 text[glyph_info[i].cluster], glyph_info[i].codepoint, glyphname,
-                                glyph_pos[i].x_advance>>6, glyph_pos[i].y_advance>>6);
+                                FONT_METRIC_TO_PX(glyph_pos[i].x_advance), FONT_METRIC_TO_PX(glyph_pos[i].y_advance)
+                                );
                     if (glyph_pos[i].x_offset || glyph_pos[i].y_offset)
-                        printf("\toffset=(%d,%d)", glyph_pos[i].x_offset>>6, glyph_pos[i].y_offset>>6);
+                        printf("\toffset=(%d,%d)", FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                                   FONT_METRIC_TO_PX(glyph_pos[i].y_offset));
                     printf("\n");
                 }
                 printf("MTHB ---\n");
@@ -1955,14 +1965,14 @@ public:
                                 // And go on with the found glyph now that we fixed what was before
                             }
                             // Glyph found in this font
-                            advance = glyph_pos[hg].x_advance >> 6;
+                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
                         }
                         else {
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(glyph not found) ");
                             #endif
                             // Keep the advance of .notdef/tofu in case there is no fallback font to correct them
-                            advance = glyph_pos[hg].x_advance >> 6;
+                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
                             if ( t_notdef_start < 0 ) {
                                 t_notdef_start = t;
                             }
@@ -2173,7 +2183,7 @@ public:
                     ch_glyph_index = getCharIndex( ch, 0 );
                 previous = ch_glyph_index;
             }
-            widths[i] = prev_width + w + (kerning >> 6) + letter_spacing;
+            widths[i] = prev_width + w + FONT_METRIC_TO_PX(kerning) + letter_spacing;
             if ( !isHyphen ) // avoid soft hyphens inside text string
                 prev_width = widths[i];
             if ( prev_width > max_width ) {
@@ -2576,9 +2586,10 @@ public:
                     hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
                     printf("DTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
                                 text[glyph_info[i].cluster], glyph_info[i].codepoint, glyphname,
-                                glyph_pos[i].x_advance>>6, glyph_pos[i].y_advance>>6);
+                                FONT_METRIC_TO_PX(glyph_pos[i].x_advance), FONT_METRIC_TO_PX(glyph_pos[i].y_advance));
                     if (glyph_pos[i].x_offset || glyph_pos[i].y_offset)
-                        printf("\toffset=(%d,%d)", glyph_pos[i].x_offset>>6, glyph_pos[i].y_offset>>6);
+                        printf("\toffset=(%d,%d)", FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                                   FONT_METRIC_TO_PX(glyph_pos[i].y_offset));
                     printf("\n");
                 }
                 printf("DTHB ---\n");
@@ -2724,13 +2735,13 @@ public:
                     for (i = hg; i < hg2; i++) {
                         LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
                         if (item) {
-                            int w = glyph_pos[i].x_advance >> 6;
+                            int w = FONT_METRIC_TO_PX(glyph_pos[i].x_advance);
                             #ifdef DEBUG_DRAW_TEXT
                                 printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
-                                        item->origin_x + (glyph_pos[i].x_offset >> 6), w);
+                                        item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
                             #endif
-                            buf->Draw(x + item->origin_x + (glyph_pos[i].x_offset >> 6),
-                                      y + _baseline - item->origin_y + (glyph_pos[i].y_offset >> 6),
+                            buf->Draw(x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                      y + _baseline - item->origin_y + FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
                                       item->bmp,
                                       item->bmp_width,
                                       item->bmp_height,
@@ -2880,12 +2891,12 @@ public:
             if ( !item )
                 continue;
             if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
-                int w = item->advance + (kerning >> 6);
+                int w = item->advance + FONT_METRIC_TO_PX(kerning);
                 #ifdef DEBUG_DRAW_TEXT
                     printf("DTFT drawing %x adv=%d kerning=%d => w=%d o_x=%d\n",
-                                ch, item->advance, kerning >> 6, w, item->origin_x);
+                                ch, item->advance, FONT_METRIC_TO_PX(kerning), w, item->origin_x);
                 #endif
-                buf->Draw( x + (kerning>>6) + item->origin_x,
+                buf->Draw( x + FONT_METRIC_TO_PX(kerning) + item->origin_x,
                     y + _baseline - item->origin_y,
                     item->bmp,
                     item->bmp_width,
