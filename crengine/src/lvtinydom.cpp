@@ -1851,6 +1851,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
+, _spaceWidthScalePercent(DEF_SPACE_WIDTH_SCALE_PERCENT)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
@@ -1887,6 +1888,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _mapped(false)
 , _maperror(false)
 , _mapSavingStage(0)
+, _spaceWidthScalePercent(DEF_SPACE_WIDTH_SCALE_PERCENT)
 , _minSpaceCondensingPercent(DEF_MIN_SPACE_CONDENSING_PERCENT)
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
@@ -3348,6 +3350,7 @@ LFormattedText * lxmlDocBase::createFormattedText()
 {
     LFormattedText * p = new LFormattedText();
     p->setImageScalingOptions(&_imgScalingOptions);
+    p->setSpaceWidthScalePercent(_spaceWidthScalePercent);
     p->setMinSpaceCondensingPercent(_minSpaceCondensingPercent);
     p->setHighlightOptions(&_highlightOptions);
     return p;
@@ -11378,6 +11381,7 @@ lUInt32 tinyNodeCollection::calcStyleHash()
     }
     CRLog::info("Calculating style hash...  elemCount=%d, globalHash=%08x, docFlags=%08x, nodeStyleHash=%08x", _elemCount, globalHash, docFlags, res);
     res = res * 31 + _imgScalingOptions.getHash();
+    res = res * 31 + _spaceWidthScalePercent;
     res = res * 31 + _minSpaceCondensingPercent;
     res = (res * 31 + globalHash) * 31 + docFlags;
 //    CRLog::info("Calculated style hash = %08x", res);

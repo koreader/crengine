@@ -100,6 +100,7 @@ extern int gDOMVersionRequested;
 #define DOC_PROP_CODE_BASE       "doc.file.code.base"
 #define DOC_PROP_COVER_FILE      "doc.cover.file"
 
+#define DEF_SPACE_WIDTH_SCALE_PERCENT 100
 #define DEF_MIN_SPACE_CONDENSING_PERCENT 50
 
 #define NODE_DISPLAY_STYLE_HASH_UNITIALIZED 0xFFFFFFFF
@@ -448,6 +449,7 @@ protected:
     int  _mapSavingStage;
 
     img_scaling_options_t _imgScalingOptions;
+    int  _spaceWidthScalePercent;
     int  _minSpaceCondensingPercent;
 
     lUInt32 _nodeStyleHash;
@@ -507,6 +509,13 @@ protected:
     tinyNodeCollection( tinyNodeCollection & v );
 
 public:
+
+    bool setSpaceWidthScalePercent(int spaceWidthScalePercent) {
+        if (spaceWidthScalePercent == _spaceWidthScalePercent)
+            return false;
+        _spaceWidthScalePercent = spaceWidthScalePercent;
+        return true;
+    }
 
     bool setMinSpaceCondensingPercent(int minSpaceCondensingPercent) {
         if (minSpaceCondensingPercent == _minSpaceCondensingPercent)
