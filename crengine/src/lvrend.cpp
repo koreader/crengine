@@ -2454,6 +2454,9 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             case css_hyph_auto:
                 flags |= LTEXT_HYPHENATE;
                 break;
+            case css_hyph_none:
+                flags &= ~LTEXT_HYPHENATE;
+                break;
             default:
                 break;
         }
