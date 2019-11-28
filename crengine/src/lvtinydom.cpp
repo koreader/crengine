@@ -69,7 +69,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.30k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x001E
+#define FORMATTING_VERSION_ID 0x001D
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -3520,10 +3520,10 @@ static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
 }
 
 // Extended version of previous function for displaying selection HTML, with tunable output
-#define WRITENODEEX_TEXT_UNESCAPED               0x0001 ///< let &, < and > unescaped in text nodes (makes HTML invalid)
+#define WRITENODEEX_ADD_UPPER_DIR_LANG_ATTR      0x0001 ///< add dir= and lang= grabbed from upper nodes
 #define WRITENODEEX_TEXT_MARK_NODE_BOUNDARIES    0x0002 ///< mark start and end of text nodes (useful when indented)
 #define WRITENODEEX_TEXT_SHOW_UNICODE_CODEPOINT  0x0004 ///< show unicode codepoint after char
-#define WRITENODEEX_UNUSED_2                     0x0008 ///<
+#define WRITENODEEX_TEXT_UNESCAPED               0x0008 ///< let &, < and > unescaped in text nodes (makes HTML invalid)
 #define WRITENODEEX_INDENT_NEWLINE               0x0010 ///< indent newlines according to node level
 #define WRITENODEEX_NEWLINE_BLOCK_NODES          0x0020 ///< start only nodes rendered as block/final on a new line,
                                                         ///  so inline elements and text nodes are stuck together
@@ -3595,9 +3595,32 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
     }
 
     bool isInitialNode = false;
+    lString16 initialDirAttribute = lString16::empty_str;
+    lString16 initialLangAttribute = lString16::empty_str;
     if (indentBaseLevel < 0) { // initial call (recursive ones will have it >=0)
         indentBaseLevel = node->getNodeLevel();
         isInitialNode = true;
+        if ( WNEFLAG(ADD_UPPER_DIR_LANG_ATTR) && !node->isRoot() ) {
+            // Grab any dir="rtl" and lang="ar_AA" attributes from some parent node
+            if ( !node->hasAttribute( attr_dir ) ) {
+                ldomNode *pnode = node->getParentNode();
+                for ( ; pnode && !pnode->isNull() && !pnode->isRoot(); pnode = pnode->getParentNode() ) {
+                    if ( pnode->hasAttribute(attr_dir) ) {
+                        initialDirAttribute = pnode->getAttributeValue(attr_dir);
+                        break;
+                    }
+                }
+            }
+            if ( !node->hasAttribute( attr_lang ) ) {
+                ldomNode *pnode = node->getParentNode();
+                for ( ; pnode && !pnode->isNull() && !pnode->isRoot(); pnode = pnode->getParentNode() ) {
+                    if ( pnode->hasAttribute(attr_lang) ) {
+                        initialLangAttribute = pnode->getAttributeValue(attr_lang);
+                        break;
+                    }
+                }
+            }
+        }
     }
     int level = node->getNodeLevel();
     if ( node->isText() && isAfterStart && isBeforeEnd ) {
@@ -3785,6 +3808,15 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
         if ( !elemNsName.empty() )
             elemName = elemNsName + ":" + elemName;
         *stream << "<" << elemName;
+        if ( isInitialNode ) {
+            // Add any dir="rtl" and lang="ar_AA" attributes grabbed from some parent node
+            if ( !initialDirAttribute.empty() ) {
+                *stream << " dir=\"" << UnicodeToUtf8(initialDirAttribute) << "\"";
+            }
+            if ( !initialLangAttribute.empty() ) {
+                *stream << " lang=\"" << UnicodeToUtf8(initialLangAttribute) << "\"";
+            }
+        }
         for ( int i=0; i<(int)node->getAttrCount(); i++ ) {
             const lxmlAttribute * attr = node->getAttribute(i);
             if (attr) {
