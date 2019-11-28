@@ -35,6 +35,7 @@
 #include <fribidi/fribidi.h>
 #endif
 
+#define SPACE_WIDTH_SCALE_PERCENT 100
 #define MIN_SPACE_CONDENSING_PERCENT 50
 
 
@@ -155,6 +156,7 @@ formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
     pbuffer->img_zoom_out_scale_block = defMult; /**< max scale for block images zoom out: 1, 2, 3 */
     pbuffer->img_zoom_out_mode_inline = defMode; /**< can zoom out inline images: 0=disabled, 1=integer scale, 2=free scale */
     pbuffer->img_zoom_out_scale_inline = defMult; /**< max scale for inline images zoom out: 1, 2, 3 */
+    pbuffer->space_width_scale_percent = SPACE_WIDTH_SCALE_PERCENT; // 100% (keep original width)
     pbuffer->min_space_condensing_percent = MIN_SPACE_CONDENSING_PERCENT; // 50%
 
     return pbuffer;
@@ -1484,7 +1486,13 @@ public:
                     // Note: widths[] (obtained from lastFont->measureText)
                     // and the m_widths[] we build have cumulative widths
                     // (width[k] is the length of the rendered text from
-                    // chars 0 to k included)
+                    // chars 0 to k included).
+                    // Also handle space width scaling if requested.
+                    bool scale_space_width = m_pbuffer->space_width_scale_percent != 100;
+                    if ( scale_space_width && lastSrc ) { // but not if <pre>
+                        if ( lastSrc->flags & LTEXT_FLAG_PREFORMATTED )
+                            scale_space_width = false;
+                    }
                     int cumulative_width_removed = 0;
                     int prev_orig_measured_width = 0;
                     int char_width = 0; // current single char width
@@ -1497,6 +1505,13 @@ public:
                             // make it zero width: same cumulative width as previous char's
                             widths[k] = k>0 ? widths[k-1] : 0;
                             flags[k] = 0; // remove SPACE/WRAP/... flags
+                        }
+                        else if ( scale_space_width && (flags[k] & LCHAR_IS_SPACE) ) {
+                            // LCHAR_IS_SPACE has just been guessed, and is available in flags[], not yet in m_flags[]
+                            int scaled_width = char_width * m_pbuffer->space_width_scale_percent / 100;
+                            // We can just account for the space reduction (or increase) in cumulative_width_removed
+                            cumulative_width_removed += char_width - scaled_width;
+                            widths[k] -= cumulative_width_removed;
                         }
                         else {
                             // remove, from the measured cumulative width, what we previously removed
@@ -2493,10 +2508,12 @@ public:
         int dw = w * (100 - m_pbuffer->min_space_condensing_percent) / 100;
         if ( dw>0 ) {
             // typographic rule: don't use spaces narrower than 1/4 of font size
+            /* 20191126: disabled, to allow experimenting with lower %
             LVFont * fnt = (LVFont *)m_srcs[pos]->t.font;
             int fntBasedSpaceWidthDiv2 = fnt->getSize() * 3 / 4;
             if ( dw>fntBasedSpaceWidthDiv2 )
                 dw = fntBasedSpaceWidthDiv2;
+            */
             return dw;
         }
         return 0;
@@ -3133,6 +3150,12 @@ void LFormattedText::setImageScalingOptions( img_scaling_options_t * options )
     m_pbuffer->img_zoom_out_scale_block = options->zoom_out_block.max_scale;
     m_pbuffer->img_zoom_out_mode_inline = options->zoom_out_inline.mode;
     m_pbuffer->img_zoom_out_scale_inline = options->zoom_out_inline.max_scale;
+}
+
+void LFormattedText::setSpaceWidthScalePercent(int spaceWidthScalePercent)
+{
+    if (spaceWidthScalePercent>=10 && spaceWidthScalePercent<=500)
+        m_pbuffer->space_width_scale_percent = spaceWidthScalePercent;
 }
 
 void LFormattedText::setMinSpaceCondensingPercent(int minSpaceWidthPercent)

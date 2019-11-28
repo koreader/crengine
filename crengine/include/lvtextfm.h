@@ -220,10 +220,13 @@ typedef struct
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
-                         // Each line box starts with a zero-width inline box (called "strut") with
-                         // the element's font and line height properties:
+
+    // Each line box starts with a zero-width inline box (called "strut") with
+    // the element's font and line height properties:
    lUInt16               strut_height;   /**< strut height */
    lUInt16               strut_baseline; /**< strut baseline */
+
+   // Image scaling options
    lInt32                img_zoom_in_mode_block; /**< can zoom in block images: 0=disabled, 1=integer scale, 2=free scale */
    lInt32                img_zoom_in_scale_block; /**< max scale for block images zoom in: 1, 2, 3 */
    lInt32                img_zoom_in_mode_inline; /**< can zoom in inline images: 0=disabled, 1=integer scale, 2=free scale */
@@ -232,7 +235,12 @@ typedef struct
    lInt32                img_zoom_out_scale_block; /**< max scale for block images zoom out: 1, 2, 3 */
    lInt32                img_zoom_out_mode_inline; /**< can zoom out inline images: 0=disabled, 1=integer scale, 2=free scale */
    lInt32                img_zoom_out_scale_inline; /**< max scale for inline images zoom out: 1, 2, 3 */
-   lInt32                min_space_condensing_percent; /**< min size of space (relative to normal size) to allow fitting line by reducing of spaces */
+
+   // Space width
+   lInt32                space_width_scale_percent; /**< scale the normal width of all spaces in all fonts by this percent */
+   lInt32                min_space_condensing_percent; /**< min size of space (relative to scaled size) to allow fitting line by reducing of spaces */
+
+   // Highlighting
    text_highlight_options_t highlight_options; /**< options for selection/bookmark highlighting */
 } formatted_text_fragment_t;
 
@@ -313,7 +321,12 @@ public:
     /// set image scaling options
     void setImageScalingOptions( img_scaling_options_t * options );
 
+    /// set space glyph width scaling percent option (10..500%)
+    // (scale the normal width of all spaces in all fonts by this percent)
+    void setSpaceWidthScalePercent(int spaceWidthScalePercent);
+
     /// set space condensing line fitting option (25..100%)
+    // (applies after spaceWidthScalePercent has been applied)
     void setMinSpaceCondensingPercent(int minSpaceWidthPercent);
 
     /// set colors for selection and bookmarks

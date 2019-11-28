@@ -4383,6 +4383,7 @@ void LVDocView::createEmptyDocument() {
 			PROP_EMBEDDED_STYLES, true));
     m_doc->setDocFlag(DOC_FLAG_ENABLE_DOC_FONTS, m_props->getBoolDef(
             PROP_EMBEDDED_FONTS, true));
+    m_doc->setSpaceWidthScalePercent(m_props->getIntDef(PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT, 100));
     m_doc->setMinSpaceCondensingPercent(m_props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, 50));
 
     m_doc->setContainer(m_container);
@@ -6081,7 +6082,14 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
     props->setIntDef(PROP_IMG_SCALING_ZOOMIN_BLOCK_MODE, defImgScaling.mode);
     props->setIntDef(PROP_IMG_SCALING_ZOOMIN_INLINE_MODE, defImgScaling.mode);
 
-    int p = props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT);
+    int p = props->getIntDef(PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT, DEF_SPACE_WIDTH_SCALE_PERCENT);
+    if (p<10)
+        p = 10;
+    if (p>500)
+        p = 500;
+    props->setInt(PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT, p);
+
+    p = props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT);
     if (p<25)
         p = 25;
     if (p>100)
@@ -6379,6 +6387,11 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 gRenderScaleFontWithDPI = value;
                 REQUEST_RENDER("propsApply render scale font with dpi")
             }
+        } else if (name == PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT) {
+            int value = props->getIntDef(PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT, DEF_SPACE_WIDTH_SCALE_PERCENT);
+            if (m_doc) // not when noDefaultDocument=true
+                if (getDocument()->setSpaceWidthScalePercent(value))
+                    REQUEST_RENDER("propsApply space width scale percent")
         } else if (name == PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT) {
             int value = props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT);
             if (m_doc) // not when noDefaultDocument=true
