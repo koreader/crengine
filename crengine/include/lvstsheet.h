@@ -138,9 +138,8 @@ enum LVCssSelectorRuleType
     cssrt_predecessor,       // E + F
     cssrt_predsibling,       // E ~ F
     cssrt_attrset,           // E[foo]
-    cssrt_attrset_i,         // E[foo i] (case insensitive)
     cssrt_attreq,            // E[foo="value"]
-    cssrt_attreq_i,          // E[foo="value i"]
+    cssrt_attreq_i,          // E[foo="value i"] (case insensitive)
     cssrt_attrhas,           // E[foo~="value"]
     cssrt_attrhas_i,         // E[foo~="value i"]
     cssrt_attrstarts_word,   // E[foo|="value"]
