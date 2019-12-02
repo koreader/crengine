@@ -7084,9 +7084,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                         }
                         rect.bottom = rect.top + frmline->height;
                         return true;
-                    } else if ( (offset < word->t.start+word->t.len)
-                               || (offset==srcLen
-                                   && offset == word->t.start+word->t.len) ) {
+                    } else if ( (word->src_text_index == srcIndex) &&
+                                ( (offset < word->t.start+word->t.len) ||
+                                  (offset==srcLen && offset == word->t.start+word->t.len) ) ) {
                         // pointer inside this word
                         LVFont *font = (LVFont *) txtform->GetSrcInfo(srcIndex)->t.font;
                         lUInt16 w[512];
