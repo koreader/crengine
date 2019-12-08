@@ -4470,97 +4470,90 @@ bool LVDocView::ParseDocument() {
 	}
 
 	{
-		ldomDocumentWriter writer(m_doc);
-		ldomDocumentWriterFilter writerFilter(m_doc, false,
-				HTML_AUTOCLOSE_TABLE);
+        ldomDocumentWriter writer(m_doc);
+        ldomDocumentWriterFilter writerFilter(m_doc, false,
+                HTML_AUTOCLOSE_TABLE);
 
-		if (m_stream->GetSize() < 5) {
-            createDefaultDocument(cs16("ERROR: Wrong document size"),
-                    cs16("Cannot open document"));
-			return false;
-		}
+        LVFileFormatParser * parser = NULL;
+        if (m_stream->GetSize() >= 5) {
+            // Only check the following formats when the document is
+            // at least 5 bytes: if not, go directly with plain text.
 
-		/// FB2 format
-		setDocFormat( doc_format_fb2);
-        LVFileFormatParser * parser = new LVXMLParser(m_stream, &writer, false, true);
-		if (!parser->CheckFormat()) {
-			delete parser;
-			parser = NULL;
-		} else {
-		}
+            /// FB2 format
+            setDocFormat( doc_format_fb2);
+            parser = new LVXMLParser(m_stream, &writer, false, true);
+            if (!parser->CheckFormat()) {
+                delete parser;
+                parser = NULL;
+            }
 
-		/// RTF format
-		if (parser == NULL) {
-			setDocFormat( doc_format_rtf);
-			parser = new LVRtfParser(m_stream, &writer);
-			if (!parser->CheckFormat()) {
-				delete parser;
-				parser = NULL;
-			}
-		}
+            /// RTF format
+            if (parser == NULL) {
+                setDocFormat( doc_format_rtf);
+                parser = new LVRtfParser(m_stream, &writer);
+                if (!parser->CheckFormat()) {
+                    delete parser;
+                    parser = NULL;
+                }
+            }
 
-		/// HTML format
-		if (parser == NULL) {
-			setDocFormat( doc_format_html);
-			parser = new LVHTMLParser(m_stream, &writerFilter);
-			if (!parser->CheckFormat()) {
-				delete parser;
-				parser = NULL;
-			} else {
-			}
-		}
-		///cool reader bookmark in txt format
-		if (parser == NULL) {
+            /// HTML format
+            if (parser == NULL) {
+                setDocFormat( doc_format_html);
+                parser = new LVHTMLParser(m_stream, &writerFilter);
+                if (!parser->CheckFormat()) {
+                    delete parser;
+                    parser = NULL;
+                }
+            }
 
-			//m_text_format = txt_format_pre; // DEBUG!!!
-			setDocFormat( doc_format_txt_bookmark);
-			parser = new LVTextBookmarkParser(m_stream, &writer);
-			if (!parser->CheckFormat()) {
-				delete parser;
-				parser = NULL;
-			}
-		} else {
-		}
+            ///cool reader bookmark in txt format
+            if (parser == NULL) {
+                //m_text_format = txt_format_pre; // DEBUG!!!
+                setDocFormat( doc_format_txt_bookmark);
+                parser = new LVTextBookmarkParser(m_stream, &writer);
+                if (!parser->CheckFormat()) {
+                    delete parser;
+                    parser = NULL;
+                }
+            }
+        }
 
-		/// plain text format
-		if (parser == NULL) {
+        /// plain text format
+        if (parser == NULL) {
+            //m_text_format = txt_format_pre; // DEBUG!!!
+            setDocFormat( doc_format_txt);
+            parser = new LVTextParser(m_stream, &writer,
+                            getTextFormatOptions() == txt_format_pre);
+            if (!parser->CheckFormat()) {
+                delete parser;
+                parser = NULL;
+            }
+        }
 
-			//m_text_format = txt_format_pre; // DEBUG!!!
-			setDocFormat( doc_format_txt);
-			parser = new LVTextParser(m_stream, &writer, getTextFormatOptions()
-					== txt_format_pre);
-			if (!parser->CheckFormat()) {
-				delete parser;
-				parser = NULL;
-			}
-		} else {
-		}
+        /// plain text format (robust, never fail)
+        if (parser == NULL) {
+            setDocFormat( doc_format_txt);
+            parser = new LVTextRobustParser(m_stream, &writer,
+                             getTextFormatOptions() == txt_format_pre);
+            if (!parser->CheckFormat()) {
+                // Never reached
+                delete parser;
+                parser = NULL;
+            }
+        }
 
-		/// plain text format (robust, never fail)
-		if (parser == NULL) {
-
-			setDocFormat( doc_format_txt);
-			parser = new LVTextRobustParser(m_stream, &writer,
-							 getTextFormatOptions() == txt_format_pre);
-			if (!parser->CheckFormat()) {
-				// Never reach
-				delete parser;
-				parser = NULL;
-			}
-		} else {
-		}
-
-		// unknown format (never reach)
-		if (!parser) {
-			setDocFormat( doc_format_none);
+        // unknown format (never reached)
+        if (!parser) {
+            setDocFormat( doc_format_none);
             createDefaultDocument(cs16("ERROR: Unknown document format"),
                     cs16("Cannot open document"));
-			if (m_callback) {
-				m_callback->OnLoadFileError(
+            if (m_callback) {
+                m_callback->OnLoadFileError(
                         cs16("Unknown document format"));
-			}
-			return false;
-		}
+            }
+            return false;
+        }
 
 		if (m_callback) {
 			m_callback->OnLoadFileFormatDetected(getDocFormat());
