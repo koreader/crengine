@@ -550,6 +550,7 @@ void LVDocView::clearImageCache() {
 
 /// invalidate formatted data, request render
 void LVDocView::requestRender() {
+	LVLock lock(getMutex());
 	if (!m_doc) // nothing to render when noDefaultDocument=true
 		return;
 	m_is_rendered = false;
@@ -1244,6 +1245,8 @@ int LVDocView::GetFullHeight() {
 /// calculate page header height
 int LVDocView::getPageHeaderHeight() {
 	if (!getPageHeaderInfo())
+		return 0;
+	if (!getInfoFont())
 		return 0;
         int h = getInfoFont()->getHeight();
         int bh = m_batteryIcons.length()>0 ? m_batteryIcons[0]->GetHeight() * 11/10 + HEADER_MARGIN / 2 : 0;

@@ -531,6 +531,7 @@ protected:
 
 public:
 
+#if BUILD_LITE!=1
     bool setSpaceWidthScalePercent(int spaceWidthScalePercent) {
         if (spaceWidthScalePercent == _spaceWidthScalePercent)
             return false;
@@ -544,7 +545,9 @@ public:
         _minSpaceCondensingPercent = minSpaceCondensingPercent;
         return true;
     }
+#endif
 
+#if BUILD_LITE!=1
     /// add named BLOB data to document
     bool addBlob(lString16 name, const lUInt8 * data, int size) { _cacheFileStale = true ; return _blobCache.addBlob(data, size, name); }
     /// get BLOB by name
@@ -553,7 +556,6 @@ public:
     /// called on document loading end
     bool validateDocument();
 
-#if BUILD_LITE!=1
     /// swaps to cache file or saves changes, limited by time interval (can be called again to continue after TIMEOUT)
     virtual ContinuousOperationResult swapToCache(CRTimerUtil & maxTime) = 0;
     /// try opening from cache file, find by source file name (w/o path) and crc32
@@ -602,6 +604,7 @@ public:
     /// returns doc properties collection
     void setProps( CRPropRef props ) { _docProps = props; }
 
+#if BUILD_LITE!=1
     /// set cache file stale flag
     void setCacheFileStale( bool stale ) { _cacheFileStale = stale; }
 
@@ -620,6 +623,7 @@ public:
     void invalidateCacheFile() { _cacheFileLeaveAsDirty = true; };
     /// get cache file full path
     lString16 getCacheFilePath();
+#endif
 
     /// minimize memory consumption
     void compact();
@@ -1481,7 +1485,7 @@ public:
 	{
 		return *_data != *v._data;
 	}
-#if BUILD_LITE!=1
+//#if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
     bool getRect(lvRect & rect, bool extended=false, bool adjusted=false) const;
     /// returns glyph rectangle for pointer inside formatted document considering paddings and borders
@@ -1489,7 +1493,7 @@ public:
     bool getRectEx(lvRect & rect, bool adjusted=false) const { return getRect(rect, true, adjusted); };
     /// returns coordinates of pointer inside formatted document
     lvPoint toPoint( bool extended=false ) const;
-#endif
+//#endif
     /// converts to string
 	lString16 toString();
     /// returns XPath node text
@@ -2233,13 +2237,13 @@ protected:
 
 public:
 
+#if BUILD_LITE!=1
     void forceReinitStyles() {
         dropStyles();
         _hdr.render_style_hash = 0;
         _rendered = false;
     }
 
-#if BUILD_LITE!=1
     ListNumberingPropsRef getNodeNumberingProps( lUInt32 nodeDataIndex );
     void setNodeNumberingProps( lUInt32 nodeDataIndex, ListNumberingPropsRef v );
     void resetNodeNumberingProps();
@@ -2272,9 +2276,9 @@ public:
     /// build TOC from headings
     void buildTocFromHeadings();
 
+#if BUILD_LITE!=1
     bool isTocFromCacheValid() { return _toc_from_cache_valid; }
 
-#if BUILD_LITE!=1
     /// save document formatting parameters after render
     void updateRenderContext();
     /// check document formatting parameters before render - whether we need to reformat; returns false if render is necessary
@@ -2453,7 +2457,13 @@ public:
     /// called on text
     virtual void OnText( const lChar16 * text, int len, lUInt32 flags );
     /// add named BLOB data to document
-    virtual bool OnBlob(lString16 name, const lUInt8 * data, int size) { return _document->addBlob(name, data, size); }
+    virtual bool OnBlob(lString16 name, const lUInt8 * data, int size) {
+#if BUILD_LITE!=1
+        return _document->addBlob(name, data, size);
+#else
+        return false;
+#endif
+    }
     /// set document property
     virtual void OnDocProperty(const char * name, lString8 value) { _document->getProps()->setString(name, value); }
 

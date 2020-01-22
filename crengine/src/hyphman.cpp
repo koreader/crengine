@@ -161,6 +161,8 @@ bool HyphMan::activateDictionaryFromStream( LVStreamRef stream )
     if (method->largest_overflowed_word)
         printf("CRE WARNING: hyph dict from stream: some hyphenation patterns were too long and have been ignored: increase MAX_PATTERN_SIZE from %d to %d\n", MAX_PATTERN_SIZE, method->largest_overflowed_word);
     CRLog::debug("Dictionary is loaded successfully. Activating.");
+    if (!_dictList)
+        _dictList = new HyphDictionaryList();
     HyphMan::_method = method;
     if ( HyphMan::_dictList->find(lString16(HYPH_DICT_ID_DICTIONARY))==NULL ) {
         HyphDictionary * dict = new HyphDictionary( HDT_DICT_ALAN, cs16("Dictionary"), lString16(HYPH_DICT_ID_DICTIONARY), lString16::empty_str );

@@ -42,15 +42,6 @@ extern "C" {
 
 #define LS_DEBUG_CHECK
 
-#if defined(_DEBUG) && BUILD_LITE==1
-    int STARTUP_FLAG = 1;
-#define CHECK_STARTUP_STAGE \
-    if ( STARTUP_FLAG ) \
-        crFatalError(-123, "Cannot create global or static CREngine object")
-#else
-#define CHECK_STARTUP_STAGE
-#endif
-
 // set to 1 to enable debugging
 #define DEBUG_STATIC_STRING_ALLOC 0
 
@@ -574,7 +565,6 @@ void lString16::free()
 {
     if ( pchunk==EMPTY_STR_16 )
         return;
-    CHECK_STARTUP_STAGE;
     //assert(pchunk->buf16[pchunk->len]==0);
     ::free(pchunk->buf16);
 #if (LDOM_USE_OWN_MEM_MAN == 1)
@@ -604,7 +594,6 @@ void lString16::alloc(int sz)
 
 lString16::lString16(const lChar16 * str)
 {
-    CHECK_STARTUP_STAGE;
     if (!str || !(*str))
     {
         pchunk = EMPTY_STR_16;
@@ -619,7 +608,6 @@ lString16::lString16(const lChar16 * str)
 
 lString16::lString16(const lChar8 * str)
 {
-    CHECK_STARTUP_STAGE;
     if (!str || !(*str))
     {
         pchunk = EMPTY_STR_16;
@@ -634,7 +622,6 @@ lString16::lString16(const lChar8 * str)
 /// constructor from utf8 character array fragment
 lString16::lString16(const lChar8 * str, size_type count)
 {
-    CHECK_STARTUP_STAGE;
     if (!str || !(*str))
     {
         pchunk = EMPTY_STR_16;
@@ -649,7 +636,6 @@ lString16::lString16(const lChar8 * str, size_type count)
 
 lString16::lString16(const value_type * str, size_type count)
 {
-    CHECK_STARTUP_STAGE;
     if ( !str || !(*str) || count<=0 )
     {
         pchunk = EMPTY_STR_16; addref();
@@ -665,7 +651,6 @@ lString16::lString16(const value_type * str, size_type count)
 
 lString16::lString16(const lString16 & str, size_type offset, size_type count)
 {
-    CHECK_STARTUP_STAGE;
     if ( count > str.length() - offset )
         count = str.length() - offset;
     if (count<=0)
@@ -1665,7 +1650,6 @@ void lString8::free()
 {
     if ( pchunk==EMPTY_STR_8 )
         return;
-    CHECK_STARTUP_STAGE;
     ::free(pchunk->buf8);
 #if (LDOM_USE_OWN_MEM_MAN == 1)
     for (int i=slices_count-1; i>=0; --i)
@@ -1694,7 +1678,6 @@ void lString8::alloc(int sz)
 
 lString8::lString8(const lChar8 * str)
 {
-    CHECK_STARTUP_STAGE;
     if (!str || !(*str))
     {
         pchunk = EMPTY_STR_8;
@@ -1709,7 +1692,6 @@ lString8::lString8(const lChar8 * str)
 
 lString8::lString8(const lChar16 * str)
 {
-    CHECK_STARTUP_STAGE;
     if (!str || !(*str))
     {
         pchunk = EMPTY_STR_8;
@@ -1739,7 +1721,6 @@ lString8::lString8(const value_type * str, size_type count)
 
 lString8::lString8(const lString8 & str, size_type offset, size_type count)
 {
-    CHECK_STARTUP_STAGE;
     if ( count > str.length() - offset )
         count = str.length() - offset;
     if (count<=0)
@@ -2985,6 +2966,7 @@ static void DecodeUtf8(const char * s,  lChar16 * p, int len)
 
 // Top two bits are 10, i.e. original & 11000000(2) == 10000000(2)
 #define IS_FOLLOWING(index) ((s[index] & 0xC0) == 0x80)
+
 void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar16 * dst, int &dstlen)
 {
     const lUInt8 * s = src;
@@ -2992,9 +2974,10 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar16 * dst, int &dstlen)
     lChar16 * p = dst;
     lChar16 * endp = p + dstlen;
     lUInt32 ch;
+    bool matched;
     while (p < endp && s < ends) {
         ch = *s;
-        bool matched = false;
+        matched = false;
         if ( (ch & 0x80) == 0 ) {
             matched = true;
             *p++ = (char)ch;
@@ -3034,7 +3017,6 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar16 * dst, int &dstlen)
                 //   characters directly, but only as a pair.
                 // (Note that lChar16 (wchar_t) is 4-bytes, and can store
                 // unicode codepoint > 0xFFFF like 0x10123)
-                ch = *(p-1); // re-read what we wrote
                 if (*(p-1) >= 0xD800 && *(p-1) <= 0xDBFF && s+2 < ends) { // what we wrote is a high surrogate,
                     lUInt32 next = *s;                            // and there's room next for a low surrogate
                     if ( (next & 0xF0) == 0xE0 && IS_FOLLOWING(1) && IS_FOLLOWING(2)) { // is a valid 3-bytes sequence
@@ -3066,7 +3048,6 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar16 * dst, int &dstlen)
             s++;
             matched = true; // just to avoid next if
         }
-
         // unexpected character
         if (!matched) {
             *p++ = '?';

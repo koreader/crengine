@@ -527,7 +527,7 @@ public:
                 if (!_url.empty()) {
 //                    CRLog::trace("@font { face: %s; bold: %s; italic: %s; url: %s", _face.c_str(), _bold ? "yes" : "no",
 //                                 _italic ? "yes" : "no", LCSTR(_url));
-                    if (islocal.length()==5 and _basePath.length()!=0)
+                    if (islocal.length()==5 && _basePath.length()!=0)
                         _url = _url.substr((_basePath.length()+1), (_url.length()-_basePath.length()));
                     if (_fontList.findByUrl(_url))
                         _url=_url.append(lString16(" ")); //avoid add() replaces existing local name
@@ -539,7 +539,7 @@ public:
         case ',':
             if (_state == 2) {
                 if (!_url.empty()) {
-                      if (islocal.length() == 5 and _basePath.length()!=0) _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
+                      if (islocal.length() == 5 && _basePath.length()!=0) _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
                         if (_fontList.findByUrl(_url)) _url=_url.append(lString16(" "));
                     _fontList.add(_url, _face, _bold, _italic);
                 }
