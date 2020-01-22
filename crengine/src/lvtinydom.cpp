@@ -14716,8 +14716,9 @@ void ldomDocument::registerEmbeddedFonts()
                 if (!tmp.empty()) {face=tmp;break;}
             }
         }
-        if ((!x.empty() and x.pos(face)!=-1) or url.empty())
-        {continue;}
+        if ((!x.empty() && x.pos(face)!=-1) || url.empty()) {
+            continue;
+        }
         if (url.startsWithNoCase(lString16("res://")) || url.startsWithNoCase(lString16("file://"))) {
             if (!fontMan->RegisterExternalFont(item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
                 //CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
@@ -14727,7 +14728,7 @@ void ldomDocument::registerEmbeddedFonts()
         else {
             if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
                 //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
-            lString16 fontface = lString16("");
+                lString16 fontface = lString16("");
                 for (int j = 0; j < cnt; j = j + 1) {
                 fontface = flist[j];
                 do { (fontface.replace(lString16(" "), lString16("\0"))); }

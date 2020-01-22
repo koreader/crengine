@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <lvtextfm.h>
 #include "../include/crsetup.h"
 #include "../include/lvfnt.h"
 #include "../include/lvtextfm.h"
@@ -2613,7 +2612,7 @@ public:
                                     word->width -= w; // first line with text-indent
                             }
                         }
-                        if (frmline->width!=0 and last and align!=LTEXT_ALIGN_CENTER) {
+                        if (frmline->width!=0 && last && align!=LTEXT_ALIGN_CENTER) {
                             // (Chinese) add spaces between words in last line or single line
                             // (so they get visually aligned on a grid with the char on the
                             // previous justified lines)

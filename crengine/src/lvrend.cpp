@@ -6907,7 +6907,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
     bc = style->border_color[3];
     hasleftBorder = hasleftBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
 
-    if (hasbottomBorder or hasleftBorder or hasrightBorder or hastopBorder) {
+    if (hasbottomBorder || hasleftBorder || hasrightBorder || hastopBorder) {
         lUInt32 shadecolor=0x555555;
         lUInt32 lightcolor=0xAAAAAA;
         int em = enode->getFont()->getSize();
@@ -7956,6 +7956,7 @@ inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool un
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
 {
+    CR_UNUSED(parent_font);
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();

@@ -34,6 +34,7 @@ extern "C" {
 
 #include <jerror.h>
 
+#if (USE_NANOSVG==1)
 // Support for SVG
 #include <math.h>
 #define NANOSVG_ALL_COLOR_KEYWORDS
@@ -43,6 +44,7 @@ extern "C" {
 #include <nanosvg.h>
 #include <nanosvgrast.h>
 #include <stb_image_write.h> // for svg to png conversion
+#endif
 
 #if !defined(HAVE_WXJPEG_BOOLEAN)
 typedef boolean wxjpeg_boolean;
@@ -1627,6 +1629,7 @@ void LVGifFrame::Clear()
 // ======= end of GIF support
 
 
+#if (USE_NANOSVG==1)
 // SVG support
 
 class LVSvgImageSource : public LVNodeImageSource
@@ -1843,7 +1846,7 @@ unsigned char * convertSVGtoPNG(unsigned char *svg_data, int svg_data_size, floa
 }
 
 // ======= end of SVG support
-
+#endif
 
 
 LVImageDecoderCallback::~LVImageDecoderCallback()
@@ -1885,10 +1888,13 @@ LVImageSourceRef LVCreateStreamImageSource( ldomNode * node, LVStreamRef stream 
         img = new LVGifImageSource( node, stream );
     else
 #endif
+#if (USE_NANOSVG==1)
     if ( LVSvgImageSource::CheckPattern( hdr, (lUInt32)bytesRead ) )
         img = new LVSvgImageSource( node, stream );
     else
+#endif
         img = new LVDummyImageSource( node, 50, 50 );
+
     if ( !img )
         return ref;
     ref = LVImageSourceRef( img );
