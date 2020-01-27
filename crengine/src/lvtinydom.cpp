@@ -6575,7 +6575,7 @@ xpath_step_t ParseXPathStep( const lChar16 * &path, lString16 & name, int & inde
             pos++;
             while (s[pos]>='0' && s[pos]<='9')
                 pos++;
-            if (s[pos] && s[pos!='/'] && s[pos]!='.')
+            if (s[pos] && s[pos]!='/' && s[pos]!='.')
                 return xpath_step_error;
             lString16 sindex( path+nstart, pos-nstart );
             index = sindex.atoi();
