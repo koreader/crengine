@@ -2054,7 +2054,7 @@ lString16 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
             lString16 marker;
             int markerWidth = 0;
             ldomNode * child = parent->getChildElementNode(i);
-            if ( child->getNodeId() == el_floatBox || child->getNodeId() == el_inlineBox ) {
+            if ( child && ( child->getNodeId() == el_floatBox || child->getNodeId() == el_inlineBox ) ) {
                 child = child->getChildNode(0);
             }
             if ( child && child->getNodeListMarker( counterValue, marker, markerWidth ) ) {
@@ -5547,7 +5547,7 @@ void BlockFloatFootprint::store(ldomNode * node)
         RENDER_RECT_UNSET_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
     }
     fmt.push();
-};
+}
 
 void BlockFloatFootprint::restore(ldomNode * node, int final_width)
 {
@@ -5563,7 +5563,7 @@ void BlockFloatFootprint::restore(ldomNode * node, int final_width)
         generateEmbeddedFloatsFromFootprints( final_width );
     }
     no_clear_own_floats = RENDER_RECT_HAS_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
-};
+}
 
 // Enhanced block rendering
 void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int container_width, int flags )
