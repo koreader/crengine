@@ -84,7 +84,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.36k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.37k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x001F
 
@@ -461,9 +461,11 @@ struct SimpleCacheFileHeader
 {
     char _magic[CACHE_FILE_MAGIC_SIZE] = { 0 }; // magic
     lUInt32 _dirty;
+    lUInt32 _dom_version;
     SimpleCacheFileHeader( lUInt32 dirtyFlag ) {
         memcpy( _magic, _compressCachedData ? COMPRESSED_CACHE_FILE_MAGIC : UNCOMPRESSED_CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE );
         _dirty = dirtyFlag;
+        _dom_version = gDOMVersionRequested;
     }
 };
 
@@ -481,6 +483,11 @@ struct CacheFileHeader : public SimpleCacheFileHeader
         if ( _dirty!=0 ) {
             CRLog::error("CacheFileHeader::validate: dirty flag is set");
             printf("CRE: ignoring cache file (marked as dirty)\n");
+            return false;
+        }
+        if ( _dom_version != gDOMVersionRequested ) {
+            CRLog::error("CacheFileHeader::validate: DOM version mismatch");
+            printf("CRE: ignoring cache file (dom version mismatch)\n");
             return false;
         }
         return true;
