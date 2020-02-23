@@ -44,6 +44,7 @@
 extern const int gDOMVersionCurrent;
 extern int gDOMVersionRequested;
 
+#define DOM_VERSION_WITH_NORMALIZED_XPOINTERS 20180528
 
 #define LXML_NO_DATA       0 ///< to mark data storage record as empty
 #define LXML_ELEMENT_NODE  1 ///< element node
@@ -157,6 +158,11 @@ typedef enum {
     IMG_INTEGER_SCALING, /// integer multipier/divisor scaling -- *2, *3 only
     IMG_FREE_SCALING     /// free scaling, non-integer factor
 } img_scaling_mode_t;
+
+enum XPointerMode {
+    XPATH_USE_NAMES = 0,
+    XPATH_USE_INDEXES
+};
 
 /// image scaling option
 struct img_scaling_option_t {
@@ -806,6 +812,8 @@ private:
     /// returns true if element has inline content (non empty text, images, <BR>)
     bool hasNonEmptyInlineContent( bool ignoreFloats=false );
 
+    lString16 getXPathSegmentUsingNames();
+    lString16 getXPathSegmentUsingIndexes();
 public:
 #if BUILD_LITE!=1
     /// if stylesheet file name is set, and file is found, set stylesheet to its value
@@ -894,7 +902,7 @@ public:
 
     /// returns attribute value by attribute name id, looking at children if needed
     const lString16 & getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 id ) const;
-    const lString16 & getFirstInnerAttributeValue( lUInt16 id ) const { return getFirstInnerAttributeValue( LXML_NS_ANY, id ); };
+    const lString16 & getFirstInnerAttributeValue( lUInt16 id ) const { return getFirstInnerAttributeValue( LXML_NS_ANY, id ); }
 
     /// returns element type structure pointer if it was set in document for this element name
     const css_elem_def_props_t * getElementTypePtr();
@@ -1325,7 +1333,6 @@ class ldomDocument;
 
 class ldomDocument;
 
-
 /**
  * @brief XPointer/XPath object with reference counting.
  * 
@@ -1490,12 +1497,20 @@ public:
     bool getRect(lvRect & rect, bool extended=false, bool adjusted=false) const;
     /// returns glyph rectangle for pointer inside formatted document considering paddings and borders
     /// (with adjusted=true, adjust for left and right side bearing of the glyph, for cleaner highlighting)
-    bool getRectEx(lvRect & rect, bool adjusted=false) const { return getRect(rect, true, adjusted); };
+    bool getRectEx(lvRect & rect, bool adjusted=false) const { return getRect(rect, true, adjusted); }
     /// returns coordinates of pointer inside formatted document
     lvPoint toPoint( bool extended=false ) const;
 //#endif
     /// converts to string
-	lString16 toString();
+    lString16 toString( XPointerMode mode = XPATH_USE_NAMES) {
+        if( XPATH_USE_NAMES==mode ) {
+            if( gDOMVersionRequested >= DOM_VERSION_WITH_NORMALIZED_XPOINTERS)
+                return toStringUsingNames();
+            return toStringUsingNamesOld();
+        }
+        return toStringUsingIndexes();
+    }
+
     /// returns XPath node text
     lString16 getText(  lChar16 blockDelimiter=0 )
     {
@@ -1508,11 +1523,11 @@ public:
     lString16 getHRef();
     /// returns href attribute of <A> element, plus xpointer of <A> element itself
     lString16 getHRef(ldomXPointer & a_xpointer);
-	/// create a copy of pointer data
-	ldomXPointer * clone()
-	{
-		return new ldomXPointer( _data );
-	}
+    /// create a copy of pointer data
+    ldomXPointer * clone()
+    {
+            return new ldomXPointer( _data );
+    }
     /// returns true if current node is element
     inline bool isElement() const { return !isNull() && getNode()->isElement(); }
     /// returns true if current node is element
@@ -1521,7 +1536,10 @@ public:
     lString8 getHtml( lString16Collection & cssFiles, int wflags=0 );
     lString8 getHtml( int wflags=0 ) {
         lString16Collection cssFiles; return getHtml(cssFiles, wflags);
-    };
+    }
+    lString16 toStringUsingNames();
+    lString16 toStringUsingNamesOld();
+    lString16 toStringUsingIndexes();
 };
 
 #define MAX_DOM_LEVEL 64
@@ -2229,6 +2247,8 @@ private:
     virtual ContinuousOperationResult saveChanges( CRTimerUtil & maxTime, LVDocViewCallback * progressCallback=NULL );
 #endif
 
+    ldomXPointer createXPointerV1( ldomNode * baseNode, const lString16 & xPointerStr );
+    ldomXPointer createXPointerV2( ldomNode * baseNode, const lString16 & xPointerStr );
 protected:
 
 #if BUILD_LITE!=1
@@ -2361,7 +2381,13 @@ public:
     }
 
     /// create xpointer from relative pointer string
-    ldomXPointer createXPointer( ldomNode * baseNode, const lString16 & xPointerStr );
+    ldomXPointer createXPointer( ldomNode * baseNode, const lString16 & xPointerStr )
+    {
+        if( gDOMVersionRequested >= DOM_VERSION_WITH_NORMALIZED_XPOINTERS)
+            return createXPointerV2(baseNode, xPointerStr);
+        return createXPointerV1(baseNode, xPointerStr);
+    }
+
 #if BUILD_LITE!=1
     /// create xpointer from doc point
     ldomXPointer createXPointer( lvPoint pt, int direction=PT_DIR_EXACT, bool strictBounds=false, ldomNode * from_node=NULL );
