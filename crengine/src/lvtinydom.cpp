@@ -1906,6 +1906,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeStylesInvalidIfLoading(false)
+, _boxingWishedButPreventedByCache(false)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -1943,6 +1944,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNITIALIZED)
 , _nodeStylesInvalidIfLoading(false)
+, _boxingWishedButPreventedByCache(false)
 #endif
 , _textStorage(this, 't', (int)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (int)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
@@ -4438,6 +4440,10 @@ int ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, 
         CRLog::trace("Restoring stylesheet...");
         _stylesheet.pop();
 
+        // initNodeRendMethod may wish to box elements, but may be
+        // prevented from doing so by an existing cache file
+        _boxingWishedButPreventedByCache = false;
+
         CRLog::trace("init render method...");
         getRootNode()->initNodeRendMethodRecursive();
 
@@ -5102,7 +5108,7 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex, bool handleFloatin
 bool ldomNode::cleanIfOnlyEmptyTextInline( bool handleFloating )
 {
 #if BUILD_LITE!=1
-    if ( this->getDocument()->hasCacheFile() )
+    if ( getDocument()->hasCacheFile() )
         // We can't remove anything if there is a cache file
         return false;
     if ( !isElement() )
@@ -5418,6 +5424,9 @@ int initTableRendMethods( ldomNode * enode, int state )
                     first_unproper = i;
             }
             else {
+                if ( BLOCK_RENDERING_G(COMPLETE_INCOMPLETE_TABLES) && enode->getDocument()->hasCacheFile() ) {
+                    enode->getDocument()->setBoxingWishedButPreventedByCache();
+                }
                 // Asked to not complete incomplete tables, or we can't insert
                 // tabularBox elements anymore
                 if ( !BLOCK_RENDERING_G(ENHANCED) ) {
@@ -5446,12 +5455,6 @@ int initTableRendMethods( ldomNode * enode, int state )
                     // a height=0, and so the inner content will overflow
                     // its container and will not be drawn...)
                 }
-                // (If it's because hasCacheFile(), we'd like to set a bogus
-                // display to provoke a displayHash change, but it would then
-                // stick if the user does not reload... Hopefully, if we're
-                // re-rendering with a cache file and are here and we do not
-                // find an existing tabularBox, styles have probably changed
-                // elsewhere...)
             }
         }
         if ( first_unproper >= 0 && (is_proper || is_last) ) {
@@ -5785,7 +5788,9 @@ void ldomNode::initNodeRendMethod()
                         // j..i are inline
                         if ( j>0 || i<(int)getChildCount()-1 )
                             // Avoid crash: we can't add/move nodes when a cache file exists
-                            if ( !this->getDocument()->hasCacheFile() )
+                            if ( getDocument()->hasCacheFile() )
+                                getDocument()->setBoxingWishedButPreventedByCache();
+                            else
                                 autoboxChildren( j, i, handleFloating );
                         i = j;
                     }
@@ -5815,33 +5820,38 @@ void ldomNode::initNodeRendMethod()
                             inBetweenTextNode = prev;
                             prev = getChildNode(i-2);
                         }
-                        if ( prev->isElement() && prev->getRendMethod()==erm_runin && !this->getDocument()->hasCacheFile() ) {
-                            bool do_autoboxing = true;
-                            int run_in_idx = inBetweenTextNode ? i-2 : i-1;
-                            int block_idx = i;
-                            if ( inBetweenTextNode ) {
-                                lString16 text = inBetweenTextNode->getText();
-                                if ( IsEmptySpace(text.c_str(), text.length() ) ) {
-                                    removeChildren(i-1, i-1);
-                                    block_idx = i-1;
-                                }
-                                else {
-                                    do_autoboxing = false;
-                                }
+                        if ( prev->isElement() && prev->getRendMethod()==erm_runin ) {
+                            if ( getDocument()->hasCacheFile() ) {
+                                getDocument()->setBoxingWishedButPreventedByCache();
                             }
-                            if ( do_autoboxing ) {
-                                CRLog::debug("Autoboxing run-in items");
-                                // Sadly, to avoid having an erm_final inside another erm_final,
-                                // we need to reset the block node to be inline (but that second
-                                // erm_final would have been handled as inline anyway, except
-                                // for possibly updating the strut height/baseline).
-                                node->recurseMatchingElements( resetRendMethodToInline, isNotBoxingInlineBoxNode );
-                                // No need to autobox if there are only 2 children (the run-in and this box)
-                                if ( getChildCount()!=2 ) { // autobox run-in
-                                    autoboxChildren( run_in_idx, block_idx, handleFloating );
+                            else {
+                                bool do_autoboxing = true;
+                                int run_in_idx = inBetweenTextNode ? i-2 : i-1;
+                                int block_idx = i;
+                                if ( inBetweenTextNode ) {
+                                    lString16 text = inBetweenTextNode->getText();
+                                    if ( IsEmptySpace(text.c_str(), text.length() ) ) {
+                                        removeChildren(i-1, i-1);
+                                        block_idx = i-1;
+                                    }
+                                    else {
+                                        do_autoboxing = false;
+                                    }
                                 }
+                                if ( do_autoboxing ) {
+                                    CRLog::debug("Autoboxing run-in items");
+                                    // Sadly, to avoid having an erm_final inside another erm_final,
+                                    // we need to reset the block node to be inline (but that second
+                                    // erm_final would have been handled as inline anyway, except
+                                    // for possibly updating the strut height/baseline).
+                                    node->recurseMatchingElements( resetRendMethodToInline, isNotBoxingInlineBoxNode );
+                                    // No need to autobox if there are only 2 children (the run-in and this box)
+                                    if ( getChildCount()!=2 ) { // autobox run-in
+                                        autoboxChildren( run_in_idx, block_idx, handleFloating );
+                                    }
+                                }
+                                i = run_in_idx;
                             }
-                            i = run_in_idx;
                         }
                     }
                 }
@@ -5958,8 +5968,11 @@ void ldomNode::initNodeRendMethod()
                         #endif
                         setRendMethod( erm_table_row );
                     }
-                    else if ( !this->getDocument()->hasCacheFile() ) {
+                    else if ( getDocument()->hasCacheFile() ) {
                         // (We can only move/add nodes while we don't yet have a cache file)
+                        getDocument()->setBoxingWishedButPreventedByCache();
+                    }
+                    else {
                         #ifdef DEBUG_INCOMPLETE_TABLE_COMPLETION
                             printf("initNodeRendMethod: wrapping unproper table cells %d>%d\n",
                                         first_table_cell, last_table_cell);
@@ -6062,8 +6075,11 @@ void ldomNode::initNodeRendMethod()
                     setRendMethod( erm_table );
                     initTableRendMethods( this, 0 );
                 }
-                else if ( !this->getDocument()->hasCacheFile() ) {
+                else if ( getDocument()->hasCacheFile() ) {
                     // (We can only move/add nodes while we don't yet have a cache file)
+                    getDocument()->setBoxingWishedButPreventedByCache();
+                }
+                else {
                     #ifdef DEBUG_INCOMPLETE_TABLE_COMPLETION
                         printf("initNodeRendMethod: wrapping unproper table children %d>%d\n",
                                     first_misparented, last_misparented);
@@ -6188,14 +6204,17 @@ void ldomNode::initNodeRendMethod()
             else if ( isFloatBoxChild ) {
                 // Already floatBox'ed, nothing special to do
             }
-            else { // !isFloatBox && !isFloatBoxChild
+            else if ( parent ) { // !isFloatBox && !isFloatBoxChild
                 // Element with float:, that has not been yet wrapped in a floatBox.
                 // Like above, don't do any node moving when there is already a
                 // cache file, to avoid some unclear segfaults.
                 // (If new floats appear after loading, we won't render well, but
                 // a style hash mismatch will happen and the user will be
                 // suggested to reload the book with cache cleaned.)
-                if ( parent && !this->getDocument()->hasCacheFile() ) {
+                if ( getDocument()->hasCacheFile() ) {
+                    getDocument()->setBoxingWishedButPreventedByCache();
+                }
+                else {
                     // Replace this element with a floatBox in its parent children collection,
                     // and move it inside, as the single child of this floatBox.
                     int pos = getNodeIndex();
@@ -6324,7 +6343,7 @@ void ldomNode::initNodeRendMethod()
             else if ( isInlineBoxChild ) {
                 // Already inlineBox'ed, nothing special to do
             }
-            else { // !isInlineBox && !isInlineBoxChild
+            else if ( parent ) { // !isInlineBox && !isInlineBoxChild
                 // Element with display: inline-block/inline-table, that has not yet
                 // been wrapped in a inlineBox.
                 // Like above, don't do any node moving when there is already a
@@ -6332,7 +6351,10 @@ void ldomNode::initNodeRendMethod()
                 // (If new inline-block appear after loading, we won't render well,
                 // but a style hash mismatch will happen and the user will be
                 // suggested to reload the book with cache cleaned.)
-                if ( parent && !this->getDocument()->hasCacheFile() ) {
+                if ( getDocument()->hasCacheFile() ) {
+                    getDocument()->setBoxingWishedButPreventedByCache();
+                }
+                else {
                     // Replace this element with a inlineBox in its parent children collection,
                     // and move it inside, as the single child of this inlineBox.
                     int pos = getNodeIndex();
@@ -12654,6 +12676,11 @@ lUInt32 tinyNodeCollection::calcStyleHash()
                 }
             }
         }
+        // Ensure a hash change if we wanted to box some elements, but couldn't
+        // because of the presence of a cache file
+        if ( _boxingWishedButPreventedByCache )
+            _nodeDisplayStyleHash += 79;
+
         CRLog::debug("  COMPUTED _nodeStyleHash %x", res);
         _nodeStyleHash = res;
         CRLog::debug("  COMPUTED _nodeDisplayStyleHash %x (initial: %x)", _nodeDisplayStyleHash, _nodeDisplayStyleHashInitial);
