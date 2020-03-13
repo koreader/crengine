@@ -19,4 +19,5 @@ cr3gui/data/cr3.ini
 cr3gui/data/dict/
 cr3gui/data/dict_ext
 cr3gui/data/tessdata/
+cr3gui/data/ca-bundle.crt
 thirdparty
