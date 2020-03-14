@@ -96,9 +96,23 @@ pre {
    text-align: left
 }
 
-body[name="notes"] { font-size: 70%; }
-body[name="notes"] section title { display: run-in; text-align: left; font-size: 110%; font-weight: bold; page-break-before: auto; page-break-inside: auto; page-break-after: auto; }
-body[name="notes"] section title p { display: inline }
+/* FB2 may have multiple BODY tags, with different "name=" attributes:
+   - name="notes" is for regular footnotes
+   - name="comments" is for additional notes that can be considered end notes */
+/* body[name="notes"], body[name="comments"] { font-size: 80%; } delegated to style tweaks */
+body[name="notes"] section title,
+body[name="comments"] section title {
+    display: run-in;   /* technical trick to have the footnote number inline with the followup text */
+    font-weight: bold;
+    text-align: start; /* counteract default of center with regular title */
+    page-break-before: auto; /* counteract default of always with regular title */
+    page-break-inside: auto;
+    page-break-after: auto;
+}
+body[name="notes"] section title p,
+body[name="comments"] section title p {
+    display: inline; /* counteract default of block, so it can be inline with the preceeding number */
+}
 
 description { display: block; }
 title-info { display: block; }
