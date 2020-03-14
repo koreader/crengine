@@ -5968,37 +5968,35 @@ void ldomNode::initNodeRendMethod()
                             prev = getChildNode(i-2);
                         }
                         if ( prev->isElement() && prev->getRendMethod()==erm_runin ) {
-                            if ( getDocument()->hasCacheFile() ) {
-                                getDocument()->setBoxingWishedButPreventedByCache();
-                            }
-                            else {
-                                bool do_autoboxing = true;
-                                int run_in_idx = inBetweenTextNode ? i-2 : i-1;
-                                int block_idx = i;
-                                if ( inBetweenTextNode ) {
-                                    lString16 text = inBetweenTextNode->getText();
-                                    if ( IsEmptySpace(text.c_str(), text.length() ) ) {
-                                        removeChildren(i-1, i-1);
-                                        block_idx = i-1;
-                                    }
-                                    else {
-                                        do_autoboxing = false;
-                                    }
+                            bool do_autoboxing = true;
+                            int run_in_idx = inBetweenTextNode ? i-2 : i-1;
+                            int block_idx = i;
+                            if ( inBetweenTextNode ) {
+                                lString16 text = inBetweenTextNode->getText();
+                                if ( IsEmptySpace(text.c_str(), text.length() ) ) {
+                                    removeChildren(i-1, i-1);
+                                    block_idx = i-1;
                                 }
-                                if ( do_autoboxing ) {
-                                    CRLog::debug("Autoboxing run-in items");
-                                    // Sadly, to avoid having an erm_final inside another erm_final,
-                                    // we need to reset the block node to be inline (but that second
-                                    // erm_final would have been handled as inline anyway, except
-                                    // for possibly updating the strut height/baseline).
-                                    node->recurseMatchingElements( resetRendMethodToInline, isNotBoxingInlineBoxNode );
-                                    // No need to autobox if there are only 2 children (the run-in and this box)
-                                    if ( getChildCount()!=2 ) { // autobox run-in
+                                else {
+                                    do_autoboxing = false;
+                                }
+                            }
+                            if ( do_autoboxing ) {
+                                CRLog::debug("Autoboxing run-in items");
+                                // Sadly, to avoid having an erm_final inside another erm_final,
+                                // we need to reset the block node to be inline (but that second
+                                // erm_final would have been handled as inline anyway, except
+                                // for possibly updating the strut height/baseline).
+                                node->recurseMatchingElements( resetRendMethodToInline, isNotBoxingInlineBoxNode );
+                                // No need to autobox if there are only 2 children (the run-in and this box)
+                                if ( getChildCount()!=2 ) { // autobox run-in
+                                    if ( getDocument()->hasCacheFile() )
+                                        getDocument()->setBoxingWishedButPreventedByCache();
+                                    else
                                         autoboxChildren( run_in_idx, block_idx, handleFloating );
-                                    }
                                 }
-                                i = run_in_idx;
                             }
+                            i = run_in_idx;
                         }
                     }
                 }
