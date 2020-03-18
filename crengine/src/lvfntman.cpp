@@ -390,6 +390,7 @@ private:
     int               _size;
     int               _weight;
     int               _italic;
+    int               _features; // OpenType features requested
     css_font_family_t _family;
     lString8          _typeface;
     lString8          _name;
@@ -399,11 +400,12 @@ private:
     LVByteArrayRef    _buf;
     int               _bias;
 public:
-    LVFontDef(const lString8 & name, int size, int weight, int italic, css_font_family_t family,
+    LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
         : _size(size)
         , _weight(weight)
         , _italic(italic)
+        , _features(features)
         , _family(family)
         , _typeface(typeface)
         , _name(name)
@@ -417,6 +419,7 @@ public:
         : _size(def._size)
         , _weight(def._weight)
         , _italic(def._italic)
+        , _features(def._features)
         , _family(def._family)
         , _typeface(def._typeface)
         , _name(def._name)
@@ -433,6 +436,7 @@ public:
         return ( _size == def._size || _size == -1 || def._size == -1 )
             && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
             && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
+            && _features == def._features
             && _family == def._family
             && _typeface == def._typeface
             && _name == def._name
@@ -442,7 +446,7 @@ public:
     }
 
     lUInt32 getHash() {
-        return ((((_size * 31) + _weight)*31  + _italic)*31 + _family)*31 + _name.getHash();
+        return (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
     }
 
     /// returns font file name
@@ -461,6 +465,8 @@ public:
     void getFamily( css_font_family_t family ) { _family = family; }
     lString8 getTypeFace() const { return _typeface; }
     void setTypeFace(lString8 tf) { _typeface = tf; }
+    int getFeatures() const { return _features; }
+    void setFeatures( int features ) { _features = features; }
     int getDocumentId() { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() { return _buf; }
@@ -1031,19 +1037,15 @@ protected:
     LVFontRef      _fallbackFont;
     bool           _embolden; // fake/synthetized bold
     FT_Pos         _embolden_half_strength; // for emboldening with Harfbuzz
+    int            _features; // requested OpenType features bitmap
 #if USE_HARFBUZZ==1
     hb_font_t* _hb_font;
-    //
-    // For use with KERNING_MODE_HARFBUZZ:
-    #define HARFBUZZ_FULL_FEATURES_NB 2
     hb_buffer_t* _hb_buffer;
-    hb_feature_t _hb_features[HARFBUZZ_FULL_FEATURES_NB];
+    hb_feature_t* _hb_features;
+    int _hb_features_len;
+    // For use with KERNING_MODE_HARFBUZZ:
     LVFontLocalGlyphCache _glyph_cache2;
-    //
     // For use with KERNING_MODE_HARFBUZZ_LIGHT:
-    #define HARFBUZZ_LIGHT_FEATURES_NB 22
-    hb_buffer_t* _hb_light_buffer;
-    hb_feature_t _hb_light_features[HARFBUZZ_LIGHT_FEATURES_NB];
     LVHashTable<struct LVCharTriplet, struct LVCharPosInfo> _width_cache2;
 #endif
 public:
@@ -1081,11 +1083,12 @@ public:
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
         : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL)
         , _size(0), _hyphen_width(0), _baseline(0)
-        , _weight(400), _italic(0), _embolden(false)
+        , _weight(400), _italic(0), _embolden(false), _features(0)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
         , _fallbackFontIsSet(false)
         #if USE_HARFBUZZ==1
+        , _hb_features(NULL)
         , _glyph_cache2(globalCache)
         , _width_cache2(1024)
         #endif
@@ -1099,49 +1102,7 @@ public:
         #if USE_HARFBUZZ==1
         _hb_font = 0;
         _hb_buffer = hb_buffer_create();
-        _hb_light_buffer = hb_buffer_create();
-
-        // HarfBuzz features for full text shaping
-        // Update HARFBUZZ_FULL_FEATURES_NB when adding/removing
-        hb_feature_from_string("+kern", -1, &_hb_features[0]);      // font kerning
-        hb_feature_from_string("+liga", -1, &_hb_features[1]);      // ligatures
-
-        // HarfBuzz features for lighweight characters width calculating with caching
-        // Update HARFBUZZ_LIGHT_FEATURES_NB when adding/removing
-        // We need to disable all the features, enabled by default in Harfbuzz, that
-        // may split a char into more glyphs, or merge chars into one glyph.
-        // (see harfbuzz/src/hb-ot-shape.cc hb_ot_shape_collect_features() )
-        //
-        // We can enable these ones:
-        hb_feature_from_string("+kern", -1, &_hb_light_features[0]);  // Kerning: Fine horizontal positioning of one glyph to the next, based on the shapes of the glyphs
-        hb_feature_from_string("+mark", -1, &_hb_light_features[1]);  // Mark Positioning: Fine positioning of a mark glyph to a base character
-        hb_feature_from_string("+mkmk", -1, &_hb_light_features[2]);  // Mark-to-mark Positioning: Fine positioning of a mark glyph to another mark character
-        hb_feature_from_string("+curs", -1, &_hb_light_features[3]);  // Cursive Positioning: Precise positioning of a letter's connection to an adjacent one
-        hb_feature_from_string("+locl", -1, &_hb_light_features[4]);  // Substitutes character with the preferred form based on script language
-        //
-        // We should disable these ones:
-        hb_feature_from_string("-liga", -1, &_hb_light_features[5]);  // Standard Ligatures: replaces (by default) sequence of characters with a single ligature glyph
-        hb_feature_from_string("-rlig", -1, &_hb_light_features[6]);  // Ligatures required for correct text display (any script, but in cursive) - Arabic, semitic
-        hb_feature_from_string("-clig", -1, &_hb_light_features[7]);  // Applies a second ligature feature based on a match of a character pattern within a context of surrounding patterns
-        hb_feature_from_string("-ccmp", -1, &_hb_light_features[8]);  // Glyph composition/decomposition: either calls a ligature replacement on a sequence of characters or replaces a character with a sequence of glyphs
-                                                                      // Provides logic that can for example effectively alter the order of input characters
-        hb_feature_from_string("-calt", -1, &_hb_light_features[9]);  // Contextual Alternates: Applies a second substitution feature based on a match of a character pattern within a context of surrounding patterns
-        hb_feature_from_string("-rclt", -1, &_hb_light_features[10]); // Required Contextual Alternates: Contextual alternates required for correct text display which differs from the default join for other letters, required especially important by Arabic
-        hb_feature_from_string("-rvrn", -1, &_hb_light_features[11]); // Required Variation Alternates: Special variants of a single character, which need apply to specific font variation, required by variable fonts
-        hb_feature_from_string("-ltra", -1, &_hb_light_features[12]); // Left-to-right glyph alternates: Replaces characters with forms befitting left-to-right presentation
-        hb_feature_from_string("-ltrm", -1, &_hb_light_features[13]); // Left-to-right mirrored forms: Replaces characters with possibly mirrored forms befitting left-to-right presentation
-        hb_feature_from_string("-rtla", -1, &_hb_light_features[14]); // Right-to-left glyph alternates: Replaces characters with forms befitting right-to-left presentation
-        hb_feature_from_string("-rtlm", -1, &_hb_light_features[15]); // Right-to-left mirrored forms: Replaces characters with possibly mirrored forms befitting right-to-left presentation
-        hb_feature_from_string("-frac", -1, &_hb_light_features[16]); // Fractions: Converts figures separated by slash with diagonal fraction
-        hb_feature_from_string("-numr", -1, &_hb_light_features[17]); // Numerator: Converts to appropriate fraction numerator form, invoked by frac
-        hb_feature_from_string("-dnom", -1, &_hb_light_features[18]); // Denominator: Converts to appropriate fraction denominator form, invoked by frac
-        hb_feature_from_string("-rand", -1, &_hb_light_features[19]); // Replaces character with random forms (meant to simulate handwriting)
-        hb_feature_from_string("-trak", -1, &_hb_light_features[20]); // Tracking (?)
-        hb_feature_from_string("-vert", -1, &_hb_light_features[21]); // Vertical (?)
-        // Especially needed with FreeSerif and french texts: -ccmp
-        // Especially needed with Fedra Serif and "The", "Thuringe": -calt
-        // These tweaks seem fragile (adding here +smcp to experiment with small caps would break FreeSerif again).
-        // So, when tuning these, please check it still behave well with FreeSerif.
+        setupHBFeatures();
         #endif
     }
 
@@ -1150,8 +1111,8 @@ public:
         #if USE_HARFBUZZ==1
         if (_hb_buffer)
             hb_buffer_destroy(_hb_buffer);
-        if (_hb_light_buffer)
-            hb_buffer_destroy(_hb_light_buffer);
+        if (_hb_features)
+            free(_hb_features);
         #endif
         Clear();
     }
@@ -1175,10 +1136,123 @@ public:
         return _hyphen_width;
     }
 
+    #if USE_HARFBUZZ==1
+    void _addHBFeature(const char * tag) {
+        _hb_features_len++;
+        _hb_features = (hb_feature_t*)realloc( _hb_features, _hb_features_len * sizeof(hb_feature_t) );
+        hb_feature_from_string(tag, -1, &_hb_features[_hb_features_len-1]);
+    }
+    void setupHBFeatures() {
+        if (_hb_features)
+            free(_hb_features);
+        _hb_features = NULL;
+        _hb_features_len = 0;
+        if ( _kerningMode == KERNING_MODE_HARFBUZZ ) {
+            _hb_features_len = 2;
+            _hb_features = (hb_feature_t*)malloc( _hb_features_len * sizeof(hb_feature_t) );
+            // HarfBuzz features for full text shaping
+            hb_feature_from_string("+kern", -1, &_hb_features[0]);      // font kerning
+            hb_feature_from_string("+liga", -1, &_hb_features[1]);      // ligatures
+        }
+        else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
+            _hb_features_len = 22;
+            _hb_features = (hb_feature_t*)malloc( _hb_features_len * sizeof(hb_feature_t) );
+            // HarfBuzz features for lighweight characters width calculating with caching.
+            // We need to disable all the features, enabled by default in Harfbuzz, that
+            // may split a char into more glyphs, or merge chars into one glyph.
+            // (see harfbuzz/src/hb-ot-shape.cc hb_ot_shape_collect_features() )
+            //
+            // We can enable these ones:
+            hb_feature_from_string("+kern", -1, &_hb_features[0]);  // Kerning: Fine horizontal positioning of one glyph to the next, based on the shapes of the glyphs
+            hb_feature_from_string("+mark", -1, &_hb_features[1]);  // Mark Positioning: Fine positioning of a mark glyph to a base character
+            hb_feature_from_string("+mkmk", -1, &_hb_features[2]);  // Mark-to-mark Positioning: Fine positioning of a mark glyph to another mark character
+            hb_feature_from_string("+curs", -1, &_hb_features[3]);  // Cursive Positioning: Precise positioning of a letter's connection to an adjacent one
+            hb_feature_from_string("+locl", -1, &_hb_features[4]);  // Substitutes character with the preferred form based on script language
+            //
+            // We should disable these ones:
+            hb_feature_from_string("-liga", -1, &_hb_features[5]);  // Standard Ligatures: replaces (by default) sequence of characters with a single ligature glyph
+            hb_feature_from_string("-rlig", -1, &_hb_features[6]);  // Ligatures required for correct text display (any script, but in cursive) - Arabic, semitic
+            hb_feature_from_string("-clig", -1, &_hb_features[7]);  // Applies a second ligature feature based on a match of a character pattern within a context of surrounding patterns
+            hb_feature_from_string("-ccmp", -1, &_hb_features[8]);  // Glyph composition/decomposition: either calls a ligature replacement on a sequence of characters or replaces a character with a sequence of glyphs
+                                                                          // Provides logic that can for example effectively alter the order of input characters
+            hb_feature_from_string("-calt", -1, &_hb_features[9]);  // Contextual Alternates: Applies a second substitution feature based on a match of a character pattern within a context of surrounding patterns
+            hb_feature_from_string("-rclt", -1, &_hb_features[10]); // Required Contextual Alternates: Contextual alternates required for correct text display which differs from the default join for other letters, required especially important by Arabic
+            hb_feature_from_string("-rvrn", -1, &_hb_features[11]); // Required Variation Alternates: Special variants of a single character, which need apply to specific font variation, required by variable fonts
+            hb_feature_from_string("-ltra", -1, &_hb_features[12]); // Left-to-right glyph alternates: Replaces characters with forms befitting left-to-right presentation
+            hb_feature_from_string("-ltrm", -1, &_hb_features[13]); // Left-to-right mirrored forms: Replaces characters with possibly mirrored forms befitting left-to-right presentation
+            hb_feature_from_string("-rtla", -1, &_hb_features[14]); // Right-to-left glyph alternates: Replaces characters with forms befitting right-to-left presentation
+            hb_feature_from_string("-rtlm", -1, &_hb_features[15]); // Right-to-left mirrored forms: Replaces characters with possibly mirrored forms befitting right-to-left presentation
+            hb_feature_from_string("-frac", -1, &_hb_features[16]); // Fractions: Converts figures separated by slash with diagonal fraction
+            hb_feature_from_string("-numr", -1, &_hb_features[17]); // Numerator: Converts to appropriate fraction numerator form, invoked by frac
+            hb_feature_from_string("-dnom", -1, &_hb_features[18]); // Denominator: Converts to appropriate fraction denominator form, invoked by frac
+            hb_feature_from_string("-rand", -1, &_hb_features[19]); // Replaces character with random forms (meant to simulate handwriting)
+            hb_feature_from_string("-trak", -1, &_hb_features[20]); // Tracking (?)
+            hb_feature_from_string("-vert", -1, &_hb_features[21]); // Vertical (?)
+            // Especially needed with FreeSerif and french texts: -ccmp
+            // Especially needed with Fedra Serif and "The", "Thuringe": -calt
+            // These tweaks seem fragile (adding here +smcp to experiment with small caps would break FreeSerif again).
+            // So, when tuning these, please check it still behave well with FreeSerif.
+            //
+            // The way KERNING_MODE_HARFBUZZ_LIGHT is implemented, we'll be drawing the
+            // original codepoints, so there's no much use allowing additional HB features,
+            // even the one-to-one substitutions like small-cap or oldstyle-nums...
+            return;
+        }
+        else { // Not using Harfbuzz
+            return;
+        }
+        if ( _features != LFNT_OT_FEATURES_NORMAL ) {
+            // Add requested features
+            if ( _features & LFNT_OT_FEATURES_M_LIGA ) { _addHBFeature("-liga"); _addHBFeature("-clig"); }
+            if ( _features & LFNT_OT_FEATURES_M_CALT ) { _addHBFeature("-calt"); }
+            if ( _features & LFNT_OT_FEATURES_P_DLIG ) { _addHBFeature("+dlig"); }
+            if ( _features & LFNT_OT_FEATURES_M_DLIG ) { _addHBFeature("-dlig"); }
+            if ( _features & LFNT_OT_FEATURES_P_HLIG ) { _addHBFeature("+hlig"); }
+            if ( _features & LFNT_OT_FEATURES_M_HLIG ) { _addHBFeature("-hlig"); }
+            if ( _features & LFNT_OT_FEATURES_P_HIST ) { _addHBFeature("+hist"); }
+            if ( _features & LFNT_OT_FEATURES_P_RUBY ) { _addHBFeature("+ruby"); }
+            if ( _features & LFNT_OT_FEATURES_P_SMCP ) { _addHBFeature("+smcp"); }
+            if ( _features & LFNT_OT_FEATURES_P_C2SC ) { _addHBFeature("+c2sc"); _addHBFeature("+smcp"); }
+            if ( _features & LFNT_OT_FEATURES_P_PCAP ) { _addHBFeature("+pcap"); }
+            if ( _features & LFNT_OT_FEATURES_P_C2PC ) { _addHBFeature("+c2pc"); _addHBFeature("+pcap"); }
+            if ( _features & LFNT_OT_FEATURES_P_UNIC ) { _addHBFeature("+unic"); }
+            if ( _features & LFNT_OT_FEATURES_P_TITL ) { _addHBFeature("+titl"); }
+            if ( _features & LFNT_OT_FEATURES_P_SUPS ) { _addHBFeature("+sups"); }
+            if ( _features & LFNT_OT_FEATURES_P_SUBS ) { _addHBFeature("+subs"); }
+            if ( _features & LFNT_OT_FEATURES_P_LNUM ) { _addHBFeature("+lnum"); }
+            if ( _features & LFNT_OT_FEATURES_P_ONUM ) { _addHBFeature("+onum"); }
+            if ( _features & LFNT_OT_FEATURES_P_PNUM ) { _addHBFeature("+pnum"); }
+            if ( _features & LFNT_OT_FEATURES_P_TNUM ) { _addHBFeature("+tnum"); }
+            if ( _features & LFNT_OT_FEATURES_P_ZERO ) { _addHBFeature("+zero"); }
+            if ( _features & LFNT_OT_FEATURES_P_ORDN ) { _addHBFeature("+ordn"); }
+            if ( _features & LFNT_OT_FEATURES_P_FRAC ) { _addHBFeature("+frac"); }
+            if ( _features & LFNT_OT_FEATURES_P_AFRC ) { _addHBFeature("+afrc"); }
+            if ( _features & LFNT_OT_FEATURES_P_SMPL ) { _addHBFeature("+smpl"); }
+            if ( _features & LFNT_OT_FEATURES_P_TRAD ) { _addHBFeature("+trad"); }
+            if ( _features & LFNT_OT_FEATURES_P_FWID ) { _addHBFeature("+fwid"); }
+            if ( _features & LFNT_OT_FEATURES_P_PWID ) { _addHBFeature("+pwid"); }
+            if ( _features & LFNT_OT_FEATURES_P_JP78 ) { _addHBFeature("+jp78"); }
+            if ( _features & LFNT_OT_FEATURES_P_JP83 ) { _addHBFeature("+jp83"); }
+            if ( _features & LFNT_OT_FEATURES_P_JP04 ) { _addHBFeature("+jp04"); }
+        }
+    }
+    #endif
+
+    virtual void setFeatures( int features ) {
+        _features = features;
+        _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
+    }
+    virtual int getFeatures() const {
+        return _features;
+    }
+
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
         _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
         #if USE_HARFBUZZ==1
+        setupHBFeatures();
+        // Reset buffer (to have it shrunk if HB full > light that will need only a 3 slots buffer)
+        hb_buffer_reset(_hb_buffer);
         // in cache may be found some ligatures, so clear it
         clearCache();
         #endif
@@ -1529,25 +1603,25 @@ public:
             return false;
         unsigned int segLen = 0;
         int cluster;
-        hb_buffer_clear_contents(_hb_light_buffer);
+        hb_buffer_clear_contents(_hb_buffer);
         if ( triplet.prevChar != 0 ) {
-            hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.prevChar, segLen);
+            hb_buffer_add(_hb_buffer, (hb_codepoint_t)triplet.prevChar, segLen);
             segLen++;
         }
-        hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.Char, segLen);
+        hb_buffer_add(_hb_buffer, (hb_codepoint_t)triplet.Char, segLen);
         cluster = segLen;
         segLen++;
         if ( triplet.nextChar != 0 ) {
-            hb_buffer_add(_hb_light_buffer, (hb_codepoint_t)triplet.nextChar, segLen);
+            hb_buffer_add(_hb_buffer, (hb_codepoint_t)triplet.nextChar, segLen);
             segLen++;
         }
-        hb_buffer_set_content_type(_hb_light_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
-        hb_buffer_guess_segment_properties(_hb_light_buffer);
-        hb_shape(_hb_font, _hb_light_buffer, _hb_light_features, HARFBUZZ_LIGHT_FEATURES_NB);
-        unsigned int glyph_count = hb_buffer_get_length(_hb_light_buffer);
+        hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
+        hb_buffer_guess_segment_properties(_hb_buffer);
+        hb_shape(_hb_font, _hb_buffer, _hb_features, _hb_features_len);
+        unsigned int glyph_count = hb_buffer_get_length(_hb_buffer);
         if (segLen == glyph_count) {
-            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_light_buffer, &glyph_count);
-            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_light_buffer, &glyph_count);
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, &glyph_count);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, &glyph_count);
             // Ignore HB measurements when there is a single glyph not found,
             // as it may be found in a fallback font
             int codepoint_notfound_nb = 0;
@@ -1840,7 +1914,7 @@ public:
             // cf in *some* minikin repositories: libs/minikin/Layout.cpp
 
             // Shape
-            hb_shape(_hb_font, _hb_buffer, _hb_features, HARFBUZZ_FULL_FEATURES_NB);
+            hb_shape(_hb_font, _hb_buffer, _hb_features, _hb_features_len);
 
             // Harfbuzz has guessed and set a direction even if we did not provide one.
             bool is_rtl = false;
@@ -2583,7 +2657,7 @@ public:
             }
 
             // Shape
-            hb_shape(_hb_font, _hb_buffer, _hb_features, HARFBUZZ_FULL_FEATURES_NB);
+            hb_shape(_hb_font, _hb_buffer, _hb_features, _hb_features_len);
 
             // If direction is RTL, hb_shape() has reversed the order of the glyphs, so
             // they are in visual order and ready to be iterated and drawn. So,
@@ -3494,7 +3568,7 @@ public:
         LVFontCacheItem * item = _cache.findFallback( _fallbackFontFace, size );
         if ( !item->getFont().isNull() )
             return item->getFont();
-        return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFace, -1);
+        return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFace, 0, -1);
     }
 
     /// returns fallback font for specified size, weight and italic
@@ -3513,7 +3587,7 @@ public:
         // assuming the fallback font is a standalone regular font
         // without any bold/italic sibling.
         // GetFont() works just as fine when we need specified weigh and italic.
-        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFace, -1);
+        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFace, 0, -1);
     }
 
     bool isBitmapModeForSize( int size )
@@ -3777,6 +3851,7 @@ public:
                     -1, // height==-1 for scalable fonts
                     weight,
                     italic,
+                    -1, // OpenType features = -1 for not yet instantiated fonts
                     fontFamily,
                     face,
                     index
@@ -3900,6 +3975,7 @@ public:
             -1,
             bold?700:400,
             italic,
+            -1, // OpenType features = -1 for not yet instantiated fonts
             css_ff_inherit,
             facename,
             -1,
@@ -3911,6 +3987,7 @@ public:
             -1,
             bold?700:400,
             italic,
+            -1, // OpenType features = -1 for not yet instantiated fonts
             css_ff_inherit,
             alias,
             -1,
@@ -3955,6 +4032,7 @@ public:
                     -1, // height==-1 for scalable fonts
                     boldFlag ? 700 : 400,
                     italicFlag,
+                    -1, // OpenType features = -1 for not yet instantiated fonts
                     fontFamily,
                     alias,
                     index,
@@ -3989,7 +4067,8 @@ public:
         }
     }
 
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId, bool useBias=false)
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
+                                int features, int documentId, bool useBias=false)
     {
         FONT_MAN_GUARD
         #if (DEBUG_FONT_MAN==1)
@@ -4004,6 +4083,7 @@ public:
             size,
             weight,
             italic,
+            features,
             family,
             typeface,
             -1,
@@ -4036,24 +4116,30 @@ public:
         // printf("  got %s\n", newDef.getTypeFace().c_str());
 
         if (!item->getFont().isNull()) {
-            int deltaWeight = weight - item->getDef()->getWeight();
-            if ( deltaWeight >= 200 ) {
-                // This instantiated cached font has a too low weight
-                #ifndef USE_FT_EMBOLDEN
-                    // embolden using LVFontBoldTransform
-                    CRLog::debug("font: apply Embolding to increase weight from %d to %d",
-                                        newDef.getWeight(), newDef.getWeight() + 200 );
-                    newDef.setWeight( newDef.getWeight() + 200 );
-                    LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
-                    _cache.update( &newDef, ref );
-                    return ref;
-                #endif
-                // when USE_FT_EMBOLDEN, ignore this low-weight cached font instance
-                // and go loading from the font file again to apply embolden.
+            if ( item->getDef()->getFeatures() != features ) {
+                // Be sure we ignore any instantiated font found in cache that
+                // has features different than the ones requested.
             }
             else {
-                //fprintf(_log, "    : fount existing\n");
-                return item->getFont();
+                int deltaWeight = weight - item->getDef()->getWeight();
+                if ( deltaWeight >= 200 ) {
+                    // This instantiated cached font has a too low weight
+                    #ifndef USE_FT_EMBOLDEN
+                        // embolden using LVFontBoldTransform
+                        CRLog::debug("font: apply Embolding to increase weight from %d to %d",
+                                            newDef.getWeight(), newDef.getWeight() + 200 );
+                        newDef.setWeight( newDef.getWeight() + 200 );
+                        LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
+                        _cache.update( &newDef, ref );
+                        return ref;
+                    #endif
+                    // when USE_FT_EMBOLDEN, ignore this low-weight cached font instance
+                    // and go loading from the font file again to apply embolden.
+                }
+                else {
+                    //fprintf(_log, "    : fount existing\n");
+                    return item->getFont();
+                }
             }
         }
 
@@ -4096,6 +4182,9 @@ public:
             //fprintf(_log, "    : loading from file %s : %s %d\n", item->getDef()->getName().c_str(),
             //    item->getDef()->getTypeFace().c_str(), item->getDef()->getSize() );
             LVFontRef ref(font);
+            // Instantiate this font with the requested OpenType features
+            newDef.setFeatures( features );
+            font->setFeatures( features ); // followup setKerningMode() will create/update hb_features if needed
             font->setKerningMode( GetKerningMode() );
             font->setFaceName( item->getDef()->getTypeFace() );
             newDef.setSize( size );
@@ -4188,6 +4277,9 @@ public:
     */
 
     /// registers document font
+    // Note: publishers can specify font-variant/font-feature-settings/font-variation-settings
+    // in the @font-face declaration.
+    // todo: parse it and pass it here, and set it on the non-instantiated font (instead of -1)
     virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString16 name, lString8 faceName, bool bold, bool italic) {
         FONT_MAN_GUARD
         lString8 name8 = UnicodeToUtf8(name);
@@ -4254,6 +4346,7 @@ public:
                 -1, // height==-1 for scalable fonts
                 boldFlag ? 700 : 400,
                 italicFlag,
+                -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
                 familyName,
                 index,
@@ -4352,6 +4445,7 @@ public:
                 -1, // height==-1 for scalable fonts
                 bold?700:400,
                 italic?true:false,
+                -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
                 family_name,
                 index
@@ -4457,6 +4551,7 @@ public:
                 -1, // height==-1 for scalable fonts
                 ( face->style_flags & FT_STYLE_FLAG_BOLD ) ? 700 : 400,
                 ( face->style_flags & FT_STYLE_FLAG_ITALIC ) ? true : false,
+                -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
                 familyName,
                 index
@@ -4543,13 +4638,15 @@ public:
         filename << name;
         return filename;
     }
-    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface, int documentId, bool useBias=false)
+    virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
+                                int features, int documentId, bool useBias=false)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
             size,
             weight,
             italic,
+            0,
             family,
             typeface,
             documentId,
@@ -4605,6 +4702,7 @@ public:
                 hdr.fontHeight,
                 hdr.flgBold?700:400,
                 hdr.flgItalic?true:false,
+                -1,
                 (css_font_family_t)hdr.fontFamily,
                 lString8(hdr.fontName)
             );
@@ -4682,6 +4780,7 @@ public:
             size,
             weight,
             italic,
+            0,
             family,
             typeface
         );
@@ -4750,6 +4849,7 @@ public:
             -1, //lf->lfHeight>0 ? lf->lfHeight : -lf->lfHeight,
             -1, //lf->lfWeight,
             -1, //lf->lfItalic!=0,
+            -1,
             ff,
             face
         );
@@ -4886,11 +4986,13 @@ int LVFontDef::CalcDuplicateMatch( const LVFontDef & def ) const
 
     bool italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1);
 
+    bool features_match = (_features == def._features || _features==-1 || def._features==-1);
+
     bool family_match = (_family==css_ff_inherit || def._family==css_ff_inherit || def._family == _family);
 
     bool typeface_match = (_typeface == def._typeface);
 
-    return size_match && weight_match && italic_match && family_match && typeface_match;
+    return size_match && weight_match && italic_match && features_match && family_match && typeface_match;
 }
 
 int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
@@ -4923,6 +5025,10 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     if ( (_italic==2 || def._italic==2) && _italic>0 && def._italic>0 )
         italic_match = 128;
 
+    // OpenType features
+    int features_match = (_features == def._features || _features==-1 || def._features==-1) ?
+              256
+            :   0;
 
     // family
     int family_match = (_family==css_ff_inherit || def._family==css_ff_inherit || def._family == _family) ?
@@ -4979,6 +5085,7 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
         + (size_match     * 100)
         + (weight_match   * 5)
         + (italic_match   * 5)
+        + (features_match * 1000)
         + (family_match   * 100)
         + (typeface_match * 1000);
 
@@ -5007,10 +5114,16 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
               256
             :   0;
 
+    // Don't let instantiated font with non-zero features be usable as a fallback font
+    int features_match = (_features == -1 || _features == 0 ) ?
+              256
+            :   0;
+
     return
         + (size_match     * 100)
         + (weight_match   * 5)
-        + (italic_match   * 5);
+        + (italic_match   * 5)
+        + (features_match * 1000);
 }
 
 
