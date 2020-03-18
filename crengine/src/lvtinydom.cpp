@@ -86,7 +86,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.37k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0020
+#define FORMATTING_VERSION_ID 0x0021
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -4235,6 +4235,8 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_name = def_font->getTypeFace();
     s->font_weight = css_fw_400;
     s->font_style = css_fs_normal;
+    s->font_features.type = css_val_unspecified;
+    s->font_features.value = 0;
     s->text_indent.type = css_val_px;
     s->text_indent.value = 0;
     // s->line_height.type = css_val_percent;
@@ -16931,6 +16933,8 @@ void runBasicTinyDomUnitTests()
         style1->font_name = cs8("Arial");
         style1->font_weight = css_fw_400;
         style1->font_style = css_fs_normal;
+        style1->font_features.type = css_val_unspecified;
+        style1->font_features.value = 0;
         style1->text_indent.type = css_val_px;
         style1->text_indent.value = 0;
         style1->line_height.type = css_val_unspecified;
@@ -16961,6 +16965,8 @@ void runBasicTinyDomUnitTests()
         style2->font_name = cs8("Arial");
         style2->font_weight = css_fw_400;
         style2->font_style = css_fs_normal;
+        style2->font_features.type = css_val_unspecified;
+        style2->font_features.value = 0;
         style2->text_indent.type = css_val_px;
         style2->text_indent.value = 0;
         style2->line_height.type = css_val_unspecified;
@@ -16991,6 +16997,8 @@ void runBasicTinyDomUnitTests()
         style3->font_name = cs8("Arial");
         style3->font_weight = css_fw_400;
         style3->font_style = css_fs_normal;
+        style3->font_features.type = css_val_unspecified;
+        style3->font_features.value = 0;
         style3->text_indent.type = css_val_px;
         style3->text_indent.value = 0;
         style3->line_height.type = css_val_unspecified;

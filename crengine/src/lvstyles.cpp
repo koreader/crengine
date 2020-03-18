@@ -29,6 +29,7 @@ lUInt32 calcHash(font_ref_t & f)
     v = v * 31 + (lUInt32)f->getSize();
     v = v * 31 + (lUInt32)f->getWeight();
     v = v * 31 + (lUInt32)f->getItalic();
+    v = v * 31 + (lUInt32)f->getFeatures();
     v = v * 31 + (lUInt32)f->getKerningMode();
     v = v * 31 + (lUInt32)f->getHintingMode();
     v = v * 31 + (lUInt32)f->getBitmapMode();
@@ -42,7 +43,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
            (lUInt32)(rec.important >> 32)) * 31
          + (lUInt32)(rec.important & 0xFFFFFFFFULL)) * 31
          + (lUInt32)(rec.importance >> 32)) * 31
@@ -63,6 +64,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_size.value) * 31
          + (lUInt32)rec.font_style) * 31
          + (lUInt32)rec.font_weight) * 31
+         + (lUInt32)rec.font_features.pack()) * 31
          + (lUInt32)rec.line_height.pack()) * 31
          + (lUInt32)rec.color.pack()) * 31
          + (lUInt32)rec.background_color.pack()) * 31
@@ -142,6 +144,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.font_weight == r2.font_weight &&
            r1.font_name == r2.font_name &&
            r1.font_family == r2.font_family&&
+           r1.font_features == r2.font_features&&
            r1.border_style_top==r2.border_style_top&&
            r1.border_style_right==r2.border_style_right&&
            r1.border_style_bottom==r2.border_style_bottom&&
@@ -319,6 +322,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_LEN(font_size);          //    css_length_t         font_size;
     ST_PUT_ENUM(font_style);        //    css_font_style_t     font_style;
     ST_PUT_ENUM(font_weight);       //    css_font_weight_t    font_weight;
+    ST_PUT_LEN(font_features);      //    css_length_t         font_features;
     ST_PUT_LEN(text_indent);        //    css_length_t         text_indent;
     ST_PUT_LEN(line_height);        //    css_length_t         line_height;
     ST_PUT_LEN(width);              //    css_length_t         width;
@@ -377,6 +381,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_LEN(font_size);                                  //    css_length_t         font_size;
     ST_GET_ENUM(css_font_style_t, font_style);              //    css_font_style_t     font_style;
     ST_GET_ENUM(css_font_weight_t, font_weight);            //    css_font_weight_t    font_weight;
+    ST_GET_LEN(font_features);                              //    css_length_t         font_features;
     ST_GET_LEN(text_indent);                                //    css_length_t         text_indent;
     ST_GET_LEN(line_height);                                //    css_length_t         line_height;
     ST_GET_LEN(width);                                      //    css_length_t         width;
