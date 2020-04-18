@@ -704,6 +704,8 @@ public:
     void setBaseline( int baseline );
     int  getListPropNodeIndex();
     void setListPropNodeIndex( int idx );
+    int  getLangNodeIndex();
+    void setLangNodeIndex( int idx );
 
     unsigned short getFlags();
     void setFlags( unsigned short flags );

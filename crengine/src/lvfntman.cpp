@@ -1797,6 +1797,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg = NULL,
                         int letter_spacing = 0,
                         bool allow_hyphenation = true,
                         lUInt32 hints=0
@@ -1896,6 +1897,9 @@ public:
                 if ( hints & LFNT_HINT_ENDS_PARAGRAPH )
                     hb_flags |= HB_BUFFER_FLAG_EOT;
                 hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+            }
+            if ( lang_cfg ) {
+                hb_buffer_set_language(_hb_buffer, lang_cfg->getHBLanguage());
             }
             // Let HB guess what's not been set (script, direction, language)
             hb_buffer_guess_segment_properties(_hb_buffer);
@@ -2020,7 +2024,7 @@ public:
                                         fb_hints &= ~LFNT_HINT_ENDS_PARAGRAPH;
                                     fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
                                                     widths + t_notdef_start, flags + t_notdef_start,
-                                                    max_width, def_char, letter_spacing, allow_hyphenation,
+                                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                                     fb_hints );
                                     // Fix previous bad measurements
                                     int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
@@ -2114,7 +2118,7 @@ public:
                     int chars_measured = fallback->measureText( text + t_notdef_start, // start
                                     t_notdef_end - t_notdef_start, // len
                                     widths + t_notdef_start, flags + t_notdef_start,
-                                    max_width, def_char, letter_spacing, allow_hyphenation,
+                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                     fb_hints );
                     lastFitChar = t_notdef_start + chars_measured;
                     int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
@@ -2292,7 +2296,10 @@ public:
                 lStr_findWordBounds( text, len, lastFitChar-1, hwStart, hwEnd );
                 if ( hwStart < (int)(lastFitChar-1) && hwEnd > hwStart+3 ) {
                     //int maxw = max_width - (hwStart>0 ? widths[hwStart-1] : 0);
-                    HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+                    if ( lang_cfg )
+                        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+                    else // Use global lang hyph method
+                        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
                 }
             }
         }
@@ -2304,7 +2311,7 @@ public:
         \param len is number of characters to measure
         \return width of specified string
     */
-    virtual lUInt32 getTextWidth( const lChar16 * text, int len) {
+    virtual lUInt32 getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL) {
         static lUInt16 widths[MAX_LINE_CHARS+1];
         static lUInt8 flags[MAX_LINE_CHARS+1];
         if ( len>MAX_LINE_CHARS )
@@ -2317,7 +2324,7 @@ public:
                         flags,
                         MAX_LINE_WIDTH,
                         L' ',  // def_char
-                        0
+                        lang_cfg
                      );
         if ( res>0 && res<MAX_LINE_CHARS )
             return widths[res-1];
@@ -2581,6 +2588,7 @@ public:
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
+                       TextLangCfg * lang_cfg,
                        lUInt32 flags, int letter_spacing, int width,
                        int text_decoration_back_gap )
     {
@@ -2644,6 +2652,9 @@ public:
                 if ( flags & LFNT_HINT_ENDS_PARAGRAPH )
                     hb_flags |= HB_BUFFER_FLAG_EOT;
                 hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+            }
+            if ( lang_cfg ) {
+                hb_buffer_set_language(_hb_buffer, lang_cfg->getHBLanguage());
             }
             // Let HB guess what's not been set (script, direction, language)
             hb_buffer_guess_segment_properties(_hb_buffer);
@@ -2815,7 +2826,7 @@ public:
                     // text decoration, that we dropped: no update needed)
                     int fb_advance = fallback->DrawTextString( buf, x, fb_y,
                        fb_text, fb_len,
-                       def_char, palette, fb_addHyphen, fb_flags, letter_spacing,
+                       def_char, palette, fb_addHyphen, lang_cfg, fb_flags, letter_spacing,
                        width, text_decoration_back_gap );
                     x += fb_advance;
                     #ifdef DEBUG_DRAW_TEXT
@@ -3142,6 +3153,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg = NULL,
                         int letter_spacing=0,
                         bool allow_hyphenation=true,
                         lUInt32 hints=0
@@ -3154,6 +3166,7 @@ public:
                         flags,
                         max_width,
                         def_char,
+                        lang_cfg,
                         letter_spacing,
                         allow_hyphenation,
                         hints
@@ -3171,7 +3184,7 @@ public:
         \param len is number of characters to measure
         \return width of specified string
     */
-    virtual lUInt32 getTextWidth( const lChar16 * text, int len) {
+    virtual lUInt32 getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL) {
         static lUInt16 widths[MAX_LINE_CHARS+1];
         static lUInt8 flags[MAX_LINE_CHARS+1];
         if ( len>MAX_LINE_CHARS )
@@ -3184,7 +3197,7 @@ public:
                         flags,
                         MAX_LINE_WIDTH,
                         L' ',  // def_char
-                        0
+                        lang_cfg
                      );
         if ( res>0 && res<MAX_LINE_CHARS )
             return widths[res-1];
@@ -3355,6 +3368,7 @@ public:
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
+                       TextLangCfg * lang_cfg,
                        lUInt32 flags, int letter_spacing, int width,
                        int text_decoration_back_gap )
     {
@@ -5130,7 +5144,7 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
 /// draws text string (returns x advance)
 int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
-                   lChar16 def_char, lUInt32 * palette, bool addHyphen, lUInt32 , int , int, int )
+                   lChar16 def_char, lUInt32 * palette, bool addHyphen, TextLangCfg * lang_cfg, lUInt32 , int , int, int )
 {
     //static lUInt8 glyph_buf[16384];
     //LVFont::glyph_info_t info;
@@ -5203,6 +5217,7 @@ lUInt16 LBitmapFont::measureText(
                     lUInt8 * flags,
                     int max_width,
                     lChar16 def_char,
+                    TextLangCfg * lang_cfg,
                     int letter_spacing,
                     bool allow_hyphenation,
                     lUInt32 hints
@@ -5211,7 +5226,7 @@ lUInt16 LBitmapFont::measureText(
     return lvfontMeasureText( m_font, text, len, widths, flags, max_width, def_char );
 }
 
-lUInt32 LBitmapFont::getTextWidth( const lChar16 * text, int len )
+lUInt32 LBitmapFont::getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg )
 {
     static lUInt16 widths[MAX_LINE_CHARS+1];
     static lUInt8 flags[MAX_LINE_CHARS+1];
@@ -5224,7 +5239,8 @@ lUInt32 LBitmapFont::getTextWidth( const lChar16 * text, int len )
                     widths,
                     flags,
                     MAX_LINE_WIDTH,
-                    L' '  // def_char
+                    L' ',  // def_char
+                    lang_cfg
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
         return widths[res-1];
@@ -5583,7 +5599,7 @@ int LVWin32DrawFont::getCharWidth( lChar16 ch, lChar16 def_char )
     return dx[0];
 }
 
-lUInt32 LVWin32DrawFont::getTextWidth( const lChar16 * text, int len )
+lUInt32 LVWin32DrawFont::getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL )
 {
     //
     static lUInt16 widths[MAX_LINE_CHARS+1];
@@ -5597,7 +5613,8 @@ lUInt32 LVWin32DrawFont::getTextWidth( const lChar16 * text, int len )
                     widths,
                     flags,
                     MAX_LINE_WIDTH,
-                    L' '  // def_char
+                    L' ',  // def_char
+                    lang_cfg
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
         return widths[res-1];
@@ -5614,6 +5631,7 @@ lUInt16 LVWin32DrawFont::measureText(
                     lUInt8 * flags,
                     int max_width,
                     lChar16 def_char,
+                    TextLangCfg * lang_cfg = NULL,
                     int letter_spacing,
                     bool allow_hyphenation,
                     lUInt32 hints
@@ -5709,7 +5727,10 @@ lUInt16 LVWin32DrawFont::measureText(
             break;
 
     }
-    HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+    if ( lang_cfg )
+        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+    else // Use global lang hyph method
+        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
 
     return nchars;
 }
@@ -5718,6 +5739,7 @@ lUInt16 LVWin32DrawFont::measureText(
 int LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar16 * text, int len,
                    lChar16 def_char, lUInt32 * palette, bool addHyphen,
+                   TextLangCfg * lang_cfg,
                    lUInt32 flags, int letter_spacing, int width,
                    int text_decoration_back_gap )
 {
@@ -5945,7 +5967,7 @@ bool LVWin32Font::getGlyphInfo( lUInt16 code, glyph_info_t * glyph, lChar16 def_
     return true;
 }
 
-lUInt32 LVWin32Font::getTextWidth( const lChar16 * text, int len )
+lUInt32 LVWin32Font::getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL )
 {
     //
     static lUInt16 widths[MAX_LINE_CHARS+1];
@@ -5959,7 +5981,8 @@ lUInt32 LVWin32Font::getTextWidth( const lChar16 * text, int len )
                     widths,
                     flags,
                     MAX_LINE_WIDTH,
-                    L' '  // def_char
+                    L' ',  // def_char
+                    lang_cfg
                  );
     if ( res>0 && res<MAX_LINE_CHARS )
         return widths[res-1];
@@ -5976,6 +5999,7 @@ lUInt16 LVWin32Font::measureText(
                     lUInt8 * flags,
                     int max_width,
                     lChar16 def_char,
+                    TextLangCfg * lang_cfg = NULL,
                     int letter_spacing,
                     bool allow_hyphenation,
                     lUInt32 hints
@@ -6038,7 +6062,10 @@ lUInt16 LVWin32Font::measureText(
             break;
 
     }
-    HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphwidth, max_width);
+    if ( lang_cfg )
+        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphwidth, max_width);
+    else // Use global lang hyph method
+        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphwidth, max_width);
 
     return nchars;
 }
