@@ -24,6 +24,7 @@
 #include "lvptrvec.h"
 #include "hyphman.h"
 #include "lvdrawbuf.h"
+#include "textlang.h"
 
 #if !defined(__SYMBIAN32__) && defined(_WIN32)
 extern "C" {
@@ -340,6 +341,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg=NULL,
                         int letter_spacing=0,
                         bool allow_hyphenation=true,
                         lUInt32 hints=0
@@ -350,7 +352,7 @@ public:
         \param len is number of characters to measure
         \return width of specified string 
     */
-    virtual lUInt32 getTextWidth( const lChar16 * text, int len ) = 0;
+    virtual lUInt32 getTextWidth( const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL ) = 0;
 
     // /** \brief get glyph image in 1 byte per pixel format
     //     \param code is unicode character
@@ -391,6 +393,7 @@ public:
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette = NULL, bool addHyphen = false,
+                       TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
                        int text_decoration_back_gap=0 ) = 0;
     /// constructor
@@ -576,6 +579,7 @@ public:
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
+                       TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
                        int text_decoration_back_gap=0 );
 };
@@ -595,6 +599,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg=NULL,
                         int letter_spacing=0,
                         bool allow_hyphenation=true,
                         lUInt32 hints=0
@@ -605,7 +610,7 @@ public:
         \return width of specified string 
     */
     virtual lUInt32 getTextWidth(
-                        const lChar16 * text, int len
+                        const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL
         );
     virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0);
     /// returns font baseline offset
@@ -757,6 +762,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg=NULL,
                         int letter_spacing=0,
                         bool allow_hyphenation=true,
                         lUInt32 hints=0
@@ -767,7 +773,7 @@ public:
         \return width of specified string 
     */
     virtual lUInt32 getTextWidth(
-                        const lChar16 * text, int len
+                        const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL
         );
 
     /// returns char width
@@ -777,6 +783,7 @@ public:
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
                        const lChar16 * text, int len,
                        lChar16 def_char, lUInt32 * palette, bool addHyphen,
+                       TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
                        int text_decoration_back_gap=0 );
         
@@ -935,6 +942,7 @@ public:
                         lUInt8 * flags,
                         int max_width,
                         lChar16 def_char,
+                        TextLangCfg * lang_cfg=NULL,
                         int letter_spacing=0,
                         bool allow_hyphenation=true,
                         lUInt32 hints=0
@@ -945,7 +953,7 @@ public:
         \return width of specified string 
     */
     virtual lUInt32 getTextWidth(
-                        const lChar16 * text, int len
+                        const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL
         );
 
     /** \brief get glyph image in 1 byte per pixel format

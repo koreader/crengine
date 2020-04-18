@@ -24,6 +24,7 @@
 #include "../include/lvimg.h"
 #include "../include/lvtinydom.h"
 #include "../include/lvrend.h"
+#include "../include/textlang.h"
 #endif
 
 #if USE_HARFBUZZ==1
@@ -32,20 +33,6 @@
 
 #if (USE_FRIBIDI==1)
 #include <fribidi/fribidi.h>
-#endif
-
-#if (USE_LIBUNIBREAK==1)
-#include <linebreak.h>
-    // linebreakdef.h is not wrapped by this, unlike linebreak.h
-    // (not wrapping results in "undefined symbol" with the original
-    // function name kinda obfuscated)
-    #ifdef __cplusplus
-    extern "C" {
-    #endif
-#include <linebreakdef.h>
-    #ifdef __cplusplus
-    }
-    #endif
 #endif
 
 #define SPACE_WIDTH_SCALE_PERCENT 100
@@ -212,6 +199,7 @@ void lvtextFreeFormatter( formatted_text_fragment_t * pbuffer )
 
 void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
    lvfont_handle   font,     /* handle of font to draw string */
+   TextLangCfg *   lang_cfg,
    const lChar16 * text,     /* pointer to unicode text string */
    lUInt32         len,      /* number of chars in text, 0 for auto(strlen) */
    lUInt32         color,    /* color */
@@ -241,6 +229,9 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
 //    if (font == NULL && ((flags & LTEXT_WORD_IS_OBJECT) == 0)) {
 //        CRLog::fatal("No font specified for text");
 //    }
+    if ( !lang_cfg )
+        lang_cfg = TextLangMan::getTextLangCfg(); // use main_lang
+    pline->lang_cfg = lang_cfg;
     if (!len) for (len=0; text[len]; len++) ;
     if (flags & LTEXT_FLAG_OWNTEXT)
     {
@@ -274,6 +265,7 @@ void lvtextAddSourceObject(
    lInt16          valign_dy, /* drift y from baseline */
    lInt16          indent,    /* first line indent (or all but first, when negative) */
    void *          object,    /* pointer to custom object */
+   TextLangCfg *   lang_cfg,
    lInt16          letter_spacing
                          )
 {
@@ -293,6 +285,9 @@ void lvtextAddSourceObject(
     pline->interval = interval;
     pline->valign_dy = valign_dy;
     pline->letter_spacing = letter_spacing;
+    if ( !lang_cfg )
+        lang_cfg = TextLangMan::getTextLangCfg(); // use main_lang
+    pline->lang_cfg = lang_cfg;
 }
 
 
@@ -312,6 +307,7 @@ void LFormattedText::AddSourceObject(
             lInt16          valign_dy, /* drift y from baseline */
             lInt16          indent,    /* first line indent (or all but first, when negative) */
             void *          object,    /* pointer to custom object */
+            TextLangCfg *   lang_cfg,
             lInt16          letter_spacing
      )
 {
@@ -324,7 +320,7 @@ void LFormattedText::AddSourceObject(
     if (flags & LTEXT_SRC_IS_FLOAT) { // not an image but a float:'ing node
         // Nothing much to do with it at this point
         lvtextAddSourceObject(m_pbuffer, 0, 0,
-            flags, interval, valign_dy, indent, object, letter_spacing );
+            flags, interval, valign_dy, indent, object, lang_cfg, letter_spacing );
             // lvtextAddSourceObject will itself add to flags: | LTEXT_SRC_IS_OBJECT
             // (only flags & object parameter will be used, the others are not,
             // but they matter if this float is the first node in a paragraph,
@@ -336,7 +332,7 @@ void LFormattedText::AddSourceObject(
         // get its width & neight, as they might be in % of our main width, that
         // we don't know yet (but only when ->Format() is called).
         lvtextAddSourceObject(m_pbuffer, 0, 0,
-            flags, interval, valign_dy, indent, object, letter_spacing );
+            flags, interval, valign_dy, indent, object, lang_cfg, letter_spacing );
             // lvtextAddSourceObject will itself add to flags: | LTEXT_SRC_IS_OBJECT
         return;
     }
@@ -382,7 +378,7 @@ void LFormattedText::AddSourceObject(
     height = h;
 
     lvtextAddSourceObject(m_pbuffer, width, height,
-        flags, interval, valign_dy, indent, object, letter_spacing );
+        flags, interval, valign_dy, indent, object, lang_cfg, letter_spacing );
 }
 
 class LVFormatter {
@@ -928,14 +924,13 @@ public:
     {
         #if (USE_LIBUNIBREAK==1)
         struct LineBreakContext lbCtx;
-        // libunibreak's lb_prop_French provides quite generic additional rules,
-        // similar to the ones hardcoded when not USE_LIBUNIBREAK.
-        // Let's init it before the first char, by adding a leading space which will
-        // be treated as WJ (non-breakable) and should not change behaviour with
-        // the real first char coming up. We then can just use lb_process_next_char()
-        // with the real text.
-        const char * lang = "fr";
-        lb_init_break_context(&lbCtx, 0x0020, lang);
+        // Let's init it before the first char, by adding a leading space which
+        // will be treated as WJ (Word Joiner, non-breakable) and should not
+        // change the behaviour with the real first char coming up. We then
+        // can just use lb_process_next_char() with the real text.
+        // The lang lb_props will be plugged in from the TextLangCfg of the
+        // coming up text node.
+        lb_init_break_context(&lbCtx, 0x0020, NULL);
         #endif
 
         m_has_bidi = false; // will be set if fribidi detects it is bidirectionnal text
@@ -1023,6 +1018,12 @@ public:
                 pos++;
             }
             else {
+                #if (USE_LIBUNIBREAK==1)
+                // We hack into lbCtx private member and switch its lbpLang
+                // on-the-fly to the props for a possibly new language.
+                lbCtx.lbpLang = src->lang_cfg->getLBProps();
+                #endif
+
                 int len = src->t.len;
                 lStr_ncpy( m_text+pos, src->t.text, len );
                 if ( i==0 || (src->flags & LTEXT_FLAG_NEWLINE) )
@@ -1164,6 +1165,11 @@ public:
 
                     #if (USE_LIBUNIBREAK==1)
                     lChar16 ch = m_text[pos];
+                    if ( src->lang_cfg->hasLBCharSubFunc() ) {
+                        // Lang specific function may want to substitute char (for
+                        // libunibreak only) to tweak line breaking around it
+                        ch = src->lang_cfg->getLBCharSubFunc()(m_text, pos, len-1 - k);
+                    }
                     int brk = lb_process_next_char(&lbCtx, (utf32_t)ch);
                     // printf("between <%c%c>: brk %d\n", m_text[pos-1], m_text[pos], brk);
                     if (brk != LINEBREAK_ALLOWBREAK) {
@@ -1194,9 +1200,9 @@ public:
                         // Given the algorithm described in addLine(), we want the break
                         // after the first space, so the following collapsed spaces can
                         // be at start of next line where they will be ignored.
-                        // (Not certain this is really needed, but let's do it as the
-                        // code expecting that has been quite well tested and fixed other
-                        // the months, so don't add uncertainty.)
+                        // (Not certain this is really needed, but let's do it, as the
+                        // code expecting that has been quite well tested and fixed over
+                        // the months, so let's avoid adding uncertainty.)
                         if ( m_flags[pos-1] & LCHAR_IS_COLLAPSED_SPACE ) {
                             // We have spaces before, and if we are allowed to break,
                             // the break is allowed on all preceeding spaces.
@@ -1459,6 +1465,7 @@ public:
                 widths, flags,
                 0x7FFF,
                 '?',
+                srcline->lang_cfg,
                 srcline->letter_spacing,
                 false,
                 hints );
@@ -1605,6 +1612,7 @@ public:
                             widths, flags,
                             0x7FFF, //pbuffer->width,
                             '?',
+                            lastSrc->lang_cfg,
                             lastLetterSpacing,
                             false,
                             hints
@@ -1668,9 +1676,10 @@ public:
                         }
                         m_widths[start + k] = lastWidth + widths[k];
                         #if (USE_LIBUNIBREAK==1)
-                        // Reset this flag if lastFont->measureText() has set it, as we trust
-                        // only libunibreak.
-                        flags[k] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                        // Reset these flags if lastFont->measureText() has set them, as we trust
+                        // only libunibreak (which is more clever with hyphens, that our code flag
+                        // with LCHAR_DEPRECATED_WRAP_AFTER).
+                        flags[k] &= ~(LCHAR_ALLOW_WRAP_AFTER|LCHAR_DEPRECATED_WRAP_AFTER);
                         #endif
                         m_flags[start + k] |= flags[k];
                         // printf("  => w=%d\n", m_widths[start + k]);
@@ -3246,7 +3255,7 @@ public:
                     // but it should be a candidate for lastNormalWrap (otherwise, the
                     // previous word will be hyphenated and we will get spaces widen for
                     // text justification)
-                    if ( (flags & LCHAR_ALLOW_WRAP_AFTER) && !(flags & LCHAR_IS_OBJECT) ) // don't break yet
+                    if ( (flags & LCHAR_IS_SPACE) && (flags & LCHAR_ALLOW_WRAP_AFTER) ) // don't break yet
                         grabbedExceedingSpace = true;
                     else
                         break;
@@ -3258,6 +3267,7 @@ public:
                 // but this does not look right, as any other unicode char would allow wrap.
                 //
                 #if (USE_LIBUNIBREAK==1)
+                // Note: with libunibreak, we can't assume anymore that LCHAR_ALLOW_WRAP_AFTER is synonym to IS_SPACE.
                 if (flags & LCHAR_ALLOW_WRAP_AFTER) {
                     lastNormalWrap = i;
                 }
@@ -3309,7 +3319,7 @@ public:
                 else if ( flags & LCHAR_DEPRECATED_WRAP_AFTER ) // Hyphens make a less priority wrap
                     lastDeprecatedWrap = i;
                 else if ( flags & LCHAR_ALLOW_HYPH_WRAP_AFTER ) // can't happen at this point as we haven't
-                    lastHyphWrap = i;                           // gone thru HyphMan::hyphenate()
+                    lastHyphWrap = i;                           // gone thru hyphenate()
                 if ( !grabbedExceedingSpace &&
                         m_pbuffer->min_space_condensing_percent != 100 &&
                         i < m_length-1 &&
@@ -3403,7 +3413,7 @@ public:
                     // We have a valid word to look for hyphenation
                     if ( len > MAX_WORD_SIZE ) // hyphenate() stops/truncates at 64 chars
                         len = MAX_WORD_SIZE;
-                    // HyphMan::hyphenate(), which is used by some other parts of the code,
+                    // ->hyphenate(), which is used by some other parts of the code,
                     // expects a lUInt8 array. We added flagSize=1|2 so it can set the correct
                     // flags on our upgraded (from lUInt8 to lUInt16) m_flags.
                     lUInt8 * flags = (lUInt8*) (m_flags + wstart);
@@ -3426,7 +3436,8 @@ public:
                             break;
                         }
                     }
-                    if ( HyphMan::hyphenate(m_text+wstart, len, widths, flags, _hyphen_width, max_width, 2) ) {
+                    // Use the hyph method of the source node that contains wordpos
+                    if ( m_srcs[wordpos]->lang_cfg->getHyphMethod()->hyphenate(m_text+wstart, len, widths, flags, _hyphen_width, max_width, 2) ) {
                         // We need to reset the flag for the multiple hyphenation
                         // opportunities we will not be using (or they could cause
                         // spurious spaces, as a word here may be multiple words
@@ -3566,6 +3577,16 @@ public:
                 endp = m_length;
             addLine(pos, endp, x + firstCharMargin, para, interval, pos==0, wrapPos>=m_length-1, preFormattedOnly, needReduceSpace, isLastPara);
             pos = wrapPos + 1;
+            #if (USE_LIBUNIBREAK==1)
+            // (Only when using libunibreak, which we trust decisions to wrap on hyphens.)
+            if ( m_srcs[wrapPos]->lang_cfg->duplicateRealHyphenOnNextLine() && pos > 0 && pos < m_length-1 ) {
+                if ( m_text[wrapPos] == '-' || m_text[wrapPos] == UNICODE_HYPHEN ) {
+                    pos--; // Have that last hyphen also at the start of next line
+                           // (small caveat: the duplicated hyphen at start of next
+                           // line won't be part of the highlighted text)
+                }
+            }
+            #endif
         }
     }
 
@@ -4249,6 +4270,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         '?',
                         NULL,
                         flgHyphen,
+                        srcline->lang_cfg,
                         drawFlags,
                         srcline->letter_spacing,
                         word->width,
