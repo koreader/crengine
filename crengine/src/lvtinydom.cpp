@@ -5940,12 +5940,13 @@ void ldomNode::initNodeRendMethod()
                         }
                         j++;
                         // j..i are inline
-                        if ( j>0 || i<(int)getChildCount()-1 )
+                        if ( j>0 || i<(int)getChildCount()-1 ) {
                             // Avoid crash: we can't add/move nodes when a cache file exists
                             if ( getDocument()->hasCacheFile() )
                                 getDocument()->setBoxingWishedButPreventedByCache();
                             else
                                 autoboxChildren( j, i, handleFloating );
+                        }
                         i = j;
                     }
                     else if ( i>0 ) {
@@ -8719,7 +8720,7 @@ lString16 ldomXPointer::toStringV2()
                 // same element name, so we can have "div[1]" instead of "div"
                 // when parent has more than one of it (as toStringV1 does).
                 ldomNode * n = p;
-                while ( n = n->getUnboxedNextSibling(true) ) {
+                while ( (n = n->getUnboxedNextSibling(true)) ) {
                     if ( predicat(n) ) { // We have such a followup sibling
                         count = 2; // there's at least 2 of them
                         break;
@@ -8741,7 +8742,7 @@ lString16 ldomXPointer::toStringV2()
                 // so we can have "text()[1]" instead of "text()" when
                 // parent has more than one text node (as toStringV1 does).
                 ldomNode * n = p;
-                while ( n = n->getUnboxedNextSibling(false) ) {
+                while ( (n = n->getUnboxedNextSibling(false)) ) {
                     if ( isTextNode(n) ) { // We have such a followup sibling
                         count = 2; // there's at least 2 of them
                         break;
