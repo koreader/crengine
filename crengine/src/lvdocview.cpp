@@ -6307,12 +6307,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_FONT_FACE) {
             setDefaultFontFace(UnicodeToUtf8(value));
         } else if (name == PROP_FALLBACK_FONT_FACE) {
-            lString8 oldFace = fontMan->GetFallbackFontFace();
-            if ( UnicodeToUtf8(value)!=oldFace )
-                fontMan->SetFallbackFontFace(UnicodeToUtf8(value));
-            value = Utf8ToUnicode(fontMan->GetFallbackFontFace());
-            if ( UnicodeToUtf8(value) != oldFace ) {
-                REQUEST_RENDER("propsApply  fallback font face")
+            lString8 oldFaces = fontMan->GetFallbackFontFaces();
+            if ( UnicodeToUtf8(value)!=oldFaces )
+                fontMan->SetFallbackFontFaces(UnicodeToUtf8(value));
+            value = Utf8ToUnicode(fontMan->GetFallbackFontFaces());
+            if ( UnicodeToUtf8(value) != oldFaces ) {
+                REQUEST_RENDER("propsApply  fallback font faces")
             }
         } else if (name == PROP_STATUS_FONT_FACE) {
             setStatusFontFace(UnicodeToUtf8(value));

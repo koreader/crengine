@@ -565,10 +565,13 @@ public:
         LVPtrVector< LVFontCacheItem > * fonts = getInstances();
         for ( int i=0; i<fonts->length(); i++ ) {
             fonts->get(i)->getFont()->setFallbackFont(LVFontRef());
+            fonts->get(i)->getFont()->setNextFallbackFont(LVFontRef());
         }
         for ( int i=0; i<_registered_list.length(); i++ ) {
-            if (!_registered_list[i]->getFont().isNull())
+            if (!_registered_list[i]->getFont().isNull()) {
                 _registered_list[i]->getFont()->setFallbackFont(LVFontRef());
+                _registered_list[i]->getFont()->setNextFallbackFont(LVFontRef());
+            }
         }
     }
     LVFontCache( )
@@ -1035,6 +1038,8 @@ protected:
     kerning_mode_t _kerningMode;
     bool           _fallbackFontIsSet;
     LVFontRef      _fallbackFont;
+    bool           _nextFallbackFontIsSet;
+    LVFontRef      _nextFallbackFont;
     bool           _embolden; // fake/synthetized bold
     FT_Pos         _embolden_half_strength; // for emboldening with Harfbuzz
     int            _features; // requested OpenType features bitmap
@@ -1058,16 +1063,31 @@ public:
         clearCache();
     }
 
-    /// get fallback font for this font
+    /// get fallback font for this font (when it is used as the main font)
     LVFont * getFallbackFont() {
         if ( _fallbackFontIsSet )
             return _fallbackFont.get();
-        // To avoid circular link, disable fallback for fallback font:
-        if ( fontMan->GetFallbackFontFace()!=_faceName )
-            _fallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic);
+        _fallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic);
         _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
+
+    /// set next fallback font for this font (for when used as a fallback font)
+    virtual void setNextFallbackFont( LVFontRef font ) {
+        _nextFallbackFont = font;
+        _nextFallbackFontIsSet = !font.isNull();
+        clearCache();
+    }
+
+    /// get next fallback font for this font (when it is already used as a fallback font)
+    LVFont * getNextFallbackFont() {
+        if ( _nextFallbackFontIsSet )
+            return _nextFallbackFont.get();
+        _nextFallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic, _faceName);
+        _nextFallbackFontIsSet = true;
+        return _nextFallbackFont.get();
+    }
+
 
     /// returns font weight
     virtual int getWeight() const { return _weight; }
@@ -1086,7 +1106,7 @@ public:
         , _weight(400), _italic(0), _embolden(false), _features(0)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
-        , _fallbackFontIsSet(false)
+        , _fallbackFontIsSet(false), _nextFallbackFontIsSet(false)
         #if USE_HARFBUZZ==1
         , _hb_features(NULL)
         , _glyph_cache2(globalCache)
@@ -1685,11 +1705,11 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0 ) {
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false ) {
         //FONT_GUARD
         int glyph_index = getCharIndex( code, 0 );
         if ( glyph_index==0 ) {
-            LVFont * fallback = getFallbackFont();
+            LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
             if ( !fallback ) {
                 // No fallback
                 glyph_index = getCharIndex( code, def_char );
@@ -1698,7 +1718,7 @@ public:
             }
             else {
                 // Fallback
-                return fallback->getGlyphInfo(code, glyph, def_char);
+                return fallback->getGlyphInfo(code, glyph, def_char, true);
             }
         }
 
@@ -1868,7 +1888,10 @@ public:
             // todo: (if needed) might need a pre-pass in the fallback case:
             // full shaping without filterChar(), and if any .notdef
             // codepoint, re-shape with filterChar()...
-            if ( getFallbackFont() ) { // It has a fallback font, add chars as-is
+            bool is_fallback_font = hints & LFNT_HINT_IS_FALLBACK_FONT;
+            LVFont * fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
+            bool has_fallback_font = (bool) fallback;
+            if ( has_fallback_font ) { // It has a fallback font, add chars as-is
                 for (i = 0; i < len; i++) {
                     hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
                 }
@@ -2008,16 +2031,15 @@ public:
                             #endif
                             if ( t_notdef_start >= 0 ) { // But we have a segment of previous ".notdef"
                                 t_notdef_end = t;
-                                LVFont *fallback = getFallbackFont();
                                 // The code ensures the main fallback font has no fallback font
-                                if ( fallback ) {
+                                if ( has_fallback_font ) {
                                     // Let the fallback font replace the wrong values in widths and flags
                                     #ifdef DEBUG_MEASURE_TEXT
                                         printf("[...]\nMTHB ### measuring past failures with fallback font %d>%d\n",
                                                                 t_notdef_start, t_notdef_end);
                                     #endif
                                     // Drop BOT/EOT flags if this segment is not at start/end
-                                    lUInt32 fb_hints = hints;
+                                    lUInt32 fb_hints = hints | LFNT_HINT_IS_FALLBACK_FONT;
                                     if ( t_notdef_start > 0 )
                                         fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
                                     if ( t_notdef_end < len )
@@ -2105,14 +2127,13 @@ public:
             // Process .notdef glyphs at end of text (same logic as above)
             if ( t_notdef_start >= 0 ) {
                 t_notdef_end = len;
-                LVFont *fallback = getFallbackFont();
-                if ( fallback ) {
+                if ( has_fallback_font ) {
                     #ifdef DEBUG_MEASURE_TEXT
                         printf("[...]\nMTHB ### measuring past failures at EOT with fallback font %d>%d\n",
                                                 t_notdef_start, t_notdef_end);
                     #endif
                     // Drop BOT flag if this segment is not at start (it is at end)
-                    lUInt32 fb_hints = hints;
+                    lUInt32 fb_hints = hints | LFNT_HINT_IS_FALLBACK_FONT;
                     if ( t_notdef_start > 0 )
                         fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
                     int chars_measured = fallback->measureText( text + t_notdef_start, // start
@@ -2343,11 +2364,11 @@ public:
         \param code is unicode character
         \return glyph pointer if glyph was found, NULL otherwise
     */
-    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) {
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0, bool is_fallback=false) {
         //FONT_GUARD
         FT_UInt ch_glyph_index = getCharIndex( ch, 0 );
         if ( ch_glyph_index==0 ) {
-            LVFont * fallback = getFallbackFont();
+            LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
             if ( !fallback ) {
                 // No fallback
                 ch_glyph_index = getCharIndex( ch, def_char );
@@ -2359,7 +2380,7 @@ public:
                 // todo: find a way to adjust origin_y by this font and
                 // fallback font baseline difference, without modifying
                 // the item in the cache of the fallback font
-                return fallback->getGlyph(ch, def_char);
+                return fallback->getGlyph(ch, def_char, true);
             }
         }
         LVFontGlyphCacheItem * item = _glyph_cache.getByChar( ch );
@@ -2623,7 +2644,10 @@ public:
             hb_glyph_position_t *glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
             // Fill HarfBuzz buffer
-            if ( getFallbackFont() ) { // It has a fallback font, add chars as-is
+            bool is_fallback_font = flags & LFNT_HINT_IS_FALLBACK_FONT;
+            LVFont * fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
+            bool has_fallback_font = (bool) fallback;
+            if ( has_fallback_font ) { // It has a fallback font, add chars as-is
                 for (i = 0; i < len; i++) {
                     hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
                 }
@@ -2702,8 +2726,6 @@ public:
             // inverted for RTL drawing, and we can't uninvert them. We also loop
             // thru glyphs here rather than chars.
             int w;
-            LVFont *fallback = getFallbackFont();
-            bool has_fallback_font = (bool) fallback;
 
             // Cluster numbers may increase or decrease (if RTL) while we walk the glyphs.
             // We'll update fallback drawing text indices as we walk glyphs and cluster
@@ -2807,7 +2829,7 @@ public:
                         printf(" => %d > %d\n", fb_t_start, fb_t_end);
                     #endif
                     // Adjust DrawTextString() params for fallback drawing
-                    lUInt32 fb_flags = flags;
+                    lUInt32 fb_flags = flags | LFNT_HINT_IS_FALLBACK_FONT;
                     fb_flags &= ~LFNT_DRAW_DECORATION_MASK; // main font will do text decoration
                     // We must keep direction, but we should drop BOT/EOT flags
                     // if this segment is not at start/end (this might be bogus
@@ -3127,9 +3149,9 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0  )
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false  )
     {
-        bool res = _baseFont->getGlyphInfo( code, glyph, def_char );
+        bool res = _baseFont->getGlyphInfo( code, glyph, def_char, is_fallback );
         if ( !res )
             return res;
         glyph->blackBoxX += glyph->blackBoxX>0 ? _hShift : 0;
@@ -3208,13 +3230,13 @@ public:
         \param code is unicode character
         \return glyph pointer if glyph was found, NULL otherwise
     */
-    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) {
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0, bool is_fallback=false) {
 
         LVFontGlyphCacheItem * item = _glyph_cache.getByChar( ch );
         if ( item )
             return item;
 
-        LVFontGlyphCacheItem * olditem = _baseFont->getGlyph( ch, def_char );
+        LVFontGlyphCacheItem * olditem = _baseFont->getGlyph( ch, def_char, is_fallback );
         if ( !olditem )
             return NULL;
 
@@ -3518,7 +3540,8 @@ class LVFreeTypeFontManager : public LVFontManager
 {
 private:
     lString8    _path;
-    lString8    _fallbackFontFace;
+    lString8    _fallbackFontFacesString; // comma separated list of fallback fonts
+    lString8Collection _fallbackFontFaces;  // splitted from previous
     LVFontCache _cache;
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
@@ -3532,29 +3555,55 @@ public:
     /// get hash of installed fonts and fallback font
     virtual lUInt32 GetFontListHash(int documentId) {
         FONT_MAN_GUARD
-        return _cache.GetFontListHash(documentId) * 75 + _fallbackFontFace.getHash();
+        return _cache.GetFontListHash(documentId) * 75 + _fallbackFontFacesString.getHash();
     }
 
-    /// set fallback font
-    virtual bool SetFallbackFontFace( lString8 face ) {
+    /// set fallback fonts
+    virtual bool SetFallbackFontFaces( lString8 facesString ) {
         FONT_MAN_GUARD
-        if ( face!=_fallbackFontFace ) {
-            CRLog::trace("Looking for fallback font %s", face.c_str());
-            LVFontCacheItem * item = _cache.findFallback( face, -1 );
-            if ( !item ) {
-                face.clear();
-                // Don't reset previous fallback if this one is not found/valid
+        if ( facesString != _fallbackFontFacesString ) {
+            // Multiple fallback font names can be provided, separated by '|'
+            lString8Collection faces = lString8Collection(facesString, lString8("|"));
+            bool has_valid_face = false;
+            for (int i = 0; i < faces.length(); i++) {
+                lString8 face = faces[i];
+                CRLog::trace("Looking for fallback font %s", face.c_str());
+                LVFontCacheItem * item = _cache.findFallback( face, -1 );
+                if ( !item ) { // not found
+                    continue;
+                }
+                if ( !has_valid_face ) {
+                    has_valid_face = true;
+                    // One valid font: clear previous set of fallback fonts
+                    _fallbackFontFaces.clear();
+                }
+                // Check if duplicate (to avoid fallback font loops)
+                bool is_duplicate = false;
+                for ( int i=0; i < _fallbackFontFaces.length(); i++ ) {
+                    if ( face == _fallbackFontFaces[i] ) {
+                        is_duplicate = true;
+                        break;
+                    }
+                }
+                if ( is_duplicate ) {
+                    continue;
+                }
+                _fallbackFontFaces.add(face);
+            }
+            if ( !has_valid_face ) {
+                // Don't clear previous fallbacks and cache if this one has
+                // not a single found and valid font
                 return false;
             }
+            _fallbackFontFacesString = facesString;
             _cache.clearFallbackFonts();
-            _fallbackFontFace = face;
             // Somehow, with Fedra Serif (only!), changing the fallback font does
             // not prevent glyphs from previous fallback font to be re-used...
             // So let's clear glyphs caches too.
             gc();
             clearGlyphCache();
         }
-        return !_fallbackFontFace.empty();
+        return !_fallbackFontFacesString.empty();
     }
 
     /// set as preferred font with the given bias to add in CalcMatch algorithm
@@ -3565,12 +3614,12 @@ public:
 
 
     /// get fallback font face (returns empty string if no fallback font is set)
-    virtual lString8 GetFallbackFontFace() { return _fallbackFontFace; }
+    virtual lString8 GetFallbackFontFaces() { return _fallbackFontFacesString; }
 
     /// returns fallback font for specified size
     virtual LVFontRef GetFallbackFont(int size) {
         FONT_MAN_GUARD
-        if ( _fallbackFontFace.empty() )
+        if ( _fallbackFontFaces.length() == 0 )
             return LVFontRef();
         // reduce number of possible distinct sizes for fallback font
         if ( size>40 )
@@ -3579,16 +3628,16 @@ public:
             size &= 0xFFFC;
         else if ( size>16 )
             size &= 0xFFFE;
-        LVFontCacheItem * item = _cache.findFallback( _fallbackFontFace, size );
+        LVFontCacheItem * item = _cache.findFallback( _fallbackFontFaces[0], size );
         if ( !item->getFont().isNull() )
             return item->getFont();
-        return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFace, 0, -1);
+        return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFaces[0], 0, -1);
     }
 
     /// returns fallback font for specified size, weight and italic
-    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false) {
+    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false, lString8 forFaceName=lString8::empty_str) {
         FONT_MAN_GUARD
-        if ( _fallbackFontFace.empty() )
+        if ( _fallbackFontFaces.length() == 0 )
             return LVFontRef();
         // reduce number of possible distinct sizes for fallback font
         if ( size>40 )
@@ -3597,11 +3646,25 @@ public:
             size &= 0xFFFC;
         else if ( size>16 )
             size &= 0xFFFE;
+        // If forFaceName not provided, returns first font among _fallbackFontFaces.
+        // If forFaceName provided, returns the one just after it, if forFaceName is
+        // among _fallbackFontFaces. If it is not, return the first one.
+        int idx = 0;
+        if ( !forFaceName.empty() ) {
+            for ( int i=0; i < _fallbackFontFaces.length(); i++ ) {
+                if ( forFaceName == _fallbackFontFaces[i] ) {
+                    idx = i + 1;
+                    if ( idx >= _fallbackFontFaces.length() ) // forFaceName was last fallback font
+                        return LVFontRef();
+                    break;
+                }
+            }
+        }
         // We don't use/extend findFallback(), which was made to work
         // assuming the fallback font is a standalone regular font
         // without any bold/italic sibling.
         // GetFont() works just as fine when we need specified weigh and italic.
-        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFace, 0, -1);
+        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFaces[idx], 0, -1);
     }
 
     bool isBitmapModeForSize( int size )
@@ -5198,7 +5261,7 @@ int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
 }
 
 #if (USE_BITMAP_FONTS==1)
-bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char )
+bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char, bool is_fallback=false )
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
@@ -5561,7 +5624,7 @@ bool LVBaseWin32Font::Create(int size, int weight, bool italic, css_font_family_
     \param glyph is pointer to glyph_info_t struct to place retrieved info
     \return true if glyh was found
 */
-bool LVWin32DrawFont::getGlyphInfo( lUInt16 code, glyph_info_t * glyph, lChar16 def_char )
+bool LVWin32DrawFont::getGlyphInfo( lUInt16 code, glyph_info_t * glyph, lChar16 def_char, bool is_fallback=false )
 {
     return false;
 }
@@ -5956,7 +6019,7 @@ glyph_t * LVWin32Font::GetGlyphRec( lChar16 ch )
     \param glyph is pointer to glyph_info_t struct to place retrieved info
     \return true if glyh was found
 */
-bool LVWin32Font::getGlyphInfo( lUInt16 code, glyph_info_t * glyph, lChar16 def_char )
+bool LVWin32Font::getGlyphInfo( lUInt16 code, glyph_info_t * glyph, lChar16 def_char, bool is_fallback=false )
 {
     if (_hfont==NULL)
         return false;

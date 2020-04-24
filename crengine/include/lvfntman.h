@@ -209,6 +209,8 @@ enum kerning_mode_t {
 #define LFNT_HINT_BEGINS_PARAGRAPH       0x0004 /// segment is at start of paragraph
 #define LFNT_HINT_ENDS_PARAGRAPH         0x0008 /// segment is at end of paragraph
 
+#define LFNT_HINT_IS_FALLBACK_FONT       0x0010 /// set on recursive Harfbuzz rendering/drawing with a fallback font
+
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
 #define LFNT_DRAW_UNDERLINE              0x0100 /// underlined text
 #define LFNT_DRAW_OVERLINE               0x0200 /// overlined text
@@ -324,7 +326,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0 ) = 0;
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false ) = 0;
 
     /** \brief measure text
         \param text is text string pointer
@@ -365,7 +367,7 @@ public:
         \param code is unicode character
         \return glyph pointer if glyph was found, NULL otherwise
     */
-    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) = 0;
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0, bool is_fallback=false) = 0;
 
     /// returns font baseline offset
     virtual int getBaseline() = 0;
@@ -436,6 +438,11 @@ public:
     virtual void setFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
     /// get fallback font for this font
     LVFont * getFallbackFont() { return NULL; }
+
+    /// set next fallback font for this font (for when used as a fallback font)
+    virtual void setNextFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
+    /// get next fallback font for this font (when already used as a fallback font)
+    LVFont * getNextFallbackFont() { return NULL; }
 };
 
 typedef LVProtectedFastRef<LVFont> LVFontRef;
@@ -496,14 +503,14 @@ public:
     /// returns most similar font
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features=0, int documentId = -1, bool useBias=false) = 0;
-    /// set fallback font face (returns true if specified font is found)
-    virtual bool SetFallbackFontFace( lString8 face ) { CR_UNUSED(face); return false; }
-    /// get fallback font face (returns empty string if no fallback font is set)
-    virtual lString8 GetFallbackFontFace() { return lString8::empty_str; }
+    /// set fallback font faces (separated by '|')
+    virtual bool SetFallbackFontFaces( lString8 facesString ) { CR_UNUSED(facesString); return false; }
+    /// get fallback font faces string (returns empty string if no fallback font is set)
+    virtual lString8 GetFallbackFontFaces() { return lString8::empty_str; }
     /// returns fallback font for specified size
     virtual LVFontRef GetFallbackFont(int /*size*/) { return LVFontRef(); }
     /// returns fallback font for specified size, weight and italic
-    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false ) { return LVFontRef(); }
+    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false, lString8 forFaceName=lString8::empty_str ) { return LVFontRef(); }
     /// registers font by name
     virtual bool RegisterFont( lString8 name ) = 0;
     /// registers font by name and face
@@ -592,7 +599,7 @@ private:
     lvfont_handle m_font;
 public:
     LBitmapFont() : m_font(NULL) { }
-    virtual bool getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0 );
+    virtual bool getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false );
     virtual lUInt16 measureText( 
                         const lChar16 * text, int len, 
                         lUInt16 * widths,
@@ -612,7 +619,7 @@ public:
     virtual lUInt32 getTextWidth(
                         const lChar16 * text, int len, TextLangCfg * lang_cfg=NULL
         );
-    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0);
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0, bool is_fallback=false);
     /// returns font baseline offset
     virtual int getBaseline();
     /// returns font height
@@ -727,7 +734,7 @@ public:
         return css_ff_inherit;
     }
 
-    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0) {
+    virtual LVFontGlyphCacheItem * getGlyph(lUInt32 ch, lChar16 def_char=0, bool is_fallback=false) {
         return NULL;
     }
 
@@ -750,7 +757,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0 );
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false );
 
     /** \brief measure text
         \param glyph is pointer to glyph_info_t struct to place retrieved info
@@ -930,7 +937,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0 );
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar16 def_char=0, bool is_fallback=false );
 
     /** \brief measure text
         \param glyph is pointer to glyph_info_t struct to place retrieved info
