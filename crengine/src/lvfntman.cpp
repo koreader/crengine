@@ -347,7 +347,7 @@ static lChar16 getReplacementChar( lUInt32 code ) {
 
 
 #if USE_HARFBUZZ==1
-bool isScriptCursive( hb_script_t script ) {
+bool isHBScriptCursive( hb_script_t script ) {
     // https://github.com/harfbuzz/harfbuzz/issues/64
     // From https://android.googlesource.com/platform/frameworks/minikin/
     //               +/refs/heads/experimental/libs/minikin/Layout.cpp
@@ -1932,7 +1932,7 @@ public:
             if ( letter_spacing > 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
-                if ( isScriptCursive(script) )
+                if ( isHBScriptCursive(script) )
                     letter_spacing = 0;
             }
             // todo: if letter_spacing, ligatures should be disabled (-liga, -clig)
@@ -2111,8 +2111,15 @@ public:
                 else {
                     // We're either a single char cluster, or the start
                     // of a multi chars cluster.
-                    cur_width += letter_spacing; // only between clusters/graphemes
                     flags[t] = GET_CHAR_FLAGS(text[t]);
+                    if (cur_width == prev_width) {
+                        // But if there is no advance (not sure this can happen, but just
+                        // in case), flag it and don't add any letter spacing.
+                        flags[t] |= LCHAR_IS_CLUSTER_TAIL;
+                    }
+                    else {
+                        cur_width += letter_spacing; // only between clusters/graphemes
+                    }
                     // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
                     // so HarfBuzz must already deal correctly with soft-hyphens.
                 }
@@ -2213,7 +2220,15 @@ public:
                         continue;  /* ignore errors */
                     }
                 }
-                widths[i] = prev_width + posInfo.width + letter_spacing;
+                widths[i] = prev_width + posInfo.width;
+                if ( posInfo.width == 0 ) {
+                    // Assume zero advance means it's a diacritic, and we should not apply
+                    // any letter spacing on this char (now, and when justifying)
+                    flags[i] |= LCHAR_IS_CLUSTER_TAIL;
+                }
+                else {
+                    widths[i] += letter_spacing;
+                }
                 if ( !isHyphen ) // avoid soft hyphens inside text string
                     prev_width = widths[i];
                 if ( prev_width > max_width ) {
@@ -2295,7 +2310,15 @@ public:
                     ch_glyph_index = getCharIndex( ch, 0 );
                 previous = ch_glyph_index;
             }
-            widths[i] = prev_width + w + FONT_METRIC_TO_PX(kerning) + letter_spacing;
+            widths[i] = prev_width + w + FONT_METRIC_TO_PX(kerning);
+            if ( w == 0 ) {
+                // Assume zero advance means it's a diacritic, and we should not apply
+                // any letter spacing on this char (now, and when justifying)
+                flags[i] |= LCHAR_IS_CLUSTER_TAIL;
+            }
+            else {
+                widths[i] += letter_spacing;
+            }
             if ( !isHyphen ) // avoid soft hyphens inside text string
                 prev_width = widths[i];
             if ( prev_width > max_width ) {
@@ -2695,7 +2718,7 @@ public:
             if ( letter_spacing > 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
-                if ( isScriptCursive(script) )
+                if ( isHBScriptCursive(script) )
                     letter_spacing = 0;
             }
 
