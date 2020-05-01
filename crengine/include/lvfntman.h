@@ -186,6 +186,9 @@ struct LVFontGlyphCacheItem
     }
 };
 
+#if USE_HARFBUZZ==1
+bool isHBScriptCursive( hb_script_t script );
+#endif
 
 enum hinting_mode_t {
     HINTING_MODE_DISABLED,
