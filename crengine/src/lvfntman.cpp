@@ -2113,8 +2113,8 @@ public:
                     // of a multi chars cluster.
                     flags[t] = GET_CHAR_FLAGS(text[t]);
                     if (cur_width == prev_width) {
-                        // But if there is no advance (not sure this can happen, but just
-                        // in case), flag it and don't add any letter spacing.
+                        // But if there is no advance (this happens with soft-hyphens),
+                        // flag it and don't add any letter spacing.
                         flags[t] |= LCHAR_IS_CLUSTER_TAIL;
                     }
                     else {
@@ -2891,6 +2891,7 @@ public:
                         printf("regular g%d>%d: ", hg, hg2);
                     #endif
                     // Draw glyphs of this same cluster
+                    int prev_x = x;
                     for (i = hg; i < hg2; i++) {
                         LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
                         if (item) {
@@ -2913,7 +2914,12 @@ public:
                         #endif
                     }
                     // Whole cluster drawn: add letter spacing
-                    x += letter_spacing;
+                    if ( x > prev_x ) {
+                        // But only if this cluster has some advance
+                        // (e.g. a soft-hyphen makes its own cluster, that
+                        // draws a space glyph, but with no advance)
+                        x += letter_spacing;
+                    }
                 }
                 hg = hg2;
                 #ifdef DEBUG_DRAW_TEXT
