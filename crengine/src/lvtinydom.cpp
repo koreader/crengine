@@ -11537,7 +11537,6 @@ public:
         case css_d_compact:
         case css_d_marker:
         case css_d_table:
-        case css_d_inline_table:
         case css_d_table_row_group:
         case css_d_table_header_group:
         case css_d_table_footer_group:
@@ -11554,6 +11553,8 @@ public:
             return false;
         case css_d_inline:
         case css_d_run_in:
+        case css_d_inline_block: // Make these behave as inline, in case they don't contain much
+        case css_d_inline_table: // (if they do, some inner block element will give newBlock=true)
             newBlock = false;
             return true;
         }
