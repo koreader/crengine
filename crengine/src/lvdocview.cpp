@@ -6234,7 +6234,7 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if ((int)fontMan->GetHintingMode() != mode && mode>=0 && mode<=2) {
                 //CRLog::debug("Setting hinting mode to %d", mode);
                 fontMan->SetHintingMode((hinting_mode_t)mode);
-                requestRender();
+                requestRender(); // does m_doc->clearRendBlockCache(), which is needed on hinting mode change
             }
         } else if (name == PROP_HIGHLIGHT_SELECTION_COLOR || name == PROP_HIGHLIGHT_BOOKMARK_COLOR_COMMENT || name == PROP_HIGHLIGHT_BOOKMARK_COLOR_COMMENT) {
             REQUEST_RENDER("propsApply - highlight")
