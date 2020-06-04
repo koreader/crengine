@@ -106,7 +106,8 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.direction) * 31
          + (lUInt32)rec.cr_hint) * 31
          + (lUInt32)rec.font_name.getHash()
-         + (lUInt32)rec.background_image.getHash());
+         + (lUInt32)rec.background_image.getHash()
+         + (lUInt32)rec.content.getHash());
     return rec.hash;
 }
 
@@ -170,6 +171,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.float_ == r2.float_&&
            r1.clear == r2.clear&&
            r1.direction == r2.direction&&
+           r1.content == r2.content&&
            r1.cr_hint==r2.cr_hint;
 }
 
@@ -357,6 +359,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(float_);
     ST_PUT_ENUM(clear);
     ST_PUT_ENUM(direction);
+    buf << content;
     ST_PUT_ENUM(cr_hint);
     lUInt32 hash = calcHash(*this);
     buf << hash;
@@ -416,6 +419,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_float_t, float_);
     ST_GET_ENUM(css_clear_t, clear);
     ST_GET_ENUM(css_direction_t, direction);
+    buf>>content;
     ST_GET_ENUM(css_cr_hint_t, cr_hint);
     lUInt32 hash = 0;
     buf >> hash;
