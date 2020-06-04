@@ -215,11 +215,10 @@ enum kerning_mode_t {
 #define LFNT_HINT_IS_FALLBACK_FONT       0x0010 /// set on recursive Harfbuzz rendering/drawing with a fallback font
 
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
-#define LFNT_DRAW_UNDERLINE              0x0100 /// underlined text
-#define LFNT_DRAW_OVERLINE               0x0200 /// overlined text
-#define LFNT_DRAW_LINE_THROUGH           0x0400 /// striked through text
-#define LFNT_DRAW_BLINK                  0x0800 /// blinking text (implemented as underline)
-#define LFNT_DRAW_DECORATION_MASK        0x0F00
+#define LFNT_DRAW_UNDERLINE              0x1000 /// underlined text
+#define LFNT_DRAW_OVERLINE               0x2000 /// overlined text
+#define LFNT_DRAW_LINE_THROUGH           0x4000 /// striked through text
+#define LFNT_DRAW_DECORATION_MASK        0x7000
 
 
 // CSS font-variant and font-feature-settings properties:
