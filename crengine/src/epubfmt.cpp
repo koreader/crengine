@@ -931,6 +931,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         return false;
 
 
+    // That's how many metadata nodes we parse before giving up
+    #define EPUB_META_MAX_ITER 50U
+
     bool isEpub3 = false;
     lString16 epubVersion;
     lString16 navHref; // epub3 TOC
@@ -978,7 +981,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // (these \n can be replaced on the lua side for the most appropriate display)
         bool authors_set = false;
         lString16 authors;
-        for ( int i=1; i<20; i++ ) {
+        for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/creator[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
@@ -996,7 +999,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // There may be multiple <dc:subject> tags, which are usually used for keywords, categories
         bool subjects_set = false;
         lString16 subjects;
-        for ( int i=1; i<20; i++ ) {
+        for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/subject[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
@@ -1011,7 +1014,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         }
         m_doc_props->setString(DOC_PROP_KEYWORDS, subjects);
 
-        for ( int i=1; i<50; i++ ) {
+        for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/identifier[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
@@ -1047,7 +1050,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
         CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
         bool hasSeriesMeta = false;
-        for ( int i=1; i<20; i++ ) {
+        for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
@@ -1073,7 +1076,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         //       c.f., the first branch in https://github.com/koreader/crengine/issues/267#issuecomment-557507150
         if (isEpub3 && !hasSeriesMeta) {
             lString16 seriesId;
-            for ( int i=1; i<20; i++ ) {
+            for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
                 ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
                 if ( !item )
                     break;
@@ -1145,7 +1148,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
         // items
         CRLog::debug("opf: reading items");
-        for ( int i=1; i<50000; i++ ) {
+        for ( size_t i=1; i<=50000; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
@@ -1230,7 +1233,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 if ( page_map!=NULL )
                     pageMapHref = LVCombinePaths(codeBase, page_map->href);
 
-                for ( int i=1; i<50000; i++ ) {
+                for ( size_t i=1; i<=50000; i++ ) {
                     ldomNode * item = doc->nodeFromXPath(lString16("package/spine/itemref[") << fmt::decimal(i) << "]");
                     if ( !item )
                         break;
@@ -1279,8 +1282,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     writer.OnStart(NULL);
     writer.OnTagOpenNoAttr(L"", L"body");
     int fragmentCount = 0;
-    int spineItemsNb = spineItems.length();
-    for ( int i=0; i<spineItemsNb; i++ ) {
+    size_t spineItemsNb = spineItems.length();
+    for ( size_t i=0; i<spineItemsNb; i++ ) {
         if (spineItems[i]->mediaType == "application/xhtml+xml") {
             lString16 name = LVCombinePaths(codeBase, spineItems[i]->href);
             lString16 subst = cs16("_doc_fragment_") + fmt::decimal(i);
@@ -1289,7 +1292,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         }
     }
     int lastProgressPercent = 5;
-    for ( int i=0; i<spineItemsNb; i++ ) {
+    for ( size_t i=0; i<spineItemsNb; i++ ) {
         if ( progressCallback ) {
             int percent = 5 + 95 * i / spineItemsNb;
             if ( percent > lastProgressPercent ) {
@@ -1453,7 +1456,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     // If still no TOC, fallback to using the spine, as Kobo does.
     if ( !has_toc ) {
         LVTocItem * baseToc = m_doc->getToc();
-        for ( int i=0; i<spineItemsNb; i++ ) {
+        for ( size_t i=0; i<spineItemsNb; i++ ) {
             if (spineItems[i]->mediaType == "application/xhtml+xml") {
                 lString16 title = spineItems[i]->id; // nothing much else to use
                 lString16 href = appender.convertHref(spineItems[i]->id);
