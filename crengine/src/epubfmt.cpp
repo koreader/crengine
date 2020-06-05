@@ -1046,6 +1046,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 #endif
 
         CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
+        bool hasSeriesMeta = false;
         for ( int i=1; i<20; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
@@ -1057,12 +1058,81 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             else if (name == "calibre:series") {
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NAME, content);
+                hasSeriesMeta = true;
             }
             else if (name == "calibre:series_index") {
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
             }
         }
+
+        // Fallback to ePub 3 series metadata, c.f., https://www.w3.org/publishing/epub3/epub-packages.html#sec-belongs-to-collection
+        // Because, yes, they're less standard than Calibre's ;D. Gotta love the ePub specs...
+        // NOTE: This doesn't include the shittier variant where apparently a collection-type refines a dc:title's id,
+        //       or something? Not in the specs, so, don't care.
+        //       c.f., the first branch in https://github.com/koreader/crengine/issues/267#issuecomment-557507150
+        if (isEpub3 && !hasSeriesMeta) {
+            lString16 seriesId;
+            for ( int i=1; i<20; i++ ) {
+                ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
+                if ( !item )
+                    break;
+
+                lString16 property = item->getAttributeValue("property");
+
+                // If we don't have a collection yet, try to find one
+                if (!hasSeriesMeta) {
+                    if (property == "belongs-to-collection") {
+                        lString16 content = item->getText().trim();
+                        PreProcessXmlString(content, 0);
+                        m_doc_props->setString(DOC_PROP_SERIES_NAME, content);
+                        hasSeriesMeta = true;
+                        seriesId = item->getAttributeValue("id");
+                        // Next!
+                        continue;
+                    }
+                }
+
+                // If we've got a collection, check if other properties refine it...
+                if (hasSeriesMeta) {
+                    // NOTE: We don't really handle series any differently than set, so we don't really care about this...
+                    /*
+                    if (property == "collection-type") {
+                        // Only support valid types (series or set)
+                        lString16 content = item->getText().trim();
+                        if (content == "series" || content == "set") {
+                            lString16 id = item->getAttributeValue("refines");
+                            // Strip the anchor to match against seriesId
+                            if (id.startsWith("#")) {
+                                id = id.substr(1, id.length() - 1);
+                            }
+                            if (id == seriesId) {
+                                // Next!
+                                continue;
+                            }
+                        }
+                    }
+                    */
+                    if (property == "group-position") {
+                        lString16 id = item->getAttributeValue("refines");
+                        // Strip the anchor to match against seriesId
+                        if (id.startsWith("#")) {
+                            id = id.substr(1, id.length() - 1);
+                        }
+                        // If we've got a match, that's our position in the series!
+                        if (id == seriesId) {
+                            lString16 content = item->getText().trim();
+                            PreProcessXmlString(content, 0);
+                            // NOTE: Supports decimal values, do we?
+                            m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
+                            // And we're done :)
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         if (metadataOnly && coverId.empty()) {
             // no cover to look for, no need for more work
             delete doc;
