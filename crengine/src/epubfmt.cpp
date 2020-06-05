@@ -1084,6 +1084,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 lString16 property = item->getAttributeValue("property");
 
                 // If we don't have a collection yet, try to find one
+                // NOTE: The specs say that collections *MAY* be nested (i.e., a belongs-to-collection node may refine another one).
+                //       For simplicity's sake, we only honor the first belongs-to-collection node here.
+                //       If I had actual test data, I could have instead opted to specifically match on the "parent" collection,
+                //       or the most deeply nested one, depending on what made the most sense, but I don't, so, KISS ;).
                 if (!hasSeriesMeta) {
                     if (property == "belongs-to-collection") {
                         lString16 content = item->getText().trim();
