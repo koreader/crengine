@@ -1123,7 +1123,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                         if (id == seriesId) {
                             lString16 content = item->getText().trim();
                             PreProcessXmlString(content, 0);
-                            // NOTE: Supports decimal values, do we?
+                            // NOTE: May contain decimal values (much like calibre:series_index).
+                            //       c.f., https://github.com/koreader/crengine/pull/346#discussion_r436190907
                             m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
                             // And we're done :)
                             break;
