@@ -146,6 +146,7 @@ void ReadEpubNcxPageList( ldomDocument * doc, ldomNode * mapRoot, LVPageMap * pa
     lUInt16 navLabel_id = mapRoot->getDocument()->getElementNameIndex(L"navLabel");
     lUInt16 content_id = mapRoot->getDocument()->getElementNameIndex(L"content");
     lUInt16 text_id = mapRoot->getDocument()->getElementNameIndex(L"text");
+    // NOTE: Matches EPUB_ITEM_MAX_ITER (but signed, findChildElement takes an int)
     for ( int i=0; i<50000; i++ ) {
         ldomNode * pageTarget = mapRoot->findChildElement(LXML_NS_ANY, pageTarget_id, i);
         if ( !pageTarget )
@@ -629,7 +630,7 @@ LVStreamRef GetEpubCoverpage(LVContainerRef arc)
         }
 
         // items
-        for ( size_t i=1; i<=50000; i++ ) {
+        for ( size_t i=1; i<=EPUB_ITEM_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
@@ -1093,7 +1094,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
         // Fallback to the ePub 3 spec for cover-image, c.f. https://www.w3.org/publishing/epub3/epub-packages.html#sec-cover-image
         if (isEpub3 && coverId.empty()) {
-            for ( size_t i=1; i<=50000; i++ ) {
+            for ( size_t i=1; i<=EPUB_ITEM_MAX_ITER; i++ ) {
                 ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
                 if ( !item )
                     break;
@@ -1195,7 +1196,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
         // items
         CRLog::debug("opf: reading items");
-        for ( size_t i=1; i<=50000; i++ ) {
+        for ( size_t i=1; i<=EPUB_ITEM_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
@@ -1280,7 +1281,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 if ( page_map!=NULL )
                     pageMapHref = LVCombinePaths(codeBase, page_map->href);
 
-                for ( size_t i=1; i<=50000; i++ ) {
+                for ( size_t i=1; i<=EPUB_ITEM_MAX_ITER; i++ ) {
                     ldomNode * item = doc->nodeFromXPath(lString16("package/spine/itemref[") << fmt::decimal(i) << "]");
                     if ( !item )
                         break;
