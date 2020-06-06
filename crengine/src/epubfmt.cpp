@@ -1091,6 +1091,12 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
+        // NOTE: If it turns out the <meta name="cover"/> convention starts to get deprecated in the wild,
+        //       consider implementing the *actual* ePub 3 spec:
+        //       https://www.w3.org/publishing/epub3/epub-packages.html#sec-cover-image
+        //       e.g., Amazon (which is a bad example because they don't ship ePubs :D) appears to prefer it:
+        //       c.f., §4.2 @ https://kindlegen.s3.amazonaws.com/AmazonKindlePublishingGuidelines.pdf
+
         // Fallback to ePub 3 series metadata, c.f., https://www.w3.org/publishing/epub3/epub-packages.html#sec-belongs-to-collection
         // Because, yes, they're less standard than Calibre's ;D. Gotta love the ePub specs...
         // NOTE: This doesn't include the shittier variant where apparently a collection-type refines a dc:title's id,
