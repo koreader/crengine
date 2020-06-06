@@ -1096,6 +1096,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // NOTE: This doesn't include the shittier variant where apparently a collection-type refines a dc:title's id,
         //       or something? Not in the specs, so, don't care.
         //       c.f., the first branch in https://github.com/koreader/crengine/issues/267#issuecomment-557507150
+        //       The only similar thing buried deep in the original 3.0 specs is incredibly convoluted:
+        //       http://idpf.org/epub/30/spec/epub30-publications.html#sec-opf-dctitle
+        //       That thankfully seems to have been relegated to the past, despite title-type still supporting a collection type:
+        //       https://www.w3.org/publishing/epub32/epub-packages.html#sec-title-type
         if (isEpub3 && !hasSeriesMeta) {
             lString16 seriesId;
             for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
