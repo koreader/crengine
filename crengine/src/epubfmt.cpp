@@ -985,7 +985,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/creator[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
-            lString16 author = item->getText();
+            lString16 author = item->getText().trim();
             if (authors_set) {
                 authors << "\n" << author;
             }
@@ -1003,7 +1003,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/subject[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
-            lString16 subject = item->getText();
+            lString16 subject = item->getText().trim();
             if (subjects_set) {
                 subjects << "\n" << subject;
             }
@@ -1018,7 +1018,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/identifier[") << fmt::decimal(i) << "]");
             if (!item)
                 break;
-            lString16 key = item->getText();
+            lString16 key = item->getText().trim();
             if (decryptor->setManglingKey(key)) {
                 CRLog::debug("Using font mangling key %s", LCSTR(key));
                 break;
