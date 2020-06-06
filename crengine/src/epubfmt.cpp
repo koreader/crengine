@@ -1052,28 +1052,39 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
         CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
         bool hasSeriesMeta = false;
+        bool hasSeriesIdMeta = false;
         for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
+            // If we've already got all of 'em, we're done
+            if (hasSeriesIdMeta && !coverId.empty()) {
+                break;
+            }
+
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
 
             lString16 name = item->getAttributeValue("name");
-            if (name == "cover") {
+            // Might come before or after the series stuff
+            // (e.g., while you might think it'd come early, Calibre appends it during the Send To Device process).
+            if (coverId.empty() && name == "cover") {
                 lString16 content = item->getAttributeValue("content");
                 coverId = content;
                 continue;
             }
-            if (name == "calibre:series") {
+            // Has to come before calibre:series_index
+            if (!hasSeriesMeta && name == "calibre:series") {
                 lString16 content = item->getAttributeValue("content");
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NAME, content);
                 hasSeriesMeta = true;
                 continue;
             }
-            if (name == "calibre:series_index") {
+            // Has to come after calibre:series
+            if (hasSeriesMeta && name == "calibre:series_index") {
                 lString16 content = item->getAttributeValue("content");
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
+                hasSeriesIdMeta = true;
                 continue;
             }
         }
