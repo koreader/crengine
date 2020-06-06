@@ -1066,6 +1066,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             lString16 name = item->getAttributeValue("name");
             // Might come before or after the series stuff
             // (e.g., while you might think it'd come early, Calibre appends it during the Send To Device process).
+            // Fun fact: this isn't part of *either* version of the ePub specs.
+            // It's simply an agreed-upon convention, given how utterly terrible the actual specs are.
             if (coverId.empty() && name == "cover") {
                 lString16 content = item->getAttributeValue("content");
                 coverId = content;
