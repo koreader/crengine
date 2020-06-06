@@ -615,30 +615,35 @@ LVStreamRef GetEpubCoverpage(LVContainerRef arc)
         if ( !doc )
             return LVStreamRef();
 
-        for ( int i=1; i<20; i++ ) {
+        for ( size_t i=1; i<=EPUB_META_MAX_ITER; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
             lString16 name = item->getAttributeValue("name");
-            lString16 content = item->getAttributeValue("content");
-            if (name == "cover")
+            if (name == "cover") {
+                lString16 content = item->getAttributeValue("content");
                 coverId = content;
+                // We're done
+                break;
+            }
         }
 
         // items
-        for ( int i=1; i<50000; i++ ) {
+        for ( size_t i=1; i<=50000; i++ ) {
             ldomNode * item = doc->nodeFromXPath(lString16("package/manifest/item[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
             lString16 href = item->getAttributeValue("href");
             lString16 id = item->getAttributeValue("id");
             if ( !href.empty() && !id.empty() ) {
-                href = DecodeHTMLUrlString(href);
                 if (id == coverId) {
                     // coverpage file
+                    href = DecodeHTMLUrlString(href);
                     lString16 coverFileName = LVCombinePaths(codeBase, href);
                     CRLog::info("EPUB coverpage file: %s", LCSTR(coverFileName));
                     coverPageImageStream = m_arc->OpenStream(coverFileName.c_str(), LVOM_READ);
+                    // We're done
+                    break;
                 }
             }
         }
@@ -931,9 +936,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         return false;
 
 
-    // That's how many metadata nodes we parse before giving up
-    #define EPUB_META_MAX_ITER 50U
-
     bool isEpub3 = false;
     lString16 epubVersion;
     lString16 navHref; // epub3 TOC
@@ -1054,18 +1056,25 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             ldomNode * item = doc->nodeFromXPath(lString16("package/metadata/meta[") << fmt::decimal(i) << "]");
             if ( !item )
                 break;
+
             lString16 name = item->getAttributeValue("name");
-            lString16 content = item->getAttributeValue("content");
-            if (name == "cover")
+            if (name == "cover") {
+                lString16 content = item->getAttributeValue("content");
                 coverId = content;
-            else if (name == "calibre:series") {
+                continue;
+            }
+            if (name == "calibre:series") {
+                lString16 content = item->getAttributeValue("content");
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NAME, content);
                 hasSeriesMeta = true;
+                continue;
             }
-            else if (name == "calibre:series_index") {
+            if (name == "calibre:series_index") {
+                lString16 content = item->getAttributeValue("content");
                 PreProcessXmlString(content, 0);
                 m_doc_props->setString(DOC_PROP_SERIES_NUMBER, content);
+                continue;
             }
         }
 
