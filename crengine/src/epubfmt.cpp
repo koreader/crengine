@@ -1099,6 +1099,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 if ( !item )
                     break;
 
+                // NOTE: Yes, plural, not a typo... -_-"
                 lString16 props = item->getAttributeValue("properties");
                 if (!props.empty() && props == "cover-image") {
                     lString16 id = item->getAttributeValue("id");
