@@ -11178,12 +11178,14 @@ bool ldomXPointerEx::prevVisibleWordStart( bool thisBlockOnly )
         }
         bool foundNonSpace = false;
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) )
-            _data->addOffset(-1);
+            _data->addOffset(-1); // skip preceeding space if any (we were on a visible word start)
         while ( _data->getOffset()>0 ) {
             if ( IsWordSeparator(text[ _data->getOffset()-1 ]) )
                 break;
             foundNonSpace = true;
             _data->addOffset(-1);
+            if ( canWrapWordBefore( text[_data->getOffset()] ) ) // CJK char
+                break;
         }
         if ( foundNonSpace )
             return true;
@@ -11225,6 +11227,9 @@ bool ldomXPointerEx::prevVisibleWordEnd( bool thisBlockOnly )
         while ( _data->getOffset()>0 ) {
             if ( IsWordSeparator(text[ _data->getOffset()-1 ]) )
                 break;
+            if ( moved && canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
+            moved = true;
             _data->addOffset(-1);
         }
         // skip spaces
@@ -11280,6 +11285,8 @@ bool ldomXPointerEx::nextVisibleWordStart( bool thisBlockOnly )
         while ( _data->getOffset()<textLen ) {
             if ( IsWordSeparator(text[ _data->getOffset() ]) )
                 break;
+            if ( moved && canWrapWordBefore( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
             moved = true;
             _data->addOffset(1);
         }
@@ -11363,6 +11370,8 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
                 break;
             nonSpaceFound = true;
             _data->addOffset(1);
+            if ( canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
         }
         if ( nonSpaceFound )
             return true;
@@ -11377,6 +11386,8 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
                 break;
             nonSpaceFound = true;
             _data->addOffset(1);
+            if ( canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
         }
         if ( nonSpaceFound )
             return true;
@@ -11394,10 +11405,21 @@ bool ldomXPointerEx::isVisibleWordStart()
     lString16 text = node->getText();
     int textLen = text.length();
     int i = _data->getOffset();
+    // We're actually testing the boundary between the char at i-1 and
+    // the char at i. So, we return true when [i] is the first letter
+    // of a word.
     lChar16 currCh = i<textLen ? text[i] : 0;
-    lChar16 prevCh = i<textLen && i>0 ? text[i-1] : 0;
-    if (canWrapWordBefore(currCh) || (IsWordSeparatorOrNull(prevCh) && !IsWordSeparator(currCh)))
+    lChar16 prevCh = i<=textLen && i>0 ? text[i-1] : 0;
+    if (canWrapWordBefore(currCh)) {
+        // If [i] is a CJK char (that's what canWrapWordBefore()
+        // checks), this is a visible word start.
         return true;
+    }
+    if (IsWordSeparatorOrNull(prevCh) && !IsWordSeparator(currCh)) {
+        // If [i-1] is a space or punctuation (or [i] is the start of the text
+        // node) and [i] is a letter: this is a visible word start.
+        return true;
+    }
     return false;
  }
 
@@ -11412,10 +11434,21 @@ bool ldomXPointerEx::isVisibleWordEnd()
     lString16 text = node->getText();
     int textLen = text.length();
     int i = _data->getOffset();
+    // We're actually testing the boundary between the char at i-1 and
+    // the char at i. So, we return true when [i-1] is the last letter
+    // of a word.
     lChar16 currCh = i>0 ? text[i-1] : 0;
     lChar16 nextCh = i<textLen ? text[i] : 0;
-    if (canWrapWordAfter(currCh) || (!IsWordSeparator(currCh) && IsWordSeparatorOrNull(nextCh)))
+    if (canWrapWordAfter(currCh)) {
+        // If [i-1] is a CJK char (that's what canWrapWordAfter()
+        // checks), this is a visible word end.
         return true;
+    }
+    if (!IsWordSeparator(currCh) && IsWordSeparatorOrNull(nextCh)) {
+        // If [i-1] is a letter and [i] is a space or punctuation (or [i-1] is
+        // the last letter of a text node): this is a visible word end.
+        return true;
+    }
     return false;
 }
 
