@@ -266,7 +266,7 @@ static int _unmarshal_int32(unsigned char **pData,
 {
     if (4 > *pLenRemain)
         return 0;
-    *dest = (*pData)[0] | (*pData)[1]<<8 | (*pData)[2]<<16 | (*pData)[3]<<24;
+    *dest = (*pData)[0] | (*pData)[1]<<8 | (*pData)[2]<<16 | ((unsigned int)(*pData)[3])<<24;
     *pData += 4;
     *pLenRemain -= 4;
     return 1;
@@ -278,7 +278,7 @@ static int _unmarshal_uint32(unsigned char **pData,
 {
     if (4 > *pLenRemain)
         return 0;
-    *dest = (*pData)[0] | (*pData)[1]<<8 | (*pData)[2]<<16 | (*pData)[3]<<24;
+    *dest = (*pData)[0] | (*pData)[1]<<8 | (*pData)[2]<<16 | ((unsigned int)(*pData)[3])<<24;
     *pData += 4;
     *pLenRemain -= 4;
     return 1;

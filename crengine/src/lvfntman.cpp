@@ -564,13 +564,17 @@ public:
     {
         LVPtrVector< LVFontCacheItem > * fonts = getInstances();
         for ( int i=0; i<fonts->length(); i++ ) {
-            fonts->get(i)->getFont()->setFallbackFont(LVFontRef());
-            fonts->get(i)->getFont()->setNextFallbackFont(LVFontRef());
+            LVFontRef fontRef = fonts->get(i)->getFont();
+            if ( !fontRef.isNull() ) {
+                fontRef->setFallbackFont(LVFontRef());
+                fontRef->setNextFallbackFont(LVFontRef());
+            }
         }
         for ( int i=0; i<_registered_list.length(); i++ ) {
-            if (!_registered_list[i]->getFont().isNull()) {
-                _registered_list[i]->getFont()->setFallbackFont(LVFontRef());
-                _registered_list[i]->getFont()->setNextFallbackFont(LVFontRef());
+            LVFontRef fontRef = _registered_list[i]->getFont();
+            if ( !fontRef.isNull() ) {
+                fontRef->setFallbackFont(LVFontRef());
+                fontRef->setNextFallbackFont(LVFontRef());
             }
         }
     }
@@ -695,10 +699,12 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
             }
         } // else:
         #endif
-        memcpy( item->bmp, bitmap->buffer, w*h );
-        // correct gamma
-        if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
-            cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
+        if (bitmap->buffer && w > 0 && h > 0) {
+            memcpy( item->bmp, bitmap->buffer, w*h );
+            // correct gamma
+            if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
+                cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
+        }
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
@@ -736,10 +742,12 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
         }
     }
     else {
-        memcpy( item->bmp, bitmap->buffer, w*h );
-        // correct gamma
-        if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
-            cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
+        if (bitmap->buffer && w > 0 && h > 0) {
+            memcpy( item->bmp, bitmap->buffer, w*h );
+            // correct gamma
+            if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
+                cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
+        }
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
@@ -4223,6 +4231,12 @@ public:
             }
         #endif
 
+        if (NULL == item) {
+            CRLog::error("_cache.find() return NULL: size=%d, weight=%d, italic=%d, family=%d, typeface=%s", size, weight, italic, family, typeface.c_str());
+            CRLog::error("possible font cache cleared!");
+            return LVFontRef(NULL);
+        }
+
         bool italicize = false;
 
         LVFontDef newDef(*item->getDef());
@@ -5525,6 +5539,8 @@ void LVFontCache::update( const LVFontDef * def, LVFontRef ref )
 
 void LVFontCache::removeDocumentFonts(int documentId)
 {
+    if (-1 == documentId)
+        return;
     int i;
     for (i=_instance_list.length()-1; i>=0; i--) {
         if (_instance_list[i]->_def.getDocumentId() == documentId)
