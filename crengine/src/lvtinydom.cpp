@@ -5107,7 +5107,7 @@ void ldomNode::ensurePseudoElement( bool is_before ) {
         }
     }
     if ( insertChildIndex >= 0 ) {
-        if ( getDocument()->hasCacheFile() ) {
+        if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
             getDocument()->setBoxingWishedButPreventedByCache();
         }
         else {
@@ -5312,7 +5312,7 @@ void ldomNode::autoboxChildren( int startIndex, int endIndex, bool handleFloatin
 bool ldomNode::cleanIfOnlyEmptyTextInline( bool handleFloating )
 {
 #if BUILD_LITE!=1
-    if ( getDocument()->hasCacheFile() )
+    if ( false && getDocument()->hasCacheFile() ) // (20200626: this is no longer an issue)
         // We can't remove anything if there is a cache file
         return false;
     if ( !isElement() )
@@ -5625,14 +5625,15 @@ int initTableRendMethods( ldomNode * enode, int state )
         // Check and deal with unproper children
         if ( !is_proper ) { // Unproper child met
             // printf("initTableRendMethods(%d): child %d is unproper\n", state, i);
-            if ( BLOCK_RENDERING_G(COMPLETE_INCOMPLETE_TABLES) && !enode->getDocument()->hasCacheFile() ) {
+            // (20200626: not doing it when hasCacheFile() is no longer an issue)
+            if ( BLOCK_RENDERING_G(COMPLETE_INCOMPLETE_TABLES) && !(false && enode->getDocument()->hasCacheFile()) ) {
                 // We can insert a tabularBox element to wrap unproper elements
                 last_unproper = i;
                 if (first_unproper < 0)
                     first_unproper = i;
             }
             else {
-                if ( BLOCK_RENDERING_G(COMPLETE_INCOMPLETE_TABLES) && enode->getDocument()->hasCacheFile() ) {
+                if ( BLOCK_RENDERING_G(COMPLETE_INCOMPLETE_TABLES) && (false && enode->getDocument()->hasCacheFile()) ) {
                     enode->getDocument()->setBoxingWishedButPreventedByCache();
                 }
                 // Asked to not complete incomplete tables, or we can't insert
@@ -5939,7 +5940,7 @@ void ldomNode::initNodeRendMethod()
                         // - the previous line should not be justified
                         // - in the matter of page splitting, lines (as they are 100%-width) should
                         //   be forwarded to the parent flow/context
-                        if ( getDocument()->hasCacheFile() ) {
+                        if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                             getDocument()->setBoxingWishedButPreventedByCache();
                             // If we can't insert new elements, fallback to behaviour of resetting
                             // it to inline
@@ -6162,7 +6163,7 @@ void ldomNode::initNodeRendMethod()
                         // j..i are inline
                         if ( j>0 || i<(int)getChildCount()-1 ) {
                             // Avoid crash: we can't add/move nodes when a cache file exists
-                            if ( getDocument()->hasCacheFile() )
+                            if ( false && getDocument()->hasCacheFile() ) // (20200626: this is no longer an issue)
                                 getDocument()->setBoxingWishedButPreventedByCache();
                             else
                                 autoboxChildren( j, i, handleFloating );
@@ -6218,7 +6219,7 @@ void ldomNode::initNodeRendMethod()
                                 node->recurseMatchingElements( resetRendMethodToInline, isNotBoxingInlineBoxNode );
                                 // No need to autobox if there are only 2 children (the run-in and this box)
                                 if ( getChildCount()!=2 ) { // autobox run-in
-                                    if ( getDocument()->hasCacheFile() )
+                                    if ( false && getDocument()->hasCacheFile() ) // (20200626: this is no longer an issue)
                                         getDocument()->setBoxingWishedButPreventedByCache();
                                     else
                                         autoboxChildren( run_in_idx, block_idx, handleFloating );
@@ -6341,7 +6342,7 @@ void ldomNode::initNodeRendMethod()
                         #endif
                         setRendMethod( erm_table_row );
                     }
-                    else if ( getDocument()->hasCacheFile() ) {
+                    else if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                         // (We can only move/add nodes while we don't yet have a cache file)
                         getDocument()->setBoxingWishedButPreventedByCache();
                     }
@@ -6448,7 +6449,7 @@ void ldomNode::initNodeRendMethod()
                     setRendMethod( erm_table );
                     initTableRendMethods( this, 0 );
                 }
-                else if ( getDocument()->hasCacheFile() ) {
+                else if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                     // (We can only move/add nodes while we don't yet have a cache file)
                     getDocument()->setBoxingWishedButPreventedByCache();
                 }
@@ -6623,7 +6624,7 @@ void ldomNode::initNodeRendMethod()
                     }
                 }
                 if ( last_to_wrap >= 0 && (eoc || (elemId != el_rt && elemId != el_rtc && elemId != el_rp && elemId != -2) ) ) {
-                    if ( getDocument()->hasCacheFile() ) {
+                    if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                         // (We can only move/add nodes while we don't yet have a cache file)
                         getDocument()->setBoxingWishedButPreventedByCache();
                     }
@@ -6707,7 +6708,7 @@ void ldomNode::initNodeRendMethod()
                                  || ( !ruby_base_wrap_done && (elemId == el_rtc || elemId == el_rt || elemId == el_rp) )
                                  || (  ruby_base_wrap_done && elemId == el_rtc )
                                 ) ) {
-                        if ( getDocument()->hasCacheFile() ) {
+                        if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                             // (We can only move/add nodes while we don't yet have a cache file)
                             getDocument()->setBoxingWishedButPreventedByCache();
                         }
@@ -6759,7 +6760,7 @@ void ldomNode::initNodeRendMethod()
                 }
                 if ( !ruby_base_present ) {
                     // <ruby><rt>annotation</rt></ruby> : add rubyBox for empty base text
-                    if ( getDocument()->hasCacheFile() ) {
+                    if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                         getDocument()->setBoxingWishedButPreventedByCache();
                     }
                     else {
@@ -6806,7 +6807,7 @@ void ldomNode::initNodeRendMethod()
                     }
                     if ( !has_expected ) {
                         // Wrap everything into a rubyBox
-                        if ( getDocument()->hasCacheFile() ) {
+                        if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                             getDocument()->setBoxingWishedButPreventedByCache();
                         }
                         else {
@@ -6970,7 +6971,7 @@ void ldomNode::initNodeRendMethod()
                 // (If new floats appear after loading, we won't render well, but
                 // a style hash mismatch will happen and the user will be
                 // suggested to reload the book with cache cleaned.)
-                if ( getDocument()->hasCacheFile() ) {
+                if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                     getDocument()->setBoxingWishedButPreventedByCache();
                 }
                 else {
@@ -7114,7 +7115,7 @@ void ldomNode::initNodeRendMethod()
                 // (If new inline-block appear after loading, we won't render well,
                 // but a style hash mismatch will happen and the user will be
                 // suggested to reload the book with cache cleaned.)
-                if ( getDocument()->hasCacheFile() ) {
+                if ( false && getDocument()->hasCacheFile() ) { // (20200626: this is no longer an issue)
                     getDocument()->setBoxingWishedButPreventedByCache();
                 }
                 else {
