@@ -411,7 +411,7 @@ public:
 };
 
 // forward declaration
-class ldomNode;
+struct ldomNode;
 
 // About these #define TNC_PART_* :
 // A ldomNode unique reference is defined by:
@@ -451,7 +451,7 @@ class ldomNode;
 /// storage of ldomNode
 class tinyNodeCollection
 {
-    friend class ldomNode;
+    friend struct ldomNode;
     friend class tinyElement;
     friend class ldomDocument;
 private:
@@ -539,6 +539,8 @@ protected:
     virtual void resetNodeNumberingProps() { }
 #endif
 
+    /// creates empty collection
+    tinyNodeCollection();
     tinyNodeCollection( tinyNodeCollection & v );
 
 public:
@@ -656,7 +658,7 @@ public:
     /// if a cache file is in use
     bool hasCacheFile() { return _cacheFile != NULL; }
     /// set cache file as dirty, so it's not re-used on next load
-    void invalidateCacheFile() { _cacheFileLeaveAsDirty = true; };
+    void invalidateCacheFile() { _cacheFileLeaveAsDirty = true; }
     /// get cache file full path
     lString16 getCacheFilePath();
 #endif
@@ -685,8 +687,6 @@ public:
 #endif
 
 
-    /// creates empty collection
-    tinyNodeCollection();
     /// destroys collection
     virtual ~tinyNodeCollection();
 };
@@ -767,11 +767,12 @@ struct ldomNodeHandle {
 class ldomTextNode;
 // no vtable, very small size (16 bytes)
 // optimized for 32 bit systems
-class ldomNode
+struct ldomNode
 {
     friend class tinyNodeCollection;
     friend class RenderRectAccessor;
     friend class NodeImageProxy;
+    friend class ldomDocument;
 
 private:
 
@@ -873,7 +874,7 @@ public:
     void destroy();
 
     /// returns true for invalid/deleted node ot NULL this pointer
-    inline bool isNull() const { return _handle._dataIndex==0; }
+    inline bool isNull() const { return _handle._dataIndex==0 || getDocument() == NULL; }
     /// returns true if node is stored in persistent storage
     inline bool isPersistent() const { return (_handle._dataIndex&2)!=0; }
     /// returns data index of node's registration in document data storage
@@ -1111,16 +1112,16 @@ public:
 */
 class lxmlDocBase : public tinyNodeCollection
 {
-    //friend class ldomNode;
-    friend class ldomNode;
+    friend struct ldomNode;
 	friend class ldomXPointer;
-public:
+protected:
 
 
     /// Default constructor
     lxmlDocBase( int dataBufSize = DEF_DOC_DATA_BUFFER_SIZE );
     /// Copy constructor - copies ID tables contents
     lxmlDocBase( lxmlDocBase & doc );
+public:
     /// Destructor
     virtual ~lxmlDocBase();
 
@@ -1425,7 +1426,7 @@ protected:
 		{
 			return _doc!=v._doc || _dataIndex != v._dataIndex || _offset != v._offset;
 		}
-		inline bool isNull() { return _dataIndex==0; }
+		inline bool isNull() { return _dataIndex==0 || _doc==NULL; }
         inline ldomNode * getNode() { return _dataIndex>0 ? ((lxmlDocBase*)_doc)->getTinyNode( _dataIndex ) : NULL; }
 		inline int getOffset() { return _offset; }
         inline void setNode( ldomNode * node )
@@ -1784,9 +1785,9 @@ public:
     /// destructor
     virtual ~ldomNodeCallback() { }
     /// called for each found text fragment in range
-    virtual void onText( ldomXRange * ) { }
+    virtual void onText( ldomXRange * ) = 0;
     /// called for each found node in range
-    virtual bool onElement( ldomXPointerEx * ) { return true; }
+    virtual bool onElement( ldomXPointerEx * ) = 0;
 };
 
 /// range for word inside text node

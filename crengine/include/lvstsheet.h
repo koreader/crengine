@@ -49,7 +49,7 @@
 #include "textlang.h"
 
 class lxmlDocBase;
-class ldomNode;
+struct ldomNode;
 
 /** \brief CSS property declaration
     

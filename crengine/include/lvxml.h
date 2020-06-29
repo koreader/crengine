@@ -28,7 +28,7 @@
 class LVFileFormatParser;
 
 class tinyNode;
-class ldomNode;
+struct ldomNode;
 
 /// XML parser callback interface
 class LVXMLParserCallback
@@ -248,6 +248,8 @@ protected:
                 return 0;
         }
         m_read_buffer_pos += offset + 1;
+        if ( m_read_buffer_pos >= m_read_buffer_len )
+            return 0;
         return m_read_buffer[m_read_buffer_pos];
     }
     void clearCharBuffer();
