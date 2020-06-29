@@ -237,7 +237,7 @@ struct css_style_rec_tag {
             if (is_important & 0x1) important |= bit;   // update important flag
             if (is_important == 0x3) importance |= bit; // update importance flag (!important comes from higher_importance CSS)
         }
-    };
+    }
     // Similar to previous one, but logical-OR'ing values, for bitmaps (currently, only style->font_features)
     inline void ApplyAsBitmapOr( css_length_t value, css_length_t *field, css_style_rec_important_bit bit, lUInt8 is_important ) {
         if (     !(important & bit)
@@ -249,7 +249,7 @@ struct css_style_rec_tag {
             if (is_important & 0x1) important |= bit;
             if (is_important == 0x3) importance |= bit;
         }
-    };
+    }
 };
 
 /// style record reference type
