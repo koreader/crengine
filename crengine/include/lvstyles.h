@@ -439,3 +439,4 @@ lString8 joinPropertyValueList( const lString8Collection & list );
 
 
 #endif // __LV_STYLES_H_INCLUDED__
+

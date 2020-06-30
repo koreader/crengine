@@ -489,3 +489,4 @@ public:
 };
 
 #endif // __LVXML_H_INCLUDED__
+

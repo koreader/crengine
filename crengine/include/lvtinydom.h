@@ -2853,3 +2853,4 @@ void compressCachedData(bool enable);
 void setStorageMaxUncompressedSizeFactor(float factor);
 
 #endif
+
