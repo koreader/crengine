@@ -343,4 +343,3 @@ bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file );
 bool LVLoadStylesheetFile( lString16 pathName, lString8 & css );
 
 #endif // __LVSTSHEET_H_INCLUDED__
-

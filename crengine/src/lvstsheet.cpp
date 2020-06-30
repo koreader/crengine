@@ -4405,4 +4405,3 @@ bool LVLoadStylesheetFile( lString16 pathName, lString8 & css )
     css = txt2 + s;
     return !css.empty();
 }
-

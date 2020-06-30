@@ -10007,4 +10007,3 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         printf("GRW current: max=%d word=%d (max=%d, min=%d)\n", curMaxWidth, curWordWidth, maxWidth, minWidth);
     #endif
 }
-

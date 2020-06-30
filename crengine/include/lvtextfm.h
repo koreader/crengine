@@ -484,4 +484,3 @@ public:
 extern bool gFlgFloatingPunctuationEnabled;
 
 #endif
-

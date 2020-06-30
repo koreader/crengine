@@ -1939,4 +1939,3 @@ int chm_enumerate_dir(struct chmFile *h,
     free(page_buf);
     return 1;
 }
-

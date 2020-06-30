@@ -4722,4 +4722,3 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
 }
 
 #endif
-
