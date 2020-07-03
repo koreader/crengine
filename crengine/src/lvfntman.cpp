@@ -5311,7 +5311,7 @@ int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
 }
 
 #if (USE_BITMAP_FONTS==1)
-bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char, bool is_fallback=false )
+bool LBitmapFont::getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar16 def_char, bool is_fallback )
 {
     const lvfont_glyph_t * ptr = lvfontGetGlyph( m_font, code );
     if (!ptr)
