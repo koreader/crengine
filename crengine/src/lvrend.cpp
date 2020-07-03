@@ -9704,6 +9704,9 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
             }
         }
+        else {
+            return;
+        }
         len = text.length();
         if ( len == 0 )
             return;
