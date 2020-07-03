@@ -1466,7 +1466,7 @@ public:
     /// return document
 	inline ldomDocument * getDocument() { return _data->getDocument(); }
     /// returns node pointer
-    inline ldomNode * getNode() const { return _data->getNode(); }
+    inline ldomNode * getNode() const { return _data->getNode(); } // NOLINT(clang-analyzer-cplusplus.NewDelete)
 #if BUILD_LITE!=1
     /// return parent final node, if found
     ldomNode * getFinalNode() const;
@@ -1487,7 +1487,7 @@ public:
 	/// remove reference
 	~ldomXPointer()
 	{
-		if (_data->decRef() == 0)
+		if (_data->decRef() == 0) // NOLINT(clang-analyzer-cplusplus.NewDelete)
 			delete _data;
 	}
     /// copy constructor
@@ -1523,7 +1523,7 @@ public:
     /// returns true for NULL pointer
 	bool isNull() const
 	{
-        return !_data || _data->isNull();
+        return !_data || _data->isNull(); // NOLINT(clang-analyzer-cplusplus.NewDelete)
 	}
     /// returns true if object is pointer
 	bool isPointer() const
@@ -1646,7 +1646,7 @@ public:
 			return *this;
 		if (_data->decRef() == 0)
 			delete _data;
-		_data = new XPointerData( *v._data );
+		_data = new XPointerData( *v._data ); // NOLINT(clang-analyzer-cplusplus.NewDelete)
         initIndex();
         return *this;
     }
