@@ -1262,7 +1262,6 @@ void LVGrayDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int he
         shift0 = 0;// not used
     }
     dst = dstline;
-    xx = width;
 
     bitmap += bx + by*bmp_width;
     shift = shift0;
@@ -1874,8 +1873,6 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
     }
     if (height<=0)
         return;
-
-    xx = width;
 
     bitmap += bx + by*bmp_width;
 
