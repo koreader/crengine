@@ -656,7 +656,9 @@ public:
     virtual void Clear() { if (m_font) lvfontClose( m_font ); m_font = NULL; }
     virtual bool IsNull() const { return m_font==NULL; }
     virtual bool operator ! () const { return IsNull(); }
-    virtual ~LBitmapFont() { Clear(); }
+    virtual ~LBitmapFont() {
+        Clear(); // NOLINT: Call to virtual function during destruction
+    }
 };
 #endif
 
