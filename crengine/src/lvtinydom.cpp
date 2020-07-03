@@ -770,6 +770,7 @@ bool CacheFile::writeIndex()
         int sz = sizeof(CacheFileItem) * (count * 2 + 100);
         allocBlock(CBT_INDEX, 0, sz);
         indexItem = findBlock(CBT_INDEX, 0);
+        (void)indexItem; // silences clang warning
         count = _index.length();
     }
     CacheFileItem * index = new CacheFileItem[count]();
@@ -4601,8 +4602,7 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         context.setCallback(callback, numFinalBlocks);
         //updateStyles();
         CRLog::trace("rendering...");
-        int height = renderBlockElement( context, getRootNode(),
-            0, y0, width ) + y0;
+        renderBlockElement( context, getRootNode(), 0, y0, width );
         _rendered = true;
     #if 0 //def _DEBUG
         LVStreamRef ostream = LVOpenFileStream( "test_save_after_init_rend_method.xml", LVOM_WRITE );
@@ -4641,7 +4641,6 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         dumpStatistics();
 
         return true; // full (re-)rendering done
-        // return height;
 
     } else {
         CRLog::info("rendering context is not changed - no render!");
@@ -4655,7 +4654,6 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
             callback->OnDocumentReady();
 
         return false; // no (re-)rendering needed
-        // return getFullHeight();
     }
 
 }
@@ -10527,7 +10525,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
 
         if (!curPos || curPos.isNull() || curPos.compare(rangeEnd) >= 0) {
             // no more text node, or after end of range: we're done
-            go_on = false;
             break;
         }
 
@@ -10620,7 +10617,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
                 // (Two offsets in a same text node with the same tops are on the same line)
                 lineStartRect.extend(curCharRect);
                 // lineStartRect will be added after loop exit
-                go_on = false;
                 break; // we're done
             }
         }
@@ -11212,7 +11208,6 @@ bool ldomXPointerEx::prevVisibleWordStart( bool thisBlockOnly )
         return false;
     ldomNode * node = NULL;
     lString16 text;
-    int textLen = 0;
     for ( ;; ) {
         if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
             // move to previous text
@@ -11220,12 +11215,11 @@ bool ldomXPointerEx::prevVisibleWordStart( bool thisBlockOnly )
                 return false;
             node = getNode();
             text = node->getText();
-            textLen = text.length();
+            int textLen = text.length();
             _data->setOffset( textLen );
         } else {
             node = getNode();
             text = node->getText();
-            textLen = text.length();
         }
         bool foundNonSpace = false;
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) )
@@ -11250,7 +11244,6 @@ bool ldomXPointerEx::prevVisibleWordEnd( bool thisBlockOnly )
         return false;
     ldomNode * node = NULL;
     lString16 text;
-    int textLen = 0;
     bool moved = false;
     for ( ;; ) {
         if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
@@ -11259,13 +11252,12 @@ bool ldomXPointerEx::prevVisibleWordEnd( bool thisBlockOnly )
                 return false;
             node = getNode();
             text = node->getText();
-            textLen = text.length();
+            int textLen = text.length();
             _data->setOffset( textLen );
             moved = true;
         } else {
             node = getNode();
             text = node->getText();
-            textLen = text.length();
         }
         // skip spaces
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) ) {
