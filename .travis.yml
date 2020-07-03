@@ -1,6 +1,6 @@
 language: cpp
 
-dist: xenial
+dist: bionic
 sudo: false
 
 cache:
@@ -9,7 +9,7 @@ cache:
 addons:
   apt:
     packages:
-      - clang-tidy-5.0
+      - clang-tidy-10
       - cppcheck
       - jq
       # provides xmllint
