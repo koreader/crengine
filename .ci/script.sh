@@ -30,13 +30,37 @@ changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh
 
 if [ -n "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
+    # Set some configuration/define to speed up cppcheck by limiting
+    # the combinations of configurations it will check.
+    # We force the values set with add_definition() in kpvcrlib/CMakeLists.txt
+    # and some from crengine/include/crsetup.h.
     # shellcheck disable=SC2086
-    cppcheck -j 4 --error-exitcode=2 ${changed_files}
+    cppcheck -j 4 --error-exitcode=2 --language=c++ \
+        -DUSE_FONTCONFIG=0 \
+        -DUSE_FREETYPE=1 \
+        -DUSE_HARFBUZZ=1 \
+        -DUSE_FRIBIDI=1 \
+        -DUSE_LIBUNIBREAK=1 \
+        -DUSE_UTF8PROC=1 \
+        -DUSE_NANOSVG=1 \
+        -DALLOW_KERNING=1 \
+        -DCR3_PATCH=1 \
+        -DLINUX=1 \
+        -D_LINUX=1 \
+        -DCR_RENDER_32BPP_RGB_PXFMT \
+        -DCR_EMULATE_GETTEXT \
+        -DBUILD_LITE=0 \
+        -DLBOOK=0 \
+        -UANDROID \
+        -UCR_POCKETBOOK \
+        ${changed_files}
 
     # ignore header files in clang-tidy for now
     # @TODO rename to *.hpp (or *.hxx)?
     # see https://github.com/koreader/crengine/pull/130#issuecomment-373823848
     changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([Cc]|[c]pp)$')"
+    # To check them all, uncomment this:
+    # changed_files="$(find crengine/src | grep -E '\.([Cc]|[c]pp)$')"
     echo "Running clang-tidy on ${changed_files}"
     # shellcheck disable=SC2086
     clang-tidy ${changed_files} -- -Icrengine/include
