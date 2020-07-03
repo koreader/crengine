@@ -6602,8 +6602,8 @@ void ldomNode::initNodeRendMethod()
         // wanting to disable ruby support, it's enough to just set <ruby> to "display: inline":
         // a change in "display:" value will cause a nodeDisplayStyleHash mismatch, and propose
         // a full reload with DOM rebuild, which will forget all the rubyBox we added.
-        bool needs_wrapping = true;
         int len = getChildCount();
+        bool needs_wrapping = len > 0;
         for ( int i=0; i<len; i++ ) {
             ldomNode * child = getChildNode(i);
             if ( child->isElement() && child->getNodeId() == el_inlineBox
@@ -6663,9 +6663,9 @@ void ldomNode::initNodeRendMethod()
                         first_to_wrap = -1;
                         last_to_wrap = -1;
                     }
-                    if (eoc)
-                        break;
                 }
+                if (eoc)
+                    break;
                 if ( elemId == -1 ) { // isText(), non empty
                     if ( first_to_wrap < 0 ) {
                         first_to_wrap = i;
@@ -9753,6 +9753,8 @@ bool ldomXPointerEx::sibling( int index )
 /// move to next sibling
 bool ldomXPointerEx::nextSibling()
 {
+    if ( _level <= 1 )
+        return false;
     return sibling( _indexes[_level-1] + 1 );
 }
 
