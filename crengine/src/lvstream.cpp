@@ -1103,7 +1103,7 @@ public:
         //
         if (m_hFile == INVALID_HANDLE_VALUE || m_mode==LVOM_READ )
             return LVERR_FAIL;
-        lvpos_t oldpos;
+        lvpos_t oldpos = 0;
         if (!Tell(&oldpos))
             return LVERR_FAIL;
         if (!Seek(size, LVSEEK_SET, NULL))
@@ -1114,7 +1114,7 @@ public:
 #else
         if (m_fd == -1)
             return LVERR_FAIL;
-        lvpos_t oldpos;
+        lvpos_t oldpos = 0;
         if (!Tell(&oldpos))
             return LVERR_FAIL;
         if (!Seek(size, LVSEEK_SET, NULL))

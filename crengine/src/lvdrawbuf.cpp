@@ -21,7 +21,7 @@
 #define CHECK_GUARD_BYTE \
 	{ \
         if (_bpp != 1 && _bpp != 2 && _bpp !=3 && _bpp != 4 && _bpp != 8 && _bpp != 16 && _bpp != 32) crFatalError(-5, "wrong bpp"); \
-        if (_ownData && _data[_rowsize * _dy] != GUARD_BYTE) crFatalError(-5, "corrupted bitmap buffer"); \
+        if (_ownData && _data && _data[_rowsize * _dy] != GUARD_BYTE) crFatalError(-5, "corrupted bitmap buffer"); \
     }
 
 void LVDrawBuf::RoundRect( int x0, int y0, int x1, int y1, int borderWidth, int radius, lUInt32 color, int cornerFlags )
@@ -1828,6 +1828,8 @@ void LVColorDrawBuf::InvertRect(int x0, int y0, int x1, int y1)
 /// draws bitmap (1 byte per pixel) using specified palette
 void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int height, lUInt32 * palette )
 {
+    if ( !_data )
+        return;
     //int buf_width = _dx; /* 2bpp */
     int initial_height = height;
     int bx = 0;
@@ -1890,6 +1892,11 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             dstline = ((lUInt16*)GetScanLine(y++)) + x;
             dst = dstline;
 
+            if ( !dst ) { // Should not happen, but avoid clang-tidy warning below
+                bitmap += bmp_width;
+                continue;
+            }
+
             for (xx = width; xx>0; --xx)
             {
                 lUInt32 opaque = ((*(src++))>>4)&0x0F;
@@ -1922,6 +1929,11 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             src = bitmap;
             dstline = ((lUInt32*)GetScanLine(y++)) + x;
             dst = dstline;
+
+            if ( !dst ) { // Should not happen, but avoid clang-tidy warning below
+                bitmap += bmp_width;
+                continue;
+            }
 
             for (xx = width; xx>0; --xx)
             {
@@ -2471,6 +2483,8 @@ void LVColorDrawBuf::DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32
     CR_UNUSED(options);
     CR_UNUSED(palette);
     //
+    if ( !_data )
+        return;
     lvRect clip;
     buf->GetClipRect(&clip);
     int bpp = buf->GetBitsPerPixel();
@@ -2605,6 +2619,8 @@ void LVColorDrawBuf::DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32
 void LVColorDrawBuf::DrawOnTop( LVDrawBuf * buf, int x, int y)
 {
     //
+    if ( !_data )
+        return;
     lvRect clip;
     buf->GetClipRect(&clip);
     int bpp = buf->GetBitsPerPixel();
