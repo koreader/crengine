@@ -222,7 +222,7 @@ public:
     LVCssSelector( LVCssSelector & v );
     LVCssSelector() : _id(0), _specificity(0), _pseudo_elem(0),  _next(NULL), _rules(NULL) { }
     LVCssSelector(int specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
-    ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; }
+    ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() { return _id; }
     bool check( const ldomNode * node ) const;

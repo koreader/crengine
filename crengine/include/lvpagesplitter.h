@@ -154,7 +154,7 @@ public:
     ~CompactArray()
     {
         if ( _data )
-            delete _data;
+            delete _data; // NOLINT(clang-analyzer-cplusplus.NewDelete)
     }
     void add( T item )
     {
