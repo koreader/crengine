@@ -1218,7 +1218,7 @@ public:
     }
     ~ldomBlobItem() {
         if ( _data )
-            delete[] _data;
+            delete[] _data; // NOLINT(clang-analyzer-cplusplus.NewDelete)
     }
     int getSize() { return _size; }
     int getIndex() { return _storageIndex; }
