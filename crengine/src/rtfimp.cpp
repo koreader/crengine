@@ -526,7 +526,7 @@ bool LVRtfParser::Parse()
             // control
             bool asteriskFlag = false;
             if ( ch2=='*' ) {
-                ch = *(++p);
+                ch = *(++p); (void)ch; // not used
                 ch2 = *(++p);
                 asteriskFlag = true;
             }
