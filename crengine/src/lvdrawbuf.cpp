@@ -673,6 +673,8 @@ public:
                         } else if ( bpp == 4 ) {
                             origColor = origColor & 0xF0;
                             origColor = origColor | (origColor>>4);
+                        } else {
+                            origColor = origColor & 0xFF;
                         }
                         // Expand to RGB32 (i.e., duplicate, R = G = B = Y)
                         origColor = origColor | (origColor<<8) | (origColor<<16);
