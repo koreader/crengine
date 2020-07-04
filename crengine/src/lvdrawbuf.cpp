@@ -665,17 +665,17 @@ public:
                             continue;
                         }
                     } else if ( alpha != 0 ) {
-                        lUInt8 origColor = row[x];
+                        lUInt8 origLuma = row[x];
                         // Expand lower bitdepths to Y8
                         if ( bpp == 3 ) {
-                            origColor = origColor & 0xE0;
-                            origColor = origColor | (origColor>>3) | (origColor>>6);
+                            origLuma = origLuma & 0xE0;
+                            origLuma = origLuma | (origLuma>>3) | (origLuma>>6);
                         } else if ( bpp == 4 ) {
-                            origColor = origColor & 0xF0;
-                            origColor = origColor | (origColor>>4);
+                            origLuma = origLuma & 0xF0;
+                            origLuma = origLuma | (origLuma>>4);
                         }
                         // Expand Y8 to RGB32 (i.e., duplicate, R = G = B = Y)
-                        lUInt32 bufColor = origColor | (origColor<<8) | (origColor<<16);
+                        lUInt32 bufColor = origLuma | (origLuma<<8) | (origLuma<<16);
                         ApplyAlphaRGB( bufColor, cl, alpha );
                         cl = bufColor;
                     }
