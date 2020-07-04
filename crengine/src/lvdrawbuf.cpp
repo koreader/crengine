@@ -666,15 +666,16 @@ public:
                         }
                     } else if ( alpha != 0 ) {
                         lUInt32 origColor = row[x];
+                        // Expand to Gray8
                         if ( bpp == 3 ) {
                             origColor = origColor & 0xE0;
                             origColor = origColor | (origColor>>3) | (origColor>>6);
-                            origColor = origColor | (origColor<<8) | (origColor<<16);
                         } else if ( bpp == 4 ) {
                             origColor = origColor & 0xF0;
                             origColor = origColor | (origColor>>4);
-                            origColor = origColor | (origColor<<8) | (origColor<<16);
                         }
+                        // Expand to RGB32 (i.e., duplicate, R = G = B = Y)
+                        origColor = origColor | (origColor<<8) | (origColor<<16);
                         ApplyAlphaRGB( origColor, cl, alpha );
                         cl = origColor;
                     }
