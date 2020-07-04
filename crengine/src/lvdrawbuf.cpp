@@ -726,12 +726,12 @@ public:
                             continue;
                         }
                     } else if ( alpha != 0 ) {
-                        lUInt32 origColor = (row[ byteindex ] & mask)>>bitindex;
-                        origColor = origColor | (origColor<<2);
-                        origColor = origColor | (origColor<<4);
-                        origColor = origColor | (origColor<<8) | (origColor<<16);
-                        ApplyAlphaRGB( origColor, cl, alpha );
-                        cl = origColor;
+                        lUInt8 origLuma = (row[ byteindex ] & mask)>>bitindex;
+                        origLuma = origLuma | (origLuma<<2);
+                        origLuma = origLuma | (origLuma<<4);
+                        lUInt32 bufColor = origLuma | (origLuma<<8) | (origLuma<<16);
+                        ApplyAlphaRGB( bufColor, cl, alpha );
+                        cl = bufColor;
                     }
 
                     lUInt32 dcl = 0;
