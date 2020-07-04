@@ -669,11 +669,12 @@ public:
                         if ( bpp == 3 ) {
                             origColor = origColor & 0xE0;
                             origColor = origColor | (origColor>>3) | (origColor>>6);
-                        } else {
+                            origColor = origColor | (origColor<<8) | (origColor<<16);
+                        } else if ( bpp = 4 ) {
                             origColor = origColor & 0xF0;
                             origColor = origColor | (origColor>>4);
+                            origColor = origColor | (origColor<<8) | (origColor<<16);
                         }
-                        origColor = origColor | (origColor<<8) | (origColor<<16);
                         ApplyAlphaRGB( origColor, cl, alpha );
                         cl = origColor;
                     }
