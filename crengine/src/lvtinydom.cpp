@@ -3975,7 +3975,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                         rm = erm_final;
                 }
             }
-            if ( (rm != erm_inline && rm != erm_runin) || node->isBoxingInlineBox()) {
+            if ( rm != erm_inline || node->isBoxingInlineBox()) {
                 doNewLineBeforeStartTag = true;
                 doNewLineAfterStartTag = true;
                 // doNewLineBeforeEndTag = false; // done by child elements
@@ -4113,7 +4113,6 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                 case erm_block:              *stream << "B";     break;
                 case erm_final:              *stream << "F";     break;
                 case erm_inline:             *stream << "i";     break;
-                case erm_runin:              *stream << "r";     break;
                 case erm_table:              *stream << "T";     break;
                 case erm_table_row_group:    *stream << "TRG";   break;
                 case erm_table_header_group: *stream << "THG";   break;
@@ -4969,7 +4968,7 @@ static bool isInlineNode( ldomNode * node )
     //int d = node->getStyle()->display;
     //return ( d==css_d_inline || d==css_d_run_in );
     int m = node->getRendMethod();
-    return m==erm_inline || m==erm_runin;
+    return m == erm_inline;
 }
 
 static bool isFloatingNode( ldomNode * node )
@@ -5429,7 +5428,7 @@ static void detectChildTypes( ldomNode * parent, bool & hasBlockItems, bool & ha
             int m = node->getRendMethod();
             if ( d==css_d_none || m==erm_invisible )
                 continue;
-            if ( m==erm_inline || m==erm_runin) { //d==css_d_inline || d==css_d_run_in
+            if ( m==erm_inline ) { //d==css_d_inline || d==css_d_run_in
                 hasInline = true;
             } else {
                 hasBlockItems = true;
@@ -5801,7 +5800,7 @@ bool ldomNode::isEmbeddedBlockBoxingInlineBox(bool inline_box_checks_done) const
     if ( hasAttribute( attr_T ) ) { // T="EmbeddedBlock"
             // (no other possible value yet, no need to compare strings)
         int cm = getChildNode(0)->getRendMethod();
-        if ( cm == erm_inline || cm == erm_runin || cm == erm_invisible || cm == erm_killed )
+        if ( cm == erm_inline || cm == erm_invisible || cm == erm_killed )
             return false; // child has been reset to inline
         return true;
     }
@@ -5901,7 +5900,7 @@ void ldomNode::initNodeRendMethod()
                 if ( !child->isElement() ) // text node
                     continue;
                 int cm = child->getRendMethod();
-                if ( cm == erm_inline || cm == erm_runin ) {
+                if ( cm == erm_inline ) {
                     has_inline_nodes = true; // We won't be able to make it erm_block
                     continue;
                 }
@@ -5945,7 +5944,7 @@ void ldomNode::initNodeRendMethod()
                         if ( !child->isElement() ) // text node
                             continue;
                         int cm = child->getRendMethod();
-                        if ( cm == erm_inline || cm == erm_runin || cm == erm_invisible || cm == erm_killed )
+                        if ( cm == erm_inline || cm == erm_invisible || cm == erm_killed )
                             continue;
                         if ( !isNotBoxWrappingNode( child ) )
                             continue;
@@ -6007,7 +6006,7 @@ void ldomNode::initNodeRendMethod()
         // runin
         //CRLog::trace("switch all children elements of <%s> to inline", LCSTR(getNodeName()));
         recurseElements( resetRendMethodToInline );
-        setRendMethod(erm_runin);
+        setRendMethod(erm_inline);
     } else if ( d==css_d_list_item_legacy ) {
         // list item (no more used, obsolete rendering method)
         setRendMethod(erm_final);
@@ -6214,7 +6213,7 @@ void ldomNode::initNodeRendMethod()
                             inBetweenTextNode = prev;
                             prev = getChildNode(i-2);
                         }
-                        if ( prev->isElement() && prev->getRendMethod()==erm_runin ) {
+                        if ( prev->isElement() && prev->getStyle()->display == css_d_run_in ) {
                             bool do_autoboxing = true;
                             int run_in_idx = inBetweenTextNode ? i-2 : i-1;
                             int block_idx = i;
@@ -11516,7 +11515,6 @@ ldomNode * ldomXPointerEx::getThisBlockNode()
             return NULL;
         lvdom_element_render_method rm = node->getRendMethod();
         switch ( rm ) {
-        case erm_runin: // treat as separate block
         case erm_block:
         case erm_final:
         case erm_table:
