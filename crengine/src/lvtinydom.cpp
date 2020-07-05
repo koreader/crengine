@@ -16124,11 +16124,16 @@ void ldomNode::initNodeStyle()
         {
             ldomNode * parent = getParentNode();
 
+            /* This has never triggered over the years, so trust we don't need it.
+             * This might also improve quite a bit TXT documents handling (where
+             * the main node may have tens of thousands of <PRE> children, one
+             * for each line of the text file.
+             *
             // DEBUG TEST
             if ( parent->getChildIndex( getDataIndex() )<0 ) {
                 CRLog::error("Invalid parent->child relation for nodes %d->%d", parent->getDataIndex(), getDataIndex() );
             }
-
+            */
 
             //lvdomElementFormatRec * parent_fmt = node->getParentNode()->getRenderData();
             css_style_ref_t style = parent->getStyle();
