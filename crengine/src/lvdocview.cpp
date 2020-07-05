@@ -6100,7 +6100,6 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	props->setIntDef(PROP_STATUS_FONT_SIZE, fs);
 	lString16 hyph = props->getStringDef(PROP_HYPHENATION_DICT,
 			DEF_HYPHENATION_DICT);
-#if !defined(ANDROID)
 	HyphDictionaryList * dictlist = HyphMan::getDictList();
 	if (dictlist) {
 		if (dictlist->find(hyph))
@@ -6109,7 +6108,6 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 			props->setStringDef(PROP_HYPHENATION_DICT, lString16(
 					HYPH_DICT_ID_ALGORITHM));
 	}
-#endif
 	props->setIntDef(PROP_STATUS_LINE, 0);
 	props->setIntDef(PROP_SHOW_TITLE, 1);
 	props->setIntDef(PROP_SHOW_TIME, 1);
@@ -6373,7 +6371,6 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 fontSize = MAX_STATUS_FONT_SIZE;
             setStatusFontSize(fontSize);//cr_font_sizes
             value = lString16::itoa(fontSize);
-#if !defined(ANDROID)
         } else if (name == PROP_HYPHENATION_DICT) {
             // hyphenation dictionary
             lString16 id = props->getStringDef(PROP_HYPHENATION_DICT,
@@ -6408,7 +6405,6 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 HyphMan::setTrustSoftHyphens(trustSoftHyphens);
                 REQUEST_RENDER("propsApply hyphenation trust_soft_hyphens")
             }
-#endif
         } else if (name == PROP_TEXTLANG_MAIN_LANG) {
             lString16 lang = props->getStringDef(PROP_TEXTLANG_MAIN_LANG, TEXTLANG_DEFAULT_MAIN_LANG);
             if ( lang != TextLangMan::getMainLang() ) {
