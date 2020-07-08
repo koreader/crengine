@@ -24,10 +24,6 @@
 #include <unistd.h>
 #endif
 
-#ifdef _DEBUG
-#include <stdexcept>
-#endif
-
 static char file_to_remove_on_crash[2048] = "";
 
 void crSetFileToRemoveOnFatalError(const char * filename) {
@@ -70,13 +66,7 @@ void crSetSignalHandler()
 /// default fatal error handler: uses exit()
 void lvDefFatalErrorHandler (int errorCode, const char * errorText )
 {
-    char strbuff[10];
-    sprintf(strbuff, "%d", errorCode);
-    fprintf( stderr, "FATAL ERROR #%s: %s\n", strbuff, errorText );
-#ifdef _DEBUG
-    std::string errstr = std::string("FATAL ERROR #") + std::string(strbuff) + std::string(": ") + std::string(errorText);
-    throw std::runtime_error(errstr);
-#endif
+    fprintf( stderr, "FATAL ERROR #%d: %s\n", errorCode, errorText );
     exit( errorCode );
 }
 
