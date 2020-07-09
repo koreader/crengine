@@ -37,6 +37,7 @@
 #define RENDER_RECT_FLAG_FINAL_FOOTPRINT_AS_SAVED_FLOAT_IDS 0x0040
 #define RENDER_RECT_FLAG_FLOATBOX_IS_RIGHT                  0x0080
 #define RENDER_RECT_FLAG_NO_INTERLINE_SCALE_UP              0x0100 // for ruby elements to not scale up
+#define RENDER_RECT_FLAG_IS_IN_MAIN_FLOW                    0x0200 // for hanging punctuation
 #define RENDER_RECT_FLAG_TEMP_USED_AS_CSS_CHECK_CACHE       0x8000 // has been cleared and is used as a CSS checks cache
 
 #define RENDER_RECT_SET_FLAG(r, f)     ( r.setFlags( r.getFlags() | RENDER_RECT_FLAG_##f ) )
@@ -172,6 +173,8 @@ int scaleForRenderDPI( int value );
 extern int gRenderDPI;
 extern bool gRenderScaleFontWithDPI;
 extern int gRootFontSize;
+
+extern bool gHangingPunctuationEnabled;
 
 #define INTERLINE_SCALE_FACTOR_NO_SCALE 1024
 #define INTERLINE_SCALE_FACTOR_SHIFT 10

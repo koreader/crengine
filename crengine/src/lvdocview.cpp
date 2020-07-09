@@ -6463,8 +6463,9 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             REQUEST_RENDER("propsApply footnotes")
         } else if (name == PROP_FLOATING_PUNCTUATION) {
             bool value = props->getBoolDef(PROP_FLOATING_PUNCTUATION, true);
-            if ( gFlgFloatingPunctuationEnabled != value ) {
-                gFlgFloatingPunctuationEnabled = value;
+            if ( gHangingPunctuationEnabled != value ) {
+                gHangingPunctuationEnabled = value;
+                requestRender(); // does m_doc->clearRendBlockCache(), which is needed on hanging punctuation change
                 REQUEST_RENDER("propsApply floating punct")
             }
         } else if (name == PROP_RENDER_BLOCK_RENDERING_FLAGS) {

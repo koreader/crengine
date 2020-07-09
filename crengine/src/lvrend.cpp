@@ -50,6 +50,8 @@
 // crengine default used to be "width: 100%", but now that we
 // can shrink to fit, it is "width: auto".
 
+bool gHangingPunctuationEnabled = false;
+
 int gInterlineScaleFactor = INTERLINE_SCALE_FACTOR_NO_SCALE;
 
 int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
@@ -4184,6 +4186,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     fmt.setX( fmt.getX() );
                     fmt.setY( fmt.getY() );
                     fmt.setLangNodeIndex( 0 ); // No support for lang in legacy rendering
+                    // No support for floating punctuation in legacy mode (we don't know
+                    // if this final node is in the main flow or not)
                     fmt.push();
                     //if ( CRLog::isTraceEnabled() )
                     //    CRLog::trace("rendering final node: %s %d %s", LCSTR(enode->getNodeName()), enode->getDataIndex(), LCSTR(ldomXPointer(enode,0).toString()) );
@@ -7158,6 +7162,17 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 fmt.setInnerY( padding_top );
                 fmt.setInnerWidth( inner_width );
                 RENDER_RECT_SET_FLAG(fmt, INNER_FIELDS_SET);
+                if ( flow->isMainFlow() ) {
+                    RENDER_RECT_SET_FLAG(fmt, IS_IN_MAIN_FLOW);
+                    // Hanging punctuation will only be ensured on final blocks
+                    // in the main flow where we assume we can render glyphs
+                    // in the margins - but not in floats, inline-boxes and
+                    // table cells, which might have borders and surrounding
+                    // content.
+                    // (We could check for the available padding/margin until
+                    // some border is met (but we would have to store the
+                    // available width on each side in new fields...)
+                }
                 fmt.push();
                 // (These setInner* needs to be set before creating float_footprint if
                 // we want to debug/valide floatIds coordinates)
@@ -9270,6 +9285,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
     // Start measurements and recursions:
     getRenderedWidths(node, maxWidth, minWidth, direction, ignoreMargin, rendFlags,
         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent, NULL, false, isStartNode);
+    // We took more care with including side bearings into minWidth when considering
+    // single words, than into maxWidth: so trust minWidth if larger than maxWidth.
+    if ( maxWidth < minWidth)
+        maxWidth = minWidth;
 }
 
 void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direction, bool ignoreMargin, int rendFlags,
@@ -9280,6 +9299,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
     // do, but only with widths and horizontal margin/border/padding and indent
     // (with no width constraint, so no line splitting and hyphenation - and we
     // don't care about vertical spacing and alignment).
+    // Note that, as this is called only on blocks that are not in the main flow,
+    // hanging punctuation, even if enabled, won't be ensured on them.
     // Limitations: no support for css_d_run_in (hardly ever used, we don't care)
     // todo : probably more tweaking to do when direction=RTL, and we should
     // also handle direction change when walking inner elements... (For now,
@@ -9900,8 +9921,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
         // We adjust below each word width with calls to getLeftSideBearing()
         // and getRightSideBearing(). These should be called with the exact same
-        // parameters as used in lvtextfm.cpp getAdditionalCharWidth() and
-        // getAdditionalCharWidthOnLeft().
+        // parameters as used in lvtextfm.cpp addLine().
         // todo: use fribidi and split measurement at fribidi level change,
         // and beware left/right side bearing adjustments...
         #if (USE_LIBUNIBREAK==1)

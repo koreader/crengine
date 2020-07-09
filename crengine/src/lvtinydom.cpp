@@ -86,7 +86,7 @@ int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.44k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0025
+#define FORMATTING_VERSION_ID 0x0026
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -390,8 +390,11 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // hash = hash * 31 + (int)fontMan->GetHintingMode();
     if ( LVRendGetFontEmbolden() )
         hash = hash * 75 + 2384761;
-    if ( gFlgFloatingPunctuationEnabled )
-        hash = hash * 75 + 1761;
+    // Hanging punctioatn does not need to trigger a re-render, as
+    // it's now ensure by alignLine() and won't change paragraphs height.
+    // We just need to _renderedBlockCache.clear() when it changes.
+    // if ( gHangingPunctuationEnabled )
+    //     hash = hash * 75 + 1761;
     hash = hash * 31 + gRenderDPI;
     hash = hash * 31 + gRenderBlockRenderingFlags;
     hash = hash * 31 + gRootFontSize;
@@ -8784,13 +8787,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                         int chw = w[ offset - word->t.start ] - chx;
                                         bool hyphen_added = false;
                                         if ( offset == word->t.start + word->t.len - 1
-                                                && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
-                                                && !gFlgFloatingPunctuationEnabled ) {
+                                                && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
                                             // if offset is the end of word, and this word has
                                             // been hyphenated, includes the hyphen width
-                                            // (but not when floating punctuation is enabled,
-                                            // to keep nice looking rectangles on multi lines
-                                            // text selection)
                                             chw += font->getHyphenWidth();
                                             // We then should not account for the right side
                                             // bearing below
@@ -8955,13 +8954,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                 int chw = w[ offset - word->t.start ] - chx;
                                 bool hyphen_added = false;
                                 if ( offset == word->t.start + word->t.len - 1
-                                        && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
-                                        && !gFlgFloatingPunctuationEnabled ) {
+                                        && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
                                     // if offset is the end of word, and this word has
                                     // been hyphenated, includes the hyphen width
-                                    // (but not when floating punctuation is enabled,
-                                    // to keep nice looking rectangles on multi lines
-                                    // text selection)
                                     chw += font->getHyphenWidth();
                                     // We then should not account for the right side
                                     // bearing below
@@ -17149,6 +17144,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     //RenderRectAccessor fmt( this );
     /// render whole node content as single formatted object
     int direction = RENDER_RECT_PTR_GET_DIRECTION(fmt);
+    int hanging_punctuation = gHangingPunctuationEnabled && RENDER_RECT_PTR_HAS_FLAG(fmt, IS_IN_MAIN_FLOW);
     lUInt32 flags = styleToTextFmtFlags( true, getStyle(), 0, direction );
     int lang_node_idx = fmt->getLangNodeIndex();
     TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg(lang_node_idx>0 ? getDocument()->getTinyNode(lang_node_idx) : NULL);
@@ -17156,12 +17152,6 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     // We need to store this LFormattedTextRef in the cache for it to
     // survive when leaving this function (some callers do use it).
     cache.set( this, f );
-    bool flg=gFlgFloatingPunctuationEnabled;
-    if (this->getNodeName()=="th"||this->getNodeName()=="td"||
-            (!this->getParentNode()->isNull()&&this->getParentNode()->getNodeName()=="td")||
-            (!this->getParentNode()->isNull()&&this->getParentNode()->getNodeName()=="th")) {
-        gFlgFloatingPunctuationEnabled=false;
-    }
     // This page_h we provide to f->Format() is only used to enforce a max height to images
     int page_h = getDocument()->getPageHeight();
     // Save or restore outer floats footprint (it is only provided
@@ -17183,8 +17173,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
         // one that is on a page to be drawn will be reformatted .
         f->requestLightFormatting();
     }
-    int h = f->Format((lUInt16)width, (lUInt16)page_h, direction, float_footprint);
-    gFlgFloatingPunctuationEnabled=flg;
+    int h = f->Format((lUInt16)width, (lUInt16)page_h, direction, hanging_punctuation, float_footprint);
     frmtext = f;
     //CRLog::trace("Created new formatted object for node #%08X", (lUInt32)this);
     return h;

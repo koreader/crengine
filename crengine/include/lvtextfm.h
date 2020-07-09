@@ -19,9 +19,6 @@
 #include "lvbmpbuf.h"
 #include "textlang.h"
 
-// comment out following line to use old formatter
-#define USE_NEW_FORMATTER 1
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -432,6 +429,7 @@ public:
 
     lUInt32 Format(lUInt16 width, lUInt16 page_height,
                         int para_direction=0, // = REND_DIRECTION_UNSET in lvrend.h
+                        bool hanging_punctuation=false,
                         BlockFloatFootprint * float_footprint = NULL );
 
     int GetSrcCount()
@@ -480,7 +478,5 @@ public:
 };
 
 #endif
-
-extern bool gFlgFloatingPunctuationEnabled;
 
 #endif
