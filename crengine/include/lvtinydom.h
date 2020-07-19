@@ -331,6 +331,8 @@ public:
     void freeNode( lUInt32 addr );
     /// call to invalidate chunk if content is modified
     void modified( lUInt32 addr );
+    /// return true if some chunks have been allocated
+    bool hasChunks() { return _chunks.length() > 0; }
 #endif
     
     /// get or allocate space for rect data item
@@ -524,6 +526,7 @@ protected:
     bool loadNodeData();
     bool loadNodeData( lUInt16 type, ldomNode ** list, int nodecount );
 
+    bool hasRenderData() { return _rectStorage.hasChunks(); }
 
     bool openCacheFile();
 
