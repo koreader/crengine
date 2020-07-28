@@ -48,6 +48,7 @@
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H   // for FT_Outline_Embolden()
 #include FT_SYNTHESIS_H // for FT_GlyphSlot_Embolden()
+#include FT_GLYPH_H     // for FT_Matrix_Multiply()
 
 // Use Freetype embolden API instead of LVFontBoldTransform to
 // make fake bold (for fonts that do not provide a bold face).
@@ -1031,6 +1032,7 @@ protected:
     FT_Face       _face;
     FT_GlyphSlot  _slot;
     FT_Matrix     _matrix;                 /* transformation matrix */
+    FT_Matrix     _matrix2;                /* helper matrix for fake italic metrics */
     int           _size; // caracter height in pixels
     int           _height; // full line height in pixels
     int           _hyphen_width;
@@ -1461,9 +1463,17 @@ public:
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
         if ( !error && italicize && !_italic ) {
-            _matrix.xy = 0x10000*3/10;
-            FT_Set_Transform(_face, &_matrix, NULL);
             _italic = 2;
+            // We'll use FT_GlyphSlot_Oblique(), with this additional
+            // matrix to fix up fake italic glyph metrics.
+            // Values from https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/freetype/qfontengine_ft.cpp#n1014
+            _matrix2 = _matrix;;
+            FT_Matrix m;
+            m.xx = 0x10000;
+            m.yx = 0x0;
+            m.xy = 0x6000;
+            m.yy = 0x10000;
+            FT_Matrix_Multiply(&m, &_matrix2);
         }
 
         if ( error ) {
@@ -1571,9 +1581,16 @@ public:
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
         if ( !error && italicize && !_italic ) {
-            _matrix.xy = 0x10000*3/10;
-            FT_Set_Transform(_face, &_matrix, NULL);
             _italic = 2;
+            // We'll use FT_GlyphSlot_Oblique(), with this additional
+            // matrix to fix up fake italic glyph metrics.
+            _matrix2 = _matrix;;
+            FT_Matrix m;
+            m.xx = 0x10000;
+            m.yx = 0x0;
+            m.xy = 0x6000;
+            m.yy = 0x10000;
+            FT_Matrix_Multiply(&m, &_matrix2);
         }
 
         if ( error ) {
@@ -1757,6 +1774,61 @@ public:
             // See setEmbolden() for details
             FT_GlyphSlot_Embolden(_slot);
         }
+        if (_italic == 2) {
+            // When the font does not provide italic glyphs (_italic = 2), some fake
+            // italic/oblique is obtained with FreeType transformation (formerly with
+            // _matrix.xy and FT_Set_Transform(), now with FT_GlyphSlot_Oblique()).
+            // freetype.h states about FT_Set_Transform():
+            //     Note that this also transforms the `face.glyph.advance' field,
+            //     but *not* the values in `face.glyph.metrics'.
+            // So, with such fake italic, the values we'll use below are wrong,
+            // and may cause some wrong glyphs positionning or advance.
+            FT_GlyphSlot_Oblique(_slot); // This uses FT_Outline_Transform(), see freetype2/src/base/ftsynth.c
+
+            // QT has some code that seem to fix these metrics in transformBoundingBox() at
+            // https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/freetype/qfontengine_ft.cpp#n909
+            // (while possibly still having a bit too much positive side bearings on some glyphs).
+            // So let's use it:
+            if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                int left   = _slot->metrics.horiBearingX;
+                int right  = _slot->metrics.horiBearingX + _slot->metrics.width;
+                int top    = _slot->metrics.horiBearingY;
+                int bottom = _slot->metrics.horiBearingY - _slot->metrics.height;
+                int l, r, t, b;
+                FT_Vector vector;
+                vector.x = left;
+                vector.y = top;
+                FT_Vector_Transform(&vector, &_matrix2);
+                l = r = vector.x;
+                t = b = vector.y;
+                vector.x = right;
+                vector.y = top;
+                FT_Vector_Transform(&vector, &_matrix2);
+                if (l > vector.x) l = vector.x;
+                if (r < vector.x) r = vector.x;
+                if (t < vector.y) t = vector.y;
+                if (b > vector.y) b = vector.y;
+                vector.x = right;
+                vector.y = bottom;
+                FT_Vector_Transform(&vector, &_matrix2);
+                if (l > vector.x) l = vector.x;
+                if (r < vector.x) r = vector.x;
+                if (t < vector.y) t = vector.y;
+                if (b > vector.y) b = vector.y;
+                vector.x = left;
+                vector.y = bottom;
+                FT_Vector_Transform(&vector, &_matrix2);
+                if (l > vector.x) l = vector.x;
+                if (r < vector.x) r = vector.x;
+                if (t < vector.y) t = vector.y;
+                if (b > vector.y) b = vector.y;
+                _slot->metrics.horiBearingX = l;
+                _slot->metrics.horiBearingY = t;
+                _slot->metrics.width        = r - l;
+                _slot->metrics.height       = t - b;
+            }
+        }
+
         glyph->blackBoxX = (lUInt16)( FONT_METRIC_TO_PX( _slot->metrics.width ) );
         glyph->blackBoxY = (lUInt16)( FONT_METRIC_TO_PX( _slot->metrics.height ) );
         glyph->originX =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingX ) );
@@ -1772,19 +1844,6 @@ public:
         // (Old) Note: these >>6 on a negative number will floor() it, so we'll get
         // a ceil()'ed value when considering negative numbers as some overflow,
         // which is good when we're using it for adding some padding.
-        //
-        // Note: when the font does not provide italic glyphs (_italic = 2), some fake
-        // italic/oblique is obtained with FreeType transformation (_matrix.xy and
-        // FT_Set_Transform()). freetype.h states about it:
-        //     Note that this also transforms the `face.glyph.advance' field,
-        //     but *not* the values in `face.glyph.metrics'.
-        // So, with such fake italic, the values just computed above are wrong,
-        // and may cause some wrong glyphs positionning or advance.
-        // Some possible attempt at guessing the transformed values can be found in
-        // http://code.qt.io/cgit/qt/qtbase.git/tree/src/platformsupport/fontdatabases/freetype/qfontengine_ft.cpp
-        // (transformBoundingBox) but a straightforward port here does not give
-        // the expected rendering...
-
         return true;
     }
 #if 0
@@ -2434,7 +2493,7 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
-            if (_embolden) { // Don't render yet
+            if (_embolden || _italic==2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
                 // Also disable any hinting, as it would be wrong after embolden
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
@@ -2457,6 +2516,10 @@ public:
             if (_embolden) { // Embolden and render
                 // See setEmbolden() for details
                 FT_GlyphSlot_Embolden(_slot);
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
+            }
+            if (_italic == 2) { // Obliquen and render
+                FT_GlyphSlot_Oblique(_slot);
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
 
@@ -2485,7 +2548,7 @@ public:
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
 
-            if (_embolden) { // Don't render yet
+            if (_embolden || _italic==2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
                 // Also disable any hinting, as it would be wrong after embolden
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
@@ -2511,6 +2574,10 @@ public:
                     FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
                     FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
                 }
+                FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
+            }
+            if (_italic==2) { // Obliquen and render
+                FT_GlyphSlot_Oblique(_slot);
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
 
