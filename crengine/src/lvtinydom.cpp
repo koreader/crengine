@@ -11328,18 +11328,18 @@ bool ldomXPointerEx::prevVisibleWordStart( bool thisBlockOnly )
             node = getNode();
             text = node->getText();
         }
-        bool foundNonSpace = false;
+        bool foundNonSeparator = false;
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) )
             _data->addOffset(-1); // skip preceeding space if any (we were on a visible word start)
         while ( _data->getOffset()>0 ) {
             if ( IsWordSeparator(text[ _data->getOffset()-1 ]) )
                 break;
-            foundNonSpace = true;
+            foundNonSeparator = true;
             _data->addOffset(-1);
             if ( canWrapWordBefore( text[_data->getOffset()] ) ) // CJK char
                 break;
         }
-        if ( foundNonSpace )
+        if ( foundNonSeparator )
             return true;
     }
 }
@@ -11366,14 +11366,14 @@ bool ldomXPointerEx::prevVisibleWordEnd( bool thisBlockOnly )
             node = getNode();
             text = node->getText();
         }
-        // skip spaces
+        // skip separators
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) ) {
             _data->addOffset(-1);
             moved = true;
         }
         if ( moved && _data->getOffset()>0 )
             return true; // found!
-        // skip non-spaces
+        // skip non-separators
         while ( _data->getOffset()>0 ) {
             if ( IsWordSeparator(text[ _data->getOffset()-1 ]) )
                 break;
@@ -11382,7 +11382,7 @@ bool ldomXPointerEx::prevVisibleWordEnd( bool thisBlockOnly )
             moved = true;
             _data->addOffset(-1);
         }
-        // skip spaces
+        // skip separators
         while ( _data->getOffset() > 0 && IsWordSeparator(text[_data->getOffset()-1]) ) {
             _data->addOffset(-1);
             moved = true;
@@ -11424,14 +11424,14 @@ bool ldomXPointerEx::nextVisibleWordStart( bool thisBlockOnly )
                 moved = true;
             }
         }
-        // skip spaces
+        // skip separators
         while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
             _data->addOffset(1);
             moved = true;
         }
         if ( moved && _data->getOffset()<textLen )
             return true;
-        // skip non-spaces
+        // skip non-separators
         while ( _data->getOffset()<textLen ) {
             if ( IsWordSeparator(text[ _data->getOffset() ]) )
                 break;
@@ -11440,7 +11440,7 @@ bool ldomXPointerEx::nextVisibleWordStart( bool thisBlockOnly )
             moved = true;
             _data->addOffset(1);
         }
-        // skip spaces
+        // skip separators
         while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
             _data->addOffset(1);
             moved = true;
@@ -11467,12 +11467,12 @@ bool ldomXPointerEx::thisVisibleWordEnd(bool thisBlockOnly)
     textLen = text.length();
     if ( _data->getOffset() >= textLen )
         return false;
-    // skip spaces
+    // skip separators
     while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
         _data->addOffset(1);
         //moved = true;
     }
-    // skip non-spaces
+    // skip non-separators
     while ( _data->getOffset()<textLen ) {
         if ( IsWordSeparator(text[ _data->getOffset() ]) )
             break;
@@ -11513,10 +11513,166 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
                 _data->setOffset( 0 );
             }
         }
+        bool nonSeparatorFound = false;
+        // skip non-separators
+        while ( _data->getOffset()<textLen ) {
+            if ( IsWordSeparator(text[ _data->getOffset() ]) )
+                break;
+            nonSeparatorFound = true;
+            _data->addOffset(1);
+            if ( canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
+        }
+        if ( nonSeparatorFound )
+            return true;
+        // skip separators
+        while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
+            _data->addOffset(1);
+            //moved = true;
+        }
+        // skip non-separators
+        while ( _data->getOffset()<textLen ) {
+            if ( IsWordSeparator(text[ _data->getOffset() ]) )
+                break;
+            nonSeparatorFound = true;
+            _data->addOffset(1);
+            if ( canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
+        }
+        if ( nonSeparatorFound )
+            return true;
+    }
+}
+
+/// move to previous visible word beginning (in sentence)
+bool ldomXPointerEx::prevVisibleWordStartInSentence()
+{
+    if ( isNull() )
+        return false;
+    ldomNode * node = NULL;
+    lString16 text;
+    for ( ;; ) {
+        if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
+            // move to previous text
+            if ( !prevVisibleText(true) )
+                return false;
+            node = getNode();
+            text = node->getText();
+            int textLen = text.length();
+            _data->setOffset( textLen );
+        } else {
+            node = getNode();
+            text = node->getText();
+        }
+        bool foundNonSpace = false;
+        while ( _data->getOffset() > 0 && IsUnicodeSpace(text[_data->getOffset()-1]) )
+            _data->addOffset(-1); // skip preceeding space if any (we were on a visible word start)
+        while ( _data->getOffset()>0 ) {
+            if ( IsUnicodeSpace(text[ _data->getOffset()-1 ]) )
+                break;
+            foundNonSpace = true;
+            _data->addOffset(-1);
+            if ( canWrapWordBefore( text[_data->getOffset()] ) ) // CJK char
+                break;
+        }
+        if ( foundNonSpace )
+            return true;
+    }
+}
+
+/// move to next visible word beginning (in sentence)
+bool ldomXPointerEx::nextVisibleWordStartInSentence()
+{
+    if ( isNull() )
+        return false;
+    ldomNode * node = NULL;
+    lString16 text;
+    int textLen = 0;
+    bool moved = false;
+    for ( ;; ) {
+        if ( !isText() || !isVisible() ) {
+            // move to previous text
+            if ( !nextVisibleText(false) )
+                return false;
+            node = getNode();
+            text = node->getText();
+            textLen = text.length();
+            _data->setOffset( 0 );
+            moved = true;
+        } else {
+            for (;;) {
+                node = getNode();
+                text = node->getText();
+                textLen = text.length();
+                if ( _data->getOffset() < textLen )
+                    break;
+                if ( !nextVisibleText(false) )
+                    return false;
+                _data->setOffset( 0 );
+                moved = true;
+            }
+        }
+        // skip spaces
+        while ( _data->getOffset()<textLen && IsUnicodeSpace(text[ _data->getOffset() ]) ) {
+            _data->addOffset(1);
+            moved = true;
+        }
+        if ( moved && _data->getOffset()<textLen )
+            return true;
+        // skip non-spaces
+        while ( _data->getOffset()<textLen ) {
+            if ( IsUnicodeSpace(text[ _data->getOffset() ]) )
+                break;
+            if ( moved && canWrapWordBefore( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
+            moved = true;
+            _data->addOffset(1);
+        }
+        // skip spaces
+        while ( _data->getOffset()<textLen && IsUnicodeSpace(text[ _data->getOffset() ]) ) {
+            _data->addOffset(1);
+            moved = true;
+        }
+        if ( moved && _data->getOffset()<textLen )
+            return true;
+    }
+}
+
+/// move to next visible word end (in sentence)
+bool ldomXPointerEx::nextVisibleWordEndInSentence()
+{
+    if ( isNull() )
+        return false;
+    ldomNode * node = NULL;
+    lString16 text;
+    int textLen = 0;
+    //bool moved = false;
+    for ( ;; ) {
+        if ( !isText() || !isVisible() ) {
+            // move to previous text
+            if ( !nextVisibleText(true) )
+                return false;
+            node = getNode();
+            text = node->getText();
+            textLen = text.length();
+            _data->setOffset( 0 );
+            //moved = true;
+        } else {
+            for (;;) {
+                node = getNode();
+                text = node->getText();
+                textLen = text.length();
+                if ( _data->getOffset() < textLen )
+                    break;
+                if ( !nextVisibleText(true) )
+                    return false;
+                _data->setOffset( 0 );
+            }
+        }
         bool nonSpaceFound = false;
         // skip non-spaces
         while ( _data->getOffset()<textLen ) {
-            if ( IsWordSeparator(text[ _data->getOffset() ]) )
+            if ( IsUnicodeSpace(text[ _data->getOffset() ]) )
                 break;
             nonSpaceFound = true;
             _data->addOffset(1);
@@ -11526,13 +11682,13 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
         if ( nonSpaceFound )
             return true;
         // skip spaces
-        while ( _data->getOffset()<textLen && IsWordSeparator(text[ _data->getOffset() ]) ) {
+        while ( _data->getOffset()<textLen && IsUnicodeSpace(text[ _data->getOffset() ]) ) {
             _data->addOffset(1);
             //moved = true;
         }
         // skip non-spaces
         while ( _data->getOffset()<textLen ) {
-            if ( IsWordSeparator(text[ _data->getOffset() ]) )
+            if ( IsUnicodeSpace(text[ _data->getOffset() ]) )
                 break;
             nonSpaceFound = true;
             _data->addOffset(1);
@@ -11541,6 +11697,54 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
         }
         if ( nonSpaceFound )
             return true;
+    }
+}
+
+/// move to previous visible word end (in sentence)
+bool ldomXPointerEx::prevVisibleWordEndInSentence()
+{
+    if ( isNull() )
+        return false;
+    ldomNode * node = NULL;
+    lString16 text;
+    bool moved = false;
+    for ( ;; ) {
+        if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
+            // move to previous text
+            if ( !prevVisibleText(false) )
+                return false;
+            node = getNode();
+            text = node->getText();
+            int textLen = text.length();
+            _data->setOffset( textLen );
+            moved = true;
+        } else {
+            node = getNode();
+            text = node->getText();
+        }
+        // skip spaces
+        while ( _data->getOffset() > 0 && IsUnicodeSpace(text[_data->getOffset()-1]) ) {
+            _data->addOffset(-1);
+            moved = true;
+        }
+        if ( moved && _data->getOffset()>0 )
+            return true; // found!
+        // skip non-spaces
+        while ( _data->getOffset()>0 ) {
+            if ( IsUnicodeSpace(text[ _data->getOffset()-1 ]) )
+                break;
+            if ( moved && canWrapWordAfter( text[_data->getOffset()] ) ) // We moved to a CJK char
+                return true;
+            moved = true;
+            _data->addOffset(-1);
+        }
+        // skip spaces
+        while ( _data->getOffset() > 0 && IsUnicodeSpace(text[_data->getOffset()-1]) ) {
+            _data->addOffset(-1);
+            moved = true;
+        }
+        if ( moved && _data->getOffset()>0 )
+            return true; // found!
     }
 }
 
@@ -11754,7 +11958,7 @@ bool ldomXPointerEx::thisSentenceStart()
     for (;;) {
         if ( isSentenceStart() )
             return true;
-        if ( !prevVisibleWordStart(true) )
+        if ( !prevVisibleWordStartInSentence() )
             return false;
     }
 }
@@ -11769,7 +11973,7 @@ bool ldomXPointerEx::thisSentenceEnd()
     for (;;) {
         if ( isSentenceEnd() )
             return true;
-        if ( !nextVisibleWordEnd(true) )
+        if ( !nextVisibleWordEndInSentence() )
             return false;
     }
 }
@@ -11780,7 +11984,7 @@ bool ldomXPointerEx::nextSentenceStart()
     if ( !isSentenceStart() && !thisSentenceEnd() )
         return false;
     for (;;) {
-        if ( !nextVisibleWordStart() )
+        if ( !nextVisibleWordStartInSentence() )
             return false;
         if ( isSentenceStart() )
             return true;
@@ -11814,7 +12018,7 @@ bool ldomXPointerEx::prevSentenceEnd()
     if ( !thisSentenceStart() )
         return false;
     for (;;) {
-        if ( !prevVisibleWordEnd() )
+        if ( !prevVisibleWordEndInSentence() )
             return false;
         if ( isSentenceEnd() )
             return true;
