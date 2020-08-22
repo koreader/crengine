@@ -2330,12 +2330,9 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 		return;
 	if (isScrollMode()) {
 		drawbuf.SetClipRect(NULL);
-		drawbuf.setHidePartialGlyphs(false);
-		drawPageBackground(drawbuf, 0, position);
-		/* Don't draw FB2 cover in scroll mode, as having it not part of the document
-		   height and having to shift the document start and adjust y/pos in many
-		   places is quite complicated
-		int cover_height = 0;
+        drawbuf.setHidePartialGlyphs(false);
+        drawPageBackground(drawbuf, 0, position);
+        int cover_height = 0;
 		if (m_pages.length() > 0 && (m_pages[0]->flags & RN_PAGE_TYPE_COVER))
 			cover_height = m_pages[0]->height;
 		if (position < cover_height) {
@@ -2349,7 +2346,6 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 			rc.right -= m_pageMargins.right;
 			drawCoverTo(&drawbuf, rc);
 		}
-		*/
 		DrawDocument(drawbuf, m_doc->getRootNode(), m_pageMargins.left, 0, drawbuf.GetWidth()
 				- m_pageMargins.left - m_pageMargins.right, drawbuf.GetHeight(), 0, -position,
 				drawbuf.GetHeight(), &m_markRanges, &m_bmkRanges);
