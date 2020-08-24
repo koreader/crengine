@@ -4546,6 +4546,13 @@ bool LVDocView::ParseDocument() {
         ldomDocumentWriter writer(m_doc);
         ldomDocumentWriterFilter writerFilter(m_doc, false,
                 HTML_AUTOCLOSE_TABLE);
+        // Note: creating these 2 writers here, and using only one,
+        // will still have both their destructors called when
+        // leaving this scope. Each destructor call will have
+        // ldomDocumentWriter::~ldomDocumentWriter() called, and
+        // both will do the same work on m_doc. So, beware there
+        // that this causes no issue.
+        // We might want to refactor this section to avoid any issue.
 
         LVFileFormatParser * parser = NULL;
         if (m_stream->GetSize() >= 5) {
