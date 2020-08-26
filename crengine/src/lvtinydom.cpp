@@ -4125,7 +4125,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString16Collection
                 *stream << "  ";
         if ( elemName.empty() ) {
             // should not happen (except for the root node, that we might have skipped)
-            elemName = node->isRoot() ? lString8("?RootNode?") : (elemNsName + "???");
+            elemName = node->isRoot() ? lString8("RootNode") : (elemNsName + "???");
         }
         if ( !elemNsName.empty() )
             elemName = elemNsName + ":" + elemName;
@@ -13674,12 +13674,18 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
     if (gDOMVersionRequested >= 20200824) { // A little bit more HTML5 conformance
         if ( id == el_image )
             id = el_img;
-        // If non-sub-table element opening while we're still
-        // inside sub-table non-TD/TH elements, we should
-        // do foster parenting: insert the node as the previous
-        // sibling of the TABLE element we're dealing with
-        // https://html.spec.whatwg.org/multipage/parsing.html#foster-parent
-        if ( CheckAndEnsureFosterParenting(id) ) {
+        if ( tagname && tagname[0] == '?' ) {
+            // The XML parser feeds us XML processing instructions like '<?xml ... ?>'
+            // Firefox wraps them in a comment <!--?xml ... ?-->.
+            // As we ignore comments, ignore them too.
+            tag_accepted = false;
+        }
+        else if ( CheckAndEnsureFosterParenting(id) ) {
+            // https://html.spec.whatwg.org/multipage/parsing.html#foster-parent
+            // If non-sub-table element opening while we're still
+            // inside sub-table non-TD/TH elements, we should
+            // do foster parenting: insert the node as the previous
+            // sibling of the TABLE element we're dealing with
             insert_before_last_child = true;
             // As we'll be inserting a node before the TABLE, which
             // already had its style applied, some CSS selectors matches
