@@ -54,6 +54,7 @@ static struct {
     { "ru-GB", "Russian_EnGB",  "Russian_EnGB.pattern",  2, 2 },
     { "ru-US", "Russian_EnUS",  "Russian_EnUS.pattern",  2, 2 },
     { "ru",    "Russian",       "Russian.pattern",       2, 2 },
+    { "sr",    "Serbian",       "Serbian.pattern",       2, 2 },
     { "sk",    "Slovak",        "Slovak.pattern",        2, 2 },
     { "sl",    "Slovenian",     "Slovenian.pattern",     2, 2 },
     { "es",    "Spanish",       "Spanish.pattern",       2, 2 },
@@ -700,6 +701,12 @@ TextLangCfg::TextLangCfg( lString16 lang_tag ) {
         has_left_double_quotation_mark_closing = true;
         has_left_double_angle_quotation_mark_opening = true;
         has_right_double_angle_quotation_mark_closing = true;
+    }
+    else if ( LANG_STARTS_WITH(("sr")) ) { // Serbian
+        has_right_single_quotation_mark_opening = true;
+        has_right_single_quotation_mark_closing = true;
+        has_left_double_quotation_mark_closing = true;
+        has_right_double_quotation_mark_closing = true;
     }
     else if ( LANG_STARTS_WITH(("zh")) ) { // Chinese
         has_left_single_quotation_mark_opening = true;
