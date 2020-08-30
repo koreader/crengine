@@ -702,10 +702,6 @@ TextLangCfg::TextLangCfg( lString16 lang_tag ) {
         has_left_double_angle_quotation_mark_opening = true;
         has_right_double_angle_quotation_mark_closing = true;
     }
-    else if ( LANG_STARTS_WITH(("sr")) ) { // Serbian
-        has_left_double_quotation_mark_closing = true;
-        has_right_double_quotation_mark_closing = true;
-    }
     else if ( LANG_STARTS_WITH(("zh")) ) { // Chinese
         has_left_single_quotation_mark_opening = true;
         has_right_single_quotation_mark_closing = true;
@@ -759,7 +755,7 @@ TextLangCfg::TextLangCfg( lString16 lang_tag ) {
     else if ( LANG_STARTS_WITH(("cs") ("sk")) ) { // Czech, Slovak
         _lb_char_sub_func = &lb_char_sub_func_czech_slovak;
     }
-    else if ( LANG_STARTS_WITH(("pt")) ) { // Portuguese
+    else if ( LANG_STARTS_WITH(("pt") ("sr")) ) { // Portuguese, Serbian
         _duplicate_real_hyphen_on_next_line = true;
     }
 #endif
