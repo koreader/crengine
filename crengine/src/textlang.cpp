@@ -401,7 +401,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "so",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "sq",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "sr-latn",  L"\x201e", L"\x201c", L"\x2018", L"\x2018" }, /* „ “ ‘ ‘ */
-    { "sr",       L"\x201e", L"\x201c", L"\x2018", L"\x2018" }, /* „ “ ‘ ‘ */
+    { "sr",       L"\x201e", L"\x201d", L"\x2019", L"\x2019" }, /* „ ” ’ ’ */
     { "sv",       L"\x201d", L"\x201d", L"\x2019", L"\x2019" }, /* ” ” ’ ’ */
     { "sw",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "ta",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
@@ -703,8 +703,6 @@ TextLangCfg::TextLangCfg( lString16 lang_tag ) {
         has_right_double_angle_quotation_mark_closing = true;
     }
     else if ( LANG_STARTS_WITH(("sr")) ) { // Serbian
-        has_right_single_quotation_mark_opening = true;
-        has_right_single_quotation_mark_closing = true;
         has_left_double_quotation_mark_closing = true;
         has_right_double_quotation_mark_closing = true;
     }
