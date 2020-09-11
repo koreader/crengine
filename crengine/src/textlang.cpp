@@ -31,6 +31,7 @@ static struct {
     int left_hyphen_min;
     int right_hyphen_min;
 } _hyph_dict_table[] = {
+    { "eu",    "Basque",        "Basque.pattern",        2, 2 },
     { "bg",    "Bulgarian",     "Bulgarian.pattern",     2, 2 },
     { "ca",    "Catalan",       "Catalan.pattern",       2, 2 },
     { "cs",    "Czech",         "Czech.pattern",         2, 3 },
@@ -43,10 +44,12 @@ static struct {
     { "gl",    "Galician",      "Galician.pattern",      2, 2 },
     { "de",    "German",        "German.pattern",        2, 2 },
     { "el",    "Greek",         "Greek.pattern",         1, 1 },
+    { "hr",    "Croatian",      "Croatian.pattern",      2, 2 },
     { "hu",    "Hungarian",     "Hungarian.pattern",     2, 2 },
     { "is",    "Icelandic",     "Icelandic.pattern",     2, 2 },
     { "ga",    "Irish",         "Irish.pattern",         2, 3 },
     { "it",    "Italian",       "Italian.pattern",       2, 2 },
+    { "mk",    "Macedonian",    "Macedonian.pattern",    2, 2 },
     { "no",    "Norwegian",     "Norwegian.pattern",     2, 2 },
     { "pl",    "Polish",        "Polish.pattern",        2, 2 },
     { "pt",    "Portuguese",    "Portuguese.pattern",    2, 3 },
@@ -269,7 +272,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "bem",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "bez",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "be",       L"\x00ab", L"\x00bb", L"\x201e", L"\x201c" }, /* « » „ “ */
-    { "bg",       L"\x201e", L"\x201c", L"\x201e", L"\x201c" }, /* „ “ „ “ */
+    { "bg",       L"\x201e", L"\x201c", L"\x2019", L"\x2019", L"\x2018", L"\x2019" }, /* „ “ ’ ’ ‘ ’ */
     { "bm",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "bn",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "brx",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
@@ -295,7 +298,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "en",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "es",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "et",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
-    { "eu",       L"\x201c", L"\x201d", L"\x201c", L"\x201d" }, /* “ ” “ ” */
+    { "eu",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     { "ewo",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "fa",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     { "ff",       L"\x201e", L"\x201d", L"\x201a", L"\x2019" }, /* „ ” ‚ ’ */
@@ -357,7 +360,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "mfe",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mgo",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mg",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
-    { "mk",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
+    { "mk",       L"\x201e", L"\x201c", L"\x2019", L"\x2018" }, /* „ “ ’ ‘ */
     { "ml",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mn",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mr",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
