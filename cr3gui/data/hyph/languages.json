@@ -64,7 +64,7 @@
     {
         "name": "English (UK)",
         "filename": "English_GB.pattern",
-        "language": "en-GB"
+        "language": "en-GB",
         "left_hyphen_min": 2,
         "right_hyphen_min": 3,
     },
