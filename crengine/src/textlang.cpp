@@ -39,7 +39,7 @@ static struct {
     { "en-GB", "English_GB",    "English_GB.pattern",    2, 3 },
     { "en",    "English_US",    "English_US.pattern",    2, 3 },
     { "fi",    "Finnish",       "Finnish.pattern",       2, 2 },
-    { "fr",    "French",        "French.pattern",        2, 2 },
+    { "fr",    "French",        "French.pattern",        2, 1 },
     { "gl",    "Galician",      "Galician.pattern",      2, 2 },
     { "de",    "German",        "German.pattern",        2, 2 },
     { "el",    "Greek",         "Greek.pattern",         1, 1 },
