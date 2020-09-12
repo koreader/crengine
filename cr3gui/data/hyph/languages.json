@@ -20,7 +20,7 @@
         "filename": "Basque.pattern",
         "language": "eu",
         "left_hyphen_min": 2,
-        "right_hyphen_min": 2,
+        "right_hyphen_min": 2
     },
     {
         "name": "Bulgarian",
@@ -39,7 +39,7 @@
         "filename": "Croatian.pattern",
         "language": "hr",
         "left_hyphen_min": 2,
-        "right_hyphen_min": 2,
+        "right_hyphen_min": 2
     },
     {
         "name": "Czech",
@@ -66,7 +66,7 @@
         "filename": "English_GB.pattern",
         "language": "en-GB",
         "left_hyphen_min": 2,
-        "right_hyphen_min": 3,
+        "right_hyphen_min": 3
     },
     {
         "name": "English (US)",
@@ -142,7 +142,7 @@
         "filename": "Macedonian.pattern",
         "language": "mk",
         "left_hyphen_min": 2,
-        "right_hyphen_min": 2,
+        "right_hyphen_min": 2
     },
     {
         "name": "Norwegian",
