@@ -17,7 +17,8 @@ typedef enum {
     doc_format_doc,
     doc_format_docx,
     doc_format_pdb,
-    doc_format_max = doc_format_pdb
+    doc_format_odt,
+    doc_format_max = doc_format_odt
     // don't forget update getDocFormatName() when changing this enum
 } doc_format_t;
 
