@@ -15,13 +15,6 @@
 //If true <title class="hx"><p>...</p></title> else <title><hx>..</hx></title>
 #define DOCX_USE_CLASS_FOR_HEADING true
 
-// Upstream made things ready for us: we just have to undef
-// the above to have a HTML DOM with classic headings, that
-// can be tweaked with style tweaks, and popup and in-page
-// footnotes also toggable with style tweaks.
-#undef DOCX_CRENGINE_IN_PAGE_FOOTNOTES
-#undef DOCX_FB2_DOM_STRUCTURE
-
 /// known docx items name and identifier
 struct item_def_t {
     int      id;
@@ -2334,11 +2327,14 @@ bool ImportDocXDocument( LVStreamRef stream, ldomDocument * doc, LVDocViewCallba
     writer.OnTagClose(NULL, L"description");
 #else
     writer.OnStart(NULL);
+    writer.OnTagOpen(NULL, L"?xml");
+    writer.OnAttribute(NULL, L"version", L"1.0");
+    writer.OnAttribute(NULL, L"encoding", L"utf-8");
+    writer.OnEncoding(L"utf-8", NULL);
+    writer.OnTagBody();
+    writer.OnTagClose(NULL, L"?xml");
     writer.OnTagOpenNoAttr(NULL, L"html");
 #endif
-// Note: the code in-here will forward attributes from the docx
-// document.xml '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-// to the <FictionBook> or <html> tags.
 
 #ifdef DOCX_FB2_DOM_STRUCTURE
     //Two options when dealing with titles: (FB2|HTML)
@@ -2366,14 +2362,6 @@ bool ImportDocXDocument( LVStreamRef stream, ldomDocument * doc, LVDocViewCallba
     writer.OnTagClose(NULL, L"html");
 #endif
     writer.OnStop();
-
-#ifndef DOCX_FB2_DOM_STRUCTURE
-    // With DOCX_FB2_DOM_STRUCTURE, headings are wrapped in <section><title>
-    // and benefit from crengine internal TOC building.
-    // When using plain HTML, we don't and have to build it here instead,
-    // from the headings we made.
-    doc->buildTocFromHeadings();
-#endif
 
     if ( progressCallback ) {
         progressCallback->OnLoadFileEnd( );
