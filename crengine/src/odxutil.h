@@ -8,6 +8,13 @@
 // comment this out to disable in-page footnotes
 #define ODX_CRENGINE_IN_PAGE_FOOTNOTES 1
 
+// Upstream made things ready for us: we just have to undef
+// the above to have a HTML DOM with classic headings, that
+// can be tweaked with style tweaks, and popup and in-page
+// footnotes also toggable with style tweaks.
+#undef DOCX_FB2_DOM_STRUCTURE
+#undef ODX_CRENGINE_IN_PAGE_FOOTNOTES
+
 enum odx_style_type {
     odx_invalid_style,
     odx_paragraph_style,
