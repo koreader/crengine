@@ -421,12 +421,18 @@ void odx_ImportContext::startDocument(ldomDocumentWriter &writer)
     writer.OnTagClose(NULL, L"description");
 #else
     writer.OnStart(NULL);
+    // Note: the following is not needed:
+    // docXMLreader::OnAttribute() will forward attributes from the docx
+    // document.xml '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    // to the <FictionBook> or <html> tags.
+    /*
     writer.OnTagOpen(NULL, L"?xml");
     writer.OnAttribute(NULL, L"version", L"1.0");
     writer.OnAttribute(NULL, L"encoding", L"utf-8");
     writer.OnEncoding(L"utf-8", NULL);
     writer.OnTagBody();
     writer.OnTagClose(NULL, L"?xml");
+    */
     writer.OnTagOpenNoAttr(NULL, L"html");
 #endif
 }

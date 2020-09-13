@@ -1601,6 +1601,14 @@ bool ImportDocXDocument( LVStreamRef stream, ldomDocument * doc, LVDocViewCallba
     importContext.endDocument(writer);
     writer.OnStop();
 
+#ifndef DOCX_FB2_DOM_STRUCTURE
+    // With DOCX_FB2_DOM_STRUCTURE, headings are wrapped in <section><title>
+    // and benefit from crengine internal TOC building.
+    // When using plain HTML, we don't and we have to build it here instead,
+    // from the headings we made.
+    doc->buildTocFromHeadings();
+#endif
+
     if ( progressCallback ) {
         progressCallback->OnLoadFileEnd( );
         doc->compact();
