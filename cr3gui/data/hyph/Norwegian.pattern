@@ -27499,6 +27499,7 @@
   <pattern>å7vy</pattern>
   <pattern>åvæ4re </pattern>
   <pattern>å1ø8</pattern>
+<!-- Exceptions, see https://github.com/koreader/crengine/pull/376
   <pattern>Ant5wer5pen</pattern>
   <pattern>Arm5strong</pattern>
   <pattern>Arm5strongs</pattern>
@@ -27607,4 +27608,5 @@
   <pattern>ut5ørken</pattern>
   <pattern>velan</pattern>
   <pattern>velet</pattern>
+-->
 </HyphenationDescription>
