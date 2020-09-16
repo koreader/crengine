@@ -27499,7 +27499,6 @@
   <pattern>å7vy</pattern>
   <pattern>åvæ4re </pattern>
   <pattern>å1ø8</pattern>
-<!-- Exceptions, see https://github.com/koreader/crengine/pull/376
   <pattern>Ant5wer5pen</pattern>
   <pattern>Arm5strong</pattern>
   <pattern>Arm5strongs</pattern>
@@ -27513,38 +27512,38 @@
   <pattern>Demo5sthe5nes</pattern>
   <pattern>Gan5dhi</pattern>
   <pattern>Gan5dhis</pattern>
-  <pattern>Helmut</pattern>
+<!-- <pattern>Helmut</pattern> Exceptions, see https://github.com/koreader/crengine/pull/376 -->
   <pattern>Kam5tsjat5ka</pattern>
   <pattern>Me5dina</pattern>
-  <pattern>Nielsen</pattern>
-  <pattern>Nielsens</pattern>
+<!--  <pattern>Nielsen</pattern>
+  <pattern>Nielsens</pattern> -->
   <pattern>Not5odden</pattern>
   <pattern>Not5oddens</pattern>
   <pattern>Sien5kie5wicz</pattern>
-  <pattern>Steinar</pattern>
-  <pattern>Steinars</pattern>
+<!--  <pattern>Steinar</pattern>
+  <pattern>Steinars</pattern> -->
   <pattern>Steins5land</pattern>
-  <pattern>Stendhal</pattern>
-  <pattern>Stendhals</pattern>
+<!--  <pattern>Stendhal</pattern>
+  <pattern>Stendhals</pattern> -->
   <pattern>Zara5thust5ra</pattern>
   <pattern>Zara5thust5ras</pattern>
   <pattern>atten5de</pattern>
   <pattern>aust5røn</pattern>
   <pattern>av5ise</pattern>
-  <pattern>aviser</pattern>
-  <pattern>betre</pattern>
+<!--  <pattern>aviser</pattern>
+  <pattern>betre</pattern> -->
   <pattern>bil5skyss</pattern>
   <pattern>bil5skyssen</pattern>
   <pattern>bord5ende</pattern>
   <pattern>bortan5for</pattern>
-  <pattern>bortre</pattern>
+<!--  <pattern>bortre</pattern> -->
   <pattern>båt5skyss</pattern>
   <pattern>båt5skyssen</pattern>
   <pattern>celle5ska5de</pattern>
   <pattern>celle5ska5den</pattern>
   <pattern>celle5ska5der</pattern>
   <pattern>celle5ska5dene</pattern>
-  <pattern>cheese</pattern>
+<!--  <pattern>cheese</pattern> -->
   <pattern>dess5uak5tet</pattern>
   <pattern>dit5over</pattern>
   <pattern>elev5skys5sen</pattern>
@@ -27575,15 +27574,15 @@
   <pattern>ned5imot</pattern>
   <pattern>ned5om</pattern>
   <pattern>ned5yver</pattern>
-  <pattern>noens</pattern>
+<!--  <pattern>noens</pattern> -->
   <pattern>næs5ten</pattern>
   <pattern>nøye5reg5nen5de</pattern>
   <pattern>opp5imot</pattern>
   <pattern>oven5ikjø5pet</pattern>
   <pattern>po5lar5is</pattern>
   <pattern>po5lar5isen</pattern>
-  <pattern>polis</pattern>
-  <pattern>polisen</pattern>
+<!--  <pattern>polis</pattern>
+  <pattern>polisen</pattern> -->
   <pattern>promp5te</pattern>
   <pattern>sel5ves5te</pattern>
   <pattern>skole5skys5sen</pattern>
@@ -27591,14 +27590,14 @@
   <pattern>skrov5is</pattern>
   <pattern>skrov5isen</pattern>
   <pattern>smal5enden</pattern>
-  <pattern>spleen</pattern>
+<!-- <pattern>spleen</pattern> -->
   <pattern>stokk5ende</pattern>
   <pattern>svart5svidd</pattern>
   <pattern>svart5svidde</pattern>
   <pattern>syd5enden</pattern>
   <pattern>sørpe5is</pattern>
   <pattern>sørpe5isen</pattern>
-  <pattern>treskje</pattern>
+<!--  <pattern>treskje</pattern> -->
   <pattern>tvert5om</pattern>
   <pattern>ukes5kor5tet</pattern>
   <pattern>ukes5kort</pattern>
@@ -27606,7 +27605,6 @@
   <pattern>upp5yver</pattern>
   <pattern>ut5ørk</pattern>
   <pattern>ut5ørken</pattern>
-  <pattern>velan</pattern>
-  <pattern>velet</pattern>
--->
+<!--  <pattern>velan</pattern>
+  <pattern>velet</pattern> -->
 </HyphenationDescription>
