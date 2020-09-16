@@ -6037,6 +6037,7 @@
 <pattern>x3ac</pattern>
 <pattern>x5ai</pattern>
 <pattern>x5aí</pattern>
+<!-- Exceptions, see https://github.com/koreader/crengine/pull/376
 <pattern>bhrachtaí</pattern>
 <pattern>mbrachtaí</pattern>
 <pattern>cháintí</pattern>
@@ -6083,4 +6084,5 @@
 <pattern>spealta</pattern>
 <pattern>dtiom5áintí</pattern>
 <pattern>thiom5áintí</pattern>
+-->
 </HyphenationDescription>
