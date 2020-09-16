@@ -40,9 +40,11 @@ static struct {
     { "en-GB", "English_GB",    "English_GB.pattern",    2, 3 },
     { "en",    "English_US",    "English_US.pattern",    2, 3 },
     { "eo",    "Esperanto",     "Esperanto.pattern",     2, 2 },
+    { "et",    "Estonian",      "Estonian.pattern",      2, 3 },
     { "fi",    "Finnish",       "Finnish.pattern",       2, 2 },
     { "fr",    "French",        "French.pattern",        2, 1 },
     { "gl",    "Galician",      "Galician.pattern",      2, 2 },
+    { "ka",    "Georgian",      "Georgian.pattern",      1, 2 },
     { "de",    "German",        "German.pattern",        2, 2 },
     { "el",    "Greek",         "Greek.pattern",         1, 1 },
     { "hr",    "Croatian",      "Croatian.pattern",      2, 2 },
@@ -50,8 +52,11 @@ static struct {
     { "is",    "Icelandic",     "Icelandic.pattern",     2, 2 },
     { "ga",    "Irish",         "Irish.pattern",         2, 3 },
     { "it",    "Italian",       "Italian.pattern",       2, 2 },
+    { "lv",    "Latvian",       "Latvian.pattern",       2, 2 },
+    { "lt",    "Lithuanian",    "Lithuanian.pattern",    2, 2 },
     { "mk",    "Macedonian",    "Macedonian.pattern",    2, 2 },
     { "no",    "Norwegian",     "Norwegian.pattern",     2, 2 },
+    { "oc",    "Occitan",       "Occitan.pattern",       2, 2 },
     { "pl",    "Polish",        "Polish.pattern",        2, 2 },
     { "pt",    "Portuguese",    "Portuguese.pattern",    2, 3 },
     { "ro",    "Roman",         "Roman.pattern",         2, 2 },
@@ -65,6 +70,7 @@ static struct {
     { "sv",    "Swedish",       "Swedish.pattern",       2, 2 },
     { "tr",    "Turkish",       "Turkish.pattern",       2, 2 },
     { "uk",    "Ukrain",        "Ukrain.pattern",        2, 2 },
+    { "cy",    "Welsh",         "Welsh.pattern",         2, 3 },
     // No-lang hyph methods, for legacy HyphMan methods: other lang properties will be from English
     { "en#@none",        "@none",        "@none",        2, 2 },
     { "en#@softhyphens", "@softhyphens", "@softhyphens", 2, 2 },
@@ -284,7 +290,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "cgg",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "chr",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "cs",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
-    { "cy",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
+    { "cy",       L"\x2018", L"\x2019", L"\x201c", L"\x201d" }, /* ‘ ’ “ ” */
     { "dav",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "da",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "de",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
@@ -299,7 +305,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "en",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "eo",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "es",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
-    { "et",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
+    { "et",       L"\x201e", L"\x201c", L"\x00ab", L"\x00bb" }, /* „ “ « » */
     { "eu",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     { "ewo",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "fa",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
@@ -332,7 +338,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "jmc",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "kab",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "kam",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
-    { "ka",       L"\x201e", L"\x201c", L"\x00ab", L"\x00bb" }, /* „ “ « » */
+    { "ka",       L"\x201e", L"\x201c", L"\x2018", L"\x2019" }, /* „ “ “ ” */
     { "kde",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "kea",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "khq",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
@@ -352,11 +358,11 @@ static quotes_spec _quotes_spec_table[] = {
     { "ln",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "lo",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "lrc",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
-    { "lt",       L"\x201e", L"\x201c", L"\x201e", L"\x201c" }, /* „ “ „ “ */
+    { "lt",       L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
     { "luo",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "luy",      L"\x201e", L"\x201c", L"\x201a", L"\x2018" }, /* „ “ ‚ ‘ */
     { "lu",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
-    { "lv",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
+    { "lv",       L"\x201c", L"\x201d", L"\x201e", L"\x201d" }, /* “ ” „ ” */
     { "mas",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mer",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "mfe",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
@@ -381,6 +387,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "nn",       L"\x00ab", L"\x00bb", L"\x2018", L"\x2019" }, /* « » ‘ ’ */
     { "nus",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "nyn",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
+    { "oc",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pa",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "pl",       L"\x201e", L"\x201d", L"\x00ab", L"\x00bb" }, /* „ ” « » */
     { "pt-pt",    L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
