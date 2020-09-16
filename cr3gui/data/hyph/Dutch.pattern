@@ -12772,6 +12772,7 @@
   <pattern>zz3in</pattern>
   <pattern>zz3or</pattern>
   <pattern>z4z5w</pattern>
+  <!-- Exceptions, see https://github.com/koreader/crengine/pull/376
   <pattern>aan5dachts5trek5ker</pattern>
   <pattern>aan5dachts5trek5kers</pattern>
   <pattern>acht5en5der</pattern>
@@ -12812,4 +12813,5 @@
   <pattern>wals5te</pattern>
   <pattern>wa5ter5staats5in5ge5ni5eur</pattern>
   <pattern>wa5ter5staats5in5ge5ni5eurs</pattern>
+-->
 </HyphenationDescription>
