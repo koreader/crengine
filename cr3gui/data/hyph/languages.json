@@ -85,6 +85,14 @@
         "aliases": ["epo"]
     },
     {
+        "name": "Estonian",
+        "filename": "Estonian.pattern",
+        "language": "et",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 3,
+        "aliases": ["est"]
+    },
+    {
         "name": "Finnish",
         "filename": "Finnish.pattern",
         "language": "fi",
@@ -104,12 +112,18 @@
         "language": "gl",
         "aliases": ["glg"]
     },
-
     {
         "name": "German",
         "filename": "German.pattern",
         "language": "de",
         "aliases": ["deu"]
+    },
+    {
+        "name": "Georgian",
+        "filename": "Georgian.pattern",
+        "language": "ka",
+        "left_hyphen_min": 1,
+        "right_hyphen_min": 2
     },
     {
         "name": "Greek",
@@ -146,6 +160,22 @@
         "aliases": ["ita"]
     },
     {
+        "name": "Latvian",
+        "filename": "Latvian.pattern",
+        "language": "lv",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 2
+        "aliases": ["lav"]
+    },
+    {
+        "name": "Lithuanian",
+        "filename": "Lithuanian.pattern",
+        "language": "lt",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 2,
+        "aliases": ["lit"]
+    },
+    {
         "name": "Macedonian",
         "filename": "Macedonian.pattern",
         "language": "mk",
@@ -157,6 +187,14 @@
         "filename": "Norwegian.pattern",
         "language": "no",
         "aliases": ["nor"]
+    },
+    {
+        "name": "Occitan",
+        "filename": "Occitan.pattern",
+        "language": "oc",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 2,
+        "aliases": ["oci"]
     },
     {
         "name": "Polish",
@@ -239,5 +277,13 @@
         "filename": "Ukrain.pattern",
         "language": "uk",
         "aliases": ["ukr"]
+    },
+    {
+        "name": "Welsh",
+        "filename": "Welsh.pattern",
+        "language": "cy",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 3,
+        "aliases": ["cym"]
     }
 ]
