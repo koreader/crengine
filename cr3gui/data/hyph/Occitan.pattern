@@ -252,33 +252,4 @@
   <pattern>2x </pattern>
   <pattern>1z</pattern>
   <pattern>2z </pattern>
-  <pattern>2'2</pattern>
-  <pattern>2b'</pattern>
-  <pattern>2ch' </pattern>
-  <pattern>2ch'' </pattern>
-  <pattern>2c'</pattern>
-  <pattern>2d'</pattern>
-  <pattern>2f'</pattern>
-  <pattern>2g'</pattern>
-  <pattern>2h'</pattern>
-  <pattern>2j'</pattern>
-  <pattern>2k'</pattern>
-  <pattern>2l' </pattern>
-  <pattern>2l''</pattern>
-  <pattern>2m'</pattern>
-  <pattern>2n'</pattern>
-  <pattern>2p'</pattern>
-  <pattern>2q'</pattern>
-  <pattern>2r'</pattern>
-  <pattern>2sh'</pattern>
-  <pattern>4s' </pattern>
-  <pattern>4s''</pattern>
-  <pattern>2t' </pattern>
-  <pattern>2t''</pattern>
-  <pattern>2v' </pattern>
-  <pattern>2v''</pattern>
-  <pattern>2w'</pattern>
-  <pattern>2x'</pattern>
-  <pattern>2z' </pattern>
-  <pattern>2z''</pattern>
 </HyphenationDescription>
