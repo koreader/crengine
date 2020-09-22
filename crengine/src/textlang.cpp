@@ -33,6 +33,7 @@ static struct {
     int left_hyphen_min;
     int right_hyphen_min;
 } _hyph_dict_table[] = {
+    { "hy",    "Armenian",      "Armenian.pattern",      1, 2 },
     { "eu",    "Basque",        "Basque.pattern",        2, 2 },
     { "bg",    "Bulgarian",     "Bulgarian.pattern",     2, 2 },
     { "ca",    "Catalan",       "Catalan.pattern",       2, 2 },
@@ -45,6 +46,7 @@ static struct {
     { "et",    "Estonian",      "Estonian.pattern",      2, 3 },
     { "fi",    "Finnish",       "Finnish.pattern",       2, 2 },
     { "fr",    "French",        "French.pattern",        2, 1 }, // see French.pattern file for why right_hyphen_min=1
+    { "fur",   "Friulian",      "Friulian.pattern",      2, 2 },
     { "gl",    "Galician",      "Galician.pattern",      2, 2 },
     { "ka",    "Georgian",      "Georgian.pattern",      1, 2 },
     { "de",    "German",        "German.pattern",        2, 2 },
@@ -59,9 +61,11 @@ static struct {
     { "mk",    "Macedonian",    "Macedonian.pattern",    2, 2 },
     { "no",    "Norwegian",     "Norwegian.pattern",     2, 2 },
     { "oc",    "Occitan",       "Occitan.pattern",       2, 2 },
+    { "pms",   "Piedmontese",   "Piedmontese.pattern",   2, 2 },
     { "pl",    "Polish",        "Polish.pattern",        2, 2 },
     { "pt",    "Portuguese",    "Portuguese.pattern",    2, 3 },
     { "ro",    "Roman",         "Romanian.pattern",      2, 2 }, // truncated prefix (see above)
+    { "rm",    "Romansh",       "Romansh.pattern",       2, 2 },
     { "ru-GB", "Russian_EnGB",  "Russian_EnGB.pattern",  2, 2 },
     { "ru-US", "Russian_EnUS",  "Russian_EnUS.pattern",  2, 2 },
     { "ru",    "Russian",       "Russian.pattern",       2, 2 },
@@ -73,6 +77,7 @@ static struct {
     { "tr",    "Turkish",       "Turkish.pattern",       2, 2 },
     { "uk",    "Ukrain",        "Ukrainian.pattern",     2, 2 }, // truncated prefix (see above)
     { "cy",    "Welsh",         "Welsh.pattern",         2, 3 },
+    { "zu",    "Zulu",          "Zulu.pattern",          2, 2 }, // defaulting to 2,2 hyphenmin, needs verification
     // No-lang hyph methods, for legacy HyphMan methods: other lang properties will be from English
     { "en#@none",        "@none",        "@none",        2, 2 },
     { "en#@softhyphens", "@softhyphens", "@softhyphens", 2, 2 },
@@ -318,6 +323,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "fr-ch",    L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     // { "fr",    L"\x00ab", L"\x00bb", L"\x00ab", L"\x00bb" }, /* « » « » */  /* Same pair for both level, bit sad... */
     { "fr",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */  /* Better to have "fr" just as "it" */
+    { "fur",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */  /* Defaulting to "it", needs verification */
     { "ga",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "gd",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "gl",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
@@ -392,8 +398,10 @@ static quotes_spec _quotes_spec_table[] = {
     { "oc",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pa",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "pl",       L"\x201e", L"\x201d", L"\x00ab", L"\x00bb" }, /* „ ” « » */
+    { "pms",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */  /* Defaulting to "it", needs verification */
     { "pt-pt",    L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pt",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
+    { "rm",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     { "rn",       L"\x201d", L"\x201d", L"\x2019", L"\x2019" }, /* ” ” ’ ’ */
     { "rof",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "ro",       L"\x201e", L"\x201d", L"\x00ab", L"\x00bb" }, /* „ ” « » */
