@@ -328,7 +328,7 @@
         "filename": "Zulu.pattern",
         "language": "zu",
         "left_hyphen_min": 2,
-        "right_hyphen_min": 2,
+        "right_hyphen_min": 1,
         "aliases": ["zul"]
     }
 ]
