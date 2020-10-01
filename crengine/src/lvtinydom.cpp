@@ -82,7 +82,6 @@
 // to be (only a little bit) more HTML5 conformant
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
-int gDOMVersionRequested     = DOM_VERSION_CURRENT;
 
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
@@ -486,10 +485,10 @@ struct SimpleCacheFileHeader
     char _magic[CACHE_FILE_MAGIC_SIZE] = { 0 }; // magic
     lUInt32 _dirty;
     lUInt32 _dom_version;
-    SimpleCacheFileHeader( lUInt32 dirtyFlag ) {
+    SimpleCacheFileHeader( lUInt32 dirtyFlag, lUInt32 domVersion ) {
         memcpy( _magic, _compressCachedData ? COMPRESSED_CACHE_FILE_MAGIC : UNCOMPRESSED_CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE );
         _dirty = dirtyFlag;
-        _dom_version = gDOMVersionRequested;
+        _dom_version = domVersion;
     }
 };
 
@@ -498,7 +497,7 @@ struct CacheFileHeader : public SimpleCacheFileHeader
     lUInt32 _fsize;
     CacheFileItem _indexBlock; // index array block parameters,
     // duplicate of one of index records which contains
-    bool validate()
+    bool validate(lUInt32 domVersionRequested)
     {
         if (memcmp(_magic, _compressCachedData ? COMPRESSED_CACHE_FILE_MAGIC : UNCOMPRESSED_CACHE_FILE_MAGIC, CACHE_FILE_MAGIC_SIZE) != 0) {
             CRLog::error("CacheFileHeader::validate: magic doesn't match");
@@ -509,15 +508,15 @@ struct CacheFileHeader : public SimpleCacheFileHeader
             printf("CRE: ignoring cache file (marked as dirty)\n");
             return false;
         }
-        if ( _dom_version != gDOMVersionRequested ) {
+        if ( _dom_version != domVersionRequested ) {
             CRLog::error("CacheFileHeader::validate: DOM version mismatch");
             printf("CRE: ignoring cache file (dom version mismatch)\n");
             return false;
         }
         return true;
     }
-    CacheFileHeader( CacheFileItem * indexRec, int fsize, lUInt32 dirtyFlag )
-    : SimpleCacheFileHeader(dirtyFlag), _indexBlock(0,0)
+    CacheFileHeader( CacheFileItem * indexRec, int fsize, lUInt32 dirtyFlag, lUInt32 domVersion )
+    : SimpleCacheFileHeader(dirtyFlag, domVersion), _indexBlock(0,0)
     {
         if ( indexRec ) {
             memcpy( &_indexBlock, indexRec, sizeof(CacheFileItem));
@@ -536,6 +535,7 @@ class CacheFile
     int _size;
     bool _indexChanged;
     bool _dirty;
+    lUInt32 _domVersion;
     lString16 _cachePath;
     LVStreamRef _stream; // file stream
     LVPtrVector<CacheFileItem, true> _index; // full file block index
@@ -559,7 +559,7 @@ public:
     // return current file size
     int getSize() { return _size; }
     // create uninitialized cache file, call open or create to initialize
-    CacheFile();
+    CacheFile(lUInt32 domVersion);
     // free resources
     ~CacheFile();
     // try open existing cache file
@@ -595,6 +595,8 @@ public:
 
     /// sets dirty flag value, returns true if value is changed
     bool setDirtyFlag( bool dirty );
+    /// sets DOM version value, returns true if value is changed
+    bool setDOMVersion( lUInt32 domVersion );
     // flushes index
     bool flush( bool clearDirtyFlag, CRTimerUtil & maxTime );
     int roundSector( int n )
@@ -614,8 +616,8 @@ public:
 
 
 // create uninitialized cache file, call open or create to initialize
-CacheFile::CacheFile()
-: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _map(1024), _cachePath(lString16::empty_str)
+CacheFile::CacheFile(lUInt32 domVersion)
+: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _domVersion(domVersion), _map(1024), _cachePath(lString16::empty_str)
 {
 }
 
@@ -641,7 +643,7 @@ bool CacheFile::setDirtyFlag( bool dirty )
         CRLog::info("CacheFile::setting Dirty flag");
     }
     _dirty = dirty;
-    SimpleCacheFileHeader hdr(_dirty?1:0);
+    SimpleCacheFileHeader hdr(_dirty?1:0, _domVersion);
     _stream->SetPos(0);
     lvsize_t bytesWritten = 0;
     _stream->Write(&hdr, sizeof(hdr), &bytesWritten );
@@ -649,6 +651,22 @@ bool CacheFile::setDirtyFlag( bool dirty )
         return false;
     _stream->Flush(true);
     //CRLog::trace("setDirtyFlag : hdr is saved with Dirty flag = %d", hdr._dirty);
+    return true;
+}
+
+bool CacheFile::setDOMVersion( lUInt32 domVersion ) {
+    if ( _domVersion == domVersion )
+        return false;
+    CRLog::info("CacheFile::setting DOM version value");
+    _domVersion = domVersion;
+    SimpleCacheFileHeader hdr(_dirty?1:0, _domVersion);
+    _stream->SetPos(0);
+    lvsize_t bytesWritten = 0;
+    _stream->Write(&hdr, sizeof(hdr), &bytesWritten );
+    if ( bytesWritten!=sizeof(hdr) )
+        return false;
+    _stream->Flush(true);
+    //CRLog::trace("setDOMVersion : hdr is saved with DOM version = %u", hdr._domVersionRequested);
     return true;
 }
 
@@ -687,14 +705,15 @@ bool CacheFile::validateContents()
 // reads index from file
 bool CacheFile::readIndex()
 {
-    CacheFileHeader hdr(NULL, _size, 0);
+    CacheFileHeader hdr(NULL, _size, 0, 0);
     _stream->SetPos(0);
     lvsize_t bytesRead = 0;
     _stream->Read(&hdr, sizeof(hdr), &bytesRead );
     if ( bytesRead!=sizeof(hdr) )
         return false;
     CRLog::info("Header read: DirtyFlag=%d", hdr._dirty);
-    if ( !hdr.validate() )
+    CRLog::info("Header read: DOM level=%u", hdr._dom_version);
+    if ( !hdr.validate(_domVersion) )
         return false;
     if ( (int)hdr._fsize > _size + 4096-1 ) {
         CRLog::error("CacheFile::readIndex: file size doesn't match with header");
@@ -802,7 +821,7 @@ bool CacheFile::updateHeader()
 {
     CacheFileItem * indexItem = NULL;
     indexItem = findBlock(CBT_INDEX, 0);
-    CacheFileHeader hdr(indexItem, _size, _dirty?1:0);
+    CacheFileHeader hdr(indexItem, _size, _dirty?1:0, _domVersion);
     _stream->SetPos(0);
     lvsize_t bytesWritten = 0;
     _stream->Write(&hdr, sizeof(hdr), &bytesWritten );
@@ -2093,12 +2112,21 @@ bool tinyNodeCollection::setRenderBlockRenderingFlags(lUInt32 flags) {
     return false;
 }
 
+bool tinyNodeCollection::setDOMVersionRequested(lUInt32 version)
+{
+    if (_DOMVersionRequested != version) {
+        _DOMVersionRequested = version;
+        return true;
+    }
+    return false;
+}
+
 #if BUILD_LITE!=1
 bool tinyNodeCollection::openCacheFile()
 {
     if ( _cacheFile )
         return true;
-    CacheFile * f = new CacheFile();
+    CacheFile * f = new CacheFile(_DOMVersionRequested);
     //lString16 cacheFileName("/tmp/cr3swap.tmp");
 
     lString16 fname = getProps()->getStringDef( DOC_PROP_FILE_NAME, "noname" );
@@ -2148,7 +2176,7 @@ bool tinyNodeCollection::createCacheFile()
 {
     if ( _cacheFile )
         return true;
-    CacheFile * f = new CacheFile();
+    CacheFile * f = new CacheFile(_DOMVersionRequested);
     //lString16 cacheFileName("/tmp/cr3swap.tmp");
 
     lString16 fname = getProps()->getStringDef( DOC_PROP_FILE_NAME, "noname" );
@@ -5030,7 +5058,7 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     // Default (for elements not specified in fb2def.h) is to allow text
     // (except for the root node which must have children)
     _allowText = _typeDef ? _typeDef->allow_text : (_parent?true:false);
-    if (gDOMVersionRequested < 20180528) { // revert what was changed 20180528
+    if (_document->getDOMVersionRequested() < 20180528) { // revert what was changed 20180528
         // <hr>, <ul>, <ol>, <dl>, <output>, <section>, <svg> didn't allow text
         if ( id==el_hr || id==el_ul || id==el_ol || id==el_dl ||
                 id==el_output || id==el_section || id==el_svg ) {
@@ -5289,7 +5317,7 @@ static void resetRendMethodToInline( ldomNode * node )
     // hide other nodes)
     if (node->getStyle()->display != css_d_none)
         node->setRendMethod(erm_inline);
-    else if (gDOMVersionRequested < 20180528) // do that in all cases
+    else if (node->getDocument()->getDOMVersionRequested() < 20180528) // do that in all cases
         node->setRendMethod(erm_inline);
 }
 
@@ -8578,16 +8606,17 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
         //CRLog::trace("ldomXPointer::getRect() - p==NULL");
         return false;
     }
+    ldomDocument* doc = p->getDocument();
     //printf("getRect( p=%08X type=%d )\n", (unsigned)p, (int)p->getNodeType() );
-    else if ( !p->getDocument() ) {
+    if ( !doc ) {
         //CRLog::trace("ldomXPointer::getRect() - p->getDocument()==NULL");
         return false;
     }
-    ldomNode * mainNode = p->getDocument()->getRootNode();
+    ldomNode * mainNode = doc->getRootNode();
     for ( ; p; p = p->getParentNode() ) {
         int rm = p->getRendMethod();
         if ( rm == erm_final ) {
-            if ( gDOMVersionRequested < 20180524 && p->getStyle()->display == css_d_list_item_legacy ) {
+            if ( doc->getDOMVersionRequested() < 20180524 && p->getStyle()->display == css_d_list_item_legacy ) {
                 // This legacy rendering of list item is now erm_final, but
                 // can contain other real erm_final nodes.
                 // So, if we found an erm_final, and if we find this erm_final
@@ -13708,7 +13737,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
     // Fixed 20180503: this was done previously in any case, but now only
     // if _libRuDocumentDetected. We still allow the old behaviour if
     // requested to keep previously recorded XPATHs valid.
-    if ( _libRuDocumentDetected || gDOMVersionRequested < 20180503) {
+    if ( _libRuDocumentDetected || _document->getDOMVersionRequested() < 20180503) {
         // Patch for bad LIB.RU books - BR delimited paragraphs
         // in "Fine HTML" format, that appears as:
         //   <br>&nbsp; &nbsp; &nbsp; Viento fuerte, 1950
@@ -13760,7 +13789,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
 
     bool tag_accepted = true;
     bool insert_before_last_child = false;
-    if (gDOMVersionRequested >= 20200824) { // A little bit more HTML5 conformance
+    if (_document->getDOMVersionRequested() >= 20200824) { // A little bit more HTML5 conformance
         if ( id == el_image )
             id = el_img;
         if ( tagname && tagname[0] == '?' ) {
@@ -13820,7 +13849,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar16 * nsname, const lC
         _curFosteredNode = _currNode;
     }
 
-    if (gDOMVersionRequested >= 20200824 && id == el_p) {
+    if (_document->getDOMVersionRequested() >= 20200824 && id == el_p) {
         // To avoid checking DOM ancestors with the numerous tags that close a P
         _lastP = _currNode;
     }
@@ -14051,7 +14080,7 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar16 * /*nsname*/, const lCh
         }
     }
 
-    if (gDOMVersionRequested >= 20200824) { // A little bit more HTML5 conformance
+    if (_document->getDOMVersionRequested() >= 20200824) { // A little bit more HTML5 conformance
         if ( _curNodeIsSelfClosing ) { // Internal call (not from XMLParser)
             _currNode = pop( _currNode, id );
             _curNodeIsSelfClosing = false;
@@ -14097,7 +14126,7 @@ void ldomDocumentWriterFilter::OnText( const lChar16 * text, int len, lUInt32 fl
         return;
     }
 
-    if (gDOMVersionRequested >= 20200824) { // A little bit more HTML5 conformance
+    if (_document->getDOMVersionRequested() >= 20200824) { // A little bit more HTML5 conformance
         // We can get text before any node (it should then have <html><body> emited before it),
         // but we might get spaces between " <html> <head> <title>The title <br>The content".
         // Try to handle that correctly.
@@ -14118,14 +14147,14 @@ void ldomDocumentWriterFilter::OnText( const lChar16 * text, int len, lUInt32 fl
     if (_currNode)
     {
         lUInt16 curNodeId = _currNode->getElement()->getNodeId();
-        if (gDOMVersionRequested < 20200824) {
+        if (_document->getDOMVersionRequested() < 20200824) {
             AutoClose( curNodeId, false );
         }
         if ( (_flags & XML_FLAG_NO_SPACE_TEXT)
              && IsEmptySpace(text, len) && !(flags & TXTFLG_PRE))
              return;
         bool insert_before_last_child = false;
-        if (gDOMVersionRequested >= 20200824) {
+        if (_document->getDOMVersionRequested() >= 20200824) {
             // If we're inserting text while in table sub-elements that
             // don't accept text, have it foster parented
             if ( curNodeId >= el_table && curNodeId <= el_tr && curNodeId != el_caption ) {
@@ -14240,7 +14269,7 @@ ldomDocumentWriterFilter::ldomDocumentWriterFilter(ldomDocument * document, bool
 , _curFosteredNode(NULL)
 , _lastP(NULL)
 {
-    if (gDOMVersionRequested >= 20200824) {
+    if (_document->getDOMVersionRequested() >= 20200824) {
         // We're not using the provided rules, but hardcoded ones in AutoOpenClosePop()
         return;
     }
@@ -14267,8 +14296,7 @@ ldomDocumentWriterFilter::ldomDocumentWriterFilter(ldomDocument * document, bool
 
 ldomDocumentWriterFilter::~ldomDocumentWriterFilter()
 {
-
-    if (gDOMVersionRequested >= 20200824) {
+    if (_document->getDOMVersionRequested() >= 20200824) {
         return;
     }
     for ( int i=0; i<MAX_ELEMENT_TYPE_ID; i++ ) {
