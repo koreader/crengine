@@ -86,7 +86,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.51k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.52k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0025
 
@@ -2039,6 +2039,7 @@ tinyNodeCollection::tinyNodeCollection()
 ,_fontMap(113)
 ,_hangingPunctuationEnabled(false)
 ,_renderBlockRenderingFlags(DEF_RENDER_BLOCK_RENDERING_FLAGS)
+,_DOMVersionRequested(DOM_VERSION_CURRENT)
 ,_interlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE)
 {
     memset( _textList, 0, sizeof(_textList) );
@@ -2083,6 +2084,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 ,_fontMap(113)
 ,_hangingPunctuationEnabled(v._hangingPunctuationEnabled)
 ,_renderBlockRenderingFlags(v._renderBlockRenderingFlags)
+,_DOMVersionRequested(v._DOMVersionRequested)
 ,_interlineScaleFactor(v._interlineScaleFactor)
 {
     memset( _textList, 0, sizeof(_textList) );
@@ -15011,6 +15013,7 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered)
     res = res * 31 + _spaceWidthScalePercent;
     res = res * 31 + _minSpaceCondensingPercent;
     res = res * 31 + _unusedSpaceThresholdPercent;
+
     // _maxAddedLetterSpacingPercent does not need to be accounted, as, working
     // only on a laid out line, it does not need a re-rendering, but just
     // a _renderedBlockCache.clear() to reformat paragraphs and have the
@@ -15019,8 +15022,8 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered)
     // Hanging punctuation does not need to trigger a re-render, as
     // it's now ensured by alignLine() and won't change paragraphs height.
     // We just need to _renderedBlockCache.clear() when it changes.
-    //if ( gHangingPunctuationEnabled )
-    // res = res * 75 + 1761;
+    // if ( _hangingPunctuationEnabled )
+    //     res = res * 75 + 1761;
 
     res = res * 31 + _renderBlockRenderingFlags;
     res = res * 31 + _interlineScaleFactor;
