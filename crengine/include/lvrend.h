@@ -127,12 +127,12 @@ lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt
 /// renders block as single text formatter object
 void renderFinalBlock( ldomNode * node, LFormattedText * txform, RenderRectAccessor * fmt, lUInt32 & flags,
                        int indent, int line_h, TextLangCfg * lang_cfg=NULL, int valign_dy=0, bool * is_link_start=NULL );
-/// renders block which contains subblocks (with gRenderBlockRenderingFlags as flags)
+/// renders block which contains subblocks (with enode document's getRenderBlockRenderingFlags() as flags)
 int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width,
         int usable_left_overflow=0, int usable_right_overflow=0, int direction=REND_DIRECTION_UNSET, int * baseline=NULL );
 /// renders block which contains subblocks
 int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, int y, int width,
-        int usable_left_overflow, int usable_right_overflow, int direction, int * baseline, int rend_flags );
+        int usable_left_overflow, int usable_right_overflow, int direction, int * baseline, lUInt32 rend_flags );
 /// renders table element
 int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, int width,
                  bool shrink_to_fit, int & fitted_width, int direction=REND_DIRECTION_UNSET,
@@ -180,8 +180,6 @@ extern int gRootFontSize;
 #define INTERLINE_SCALE_FACTOR_SHIFT 10
 extern int gInterlineScaleFactor;
 
-extern int gRenderBlockRenderingFlags;
-
 // Enhanced rendering flags
 #define BLOCK_RENDERING_ENHANCED                           0x00000001
 #define BLOCK_RENDERING_ALLOW_PAGE_BREAK_WHEN_NO_CONTENT   0x00000002 // Allow consecutive page breaks when only separated
@@ -222,11 +220,8 @@ extern int gRenderBlockRenderingFlags;
 // Enable everything
 #define BLOCK_RENDERING_FULL_FEATURED                      0x7FFFFFFF
 
-#define BLOCK_RENDERING_G(f) ( gRenderBlockRenderingFlags & BLOCK_RENDERING_##f )
 #define BLOCK_RENDERING(v, f) ( v & BLOCK_RENDERING_##f )
 
 #define DEF_RENDER_BLOCK_RENDERING_FLAGS BLOCK_RENDERING_FULL_FEATURED
-
-int validateBlockRenderingFlags( int f );
 
 #endif
