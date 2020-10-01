@@ -4497,6 +4497,7 @@ void LVDocView::createEmptyDocument() {
     m_doc->setMinSpaceCondensingPercent(m_props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT));
     m_doc->setUnusedSpaceThresholdPercent(m_props->getIntDef(PROP_FORMAT_UNUSED_SPACE_THRESHOLD_PERCENT, DEF_UNUSED_SPACE_THRESHOLD_PERCENT));
     m_doc->setMaxAddedLetterSpacingPercent(m_props->getIntDef(PROP_FORMAT_MAX_ADDED_LETTER_SPACING_PERCENT, DEF_MAX_ADDED_LETTER_SPACING_PERCENT));
+    m_doc->setHangingPunctiationEnabled(m_props->getBoolDef(PROP_FLOATING_PUNCTUATION, true));
 
     m_doc->setContainer(m_container);
     // This sets the element names default style (display, whitespace)
@@ -6526,12 +6527,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             REQUEST_RENDER("propsApply footnotes")
         } else if (name == PROP_FLOATING_PUNCTUATION) {
             bool value = props->getBoolDef(PROP_FLOATING_PUNCTUATION, true);
-            if ( gHangingPunctuationEnabled != value ) {
-                gHangingPunctuationEnabled = value;
-                REQUEST_RENDER("propsApply - hanging punctuation")
+            if (m_doc) // not when noDefaultDocument=true
+                if (getDocument()->setHangingPunctiationEnabled(value)) {
+                    REQUEST_RENDER("propsApply - hanging punctuation")
                     // requestRender() does m_doc->clearRendBlockCache(), which is needed
                     // on hanging punctuation change
-            }
+                }
         } else if (name == PROP_RENDER_BLOCK_RENDERING_FLAGS) {
             int value = props->getIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
             value = validateBlockRenderingFlags(value);
