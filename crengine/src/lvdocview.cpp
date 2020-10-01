@@ -4499,6 +4499,7 @@ void LVDocView::createEmptyDocument() {
     m_doc->setMaxAddedLetterSpacingPercent(m_props->getIntDef(PROP_FORMAT_MAX_ADDED_LETTER_SPACING_PERCENT, DEF_MAX_ADDED_LETTER_SPACING_PERCENT));
     m_doc->setHangingPunctiationEnabled(m_props->getBoolDef(PROP_FLOATING_PUNCTUATION, true));
     m_doc->setRenderBlockRenderingFlags(m_props->getIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS));
+    m_doc->setDOMVersionRequested(m_props->getIntDef(PROP_REQUESTED_DOM_VERSION, gDOMVersionCurrent));
 
     m_doc->setContainer(m_container);
     // This sets the element names default style (display, whitespace)
@@ -6533,6 +6534,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                     REQUEST_RENDER("propsApply - hanging punctuation")
                     // requestRender() does m_doc->clearRendBlockCache(), which is needed
                     // on hanging punctuation change
+                }
+        } else if (name == PROP_REQUESTED_DOM_VERSION) {
+            int value = props->getIntDef(PROP_REQUESTED_DOM_VERSION, gDOMVersionCurrent);
+            if (m_doc) // not when noDefaultDocument=true
+                if (getDocument()->setDOMVersionRequested(value)) {
+                    REQUEST_RENDER("propsApply requested dom version")
                 }
         } else if (name == PROP_RENDER_BLOCK_RENDERING_FLAGS) {
             lUInt32 value = (lUInt32)props->getIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
