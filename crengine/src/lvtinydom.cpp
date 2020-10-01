@@ -394,7 +394,6 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
         hash = hash * 75 + 2384761;
     hash = hash * 31 + gRenderDPI;
     hash = hash * 31 + gRootFontSize;
-    hash = hash * 31 + gInterlineScaleFactor;
     // If not yet rendered (initial loading with XML parsing), we can
     // ignore some global flags that have not yet produced any effect,
     // so they can possibly be updated between loading and rendering
@@ -2040,6 +2039,7 @@ tinyNodeCollection::tinyNodeCollection()
 ,_fontMap(113)
 ,_hangingPunctuationEnabled(false)
 ,_renderBlockRenderingFlags(DEF_RENDER_BLOCK_RENDERING_FLAGS)
+,_interlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE)
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
@@ -2083,6 +2083,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 ,_fontMap(113)
 ,_hangingPunctuationEnabled(v._hangingPunctuationEnabled)
 ,_renderBlockRenderingFlags(v._renderBlockRenderingFlags)
+,_interlineScaleFactor(v._interlineScaleFactor)
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
@@ -2116,6 +2117,14 @@ bool tinyNodeCollection::setDOMVersionRequested(lUInt32 version)
 {
     if (_DOMVersionRequested != version) {
         _DOMVersionRequested = version;
+        return true;
+    }
+    return false;
+}
+
+bool tinyNodeCollection::setInterlineScaleFactor(int value) {
+    if (_interlineScaleFactor != value) {
+        _interlineScaleFactor = value;
         return true;
     }
     return false;
@@ -15014,6 +15023,7 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered)
     // res = res * 75 + 1761;
 
     res = res * 31 + _renderBlockRenderingFlags;
+    res = res * 31 + _interlineScaleFactor;
 
     res = (res * 31 + globalHash) * 31 + docFlags;
 //    CRLog::info("Calculated style hash = %08x", res);
