@@ -176,8 +176,6 @@ extern int gRenderDPI;
 extern bool gRenderScaleFontWithDPI;
 extern int gRootFontSize;
 
-extern bool gHangingPunctuationEnabled;
-
 #define INTERLINE_SCALE_FACTOR_NO_SCALE 1024
 #define INTERLINE_SCALE_FACTOR_SHIFT 10
 extern int gInterlineScaleFactor;

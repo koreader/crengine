@@ -393,11 +393,6 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // hash = hash * 31 + (int)fontMan->GetHintingMode();
     if ( LVRendGetFontEmbolden() )
         hash = hash * 75 + 2384761;
-    // Hanging punctuation does not need to trigger a re-render, as
-    // it's now ensured by alignLine() and won't change paragraphs height.
-    // We just need to _renderedBlockCache.clear() when it changes.
-    // if ( gHangingPunctuationEnabled )
-    //     hash = hash * 75 + 1761;
     hash = hash * 31 + gRenderDPI;
     hash = hash * 31 + gRenderBlockRenderingFlags;
     hash = hash * 31 + gRootFontSize;
@@ -2025,6 +2020,7 @@ tinyNodeCollection::tinyNodeCollection()
 ,_docProps(LVCreatePropsContainer())
 ,_docFlags(DOC_FLAG_DEFAULTS)
 ,_fontMap(113)
+,_hangingPunctuationEnabled(false)
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
@@ -2066,12 +2062,20 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 ,_docFlags(v._docFlags)
 ,_stylesheet(v._stylesheet)
 ,_fontMap(113)
+,_hangingPunctuationEnabled(v._hangingPunctuationEnabled)
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
     // _docIndex assigned in ldomDocument constructor
 }
 
+bool tinyNodeCollection::setHangingPunctiationEnabled(bool value) {
+    if (_hangingPunctuationEnabled != value) {
+        _hangingPunctuationEnabled = value;
+        return true;
+    }
+    return false;
+}
 
 #if BUILD_LITE!=1
 bool tinyNodeCollection::openCacheFile()
@@ -2407,7 +2411,7 @@ bool tinyNodeCollection::loadNodeData()
     _textCount = textcount;
     return true;
 }
-#endif
+#endif  // BUILD_LITE!=1
 
 /// get ldomNode instance pointer
 ldomNode * tinyNodeCollection::getTinyNode( lUInt32 index )
@@ -14956,6 +14960,13 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered)
     // only on a laid out line, it does not need a re-rendering, but just
     // a _renderedBlockCache.clear() to reformat paragraphs and have the
     // word re-positionned (the paragraphs width & height do not change)
+
+    // Hanging punctuation does not need to trigger a re-render, as
+    // it's now ensured by alignLine() and won't change paragraphs height.
+    // We just need to _renderedBlockCache.clear() when it changes.
+    //if ( gHangingPunctuationEnabled )
+    // res = res * 75 + 1761;
+
     res = (res * 31 + globalHash) * 31 + docFlags;
 //    CRLog::info("Calculated style hash = %08x", res);
     CRLog::debug("calcStyleHash done");
@@ -18355,7 +18366,7 @@ int ldomNode::renderFinalBlock(  LFormattedTextRef & frmtext, RenderRectAccessor
     // cached into the LFormattedText and ready to be used for drawing
     // and text selection.
     int h = f->Format((lUInt16)width, (lUInt16)page_h, direction, usable_left_overflow, usable_right_overflow,
-                            gHangingPunctuationEnabled, float_footprint);
+                            getDocument()->getHangingPunctiationEnabled(), float_footprint);
     frmtext = f;
     //CRLog::trace("Created new formatted object for node #%08X", (lUInt32)this);
     return h;
