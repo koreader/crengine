@@ -61,6 +61,7 @@ static struct {
     { "mk",    "Macedonian",    "Macedonian.pattern",    2, 2 },
     { "no",    "Norwegian",     "Norwegian.pattern",     2, 2 },
     { "oc",    "Occitan",       "Occitan.pattern",       2, 2 },
+    { "pms",   "Piedmontese",   "Piedmontese.pattern",   2, 2 },
     { "pl",    "Polish",        "Polish.pattern",        2, 2 },
     { "pt",    "Portuguese",    "Portuguese.pattern",    2, 3 },
     { "ro",    "Roman",         "Romanian.pattern",      2, 2 }, // truncated prefix (see above)
@@ -395,6 +396,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "oc",       L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pa",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "pl",       L"\x201e", L"\x201d", L"\x00ab", L"\x00bb" }, /* „ ” « » */
+    { "pms",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */  /* Defaulting to "it", needs verification */
     { "pt-pt",    L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pt",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "rn",       L"\x201d", L"\x201d", L"\x2019", L"\x2019" }, /* ” ” ’ ’ */
