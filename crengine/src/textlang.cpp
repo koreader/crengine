@@ -65,6 +65,7 @@ static struct {
     { "pl",    "Polish",        "Polish.pattern",        2, 2 },
     { "pt",    "Portuguese",    "Portuguese.pattern",    2, 3 },
     { "ro",    "Roman",         "Romanian.pattern",      2, 2 }, // truncated prefix (see above)
+    { "rm",    "Romansh",       "Romansh.pattern",       2, 2 },
     { "ru-GB", "Russian_EnGB",  "Russian_EnGB.pattern",  2, 2 },
     { "ru-US", "Russian_EnUS",  "Russian_EnUS.pattern",  2, 2 },
     { "ru",    "Russian",       "Russian.pattern",       2, 2 },
@@ -399,6 +400,7 @@ static quotes_spec _quotes_spec_table[] = {
     { "pms",      L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */  /* Defaulting to "it", needs verification */
     { "pt-pt",    L"\x00ab", L"\x00bb", L"\x201c", L"\x201d" }, /* « » “ ” */
     { "pt",       L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
+    { "rm",       L"\x00ab", L"\x00bb", L"\x2039", L"\x203a" }, /* « » ‹ › */
     { "rn",       L"\x201d", L"\x201d", L"\x2019", L"\x2019" }, /* ” ” ’ ’ */
     { "rof",      L"\x201c", L"\x201d", L"\x2018", L"\x2019" }, /* “ ” ‘ ’ */
     { "ro",       L"\x201e", L"\x201d", L"\x00ab", L"\x00bb" }, /* „ ” « » */
