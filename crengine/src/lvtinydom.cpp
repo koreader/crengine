@@ -13974,11 +13974,12 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar16 * nsname, const lChar1
     // HTML valign= => CSS vertical-align: only for TH & TD (as lvrend.cpp
     // only uses it with table cells (erm_final or erm_block))
     if (id == el_th || id == el_td) {
-        // Default rendering for cells is valign=top
-        // There is no support for valign=baseline.
+        // Default rendering for cells is valign=baseline
         if ( !lStr_cmp(attrname, "valign") ) {
             lString16 valign = lString16(attrvalue).lowercase();
-            if ( valign == L"middle" )
+            if ( valign == L"top" )
+                appendStyle( L"vertical-align: top" );
+            else if ( valign == L"middle" )
                 appendStyle( L"vertical-align: middle" );
             else if ( valign == L"bottom")
                 appendStyle( L"vertical-align: bottom" );
