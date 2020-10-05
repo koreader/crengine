@@ -561,6 +561,25 @@ public:
         }
         list.sort();
     }
+    virtual bool getFontFileNameAndFaceIndex( lString16 name, bool bold, bool italic, lString8 & filename, int & index )
+    {
+        for ( int i=0; i<_registered_list.length(); i++ ) {
+            if (_registered_list[i]->getDef()->getDocumentId() == -1) {
+                LVFontDef * fdef = _registered_list[i]->getDef();
+                lString16 facename = Utf8ToUnicode( fdef->getTypeFace() );
+                if (facename != name )
+                    continue;
+                if ( (bold && fdef->getWeight() < 650) || (!bold && fdef->getWeight() >= 650) )
+                    continue;
+                if ( (italic && !fdef->isRealItalic()) || (!italic && fdef->isRealItalic()) )
+                    continue;
+                filename = fdef->getName();
+                index = fdef->getIndex();
+                return true;
+            }
+        }
+        return false;
+    }
     virtual void clearFallbackFonts()
     {
         LVPtrVector< LVFontCacheItem > * fonts = getInstances();
@@ -4152,6 +4171,12 @@ public:
     {
         FONT_MAN_GUARD
         _cache.getFontFileNameList(list);
+    }
+
+    virtual bool getFontFileNameAndFaceIndex( lString16 name, bool bold, bool italic, lString8 & filename, int & index )
+    {
+        FONT_MAN_GUARD
+        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index);
     }
 
     bool SetAlias(lString8 alias,lString8 facename,int id,bool bold,bool italic)
