@@ -303,4 +303,13 @@
 #define USE_GLYPHCACHE_HASHTABLE 0
 #endif
 
+// Maximum & minimum screen resolution
+#ifndef SCREEN_SIZE_MIN
+#define SCREEN_SIZE_MIN 80
+#endif
+
+#ifndef SCREEN_SIZE_MAX
+#define SCREEN_SIZE_MAX 32767
+#endif
+
 #endif//CRSETUP_H_INCLUDED
