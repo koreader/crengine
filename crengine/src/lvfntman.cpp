@@ -1050,8 +1050,7 @@ protected:
     FT_Library    _library;
     FT_Face       _face;
     FT_GlyphSlot  _slot;
-    FT_Matrix     _matrix;                 /* transformation matrix */
-    FT_Matrix     _matrix2;                /* helper matrix for fake italic metrics */
+    FT_Matrix     _matrix; // helper matrix for fake italic metrics
     int           _size; // caracter height in pixels
     int           _height; // full line height in pixels
     int           _hyphen_width;
@@ -1140,10 +1139,6 @@ public:
         , _width_cache2(1024)
         #endif
     {
-        _matrix.xx = 0x10000;
-        _matrix.yy = 0x10000;
-        _matrix.xy = 0;
-        _matrix.yx = 0;
         _hintingMode = fontMan->GetHintingMode();
 
         #if USE_HARFBUZZ==1
@@ -1485,14 +1480,12 @@ public:
             _italic = 2;
             // We'll use FT_GlyphSlot_Oblique(), with this additional
             // matrix to fix up fake italic glyph metrics.
-            // Values from https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/freetype/qfontengine_ft.cpp#n1014
-            _matrix2 = _matrix;;
-            FT_Matrix m;
-            m.xx = 0x10000;
-            m.yx = 0x0;
-            m.xy = 0x6000;
-            m.yy = 0x10000;
-            FT_Matrix_Multiply(&m, &_matrix2);
+            // We must use the same matrix values as FT_GlyphSlot_Oblique()
+            // (see freetype2/src/base/ftsynth.c)
+            _matrix.xx = 0x10000L;
+            _matrix.yx = 0x00000L;
+            _matrix.xy = 0x0366AL;
+            _matrix.yy = 0x10000L;
         }
 
         if ( error ) {
@@ -1603,13 +1596,12 @@ public:
             _italic = 2;
             // We'll use FT_GlyphSlot_Oblique(), with this additional
             // matrix to fix up fake italic glyph metrics.
-            _matrix2 = _matrix;;
-            FT_Matrix m;
-            m.xx = 0x10000;
-            m.yx = 0x0;
-            m.xy = 0x6000;
-            m.yy = 0x10000;
-            FT_Matrix_Multiply(&m, &_matrix2);
+            // We must use the same matrix values as FT_GlyphSlot_Oblique()
+            // (see freetype2/src/base/ftsynth.c)
+            _matrix.xx = 0x10000L;
+            _matrix.yx = 0x00000L;
+            _matrix.xy = 0x0366AL;
+            _matrix.yy = 0x10000L;
         }
 
         if ( error ) {
@@ -1806,7 +1798,6 @@ public:
 
             // QT has some code that seem to fix these metrics in transformBoundingBox() at
             // https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/freetype/qfontengine_ft.cpp#n909
-            // (while possibly still having a bit too much positive side bearings on some glyphs).
             // So let's use it:
             if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
                 int left   = _slot->metrics.horiBearingX;
@@ -1817,26 +1808,26 @@ public:
                 FT_Vector vector;
                 vector.x = left;
                 vector.y = top;
-                FT_Vector_Transform(&vector, &_matrix2);
+                FT_Vector_Transform(&vector, &_matrix);
                 l = r = vector.x;
                 t = b = vector.y;
                 vector.x = right;
                 vector.y = top;
-                FT_Vector_Transform(&vector, &_matrix2);
+                FT_Vector_Transform(&vector, &_matrix);
                 if (l > vector.x) l = vector.x;
                 if (r < vector.x) r = vector.x;
                 if (t < vector.y) t = vector.y;
                 if (b > vector.y) b = vector.y;
                 vector.x = right;
                 vector.y = bottom;
-                FT_Vector_Transform(&vector, &_matrix2);
+                FT_Vector_Transform(&vector, &_matrix);
                 if (l > vector.x) l = vector.x;
                 if (r < vector.x) r = vector.x;
                 if (t < vector.y) t = vector.y;
                 if (b > vector.y) b = vector.y;
                 vector.x = left;
                 vector.y = bottom;
-                FT_Vector_Transform(&vector, &_matrix2);
+                FT_Vector_Transform(&vector, &_matrix);
                 if (l > vector.x) l = vector.x;
                 if (r < vector.x) r = vector.x;
                 if (t < vector.y) t = vector.y;
