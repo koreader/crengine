@@ -277,7 +277,7 @@ DWORD GetGlyphIndicesW(
   DWORD fl       // glyph options
 );
 
-#define SH L"\xad"
+#define SH U"\xad"
 void CLFntConvDlg::FormatSampleText()
 {
     LVFont * font = m_fontref.get();
@@ -286,20 +286,20 @@ void CLFntConvDlg::FormatSampleText()
     m_frmtext = new LFormattedText();
     if ( !font )
         return;
-    m_frmtext->AddSourceLine( L"Centered paragraph!",
+    m_frmtext->AddSourceLine( U"Centered paragraph!",
         0, font, LTEXT_FLAG_OWNTEXT|LTEXT_ALIGN_CENTER, 16, 0, NULL );
-    m_frmtext->AddSourceLine( L"Russian: " 
-        L"\x042D\x0442\x043E \x0442\x0435\x043A\x0441\x0442 \x043D\x0430 "
-        L"\x0440\x0443\x0441" SH L"\x0441\x043A\x043E\x043C \x044F\x0437\x044B" SH L"\x043A\x0435. ",
+    m_frmtext->AddSourceLine( U"Russian: " 
+        U"\x042D\x0442\x043E \x0442\x0435\x043A\x0441\x0442 \x043D\x0430 "
+        U"\x0440\x0443\x0441" SH U"\x0441\x043A\x043E\x043C \x044F\x0437\x044B" SH U"\x043A\x0435. ",
         0, font, LTEXT_FLAG_OWNTEXT|LTEXT_ALIGN_WIDTH, 16, 40, NULL );
-    m_frmtext->AddSourceLine( L"New para.",
+    m_frmtext->AddSourceLine( U"New para.",
         0, font, LTEXT_FLAG_OWNTEXT|LTEXT_ALIGN_WIDTH, 16, 40, NULL );
-    m_frmtext->AddSourceLine( L"This sentence should be appended to the same paragraph.",
+    m_frmtext->AddSourceLine( U"This sentence should be appended to the same paragraph.",
         0, font, LTEXT_FLAG_OWNTEXT, 16, 40, NULL );
-    m_frmtext->AddSourceLine( L"This is right aligned paragraph. Is it wrapped properly? Check it!",
+    m_frmtext->AddSourceLine( U"This is right aligned paragraph. Is it wrapped properly? Check it!",
         0, font, LTEXT_FLAG_OWNTEXT|LTEXT_ALIGN_RIGHT, 16, 0, NULL );
-    m_frmtext->AddSourceLine( L"This is paragraph tests width alignment. "
-        L"First line has margin.",
+    m_frmtext->AddSourceLine( U"This is paragraph tests width alignment. "
+        U"First line has margin.",
         0, font, LTEXT_FLAG_OWNTEXT|LTEXT_ALIGN_WIDTH, 16, 40, NULL );
     m_frmtext->Format( 340, 300 );
 }
