@@ -31,9 +31,9 @@ void testFormatting()
     class Tester {
     public:
         LFormattedText txt;
-        void addLine( const lChar16 * str, int flags, LVFontRef font )
+        void addLine( const lChar32 * str, int flags, LVFontRef font )
         {
-            lString16 s( str );
+            lString32 s( str );
             txt.AddSourceLine(
                s.c_str(),        /* pointer to unicode text string */
                s.length(),         /* number of chars in text, 0 for auto(strlen) */
@@ -51,24 +51,24 @@ void testFormatting()
     LVFontRef font1 = fontMan->GetFont(20, 300, false, css_ff_sans_serif, lString8("Arial") );
     LVFontRef font2 = fontMan->GetFont(20, 300, false, css_ff_serif, lString8("Times New Roman") );
     Tester t;
-    t.addLine( L"Testing simple paragraph formatting. Just a test. ", LTEXT_ALIGN_WIDTH|LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L"Another fragment of text. ", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L"And the last one written with another font", LTEXT_FLAG_OWNTEXT, font2 );
-    t.addLine( L"Next paragraph: left-aligned. ", LTEXT_ALIGN_LEFT|LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L"One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L"One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L"Testing simple paragraph formatting. Just a test. ", LTEXT_ALIGN_WIDTH|LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font2 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font2 );
-    t.addLine( L" Word", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
-    t.addLine( L" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"Testing simple paragraph formatting. Just a test. ", LTEXT_ALIGN_WIDTH|LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"Another fragment of text. ", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"And the last one written with another font", LTEXT_FLAG_OWNTEXT, font2 );
+    t.addLine( U"Next paragraph: left-aligned. ", LTEXT_ALIGN_LEFT|LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U"Testing simple paragraph formatting. Just a test. ", LTEXT_ALIGN_WIDTH|LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font2 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font2 );
+    t.addLine( U" Word", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
+    t.addLine( U" One more sentence. Second sentence.", LTEXT_FLAG_OWNTEXT, font1 );
     int N = 100000;
     int i;
     time_t start1 = time((time_t*)0);
@@ -323,7 +323,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 
 	//TestWol();
 /*
-    LVStreamRef zipfile = LVOpenFileStream( L"zip_test.zip", LVOM_READ );
+    LVStreamRef zipfile = LVOpenFileStream( U"zip_test.zip", LVOM_READ );
     if (!zipfile.isNull())
     {
         LVContainerRef zip = LVOpenArchieve( zipfile );
@@ -387,8 +387,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         if ( !dir.isNull() )
         for ( i=0; i<dir->GetObjectCount(); i++ ) {
             const LVContainerItemInfo * item = dir->GetObjectInfo(i);
-            lString16 fileName = item->GetName();
-            if ( !item->IsContainer() && fileName.length()>4 && lString16(fileName, fileName.length()-4, 4)==L".ttf" ) {
+            lString32 fileName = item->GetName();
+            if ( !item->IsContainer() && fileName.length()>4 && lString32(fileName, fileName.length()-4, 4)==U".ttf" ) {
                 lString8 fn = UnicodeToLocal(fileName);
                 printf("loading font: %s\n", fn.c_str());
                 if ( !fontMan->RegisterFont(fn) ) {
@@ -515,7 +515,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.hCursor		= LoadCursor(NULL, IDC_ARROW);
 	wcex.hbrBackground	= (HBRUSH)(COLOR_WINDOW+1);
 	wcex.lpszMenuName	= NULL;
-	wcex.lpszClassName	= L"CoolReader";
+	wcex.lpszClassName	= U"CoolReader";
 	wcex.hIconSm		= LoadIcon(wcex.hInstance, (LPCTSTR)IDI_SMALL);
 
 	return RegisterClassExW(&wcex);
@@ -571,8 +571,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 #endif
 
    hWnd = CreateWindowW(
-	   L"CoolReader",
-	   L"CREngine - Simple FB2 viewer",
+	   U"CoolReader",
+	   U"CREngine - Simple FB2 viewer",
       flags, //WS_OVERLAPPEDWINDOW
       x, y, dx, dy,
       NULL, NULL, hInstance, NULL);
@@ -832,7 +832,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     sel.clear();
                     sel.add( new ldomXRange(*links[0]) );
                     for ( int i=0; i<linkCount; i++ ) {
-                        lString16 txt = links[i]->getRangeText();
+                        lString32 txt = links[i]->getRangeText();
                         lString8 txt8 = UnicodeToLocal( txt );
                         const char * s = txt8.c_str();
                         txt.clear();
