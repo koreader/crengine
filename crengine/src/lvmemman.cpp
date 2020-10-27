@@ -67,6 +67,8 @@ void crSetSignalHandler()
 void lvDefFatalErrorHandler (int errorCode, const char * errorText )
 {
     fprintf( stderr, "FATAL ERROR #%d: %s\n", errorCode, errorText );
+    // Uncomment to force a real crash when using gdb and wanting to see a backtrce
+    // int * a = 0; *a = 1;
     exit( errorCode );
 }
 
