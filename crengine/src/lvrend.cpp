@@ -7158,8 +7158,15 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
                 // Enter footnote body only after padding, to get rid of it
                 // and have lean in-page footnotes
-                if ( isFootNoteBody )
+                if ( isFootNoteBody ) {
+                    // If no padding were added, add an explicite 0-padding so that
+                    // any accumulated vertical margin is pushed here, and not
+                    // part of the footnote
+                    if (padding_top==0) {
+                        flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
+                    }
                     flow->getPageContext()->enterFootNote( footnoteId );
+                }
 
                 // recurse all sub-blocks for blocks
                 int cnt = enode->getChildCount();
@@ -7591,8 +7598,15 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
                 // Enter footnote body after padding, to get rid of it
                 // and have lean in-page footnotes
-                if ( isFootNoteBody )
+                if ( isFootNoteBody ) {
+                    // If no padding were added, add an explicite 0-padding so that
+                    // any accumulated vertical margin is pushed here, and not
+                    // part of the footnote
+                    if (padding_top==0) {
+                        flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
+                    }
                     flow->getPageContext()->enterFootNote( footnoteId );
+                }
 
                 // We have lines of text in 'txform', that we should register
                 // into flow/context for later page splitting.
