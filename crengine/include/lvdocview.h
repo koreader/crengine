@@ -875,6 +875,8 @@ public:
     bool goToPage(int page, bool updatePosBookmark = true, bool regulateTwoPages = true);
     /// returns page count
     int getPageCount();
+    /// get the flow the specified page belongs to
+    int getPageFlow(int pageIndex);
 
     /// clear view
     void Clear();

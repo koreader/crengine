@@ -61,6 +61,8 @@ extern const int gDOMVersionCurrent;
 #define DOC_FLAG_PREFORMATTED_TEXT      4
 /// docFlag mask, enable document embedded fonts (EPUB)
 #define DOC_FLAG_ENABLE_DOC_FONTS       8
+/// docFlag mask, force page breaks on non-linear fragments (EPUB)
+#define DOC_FLAG_NONLINEAR_PAGEBREAK   16
 /// default docFlag set
 #define DOC_FLAG_DEFAULTS (DOC_FLAG_ENABLE_INTERNAL_STYLES|DOC_FLAG_ENABLE_FOOTNOTES|DOC_FLAG_ENABLE_DOC_FONTS)
 
@@ -2777,6 +2779,8 @@ private:
     bool insideHtmlTag;
 
 public:
+
+    bool m_nonlinear = false;
 
     /// return content of html/head/style element
     lString8 getHeadStyleText() { return headStyleText; }

@@ -219,6 +219,7 @@ public:
     lInt16 height; /// height of page, does not include footnotes
     lInt8 flags;   /// RN_PAGE_*
     CompactArray<LVPageFootNoteInfo, 1, 4> footnotes; /// footnote fragment list for page
+    lUInt16 current_flow=0; /// for non-linear flows it will be > 0
     LVRendPageInfo(int pageStart, lUInt16 pageHeight, int pageIndex)
     : start(pageStart), index(pageIndex), height(pageHeight), flags(RN_PAGE_TYPE_NORMAL) {}
     LVRendPageInfo(lUInt16 coverHeight)
@@ -254,6 +255,7 @@ class LVRendLineInfo {
     int height;             // 4 bytes (we may get extra tall lines with tables TR)
 public:
     lUInt16 flags;          // 2 bytes
+    lUInt16 current_flow=0; // 2 bytes (should be enough)
     int getSplitBefore() const { return (flags>>RN_SPLIT_BEFORE)&7; }
     int getSplitAfter() const { return (flags>>RN_SPLIT_AFTER)&7; }
 /*
@@ -285,6 +287,10 @@ public:
     LVRendLineInfo() : links(NULL), start(-1), height(0), flags(0) { }
     LVRendLineInfo( int line_start, int line_end, lUInt16 line_flags )
     : links(NULL), start(line_start), height(line_end-line_start), flags(line_flags)
+    {
+    }
+    LVRendLineInfo( int line_start, int line_end, lUInt16 line_flags, int flow )
+    : links(NULL), start(line_start), height(line_end-line_start), flags(line_flags), current_flow(flow)
     {
     }
     LVFootNoteList * getLinks() { return links; }
@@ -376,6 +382,9 @@ class LVRendPageContext
         return ref;
     }
 
+    int current_flow; // current flow being processed
+    int max_flow;     // maximum flow encountered so far
+
     void split();
 public:
 
@@ -387,6 +396,10 @@ public:
     bool updateRenderProgress( int numFinalBlocksRendered );
 
     bool wantsLines() { return gather_lines; }
+
+    int getCurrentFlow() { return current_flow; }
+
+    void newFlow( bool nonlinear );
 
     /// Get the number of links in the current line links list, or
     // in link_ids when !gather_lines

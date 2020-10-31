@@ -382,6 +382,7 @@ XS_ATTR( tabindex )
 XS_ATTR( target )
 XS_ATTR( vspace )
 XS_ATTR( wrap )
+XS_ATTR( nonlinear ) // for non-linear items in EPUB
 
 XS_END_ATTRS
 
