@@ -86,7 +86,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.53k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.54k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0026
 
@@ -12974,6 +12974,8 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                 parent->OnAttribute(U"", U"dir", htmlDir.c_str() );
             if ( !htmlLang.empty() ) // add attribute <DocFragment lang="ar" from <html lang="ar"> tag
                 parent->OnAttribute(U"", U"lang", htmlLang.c_str() );
+            if (this->m_nonlinear)
+                parent->OnAttribute(U"", U"NonLinear", U"" );
 
             parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {
