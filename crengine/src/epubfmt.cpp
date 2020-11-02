@@ -1362,7 +1362,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     //CRLog::trace("base: %s", LCSTR(base));
                     //LVXMLParser
                     LVHTMLParser parser(stream, &appender);
-                    appender.m_nonlinear = spineItems[i]->nonlinear;
+                    appender.setNonLinearFlag(spineItems[i]->nonlinear);
                     if ( parser.CheckFormat() && parser.Parse() ) {
                         // valid
                         fragmentCount++;

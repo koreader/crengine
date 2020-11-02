@@ -12975,7 +12975,7 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
             if ( !htmlLang.empty() ) // add attribute <DocFragment lang="ar" from <html lang="ar"> tag
                 parent->OnAttribute(U"", U"lang", htmlLang.c_str() );
             if (this->m_nonlinear)
-                parent->OnAttribute(U"", U"nonlinear", U"true" );
+                parent->OnAttribute(U"", U"NonLinear", U"" );
 
             parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {

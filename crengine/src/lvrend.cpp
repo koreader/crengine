@@ -4810,10 +4810,10 @@ public:
     int getUsableRightOverflow() {
         return usable_overflow_x_max - x_max;
     }
-    int getCurrentFlow() {
-        return context.getCurrentFlow();
-    }
-    void newFlow( int nonlinear ) {
+    // "sequence" is what elsewhere we've called "flow",
+    // just changing the name here to make it clear that
+    // this is not the "flow" of FlowState
+    void newSequence( int nonlinear ) {
         context.newFlow( nonlinear ) ;
     }
 
@@ -6316,12 +6316,12 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // possibility of hiding them from the normal paging flow
     bool force_pb = false;
     if ( enode->getNodeId() == el_DocFragment) {
-        if ( enode->hasAttribute( attr_nonlinear ) && enode->getAttributeValue( attr_nonlinear ) == U"true" ) {
-            flow->newFlow(true);
+        if ( enode->hasAttribute( attr_NonLinear ) ) {
+            flow->newSequence(true);
             force_pb = enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK);
         }
         else {
-            flow->newFlow(false);
+            flow->newSequence(false);
         }
     }
 

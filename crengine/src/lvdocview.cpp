@@ -2105,7 +2105,7 @@ void LVDocView::GetPos(lvRect & rc) {
 int LVDocView::getPageFlow(int pageIndex)
 {
 	if (pageIndex >= 0 && pageIndex < m_pages.length())
-		return m_pages[pageIndex]->current_flow;
+		return m_pages[pageIndex]->flow;
 	return -1;
 }
 

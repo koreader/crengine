@@ -2778,9 +2778,9 @@ private:
     lString32 htmlLang;
     bool insideHtmlTag;
 
-public:
-
     bool m_nonlinear = false;
+
+public:
 
     /// return content of html/head/style element
     lString8 getHeadStyleText() { return headStyleText; }
@@ -2849,6 +2849,8 @@ public:
     virtual bool OnBlob(lString32 name, const lUInt8 * data, int size) { return parent->OnBlob(name, data, size); }
     /// set document property
     virtual void OnDocProperty(const char * name, lString8 value) { parent->OnDocProperty(name, value); }
+    // set non-linear flag
+    virtual void setNonLinearFlag( bool nonlinear ) { m_nonlinear = nonlinear; }
     /// constructor
     ldomDocumentFragmentWriter( LVXMLParserCallback * parentWriter, lString32 baseTagName, lString32 baseTagReplacementName, lString32 fragmentFilePath )
     : parent(parentWriter), baseTag(baseTagName), baseTagReplacement(baseTagReplacementName),

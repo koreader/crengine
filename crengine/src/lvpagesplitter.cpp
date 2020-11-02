@@ -311,7 +311,8 @@ public:
             printf(" [rtl l:%d/%d fl:%d/%d]\n", nb_lines_rtl, nb_lines, nb_footnotes_lines_rtl, nb_footnotes_lines);
         #endif
         LVRendPageInfo * page = new LVRendPageInfo(start, h, page_list->length());
-        if (pagestart) page->current_flow = pagestart->current_flow;
+        if (pagestart)
+            page->flow = pagestart->flow;
         lastpageend = start + h;
         if ( footnotes.length()>0 ) {
             page->footnotes.add( footnotes );
@@ -397,12 +398,12 @@ public:
                     page_list->length(), slice_start, slice_start+page_h, page_h);
             #endif
             page->flags |= getLineTypeFlags();
-            page->current_flow = line->current_flow;
+            page->flow = line->flow;
             ResetLineAccount();
             page_list->add(page);
             slice_start += page_h;
             lastpageend = slice_start;
-            last = new LVRendLineInfo(slice_start, line->getEnd(), line->flags, line->current_flow);
+            last = new LVRendLineInfo(slice_start, line->getEnd(), line->flags, line->flow);
             own_lines.add( last ); // so we can have it 'delete'd in Finalize()
             pageend = last;
             did_slice = true;
@@ -846,10 +847,10 @@ bool LVRendPageInfo::serialize( SerialBuf & buf )
 {
     if ( buf.error() )
         return false;
-    buf << (lUInt32)start;        /// start of page
-    buf << (lUInt16)height;       /// height of page, does not include footnotes
-    buf << (lUInt8) flags;        /// RN_PAGE_*
-    buf << (lUInt16)current_flow; /// flow the page belongs to
+    buf << (lUInt32)start;  /// start of page
+    buf << (lUInt16)height; /// height of page, does not include footnotes
+    buf << (lUInt8) flags;  /// RN_PAGE_*
+    buf << (lUInt16)flow;   /// flow the page belongs to
     lUInt16 len = footnotes.length();
     buf << len;
     for ( int i=0; i<len; i++ ) {
@@ -873,7 +874,7 @@ bool LVRendPageInfo::deserialize( SerialBuf & buf )
     start = n1;
     height = n2;
     flags = n3;
-    current_flow = n4;
+    flow = n4;
 
     lUInt16 len;
     buf >> len;
