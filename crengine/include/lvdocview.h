@@ -877,6 +877,8 @@ public:
     int getPageCount();
     /// get the flow the specified page belongs to
     int getPageFlow(int pageIndex);
+    /// returns whether there are any flows besides the linear flow 0
+    bool hasNonLinearFlows();
 
     /// clear view
     void Clear();

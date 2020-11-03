@@ -133,6 +133,7 @@ void LVRendPageContext::newFlow( bool nonlinear )
     if (nonlinear) {
        max_flow++;
        current_flow = max_flow;
+       page_list->setHasNonLinearFlows();
     } else {
        current_flow = 0;
     }
@@ -836,6 +837,8 @@ bool LVRendPageList::deserialize( SerialBuf & buf )
         item->deserialize( buf );
         item->index = i;
         add( item );
+        if (item->flow > 0)
+            has_nonlinear_flows = true;
     }
     if ( !buf.checkMagic( pagelist_magic ) )
         return false;

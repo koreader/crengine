@@ -2109,6 +2109,11 @@ int LVDocView::getPageFlow(int pageIndex)
 	return -1;
 }
 
+bool LVDocView::hasNonLinearFlows()
+{
+	return m_pages.hasNonLinearFlows();
+}
+
 int LVDocView::getPageHeight(int pageIndex)
 {
 	if (isPageMode() && pageIndex >= 0 && pageIndex < m_pages.length())

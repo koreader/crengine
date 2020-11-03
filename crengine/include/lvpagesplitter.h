@@ -232,8 +232,12 @@ public:
 
 class LVRendPageList : public LVPtrVector<LVRendPageInfo>
 {
+    bool has_nonlinear_flows;
 public:
+    LVRendPageList() : has_nonlinear_flows(false) {}
     int FindNearestPage( int y, int direction );
+    void setHasNonLinearFlows() { has_nonlinear_flows=true; }
+    bool hasNonLinearFlows() { return has_nonlinear_flows; }
     bool serialize( SerialBuf & buf );
     bool deserialize( SerialBuf & buf );
 };
