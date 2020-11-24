@@ -175,6 +175,14 @@
         "aliases": ["ita"]
     },
     {
+        "name": "Latin",
+        "filename": "Latin.pattern",
+        "language": "la",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 2,
+        "aliases": ["lat"]
+    },
+    {
         "name": "Latvian",
         "filename": "Latvian.pattern",
         "language": "lv",
