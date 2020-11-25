@@ -175,6 +175,14 @@
         "aliases": ["ita"]
     },
     {
+        "name": "Latin-classic",
+        "filename": "Latin-classic.pattern",
+        "language": "la-cla",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 2,
+        "aliases": ["lat-cla"]
+    },
+    {
         "name": "Latin",
         "filename": "Latin.pattern",
         "language": "la",
