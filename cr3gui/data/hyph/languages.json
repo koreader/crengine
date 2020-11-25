@@ -175,12 +175,12 @@
         "aliases": ["ita"]
     },
     {
-        "name": "Latin-classic",
-        "filename": "Latin-classic.pattern",
-        "language": "la-cla",
+        "name": "Latin (liturgical)",
+        "filename": "Latin_liturgical.pattern",
+        "language": "la-lit",
         "left_hyphen_min": 2,
         "right_hyphen_min": 2,
-        "aliases": ["lat-cla"]
+        "aliases": ["lat-lit"]
     },
     {
         "name": "Latin",
