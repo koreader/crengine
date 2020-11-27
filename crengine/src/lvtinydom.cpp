@@ -9729,9 +9729,12 @@ lString32 extractDocKeywords( ldomDocument * doc )
         if ( !genre ) {
             break;
         }
-        if ( !res.empty() )
-            res << "\n";
-        res << genre.getText().trim();
+        lString32 text = genre.getText().trim();
+        if (!text.empty()) {
+            if (!res.empty())
+                res << "\n";
+            res << text;
+        }
     }
     return res;
 }
