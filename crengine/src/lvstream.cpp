@@ -1593,7 +1593,7 @@ public:
 
                 if ( (dwAttrs & FILE_ATTRIBUTE_DIRECTORY) ) {
                     // directory
-                    if (!lStr_cmp(pfn, U"..") || !lStr_cmp(pfn, U".")) {
+                    if (!lStr_cmp(pfn, L"..") || !lStr_cmp(pfn, L".")) {
                         // .. or .
                     } else {
                         // normal directory
@@ -2797,7 +2797,7 @@ class LVRarArc : public LVArcContainerBase
 {
 public:
 
-    virtual LVStreamRef OpenStream( const char32_t * fname, lvopen_mode_t mode )
+    virtual LVStreamRef OpenStream( const lChar32 * fname, lvopen_mode_t mode )
     {
         int found_index = -1;
         for (int i=0; i<m_list.length(); i++) {
