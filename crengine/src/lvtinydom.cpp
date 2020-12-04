@@ -227,6 +227,7 @@ enum CacheFileBlockType {
 #include <stddef.h>
 #include <math.h>
 #include <zlib.h>
+#define XXH_INLINE_ALL
 #include <xxhash.h>
 #include <lvtextfm.h>
 
@@ -18098,8 +18099,8 @@ public:
     }
 
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _dx; }
-    virtual int    GetHeight() { return _dy; }
+    virtual int    GetWidth() const { return _dx; }
+    virtual int    GetHeight() const { return _dy; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         LVImageSourceRef img = _node->getDocument()->getObjectImageSource(_refName);
