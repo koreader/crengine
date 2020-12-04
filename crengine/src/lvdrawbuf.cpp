@@ -565,15 +565,14 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    const lUInt32 cl = data[xmap ? xmap[x] : x];
                     const int xx = x + dst_x;
-                    const lUInt8 alpha = (cl >> 24)&0xFF;
-
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
                     }
 
+                    const lUInt32 cl = data[xmap ? xmap[x] : x];
+                    const lUInt8 alpha = (cl >> 24)&0xFF;
                     // NOTE: Remember that for some mysterious reason, lvimg feeds us inverted alpha
                     //       (i.e., 0 is opaque, 0xFF is transparent)...
                     if ( alpha == 0xFF ) {
@@ -608,15 +607,14 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    const lUInt32 cl = data[xmap ? xmap[x] : x];
                     const int xx = x + dst_x;
-                    const lUInt8 alpha = (cl >> 24)&0xFF;
-
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
                     }
 
+                    const lUInt32 cl = data[xmap ? xmap[x] : x];
+                    const lUInt8 alpha = (cl >> 24)&0xFF;
                     // NOTE: See final branch of the ladder. Not quite sure why some alpha ranges are treated differently...
                     if ( alpha >= 0xF0 ) {
                         // Transparent, don't plot it...
@@ -643,16 +641,15 @@ public:
                 row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    const int srcx = xmap ? xmap[x] : x;
-                    lUInt32 cl = data[srcx];
                     const int xx = x + dst_x;
-                    const lUInt8 alpha = (cl >> 24)&0xFF;
-
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
                     }
 
+                    const int srcx = xmap ? xmap[x] : x;
+                    lUInt32 cl = data[srcx];
+                    const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
@@ -701,10 +698,7 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     const int xx = x + dst_x;
-                    const lUInt8 alpha = (cl >> 24)&0xFF;
-
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
@@ -714,6 +708,8 @@ public:
                     const int bitindex = (3-(xx & 3))<<1;
                     const lUInt8 mask = 0xC0 >> (6 - bitindex);
 
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
                         if ( invert ) {
@@ -752,15 +748,14 @@ public:
                 //row += dst_x;
                 for (int x=0; x<dst_dx; x++)
                 {
-                    lUInt32 cl = data[xmap ? xmap[x] : x];
                     const int xx = x + dst_x;
-                    const lUInt8 alpha = (cl >> 24)&0xFF;
-
                     if ( xx<clip.left || xx>=clip.right ) {
                         // OOB, don't plot it!
                         continue;
                     }
 
+                    lUInt32 cl = data[xmap ? xmap[x] : x];
+                    const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha & 0x80 ) {
                         // Transparent, don't plot it...
                         if ( invert ) {

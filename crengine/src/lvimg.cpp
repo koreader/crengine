@@ -41,6 +41,7 @@ extern "C" {
 #define NANOSVG_IMPLEMENTATION
 #define NANOSVGRAST_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_STATIC
 #include <nanosvg.h>
 #include <nanosvgrast.h>
 #include <stb_image_write.h> // for svg to png conversion
@@ -71,8 +72,8 @@ void CR9PatchInfo::applyPadding(lvRect & dstPadding) const
 }
 
 static void fixNegative(int n[4]) {
-	int d1 = n[1] - n[0];
-	int d2 = n[3] - n[2];
+	const int d1 = n[1] - n[0];
+	const int d2 = n[3] - n[2];
 	if (d1 + d2 > 0) {
 		n[1] = n[2] = n[0] + (n[3] - n[0]) * d1 / (d1 + d2);
 	} else {
@@ -117,7 +118,7 @@ void CR9PatchInfo::calcRectangles(const lvRect & dst, const lvRect & src, lvRect
 	// fill calculated rectangles
 	for (int y = 0; y<3; y++) {
 		for (int x = 0; x < 3; x++) {
-			int i = y * 3 + x;
+			const int i = y * 3 + x;
 			srcitems[i].left = sx[x];
 			srcitems[i].right = sx[x + 1];
 			srcitems[i].top = sy[y];
@@ -165,7 +166,7 @@ public:
     		y1 = y + 1;
     	}
     }
-    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data ) {
+    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data ) {
         CR_UNUSED(obj);
         if (y == 0) {
     		decodeHLine(data, _info->frame.left, _info->frame.right);
@@ -244,8 +245,8 @@ public:
     ldomNode * GetSourceNode() { return _node; }
     virtual LVStream * GetSourceStream() { return _stream.get(); }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _width; }
-    virtual int    GetHeight() { return _height; }
+    virtual int    GetWidth() const { return _width; }
+    virtual int    GetHeight() const { return _height; }
     virtual bool   Decode( LVImageDecoderCallback * callback ) = 0;
     virtual ~LVNodeImageSource() {}
 };
@@ -559,14 +560,14 @@ public:
     ldomNode * GetSourceNode() { return _node; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _width; }
-    virtual int    GetHeight() { return _height; }
+    virtual int    GetWidth() const { return _width; }
+    virtual int    GetHeight() const { return _height; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         if ( callback )
         {
             callback->OnStartDecode(this);
-            lUInt32 * row = new lUInt32[ _width ];
+            lUInt32 * __restrict row = new lUInt32[ _width ];
             for (int i=0; i<_height; i++)
             {
                 if ( i==0 || i==_height-1 )
@@ -619,8 +620,8 @@ public:
             _palette = new lUInt32[_ncolors];
             memset( _pchars, 0, 128 );
             for ( int cl=0; cl<_ncolors; cl++ ) {
-                const char * src = data[1+cl];
-                _pchars[((unsigned)(*src++)) & 127] = cl;
+                const char * __restrict src = data[1+cl];
+                _pchars[(unsigned char)(*src++) & 127] = cl;
                 if ( (*src++)!=' ' || (*src++)!='c' || (*src++)!=' ' ) {
                     err = true;
                     break;
@@ -664,19 +665,19 @@ public:
     ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _width; }
-    virtual int    GetHeight() { return _height; }
+    virtual int    GetWidth() const { return _width; }
+    virtual int    GetHeight() const { return _height; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         if ( callback )
         {
             callback->OnStartDecode(this);
-            lUInt32 * row = new lUInt32[ _width ];
+            lUInt32 * __restrict row = new lUInt32[ _width ];
             for (int i=0; i<_height; i++)
             {
-                const char * src = _rows[i];
+                const char * __restrict src = _rows[i];
                 for ( int x=0; x<_width; x++ ) {
-                    row[x] = _palette[_pchars[(unsigned)src[x]]];
+                    row[x] = _palette[_pchars[(unsigned char)src[x]]];
                 }
                 callback->OnLineDecoded(this, i, row);
             }
@@ -739,7 +740,7 @@ public:
         jpeg_create_decompress(&cinfo);
 
         lUInt8 * buffer = NULL;
-        lUInt32 * row = NULL;
+        lUInt32 * __restrict row = NULL;
 
         if (setjmp(jerr.setjmp_buffer)) {
         	CRLog::error("JPEG setjmp error handling");
@@ -797,14 +798,14 @@ public:
                  * loop counter, so that we don't have to keep track ourselves.
                  */
                 while (cinfo.output_scanline < cinfo.output_height) {
-                    int y = cinfo.output_scanline;
+                    const int y = cinfo.output_scanline;
                     /* jpeg_read_scanlines expects an array of pointers to scanlines.
                      * Here the array is only one element long, but you could ask for
                      * more than one scanline at a time if that's more convenient.
                      */
                     (void) jpeg_read_scanlines(&cinfo, &buffer, 1);
                     /* Assume put_scanline_someplace wants a pointer and sample count. */
-                    lUInt8 * p = buffer;
+                    lUInt8 * __restrict p = buffer;
                     for (int x=0; x<(int)cinfo.output_width; x++)
                     {
                         row[x] = (((lUInt32)p[0])<<16) | (((lUInt32)p[1])<<8) | (((lUInt32)p[2])<<0);
@@ -931,12 +932,12 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         png_set_bgr(png_ptr);
 
         png_set_interlace_handling(png_ptr);
-        png_read_update_info(png_ptr,info_ptr);//update after set
-        png_bytep *image=NULL;
-        image =  new png_bytep[height];
+        png_read_update_info(png_ptr, info_ptr);//update after set
+        png_bytep * __restrict image = NULL;
+        image = new png_bytep[height];
         for (lUInt32 i=0; i<height; i++)
-            image[i] =  new png_byte[png_get_rowbytes(png_ptr,info_ptr)];
-        png_read_image(png_ptr,image);
+            image[i] = new png_byte[png_get_rowbytes(png_ptr, info_ptr)];
+        png_read_image(png_ptr, image);
         for (lUInt32 y = 0; y < height; y++)
         {
             callback->OnLineDecoded( this, y,  (lUInt32*) image[y] );
@@ -1006,12 +1007,12 @@ public:
     }
     virtual bool Decode( LVImageDecoderCallback * callback );
 
-    int DecodeFromBuffer(unsigned char *buf, int buf_size, LVImageDecoderCallback * callback);
+    int DecodeFromBuffer(const unsigned char *buf, int buf_size, LVImageDecoderCallback * callback);
     //int LoadFromFile( const char * fname );
     LVGifImageSource();
     virtual ~LVGifImageSource();
     void Clear();
-    lUInt32 * GetColorTable() {
+    const lUInt32 * __restrict GetColorTable() {
         if (m_flg_gtc)
             return m_global_color_table;
         else
@@ -1035,11 +1036,11 @@ protected:
 
     unsigned char * m_buffer;
 public:
-    int DecodeFromBuffer( unsigned char * buf, int buf_size, int &bytes_read );
+    int DecodeFromBuffer( const unsigned char * buf, int buf_size, int &bytes_read );
     LVGifFrame(LVGifImageSource * pImage);
     ~LVGifFrame();
     void Clear();
-    lUInt32 * GetColorTable() {
+    const lUInt32 * __restrict GetColorTable() {
         if (m_flg_ltc)
             return m_local_color_table;
         else
@@ -1047,18 +1048,18 @@ public:
     };
     void Draw( LVImageDecoderCallback * callback )
     {
-        int w = m_pImage->GetWidth();
-        int h = m_pImage->GetHeight();
+        const int w = m_pImage->GetWidth();
+        const int h = m_pImage->GetHeight();
         if ( w<=0 || w>4096 || h<=0 || h>4096 )
             return; // wrong image width
         callback->OnStartDecode( m_pImage );
-        lUInt32 * line = new lUInt32[w];
-        int background_color = m_pImage->m_background_color;
-        int transparent_color = m_pImage->m_transparent_color;
-        bool defined_transparent = m_pImage->defined_transparent_color;
-        lUInt32 * pColorTable = GetColorTable();
+        lUInt32 * __restrict line = new lUInt32[w];
+        const int background_color = m_pImage->m_background_color;
+        const int transparent_color = m_pImage->m_transparent_color;
+        const bool defined_transparent = m_pImage->defined_transparent_color;
+        const lUInt32 * __restrict pColorTable = GetColorTable();
         int interlacePos = 0;
-        int interlaceTable[] = {8, 0, 8, 4, 4, 2, 2, 1, 1, 1}; // pairs: step, offset
+        const int interlaceTable[] = {8, 0, 8, 4, 4, 2, 2, 1, 1, 1}; // pairs: step, offset
         int dy = interlaceTable[interlacePos];
         int y = 0;
         for ( int i=0; i<h; i++ ) {
@@ -1066,9 +1067,9 @@ public:
                 line[j] = pColorTable[background_color];
             }
             if ( i >= m_top  && i < m_top+m_cy ) {
-                unsigned char * p_line = m_buffer + (i-m_top)*m_cx;
+                unsigned char * __restrict p_line = m_buffer + (i-m_top)*m_cx;
                 for ( int x=0; x<m_cx; x++ ) {
-                    unsigned char b = p_line[x];
+                    const unsigned char b = p_line[x];
                     if (b!=background_color) {
                         if (defined_transparent && b==transparent_color)
                             line[x + m_left] = 0xFF000000;
@@ -1106,15 +1107,15 @@ inline lUInt32 lRGB(lUInt32 r, lUInt32 g, lUInt32 b )
     return (r<<16)|(g<<8)|b;
 }
 
-static bool skipGifExtension(unsigned char *&buf, int buf_size) {
-    unsigned char * endp = buf + buf_size;
+static bool skipGifExtension(const unsigned char *&buf, int buf_size) {
+    const unsigned char * endp = buf + buf_size;
     if (*buf != '!')
         return false;
     buf += 2;
     for (;;) {
         if (buf >= endp)
             return false;
-        unsigned blockSize = *buf;
+        const unsigned blockSize = *buf;
         buf++;
         if (blockSize == 0)
             return true;
@@ -1122,7 +1123,7 @@ static bool skipGifExtension(unsigned char *&buf, int buf_size) {
     }
 }
 
-int LVGifImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImageDecoderCallback * callback)
+int LVGifImageSource::DecodeFromBuffer(const unsigned char *buf, int buf_size, LVImageDecoderCallback * callback)
 {
     // check GIF header (6 bytes)
     // 'GIF'
@@ -1141,7 +1142,7 @@ int LVGifImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
         return 0; // bad version
 
     // read screen descriptor
-    unsigned char * p = buf+6;
+    const unsigned char * p = buf+6;
 
     _width = p[0] + (p[1]<<8);
     _height = p[2] + (p[3]<<8);
@@ -1159,7 +1160,7 @@ int LVGifImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
 
     // read global color table
     if (m_flg_gtc) {
-        int m_color_count = 1<<m_bpp;
+        const int m_color_count = 1<<m_bpp;
 
         if (m_color_count*3 + (p-buf) >= buf_size)
             return 0; // error
@@ -1178,7 +1179,7 @@ int LVGifImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
     bool res = true;
     while (res && p - buf < buf_size) {
         // search for delimiter char ','
-        int recordType = *p;
+        const int recordType = *p;
 
         //            while (*p != ',' && p-buf<buf_size)
         //                p++;
@@ -1354,7 +1355,17 @@ public:
         str_table = NULL;
         str_size = NULL;
         */
-        lastadd=0;
+        p_in_stream = NULL;
+        in_stream_size = 0;
+        in_bit_pos = 0;
+
+        p_out_stream = NULL;
+        out_stream_size = 0;
+
+        clearcode = 0;
+        eoicode = 0;
+        bits = 0;
+        lastadd = 0;
     };
 
     void Clear() {
@@ -1475,10 +1486,10 @@ bool LVGifImageSource::Decode( LVImageDecoderCallback * callback )
 {
     if ( _stream.isNull() )
         return false;
-    lvsize_t sz = _stream->GetSize();
+    const lvsize_t sz = _stream->GetSize();
     if ( sz<32 )
         return false; // wrong size
-    lUInt8 * buf = new lUInt8[ sz ];
+    lUInt8 * __restrict buf = new lUInt8[ sz ];
     lvsize_t bytesRead = 0;
     bool res = true;
     _stream->SetPos(0);
@@ -1496,10 +1507,10 @@ bool LVGifImageSource::Decode( LVImageDecoderCallback * callback )
     return res;
 }
 
-int LVGifFrame::DecodeFromBuffer( unsigned char * buf, int buf_size, int &bytes_read )
+int LVGifFrame::DecodeFromBuffer( const unsigned char * buf, int buf_size, int &bytes_read )
 {
     bytes_read = 0;
-    unsigned char * p = buf;
+    const unsigned char * p = buf;
     if (*p!=',' || buf_size<=10)
         return 0; // error: no delimiter
     p++;
@@ -1530,7 +1541,7 @@ int LVGifFrame::DecodeFromBuffer( unsigned char * buf, int buf_size, int &bytes_
 
     if (m_flg_ltc) {
         // read color table
-        int m_color_count = 1<<m_bpp;
+        const int m_color_count = 1<<m_bpp;
 
         if (m_color_count*3 + (p-buf) >= buf_size)
             return 0; // error
@@ -1545,17 +1556,17 @@ int LVGifFrame::DecodeFromBuffer( unsigned char * buf, int buf_size, int &bytes_
     }
 
     // unpack image
-    unsigned char * stream_buffer = NULL;
+    unsigned char * __restrict stream_buffer = NULL;
     int stream_buffer_size = 0;
 
     int size_code = *p++;
 
     // test raster stream size
     int i;
-    int rest_buf_size = (int)(buf_size - (p-buf));
+    const int rest_buf_size = (int)(buf_size - (p-buf));
     for (i=0; i<rest_buf_size && p[i]; ) {
         // next block
-        int block_size = p[i];
+        const int block_size = p[i];
         stream_buffer_size += block_size;
         i+=block_size+1;
     }
@@ -1572,7 +1583,7 @@ int LVGifFrame::DecodeFromBuffer( unsigned char * buf, int buf_size, int &bytes_
     int sb_index = 0;
     for (i=0; p[i]; ) {
         // next block
-        int block_size = p[i];
+        const int block_size = p[i];
         for (int j=1; j<=block_size; j++) {
             stream_buffer[sb_index++] = p[i+j];
         }
@@ -1651,7 +1662,7 @@ public:
     virtual ~LVSvgImageSource();
     virtual void   Compact();
     virtual bool   Decode( LVImageDecoderCallback * callback );
-    int DecodeFromBuffer(unsigned char *buf, int buf_size, LVImageDecoderCallback * callback);
+    int DecodeFromBuffer(const unsigned char *buf, int buf_size, LVImageDecoderCallback * callback);
     static bool CheckPattern( const lUInt8 * buf, int len );
 };
 
@@ -1683,9 +1694,9 @@ bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback )
 {
     if ( _stream.isNull() )
         return false;
-    lvsize_t sz = _stream->GetSize();
+    const lvsize_t sz = _stream->GetSize();
     // if ( sz<32 || sz>0x80000 ) return false; // do not impose (yet) a max size for svg
-    lUInt8 * buf = new lUInt8[ sz+1 ];
+    lUInt8 * __restrict buf = new lUInt8[ sz+1 ];
     lvsize_t bytesRead = 0;
     bool res = true;
     _stream->SetPos(0);
@@ -1700,11 +1711,11 @@ bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback )
     return res;
 }
 
-int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImageDecoderCallback * callback)
+int LVSvgImageSource::DecodeFromBuffer(const unsigned char *buf, int buf_size, LVImageDecoderCallback * callback)
 {
     NSVGimage *image = NULL;
     NSVGrasterizer *rast = NULL;
-    unsigned char* img = NULL;
+    unsigned char* __restrict img = NULL;
     int w, h;
     bool res = false;
 
@@ -1759,10 +1770,8 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
                 nsvgRasterize(rast, image, 1, 1, 1, img, w, h, w*4); // offsets of 1 pixel, scale = 1
                 // stbi_write_png("/tmp/svg.png", w, h, 4, img, w*4); // for debug
                 callback->OnStartDecode(this);
-                lUInt32 * row = new lUInt32 [ _width ];
-                lUInt8 * p = img;
-                lUInt8 r, g, b, a, ia, blend, iblend;
-                lUInt32 ro, go, bo;
+                lUInt32 * __restrict row = new lUInt32 [ _width ];
+                lUInt8 * __restrict p = img;
                 for (int y=0; y<_height; y++) {
                     for (int x=0; x<_width; x++) {
                         // We mostly get full white or full black when using alpha channel like this:
@@ -1772,14 +1781,14 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
                         // It's better to use alpha channel here to blend pixels over a white background and set opacity to full
                         // """ To perform a source-over blend between two colors that use straight alpha format:
                         //           result = (source.RGB * source.A) + (dest.RGB * (1 - source.A))        """
-                        r = (lUInt8)p[0];
-                        g = (lUInt8)p[1];
-                        b = (lUInt8)p[2];
-                        a = (lUInt8)p[3];
-                        ia = a ^ 0xFF;
-                        ro = (lUInt32)( r*a + 0xff*ia );
-                        go = (lUInt32)( g*a + 0xff*ia );
-                        bo = (lUInt32)( b*a + 0xff*ia );
+                        const lUInt8 r = (lUInt8)p[0];
+                        const lUInt8 g = (lUInt8)p[1];
+                        const lUInt8 b = (lUInt8)p[2];
+                        const lUInt8 a = (lUInt8)p[3];
+                        const lUInt8 ia = a ^ 0xFF;
+                        lUInt32 ro = (lUInt32)( r*a + 0xff*ia );
+                        lUInt32 go = (lUInt32)( g*a + 0xff*ia );
+                        lUInt32 bo = (lUInt32)( b*a + 0xff*ia );
                         // More accurate divide by 256 than just >> 8 (255 becomes 254 with just >> 8)
                         ro = (ro+1 + (ro >> 8)) >> 8;
                         go = (go+1 + (go >> 8)) >> 8;
@@ -1804,13 +1813,13 @@ int LVSvgImageSource::DecodeFromBuffer(unsigned char *buf, int buf_size, LVImage
 }
 
 // Convenience function to convert SVG image data to PNG
-unsigned char * convertSVGtoPNG(unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len)
+unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len)
 {
     NSVGimage *image = NULL;
     NSVGrasterizer *rast = NULL;
-    unsigned char* img = NULL;
+    unsigned char* __restrict img = NULL;
     int w, h, pw, ph;
-    unsigned char *png = NULL;
+    unsigned char * __restrict png = NULL;
 
     // printf("SVG: converting to PNG...\n");
     image = nsvgParse((char*)svg_data, "px", 96.0f);
@@ -1832,7 +1841,7 @@ unsigned char * convertSVGtoPNG(unsigned char *svg_data, int svg_data_size, floa
     // right and bottom pixels. We can avoid that by adding N pixels around
     // each side, by increasing width and height with 2*N here, and using
     // offsets of N in nsvgRasterize. Using zoom_factor as N gives nice results.
-    int offset = zoom_factor;
+    const int offset = zoom_factor;
     pw = w*zoom_factor + 2*offset;
     ph = h*zoom_factor + 2*offset;
     rast = nsvgCreateRasterizer();
@@ -1994,7 +2003,7 @@ public:
 		_line.reserve( _dst_dx );
         _callback->OnStartDecode(this);
 	}
-    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data );
+    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data );
     virtual void OnEndDecode( LVImageSource *, bool res)
 	{
 		_line.clear();
@@ -2003,8 +2012,8 @@ public:
 	virtual ldomNode * GetSourceNode() { return NULL; }
 	virtual LVStream * GetSourceStream() { return NULL; }
 	virtual void   Compact() { }
-	virtual int    GetWidth() { return _dst_dx; }
-	virtual int    GetHeight() { return _dst_dy; }
+	virtual int    GetWidth() const { return _dst_dx; }
+	virtual int    GetHeight() const { return _dst_dy; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
 	{
 		_callback = callback;
@@ -2015,16 +2024,16 @@ public:
 	}
 };
 
-bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data )
+bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data )
 {
     bool res = false;
 
     switch ( _hTransform ) {
     case IMG_TRANSFORM_SPLIT:
         {
-            int right_pixels = (_src_dx-_split_x-1);
-            int first_right_pixel = _dst_dx - right_pixels;
-            int right_offset = _src_dx - _dst_dx;
+            const int right_pixels = (_src_dx-_split_x-1);
+            const int first_right_pixel = _dst_dx - right_pixels;
+            const int right_offset = _src_dx - _dst_dx;
             //int bottom_pixels = (_src_dy-_split_y-1);
             //int first_bottom_pixel = _dst_dy - bottom_pixels;
             for ( int x=0; x<_dst_dx; x++ ) {
@@ -2051,7 +2060,7 @@ bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * da
         break;
     case IMG_TRANSFORM_TILE:
         {
-            int offset = _src_dx - _split_x;
+            const int offset = _src_dx - _split_x;
             for ( int x=0; x<_dst_dx; x++ )
                 _line[x] = data[ (x + offset) % _src_dx];
         }
@@ -2061,7 +2070,7 @@ bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * da
     switch ( _vTransform ) {
     case IMG_TRANSFORM_SPLIT:
         {
-            int middle_pixels = _dst_dy - _src_dy + 1;
+            const int middle_pixels = _dst_dy - _src_dy + 1;
             if ( y < _split_y ) {
                 res = _callback->OnLineDecoded( obj, y, _line.get() );
             } else if ( y==_split_y ) {
@@ -2075,8 +2084,8 @@ bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * da
         break;
     case IMG_TRANSFORM_STRETCH:
         {
-            int y0 = y * _dst_dy / _src_dy;
-            int y1 = (y+1) * _dst_dy / _src_dy;
+            const int y0 = y * _dst_dy / _src_dy;
+            const int y1 = (y+1) * _dst_dy / _src_dy;
             for ( int yy=y0; yy<y1; yy++ ) {
                 res = _callback->OnLineDecoded( obj, yy, _line.get() );
             }
@@ -2090,8 +2099,8 @@ bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * da
         break;
     case IMG_TRANSFORM_TILE:
         {
-            int offset = _src_dy - _split_y;
-            int y0 = (y + offset) % _src_dy;
+            const int offset = _src_dy - _split_y;
+            const int y0 = (y + offset) % _src_dy;
             for ( int yy=y0; yy<_dst_dy; yy+=_src_dy ) {
                 res = _callback->OnLineDecoded( obj, yy, _line.get() );
             }
@@ -2161,13 +2170,13 @@ public:
             delete _drawbuf;
         _drawbuf = new LVColorDrawBuf(_src->GetWidth(), _src->GetHeight(), 32);
     }
-    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data ) {
+    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data ) {
         CR_UNUSED(obj);
-        int dx = _src->GetWidth();
+        const int dx = _src->GetWidth();
 
-        lUInt32 * row = (lUInt32*)_drawbuf->GetScanLine(y);
+        lUInt32 * __restrict row = (lUInt32*)_drawbuf->GetScanLine(y);
         for (int x = 0; x < dx; x++) {
-            lUInt32 cl = data[x];
+            const lUInt32 cl = data[x];
             row[x] = cl;
             if (((cl >> 24) & 0xFF) < 0xC0) { // count non-transparent pixels only
                 _sumR += (cl >> 16) & 0xFF;
@@ -2181,26 +2190,26 @@ public:
     }
     virtual void OnEndDecode( LVImageSource * obj, bool res)
     {
-        int dx = _src->GetWidth();
-        int dy = _src->GetHeight();
+        const int dx = _src->GetWidth();
+        const int dy = _src->GetHeight();
         // simple add
-        int ar = (((_add >> 16) & 0xFF) - 0x80) * 2;
-        int ag = (((_add >> 8) & 0xFF) - 0x80) * 2;
-        int ab = (((_add >> 0) & 0xFF) - 0x80) * 2;
+        const int ar = (((_add >> 16) & 0xFF) - 0x80) * 2;
+        const int ag = (((_add >> 8) & 0xFF) - 0x80) * 2;
+        const int ab = (((_add >> 0) & 0xFF) - 0x80) * 2;
         // fixed point * 256
-        int mr = ((_multiply >> 16) & 0xFF) << 3;
-        int mg = ((_multiply >> 8) & 0xFF) << 3;
-        int mb = ((_multiply >> 0) & 0xFF) << 3;
+        const int mr = ((_multiply >> 16) & 0xFF) << 3;
+        const int mg = ((_multiply >> 8) & 0xFF) << 3;
+        const int mb = ((_multiply >> 0) & 0xFF) << 3;
 
-        int avgR = _countPixels > 0 ? _sumR / _countPixels : 128;
-        int avgG = _countPixels > 0 ? _sumG / _countPixels : 128;
-        int avgB = _countPixels > 0 ? _sumB / _countPixels : 128;
+        const int avgR = _countPixels > 0 ? _sumR / _countPixels : 128;
+        const int avgG = _countPixels > 0 ? _sumG / _countPixels : 128;
+        const int avgB = _countPixels > 0 ? _sumB / _countPixels : 128;
 
         for (int y = 0; y < dy; y++) {
-            lUInt32 * row = (lUInt32*)_drawbuf->GetScanLine(y);
+            lUInt32 * __restrict row = (lUInt32*)_drawbuf->GetScanLine(y);
             for ( int x=0; x<dx; x++ ) {
-                lUInt32 cl = row[x];
-                lUInt32 a = cl & 0xFF000000;
+                const lUInt32 cl = row[x];
+                const lUInt32 a = cl & 0xFF000000;
                 if (a != 0xFF000000) {
                     int r = (cl >> 16) & 0xFF;
                     int g = (cl >> 8) & 0xFF;
@@ -2221,8 +2230,8 @@ public:
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _src->GetWidth(); }
-    virtual int    GetHeight() { return _src->GetHeight(); }
+    virtual int    GetWidth() const { return _src->GetWidth(); }
+    virtual int    GetHeight() const { return _src->GetHeight(); }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         _callback = callback;
@@ -2230,7 +2239,7 @@ public:
     }
 };
 
-/// creates image source which transforms colors of another image source (add RGB components (c - 0x80) * 2 from addedRGB first, then multiplyed by multiplyRGB fixed point components (0x20 is 1.0f)
+/// creates image source which transforms colors of another image source (add RGB components (c - 0x80) * 2 from addedRGB first, then multiplied by multiplyRGB fixed point components (0x20 is 1.0f)
 LVImageSourceRef LVCreateColorTransformImageSource(LVImageSourceRef srcImage, lUInt32 addRGB, lUInt32 multiplyRGB) {
     return LVImageSourceRef(new LVColorTransformImgSource(srcImage, addRGB, multiplyRGB));
 }
@@ -2254,9 +2263,9 @@ public:
     {
         _callback->OnStartDecode(this);
     }
-    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data ) {
+    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data ) {
         CR_UNUSED(obj);
-        int dx = _src->GetWidth();
+        const int dx = _src->GetWidth();
 
         for (int x = 0; x < dx; x++) {
             lUInt32 cl = data[x];
@@ -2277,8 +2286,8 @@ public:
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _src->GetWidth(); }
-    virtual int    GetHeight() { return _src->GetHeight(); }
+    virtual int    GetWidth() const { return _src->GetWidth(); }
+    virtual int    GetHeight() const { return _src->GetHeight(); }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         _callback = callback;
@@ -2329,35 +2338,35 @@ public:
     // aaaaaaaarrrrrrrrggggggggbbbbbbbb -> yyyyyyaa
     inline lUInt8 grayPack( lUInt32 pixel )
     {
-        lUInt8 gray = (lUInt8)(( (pixel & 0xFF) + ((pixel>>16) & 0xFF) + ((pixel>>7)&510) ) >> 2);
-        lUInt8 alpha = (lUInt8)((pixel>>24) & 0xFF);
+        const lUInt8 gray = (lUInt8)(( (pixel & 0xFF) + ((pixel>>16) & 0xFF) + ((pixel>>7)&510) ) >> 2);
+        const lUInt8 alpha = (lUInt8)((pixel>>24) & 0xFF);
         return (gray & 0xFC) | ((alpha >> 6) & 3);
     }
     // yyyyyyaa -> aaaaaaaarrrrrrrrggggggggbbbbbbbb
     inline lUInt32 grayUnpack( lUInt8 pixel )
     {
-        lUInt32 gray = pixel & 0xFC;
+        const lUInt32 gray = pixel & 0xFC;
         lUInt32 alpha = (pixel & 3) << 6;
         if ( alpha==0xC0 )
             alpha = 0xFF;
         return gray | (gray<<8) | (gray<<16) | (alpha<<24);
     }
-    virtual bool OnLineDecoded( LVImageSource *, int y, lUInt32 * data )
+    virtual bool OnLineDecoded( LVImageSource *, int y, lUInt32 * __restrict data )
     {
         if ( y<0 || y>=_dy )
             return false;
         if ( _isGray ) {
-            lUInt8 * dst = _grayImage + _dx * y;
+            lUInt8 * __restrict dst = _grayImage + _dx * y;
             for ( int x=0; x<_dx; x++ ) {
                 dst[x] = grayPack( data[x] );
             }
         } else if ( _bpp==16 ) {
-            lUInt16 * dst = _colorImage16 + _dx * y;
+            lUInt16 * __restrict dst = _colorImage16 + _dx * y;
             for ( int x=0; x<_dx; x++ ) {
                 dst[x] = rgb888to565( data[x] );
             }
         } else {
-            lUInt32 * dst = _colorImage + _dx * y;
+            lUInt32 * __restrict dst = _colorImage + _dx * y;
             memcpy( dst, data, sizeof(lUInt32) * _dx );
         }
         return true;
@@ -2369,8 +2378,8 @@ public:
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _dx; }
-    virtual int    GetHeight() { return _dy; }
+    virtual int    GetWidth() const { return _dx; }
+    virtual int    GetHeight() const { return _dy; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         callback->OnStartDecode( this );
@@ -2380,8 +2389,8 @@ public:
             LVArray<lUInt32> line;
             line.reserve( _dx );
             for ( int y=0; y<_dy; y++ ) {
-                lUInt8 * src = _grayImage + _dx * y;
-                lUInt32 * dst = line.ptr();
+                lUInt8 * __restrict src = _grayImage + _dx * y;
+                lUInt32 * __restrict dst = line.ptr();
                 for ( int x=0; x<_dx; x++ )
                     dst[x] = grayUnpack( src[x] );
                 callback->OnLineDecoded( this, y, dst );
@@ -2392,8 +2401,8 @@ public:
             LVArray<lUInt32> line;
             line.reserve( _dx );
             for ( int y=0; y<_dy; y++ ) {
-                lUInt16 * src = _colorImage16 + _dx * y;
-                lUInt32 * dst = line.ptr();
+                lUInt16 * __restrict src = _colorImage16 + _dx * y;
+                lUInt32 * __restrict dst = line.ptr();
                 for ( int x=0; x<_dx; x++ )
                     dst[x] = rgb565to888( src[x] );
                 callback->OnLineDecoded( this, y, dst );
@@ -2437,8 +2446,8 @@ public:
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
-    virtual int    GetWidth() { return _dx; }
-    virtual int    GetHeight() { return _dy; }
+    virtual int    GetWidth() const { return _dx; }
+    virtual int    GetHeight() const { return _dy; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
         callback->OnStartDecode( this );
@@ -2450,9 +2459,9 @@ public:
             }
         } else {
             // 16 bpp
-            lUInt32 * row = new lUInt32[_dx];
+            lUInt32 * __restrict row = new lUInt32[_dx];
             for ( int y=0; y<_dy; y++ ) {
-                lUInt16 * src = (lUInt16 *)_buf->GetScanLine(y);
+                lUInt16 *__restrict src = (lUInt16 *)_buf->GetScanLine(y);
                 for ( int x=0; x<_dx; x++ )
                     row[x] = rgb565to888(src[x]);
                 callback->OnLineDecoded( this, y, row );
@@ -2474,9 +2483,9 @@ LVImageSourceRef LVCreateUnpackedImageSource( LVImageSourceRef srcImage, int max
 {
     if ( srcImage.isNull() )
         return srcImage;
-    int dx = srcImage->GetWidth();
-    int dy = srcImage->GetHeight();
-    int sz = dx*dy * (gray?1:4);
+    const int dx = srcImage->GetWidth();
+    const int dy = srcImage->GetHeight();
+    const int sz = dx*dy * (gray?1:4);
     if ( sz>maxSize )
         return srcImage;
     CRLog::trace("Unpacking image %dx%d (%d)", dx, dy, sz);
@@ -2490,9 +2499,9 @@ LVImageSourceRef LVCreateUnpackedImageSource( LVImageSourceRef srcImage, int max
 {
     if ( srcImage.isNull() )
         return srcImage;
-    int dx = srcImage->GetWidth();
-    int dy = srcImage->GetHeight();
-    int sz = dx*dy * (bpp>>3);
+    const int dx = srcImage->GetWidth();
+    const int dy = srcImage->GetHeight();
+    const int sz = dx*dy * (bpp>>3);
     if ( sz>maxSize )
         return srcImage;
     CRLog::trace("Unpacking image %dx%d (%d)", dx, dy, sz);
@@ -2518,8 +2527,8 @@ void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int perce
         int iconIndex = 0;
         if ( !charging ) {
             if ( icons.length()>2 ) {
-                int numTicks = icons.length() - 1;
-                int perTick = 10000/(numTicks -1);
+                const int numTicks = icons.length() - 1;
+                const int perTick = 10000/(numTicks -1);
                 //iconIndex = ((numTicks - 1) * percent + (100/numTicks/2) )/ 100 + 1;
                 iconIndex = (percent * 100 + perTick/2)/perTick + 1;
                 if ( iconIndex<1 )
@@ -2556,12 +2565,12 @@ void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int perce
             txt = "+++";
         else
             txt = lString32::itoa(percent); // + U"%";
-        int w = font->getTextWidth(txt.c_str(), txt.length());
-        int h = font->getHeight();
-        int x = (rc.left + rc.right - w)/2;
-        int y = (rc.top + rc.bottom - h)/2+1;
-        lUInt32 bgcolor = drawbuf->GetBackgroundColor();
-        lUInt32 textcolor = drawbuf->GetTextColor();
+        const int w = font->getTextWidth(txt.c_str(), txt.length());
+        const int h = font->getHeight();
+        const int x = (rc.left + rc.right - w)/2;
+        const int y = (rc.top + rc.bottom - h)/2+1;
+        const lUInt32 bgcolor = drawbuf->GetBackgroundColor();
+        const lUInt32 textcolor = drawbuf->GetTextColor();
 
         drawbuf->SetBackgroundColor( textcolor );
         drawbuf->SetTextColor( bgcolor );

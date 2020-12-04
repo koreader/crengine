@@ -1299,7 +1299,7 @@ void CRToolBarSkin::drawToolBar( LVDrawBuf & buf, const lvRect & rect, bool enab
 	int offsetX = 0;
 	if (getHAlign() == SKIN_HALIGN_RIGHT)
 		offsetX = rc.width() - width;
-	else if (getHAlign() == SKIN_HALIGN_CENTER ) 
+	else if (getHAlign() == SKIN_HALIGN_CENTER )
 		offsetX = rc.width() - width/2;
 	int h = rc.height();
     for ( int i=0; i<_buttons->length(); i++ ) {
@@ -1328,7 +1328,7 @@ void CRToolBarSkin::drawToolBar( LVDrawBuf & buf, const lvRect & rect, bool enab
 
 void CRToolBarSkin::drawButton(LVDrawBuf & buf, const lvRect & rc, int index, int flags)
 {
-	
+
 }
 
 CRRectSkin::CRRectSkin()
@@ -1875,7 +1875,7 @@ CRButtonListRef CRSkinContainer::readButtons( const lChar32 * path, bool * res )
     }
     if ( res )
         *res = true;
-    return list;	
+    return list;
 }
 
 bool CRSkinContainer::readToolBarSkin(  const lChar32 * path, CRToolBarSkin * res )

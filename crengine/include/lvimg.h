@@ -57,7 +57,7 @@ class LVImageDecoderCallback
 public:
     virtual ~LVImageDecoderCallback();
     virtual void OnStartDecode( LVImageSource * obj ) = 0;
-    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * data ) = 0;
+    virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data ) = 0;
     virtual void OnEndDecode( LVImageSource * obj, bool errors ) = 0;
 };
 
@@ -80,8 +80,8 @@ public:
     virtual ldomNode * GetSourceNode() = 0;
     virtual LVStream * GetSourceStream() = 0;
     virtual void   Compact() = 0;
-    virtual int    GetWidth() = 0;
-    virtual int    GetHeight() = 0;
+    virtual int    GetWidth() const = 0;
+    virtual int    GetHeight() const = 0;
     virtual bool   Decode( LVImageDecoderCallback * callback ) = 0;
     LVImageSource() : _ninePatch(NULL) {}
     virtual ~LVImageSource();
@@ -137,7 +137,7 @@ class LVDrawBuf;
 // if no icons provided, battery will be drawn
 void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int percent, bool charging, LVRefVec<LVImageSource> icons, LVFont * font );
 
-unsigned char * convertSVGtoPNG(unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len);
+unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len);
 
 #define IMAGE_SOURCE_FROM_BYTES( imgvar , bufvar ) \
     extern unsigned char bufvar []; \
