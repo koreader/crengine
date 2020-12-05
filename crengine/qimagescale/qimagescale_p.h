@@ -52,14 +52,14 @@
 
 namespace CRe {
 
-unsigned char* qSmoothScaleImage(const unsigned char* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+unsigned char* qSmoothScaleImage(const unsigned char* __restrict src, int sw, int sh, bool ignore_alpha, int dw, int dh);
 
 namespace QImageScale {
     struct QImageScaleInfo {
-        int *xpoints{nullptr};
-        const unsigned int **ypoints{nullptr};
-        int *xapoints{nullptr};
-        int *yapoints{nullptr};
+        int * __restrict xpoints{nullptr};
+        const unsigned int ** __restrict ypoints{nullptr};
+        int * __restrict xapoints{nullptr};
+        int * __restrict yapoints{nullptr};
         int xup_yup{0};
     };
 }
