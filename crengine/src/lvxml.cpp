@@ -2989,8 +2989,10 @@ bool LVXMLParser::Parse()
                         m_state = ps_text;
                         break;
                     }
-                    //bypass <![CDATA] in <style type="text/css">
-                    if (PeekCharFromBuffer(1)=='['&&tagname.compare("style")==0&&attrvalue.compare("text/css")==0){
+                    // bypass <![CDATA] in <style type="text/css"> (and more generally in any <style>)
+                    // (We let the trailing ]]> in, our style parser will just ignore it)
+                    // todo: ignoring CDATA should be handled more generally and properly
+                    if ( PeekCharFromBuffer(1)=='[' && tagname.compare("style")==0 ) { // && attrvalue.compare("text/css")==0){
                         PeekNextCharFromBuffer(7);
                         m_state =ps_text;
                         break;
