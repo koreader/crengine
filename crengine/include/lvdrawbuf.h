@@ -50,27 +50,27 @@ public:
 
     // tiles support
     /// returns true if drawing buffer is tiled
-    virtual bool isTiled() { return false; }
+    virtual bool isTiled() const { return false; }
     /// returns tile width (or just width if no tiles)
-    virtual int tileWidth() { return GetWidth(); }
+    virtual int tileWidth() const { return GetWidth(); }
     /// returns tile height (or just height if no tiles)
-    virtual int tileHeight() { return GetHeight(); }
+    virtual int tileHeight() const { return GetHeight(); }
     /// returns tile drawbuf for tiled image, returns this for non tiled draw buffer
     virtual LVDrawBuf * getTile(int x, int y) {
         CR_UNUSED2(x, y);
         return this;
     }
     /// returns number of tiles in row
-    virtual int getXtiles() {
+    virtual int getXtiles() const {
         return 1;
     }
     /// returns number of tiles in column
-    virtual int getYtiles() {
+    virtual int getYtiles() const {
         return 1;
     }
 
     /// returns tile rectangle
-    virtual void getTileRect(lvRect & rc, int x, int y) {
+    virtual void getTileRect(lvRect & rc, int x, int y) const {
         CR_UNUSED2(x, y);
         rc.left = rc.top = 0;
         rc.right = GetWidth();
@@ -80,19 +80,19 @@ public:
     /// rotates buffer contents by specified angle
     virtual void Rotate( cr_rotate_angle_t angle ) = 0;
     /// returns white pixel value
-    virtual lUInt32 GetWhiteColor() = 0;
+    virtual lUInt32 GetWhiteColor() const = 0;
     /// returns black pixel value
-    virtual lUInt32 GetBlackColor() = 0;
+    virtual lUInt32 GetBlackColor() const = 0;
     /// returns current background color
-    virtual lUInt32 GetBackgroundColor() = 0;
+    virtual lUInt32 GetBackgroundColor() const = 0;
     /// sets current background color
     virtual void SetBackgroundColor( lUInt32 cl ) = 0;
     /// returns current text color
-    virtual lUInt32 GetTextColor() = 0;
+    virtual lUInt32 GetTextColor() const = 0;
     /// sets current text color
     virtual void SetTextColor( lUInt32 cl ) = 0;
     /// gets clip rect
-    virtual void GetClipRect( lvRect * clipRect ) = 0;
+    virtual void GetClipRect( lvRect * clipRect ) const = 0;
     /// sets clip rect
     virtual void SetClipRect( const lvRect * clipRect ) = 0;
     /// set to true for drawing in Paged mode, false for Scroll mode
@@ -104,23 +104,23 @@ public:
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
     virtual void setSmoothScalingImages( bool smooth ) = 0;
     /// invert image
-    virtual void  Invert() = 0;
+    virtual void Invert() = 0;
     /// get buffer width, pixels
-    virtual int  GetWidth() = 0;
+    virtual int GetWidth() const = 0;
     /// get buffer height, pixels
-    virtual int  GetHeight() = 0;
+    virtual int GetHeight() const = 0;
     /// get buffer bits per pixel
-    virtual int  GetBitsPerPixel() = 0;
-    /// fills buffer with specified color
-    virtual int  GetRowSize() = 0;
+    virtual int GetBitsPerPixel() const = 0;
+    /// get row size (bytes)
+    virtual int GetRowSize() const = 0;
     /// fills buffer with specified color
     virtual void Clear( lUInt32 color ) = 0;
     /// get pixel value
-    virtual lUInt32 GetPixel( int x, int y ) = 0;
+    virtual lUInt32 GetPixel( int x, int y ) const = 0;
     /// get average pixel value for area (coordinates are fixed floating points *16)
-    virtual lUInt32 GetAvgColor(lvRect & rc16) = 0;
+    virtual lUInt32 GetAvgColor(lvRect & rc16) const = 0;
     /// get linearly interpolated pixel value (coordinates are fixed floating points *16)
-    virtual lUInt32 GetInterpolatedColor(int x16, int y16) = 0;
+    virtual lUInt32 GetInterpolatedColor(int x16, int y16) const = 0;
     /// draw gradient filled rectangle with colors for top-left, top-right, bottom-right, bottom-left
     virtual void GradientRect(int x0, int y0, int x1, int y1, lUInt32 color1, lUInt32 color2, lUInt32 color3, lUInt32 color4) {
         CR_UNUSED8(x0, x1, y0, y1, color1, color2, color3, color4);
@@ -169,13 +169,13 @@ public:
         Rect( rc.left, rc.top, rc.right, rc.bottom, borderWidth, color );
     }
     /// fills rectangle with pattern
-    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, lUInt8 * pattern ) = 0;
+    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern ) = 0;
     /// inverts image in specified rectangle
     virtual void InvertRect(int x0, int y0, int x1, int y1) = 0;
     /// sets new size
     virtual void Resize( int dx, int dy ) = 0;
     /// draws bitmap (1 byte per pixel) using specified palette
-    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, lUInt32 * palette ) = 0;
+    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette ) = 0;
     /// draws image
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither=true ) = 0;
     /// draws part of source image, possible rescaled
@@ -183,20 +183,20 @@ public:
     /// for GL buf only - rotated drawing
     virtual void DrawRotated( LVImageSourceRef img, int x, int y, int width, int height, int rotationAngle) { Draw(img, x, y, width, height); CR_UNUSED(rotationAngle); }
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32 * palette ) = 0;
+    virtual void DrawTo( LVDrawBuf * __restrict buf, int x, int y, int options, const lUInt32 * __restrict palette ) = 0;
     // draws buffer on top of another buffer to implement background
-    virtual void DrawOnTop( LVDrawBuf * buf, int x, int y) = 0;
+    virtual void DrawOnTop( LVDrawBuf * __restrict buf, int x, int y) = 0;
     /// draws rescaled buffer content to another buffer doing color conversion if necessary
-    virtual void DrawRescaled(LVDrawBuf * src, int x, int y, int dx, int dy, int options) = 0;
+    virtual void DrawRescaled(const LVDrawBuf * __restrict src, int x, int y, int dx, int dy, int options) = 0;
     /// draws rescaled buffer content to another buffer doing color conversion if necessary
-    virtual void DrawFragment(LVDrawBuf * src, int srcx, int srcy, int srcdx, int srcdy, int x, int y, int dx, int dy, int options) {
+    virtual void DrawFragment(const LVDrawBuf * __restrict src, int srcx, int srcy, int srcdx, int srcdy, int x, int y, int dx, int dy, int options) {
         CR_UNUSED10(src, srcx, srcy, srcdx, srcdy, x, y, dx, dy, options);
     }
     /// draw lines
-    virtual void DrawLine(int x0,int y0,int x1,int y1,lUInt32 color0 ,int length1,int length2,int direction)=0;
+    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int length1, int length2, int direction) = 0;
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( HDC dc, int x, int y, int options, lUInt32 * palette ) = 0;
+    virtual void DrawTo( HDC dc, int x, int y, int options, const lUInt32 * __restrict palette ) = 0;
 #endif
     /// draws text string
     /*
@@ -210,10 +210,10 @@ public:
     virtual void DrawFormattedText( formatted_text_fragment_t * text, int x, int y ) = 0;
 */
     /// returns scanline pointer
-    virtual lUInt8 * GetScanLine( int y ) = 0;
+    virtual lUInt8 * GetScanLine( int y ) const = 0;
 
 
-    virtual int getAlpha() { return 0; }
+    virtual int getAlpha() const { return 0; }
     virtual void setAlpha(int alpha) { CR_UNUSED(alpha); }
     virtual lUInt32 applyAlpha(lUInt32 cl) { return cl; }
 
@@ -249,28 +249,28 @@ public:
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
     virtual void setSmoothScalingImages( bool smooth ) { _smoothImages = smooth; }
     /// returns current background color
-    virtual lUInt32 GetBackgroundColor() { return _backgroundColor; }
+    virtual lUInt32 GetBackgroundColor() const { return _backgroundColor; }
     /// sets current background color
     virtual void SetBackgroundColor( lUInt32 cl ) { _backgroundColor=cl; }
     /// returns current text color
-    virtual lUInt32 GetTextColor() { return _textColor; }
+    virtual lUInt32 GetTextColor() const { return _textColor; }
     /// sets current text color
     virtual void SetTextColor( lUInt32 cl ) { _textColor = cl; }
     /// gets clip rect
-    virtual void GetClipRect( lvRect * clipRect ) { *clipRect = _clip; }
+    virtual void GetClipRect( lvRect * clipRect ) const { *clipRect = _clip; }
     /// sets clip rect
     virtual void SetClipRect( const lvRect * clipRect );
     /// get average pixel value for area (coordinates are fixed floating points *16)
-    virtual lUInt32 GetAvgColor(lvRect & rc16);
+    virtual lUInt32 GetAvgColor(lvRect & rc16) const;
     /// get linearly interpolated pixel value (coordinates are fixed floating points *16)
-    virtual lUInt32 GetInterpolatedColor(int x16, int y16);
+    virtual lUInt32 GetInterpolatedColor(int x16, int y16) const;
     /// get buffer width, pixels
-    virtual int  GetWidth();
+    virtual int GetWidth() const;
     /// get buffer height, pixels
-    virtual int  GetHeight();
+    virtual int GetHeight() const;
     /// get row size (bytes)
-    virtual int  GetRowSize() { return _rowsize; }
-    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0,int length1,int length2,int direction)=0;
+    virtual int GetRowSize() const { return _rowsize; }
+    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int length1, int length2, int direction) = 0;
     /// draws text string
     /*
     virtual void DrawTextString( int x, int y, LVFont * pfont,
@@ -282,9 +282,9 @@ public:
     //virtual void DrawFormattedText( formatted_text_fragment_t * text, int x, int y );
 
     /// Get nb of images drawn on buffer
-    int getDrawnImagesCount() { return _drawnImagesCount; }
+    int getDrawnImagesCount() const { return _drawnImagesCount; }
     /// Get surface of images drawn on buffer
-    int getDrawnImagesSurface() { return _drawnImagesSurface; }
+    int getDrawnImagesSurface() const { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true),
                         _invertImages(false), _ditherImages(false), _smoothImages(false),
@@ -360,48 +360,48 @@ public:
     /// rotates buffer contents by specified angle
     virtual void Rotate( cr_rotate_angle_t angle );
     /// returns white pixel value
-    virtual lUInt32 GetWhiteColor();
+    virtual lUInt32 GetWhiteColor() const;
     /// returns black pixel value
-    virtual lUInt32 GetBlackColor();
+    virtual lUInt32 GetBlackColor() const;
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32 * palette );
+    virtual void DrawTo( LVDrawBuf * __restrict buf, int x, int y, int options, const lUInt32 * __restrict palette );
     // draws buffer on top of another buffer to implement background
-    virtual void DrawOnTop( LVDrawBuf * buf, int x, int y);
+    virtual void DrawOnTop( LVDrawBuf * __restrict buf, int x, int y);
     /// draws rescaled buffer content to another buffer doing color conversion if necessary
-    virtual void DrawRescaled(LVDrawBuf * src, int x, int y, int dx, int dy, int options);
+    virtual void DrawRescaled(const LVDrawBuf * __restrict src, int x, int y, int dx, int dy, int options);
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( HDC dc, int x, int y, int options, lUInt32 * palette );
+    virtual void DrawTo( HDC dc, int x, int y, int options, const lUInt32 * __restrict palette );
 #endif
     /// invert image
-    virtual void  Invert();
+    virtual void Invert();
     /// get buffer bits per pixel
-    virtual int  GetBitsPerPixel();
+    virtual int GetBitsPerPixel() const;
     /// returns scanline pointer
-    virtual lUInt8 * GetScanLine( int y );
+    virtual lUInt8 * GetScanLine( int y ) const;
     /// fills buffer with specified color
     virtual void Clear( lUInt32 color );
     /// get pixel value
-    virtual lUInt32 GetPixel( int x, int y );
+    virtual lUInt32 GetPixel( int x, int y ) const;
     /// fills rectangle with specified color
     virtual void FillRect( int x0, int y0, int x1, int y1, lUInt32 color );
     /// inverts image in specified rectangle
     virtual void InvertRect( int x0, int y0, int x1, int y1 );
     /// fills rectangle with pattern
-    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, lUInt8 * pattern );
+    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern );
     /// sets new size
     virtual void Resize( int dx, int dy );
     /// draws image
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither );
     /// draws bitmap (1 byte per pixel) using specified palette
-    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, lUInt32 * palette );
+    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
     /// constructor
     LVGrayDrawBuf(int dx, int dy, int bpp=2, void * auxdata = NULL );
     /// destructor
     virtual ~LVGrayDrawBuf();
     /// convert to 1-bit bitmap
     void ConvertToBitmap(bool flgDither);
-    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0,int length1,int length2,int direction=0);
+    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int length1, int length2, int direction=0);
 };
 
 // NOTE: By default, CRe assumes RGB (array order) actually means BGR
@@ -443,7 +443,7 @@ inline lUInt16 rgb888to565( lUInt32 cl ) {
 
 // Because of course we're not using <stdint.h> -_-".
 #ifndef UINT8_MAX
-	#define UINT8_MAX (255)
+	#define UINT8_MAX (255U)
 #endif
 
 // Quantize an 8-bit color value down to a palette of 16 evenly spaced colors, using an ordered 8x8 dithering pattern.
@@ -474,13 +474,13 @@ static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
 	//       and requires a few explicit casts to make GCC happy ;).
 	lUInt32 t = DIV255(v * ((15U << 6) + 1U));
 	// level = t / (D-1);
-	lUInt32 l = (t >> 6);
+	const lUInt32 l = (t >> 6U);
 	// t -= l * (D-1);
-	t = (t - (l << 6));
+	t = (t - (l << 6U));
 
 	// map width & height = 8
 	// c = ClampToQuantum((l+(t >= map[(x % mw) + mw * (y % mh)])) * QuantumRange / (L-1));
-	lUInt32 q = ((l + (t >= threshold_map_o8x8[(x & 7U) + 8U * (y & 7U)])) * 17);
+	const lUInt32 q = ((l + (t >= threshold_map_o8x8[(x & 7U) + 8U * (y & 7U)])) * 17U);
 	// NOTE: We're doing unsigned maths, so, clamping is basically MIN(q, UINT8_MAX) ;).
 	//       The only overflow we should ever catch should be for a few white (v = 0xFF) input pixels
 	//       that get shifted to the next step (i.e., q = 272 (0xFF + 17)).
@@ -489,7 +489,7 @@ static inline lUInt8 dither_o8x8(int x, int y, lUInt8 v)
 
 // Declare our bit of scaler ripped from Qt5...
 namespace CRe {
-lUInt8* qSmoothScaleImage(const lUInt8* src, int sw, int sh, bool ignore_alpha, int dw, int dh);
+lUInt8* qSmoothScaleImage(const lUInt8* __restrict src, int sw, int sh, bool ignore_alpha, int dw, int dh);
 }
 
 /// 32-bit RGB buffer
@@ -506,31 +506,31 @@ public:
     /// rotates buffer contents by specified angle
     virtual void Rotate( cr_rotate_angle_t angle );
     /// returns white pixel value
-    virtual lUInt32 GetWhiteColor();
+    virtual lUInt32 GetWhiteColor() const;
     /// returns black pixel value
-    virtual lUInt32 GetBlackColor();
+    virtual lUInt32 GetBlackColor() const;
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( LVDrawBuf * buf, int x, int y, int options, lUInt32 * palette );
+    virtual void DrawTo( LVDrawBuf * __restrict buf, int x, int y, int options, const lUInt32 * __restrict palette );
     // draws buffer on top of another buffer to implement background
-    virtual void DrawOnTop( LVDrawBuf * buf, int x, int y);
+    virtual void DrawOnTop( LVDrawBuf * __restrict buf, int x, int y);
     /// draws rescaled buffer content to another buffer doing color conversion if necessary
-    virtual void DrawRescaled(LVDrawBuf * src, int x, int y, int dx, int dy, int options);
+    virtual void DrawRescaled(const LVDrawBuf * __restrict src, int x, int y, int dx, int dy, int options);
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
     /// draws buffer content to another buffer doing color conversion if necessary
-    virtual void DrawTo( HDC dc, int x, int y, int options, lUInt32 * palette );
+    virtual void DrawTo( HDC dc, int x, int y, int options, const lUInt32 * __restrict palette );
 #endif
     /// invert image
-    virtual void  Invert();
+    virtual void Invert();
     /// get buffer bits per pixel
-    virtual int  GetBitsPerPixel();
+    virtual int GetBitsPerPixel() const;
     /// fills buffer with specified color
     virtual void Clear( lUInt32 color );
     /// get pixel value
-    virtual lUInt32 GetPixel( int x, int y );
+    virtual lUInt32 GetPixel( int x, int y ) const;
     /// fills rectangle with specified color
     virtual void FillRect( int x0, int y0, int x1, int y1, lUInt32 color );
     /// fills rectangle with pattern
-    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, lUInt8 * pattern );
+    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern );
     /// inverts specified rectangle
 	virtual void InvertRect( int x0, int y0, int x1, int y1 );
     /// sets new size
@@ -538,9 +538,9 @@ public:
     /// draws image
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither );
     /// draws bitmap (1 byte per pixel) using specified palette
-    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, lUInt32 * palette );
+    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
     /// returns scanline pointer
-    virtual lUInt8 * GetScanLine( int y );
+    virtual lUInt8 * GetScanLine( int y ) const;
 
     /// create own draw buffer
     LVColorDrawBuf(int dx, int dy, int bpp=32);
@@ -551,10 +551,10 @@ public:
     /// convert to 1-bit bitmap
     void ConvertToBitmap(bool flgDither);
     /// draw line
-    virtual void DrawLine(int x0,int y0,int x1,int y1,lUInt32 color0 ,int length1=1,int length2=0,int direction=0);
+    virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int length1=1, int length2=0, int direction=0);
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
     /// returns device context for bitmap buffer
-    HDC GetDC() { return _drawdc; }
+    HDC GetDC() const { return _drawdc; }
 #endif
 };
 

@@ -15,7 +15,6 @@ src/lvstsheet.cpp
 src/txtselector.cpp
 #src/xutils.cpp
 src/crtest.cpp
-src/xxhash.c
 )
 
 if ( NOT ${GUI} STREQUAL FB2PROPS )
