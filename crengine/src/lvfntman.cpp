@@ -6003,7 +6003,7 @@ int LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
         //TODO
         HDC dc = ((LVColorDrawBuf*)buf)->GetDC();
         HFONT oldfont = (HFONT)SelectObject( dc, _hfont );
-        SetTextColor( dc, RevRGB(buf->GetTextColor()) );
+        SetTextColor( dc, buf->GetTextColor() );
         SetBkMode(dc, TRANSPARENT);
         ExtTextOutW( dc, x, y,
             0, //ETO_OPAQUE
