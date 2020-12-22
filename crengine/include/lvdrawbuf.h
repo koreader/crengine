@@ -405,7 +405,7 @@ public:
 };
 
 inline lUInt32 RevRGB( lUInt32 cl ) {
-    return ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+    return ((cl<<16)&0xFF0000) | ((cl>>16)&0x0000FF) | (cl&0x00FF00);
 }
 
 inline lUInt32 rgb565to888( lUInt32 cl ) {
