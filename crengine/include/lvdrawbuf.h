@@ -404,6 +404,10 @@ public:
     virtual void DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int length1, int length2, int direction=0);
 };
 
+inline lUInt32 RevRGB( lUInt32 cl ) {
+    return ((cl>>16)&0x0000FF) | ((cl<<16)&0xFF0000) | (cl&0x00FF00);
+}
+
 inline lUInt32 rgb565to888( lUInt32 cl ) {
     return ((cl & 0xF800)<<8) | ((cl & 0x07E0)<<5) | ((cl & 0x001F)<<3);
 }
