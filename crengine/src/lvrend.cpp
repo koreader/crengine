@@ -8465,7 +8465,7 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             /* Looks like we don't need that:
 
                 // (Inspired from LVDocView::drawPageBackground(),
-                // we have to do it te complex way to avoid memory leaks
+                // we have to do it the complex way to avoid memory leaks
                 LVRef<LVColorDrawBuf> buf = LVRef<LVColorDrawBuf>( new LVColorDrawBuf(img_w, img_h, 32) );
                 buf->Draw(img, 0, 0, img_w, img_h, false); // (dither=false doesn't matter with a color buffer)
                 LVImageSourceRef src = LVCreateDrawBufImageSource(buf.get(), false);
