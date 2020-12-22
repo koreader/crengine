@@ -1958,6 +1958,7 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
                     const lUInt32 cl2 = ((alpha*((*dst)&0x00FF00) + opaque*(bmpcl32&0x00FF00))>>7) & 0x00FF00;
                     // NOTE: We're skipping the alpha byte here, because CRe uses inverted alpha :(
                     //       Which means that the masking shenanigans above ensure it's 0x00, fully opaque...
+                    //       (c.f., ApplyAlphaRGB, which does the same thing without the weird half-precision hack).
                     *dst = cl1 | cl2;
                 }
                 dst++;
