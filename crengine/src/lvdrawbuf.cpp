@@ -587,14 +587,14 @@ public:
                         }
                     } else if ( alpha == 0 ) {
                         // Fully opaque, plot it as-is
-                        row[ x ] = RevRGB(cl) ^ rgba_invert;
+                        row[ x ] = cl ^ rgba_invert;
                     } else {
                         if ((row[x] & 0xFF000000) == 0xFF000000) {
                             // Plot it as-is if *buffer* pixel is transparent
-                            row[ x ] = RevRGBA(cl) ^ rgba_invert;
+                            row[ x ] = cl ^ rgba_invert;
                         } else {
                             // NOTE: This *also* has a "fully opaque" shortcut... :/
-                            ApplyAlphaRGB( row[x], RevRGB(cl), alpha );
+                            ApplyAlphaRGB( row[x], cl, alpha );
                             // Invert post-blending to avoid potential stupidity...
                             row[ x ] ^= rgba_invert;
                         }
@@ -1495,7 +1495,7 @@ void LVColorDrawBuf::Clear( lUInt32 color )
             }
         }
     } else {
-        const lUInt32 cl32 = RevRGBA(color);
+        const lUInt32 cl32 = color;
         for (int y=0; y<_dy; y++)
         {
             lUInt32 * __restrict dst = (lUInt32 *)GetScanLine(y);
@@ -1680,9 +1680,9 @@ void LVColorDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color )
             for (int x=x0; x<x1; x++)
             {
                 if (alpha)
-                    ApplyAlphaRGB(line[x], RevRGB(color), alpha);
+                    ApplyAlphaRGB(line[x], color, alpha);
                 else
-                    line[x] = RevRGBA(color);
+                    line[x] = color;
             }
         }
     }
@@ -1712,7 +1712,7 @@ void LVColorDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, in
             }
         }
     } else {
-        const lUInt32 cl32 = RevRGBA(color0);
+        const lUInt32 cl32 = color0;
         for (int y=y0; y<y1; y++)
         {
             lUInt32 * __restrict line = (lUInt32 *)GetScanLine(y);
@@ -1758,7 +1758,7 @@ void LVColorDrawBuf::FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 co
             for (int x=x0; x<x1; x++)
             {
                 const lUInt8 patternBit = (patternMask << (x&7)) & 0x80;
-                line[x] = patternBit ? RevRGBA(color1) : RevRGBA(color0);
+                line[x] = patternBit ? color1 : color0;
             }
         }
     }
@@ -1936,7 +1936,7 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             bitmap += bmp_width;
         }
     } else {
-        const lUInt32 bmpcl32 = RevRGBA(bmpcl);
+        const lUInt32 bmpcl32 = bmpcl;
 
         while (height--)
         {
@@ -1956,7 +1956,9 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
                     const lUInt8 alpha = 0x7F-opaque;
                     const lUInt32 cl1 = ((alpha*((*dst)&0xFF00FF) + opaque*(bmpcl32&0xFF00FF))>>7) & 0xFF00FF;
                     const lUInt32 cl2 = ((alpha*((*dst)&0x00FF00) + opaque*(bmpcl32&0x00FF00))>>7) & 0x00FF00;
-                    // NOTE: We're never restoring an alpha byte here... Is it supposed to be 0x00?
+                    // NOTE: We're skipping the alpha byte here, because CRe uses inverted alpha :(
+                    //       Which means that the masking shenanigans above ensure it's 0x00, fully opaque...
+                    //       (c.f., ApplyAlphaRGB, which does the same thing without the weird half-precision hack).
                     *dst = cl1 | cl2;
                 }
                 dst++;
@@ -2616,7 +2618,7 @@ void LVColorDrawBuf::DrawTo( LVDrawBuf * __restrict buf, int x, int y, int optio
                     lUInt32 * __restrict dst = ((lUInt32 *)buf->GetScanLine(y + yy)) + x;
                     for (int xx = 0; xx < _dx; xx++) {
                         if (x+xx >= clip.left && x + xx < clip.right) {
-                            *dst = RevRGBA(*src);
+                            *dst = *src;
                         }
                         dst++;
                         src++;
@@ -2761,7 +2763,7 @@ void LVColorDrawBuf::DrawOnTop( LVDrawBuf * __restrict buf, int x, int y)
                     lUInt32 * __restrict dst = ((lUInt32 *)buf->GetScanLine(y + yy)) + x;
                     for (int xx = 0; xx < _dx; xx++) {
                         if (x+xx >= clip.left && x + xx < clip.right) {
-                            if(*src!=0) *dst = RevRGBA(*src);
+                            if(*src!=0) *dst = *src;
                         }
                         dst++;
                         src++;
@@ -2932,7 +2934,7 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
 							dst[x + xx] = rgb888to565(cl);
 						} else {
 							lUInt32 * __restrict dst = (lUInt32 *)GetScanLine(y + yy);
-							dst[x + xx] = RevRGBA(cl);
+							dst[x + xx] = cl;
 						}
 					}
 				}
@@ -2951,7 +2953,7 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
 							dst[x + xx] = rgb888to565(cl);
 						} else {
 							lUInt32 * __restrict dst = (lUInt32 *)GetScanLine(y + yy);
-							dst[x + xx] = RevRGBA(cl);
+							dst[x + xx] = cl;
 						}
 					}
 				}
