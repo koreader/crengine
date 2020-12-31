@@ -393,6 +393,7 @@ private:
     LVXMLParserCallback * m_callback;
     int  m_state;
     bool m_in_cdata;
+    bool m_in_html_script_tag;
     bool m_trimspaces;
     bool SkipSpaces();
     bool SkipTillChar( lChar32 ch );
