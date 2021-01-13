@@ -71,7 +71,7 @@ int lvfontOpen( const char * fname, lvfont_handle * pfont )
     }
     *pfont = (lvfont_handle) malloc( sz );
     fseek( f, 0, SEEK_SET );
-    fread( *pfont, sz, 1, f );
+    (void) fread( *pfont, sz, 1, f );
     fclose(f);
     tag_lvfont_header * hdr = (tag_lvfont_header *)lvfontGetHeader( *pfont );
 

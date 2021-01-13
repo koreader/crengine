@@ -2081,7 +2081,7 @@ void MakeStatsForFile( const char * fname, const char * cp_name, const char * la
    int buf_size = ftell(in);
    fseek( in, 0, SEEK_SET );
    unsigned char * buf = new unsigned char[buf_size];
-   fread(buf, 1, buf_size, in);
+   (void) fread(buf, 1, buf_size, in);
    short char_stat[256] = { 0 };
    dbl_char_stat_t dbl_char_stat[DBL_CHAR_STAT_SIZE];
    bool skipHtml = hasXmlTags(buf, buf_size);
