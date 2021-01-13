@@ -168,7 +168,8 @@ LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 			m_pageMargins(DEFAULT_PAGE_MARGIN,
 					DEFAULT_PAGE_MARGIN / 2 /*+ INFO_FONT_SIZE + 4 */,
 					DEFAULT_PAGE_MARGIN, DEFAULT_PAGE_MARGIN / 2),
-			m_pagesVisible(2), m_pageHeaderInfo(PGHDR_PAGE_NUMBER
+			m_pagesVisible(2), m_pagesVisible_onlyIfSane(true),
+			m_pageHeaderInfo(PGHDR_PAGE_NUMBER
 #ifndef LBOOK
 					| PGHDR_CLOCK
 #endif
@@ -2322,12 +2323,17 @@ void LVDocView::drawPageBackground( LVDrawBuf & drawbuf, int offsetX, int offset
         } else
             drawbuf.Clear(cl);
     }
+    // No need for a thin line separator: the middle margin was sized
+    // to be like the other margins: a separator would cut it in half
+    // and make it look like two smaller margins.
+    /*
     if (drawbuf.GetBitsPerPixel() == 32 && getVisiblePageCount() == 2) {
         int x = drawbuf.GetWidth() / 2;
         lUInt32 cl = m_backgroundColor;
         cl = ((cl & 0xFCFCFC) + 0x404040) >> 1;
         drawbuf.FillRect(x, 0, x + 1, drawbuf.GetHeight(), cl);
     }
+    */
 }
 
 /// draw to specified buffer
@@ -3439,15 +3445,26 @@ void LVDocView::toggleViewMode() {
 }
 
 int LVDocView::getVisiblePageCount() {
-	return (m_view_mode == DVM_SCROLL || m_dx < m_font_size * MIN_EM_PER_PAGE
-			|| m_dx * 5 < m_dy * 6) ? 1 : m_pagesVisible;
+    if ( m_view_mode == DVM_SCROLL ) // Can't do 2-pages in scroll mode
+        return 1;
+    if ( m_pagesVisible_onlyIfSane ) {
+        // Not if this would make only a few chars per page (20 / 2)
+        if ( m_dx < m_font_size * MIN_EM_PER_PAGE )
+            return 1;
+        // Not if aspect ratio w/h < 6/5
+        if ( m_dx * 5 < m_dy * 6 )
+            return 1;
+    }
+    // Allow 2-pages if it has been set
+    return m_pagesVisible;
 }
 
 /// set window visible page count (1 or 2)
-void LVDocView::setVisiblePageCount(int n) {
+void LVDocView::setVisiblePageCount(int n, bool onlyIfSane) {
     //CRLog::trace("setVisiblePageCount(%d) currPages=%d", n, m_pagesVisible);
     clearImageCache();
 	LVLock lock(getMutex());
+    m_pagesVisible_onlyIfSane = onlyIfSane;
     int newCount = (n == 2) ? 2 : 1;
     if (m_pagesVisible == newCount)
         return;
