@@ -316,6 +316,7 @@ private:
     lvRect m_pageMargins;
     lvRect m_pageRects[2];
     int    m_pagesVisible;
+    bool   m_pagesVisible_onlyIfSane;
     int m_pageHeaderInfo;
     bool m_showCover;
     LVRefVec<LVImageSource> m_headerIcons;
@@ -663,7 +664,7 @@ public:
     /// get window visible page count (1 or 2)
     int getVisiblePageCount();
     /// set window visible page count (1 or 2)
-    void setVisiblePageCount( int n );
+    void setVisiblePageCount( int n , bool onlyIfSane=true );
 
     /// get page header info mask
     int getPageHeaderInfo() { return m_pageHeaderInfo; }
