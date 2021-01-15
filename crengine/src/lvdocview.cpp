@@ -1316,7 +1316,7 @@ int LVDocView::getPageHeaderHeight() {
 }
 
 /// calculate page header rectangle
-void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
+void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool isPortraitMode) {
 	lvRect pageRc;
 	getPageRectangle(pageIndex, pageRc);
 	headerRc = pageRc;
@@ -1326,7 +1326,10 @@ void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
 		int h = getPageHeaderHeight();
 		headerRc.bottom = headerRc.top + h;
 		headerRc.top += HEADER_MARGIN;
-		headerRc.left += HEADER_MARGIN;
+		if (!isPortraitMode)
+			headerRc.left += HEADER_MARGIN;
+		else
+			headerRc.left = HEADER_MARGIN;
 		headerRc.right -= HEADER_MARGIN;
 	}
 }
@@ -1686,10 +1689,11 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	lvRect oldcr;
 	drawbuf->GetClipRect(&oldcr);
 	lvRect hrc = headerRc;
-    hrc.bottom += 2;
+	hrc.bottom += 2;
 	drawbuf->SetClipRect(&hrc);
 	bool drawGauge = true;
 	lvRect info = headerRc;
+	bool isPortraitMode = drawbuf->GetWidth() < drawbuf->GetHeight();
 //    if ( m_statusColor!=0xFF000000 ) {
 //        CRLog::trace("Status color = %06x, textColor=%06x", m_statusColor, getTextColor());
 //    } else {
@@ -1893,7 +1897,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		int w = info.width() - 10;
 		if (authorsw + titlew + 10 > w) {
-			if ((pageIndex & 1))
+			if (pageIndex & (!isPortraitMode ? 1 : getVisiblePageCount()) )
 				text = title;
 			else {
 				text = authors;
@@ -1922,6 +1926,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	int start = page.start;
 	int height = page.height;
 	int headerHeight = getPageHeaderHeight();
+	bool isPortraitMode = drawbuf->GetWidth() < drawbuf->GetHeight();
 	//CRLog::trace("drawPageTo(%d,%d)", start, height);
 	lvRect fullRect(0, 0, drawbuf->GetWidth(), drawbuf->GetHeight());
 	if (!pageRect)
@@ -1951,19 +1956,22 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 		if (getVisiblePageCount() == 2) {
 			if (page.index & 1) {
 				// right
-				phi &= ~PGHDR_AUTHOR;
-            } else {
+				if (!isPortraitMode)
+					phi &= ~PGHDR_AUTHOR;
+			} else {
 				// left
+				if (isPortraitMode)
+					phi &= ~PGHDR_AUTHOR;
 				phi &= ~PGHDR_TITLE;
-                phi &= ~PGHDR_PERCENT;
-                phi &= ~PGHDR_PAGE_NUMBER;
+				phi &= ~PGHDR_PERCENT;
+				phi &= ~PGHDR_PAGE_NUMBER;
 				phi &= ~PGHDR_PAGE_COUNT;
 				phi &= ~PGHDR_BATTERY;
 				phi &= ~PGHDR_CLOCK;
 			}
 		}
 		lvRect info;
-		getPageHeaderRectangle(page.index, info);
+		getPageHeaderRectangle(page.index, info, isPortraitMode);
 		drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
 				- 1 + basePage);
 		//clip.top = info.bottom;
