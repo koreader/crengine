@@ -1837,12 +1837,13 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		lString32 pageinfo;
 		if (pageCount > 0) {
+            int pageDivider = !isPortraitMode ? 1 : getVisiblePageCount();
 			if (phi & PGHDR_PAGE_NUMBER)
-                pageinfo += fmt::decimal(pageIndex + 1);
+                pageinfo += fmt::decimal( (pageIndex + 1) / pageDivider );
             if (phi & PGHDR_PAGE_COUNT) {
                 if ( !pageinfo.empty() )
                     pageinfo += " / ";
-                pageinfo += fmt::decimal(pageCount);
+                pageinfo += fmt::decimal( (pageCount + pageDivider / 2 ) / pageDivider );
             }
             if (phi & PGHDR_PERCENT) {
                 if ( !pageinfo.empty() )
