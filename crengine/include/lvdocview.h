@@ -603,7 +603,7 @@ public:
     /// returns number of images on current page
     int getCurrentPageImageCount();
     /// calculate page header rectangle
-    virtual void getPageHeaderRectangle( int pageIndex, lvRect & headerRc, bool isPortraitMode=false );
+    virtual void getPageHeaderRectangle( int pageIndex, lvRect & headerRc );
     /// calculate page header height
     virtual int getPageHeaderHeight( );
     /// set list of icons to display at left side of header
@@ -869,6 +869,9 @@ public:
     int getPageStartY(int pageIndex);
     // get page height
     int getPageHeight(int pageIndex);
+
+    /// get rotation mode
+    bool isPortraitMode();
 
     /// get number of current page
     int getCurPage();

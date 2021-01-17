@@ -1315,8 +1315,15 @@ int LVDocView::getPageHeaderHeight() {
         return h + HEADER_MARGIN;
 }
 
+/// get rotation mode
+bool LVDocView::isPortraitMode()
+{
+    return m_dx < m_dy;
+}
+
+
 /// calculate page header rectangle
-void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool isPortraitMode) {
+void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
 	lvRect pageRc;
 	getPageRectangle(pageIndex, pageRc);
 	headerRc = pageRc;
@@ -1326,7 +1333,7 @@ void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool is
 		int h = getPageHeaderHeight();
 		headerRc.bottom = headerRc.top + h;
 		headerRc.top += HEADER_MARGIN;
-		if (!isPortraitMode)
+		if (!isPortraitMode())
 			headerRc.left += HEADER_MARGIN;
 		else
 			headerRc.left = HEADER_MARGIN;
@@ -1693,7 +1700,6 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	drawbuf->SetClipRect(&hrc);
 	bool drawGauge = true;
 	lvRect info = headerRc;
-	bool isPortraitMode = drawbuf->GetWidth() < drawbuf->GetHeight();
 //    if ( m_statusColor!=0xFF000000 ) {
 //        CRLog::trace("Status color = %06x, textColor=%06x", m_statusColor, getTextColor());
 //    } else {
@@ -1837,9 +1843,9 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		lString32 pageinfo;
 		if (pageCount > 0) {
-            int pageDivider = !isPortraitMode ? 1 : getVisiblePageCount();
+            int pageDivider = !isPortraitMode() ? 1 : getVisiblePageCount();
 			if (phi & PGHDR_PAGE_NUMBER)
-                pageinfo += fmt::decimal( (pageIndex + 1) / pageDivider );
+                pageinfo += fmt::decimal( (pageIndex + 1 + pageDivider / 2) / pageDivider );
             if (phi & PGHDR_PAGE_COUNT) {
                 if ( !pageinfo.empty() )
                     pageinfo += " / ";
@@ -1898,7 +1904,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		int w = info.width() - 10;
 		if (authorsw + titlew + 10 > w) {
-			if (pageIndex & (!isPortraitMode ? 1 : getVisiblePageCount()) )
+			if (pageIndex & (!isPortraitMode() ? 1 : getVisiblePageCount()) )
 				text = title;
 			else {
 				text = authors;
@@ -1927,7 +1933,6 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	int start = page.start;
 	int height = page.height;
 	int headerHeight = getPageHeaderHeight();
-	bool isPortraitMode = drawbuf->GetWidth() < drawbuf->GetHeight();
 	//CRLog::trace("drawPageTo(%d,%d)", start, height);
 	lvRect fullRect(0, 0, drawbuf->GetWidth(), drawbuf->GetHeight());
 	if (!pageRect)
@@ -1957,11 +1962,11 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 		if (getVisiblePageCount() == 2) {
 			if (page.index & 1) {
 				// right
-				if (!isPortraitMode)
+				if (!isPortraitMode())
 					phi &= ~PGHDR_AUTHOR;
 			} else {
 				// left
-				if (isPortraitMode)
+				if (isPortraitMode())
 					phi &= ~PGHDR_AUTHOR;
 				phi &= ~PGHDR_TITLE;
 				phi &= ~PGHDR_PERCENT;
@@ -1972,7 +1977,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			}
 		}
 		lvRect info;
-		getPageHeaderRectangle(page.index, info, isPortraitMode);
+		getPageHeaderRectangle(page.index, info);
 		drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
 				- 1 + basePage);
 		//clip.top = info.bottom;
@@ -2083,7 +2088,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 
 /// returns page count
 int LVDocView::getPageCount() {
-	return m_pages.length();
+	return m_pages.length() / (isPortraitMode() && getVisiblePageCount()==2 ? 2 : 1); //xxxx
 }
 
 //============================================================================
