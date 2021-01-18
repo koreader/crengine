@@ -114,7 +114,8 @@ void ReadEpubNcxToc( ldomDocument * doc, ldomNode * mapRoot, LVTocItem * baseToc
         lString32 href = content->getAttributeValue("src");
         lString32 title = text->getText(' ');
         title.trimDoubleSpaces(false, false, false);
-        if ( href.empty() || title.empty() )
+        // Allow empty title (which is fine, and they may have sub items)
+        if ( href.empty() )
             continue;
         //CRLog::trace("TOC href before convert: %s", LCSTR(href));
         href = DecodeHTMLUrlString(href);
@@ -163,6 +164,7 @@ void ReadEpubNcxPageList( ldomDocument * doc, ldomNode * mapRoot, LVPageMap * pa
         lString32 href = content->getAttributeValue("src");
         lString32 title = text->getText(' ');
         title.trimDoubleSpaces(false, false, false);
+        // Empty titles wouldn't have much sense in page maps, ignore them
         if ( href.empty() || title.empty() )
             continue;
         href = DecodeHTMLUrlString(href);
@@ -288,6 +290,7 @@ void ReadEpubAdobePageMap( ldomDocument * doc, ldomNode * mapRoot, LVPageMap * p
         lString32 href = page->getAttributeValue("href");
         lString32 title = page->getAttributeValue("name");
         title.trimDoubleSpaces(false, false, false);
+        // Empty titles wouldn't have much sense in page maps, ignore them
         if ( href.empty() || title.empty() )
             continue;
         href = DecodeHTMLUrlString(href);
