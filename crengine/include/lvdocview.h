@@ -870,8 +870,15 @@ public:
     // get page height
     int getPageHeight(int pageIndex);
 
-    /// get rotation mode
+    /// get portrait mode
     bool isPortraitMode();
+    /// get two column mode
+    bool is2ColumnMode();
+    /// get divider for updatePageNumbers
+    int getPageNumberFactor();
+    /// get divider for updatePageNumbers
+    int getPagesPerView();
+
 
     /// get number of current page
     int getCurPage();
