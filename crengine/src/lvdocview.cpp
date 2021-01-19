@@ -1316,7 +1316,7 @@ int LVDocView::getPageHeaderHeight() {
 }
 
 /// calculate page header rectangle
-void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool singleHeader) {
+void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc ) {
 	lvRect pageRc;
 	getPageRectangle(pageIndex, pageRc);
 	headerRc = pageRc;
@@ -1327,10 +1327,10 @@ void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool si
 		headerRc.bottom = headerRc.top + h;
 		headerRc.top += HEADER_MARGIN;
 		headerRc.left += HEADER_MARGIN;
-        if (!singleHeader )
+        if (!is2ColumnMode() || !isPortraitMode())
     		headerRc.right -= HEADER_MARGIN;
         else
-		  headerRc.right = m_dx-HEADER_MARGIN;
+            headerRc.right = m_dx-HEADER_MARGIN;
 	}
 }
 
@@ -1596,25 +1596,22 @@ int LVDocView::getPosEndPagePercent() {
 int LVDocView::getPosPercent() {
 	LVLock lock(getMutex());
 	checkPos();
+	int fh;
+	int p;
 	if (getViewMode() == DVM_SCROLL) {
-		int fh = GetFullHeight();
-		int p = GetPos();
-		if (fh > 0)
-			return (int) (((lInt64) p * 10000) / fh);
-		else
-			return 0;
+		fh = GetFullHeight();
+		p = GetPos();
 	} else {
-        int fh = m_pages.length();
-        if ( (getVisiblePageCount()==2 && (fh&1)) )
-            fh++;
-        int p = getCurPage();// + 1;
-//        if ( getVisiblePageCount()>1 )
-//            p++;
-		if (fh > 0)
-			return (int) (((lInt64) p * 10000) / fh);
-		else
-			return 0;
+		fh = m_pages.length();
+		if ( (getVisiblePageCount()==2 && (fh&1)) )
+			fh++;
+		fh /= getPageNumberFactor();
+		p = getCurPage() + 1;
 	}
+	if (fh > 0)
+		return (int) (((lInt64) p * 10000) / fh);
+	else
+		return 0;
 }
 
 void LVDocView::getPageRectangle(int pageIndex, lvRect & pageRect) {
@@ -1694,6 +1691,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	drawbuf->SetClipRect(&hrc);
 	bool drawGauge = true;
 	lvRect info = headerRc;
+
 //    if ( m_statusColor!=0xFF000000 ) {
 //        CRLog::trace("Status color = %06x, textColor=%06x", m_statusColor, getTextColor());
 //    } else {
@@ -1706,8 +1704,8 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	drawbuf->SetTextColor(cl1);
 	//lUInt32 pal[4];
 	int percent = getPosPercent();
-	bool leftPage = (getVisiblePageCount() == 2 && !(pageIndex & 1));
-	if (leftPage || !drawGauge)
+	bool pageWithHeader = (getVisiblePageCount() == 2 && !(pageIndex & 1)) && !is2ColumnMode();
+	if (pageWithHeader || !drawGauge)
 		percent = 10000;
         int percent_pos = /*info.left + */percent * info.width() / 10000;
 	//    int gh = 3; //drawGauge ? 3 : 1;
@@ -1721,15 +1719,13 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 //		cl4 = cl1;
 //		//pal[0] = cl1;
 //	}
-	if ( leftPage )
-    {
+	if ( pageWithHeader )
 		drawbuf->FillRect(info.left, gpos - 2, info.right, gpos - 2 + 1, cl1);
         //drawbuf->FillRect(info.left+percent_pos, gpos-gh, info.right, gpos-gh+1, cl1 ); //cl3
         //      drawbuf->FillRect(info.left + percent_pos, gpos - 2, info.right, gpos - 2
         //                      + 1, cl1); // cl3
-    }
 	int sbound_index = 0;
-	bool enableMarks = !leftPage && (phi & PGHDR_CHAPTER_MARKS) && sbounds.length()<info.width()/5;
+	bool enableMarks = !pageWithHeader && (phi & PGHDR_CHAPTER_MARKS) && sbounds.length()<info.width()/5;
 	int w = GetWidth();
 	int h = GetHeight();
 	if (w > h)
@@ -1756,7 +1752,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 			}
 			break;
 		}
-		if ( leftPage ) {
+		if ( pageWithHeader ) {
 			cl = cl1;
 			sz = 1;
 		} else {
@@ -1785,7 +1781,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		text = m_pageHeaderOverride;
 	} else {
 
-//		if (!leftPage) {
+//		if (!pageWithHeader) {
 //			drawbuf->FillRect(info.left, gpos - 3, info.left + percent_pos,
 //					gpos - 3 + 1, cl1);
 //			drawbuf->FillRect(info.left, gpos - 1, info.left + percent_pos,
@@ -1793,7 +1789,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 //		}
 
 		// disable section marks for left page, and for too many marks
-//		if (!leftPage && (phi & PGHDR_CHAPTER_MARKS) && sbounds.length()<info.width()/5 ) {
+//		if (!pageWithHeader && (phi & PGHDR_CHAPTER_MARKS) && sbounds.length()<info.width()/5 ) {
 //			for (int i = 0; i < sbounds.length(); i++) {
 //				int x = info.left + sbounds[i] * (info.width() - 1) / 10000;
 //				lUInt32 c = x < info.left + percent_pos ? cl2 : cl1;
@@ -1987,7 +1983,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				    - 1 + basePage);
         } else {
             if ( (page.index & 1) == 0) { // draw only left header
-        		getPageHeaderRectangle(page.index, info, true);
+        		getPageHeaderRectangle(page.index, info);
                 drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
 				        - 1 + basePage);
             }
@@ -2202,7 +2198,7 @@ int LVDocView::SetPos(int pos, bool savePos, bool allowScrollAfterEnd) {
 
 /// get portrait mode
 bool LVDocView::isPortraitMode() {
-    return m_dx < m_dy;
+    return m_dx < m_dy && true;  // replace the true with the state of the property
 }
 
 /// get two column mode
@@ -2210,12 +2206,18 @@ bool LVDocView::is2ColumnMode() {
     return isPortraitMode() && getVisiblePageCount()==2;
 }
 
-
+/// factor to adjust internal page numbers
+// result:   visiblePages  portrait   landscape
+//               1            1           1
+//               2            2           1
 int LVDocView::getPageNumberFactor() {
     return !isPortraitMode() ? 1 : getVisiblePageCount();
 }
 
 /// get pages shown together
+// result:   visiblePages  portrait   landscape
+//               1            1           1
+//               2            1           2
 int LVDocView::getPagesPerView() {
     return isPortraitMode() ? 1 : getVisiblePageCount();
 }
