@@ -1315,15 +1315,8 @@ int LVDocView::getPageHeaderHeight() {
         return h + HEADER_MARGIN;
 }
 
-/// get rotation mode
-bool LVDocView::isPortraitMode()
-{
-    return m_dx < m_dy;
-}
-
-
 /// calculate page header rectangle
-void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
+void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool singleHeader) {
 	lvRect pageRc;
 	getPageRectangle(pageIndex, pageRc);
 	headerRc = pageRc;
@@ -1333,11 +1326,11 @@ void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
 		int h = getPageHeaderHeight();
 		headerRc.bottom = headerRc.top + h;
 		headerRc.top += HEADER_MARGIN;
-		if (!isPortraitMode())
-			headerRc.left += HEADER_MARGIN;
-		else
-			headerRc.left = HEADER_MARGIN;
-		headerRc.right -= HEADER_MARGIN;
+		headerRc.left += HEADER_MARGIN;
+        if (!singleHeader )
+    		headerRc.right -= HEADER_MARGIN;
+        else
+		  headerRc.right = m_dx-HEADER_MARGIN;
 	}
 }
 
@@ -1538,7 +1531,8 @@ LVArray<int> & LVDocView::getSectionBounds( bool for_external_update ) {
         section_id = m_doc->getElementNameIndex(U"DocFragment");
     }
 	int fh = GetFullHeight();
-    int pc = getVisiblePageCount();
+//    int pc = getVisiblePageCount();
+    int pc = is2ColumnMode() ? 1 : getVisiblePageCount();
 	if (body && fh > 0) {
 		int cnt = body->getChildCount();
 		for (int i = 0; i < cnt; i++) {
@@ -1728,11 +1722,12 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 //		//pal[0] = cl1;
 //	}
 	if ( leftPage )
+    {
 		drawbuf->FillRect(info.left, gpos - 2, info.right, gpos - 2 + 1, cl1);
         //drawbuf->FillRect(info.left+percent_pos, gpos-gh, info.right, gpos-gh+1, cl1 ); //cl3
         //      drawbuf->FillRect(info.left + percent_pos, gpos - 2, info.right, gpos - 2
         //                      + 1, cl1); // cl3
-
+    }
 	int sbound_index = 0;
 	bool enableMarks = !leftPage && (phi & PGHDR_CHAPTER_MARKS) && sbounds.length()<info.width()/5;
 	int w = GetWidth();
@@ -1843,13 +1838,12 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		lString32 pageinfo;
 		if (pageCount > 0) {
-            int pageDivider = !isPortraitMode() ? 1 : getVisiblePageCount();
 			if (phi & PGHDR_PAGE_NUMBER)
-                pageinfo += fmt::decimal( (pageIndex + 1 + pageDivider / 2) / pageDivider );
+                pageinfo += fmt::decimal( (pageIndex + 1 + getPageNumberFactor()/2) / getPageNumberFactor()  );
             if (phi & PGHDR_PAGE_COUNT) {
                 if ( !pageinfo.empty() )
                     pageinfo += " / ";
-                pageinfo += fmt::decimal( (pageCount + pageDivider / 2 ) / pageDivider );
+                pageinfo += fmt::decimal( (pageCount + getPageNumberFactor()/2 ) / getPageNumberFactor() );
             }
             if (phi & PGHDR_PERCENT) {
                 if ( !pageinfo.empty() )
@@ -1959,15 +1953,13 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	if ( ( (m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && (page.flags & RN_PAGE_TYPE_NORMAL) )
 				&& getViewMode() == DVM_PAGES ) {
 		int phi = m_pageHeaderInfo;
-		if (getVisiblePageCount() == 2) {
+		if (getVisiblePageCount()==2 && !is2ColumnMode()) {
+
 			if (page.index & 1) {
 				// right
-				if (!isPortraitMode())
-					phi &= ~PGHDR_AUTHOR;
+				phi &= ~PGHDR_AUTHOR;
 			} else {
 				// left
-				if (isPortraitMode())
-					phi &= ~PGHDR_AUTHOR;
 				phi &= ~PGHDR_TITLE;
 				phi &= ~PGHDR_PERCENT;
 				phi &= ~PGHDR_PAGE_NUMBER;
@@ -1975,11 +1967,31 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				phi &= ~PGHDR_BATTERY;
 				phi &= ~PGHDR_CLOCK;
 			}
-		}
+		} else {
+            if (is2ColumnMode() && (page.index & 1) ) {
+				// right
+				phi &= ~PGHDR_AUTHOR;
+				phi &= ~PGHDR_TITLE;
+				phi &= ~PGHDR_PERCENT;
+				phi &= ~PGHDR_PAGE_NUMBER;
+				phi &= ~PGHDR_PAGE_COUNT;
+				phi &= ~PGHDR_BATTERY;
+				phi &= ~PGHDR_CLOCK;
+            }
+        }
 		lvRect info;
-		getPageHeaderRectangle(page.index, info);
-		drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
-				- 1 + basePage);
+
+        if (!is2ColumnMode()) {
+    		getPageHeaderRectangle(page.index, info);
+            drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
+				    - 1 + basePage);
+        } else {
+            if ( (page.index & 1) == 0) { // draw only left header
+        		getPageHeaderRectangle(page.index, info, true);
+                drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
+				        - 1 + basePage);
+            }
+        }
 		//clip.top = info.bottom;
 	}
 	drawbuf->SetClipRect(&clip);
@@ -2088,7 +2100,8 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 
 /// returns page count
 int LVDocView::getPageCount() {
-	return m_pages.length() / (isPortraitMode() && getVisiblePageCount()==2 ? 2 : 1); //xxxx
+	return (m_pages.length()+getPageNumberFactor()/2) / getPageNumberFactor();
+//    return m_pages.length();
 }
 
 //============================================================================
@@ -2187,11 +2200,31 @@ int LVDocView::SetPos(int pos, bool savePos, bool allowScrollAfterEnd) {
 	//Draw();
 }
 
+/// get portrait mode
+bool LVDocView::isPortraitMode() {
+    return m_dx < m_dy;
+}
+
+/// get two column mode
+bool LVDocView::is2ColumnMode() {
+    return isPortraitMode() && getVisiblePageCount()==2;
+}
+
+
+int LVDocView::getPageNumberFactor() {
+    return !isPortraitMode() ? 1 : getVisiblePageCount();
+}
+
+/// get pages shown together
+int LVDocView::getPagesPerView() {
+    return isPortraitMode() ? 1 : getVisiblePageCount();
+}
+
 int LVDocView::getCurPage() {
 	LVLock lock(getMutex());
 	checkPos();
 	if (isPageMode() && _page >= 0)
-		return _page;
+		return (_page) / getPageNumberFactor();
 	return m_pages.FindNearestPage(_pos, 0);
 }
 
@@ -2212,6 +2245,7 @@ bool LVDocView::goToPage(int page, bool updatePosBookmark, bool regulateTwoPages
 		}
 	} else {
 		int pc = getVisiblePageCount();
+        page *= getPageNumberFactor();
 		if (page >= m_pages.length()) {
 			page = m_pages.length() - 1;
 			res = false;
@@ -5117,7 +5151,7 @@ int LVDocView::getBookmarkPage(ldomXPointer bm) {
 		lvPoint pt = bm.toPoint();
 		if (pt.y < 0)
 			return 0;
-		return m_pages.FindNearestPage(pt.y, 0);
+		return m_pages.FindNearestPage(pt.y, 0)/getPageNumberFactor();
 	}
 }
 
