@@ -19168,7 +19168,7 @@ bool LVPageMapItem::deserialize( ldomDocument * doc, SerialBuf & buf )
 /// serialize to byte array (pointer will be incremented by number of bytes written)
 bool LVPageMap::serialize( SerialBuf & buf )
 {
-    buf << (lUInt32)_page_info_valid << (lUInt32)_children.length() << _source;
+    buf << (lUInt32)_valid_for_visible_page_numbers << (lUInt32)_children.length() << _source;
     if ( buf.error() )
         return false;
     for ( int i=0; i<_children.length(); i++ ) {
@@ -19185,11 +19185,11 @@ bool LVPageMap::deserialize( ldomDocument * doc, SerialBuf & buf )
     if ( buf.error() )
         return false;
     lUInt32 childCount = 0;
-    lUInt32 pageInfoValid = 0;
-    buf >> pageInfoValid >> childCount >> _source;
+    lUInt32 validForVisiblePageNumbers = 0;
+    buf >> validForVisiblePageNumbers >> childCount >> _source;
     if ( buf.error() )
         return false;
-    _page_info_valid = (bool)pageInfoValid;
+    _valid_for_visible_page_numbers = (int)validForVisiblePageNumbers;
     for ( int i=0; i<childCount; i++ ) {
         LVPageMapItem * item = new LVPageMapItem(doc);
         if ( !item->deserialize( doc, buf ) ) {

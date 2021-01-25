@@ -800,8 +800,10 @@ LVTocItem * LVDocView::getToc() {
         // Avoid calling updatePageNumbers() in that case (as it is expensive
         // and would delay book opening when loaded from cache - it will be
         // called when it is really needed: after next full rendering)
-        if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers())
+        if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers(getVisiblePageNumberCount())) {
             updatePageNumbers(m_doc->getToc());
+            m_doc->setCacheFileStale(true); // have cache saved with the updated TOC
+        }
 	return m_doc->getToc();
 }
 
@@ -901,7 +903,9 @@ void LVDocView::updatePageNumbers(LVTocItem * item) {
                 // Don't update _page of root toc item, as it carries the alternative TOC flag
                 if (item->_level > 0)
                     item->_page = -1;
-		item->_percent = -1;
+		// And have its _percent carries the number of visible page numbers
+		// with which toc item pages have been computed
+		item->_percent = - getVisiblePageNumberCount(); // (as a negative number to make sure it's not used as %)
 	}
 	for (int i = 0; i < item->getChildCount(); i++) {
 		updatePageNumbers(item->getChild(i));
@@ -911,8 +915,9 @@ void LVDocView::updatePageNumbers(LVTocItem * item) {
 LVPageMap * LVDocView::getPageMap() {
     if (!m_doc)
         return NULL;
-    if ( !m_doc->getPageMap()->hasValidPageInfo() ) {
+    if ( !m_doc->getPageMap()->hasValidPageInfo( getVisiblePageNumberCount() ) ) {
         updatePageMapInfo(m_doc->getPageMap());
+        m_doc->setCacheFileStale(true); // have cache saved with the updated pagemap
     }
     return m_doc->getPageMap();
 }
@@ -929,8 +934,10 @@ void LVDocView::updatePageMapInfo(LVPageMap * pagemap) {
             int page = -1;
             if (doc_y >= 0) {
                 page = m_pages.FindNearestPage(doc_y, 0);
-                if (page < 0 && page >= getPageCount())
+                if (page < 0 || page >= getPageCount(true))
                     page = -1;
+                else
+                    page = getExternalPageNumber(page);
             }
             item->_page = page;
             if ( item->_page < prev_page )
@@ -947,7 +954,7 @@ void LVDocView::updatePageMapInfo(LVPageMap * pagemap) {
             item->_doc_y = prev_doc_y;
         }
     }
-    pagemap->_page_info_valid = true;
+    pagemap->setPageValidForVisiblePageNumbers( getVisiblePageNumberCount() );
 }
 
 
