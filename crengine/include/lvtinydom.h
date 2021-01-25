@@ -2243,8 +2243,10 @@ public:
     bool hasAlternativeTocFlag() { return _level==0 && _page==1; }
 
     /// When page numbers have been calculated, LVDocView::updatePageNumbers()
-    /// sets the root toc item _percent to -1. So let's use it to know that fact.
-    bool hasValidPageNumbers() { return _level==0 && _percent == -1; }
+    /// sets the root toc item _percent to -visible_page_numbers.
+    bool hasValidPageNumbers(int current_visible_page_numbers) {
+        return _level==0 && _percent == -current_visible_page_numbers;
+    }
     void invalidatePageNumbers() { if (_level==0) _percent = 0; }
 };
 
@@ -2292,7 +2294,7 @@ class LVPageMap
     friend class LVDocView;
 private:
     ldomDocument *  _doc;
-    bool            _page_info_valid;
+    int             _valid_for_visible_page_numbers;
     lString32       _source;
     LVPtrVector<LVPageMapItem> _children;
     void addPage( LVPageMapItem * item ) {
@@ -2317,14 +2319,19 @@ public:
         return item;
     }
     void clear() { _children.clear(); }
-    bool hasValidPageInfo() { return _page_info_valid; }
-    void invalidatePageInfo() { _page_info_valid = false; }
+    bool hasValidPageInfo(int current_visible_page_numbers) {
+        return _valid_for_visible_page_numbers == current_visible_page_numbers;
+    }
+    void setPageValidForVisiblePageNumbers(int visible_page_numbers) {
+        _valid_for_visible_page_numbers = visible_page_numbers;
+    }
+    void invalidatePageInfo() { _valid_for_visible_page_numbers = 0; }
     // Page source (info about the book paper version the page labels reference)
     void setSource( lString32 source ) { _source = source; }
     lString32 getSource() const { return _source; }
     // root node constructor
     LVPageMap( ldomDocument * doc )
-        : _doc(doc), _page_info_valid(false) { }
+        : _doc(doc), _valid_for_visible_page_numbers(0) { }
     ~LVPageMap() { clear(); }
 };
 
