@@ -1344,7 +1344,12 @@ lString32 LVDocView::getTimeString() {
 	time_t t = (time_t) time(0);
 	tm * bt = localtime(&t);
 	char str[12];
-	sprintf(str, "%02d:%02d", bt->tm_hour, bt->tm_min);
+	if ( m_props->getBoolDef(PROP_SHOW_TIME_12HOURS, false) ) {
+		strftime(str, sizeof(str), "%l:%M", bt);
+	}
+	else {
+		strftime(str, sizeof(str), "%H:%M", bt);
+	}
 	return Utf8ToUnicode(lString8(str));
 }
 
@@ -6284,6 +6289,7 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	props->setIntDef(PROP_STATUS_LINE, 0);
 	props->setIntDef(PROP_SHOW_TITLE, 1);
 	props->setIntDef(PROP_SHOW_TIME, 1);
+	props->setIntDef(PROP_SHOW_TIME_12HOURS, 0);
 	props->setIntDef(PROP_SHOW_BATTERY, 1);
     props->setIntDef(PROP_SHOW_BATTERY_PERCENT, 0);
     props->setIntDef(PROP_SHOW_PAGE_COUNT, 1);
