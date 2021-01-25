@@ -317,6 +317,7 @@ private:
     lvRect m_pageRects[2];
     int    m_pagesVisible;
     bool   m_pagesVisible_onlyIfSane;
+    bool   m_twoVisiblePagesAsOnePageNumber;
     int m_pageHeaderInfo;
     bool m_showCover;
     LVRefVec<LVImageSource> m_headerIcons;
@@ -666,6 +667,34 @@ public:
     /// set window visible page count (1 or 2)
     void setVisiblePageCount( int n , bool onlyIfSane=true );
 
+    /// get/set if when 2 pages visible (2 internal pages), the view should
+    /// be seen as a single page number (1 external page) in the public API
+    /// giving out or accepting page numbers
+    /// This is mostly useful to get "2 crengine internal pages" to be seen
+    /// by frontend code and users as "2 columns on 1 page".
+    /// The public functions affected by this setting are the 4 in here
+    /// that have a "bool internal=false" optional argument.
+    bool getTwoVisiblePagesAsOnePageNumber() { return m_twoVisiblePagesAsOnePageNumber; }
+    void setTwoVisiblePagesAsOnePageNumber( bool two_as_one ) { m_twoVisiblePagesAsOnePageNumber = two_as_one; }
+
+    /// return how many (external) page numbers are visible on screen
+    int getVisiblePageNumberCount() {
+        return m_twoVisiblePagesAsOnePageNumber ? 1 : getVisiblePageCount();
+    }
+
+    /// convert internal page number to external page number
+    int getExternalPageNumber( int internal_page_number ) {
+        if ( m_twoVisiblePagesAsOnePageNumber && getVisiblePageCount() == 2 )
+            return internal_page_number / 2;
+        return internal_page_number;
+    }
+    /// convert external page number to external page number
+    int getInternalPageNumber( int external_page_number, bool second_page=false ) {
+        if ( m_twoVisiblePagesAsOnePageNumber && getVisiblePageCount() == 2 )
+            return external_page_number * 2 + (second_page ? 1 : 0);
+        return external_page_number;
+    }
+
     /// get page header info mask
     int getPageHeaderInfo() { return m_pageHeaderInfo; }
     /// set page header info mask
@@ -801,7 +830,7 @@ public:
     /// moves position to bookmark
     void goToBookmark( ldomXPointer bm );
     /// get page number by bookmark
-    int getBookmarkPage(ldomXPointer bm);
+    int getBookmarkPage(ldomXPointer bm, bool internal=false);
     /// get bookmark position text
     bool getBookmarkPosText( ldomXPointer bm, lString32 & titleText, lString32 & posText );
 
@@ -871,11 +900,11 @@ public:
     int getPageHeight(int pageIndex);
 
     /// get number of current page
-    int getCurPage();
+    int getCurPage(bool internal=false);
     /// move to specified page
-    bool goToPage(int page, bool updatePosBookmark = true, bool regulateTwoPages = true);
+    bool goToPage(int page, bool internal=false, bool updatePosBookmark=true, bool regulateTwoPages=true);
     /// returns page count
-    int getPageCount();
+    int getPageCount(bool internal=false);
     /// get the flow the specified page belongs to
     int getPageFlow(int pageIndex);
     /// returns whether there are any flows besides the linear flow 0

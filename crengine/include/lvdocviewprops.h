@@ -50,6 +50,7 @@
 #define PROP_SHOW_BATTERY_PERCENT    "window.status.battery.percent"
 //#define PROP_FONT_KERNING_ENABLED    "font.kerning.enabled"
 #define PROP_LANDSCAPE_PAGES         "window.landscape.pages"
+#define PROP_PAGES_TWO_VISIBLE_AS_ONE_PAGE_NUMBER         "window.pages.two.visible.as.one.page.number"
 #define PROP_AUTOSAVE_BOOKMARKS      "crengine.autosave.bookmarks"
 
 // Obsolete hyph settings:
