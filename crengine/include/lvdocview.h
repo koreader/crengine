@@ -402,7 +402,7 @@ protected:
     bool getCursorDocRect( ldomXPointer ptr, lvRect & rc );
 public:
     /// get outer (before margins are applied) page rectangle
-    virtual void getPageRectangle( int pageIndex, lvRect & pageRect );
+    virtual void getPageRectangle( int pageIndex, lvRect & pageRect, bool mergeTwoPages=false );
     /// get screen rectangle for specified cursor position, returns false if not visible
     bool getCursorRect( ldomXPointer ptr, lvRect & rc, bool scrollToCursor = false );
     /// set status bar and clock mode
@@ -604,7 +604,7 @@ public:
     /// returns number of images on current page
     int getCurrentPageImageCount();
     /// calculate page header rectangle
-    virtual void getPageHeaderRectangle( int pageIndex, lvRect & headerRc );
+    virtual void getPageHeaderRectangle( int pageIndex, lvRect & headerRc, bool mergeTwoHeaders=false );
     /// calculate page header height
     virtual int getPageHeaderHeight( );
     /// set list of icons to display at left side of header

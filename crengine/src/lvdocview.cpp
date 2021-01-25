@@ -1324,9 +1324,9 @@ int LVDocView::getPageHeaderHeight() {
 }
 
 /// calculate page header rectangle
-void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc) {
+void LVDocView::getPageHeaderRectangle(int pageIndex, lvRect & headerRc, bool mergeTwoHeaders) {
 	lvRect pageRc;
-	getPageRectangle(pageIndex, pageRc);
+	getPageRectangle(pageIndex, pageRc, mergeTwoHeaders);
 	headerRc = pageRc;
 	if (pageIndex == 0 && m_showCover) {
 		headerRc.bottom = 0;
@@ -1621,11 +1621,22 @@ int LVDocView::getPosPercent() {
 	}
 }
 
-void LVDocView::getPageRectangle(int pageIndex, lvRect & pageRect) {
-	if ((pageIndex & 1) == 0 || (getVisiblePageCount() < 2))
-		pageRect = m_pageRects[0];
-	else
-		pageRect = m_pageRects[1];
+void LVDocView::getPageRectangle(int pageIndex, lvRect & pageRect, bool mergeTwoPages) {
+    if ( getVisiblePageCount() < 2 ) {
+        pageRect = m_pageRects[0];
+    }
+    else {
+        if ( mergeTwoPages ) {
+            pageRect = m_pageRects[0];
+            pageRect.right = m_pageRects[1].right;
+        }
+        else if ( (pageIndex & 1) == 0 ) { // Left page
+            pageRect = m_pageRects[0];
+        }
+        else {
+            pageRect = m_pageRects[1]; // Right page
+        }
+    }
 }
 
 void LVDocView::getNavigationBarRectangle(lvRect & navRect) {
@@ -1710,14 +1721,15 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	drawbuf->SetTextColor(cl1);
 	//lUInt32 pal[4];
 	int percent = getPosPercent();
-	bool leftPage = (getVisiblePageCount() == 2 && !(pageIndex & 1));
+	bool leftPage = (!m_twoVisiblePagesAsOnePageNumber && getVisiblePageCount() == 2 && !(pageIndex & 1));
 	if (leftPage || !drawGauge)
 		percent = 10000;
         int percent_pos = /*info.left + */percent * info.width() / 10000;
 	//    int gh = 3; //drawGauge ? 3 : 1;
 	LVArray<int> & sbounds = getSectionBounds();
-	lvRect navBar;
-	getNavigationBarRectangle(pageIndex, navBar);
+	// NavBar no longer used:
+	// lvRect navBar;
+	// getNavigationBarRectangle(pageIndex, navBar);
 	int gpos = info.bottom;
 //	if (drawbuf->GetBitsPerPixel() <= 2) {
 //		// gray
@@ -1842,10 +1854,12 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		lString32 pageinfo;
 		if (pageCount > 0) {
 			if (phi & PGHDR_PAGE_NUMBER)
-                pageinfo += fmt::decimal(pageIndex + 1);
+                pageinfo += fmt::decimal( getExternalPageNumber(pageIndex) + 1 );
             if (phi & PGHDR_PAGE_COUNT) {
                 if ( !pageinfo.empty() )
                     pageinfo += " / ";
+                if ( m_twoVisiblePagesAsOnePageNumber && getVisiblePageCount() == 2)
+                    pageCount = (pageCount + 1) / 2;
                 pageinfo += fmt::decimal(pageCount);
             }
             if (phi & PGHDR_PERCENT) {
@@ -1953,28 +1967,55 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	clip.right = pageRect->left + pageRect->width();
 	if (page.flags & RN_PAGE_TYPE_COVER)
 		clip.top = pageRect->top + m_pageMargins.top;
-	if ( ( (m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && (page.flags & RN_PAGE_TYPE_NORMAL) )
-				&& getViewMode() == DVM_PAGES ) {
+	if ( (m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && getViewMode() == DVM_PAGES ) {
+		// Decide what to draw in header
+		// (In 2-pages mode, we are called for each of the 2 pages)
+		bool drawHeader = true;
+		bool hasTwoPages = getVisiblePageCount() == 2;
+		bool useTwoHeaders = hasTwoPages && !m_twoVisiblePagesAsOnePageNumber;
+		bool mergeTwoHeaders = hasTwoPages && !useTwoHeaders;
+		bool isRightPage = page.index & 1;
+		bool isCoverPage = !(page.flags & RN_PAGE_TYPE_NORMAL); // FB2 cover page
+		// Handle a few edge cases
+		if ( isCoverPage ) {
+			// Never draw header on a FB2 cover page
+			drawHeader = false;
+		}
+		else if ( mergeTwoHeaders ) {
+			if ( isRightPage ) {
+				if ( page.index == 1 && !(m_pages[0]->flags & RN_PAGE_TYPE_NORMAL) ) {
+					// 2nd page, but left page is a cover without header
+					// Draw it as if unmerged
+					useTwoHeaders = true;
+					mergeTwoHeaders = false;
+				}
+				else {
+					// Right page when merged: skip drawing as left pages
+					// has drawn it full width
+					drawHeader = false;
+				}
+			}
+		}
 		int phi = m_pageHeaderInfo;
-		if (getVisiblePageCount() == 2) {
-			if (page.index & 1) {
-				// right
+		if ( useTwoHeaders ) {
+			if ( isRightPage ) { // Right page shows everything but author
 				phi &= ~PGHDR_AUTHOR;
-            } else {
-				// left
+			}
+			else { // Left page shows only author
 				phi &= ~PGHDR_TITLE;
-                phi &= ~PGHDR_PERCENT;
-                phi &= ~PGHDR_PAGE_NUMBER;
+				phi &= ~PGHDR_PERCENT;
+				phi &= ~PGHDR_PAGE_NUMBER;
 				phi &= ~PGHDR_PAGE_COUNT;
 				phi &= ~PGHDR_BATTERY;
 				phi &= ~PGHDR_CLOCK;
 			}
 		}
-		lvRect info;
-		getPageHeaderRectangle(page.index, info);
-		drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount
-				- 1 + basePage);
-		//clip.top = info.bottom;
+		if ( drawHeader ) {
+			lvRect info;
+			getPageHeaderRectangle(page.index, info, mergeTwoHeaders);
+			drawPageHeader(drawbuf, info, page.index - 1 + basePage, phi, pageCount - 1 + basePage);
+			//clip.top = info.bottom;
+		}
 	}
 	drawbuf->SetClipRect(&clip);
 	if (m_doc) {
