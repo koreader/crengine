@@ -599,8 +599,9 @@ void LVDocView::checkPos() {
 		}
 	} else {
 		if (isPageMode()) {
+			// (We can work with external page numbers)
 			int p = getBookmarkPage(_posBookmark);
-            goToPage(p, false);
+			goToPage(p, false, false);
 		} else {
 			//CRLog::trace("checkPos() _posBookmark node=%08X offset=%d", (unsigned)_posBookmark.getNode(), (int)_posBookmark.getOffset());
 			lvPoint pt = _posBookmark.toPoint();
@@ -1571,7 +1572,7 @@ int LVDocView::getPosEndPagePercent() {
     } else {
         int pc = m_pages.length();
         if (pc > 0) {
-            int p = getCurPage() + 1;// + 1;
+            int p = getCurPage(true) + 1;// + 1;
             if (getVisiblePageCount() > 1)
                 p++;
             if (p > pc - 1)
@@ -1603,7 +1604,7 @@ int LVDocView::getPosPercent() {
         int fh = m_pages.length();
         if ( (getVisiblePageCount()==2 && (fh&1)) )
             fh++;
-        int p = getCurPage();// + 1;
+        int p = getCurPage(true);// + 1;
 //        if ( getVisiblePageCount()>1 )
 //            p++;
 		if (fh > 0)
@@ -2073,8 +2074,13 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 }
 
 /// returns page count
-int LVDocView::getPageCount() {
-	return m_pages.length();
+int LVDocView::getPageCount(bool internal) {
+    if (internal || !m_twoVisiblePagesAsOnePageNumber || getVisiblePageCount() != 2 ) {
+        return m_pages.length();
+    }
+    else {
+        return (m_pages.length() + 1) / 2;
+    }
 }
 
 //============================================================================
@@ -2173,20 +2179,23 @@ int LVDocView::SetPos(int pos, bool savePos, bool allowScrollAfterEnd) {
 	//Draw();
 }
 
-int LVDocView::getCurPage() {
+int LVDocView::getCurPage(bool internal) {
 	LVLock lock(getMutex());
 	checkPos();
-	if (isPageMode() && _page >= 0)
-		return _page;
-	return m_pages.FindNearestPage(_pos, 0);
+	int page = _page;
+	if (!isPageMode() || _page < 0)
+		page = m_pages.FindNearestPage(_pos, 0);
+	return internal ? page : getExternalPageNumber( page );
 }
 
-bool LVDocView::goToPage(int page, bool updatePosBookmark, bool regulateTwoPages) {
+bool LVDocView::goToPage(int page, bool internal, bool updatePosBookmark, bool regulateTwoPages) {
 	LVLock lock(getMutex());
     CHECK_RENDER("goToPage()")
 	if (!m_pages.length())
 		return false;
 	bool res = true;
+	if (!internal)
+		page = getInternalPageNumber(page);
 	if (isScrollMode()) {
 		if (page >= 0 && page < m_pages.length()) {
 			_pos = m_pages[page]->start;
@@ -2419,7 +2428,7 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 		return true;
 	} else {
 		// PAGES mode
-		int page = getCurPage();
+		int page = getCurPage(true);
 		lvRect * rc = NULL;
 		lvRect page1(m_pageRects[0]);
 		int headerHeight = getPageHeaderHeight();
@@ -2467,7 +2476,7 @@ bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom, bool fitToPage
 		return true;
 	} else {
             // PAGES mode
-            int page = getCurPage();
+            int page = getCurPage(true);
             if (page >= 0 && page < m_pages.length() && pt.y >= m_pages[page]->start) {
                 int index = -1;
                 // The y at start+height is normally part of the next
@@ -2640,7 +2649,7 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
     else {
         // PAGES mode
         if (pageIndex < 0 || pageIndex >= m_pages.length())
-            pageIndex = getCurPage();
+            pageIndex = getCurPage(true);
         if (pageIndex >= 0 && pageIndex < m_pages.length()) {
             LVRendPageInfo * page = m_pages[pageIndex];
             if (page->flags & RN_PAGE_TYPE_COVER)
@@ -3375,7 +3384,7 @@ void LVDocView::updateBookMarksRanges()
         m_bmkRanges.clear();
         return;
     }
-    int page_index = getCurPage();
+    int page_index = getCurPage(true);
     if (page_index >= 0 && page_index < m_bookmarksPercents.length()) {
         LVPtrVector < CRBookmark > &bookmarks = rec->getBookmarks();
         LVRef < ldomXRange > page = getPageDocumentRange();
@@ -3445,6 +3454,8 @@ void LVDocView::toggleViewMode() {
 }
 
 int LVDocView::getVisiblePageCount() {
+    if ( m_pagesVisible == 1 ) // No check needed when set to 1
+        return 1;
     if ( m_view_mode == DVM_SCROLL ) // Can't do 2-pages in scroll mode
         return 1;
     if ( m_pagesVisible_onlyIfSane ) {
@@ -4910,9 +4921,9 @@ ldomXPointer LVDocView::getCurrentPageMiddleParagraph() {
 		ptr = m_doc->createXPointer(lvPoint(0, (starty + endy) / 2));
 	} else {
 		// PAGES mode
-		int pageIndex = getCurPage();
+		int pageIndex = getCurPage(true);
 		if (pageIndex < 0 || pageIndex >= m_pages.length())
-			pageIndex = getCurPage();
+			pageIndex = getCurPage(true);
 		if (pageIndex >= 0 && pageIndex < m_pages.length()) {
 			LVRendPageInfo *page = m_pages[pageIndex];
 			if (page->flags & RN_PAGE_TYPE_NORMAL)
@@ -5094,7 +5105,7 @@ void LVDocView::goToBookmark(ldomXPointer bm) {
 }
 
 /// get page number by bookmark
-int LVDocView::getBookmarkPage(ldomXPointer bm) {
+int LVDocView::getBookmarkPage(ldomXPointer bm, bool internal) {
 	LVLock lock(getMutex());
     CHECK_RENDER("getBookmarkPage()")
 	if (bm.isNull()) {
@@ -5103,7 +5114,8 @@ int LVDocView::getBookmarkPage(ldomXPointer bm) {
 		lvPoint pt = bm.toPoint();
 		if (pt.y < 0)
 			return 0;
-		return m_pages.FindNearestPage(pt.y, 0);
+		int page = m_pages.FindNearestPage(pt.y, 0);
+		return internal ? page : getExternalPageNumber( page );
 	}
 }
 
@@ -5130,7 +5142,7 @@ void LVDocView::updateScroll() {
 		sprintf(str, "%d%%", (int) (fh > 0 ? (100 * npos / fh) : 0));
 		m_scrollinfo.posText = lString32(str);
 	} else {
-		int page = getCurPage();
+		int page = getCurPage(true);
 		int vpc = getVisiblePageCount();
 		m_scrollinfo.pos = page / vpc;
 		m_scrollinfo.maxpos = (m_pages.length() + vpc - 1) / vpc - 1;
@@ -5154,15 +5166,15 @@ bool LVDocView::goToScrollPos(int pos) {
 		return true;
 	} else {
 		int vpc = this->getVisiblePageCount();
-		int curPage = getCurPage();
+		int curPage = getCurPage(true);
 		pos = pos * vpc;
-		if (pos >= getPageCount())
-			pos = getPageCount() - 1;
+		if (pos >= getPageCount(true))
+			pos = getPageCount(true) - 1;
 		if (pos < 0)
 			pos = 0;
 		if (curPage == pos)
 			return false;
-		goToPage(pos);
+		goToPage(pos, true);
 		return true;
 	}
 }
@@ -5244,7 +5256,7 @@ void LVDocView::getCurrentPageLinks(ldomXRangeList & list) {
 		page->forEach(&callback);
 		if (m_view_mode == DVM_PAGES && getVisiblePageCount() > 1) {
 			// process second page
-			int pageNumber = getCurPage();
+			int pageNumber = getCurPage(true);
 			page = getPageDocumentRange(pageNumber + 1);
 			if (!page.isNull())
 				page->forEach(&callback);
@@ -5259,7 +5271,7 @@ int LVDocView::getNextPageOffset() {
 	if (isScrollMode()) {
 		return GetPos() + m_dy;
 	} else {
-		int p = getCurPage() + getVisiblePageCount();
+		int p = getCurPage(true) + getVisiblePageCount();
 		if (p < m_pages.length())
 			return m_pages[p]->start;
 		if (!p || m_pages.length() == 0)
@@ -5275,7 +5287,7 @@ int LVDocView::getPrevPageOffset() {
 	if (m_view_mode == DVM_SCROLL) {
 		return GetPos() - m_dy;
 	} else {
-		int p = getCurPage();
+		int p = getCurPage(true);
 		p -= getVisiblePageCount();
 		if (p < 0)
 			p = 0;
@@ -5308,7 +5320,7 @@ bool LVDocView::moveByPage(int delta) {
 		return GetPos() != p;
 	} else {
 		int cp = getCurPage();
-		int p = cp + delta * getVisiblePageCount();
+		int p = cp + delta * getVisiblePageNumberCount();
 		goToPage(p);
 		return getCurPage() != cp;
 	}
@@ -5323,7 +5335,7 @@ bool LVDocView::moveByChapter(int delta) {
 	int cp = getCurPage();
 	int prevPage = -1;
 	int nextPage = -1;
-    int vcp = getVisiblePageCount();
+    int vcp = getVisiblePageNumberCount();
     if (vcp < 1 || vcp > 2)
         vcp = 1;
 	for (int i = 0; i < items.length(); i++) {
@@ -5623,7 +5635,7 @@ bool LVDocView::goToPageShortcutBookmark(int number) {
 	ldomXPointer p = m_doc->createXPointer(pos);
 	if (p.isNull())
 		return false;
-	if (getCurPage() != getBookmarkPage(p))
+	if (getCurPage(true) != getBookmarkPage(p, true))
 		savePosToNavigationHistory();
 	goToBookmark(p);
         updateBookMarksRanges();
@@ -5743,7 +5755,7 @@ int LVDocView::doCommand(LVDocCmd cmd, int param) {
 			return SetPos(GetPos() - param * (m_font_size * 3 / 2));
 		} else {
 			int p = getCurPage();
-			return goToPage(p - getVisiblePageCount());
+			return goToPage(p - getVisiblePageNumberCount());
 			//goToPage( m_pages.FindNearestPage(m_pos, -1));
 		}
 	}
@@ -5805,13 +5817,13 @@ int LVDocView::doCommand(LVDocCmd cmd, int param) {
 			return SetPos(GetPos() + param * (m_font_size * 3 / 2));
 		} else {
 			int p = getCurPage();
-			return goToPage(p + getVisiblePageCount());
+			return goToPage(p + getVisiblePageNumberCount());
 			//goToPage( m_pages.FindNearestPage(m_pos, +1));
 		}
 	}
 		break;
 	case DCMD_END: {
-		if (getCurPage() < getPageCount() - getVisiblePageCount()) {
+		if (getCurPage() < getPageCount() - getVisiblePageNumberCount()) {
 			savePosToNavigationHistory();
 			return SetPos(GetFullHeight());
 		}
@@ -5821,7 +5833,7 @@ int LVDocView::doCommand(LVDocCmd cmd, int param) {
 		if (m_view_mode == DVM_SCROLL) {
 			return SetPos(param, true, true);
 		} else {
-			return goToPage(m_pages.FindNearestPage(param, 0));
+			return goToPage(m_pages.FindNearestPage(param, 0), true);
 		}
 	}
 		break;
@@ -6181,6 +6193,7 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	props->limitValueList(PROP_FONT_KERNING, int_option_kerning, 4);
     static int int_options_1_2[] = { 2, 1 };
 	props->limitValueList(PROP_LANDSCAPE_PAGES, int_options_1_2, 2);
+	props->limitValueList(PROP_PAGES_TWO_VISIBLE_AS_ONE_PAGE_NUMBER, bool_options_def_false, 2);
 	props->limitValueList(PROP_PAGE_VIEW_MODE, bool_options_def_true, 2);
 	props->limitValueList(PROP_FOOTNOTES, bool_options_def_true, 2);
 	props->limitValueList(PROP_SHOW_TIME, bool_options_def_false, 2);
@@ -6364,6 +6377,9 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_LANDSCAPE_PAGES) {
             int pages = props->getIntDef(PROP_LANDSCAPE_PAGES, 2);
             setVisiblePageCount(pages);
+        } else if (name == PROP_PAGES_TWO_VISIBLE_AS_ONE_PAGE_NUMBER) {
+            bool two_as_one = props->getBoolDef(PROP_PAGES_TWO_VISIBLE_AS_ONE_PAGE_NUMBER, false);
+            setTwoVisiblePagesAsOnePageNumber(two_as_one);
         // } else if (name == PROP_FONT_KERNING_ENABLED) {
         //     bool kerning = props->getBoolDef(PROP_FONT_KERNING_ENABLED, false);
         //     fontMan->setKerning(kerning);
@@ -6689,7 +6705,7 @@ LVPageWordSelector::LVPageWordSelector( LVDocView * docview )
 		_words.addRangeWords(*range, true);
                 if (_docview->getVisiblePageCount() > 1) { // _docview->isPageMode() &&
                         // process second page
-                        int pageNumber = _docview->getCurPage();
+                        int pageNumber = _docview->getCurPage(true);
                         range = _docview->getPageDocumentRange(pageNumber + 1);
                         if (!range.isNull())
                             _words.addRangeWords(*range, true);
