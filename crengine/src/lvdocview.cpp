@@ -2651,8 +2651,8 @@ void LVDocView::updateLayout() {
                 // We will ensure a max middle margin the size of a single
                 // left or right margin, whichever is the greatest.
 		// We still want to ensure a minimal middle margin in case
-		// the requested pageMargins are really small. Say 1.2em.
-		int min_middle_margin = 1.2 * m_font_size;
+		// the requested pageMargins are really small. Say 0.8em.
+		int min_middle_margin = m_font_size * 80 / 100;
 		int max_middle_margin = m_pageMargins.left > m_pageMargins.right ? m_pageMargins.left : m_pageMargins.right;
 		int additional_middle_margin = 0;
 		int middle_margin = m_pageMargins.right + m_pageMargins.left;
