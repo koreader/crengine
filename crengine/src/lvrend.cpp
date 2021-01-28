@@ -6745,7 +6745,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         if ( style_height.type != css_val_unspecified && style_height.type != css_val_percent ) {
             if ( !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                     style_height.type != css_val_screen_px && style_height.type != css_val_em &&
-                    style_height.type != css_val_ex && style_height.type != css_val_rem ) {
+                    style_height.type != css_val_ex && style_height.type != css_val_rem &&
+                    style_height.type != css_val_vw && style_height.type != css_val_vh &&
+                    style_height.type != css_val_vmin && style_height.type != css_val_vmax ) {
                 apply_style_height = false;
             }
             if ( is_hr || is_empty_line_elem || apply_style_height ) {
@@ -6767,7 +6769,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                                 && BLOCK_RENDERING(flags, ENSURE_STYLE_HEIGHT) ) {
             if ( !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                     style_min_height.type != css_val_screen_px && style_min_height.type != css_val_em &&
-                    style_min_height.type != css_val_ex && style_min_height.type != css_val_rem ) {
+                    style_min_height.type != css_val_ex && style_min_height.type != css_val_rem &&
+                    style_min_height.type != css_val_vw && style_min_height.type != css_val_vh &&
+                    style_min_height.type != css_val_vmin && style_min_height.type != css_val_vmax ) {
                 // Ignore it
             }
             else {
@@ -6957,7 +6961,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( apply_style_width && !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                         style_width.type != css_val_screen_px && // in case it was converted to screen_px beforehand
                         style_width.type != css_val_percent && style_width.type != css_val_em &&
-                        style_width.type != css_val_ex && style_width.type != css_val_rem ) {
+                        style_width.type != css_val_ex && style_width.type != css_val_rem &&
+                        style_width.type != css_val_vw && style_width.type != css_val_vh &&
+                        style_width.type != css_val_vmin && style_width.type != css_val_vmax ) {
                     apply_style_width = false;
                 }
                 if ( is_hr ) {
@@ -7011,7 +7017,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                         style_max_width.type != css_val_screen_px && // in case it was converted to screen_px beforehand
                         style_max_width.type != css_val_percent && style_max_width.type != css_val_em &&
-                        style_max_width.type != css_val_ex && style_max_width.type != css_val_rem ) {
+                        style_max_width.type != css_val_ex && style_max_width.type != css_val_rem &&
+                        style_max_width.type != css_val_vw && style_max_width.type != css_val_vh &&
+                        style_max_width.type != css_val_vmin && style_max_width.type != css_val_vmax ) {
                     // Ignore it
                 }
                 else {
@@ -7029,7 +7037,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( !BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                         style_min_width.type != css_val_screen_px && // in case it was converted to screen_px beforehand
                         style_min_width.type != css_val_percent && style_min_width.type != css_val_em &&
-                        style_min_width.type != css_val_ex && style_min_width.type != css_val_rem ) {
+                        style_min_width.type != css_val_ex && style_min_width.type != css_val_rem &&
+                        style_min_width.type != css_val_vw && style_min_width.type != css_val_vh &&
+                        style_min_width.type != css_val_vmin && style_min_width.type != css_val_vmax ) {
                     // Ignore it
                 }
                 else {
@@ -10184,7 +10194,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     use_style_width = true;
                     if ( !BLOCK_RENDERING(rendFlags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                             style_width.type != css_val_screen_px && // when % converted to screen_px
-                            style_width.type != css_val_em && style_width.type != css_val_ex && style_width.type != css_val_rem ) {
+                            style_width.type != css_val_em &&
+                            style_width.type != css_val_ex && style_width.type != css_val_rem &&
+                            style_width.type != css_val_vw && style_width.type != css_val_vh &&
+                            style_width.type != css_val_vmin && style_width.type != css_val_vmax ) {
                         use_style_width = false;
                     }
                     if ( node->getNodeId() == el_hr ) {
@@ -10535,7 +10548,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             if ( style_max_width.type != css_val_unspecified && style_max_width.type != css_val_percent ) {
                 if ( !BLOCK_RENDERING(rendFlags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                         style_max_width.type != css_val_screen_px && // when % converted to screen_px
-                        style_max_width.type != css_val_em && style_max_width.type != css_val_ex && style_max_width.type != css_val_rem ) {
+                        style_max_width.type != css_val_em &&
+                        style_max_width.type != css_val_ex && style_max_width.type != css_val_rem &&
+                        style_max_width.type != css_val_vw && style_max_width.type != css_val_vh &&
+                        style_max_width.type != css_val_vmin && style_max_width.type != css_val_vmax ) {
                     // Ignore it
                 }
                 else {
@@ -10554,7 +10570,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             if ( style_min_width.type != css_val_unspecified && style_min_width.type != css_val_percent ) {
                 if ( !BLOCK_RENDERING(rendFlags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) &&
                         style_min_width.type != css_val_screen_px && // when % converted to screen_px
-                        style_min_width.type != css_val_em && style_min_width.type != css_val_ex && style_min_width.type != css_val_rem ) {
+                        style_min_width.type != css_val_em &&
+                        style_min_width.type != css_val_ex && style_min_width.type != css_val_rem &&
+                        style_min_width.type != css_val_vw && style_min_width.type != css_val_vh &&
+                        style_min_width.type != css_val_vmin && style_min_width.type != css_val_vmax ) {
                     // Ignore it
                 }
                 else {
