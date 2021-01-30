@@ -2573,29 +2573,94 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
     // confirmed by looking how it's implemented in WeasyPrint, and actually
     // giving the same results as Firefox.
     if ( width >= 0 || height >= 0 ) {
-        // We have at least one of width or height specified
-        // Get width
-        if ( width >= 0 ) { // We have a width
+        // We have at least one of width or height specified.
+        // Compute the width and height.
+        if ( width >= 0 ) {
+            // We have a width
             w = width;
+            if ( height >= 0 ) {
+                // We have a height
+                h = height;
+            }
+            else {
+                // We have a width but no height: Get height to keep aspect ratio
+                h = width * native_height / native_width;
+            }
         }
-        else { // We have a height but no width: get width to keep aspect ratio
+        else {
+            // We have a height but no width: get width to keep aspect ratio
             w = height * native_width / native_height;
-        }
-        // Ensure widths constraints
-        if ( max_width >= 0 && w > max_width)
-            w = max_width;
-        if ( w < min_width )
-            w = min_width;
-        // Get height
-        if ( height >= 0 ) { // We have a height
+            // We have a height
             h = height;
         }
-        else { // We have computed a width: get height to keep aspect ratio
-            h = w * native_height / native_width;
+
+        // Process constraints, maintaining the aspect ratio if possible.
+        if ( max_width >=0 && w > max_width ) {
+            if ( max_height >= 0 && h > max_height) {
+                if ( max_width * h <= max_height * w ) {
+                    width = max_width;
+                    // The height might be constrained below after retrying.
+                }
+                else {
+                    height = max_height;
+                    // The width might be constrained below after retrying.
+                }
+            }
+            else {
+                width = max_width;
+            }
         }
-        // Ensure heights constraints
-        if ( max_height >= 0 && h > max_height)
+        else if ( max_height >= 0 && h > max_height) {
+            height = max_height;
+        }
+
+        if ( w < min_width ) {
+            if ( h < min_height ) {
+                if ( min_width * h <= min_height * w ) {
+                    height = min_height;
+                    // The width might be constrained below after retrying.
+                }
+                else {
+                    width = min_width;
+                    // The height might be constrained below after retrying.
+                }
+            }
+            else {
+                width = min_width;
+            }
+        }
+        else if ( h < min_height ) {
+            height = min_height;
+        }
+
+        // Recompute.
+        if ( width >= 0 ) {
+            // We have a width
+            w = width;
+            if ( height >= 0 ) {
+                // We have a height
+                h = height;
+            }
+            else {
+                // We have a width but no height: Get height to keep aspect ratio
+                h = w * native_height / native_width;
+            }
+        }
+        else {
+            // We have a height but no width: get width to keep aspect ratio
+            w = height * native_width / native_height;
+            // We have a height
+            h = height;
+        }
+
+        // Might be over constrained and need more constraints in which case
+        // the aspect ratio might not be preserved.
+        if ( max_width >=0 && w > max_width )
+            w = max_width;
+        if ( max_height >= 0 && h > max_height )
             h = max_height;
+        if ( w < min_width )
+            w = min_width;
         if ( h < min_height )
             h = min_height;
     }
@@ -2612,7 +2677,7 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
         // We follow them literally without thinking too much
         if ( max_width >= 0 && w > max_width ) {
             if ( max_height >= 0 && h > max_height ) {
-                if (max_width <= max_height * w / h ) { // rule 5
+                if (max_width * h <= max_height * w ) { // rule 5
                     int h2 = max_width * h / w;
                     h = h2 > min_height ? h2 : min_height;
                     w = max_width;
@@ -2646,7 +2711,7 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
         }
         else if ( w < min_width ) {
             if ( h < min_height ) {
-                if (min_width <= min_height * w / h ) { // rule 7
+                if (min_width * h <= min_height * w ) { // rule 7
                     w = min_height * w / h;
                     if ( max_width >= 0 && w > max_width) {
                         w = max_width;
