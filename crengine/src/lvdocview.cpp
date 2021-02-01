@@ -1920,7 +1920,8 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		}
 		int w = info.width() - 10;
 		if (authorsw + titlew + 10 > w) {
-			if ((pageIndex & 1))
+			// Not enough room for both: alternate them
+			if (getExternalPageNumber(pageIndex) & 1)
 				text = title;
 			else {
 				text = authors;
