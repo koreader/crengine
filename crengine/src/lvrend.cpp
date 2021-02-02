@@ -2511,7 +2511,8 @@ bool is_length_relative_unit(css_length_t val)
 
 #define DUMMY_IMAGE_SIZE 16
 bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, int container_width, int container_height ) {
-    if ( enode->getNodeId() != el_img )
+    // We expect the <img> HTML/EPUB element or the <image> FB2/SVG element
+    if ( enode->getNodeId() != el_img && enode->getNodeId() != el_image )
         return false;
     LVImageSourceRef img = enode->getObjectImageSource();
     if ( img.isNull() )
@@ -6840,6 +6841,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // we should compute our width from the child style, and possibly
         // from its rendered content width.
         ldomNode * child = enode->getChildNode(0);
+        lUInt16 childElementId = child->getNodeId();
         css_style_ref_t child_style = child->getStyle();
 
         // We may tweak child styles
@@ -6859,7 +6861,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             }
         }
         // Same for width, as getRenderedWidths() won't ensure width in %
-        if ( child->getNodeId() == el_img ) {
+        if ( childElementId == el_img || childElementId == el_image ) {
             // For an image itself floating, get its computed width and height
             // via getStyledImageSize() to properly ensure min/max-width/height
             // and aspect ratio, and store them back as screen_px, so
@@ -10056,6 +10058,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
     #endif
 
     if ( node->isElement() && !processNodeAsText ) {
+        lUInt16 nodeElementId = node->getNodeId();
         int m = node->getRendMethod();
         if (m == erm_invisible)
             return;
@@ -10082,7 +10085,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         // Get image size early
         bool is_img = false;
         int img_width = 0;
-        if ( node->getNodeId()==el_img ) {
+        if ( nodeElementId == el_img || nodeElementId == el_image ) {
             is_img = true;
             int unused_height = 0;
             // We have no container width/height to provide: CSS width and
@@ -10112,7 +10115,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 }
                 return;
             }
-            if ( node->getNodeId()==el_br ) {
+            if ( nodeElementId == el_br ) {
                 #ifdef DEBUG_GETRENDEREDWIDTHS
                     printf("GRW: BR\n");
                 #endif
@@ -10150,7 +10153,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     minWidth = _minw;
                 return;
             }
-            if ( node->getNodeId()==el_pseudoElem ) {
+            if ( nodeElementId == el_pseudoElem ) {
                 // pseudoElem has no children: reprocess this same node
                 // with processNodeAsText=true, to process its text content.
                 getRenderedWidths(node, maxWidth, minWidth, direction, false, rendFlags,
@@ -10215,7 +10218,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                          is_length_relative_unit(style_width.type) ) {
                         use_style_width = true;
                     }
-                    if ( node->getNodeId() == el_hr ) {
+                    if ( nodeElementId == el_hr ) {
                         // We always use style width for <HR> for cosmetic reasons
                         use_style_width = true;
                     }
@@ -10279,7 +10282,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent, lang_cfg);
                     // A <BR/> can happen deep among our children, so we deal with that when erm_inline above
                 }
-                if ( node->getNodeId() == el_pseudoElem ) {
+                if ( nodeElementId == el_pseudoElem ) {
                     // erm_final pseudoElem (which has no children): reprocess this same
                     // node with processNodeAsText=true, to process its text content.
                     getRenderedWidths(node, _maxWidth, _minWidth, direction, false, rendFlags,
