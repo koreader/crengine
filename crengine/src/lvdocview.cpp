@@ -209,7 +209,6 @@ LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
                     U"Welcome to CoolReader! Please select file to open"));
 
     m_font_size = scaleFontSizeForDPI(m_requested_font_size);
-    gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
     m_font = fontMan->GetFont(m_font_size, 400, false, DEFAULT_FONT_FAMILY,
 			m_defaultFontFace);
 	m_infoFont = fontMan->GetFont(m_status_font_size, 700, false,
@@ -2051,7 +2050,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			//CRLog::trace("Done DrawDocument() for main text");
 			// draw footnotes
 #define FOOTNOTE_MARGIN_REM 1 // as in lvpagesplitter.cpp
-			int footnote_margin = FOOTNOTE_MARGIN_REM * gRootFontSize;
+			int footnote_margin = FOOTNOTE_MARGIN_REM * m_font_size;
 			int fny = clip.top + (page.height ? page.height + footnote_margin
 					: footnote_margin);
 			// Try to push footnotes to the bottom of page if possible
@@ -2825,7 +2824,6 @@ void LVDocView::setRenderProps(int dx, int dy) {
 
 	lString8 fontName = lString8(DEFAULT_FONT_NAME);
 	m_font_size = scaleFontSizeForDPI(m_requested_font_size);
-	gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
 	m_font = fontMan->GetFont(m_font_size, 400 + LVRendGetFontEmbolden(),
 			false, DEFAULT_FONT_FAMILY, m_defaultFontFace);
 	//m_font = LVCreateFontTransform( m_font, LVFONT_TRANSFORM_EMBOLDEN );
@@ -3623,7 +3621,6 @@ void LVDocView::setFontSize(int newSize) {
         m_requested_font_size = findBestFit(m_font_sizes, newSize);
         propsGetCurrent()->setInt(PROP_FONT_SIZE, m_requested_font_size);
         m_font_size = scaleFontSizeForDPI(m_requested_font_size);
-        gRootFontSize = m_font_size; // stored as global (for 'rem' css unit)
         CRLog::debug("New requested font size: %d (asked: %d)", m_requested_font_size, newSize);
         REQUEST_RENDER("setFontSize")
     }
