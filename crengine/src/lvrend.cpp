@@ -3196,6 +3196,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         if ( style->visibility >= css_v_hidden ) { // hidden
             flags |= LTEXT_HAS_EXTRA;
         }
+        if ( style->line_break > css_lb_auto ) { // normal, loose, strict
+            flags |= LTEXT_HAS_EXTRA;
+        }
+        if ( style->word_break > css_wb_break_word ) { // break-all or keep-all (break-word is handled as normal)
+            flags |= LTEXT_HAS_EXTRA;
+        }
 
         // Now, process styles that may differ between inline nodes, and
         // are needed to display any children text node.
@@ -4057,6 +4063,8 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->clear = source->clear;
     dest->direction = source->direction;
     dest->visibility = source->visibility;
+    dest->line_break = source->line_break;
+    dest->word_break = source->word_break;
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
@@ -9836,6 +9844,8 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( list_style_type, css_lst_inherit );
     UPDATE_STYLE_FIELD( list_style_position, css_lsp_inherit );
     UPDATE_STYLE_FIELD( visibility, css_v_inherit );
+    UPDATE_STYLE_FIELD( line_break, css_lb_inherit );
+    UPDATE_STYLE_FIELD( word_break, css_wb_inherit );
 
     // Note: we don't inherit "direction" (which should be inherited per specs);
     // We'll handle inheritance of direction in renderBlockEnhanced, because
