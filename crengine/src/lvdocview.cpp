@@ -1880,8 +1880,8 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
             if ( batteryPercentNormalFont ) {
                 if (m_battery_state >= 0)
                     pageinfo << "  [" << fmt::decimal(m_battery_state) << "%]";
-                else if (m_battery_state == -1) // charging
-                    pageinfo << Utf8ToUnicode("  [ \u26A1 ]"); //  \u26A1='⚡'
+                else if (m_battery_state == CR_BATTERY_STATE_CHARGING)
+                    pageinfo << Utf8ToUnicode("  [ + ]"); //  \u26A1='⚡' is not available in CoolReader
             }
         }
 
