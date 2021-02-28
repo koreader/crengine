@@ -1878,13 +1878,13 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
                 pageinfo << fmt::decimal(pp) << "%";
             }
             if ( batteryPercentNormalFont ) {
-                if ( m_battery_state>=0 )
+                if (m_battery_state >= 0)
                     pageinfo << "  [" << fmt::decimal(m_battery_state) << "%]";
-                else // charging
-                    pageinfo << Utf8ToUnicode("  [ ⚡ ]"); // maybe '↯' looks better
+                else if (m_battery_state == -1) // charging
+                    pageinfo << Utf8ToUnicode("  [ \u26A1 ]"); //  \u26A1='⚡'
             }
+        }
 
-		}
 		int piw = 0;
 		if (!pageinfo.empty()) {
 			piw = m_infoFont->getTextWidth(pageinfo.c_str(), pageinfo.length());
