@@ -781,7 +781,8 @@ public:
                 /* In this example, we don't need to change any of the defaults set by
                  * jpeg_read_header(), so we do nothing here.
                  */
-                cinfo.out_color_space = JCS_RGB;
+                // or swap to BGRA and invert alpha
+                cinfo.out_color_space = JCS_EXT_BGRX;
 
                 /* Step 5: Start decompressor */
 
@@ -805,13 +806,16 @@ public:
                      */
                     (void) jpeg_read_scanlines(&cinfo, &buffer, 1);
                     /* Assume put_scanline_someplace wants a pointer and sample count. */
-                    lUInt8 * __restrict p = buffer;
-                    for (int x=0; x<(int)cinfo.output_width; x++)
-                    {
-                        row[x] = (((lUInt32)p[0])<<16) | (((lUInt32)p[1])<<8) | (((lUInt32)p[2])<<0);
-                        p += 3;
+                    lUInt32 * __restrict src = reinterpret_cast<lUInt32 *>(buffer);
+                    /*
+                    lUInt32 * __restrict dst = row;
+                    size_t px_count = cinfo.output_width;
+                    while (px_count--) {
+                        *dst++ = *src++;
                     }
                     callback->OnLineDecoded( this, y, row );
+                    */
+                    callback->OnLineDecoded( this, y, src );
                 }
                 callback->OnEndDecode(this, false);
             }
@@ -933,21 +937,26 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
 
         png_set_interlace_handling(png_ptr);
         png_read_update_info(png_ptr, info_ptr);//update after set
-        png_bytep * __restrict image = NULL;
-        image = new png_bytep[height];
-        for (lUInt32 i=0; i<height; i++)
-            image[i] = new png_byte[png_get_rowbytes(png_ptr, info_ptr)];
-        png_read_image(png_ptr, image);
-        for (lUInt32 y = 0; y < height; y++)
-        {
-            callback->OnLineDecoded( this, y,  (lUInt32*) image[y] );
-        }
-        png_read_end(png_ptr, info_ptr);
 
+        size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
+        size_t image_size = height * rowbytes;
+        unsigned char * __restrict image = NULL;
+        png_bytep * __restrict row_pointers = NULL;
+        image = new unsigned char[image_size];
+        row_pointers = new png_bytep[height];
+
+        for (size_t y = 0; y < height; y++) {
+            row_pointers[y] = image + y * rowbytes;
+        }
+        png_read_image(png_ptr, row_pointers);
+        for (size_t y = 0; y < height; y++) {
+            callback->OnLineDecoded( this, y, reinterpret_cast<lUInt32*>(row_pointers[y]) );
+        }
+
+        png_read_end(png_ptr, info_ptr);
         callback->OnEndDecode(this, false);
-        for (lUInt32 i=0; i<height; i++)
-            delete [] image[i];
         delete [] image;
+        delete [] row_pointers;
     }
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 
