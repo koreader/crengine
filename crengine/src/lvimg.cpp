@@ -781,8 +781,9 @@ public:
                 /* In this example, we don't need to change any of the defaults set by
                  * jpeg_read_header(), so we do nothing here.
                  */
-                // or swap to BGRA and invert alpha
-                cinfo.out_color_space = JCS_EXT_BGRX;
+                // CRe expects BGRA (w/ inverted alpha, we'll handle that during the scanline copy).
+                // NOTE: Unfortunately, libjpeg-turbo's BGRX pixel format doesn't guarantee a zero byte for the alpha component :/.
+                cinfo.out_color_space = JCS_EXT_BGRA;
 
                 /* Step 5: Start decompressor */
 
@@ -807,15 +808,13 @@ public:
                     (void) jpeg_read_scanlines(&cinfo, &buffer, 1);
                     /* Assume put_scanline_someplace wants a pointer and sample count. */
                     lUInt32 * __restrict src = reinterpret_cast<lUInt32 *>(buffer);
-                    /*
                     lUInt32 * __restrict dst = row;
                     size_t px_count = cinfo.output_width;
                     while (px_count--) {
-                        *dst++ = *src++;
+                        // CRe wants inverted alpha...
+                        *dst++ = *src++ ^ 0xFF000000;
                     }
                     callback->OnLineDecoded( this, y, row );
-                    */
-                    callback->OnLineDecoded( this, y, src );
                 }
                 callback->OnEndDecode(this, false);
             }
@@ -913,6 +912,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         if (bit_depth == 16)
             png_set_strip_16(png_ptr);
 
+        // CRe expects inverted alpha
         png_set_invert_alpha(png_ptr);
 
         if (bit_depth < 8)
@@ -933,6 +933,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
 
         //if (color_type == PNG_COLOR_TYPE_RGB ||
         //    color_type == PNG_COLOR_TYPE_RGB_ALPHA)
+        // CRe expects BGR pixel order
         png_set_bgr(png_ptr);
 
         png_set_interlace_handling(png_ptr);
