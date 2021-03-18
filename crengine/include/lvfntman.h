@@ -214,6 +214,8 @@ enum kerning_mode_t {
 
 #define LFNT_HINT_IS_FALLBACK_FONT       0x0010 /// set on recursive Harfbuzz rendering/drawing with a fallback font
 
+#define LFNT_HINT_TRANSFORM_STRETCH      0x0100 /// Glyph(s) are to be stretched so their bounding box fits the provided w/h
+
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
 #define LFNT_DRAW_UNDERLINE              0x1000 /// underlined text
 #define LFNT_DRAW_OVERLINE               0x2000 /// overlined text
@@ -398,7 +400,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool is_fallback=false ) = 0;
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false ) = 0;
 
     /** \brief get extra glyph metric
     */
@@ -477,7 +479,8 @@ public:
                        lChar32 def_char, lUInt32 * palette = NULL, bool addHyphen = false,
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
-                       int text_decoration_back_gap=0 ) = 0;
+                       int text_decoration_back_gap=0,
+                       int target_w=-1, int target_h=-1 ) = 0;
     /// constructor
     LVFont() : _visual_alignment_width(-1), _hash(0) { }
 
@@ -670,7 +673,7 @@ public:
                        lChar32 def_char, lUInt32 * palette, bool addHyphen,
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
-                       int text_decoration_back_gap=0 );
+                       int text_decoration_back_gap=0, int target_w=-1, int target_h=-1 );
 };
 
 #if (USE_FREETYPE!=1) && (USE_BITMAP_FONTS==1)
@@ -681,7 +684,7 @@ private:
     lvfont_handle m_font;
 public:
     LBitmapFont() : m_font(NULL) { }
-    virtual bool getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar32 def_char=0, bool is_fallback=false );
+    virtual bool getGlyphInfo( lUInt32 code, LVFont::glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false );
     virtual lUInt16 measureText( 
                         const lChar32 * text, int len, 
                         lUInt16 * widths,
@@ -847,7 +850,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool is_fallback=false );
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false );
 
     /** \brief measure text
         \param glyph is pointer to glyph_info_t struct to place retrieved info
@@ -882,7 +885,8 @@ public:
                        lChar32 def_char, lUInt32 * palette, bool addHyphen,
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
-                       int text_decoration_back_gap=0 );
+                       int text_decoration_back_gap=0,
+                       int target_w=-1, int target_h=-1 );
         
     /** \brief get glyph image in 1 byte per pixel format
         \param code is unicode character
@@ -1027,7 +1031,7 @@ public:
         \param glyph is pointer to glyph_info_t struct to place retrieved info
         \return true if glyh was found 
     */
-    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool is_fallback=false );
+    virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false );
 
     /** \brief measure text
         \param glyph is pointer to glyph_info_t struct to place retrieved info
