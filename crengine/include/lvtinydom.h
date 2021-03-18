@@ -40,6 +40,10 @@
 #include "props.h"
 #include "bookformats.h"
 
+#if MATHML_SUPPORT==1
+#include "mathml.h"
+#endif
+
 // Allows for requesting older DOM building code (including bugs NOT fixed)
 extern const int gDOMVersionCurrent;
 
@@ -2423,6 +2427,7 @@ private:
     lUInt32 _last_docflags;
     int _page_height;
     int _page_width;
+    bool _parsing;
     bool _rendered;
     bool _just_rendered_from_cache;
     bool _toc_from_cache_valid;
@@ -2571,6 +2576,7 @@ public:
     virtual ~ldomDocument();
 #if BUILD_LITE!=1
     bool isRendered() { return _rendered; }
+    bool isBeingParsed() { return _parsing; }
     /// renders (formats) document in memory: returns true if re-rendering needed, false if not
     virtual bool render( LVRendPageList * pages, LVDocViewCallback * callback, int width, int dy,
                          bool showCover, int y0, font_ref_t def_font, int def_interline_space,
@@ -2628,6 +2634,9 @@ class ldomElementWriter
     bool _allowText;
     bool _isBlock;
     bool _isSection;
+#if MATHML_SUPPORT==1
+    bool _insideMathML;
+#endif
     bool _stylesheetIsSet;
     bool _bodyEnterCalled;
     int _pseudoElementAfterChildIndex;
@@ -2650,6 +2659,9 @@ class ldomElementWriter
 
     friend class ldomDocumentWriter;
     friend class ldomDocumentWriterFilter;
+#if MATHML_SUPPORT==1
+    friend class MathMLHelper;
+#endif
     //friend ldomElementWriter * pop( ldomElementWriter * obj, lUInt16 id );
 };
 
@@ -2661,6 +2673,9 @@ class ldomElementWriter
 */
 class ldomDocumentWriter : public LVXMLParserCallback
 {
+#if MATHML_SUPPORT==1
+    friend class MathMLHelper;
+#endif
 protected:
     //============================
     ldomDocument * _document;
@@ -2675,6 +2690,9 @@ protected:
     bool _inHeadStyle;
     lString32 _headStyleText;
     lString32Collection _stylesheetLinks;
+#if MATHML_SUPPORT==1
+    MathMLHelper _mathMLHelper;
+#endif
     virtual void ElementCloseHandler( ldomNode * node ) { node->persist(); }
 public:
     /// returns flags
