@@ -4757,7 +4757,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             {
                 word = &frmline->words[j];
                 srcline = &m_pbuffer->srctext[word->src_text_index];
-                if ( srcline->flags & LTEXT_HAS_EXTRA && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) )
+                if ( (srcline->flags & LTEXT_HAS_EXTRA) && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) && !buf->WantsHiddenContent() )
                     continue;
                 if (word->flags & LTEXT_WORD_IS_OBJECT)
                 {
@@ -4832,7 +4832,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             {
                 word = &frmline->words[j];
                 srcline = &m_pbuffer->srctext[word->src_text_index];
-                if ( srcline->flags & LTEXT_HAS_EXTRA && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) )
+                if ( (srcline->flags & LTEXT_HAS_EXTRA) && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) && !buf->WantsHiddenContent() )
                     continue;
                 if (word->flags & LTEXT_WORD_IS_OBJECT)
                 {
