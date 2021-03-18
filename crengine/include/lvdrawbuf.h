@@ -95,6 +95,8 @@ public:
     virtual void GetClipRect( lvRect * clipRect ) const = 0;
     /// sets clip rect
     virtual void SetClipRect( const lvRect * clipRect ) = 0;
+    /// wants to be fed hidden content (only LVInkMeasurementDrawBuf may return true)
+    virtual bool WantsHiddenContent() const { return false; }
     /// set to true for drawing in Paged mode, false for Scroll mode
     virtual void setHidePartialGlyphs( bool hide ) = 0;
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
@@ -539,6 +541,127 @@ public:
 #endif
 };
 
+/// Ink measurement buffer
+class LVInkMeasurementDrawBuf : public LVBaseDrawBuf
+{
+private:
+    int ink_top_y;
+    int ink_bottom_y;
+    int ink_left_x;
+    int ink_right_x;
+    bool has_ink;
+    bool measure_hidden_content;
+    bool ignore_decorations; // ignore borders and background
+public:
+    /// get buffer bits per pixel
+    virtual int  GetBitsPerPixel() const { return 8; }
+
+    /// wants to be fed hidden content (only LVInkMeasurementDrawBuf may return true)
+    virtual bool WantsHiddenContent() const { return measure_hidden_content; }
+
+    /// fills buffer with specified color
+    virtual void Clear( lUInt32 color ) {
+        has_ink = false;
+    }
+
+    /// fills rectangle with specified color
+    void updateInkBounds( int x0, int y0, int x1, int y1 ) {
+        if ( has_ink ) {
+            if ( x0 < ink_left_x ) ink_left_x = x0;
+            if ( x1 < ink_left_x ) ink_left_x = x1;
+            if ( x1 > ink_right_x ) ink_right_x = x1;
+            if ( x0 > ink_right_x ) ink_right_x = x0;
+            if ( y0 < ink_top_y ) ink_top_y = y0;
+            if ( y1 < ink_top_y ) ink_top_y = y1;
+            if ( y1 > ink_bottom_y ) ink_bottom_y = y1;
+            if ( y0 > ink_bottom_y ) ink_bottom_y = y0;
+        }
+        else {
+            ink_left_x = x0 < x1 ? x0 : x1;
+            ink_right_x = x0 > x1 ? x0 : x1;
+            ink_top_y = y0 < y1 ? y0 : y1;
+            ink_bottom_y = y0 > y1 ? y0 : y1;
+            has_ink = true;
+        }
+    }
+    /// fills rectangle with specified color
+    virtual void FillRect( int x0, int y0, int x1, int y1, lUInt32 color ) {
+        if ( ignore_decorations )
+            return;
+        // printf("  ink FillRect %d %d %d %d\n", x0, y0, x1, y1);
+        if ( color != GetBackgroundColor() )
+            updateInkBounds(x0, y0, x1, y1);
+    }
+    virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern ) {
+        if ( ignore_decorations )
+            return;
+        FillRect( x0, y0, x1, y1, color0);
+    }
+    /// draws image
+    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither ) {
+        // An image (even if empty) sets the ink area
+        // printf("  ink Draw image %d %d %d %d\n", x, y, width, height);
+        updateInkBounds(x, y, x+width, y+height);
+    }
+    /// draws bitmap (1 byte per pixel) using specified palette
+    virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette ) {
+        // printf("  ink Draw %d %d %d %d\n", x, y, width, height);
+        // Used to draw glyph. Trust the font that the bitmap is the glyph
+        // bounding box ("blackbox" in cre), so its ink area
+        updateInkBounds(x, y, x+width, y+height);
+    }
+    /// draw line
+    virtual void DrawLine( int x0, int y0, int x1, int y1, lUInt32 color0, int length1=1, int length2=0, int direction=0 ) {
+        if ( ignore_decorations )
+            return;
+        // printf("  ink DrawLine %d %d %d %d\n", x0, y0, x1, y1);
+        updateInkBounds(x0, y0, x1, y1);
+    }
+
+    virtual bool getInkArea( lvRect &rect ) {
+        if ( has_ink ) {
+            rect.top = ink_top_y;
+            rect.bottom = ink_bottom_y;
+            rect.left = ink_left_x;
+            rect.right = ink_right_x;
+            return true;
+        }
+        return false;
+    }
+
+    // Drawing code might request a clip, but we don't want to impose any.
+    // So, have a large dynamic one around the ink area met until then
+    virtual void GetClipRect( lvRect * clipRect ) const {
+        clipRect->top = ink_top_y - 1000;
+        clipRect->bottom = ink_bottom_y + 1000;
+        clipRect->left = ink_left_x - 1000;
+        clipRect->right = ink_right_x + 1000;
+    }
+
+    /// create own draw buffer
+    explicit LVInkMeasurementDrawBuf( bool measurehiddencontent=false, bool ignoredecorations=false)
+        : ink_top_y(0), ink_bottom_y(0), ink_left_x(0), ink_right_x(0) , has_ink(false)
+        , measure_hidden_content(measurehiddencontent) , ignore_decorations(ignoredecorations)
+        {}
+    /// destructor
+    virtual ~LVInkMeasurementDrawBuf() {}
+
+    // Unused methods in the context of lvrend that we need to have defined
+    virtual void Rotate( cr_rotate_angle_t angle ) {}
+    virtual lUInt32 GetWhiteColor() const { return 0; }
+    virtual lUInt32 GetBlackColor() const { return 0; }
+    virtual void DrawTo( LVDrawBuf * __restrict buf, int x, int y, int options, const lUInt32 * __restrict palette ) {}
+    virtual void DrawOnTop( LVDrawBuf * __restrict buf, int x, int y) {}
+    virtual void DrawRescaled(const LVDrawBuf * __restrict src, int x, int y, int dx, int dy, int options) {}
+#if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
+    virtual void DrawTo( HDC dc, int x, int y, int options, const lUInt32 * __restrict palette ) {}
+#endif
+    virtual void Invert() {}
+    virtual lUInt32 GetPixel( int x, int y ) const { return 0; }
+    virtual void InvertRect( int x0, int y0, int x1, int y1 ) {}
+    virtual void Resize( int dx, int dy ) {}
+    virtual lUInt8 * GetScanLine( int y ) const { return 0; }
+};
 
 
 #endif
