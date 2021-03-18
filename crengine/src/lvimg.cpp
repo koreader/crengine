@@ -747,10 +747,8 @@ public:
 	    /* If we get here, the JPEG code has signaled an error.
 	     * We need to clean up the JPEG object, close the input file, and return.
 	     */
-            if ( buffer )
-                delete[] buffer;
-            if ( row )
-                delete[] row;
+            delete[] buffer;
+            free(row);
         	CRLog::debug("JPEG decoder cleanup");
             cr_jpeg_src_free (&cinfo);
             jpeg_destroy_decompress(&cinfo);
@@ -782,8 +780,7 @@ public:
                  * jpeg_read_header(), so we do nothing here.
                  */
                 // CRe expects BGRA (w/ inverted alpha, we'll handle that during the scanline copy).
-                // NOTE: Unfortunately, libjpeg-turbo's BGRX pixel format doesn't guarantee a zero byte for the alpha component :/.
-                cinfo.out_color_space = JCS_EXT_BGRA;
+                cinfo.out_color_space = JCS_EXT_BGRX;
 
                 /* Step 5: Start decompressor */
 
@@ -792,7 +789,7 @@ public:
                  * with the stdio data source.
                  */
                 buffer = new lUInt8 [ cinfo.output_width * cinfo.output_components ];
-                row = new lUInt32 [ cinfo.output_width ];
+                row = static_cast<lUInt32 *>(calloc(cinfo.output_width, sizeof(*row)));
                 /* Step 6: while (scan lines remain to be read) */
                 /*           jpeg_read_scanlines(...); */
 
@@ -811,18 +808,17 @@ public:
                     lUInt32 * __restrict dst = row;
                     size_t px_count = cinfo.output_width;
                     while (px_count--) {
-                        // CRe wants inverted alpha...
-                        *dst++ = *src++ ^ 0xFF000000;
+                        // CRe wants inverted alpha, so, mask the alpha byte, which is not guaranteed to be zero by libjpeg-turbo,
+                        // and rely on calloc's zero-initialization to do that for us ;).
+                        *dst++ = *src++ & 0x00FFFFFF;
                     }
                     callback->OnLineDecoded( this, y, row );
                 }
                 callback->OnEndDecode(this, false);
             }
 
-        if ( buffer )
-            delete[] buffer;
-        if ( row )
-            delete[] row;
+        delete[] buffer;
+        free(row);
         cr_jpeg_src_free (&cinfo);
         jpeg_destroy_decompress(&cinfo);
         return true;
@@ -951,7 +947,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         }
         png_read_image(png_ptr, row_pointers);
         for (size_t y = 0; y < height; y++) {
-            callback->OnLineDecoded( this, y, reinterpret_cast<lUInt32*>(row_pointers[y]) );
+            callback->OnLineDecoded( this, y, reinterpret_cast<lUInt32 *>(row_pointers[y]) );
         }
 
         png_read_end(png_ptr, info_ptr);
