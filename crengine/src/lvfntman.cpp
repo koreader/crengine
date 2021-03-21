@@ -4689,21 +4689,8 @@ public:
             FcFontSetDestroy(fontset);
             CRLog::info("FONTCONFIG: %d fonts registered", facesFound);
 
-            const char * fallback_faces [] = {
-                "Arial Unicode MS",
-                "AR PL ShanHeiSun Uni",
-                "Liberation Sans",
-                NULL
-            };
-
-            for ( int i=0; fallback_faces[i]; i++ )
-                if ( SetFallbackFontFace(lString8(fallback_faces[i])) ) {
-                    CRLog::info("Fallback font %s is found", fallback_faces[i]);
-                    break;
-                }
-                else {
-                    CRLog::trace("Fallback font %s is not found", fallback_faces[i]);
-                }
+            const char * fallback_faces = "Arial Unicode MS|AR PL ShanHeiSun Uni|Liberation Sans|Roboto|DejaVu Sans|Noto Sans|Droid Sans";
+            SetFallbackFontFaces(lString8(fallback_faces));
 
             return facesFound > 0;
         }
