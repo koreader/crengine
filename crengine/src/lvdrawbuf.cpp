@@ -2886,7 +2886,7 @@ void LVGrayDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y,
                             lUInt8 * __restrict dst = dst0 + x + xx;
                             lUInt32 dithered;
                             if (_bpp < 8)
-                                dithered = DitherNBitColor(cl, xx, yy, _bpp) << (8 - _bpp);
+                                dithered = DitherNBitColor(cl, xx, yy, _bpp);// << (8 - _bpp);
                             else
                                 dithered = cl;
                             *dst = (lUInt8)dithered;
