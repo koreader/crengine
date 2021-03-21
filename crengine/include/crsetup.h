@@ -305,6 +305,10 @@
 #define USE_GLYPHCACHE_HASHTABLE 0
 #endif
 
+#ifndef USE_LIMITED_FONT_SIZES_SET
+#define USE_LIMITED_FONT_SIZES_SET 0
+#endif
+
 // Maximum & minimum screen resolution
 #ifndef SCREEN_SIZE_MIN
 #define SCREEN_SIZE_MIN 80
