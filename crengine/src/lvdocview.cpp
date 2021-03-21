@@ -6220,8 +6220,11 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	props->setIntDef(PROP_DISPLAY_TURBO_UPDATE_MODE, 0);
 
 	lString8 defFontFace;
-	static const char * goodFonts[] = { "DejaVu Sans", "FreeSans",
-			"Liberation Sans", "Arial", "Verdana", NULL };
+	// static const char * goodFonts[] = { "DejaVu Sans", "FreeSans", "Liberation Sans", "Arial", "Verdana", NULL };
+	// static const char * fallbackFonts = "Droid Sans Fallback|Noto Sans CJK SC|Noto Sans Arabic UI|Noto Sans Devanagari UI|FreeSans|FreeSerif|Noto Serif|Noto Sans|Arial Unicode MS";
+	// KOReader: avoid loading many fonts on launch, as these will be re-set by frontend
+	static const char * goodFonts[] = { "FreeSerif", NULL };
+	static const char * fallbackFonts = "FreeSerif";
 	for (int i = 0; goodFonts[i]; i++) {
 		if (list.contains(lString32(goodFonts[i]))) {
 			defFontFace = lString8(goodFonts[i]);
@@ -6237,8 +6240,7 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	if (list.length() > 0 && !list.contains(props->getStringDef(PROP_FONT_FACE,
 			defFontFace.c_str())))
 		props->setString(PROP_FONT_FACE, list[0]);
-	props->setStringDef(PROP_FALLBACK_FONT_FACE, props->getStringDef(PROP_FONT_FACE,
-                        defFontFace.c_str()));
+	props->setStringDef(PROP_FALLBACK_FONT_FACES, fallbackFonts);
 
 	props->setIntDef(PROP_FONT_SIZE,
 			m_font_sizes[m_font_sizes.length() * 2 / 3]);
@@ -6533,7 +6535,7 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             setPageMargins(rc);
         } else if (name == PROP_FONT_FACE) {
             setDefaultFontFace(UnicodeToUtf8(value));
-        } else if (name == PROP_FALLBACK_FONT_FACE) {
+        } else if (name == PROP_FALLBACK_FONT_FACES) {
             lString8 oldFaces = fontMan->GetFallbackFontFaces();
             if ( UnicodeToUtf8(value)!=oldFaces )
                 fontMan->SetFallbackFontFaces(UnicodeToUtf8(value));
