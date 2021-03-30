@@ -15,8 +15,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
-#include <bsd/sys/time.h>
 
 #define XMD_H
 
@@ -796,8 +794,6 @@ public:
                 /* Here we use the library's state variable cinfo.output_scanline as the
                  * loop counter, so that we don't have to keep track ourselves.
                  */
-                struct timespec ts;
-                clock_gettime(CLOCK_MONOTONIC, &ts);
                 while (cinfo.output_scanline < cinfo.output_height) {
                     const int y = cinfo.output_scanline;
                     /* jpeg_read_scanlines expects an array of pointers to scanlines.
@@ -816,11 +812,6 @@ public:
 
                 }
                 callback->OnEndDecode(this, false);
-                struct timespec te;
-                clock_gettime(CLOCK_MONOTONIC, &te);
-                struct timespec td;
-                timespecsub(&te, &ts, &td);
-                printf("JPG: %lds; %ldms\n", td.tv_sec, td.tv_nsec / 1000000);
             }
 
         delete[] buffer;
