@@ -740,7 +740,6 @@ public:
         jpeg_create_decompress(&cinfo);
 
         lUInt8 * buffer = NULL;
-        lUInt32 * __restrict row = NULL;
 
         if (setjmp(jerr.setjmp_buffer)) {
         	CRLog::error("JPEG setjmp error handling");
@@ -748,7 +747,6 @@ public:
 	     * We need to clean up the JPEG object, close the input file, and return.
 	     */
             delete[] buffer;
-            free(row);
         	CRLog::debug("JPEG decoder cleanup");
             cr_jpeg_src_free (&cinfo);
             jpeg_destroy_decompress(&cinfo);
@@ -788,8 +786,8 @@ public:
                 /* We can ignore the return value since suspension is not possible
                  * with the stdio data source.
                  */
-                buffer = new lUInt8 [ cinfo.output_width * cinfo.output_components ];
-                row = static_cast<lUInt32 *>(calloc(cinfo.output_width, sizeof(*row)));
+                // NOTE: We know that cinfo.output_components is 4, given the out_color_space we chose.
+                buffer = new lUInt8 [ cinfo.output_width << 2U ];
                 /* Step 6: while (scan lines remain to be read) */
                 /*           jpeg_read_scanlines(...); */
 
@@ -803,22 +801,20 @@ public:
                      * more than one scanline at a time if that's more convenient.
                      */
                     (void) jpeg_read_scanlines(&cinfo, &buffer, 1);
-                    /* Assume put_scanline_someplace wants a pointer and sample count. */
-                    lUInt32 * __restrict src = reinterpret_cast<lUInt32 *>(buffer);
-                    lUInt32 * __restrict dst = row;
-                    size_t px_count = cinfo.output_width;
-                    while (px_count--) {
-                        // CRe wants inverted alpha, so, mask the alpha byte, which is not guaranteed to be zero by libjpeg-turbo,
-                        // and rely on calloc's zero-initialization to do that for us ;).
-                        *dst++ = *src++ & 0x00FFFFFF;
+
+                    // CRe wants inverted alpha, but libjpeg-turbo doesn't guarantee that the alpha byte will be zero...
+                    const unsigned char* const end = buffer + (cinfo.output_width << 2U);
+                    // Start at the first alpha byte, then loop over each subsequent alpha byte, pixel-by-pixel
+                    for (unsigned char* p = buffer + 3U; p <= end; p += 4U) {
+                        *p = 0x00;
                     }
-                    callback->OnLineDecoded( this, y, row );
+                    callback->OnLineDecoded( this, y, reinterpret_cast<lUInt32 *>(buffer) );
+
                 }
                 callback->OnEndDecode(this, false);
             }
 
         delete[] buffer;
-        free(row);
         cr_jpeg_src_free (&cinfo);
         jpeg_destroy_decompress(&cinfo);
         return true;
