@@ -69,6 +69,16 @@ typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #define STDIO_CLOEXEC
 #endif
 #endif
+
+// On Android, this is available since Android 4.4 (API 19),
+// via https://android.googlesource.com/platform/bionic/+/6b05c8e28017518fae04a3a601d0d245916561d2
+#if defined(__ANDROID__)
+#include <android/api-level.h>
+#if __ANDROID_API__ < 19
+#define DISABLE_CLOEXEC
+#endif
+#endif
+
 // In case the build TC is newer than the target, the buildsystem can request disabling this.
 #if defined(DISABLE_CLOEXEC)
 #if defined(O_CLOEXEC)
