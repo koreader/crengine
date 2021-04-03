@@ -11,6 +11,7 @@
 #define LVTYPES_H_INCLUDED
 
 #include <stdlib.h>
+#include <fcntl.h>
 #include "crsetup.h"
 
 #ifdef _WIN32
