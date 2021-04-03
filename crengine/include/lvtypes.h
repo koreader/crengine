@@ -53,6 +53,19 @@ typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #define PATH_SEPARATOR_CHAR '/'
 #endif
 
+/// CLOEXEC handling
+#if defined(_WIN32)
+#define STDIO_CLOEXEC "N"  // MSVC 14 supposedly supports "e", too
+#if !defined(O_CLOEXEC)
+#define O_CLOEXEC _O_NOINHERIT
+#endif
+#else
+#if defined(O_CLOEXEC)
+#define STDIO_CLOEXEC "e"
+#else
+#define STDIO_CLOEXEC
+#endif
+
 /// point
 class lvPoint {
 public:
@@ -167,7 +180,7 @@ public:
         return left<=pt.x && top<=pt.y && right>pt.x && bottom > pt.y;
     }
 	void clear() { left=right=top=bottom=0; }
-	
+
     bool intersect(const lvRect &rc)
 	{
         if (left < rc.left)

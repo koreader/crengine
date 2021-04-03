@@ -4723,7 +4723,7 @@ public:
             CRLog::error("Error while initializing freetype library");
         }
         #if (DEBUG_FONT_MAN==1)
-            _log = fopen(DEBUG_FONT_MAN_LOG_FILE, "at");
+            _log = fopen(DEBUG_FONT_MAN_LOG_FILE, "at" STDIO_CLOEXEC);
             if ( _log ) {
                 fprintf(_log, "=========================== LOGGING STARTED ===================\n");
             }
@@ -5434,7 +5434,7 @@ public:
     }
     LVBitmapFontManager()
     {
-        //_log = fopen( "fonts.log", "wt" );
+        //_log = fopen( "fonts.log", "wt" STDIO_CLOEXEC );
     }
     virtual void gc() // garbage collector
     {
@@ -5571,7 +5571,7 @@ public:
     }
     LVWin32FontManager()
     {
-        //_log = fopen( "fonts.log", "wt" );
+        //_log = fopen( "fonts.log", "wt" STDIO_CLOEXEC );
     }
     virtual void gc() // garbage collector
     {
