@@ -65,6 +65,17 @@ typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #else
 #define STDIO_CLOEXEC
 #endif
+// In case the build TC is newer than the target, the buildsystem can request disabling this.
+#if defined(DISABLE_CLOEXEC)
+#if defined(O_CLOEXEC)
+#undef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
+#if defined(STDIO_CLOEXEC)
+#undef STDIO_CLOEXEC
+#define STDIO_CLOEXEC
+#endif
+#endif
 
 /// point
 class lvPoint {
