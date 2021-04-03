@@ -61,9 +61,12 @@ typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #endif
 #else
 #if defined(O_CLOEXEC)
+// NOTE: That's a bit of a shortcut: the stdio support requires glibc 2.6,
+//       while O_CLOEXEC is defined both by the glibc *and* the kernel, possibly earlier than that...
 #define STDIO_CLOEXEC "e"
 #else
 #define STDIO_CLOEXEC
+#endif
 #endif
 // In case the build TC is newer than the target, the buildsystem can request disabling this.
 #if defined(DISABLE_CLOEXEC)
