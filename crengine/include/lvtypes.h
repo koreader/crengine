@@ -64,6 +64,8 @@ typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #if defined(O_CLOEXEC)
 // NOTE: That's a bit of a shortcut: the stdio support requires glibc 2.6,
 //       while O_CLOEXEC is defined both by the glibc *and* the kernel, possibly earlier than that...
+//       Support in open dates back to Linux 2.6.23, but it's harmlessly ignored on older kernels.
+//       On the other hand, fopen *will* throw EINVAL if the libc doesn't recognize it.
 #define STDIO_CLOEXEC "e"
 #else
 #define STDIO_CLOEXEC
