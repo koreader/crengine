@@ -140,6 +140,7 @@
 
 #include "crsetup.h"
 #include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvref.h"
 #include "lvstring.h"
 #include "lvarray.h"
@@ -151,7 +152,6 @@
 #include "lvdrawbuf.h"
 #include "props.h"
 #include "w32utils.h"
-#include "lvplatform.h"
 
 
 #endif//CRENGINE_H_INCLUDED
