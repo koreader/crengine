@@ -2053,6 +2053,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\..\include\lvplatform.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\..\include\lvptrvec.h"
 				>
 			</File>
