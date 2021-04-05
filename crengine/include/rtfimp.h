@@ -13,6 +13,7 @@
 #ifndef RTFIMP_H_INCLUDED
 #define RTFIMP_H_INCLUDED
 
+#include "lvtypes.h"
 #include "lvxml.h"
 #include "crtxtenc.h"
 #include <string.h>

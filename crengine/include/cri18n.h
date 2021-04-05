@@ -17,6 +17,7 @@
 #include <libintl.h>
 #endif
 
+#include "lvtypes.h"
 #include "lvstring.h"
 #include "lvptrvec.h"
 #include "lvhashtable.h"

@@ -30,7 +30,7 @@
     - margin-top
     - margin-bottom
     - margin
-    
+
 
     (c) Vadim Lopatin, 2000-2006
     This source code is distributed under the terms of
@@ -44,6 +44,7 @@
 #ifndef __LVSTSHEET_H_INCLUDED__
 #define __LVSTSHEET_H_INCLUDED__
 
+#include "lvtypes.h"
 #include "cssdef.h"
 #include "lvstyles.h"
 #include "textlang.h"
@@ -52,7 +53,7 @@ class lxmlDocBase;
 struct ldomNode;
 
 /** \brief CSS property declaration
-    
+
     Currently supports only subset of properties.
 
     Properties supported:
@@ -143,7 +144,7 @@ public:
 };
 
 /** \brief simple CSS selector
-    
+
     Currently supports only element name and universal selector.
 
     - * { } - universal selector
@@ -194,7 +195,7 @@ public:
 
 
 /** \brief stylesheet
-    
+
     Can parse stylesheet and apply compiled rules.
 
     Currently supports only subset of CSS features.

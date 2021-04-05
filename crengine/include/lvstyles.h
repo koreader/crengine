@@ -14,6 +14,7 @@
 #if !defined(__LV_STYLES_H_INCLUDED__)
 #define __LV_STYLES_H_INCLUDED__
 
+#include "lvtypes.h"
 #include "cssdef.h"
 #include "lvmemman.h"
 #include "lvrefcache.h"

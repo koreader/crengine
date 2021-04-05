@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvmemman.h"
 
 // (Note: some of these 0x have lowercase hex digit, to avoid

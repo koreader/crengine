@@ -13,9 +13,9 @@
 #ifndef __LVHASHTABLE_H_INCLUDED__
 #define __LVHASHTABLE_H_INCLUDED__
 
-#include "lvtypes.h"
 #include <stdlib.h>
 #include <string.h>
+#include "lvtypes.h"
 
 inline lUInt32 getHash( lUInt16 n )
 {

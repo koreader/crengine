@@ -1,7 +1,7 @@
 /** \file lstridmap.h
     \brief Name <-> Id map
 
-   CoolReader Engine DOM Tree 
+   CoolReader Engine DOM Tree
 
    Implements mapping between Name and Id
 
@@ -17,13 +17,14 @@
 #ifndef __LSTR_ID_MAP_H__INCLUDED__
 #define __LSTR_ID_MAP_H__INCLUDED__
 
-#include "lvstring.h"
 #include <stdio.h>
+#include "lvtypes.h"
+#include "lvstring.h"
 
 struct css_elem_def_props_t;
 
 //===========================================
-class LDOMNameIdMapItem 
+class LDOMNameIdMapItem
 {
     /// custom data pointer
     css_elem_def_props_t * data;
@@ -100,7 +101,7 @@ public:
     }
 
     inline const lString32 & nameById( lUInt16 id )
-    { 
+    {
         if (id>=m_size)
             return lString32::empty_str;
         const LDOMNameIdMapItem * item = findItem(id);
@@ -108,7 +109,7 @@ public:
     }
 
     inline const css_elem_def_props_t * dataById( lUInt16 id )
-    { 
+    {
         if (id>=m_size)
             return NULL;
         const LDOMNameIdMapItem * item = findItem(id);

@@ -12,6 +12,7 @@
 #ifndef PROPS_H_INCLUDED
 #define PROPS_H_INCLUDED
 
+#include "lvtypes.h"
 #include "lvstring.h"
 #include "lvptrvec.h"
 #include "lvref.h"

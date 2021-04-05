@@ -15,6 +15,7 @@
 #if !defined(__LV_REF_CACHE_H_INCLUDED__)
 #define __LV_REF_CACHE_H_INCLUDED__
 
+#include "lvtypes.h"
 #include "lvmemman.h"
 #include "lvref.h"
 #include "lvarray.h"
@@ -22,13 +23,13 @@
 /*
     Object cache
 
-    Requirements: 
+    Requirements:
        sz parameter of constructor should be power of 2
        bool operator == (LVRef<T> & r1, LVRef<T> & r2 ) should be defined
        lUInt32 calcHash( LVRef<T> & r1 ) should be defined
 */
 
-template <class ref_t> 
+template <class ref_t>
 class LVRefCache {
 
     class LVRefCacheRec {
@@ -434,7 +435,7 @@ template <typename keyT, class dataT> class LVCacheMap
 {
 private:
     class Pair {
-    public: 
+    public:
         keyT key;
         dataT data;
         int lastAccess;
