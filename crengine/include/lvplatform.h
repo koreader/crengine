@@ -14,11 +14,11 @@
 
 /// platform-dependent path separator
 #if defined(_WIN32) && !defined(__WINE__)
-#define PATH_SEPARATOR_CHAR '\\'
+#  define PATH_SEPARATOR_CHAR '\\'
 #elif __SYMBIAN32__
-#define PATH_SEPARATOR_CHAR '\\'
+#  define PATH_SEPARATOR_CHAR '\\'
 #else
-#define PATH_SEPARATOR_CHAR '/'
+#  define PATH_SEPARATOR_CHAR '/'
 #endif
 
 /// CLOEXEC handling
