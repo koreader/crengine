@@ -78,7 +78,7 @@ class simpleLogFile
 {
 public:
     FILE * f;
-    simpleLogFile(const char * fname) { f = fopen( fname, "wt" ); }
+    simpleLogFile(const char * fname) { f = fopen( fname, "wt" STDIO_CLOEXEC ); }
     ~simpleLogFile() { if (f) fclose(f); }
     simpleLogFile & operator << ( const char * str ) { fprintf( f, "%s", str ); fflush( f ); return *this; }
     //simpleLogFile & operator << ( int d ) { fprintf( f, "%d(0x%X) ", d, d ); fflush( f ); return *this; }

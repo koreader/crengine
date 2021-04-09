@@ -16,6 +16,7 @@
 #define __LVXML_H_INCLUDED__
 
 #include <time.h>
+#include "lvtypes.h"
 #include "lvstring.h"
 #include "lvstream.h"
 #include "crtxtenc.h"

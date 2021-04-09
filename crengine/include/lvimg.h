@@ -14,7 +14,7 @@
 #ifndef __LVIMG_H_INCLUDED__
 #define __LVIMG_H_INCLUDED__
 
-
+#include "lvtypes.h"
 #include "lvref.h"
 #include "lvstream.h"
 

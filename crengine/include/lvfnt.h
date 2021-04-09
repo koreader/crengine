@@ -40,6 +40,7 @@
 #define __LVFNT_H_INCLUDED__
 
 #include "lvtypes.h"
+#include "lvplatform.h"
 
 /// maximum font name length
 #define FONT_NAME_LENGTH       64
@@ -60,8 +61,8 @@ extern "C" {
 
 */
 #pragma pack(push,1)
-typedef struct 
-tag_lvfont_header 
+typedef struct
+tag_lvfont_header
 {
     char magic[4];   ///< {'L', 'F', 'N', 'T'}
     char version[4]; ///< {'1', '.', '0', '0'  } */
@@ -81,7 +82,7 @@ tag_lvfont_header
     lUInt32 decodeTableOffset;///< huffman decode table offset
     lUInt32 rangesOffset[1024]; /**< \brief byte offset from beginning of file to 64 chars unicode ranges
 
-                                   - 0 if no chars in range 
+                                   - 0 if no chars in range
                                    - rangesOffset[0] - 0..63
                                    - rangesOffset[1] - 64..127
                                    - rangesOffset[2] - 128..191
@@ -101,11 +102,11 @@ tag_lvfont_header
     Contains pointers to individual glyphs for 64-character glyph range.
 */
 #pragma pack(push,1)
-typedef struct 
-tag_lvfont_range 
+typedef struct
+tag_lvfont_range
 {
     lUInt16 glyphsOffset[64]; /** \brief offset table for 64 glyphs in range
-                                   - 0 if no glyph for char 
+                                   - 0 if no glyph for char
                                    - byte offset from beginning of range to glyph if exists
 
                                    followed by lvfont_glyph_t for each non-zero offset
@@ -120,8 +121,8 @@ tag_lvfont_range
 
 */
 #pragma pack(push,1)
-typedef struct 
-tag_lvfont_glyph 
+typedef struct
+tag_lvfont_glyph
 {
     lUInt32  glyphSize;   ///< 4: bytes in glyph array
     lUInt16  blackBoxX;   ///< 0: width of glyph
@@ -170,16 +171,16 @@ typedef void * lvfont_handle;
     font object API
 **********************************************************************/
 
-/** 
-   \brief loads font from file, allocates memory 
+/**
+   \brief loads font from file, allocates memory
    \return 1 if successful, 0 for error
 */
 int lvfontOpen( const char * fname, lvfont_handle * hfont );
 
-/// frees memory allocated for font 
+/// frees memory allocated for font
 void lvfontClose( lvfont_handle pfont );
 
-/** \brief retrieves font header pointer by handle 
+/** \brief retrieves font header pointer by handle
     \param hfont is font handle
     \return pointer to font header structure
 */
@@ -207,8 +208,8 @@ const lvfont_glyph_t * lvfontGetGlyph( const lvfont_handle hfont, lUInt16 code )
     \param widths returns running total widths of string [0..i] including text[i]
     \return number of items written to widths[]
 */
-lUInt16 lvfontMeasureText( const lvfont_handle pfont, 
-                    const lChar32 * text, int len, 
+lUInt16 lvfontMeasureText( const lvfont_handle pfont,
+                    const lChar32 * text, int len,
                     lUInt16 * widths,
                     lUInt8 * flags,
                     int max_width,
@@ -263,21 +264,21 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
 // #define LCHAR_IS_EOL              0x0010 ///< flag: this char is CR or LF
 
 
-/** \brief returns true if character is unicode space 
+/** \brief returns true if character is unicode space
     \param code is character
-    \return 1 if character is space, 0 otherwise 
+    \return 1 if character is space, 0 otherwise
 */
 inline int lvfontIsUnicodeSpace( lChar32 code ) { return code==0x0020; }
 
-/** \brief returns unpacked glyph image 
+/** \brief returns unpacked glyph image
     \param packed is RLE/Huffman encoded glyph data
     \param table is RLE/Huffman table
     \param unpacked is buffer to place unpacked image (1 byte per pixel)
     \param unp_size is size of \a unpacked
 */
-void lvfontUnpackGlyph( const lUInt8 * packed, 
-                       const hrle_decode_info_t * table, 
-                       lUInt8 * unpacked, 
+void lvfontUnpackGlyph( const lUInt8 * packed,
+                       const hrle_decode_info_t * table,
+                       lUInt8 * unpacked,
                        int unp_size );
 
 #ifdef __cplusplus

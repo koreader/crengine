@@ -3721,7 +3721,7 @@ class simpleLogFile
 {
 public:
     FILE * f;
-    simpleLogFile(const char * fname) { f = fopen( fname, "wt" ); }
+    simpleLogFile(const char * fname) { f = fopen( fname, "wt" STDIO_CLOEXEC ); }
     ~simpleLogFile() { if (f) fclose(f); }
     simpleLogFile & operator << ( const char * str ) { fprintf( f, "%s", str ); fflush( f ); return *this; }
     simpleLogFile & operator << ( int d ) { fprintf( f, "%d(0x%X) ", d, d ); fflush( f ); return *this; }
@@ -5119,7 +5119,7 @@ void lxmlDocBase::setNameSpaceTypes( const ns_def_t * ns_scheme )
 
 void lxmlDocBase::dumpUnknownEntities( const char * fname )
 {
-    FILE * f = fopen( fname, "wt" );
+    FILE * f = fopen( fname, "wt" STDIO_CLOEXEC );
     if ( !f )
         return;
     fprintf(f, "Unknown elements:\n");

@@ -1,6 +1,7 @@
 #ifndef BOOKFORMATS_H
 #define BOOKFORMATS_H
 
+#include "lvtypes.h"
 #include "lvstring.h"
 
 /// source document formats

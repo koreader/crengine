@@ -94,6 +94,7 @@
 		<Unit filename="..\..\..\include\lvimg.h" />
 		<Unit filename="..\..\..\include\lvmemman.h" />
 		<Unit filename="..\..\..\include\lvpagesplitter.h" />
+		<Unit filename="..\..\..\include\lvplatform.h" />
 		<Unit filename="..\..\..\include\lvptrvec.h" />
 		<Unit filename="..\..\..\include\lvref.h" />
 		<Unit filename="..\..\..\include\lvrefcache.h" />

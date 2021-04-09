@@ -2,6 +2,7 @@
 #define CHMFMT_H
 
 #include "../include/crsetup.h"
+#include "../include/lvtypes.h"
 #include "../include/lvtinydom.h"
 
 #if CHM_SUPPORT_ENABLED==1

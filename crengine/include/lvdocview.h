@@ -14,6 +14,8 @@
 #define __LV_TEXT_VIEW_H_INCLUDED__
 
 #include "crsetup.h"
+#include "lvtypes.h"
+#include "lvplatform.h"
 #include "crskin.h"
 #include "lvtinydom.h"
 #include "lvpagesplitter.h"
@@ -421,7 +423,7 @@ public:
 
     /// draw current page to specified buffer
     void Draw( LVDrawBuf & drawbuf, bool autoResize = true);
-    
+
     /// close document
     void close();
     /// set buffer format

@@ -913,7 +913,7 @@ public:
 
 //#ifdef DUMP_PDB_CONTENTS
 //        int unpoffset2 = 0;
-//        FILE * out = fopen("/tmp/pdbout.txt", "wb");
+//        FILE * out = fopen("/tmp/pdbout.txt", "wb" STDIO_CLOEXEC);
 //        int k;
 //        for (k=1; k <= _recordCount && unpoffset2 < this->_textSize; k++) {
 //            LVArray<lUInt8> dst;
@@ -963,7 +963,7 @@ public:
         #ifdef DUMP_PDB_CONTENTS
         {
                 int unpoffset2 = 0;
-                FILE * out = fopen("/tmp/pdbout.txt", "wb");
+                FILE * out = fopen("/tmp/pdbout.txt", "wb" STDIO_CLOEXEC);
                 int k;
                 for (k=1; k <= _recordCount && unpoffset2 < this->_textSize; k++) {
                     LVArray<lUInt8> dst;

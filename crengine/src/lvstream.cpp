@@ -794,7 +794,7 @@ public:
 		// LINUX IMPLEMENTATION
         m_fd = -1;
 
-        int flags = (mode==LVOM_READ) ? O_RDONLY : O_RDWR | O_CREAT; // | O_SYNC
+        int flags = (mode==LVOM_READ) ? O_RDONLY | O_CLOEXEC : O_RDWR | O_CREAT | O_CLOEXEC; // | O_SYNC
         m_fd = open( fn8.c_str(), flags, (mode_t)0666);
         if (m_fd == -1) {
             CRLog::error( "Error opening file %s for %s, errno=%d, msg=%s", fn8.c_str(), (mode==LVOM_READ) ? "reading" : "read/write",  (int)errno, strerror(errno) );
@@ -954,17 +954,17 @@ public:
         m_mode = mode;
         m_file = NULL;
         SetName(fname.c_str());
-        const char * modestr = "r";
+        const char * modestr = "r" STDIO_CLOEXEC;
         switch (mode) {
         case LVOM_READ:
-            modestr = "rb";
+            modestr = "rb" STDIO_CLOEXEC;
             break;
         case LVOM_WRITE:
-            modestr = "wb";
+            modestr = "wb" STDIO_CLOEXEC;
             break;
         case LVOM_READWRITE:
         case LVOM_APPEND:
-            modestr = "a+b";
+            modestr = "a+b" STDIO_CLOEXEC;
             break;
         case LVOM_CLOSED:
         case LVOM_ERROR:
@@ -1328,7 +1328,7 @@ public:
         bool use_sync = (mode & LVOM_FLAG_SYNC)!=0;
         m_fd = -1;
 
-        int flags = (mode==LVOM_READ) ? O_RDONLY : O_RDWR | O_CREAT | (use_sync ? O_SYNC : 0) | (mode==LVOM_WRITE ? O_TRUNC : 0);
+        int flags = (mode==LVOM_READ) ? O_RDONLY | O_CLOEXEC : O_RDWR | O_CREAT | O_CLOEXEC | (use_sync ? O_SYNC : 0) | (mode==LVOM_WRITE ? O_TRUNC : 0);
         lString8 fn8 = UnicodeToUtf8(fname);
         m_fd = open( fn8.c_str(), flags, (mode_t)0666);
         if (m_fd == -1) {
@@ -3912,7 +3912,7 @@ bool LVFileExists( const lString32 & pathName )
 	LVStreamRef stream = LVOpenFileStream( pathName.c_str(), LVOM_READ );
 	return !stream.isNull();
 #else
-    FILE * f = fopen(UnicodeToUtf8(pathName).c_str(), "rb");
+    FILE * f = fopen(UnicodeToUtf8(pathName).c_str(), "rb" STDIO_CLOEXEC);
     if ( f ) {
         fclose( f );
         return true;

@@ -28,6 +28,7 @@
 #define __LVSTREAM_H_INCLUDED__
 
 #include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvref.h"
 #include "lvstring.h"
 #include "lvarray.h"

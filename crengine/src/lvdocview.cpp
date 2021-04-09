@@ -2897,7 +2897,7 @@ void LVDocView::Render(int dx, int dy, LVRendPageList * pages) {
 
 #if 0
                 // For debugging lvpagesplitter.cpp (larger books)
-		FILE * f = fopen("pagelist.log", "wt");
+		FILE * f = fopen("pagelist.log", "wt" STDIO_CLOEXEC);
 		if (f) {
 			for (int i=0; i<m_pages.length(); i++)
 			{

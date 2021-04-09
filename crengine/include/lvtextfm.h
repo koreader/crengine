@@ -1,5 +1,5 @@
 /** \file lvtextfm.h
-    
+
     \brief Text formatter API
 
    CoolReader Engine C-compatible text formatter API
@@ -15,6 +15,7 @@
 #ifndef __LVTEXTFM_H_INCLUDED__
 #define __LVTEXTFM_H_INCLUDED__
 
+#include "lvtypes.h"
 #include "lvfntman.h"
 #include "lvbmpbuf.h"
 #include "textlang.h"
@@ -322,7 +323,7 @@ void lvtextFreeFormatter( formatted_text_fragment_t * pbuffer );
 
     Call this function after lvtextInitFormatter for each source fragment
 */
-void lvtextAddSourceLine( 
+void lvtextAddSourceLine(
    formatted_text_fragment_t * pbuffer,
    lvfont_handle   font,     /* handle of font to draw string */
    TextLangCfg *   lang_cfg,
@@ -343,7 +344,7 @@ void lvtextAddSourceLine(
 
     Call this function after lvtextInitFormatter for each source fragment
 */
-void lvtextAddSourceObject( 
+void lvtextAddSourceObject(
    formatted_text_fragment_t * pbuffer,
    TextLangCfg *   lang_cfg,
    lInt16         width,
@@ -401,7 +402,7 @@ public:
     void setHighlightOptions(text_highlight_options_t * options);
 
     void Clear()
-    { 
+    {
         lUInt16 width = m_pbuffer->width;
         lvtextFreeFormatter( m_pbuffer );
         m_pbuffer = lvtextAllocFormatter( width );
@@ -433,10 +434,10 @@ public:
            lInt16          letter_spacing=0
         )
     {
-        lvtextAddSourceLine(m_pbuffer, 
+        lvtextAddSourceLine(m_pbuffer,
             font,  //font->GetHandle()
             lang_cfg,
-            text, len, color, bgcolor, 
+            text, len, color, bgcolor,
             flags, interval, valign_dy, indent, object, (lUInt16)offset, letter_spacing );
     }
 

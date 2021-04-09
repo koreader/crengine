@@ -2074,7 +2074,7 @@ bool hasXmlTags(const lUInt8 * buf, int size) {
 
 void MakeStatsForFile( const char * fname, const char * cp_name, const char * lang_name, int index, FILE * f, lString8 & list )
 {
-   FILE * in = fopen( fname, "rb" );
+   FILE * in = fopen( fname, "rb" STDIO_CLOEXEC );
    if (!in)
       return;
    fseek( in, 0, SEEK_END );

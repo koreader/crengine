@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvmemman.h"
 
 // (Note: some of these 0x have lowercase hex digit, to avoid
@@ -461,7 +462,7 @@ public:
 };
 
 /**
-    \brief Wide character (lChar32) string. 
+    \brief Wide character (lChar32) string.
 
    Reference counting, copy-on-write implementation.
    Interface is similar to STL strings.
@@ -1232,7 +1233,7 @@ public:
     : f(NULL)
     {
         if ( fname )
-            f = fopen( fname, "at" );
+            f = fopen( fname, "at" STDIO_CLOEXEC );
         if ( !f )
             f = stdout;
         fprintf(f, "DumpFile log started\n");

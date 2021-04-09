@@ -7,13 +7,13 @@ DEFINES += USE_FREETYPE=1 \
     LDOM_USE_OWN_MEM_MAN=1 \
     COLOR_BACKBUFFER=1 \
     USE_DOM_UTF8_STORAGE=1
-win32 { 
+win32 {
     DEFINES += _WIN32=1 \
         WIN32=1 \
         CR_EMULATE_GETTEXT=1
     LIBS += -lgdi32
 }
-!win32 { 
+!win32 {
     DEFINES += _LINUX=1 \
         LINUX=1
     INCLUDEPATH += /usr/include/freetype2
@@ -76,6 +76,7 @@ HEADERS += mainwindow.h \
     ../crengine/include/lvrefcache.h \
     ../crengine/include/lvptrvec.h \
     ../crengine/include/lvpagesplitter.h \
+    ../crengine/include/lvplatform.h \
     ../crengine/include/lvmemman.h \
     ../crengine/include/lvimg.h \
     ../crengine/include/lvhashtable.h \
@@ -123,11 +124,11 @@ TRANSLATIONS += i18n/cr3_ru.ts \
     i18n/cr3_de.ts
 
 RESOURCES += cr3res.qrc
-!win32 { 
+!win32 {
     unix:LIBS += -ljpeg
     win32:LIBS += libjpeg.lib
 }
-win32 { 
+win32 {
     INCLUDEPATH += ../thirdparty/libjpeg
     SOURCES += ../thirdparty/libjpeg/jcapimin.c \
         ../thirdparty/libjpeg/jcapistd.c \
@@ -176,11 +177,11 @@ win32 {
         ../thirdparty/libjpeg/jutils.c \
         ../thirdparty/libjpeg/jmemnobs.c
 }
-!win32 { 
+!win32 {
     unix:LIBS += -lpng
     win32:LIBS += libpng.lib
 }
-win32 { 
+win32 {
     INCLUDEPATH += ../thirdparty/libpng
     SOURCES += ../thirdparty/libpng/png.c \
         ../thirdparty/libpng/pngset.c \
@@ -198,11 +199,11 @@ win32 {
         ../thirdparty/libpng/pngerror.c \
         ../thirdparty/libpng/pngpread.c
 }
-!win32 { 
+!win32 {
     unix:LIBS += -lfreetype
     win32:LIBS += libfreetype.lib
 }
-win32 { 
+win32 {
     DEFINES += FT2_BUILD_LIBRARY=1
     INCLUDEPATH += ../thirdparty/freetype/include
     SOURCES += ../thirdparty/freetype/src/autofit/autofit.c \
@@ -243,11 +244,11 @@ win32 {
         ../thirdparty/freetype/src/type42/type42.c \
         ../thirdparty/freetype/src/winfonts/winfnt.c
 }
-!win32 { 
+!win32 {
     unix:LIBS += -lz
     win32:LIBS += libz.lib
 }
-win32 { 
+win32 {
     INCLUDEPATH += ../thirdparty/zlib
     SOURCES += ../thirdparty/zlib/adler32.c \
         ../thirdparty/zlib/compress.c \

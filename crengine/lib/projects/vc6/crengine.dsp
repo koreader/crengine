@@ -7,23 +7,23 @@
 CFG=crengine - Win32 Unicode Debug Lite
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
-!MESSAGE 
+!MESSAGE
 !MESSAGE NMAKE /f "crengine.mak".
-!MESSAGE 
+!MESSAGE
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
-!MESSAGE 
+!MESSAGE
 !MESSAGE NMAKE /f "crengine.mak" CFG="crengine - Win32 Unicode Debug Lite"
-!MESSAGE 
+!MESSAGE
 !MESSAGE Possible choices for configuration are:
-!MESSAGE 
+!MESSAGE
 !MESSAGE "crengine - Win32 Release" (based on "Win32 (x86) Static Library")
 !MESSAGE "crengine - Win32 Debug" (based on "Win32 (x86) Static Library")
 !MESSAGE "crengine - Win32 Unicode Debug" (based on "Win32 (x86) Static Library")
 !MESSAGE "crengine - Win32 Unicode Release" (based on "Win32 (x86) Static Library")
 !MESSAGE "crengine - Win32 Unicode Release Lite" (based on "Win32 (x86) Static Library")
 !MESSAGE "crengine - Win32 Unicode Debug Lite" (based on "Win32 (x86) Static Library")
-!MESSAGE 
+!MESSAGE
 
 # Begin Project
 # PROP AllowPerConfigDependencies 0
@@ -173,7 +173,7 @@ LIB32=link.exe -lib
 # ADD BASE LIB32 /nologo /out:"..\..\crengined.lib"
 # ADD LIB32 /nologo /out:"..\..\crenginelited.lib"
 
-!ENDIF 
+!ENDIF
 
 # Begin Target
 
@@ -215,7 +215,7 @@ SOURCE=..\..\..\src\hist.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -250,7 +250,7 @@ SOURCE=..\..\..\src\hyphman.cpp
 # SUBTRACT BASE CPP /YX
 # SUBTRACT CPP /YX
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -277,7 +277,7 @@ SOURCE=..\..\..\src\lvbmpbuf.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -300,7 +300,7 @@ SOURCE=..\..\..\src\lvdocview.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -335,7 +335,7 @@ SOURCE=..\..\..\src\lvdrawbuf.cpp
 # SUBTRACT BASE CPP /YX
 # SUBTRACT CPP /YX
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -374,7 +374,7 @@ SOURCE=..\..\..\src\lvpagesplitter.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -397,7 +397,7 @@ SOURCE=..\..\..\src\lvrend.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -436,7 +436,7 @@ SOURCE=..\..\..\src\lvtextfm.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -467,7 +467,7 @@ SOURCE=..\..\..\src\props.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -498,7 +498,7 @@ SOURCE=..\..\..\src\wolutil.cpp
 
 # PROP Exclude_From_Build 1
 
-!ENDIF 
+!ENDIF
 
 # End Source File
 # Begin Source File
@@ -588,6 +588,10 @@ SOURCE=..\..\..\include\lvmemman.h
 # Begin Source File
 
 SOURCE=..\..\..\include\lvpagesplitter.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\include\lvplatform.h
 # End Source File
 # Begin Source File
 

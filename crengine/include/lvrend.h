@@ -14,6 +14,8 @@
 #ifndef __LV_REND_H_INCLUDED__
 #define __LV_REND_H_INCLUDED__
 
+#include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvtinydom.h"
 #include "textlang.h"
 

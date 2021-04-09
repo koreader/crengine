@@ -25,6 +25,8 @@
 #ifndef __LV_TINYDOM_H_INCLUDED__
 #define __LV_TINYDOM_H_INCLUDED__
 
+#include "lvtypes.h"
+#include "lvplatform.h"
 #include "lvmemman.h"
 #include "lvstring.h"
 #include "lstridmap.h"

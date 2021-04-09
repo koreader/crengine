@@ -34,7 +34,7 @@ const lvfont_header_t * lvfontGetHeader( const lvfont_handle pfont )
 
 const hrle_decode_info_t * lvfontGetDecodeTable( const lvfont_handle pfont )
 {
-    return (hrle_decode_info_t *) 
+    return (hrle_decode_info_t *)
         ((const lUInt8*)pfont + ((const tag_lvfont_header *) pfont)->decodeTableOffset);
 }
 
@@ -59,7 +59,7 @@ int lvfontOpen( const char * fname, lvfont_handle * pfont )
 {
     static lvByteOrderConv cnv;
 
-    FILE * f = fopen( fname, "rb" );
+    FILE * f = fopen( fname, "rb" STDIO_CLOEXEC );
     if (f == NULL)
         return 0;
     fseek( f, 0, SEEK_END );
@@ -77,7 +77,7 @@ int lvfontOpen( const char * fname, lvfont_handle * pfont )
 
     cnv.lsf( &hdr->fileSize );
 
-    if (   hdr->fileSize != sz 
+    if (   hdr->fileSize != sz
         || hdr->magic[0]!='L'
         || hdr->magic[1]!='F'
         || hdr->magic[2]!='N'
@@ -126,8 +126,8 @@ void lvfontClose( lvfont_handle pfont )
     }
 }
 
-lUInt16 lvfontMeasureText( const lvfont_handle pfont, 
-                    const lChar32 * text, int len, 
+lUInt16 lvfontMeasureText( const lvfont_handle pfont,
+                    const lChar32 * text, int len,
                     lUInt16 * widths,
                     lUInt8 * flags,
                     int max_width,
@@ -147,7 +147,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
     glyph = lvfontGetGlyph( pfont, UNICODE_SOFT_HYPHEN_CODE );
     hyphwidth = glyph ? glyph->width : 0;
 
-    for ( ; wsum < max_width && nchars < len; nchars++ ) 
+    for ( ; wsum < max_width && nchars < len; nchars++ )
     {
         bflags = 0;
         ch = text[nchars];
@@ -163,7 +163,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
              glyph = lvfontGetGlyph( pfont, def_char );
         gwidth = glyph ? glyph->width : 0;
         widths[nchars] = wsum + gwidth;
-        if ( ch != UNICODE_SOFT_HYPHEN_CODE ) 
+        if ( ch != UNICODE_SOFT_HYPHEN_CODE )
             wsum += gwidth; /* don't include hyphens to width */
         flags[nchars] = bflags;
     }
@@ -187,7 +187,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
             break;
         if (ch=='.' || ch==',' || ch=='!' || ch=='?' || ch=='?')
             break;
-        
+
     }
     HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphwidth, max_width);
 #endif

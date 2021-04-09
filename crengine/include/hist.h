@@ -12,8 +12,9 @@
 #ifndef HIST_H_INCLUDED
 #define HIST_H_INCLUDED
 
-#include "lvptrvec.h"
 #include <time.h>
+#include "lvstring.h"
+#include "lvptrvec.h"
 
 enum bmk_type {
     bmkt_lastpos,
@@ -222,7 +223,7 @@ public:
     LVPtrVector<CRFileHistRecord> & getRecords() { return _records; }
     bool loadFromStream( LVStreamRef stream );
     bool saveToStream( LVStream * stream );
-    CRFileHistRecord * savePosition( lString32 fpathname, size_t sz, 
+    CRFileHistRecord * savePosition( lString32 fpathname, size_t sz,
         const lString32 & title,
         const lString32 & author,
         const lString32 & series,

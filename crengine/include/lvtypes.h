@@ -44,15 +44,6 @@ typedef long long int lInt64;       ///< signed 64 bit int
 typedef unsigned long long int lUInt64; ///< unsigned 64 bit int
 #endif
 
-/// platform-dependent path separator
-#if defined(_WIN32) && !defined(__WINE__)
-#define PATH_SEPARATOR_CHAR '\\'
-#elif __SYMBIAN32__
-#define PATH_SEPARATOR_CHAR '\\'
-#else
-#define PATH_SEPARATOR_CHAR '/'
-#endif
-
 /// point
 class lvPoint {
 public:
@@ -167,7 +158,7 @@ public:
         return left<=pt.x && top<=pt.y && right>pt.x && bottom > pt.y;
     }
 	void clear() { left=right=top=bottom=0; }
-	
+
     bool intersect(const lvRect &rc)
 	{
         if (left < rc.left)
