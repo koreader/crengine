@@ -59,12 +59,12 @@
 #if defined(DISABLE_CLOEXEC)
 #  if defined(O_CLOEXEC)
 #    undef O_CLOEXEC
-#    define O_CLOEXEC 0
 #  endif
+#  define O_CLOEXEC 0
 #  if defined(STDIO_CLOEXEC)
 #    undef STDIO_CLOEXEC
-#    define STDIO_CLOEXEC
 #  endif
+#  define STDIO_CLOEXEC
 #endif
 
 #endif // LVPLATFORM_H_INCLUDED
