@@ -133,7 +133,7 @@ struct LVFontGlyphCacheItem
     lUInt16 bmp_height;
     lInt16  origin_x;
     lInt16  origin_y;
-    lUInt16 advance;
+    lUInt32 advance_26_6;
     lUInt8 bmp[1];
     //=======================================================================
     int getSize()
@@ -151,7 +151,7 @@ struct LVFontGlyphCacheItem
 	    item->bmp_height = (lUInt16)h;
 	    item->origin_x =   0;
 	    item->origin_y =   0;
-	    item->advance =    0;
+	    item->advance_26_6 = 0;
 	    item->prev_global = NULL;
 	    item->next_global = NULL;
 	    item->prev_local = NULL;
@@ -171,7 +171,7 @@ struct LVFontGlyphCacheItem
             item->bmp_height = (lUInt16) h;
             item->origin_x = 0;
             item->origin_y = 0;
-            item->advance = 0;
+            item->advance_26_6 = 0;
             item->prev_global = NULL;
             item->next_global = NULL;
             item->prev_local = NULL;

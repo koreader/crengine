@@ -79,6 +79,8 @@
 // Uncomment to use the former >>6 (trunc) with no rounding (instead of previous one)
 // #define FONT_METRIC_TO_PX(x)    ((x) >> 6)
 
+#define PX_TO_FONT_METRIC(x)    ( (x >= 0) ? (x << 6) : -( (-x) << 6 ) )
+
 #if COLOR_BACKBUFFER==0
 //#define USE_BITMAP_FONT
 #endif
@@ -859,12 +861,12 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
-    item->advance =    (lUInt16)(FONT_METRIC_TO_PX( myabs(slot->metrics.horiAdvance) ));
+    item->advance_26_6 = (lUInt32)( myabs(slot->metrics.horiAdvance) );
     return item;
 }
 
 #if USE_HARFBUZZ==1
-static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt32 index, FT_GlyphSlot slot )
+static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt32 index, FT_GlyphSlot slot)
 {
     FONT_LOCAL_GLYPH_CACHE_GUARD
     FT_Bitmap*  bitmap = &slot->bitmap;
@@ -902,7 +904,7 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
     }
     item->origin_x =   (lInt16)slot->bitmap_left;
     item->origin_y =   (lInt16)slot->bitmap_top;
-    item->advance =    (lUInt16)(FONT_METRIC_TO_PX( myabs(slot->metrics.horiAdvance) ));
+    item->advance_26_6 = (lUInt32)( myabs(slot->metrics.horiAdvance) );
     return item;
 }
 #endif
@@ -1200,8 +1202,8 @@ struct LVCharTriplet
 
 struct LVCharPosInfo
 {
-    int offset;
-    int width;
+    lInt32 offset_26_6;
+    lInt32 advance_26_6;
 };
 
 inline lUInt32 getHash( const struct LVCharTriplet& triplet )
@@ -1891,18 +1893,18 @@ public:
                 // which will be the one that will be rendered
                 FT_UInt ch_glyph_index = FT_Get_Char_Index( _face, triplet.Char );
                 if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
-                    posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
-                    posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
+                    posInfo->offset_26_6 = glyph_pos[cluster].x_offset;
+                    posInfo->advance_26_6 = glyph_pos[cluster].x_advance;
                     return true;
                 }
             }
         }
-        // Otherwise, use plain Freetype getGlyphInfo() which will check
+        // Otherwise, use plain Freetype getGlyph() which will check
         // again with this font, or the fallback one
-        glyph_info_t glyph;
-        if ( getGlyphInfo(triplet.Char, &glyph, def_char) ) {
-            posInfo->offset = 0;
-            posInfo->width = glyph.width;
+        LVFontGlyphCacheItem *glyph = getGlyph(triplet.Char, def_char);
+        if (glyph) {
+            posInfo->offset_26_6 = 0;
+            posInfo->advance_26_6 = glyph->advance_26_6;
             return true;
         }
         return false;
@@ -2178,10 +2180,12 @@ public:
         else if ( letter_spacing > MAX_LETTER_SPACING ) {
             letter_spacing = MAX_LETTER_SPACING;
         }
+        FT_Pos letter_spacing_26_6 = PX_TO_FONT_METRIC(letter_spacing) + _synth_weight_strength;
 
         int i;
 
-        lUInt16 prev_width = 0;
+        FT_Pos prev_width_26_6 = 0;
+        FT_Pos cur_width_26_6 = 0;
         int lastFitChar = 0;
         updateTransform(); // no-op
         // measure character widths
@@ -2275,11 +2279,11 @@ public:
 
             // Some additional care might need to be taken, see:
             //   https://www.w3.org/TR/css-text-3/#letter-spacing-property
-            if ( letter_spacing > 0 ) {
+            if ( letter_spacing_26_6 != 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
                 if ( isHBScriptCursive(script) )
-                    letter_spacing = 0;
+                    letter_spacing_26_6 = 0;
             }
             // todo: if letter_spacing, ligatures should be disabled (-liga, -clig)
             // todo: letter-spacing must not be applied at the beginning or at the end of a line
@@ -2354,8 +2358,6 @@ public:
             // glyphs) with the fallback font, and update the wrongs width
             // and flags.
 
-            int prev_width = 0;
-            int cur_width = 0;
             int cur_cluster = 0;
             int hg = 0;  // index in glyph_info/glyph_pos
             int hcl = 0; // cluster glyph at hg
@@ -2370,7 +2372,7 @@ public:
                 while ( hg < glyph_count ) {
                     hcl = glyph_info[hg].cluster;
                     if (hcl <= t) {
-                        int advance = 0;
+                        FT_Pos advance_26_6 = 0;
                         if ( glyph_info[hg].codepoint != 0 ) { // Codepoint found in this font
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(found cp=%x) ", glyph_info[hg].codepoint);
@@ -2408,8 +2410,8 @@ public:
                                         widths[tn] += last_good_width;
                                     }
                                     // And fix our current width
-                                    cur_width = widths[t_notdef_end-1];
-                                    prev_width = cur_width;
+                                    cur_width_26_6 = PX_TO_FONT_METRIC(widths[t_notdef_end-1]);
+                                    prev_width_26_6 = cur_width_26_6;
                                     #ifdef DEBUG_MEASURE_TEXT
                                         printf("MTHB ### measured past failures > W= %d\n[...]", cur_width);
                                     #endif
@@ -2424,14 +2426,14 @@ public:
                                 // And go on with the found glyph now that we fixed what was before
                             }
                             // Glyph found in this font
-                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
+                            advance_26_6 = glyph_pos[hg].x_advance;
                         }
                         else {
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(glyph not found) ");
                             #endif
                             // Keep the advance of .notdef/tofu in case there is no fallback font to correct them
-                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
+                            advance_26_6 = glyph_pos[hg].x_advance;
                             if ( t_notdef_start < 0 ) {
                                 t_notdef_start = t;
                             }
@@ -2439,7 +2441,7 @@ public:
                         #ifdef DEBUG_MEASURE_TEXT
                             printf("c%d+%d ", hcl, advance);
                         #endif
-                        cur_width += advance;
+                        cur_width_26_6 += advance_26_6;
                         cur_cluster = hcl;
                         hg++;
                         continue; // keep grabbing glyphs
@@ -2458,22 +2460,23 @@ public:
                     // We're either a single char cluster, or the start
                     // of a multi chars cluster.
                     flags[t] = GET_CHAR_FLAGS(text[t]);
-                    if (cur_width == prev_width) {
+                    if (cur_width_26_6 == prev_width_26_6) {
                         // But if there is no advance (this happens with soft-hyphens),
                         // flag it and don't add any letter spacing.
                         flags[t] |= LCHAR_IS_CLUSTER_TAIL;
                     }
                     else {
-                        cur_width += letter_spacing; // only between clusters/graphemes
+                        cur_width_26_6 += letter_spacing_26_6; // only between clusters/graphemes
                     }
                     // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
                     // so HarfBuzz must already deal correctly with soft-hyphens.
                 }
+                int cur_width = FONT_METRIC_TO_PX(cur_width_26_6);
                 widths[t] = cur_width;
                 #ifdef DEBUG_MEASURE_TEXT
                     printf("=> %d (flags=%d) => W=%d\n", cur_width - prev_width, flags[t], cur_width);
                 #endif
-                prev_width = cur_width;
+                prev_width_26_6 = cur_width_26_6;
 
                 // (Not sure about how that max_width limit could play and if it could mess things)
                 if (cur_width > max_width) {
@@ -2508,7 +2511,7 @@ public:
                         widths[tn] += last_good_width;
                     }
                     // And add all that to our current width
-                    cur_width = widths[t_notdef_end-1];
+                    cur_width_26_6 = PX_TO_FONT_METRIC(widths[t_notdef_end-1]);
                     #ifdef DEBUG_MEASURE_TEXT
                         printf("MTHB ### measured past failures at EOT > W= %d\n[...]", cur_width);
                     #endif
@@ -2546,7 +2549,7 @@ public:
                     // do just what would be done below if zero width (no change
                     // in prev_width), and don't get involved in kerning
                     flags[i] = 0; // no LCHAR_ALLOW_WRAP_AFTER, will be dealt with by hyphenate()
-                    widths[i] = prev_width;
+                    widths[i] = FONT_METRIC_TO_PX(prev_width_26_6);
                     lastFitChar = i + 1;
                     continue;
                 }
@@ -2561,23 +2564,24 @@ public:
                     if (hbCalcCharWidth(&posInfo, triplet, def_char))
                         _width_cache2.set(triplet, posInfo);
                     else { // (seems this never happens, unlike with KERNING_MODE_DISABLED)
-                        widths[i] = prev_width;
+                        widths[i] = FONT_METRIC_TO_PX(prev_width_26_6);
                         lastFitChar = i + 1;
                         continue;  /* ignore errors */
                     }
                 }
-                widths[i] = prev_width + posInfo.width;
-                if ( posInfo.width == 0 ) {
+                cur_width_26_6 = prev_width_26_6 + posInfo.advance_26_6;
+                if ( posInfo.advance_26_6 == 0 ) {
                     // Assume zero advance means it's a diacritic, and we should not apply
                     // any letter spacing on this char (now, and when justifying)
                     flags[i] |= LCHAR_IS_CLUSTER_TAIL;
                 }
                 else {
-                    widths[i] += letter_spacing;
+                    cur_width_26_6 += letter_spacing_26_6;
                 }
+                widths[i] = FONT_METRIC_TO_PX(cur_width_26_6);
                 if ( !isHyphen ) // avoid soft hyphens inside text string
-                    prev_width = widths[i];
-                if ( prev_width > max_width ) {
+                    prev_width_26_6 = cur_width_26_6;
+                if ( FONT_METRIC_TO_PX(prev_width_26_6) > max_width ) {
                     if ( lastFitChar < i + 7)
                         break;
                 }
@@ -2603,7 +2607,7 @@ public:
                 // do just what would be done below if zero width (no change
                 // in prev_width), and don't get involved in kerning
                 flags[i] = 0; // no LCHAR_ALLOW_WRAP_AFTER, will be dealt with by hyphenate()
-                widths[i] = prev_width;
+                widths[i] = FONT_METRIC_TO_PX(prev_width_26_6);
                 lastFitChar = i + 1;
                 continue;
             }
@@ -2637,7 +2641,7 @@ public:
                     _wcache.put(ch, w);
                 }
                 else {
-                    widths[i] = prev_width;
+                    widths[i] = FONT_METRIC_TO_PX(prev_width_26_6);
                     lastFitChar = i + 1;
                     continue;  /* ignore errors */
                 }
@@ -2656,18 +2660,19 @@ public:
                     ch_glyph_index = getCharIndex( ch, 0 );
                 previous = ch_glyph_index;
             }
-            widths[i] = prev_width + w + FONT_METRIC_TO_PX(kerning);
+            cur_width_26_6 += PX_TO_FONT_METRIC(w) + kerning;
             if ( w == 0 ) {
                 // Assume zero advance means it's a diacritic, and we should not apply
                 // any letter spacing on this char (now, and when justifying)
                 flags[i] |= LCHAR_IS_CLUSTER_TAIL;
             }
             else {
-                widths[i] += letter_spacing;
+                cur_width_26_6 += letter_spacing_26_6;
             }
+            widths[i] = FONT_METRIC_TO_PX(cur_width_26_6);
             if ( !isHyphen ) // avoid soft hyphens inside text string
-                prev_width = widths[i];
-            if ( prev_width > max_width ) {
+                prev_width_26_6 = cur_width_26_6;
+            if ( FONT_METRIC_TO_PX(prev_width_26_6) > max_width ) {
                 if ( lastFitChar < i + 7)
                     break;
             }
@@ -2810,8 +2815,17 @@ public:
             }
 
             item = newItem( &_glyph_cache, (lChar32)ch, _slot ); //, _drawMonochrome
-            if (item)
+            if (item) {
+                if (_synth_weight > 0) {
+                    if (item->origin_x < 0 && item->advance_26_6 == 0) { // probable diacritic
+                        // The width of the character above/below which
+                        // the diacritical mark is located has changed,
+                        // so the position of this mark must also be changed.
+                        item->origin_x -= FONT_METRIC_TO_PX(_synth_weight_strength);
+                    }
+                }
                 _glyph_cache.put( item );
+            }
         }
         return item;
     }
@@ -3384,6 +3398,8 @@ public:
         else if ( letter_spacing > MAX_LETTER_SPACING ) {
             letter_spacing = MAX_LETTER_SPACING;
         }
+        FT_Pos letter_spacing_26_6 = PX_TO_FONT_METRIC(letter_spacing) + _synth_weight_strength;
+
         lvRect clip;
         buf->GetClipRect( &clip );
         updateTransform(); // no-op
@@ -3399,6 +3415,7 @@ public:
         // measure character widths
         bool isHyphen = false;
         int x0 = x;
+        FT_Pos x_26_6 = PX_TO_FONT_METRIC(x);
 
     #if USE_HARFBUZZ==1
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
@@ -3408,6 +3425,7 @@ public:
             hb_glyph_info_t *glyph_info = 0;
             hb_glyph_position_t *glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
+
             // Fill HarfBuzz buffer
             bool is_fallback_font = flags & LFNT_HINT_IS_FALLBACK_FONT;
             LVFont * fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
@@ -3449,11 +3467,11 @@ public:
             hb_buffer_guess_segment_properties(_hb_buffer);
 
             // See measureText() for details
-            if ( letter_spacing > 0 ) {
+            if ( letter_spacing_26_6 != 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
                 if ( isHBScriptCursive(script) )
-                    letter_spacing = 0;
+                    letter_spacing_26_6 = 0;
             }
 
             // Shape
@@ -3611,11 +3629,11 @@ public:
                     int fb_len = fb_t_end - fb_t_start;
                     // (width and text_decoration_back_gap are only used for
                     // text decoration, that we dropped: no update needed)
-                    int fb_advance = fallback->DrawTextString( buf, x, fb_y,
-                       fb_text, fb_len,
+                    int fb_advance = fallback->DrawTextString( buf, FONT_METRIC_TO_PX(x_26_6),
+                       fb_y, fb_text, fb_len,
                        def_char, palette, fb_addHyphen, lang_cfg, fb_flags, letter_spacing,
                        width, text_decoration_back_gap, target_w, target_h );
-                    x += fb_advance;
+                    x_26_6 += PX_TO_FONT_METRIC(fb_advance);
                     #ifdef DEBUG_DRAW_TEXT
                         printf("DTHB ### drawn past notdef > X+= %d\n[...]", fb_advance);
                     #endif
@@ -3625,7 +3643,7 @@ public:
                         printf("regular g%d>%d: ", hg, hg2);
                     #endif
                     // Draw glyphs of this same cluster
-                    int prev_x = x;
+                    int prev_x_26_6 = x_26_6;
                     for (i = hg; i < hg2; i++) {
                         LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
                         if (item) {
@@ -3633,23 +3651,23 @@ public:
                                 // Stretched drawing of glyph to the x/y/w/h provided (used with MathML)
                                 // Split the targeted width to each glyph in case we have more than one
                                 int w = target_w / glyph_count;
+                                int x = FONT_METRIC_TO_PX(x_26_6);
                                 DrawStretchedGlyph(buf, glyph_info[i].codepoint, x, y, w, target_h, palette);
-                                x += w;
+                                x_26_6 += w << 6;
                             }
                             else {
                                 // Regular drawing of glyph at the baseline
-                                int w = FONT_METRIC_TO_PX(glyph_pos[i].x_advance);
                                 #ifdef DEBUG_DRAW_TEXT
                                     printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
                                             item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
                                 #endif
-                                buf->Draw(x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                buf->Draw(FONT_METRIC_TO_PX(x_26_6 + glyph_pos[i].x_offset) + item->origin_x,
                                           y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
                                           item->bmp,
                                           item->bmp_width,
                                           item->bmp_height,
                                           palette);
-                                x += w;
+                                x_26_6 += glyph_pos[i].x_advance;
                             }
                         }
                         #ifdef DEBUG_DRAW_TEXT
@@ -3658,11 +3676,11 @@ public:
                         #endif
                     }
                     // Whole cluster drawn: add letter spacing
-                    if ( x > prev_x ) {
+                    if ( x_26_6 > prev_x_26_6 ) {
                         // But only if this cluster has some advance
                         // (e.g. a soft-hyphen makes its own cluster, that
                         // draws a space glyph, but with no advance)
-                        x += letter_spacing;
+                        x_26_6 += letter_spacing_26_6;
                     }
                 }
                 hg = hg2;
@@ -3681,14 +3699,13 @@ public:
                 ch = UNICODE_SOFT_HYPHEN_CODE;
                 LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
                 if (item) {
-                    w = item->advance;
-                    buf->Draw( x + item->origin_x,
+                    buf->Draw( FONT_METRIC_TO_PX(x_26_6) + item->origin_x,
                                y + _baseline - item->origin_y,
                                item->bmp,
                                item->bmp_width,
                                item->bmp_height,
                                palette);
-                    x  += w; // + letter_spacing; (let's not add any letter-spacing after hyphen)
+                    x_26_6  += item->advance_26_6; // + letter_spacing; (let's not add any letter-spacing after hyphen)
                 }
             }
 
@@ -3730,8 +3747,8 @@ public:
                         triplet.nextChar = 0;
                     if (!_width_cache2.get(triplet, posInfo)) {
                         if (!hbCalcCharWidth(&posInfo, triplet, def_char)) {
-                            posInfo.offset = 0;
-                            posInfo.width = item->advance;
+                            posInfo.offset_26_6 = 0;
+                            posInfo.advance_26_6 = item->advance_26_6;
                         }
                         _width_cache2.set(triplet, posInfo);
                     }
@@ -3739,12 +3756,13 @@ public:
                         // Stretched drawing of glyph to the x/y/w/h provided (used with MathML)
                         // Split the targeted width to each glyph in case we have more than one
                         int w = target_w / len;
+                        int x = FONT_METRIC_TO_PX(x_26_6);
                         DrawStretchedGlyph(buf, getCharIndex(ch, def_char), x, y, w, target_h, palette);
-                        x += w;
+                        x_26_6 += w << 6;
                     }
                     else {
                         // Regular drawing of glyph at the baseline
-                        buf->Draw(x + item->origin_x + posInfo.offset,
+                        buf->Draw(FONT_METRIC_TO_PX(x_26_6 + posInfo.offset_26_6) + item->origin_x,
                             y + _baseline - item->origin_y,
                             item->bmp,
                             item->bmp_width,
@@ -3752,8 +3770,8 @@ public:
                             palette);
                         // Assume zero advance means it's a diacritic, and we should not apply
                         // any letter spacing on this char (now, and when justifying)
-                        if ( posInfo.width != 0 )
-                            x += posInfo.width + letter_spacing;
+                        if ( posInfo.advance_26_6 != 0 )
+                            x_26_6 += posInfo.advance_26_6 + letter_spacing_26_6;
                     }
                 }
             }
@@ -3795,7 +3813,7 @@ public:
                 isHyphen = false; // an hyphen, but not one to not draw
             }
             FT_UInt ch_glyph_index = getCharIndex( ch, def_char );
-            int kerning = 0;
+            lInt32 kerning_26_6 = 0;
             #if (ALLOW_KERNING==1)
             if ( use_kerning && previous>0 && ch_glyph_index>0 ) {
                 FT_Vector delta;
@@ -3805,14 +3823,14 @@ public:
                               FT_KERNING_DEFAULT,  /* kerning mode          */
                               &delta );    /* target vector         */
                 if ( !error )
-                    kerning = delta.x;
+                    kerning_26_6 = delta.x;
             }
             #endif
             LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
             if ( !item )
                 continue;
             if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
-                int w = item->advance + FONT_METRIC_TO_PX(kerning);
+                lInt32 w_26_6 = item->advance_26_6 + kerning_26_6;
                 #ifdef DEBUG_DRAW_TEXT
                     printf("DTFT drawing %x adv=%d kerning=%d => w=%d o_x=%d\n",
                                 ch, item->advance, FONT_METRIC_TO_PX(kerning), w, item->origin_x);
@@ -3821,12 +3839,13 @@ public:
                     // Stretched drawing of glyph to the x/y/w/h provided (used with MathML)
                     // Split the targeted width to each glyph in case we have more than one
                     int w = target_w / len;
+                    int x = FONT_METRIC_TO_PX(x_26_6);
                     DrawStretchedGlyph(buf, getCharIndex(ch, def_char), x, y, w, target_h, palette);
-                    x += w;
+                    x_26_6 += w << 6;
                 }
                 else {
                     // Regular drawing of glyph at the baseline
-                    buf->Draw( x + FONT_METRIC_TO_PX(kerning) + item->origin_x,
+                    buf->Draw( FONT_METRIC_TO_PX(x_26_6 + kerning_26_6) + item->origin_x,
                         y + _baseline - item->origin_y,
                         item->bmp,
                         item->bmp_width,
@@ -3835,8 +3854,8 @@ public:
 
                     // Assume zero advance means it's a diacritic, and we should not apply
                     // any letter spacing on this char (now, and when justifying)
-                    if ( w != 0 )
-                        x += w + letter_spacing;
+                    if ( w_26_6 != 0 )
+                        x_26_6  += w_26_6 + letter_spacing_26_6;
                 }
                 previous = ch_glyph_index;
             }
@@ -3846,6 +3865,7 @@ public:
         } // else fallback to the non harfbuzz code
     #endif
 
+        x = FONT_METRIC_TO_PX(x_26_6);
         int advance = x - x0;
         if ( flags & LFNT_DRAW_DECORATION_MASK ) {
             // text decoration: underline, etc.
@@ -4190,7 +4210,7 @@ public:
 
         item = LVFontGlyphCacheItem::newItem( &_glyph_cache, (lChar32)ch, dx, dy ); //, _drawMonochrome
         if (item) {
-            item->advance = olditem->advance + _hShift;
+            item->advance_26_6 = olditem->advance_26_6 + (_hShift << 6);
             item->origin_x = olditem->origin_x;
             item->origin_y = olditem->origin_y;
 
@@ -4377,7 +4397,7 @@ public:
             int w  = 0;
             if ( item ) {
                 // avoid soft hyphens inside text string
-                w = item->advance;
+                w = item->advance_26_6 >> 6;
                 if ( item->bmp_width && item->bmp_height && (!isHyphen || i==len) ) {
                     buf->Draw( x + item->origin_x,
                         y + _baseline - item->origin_y,
@@ -6219,7 +6239,7 @@ int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
             int w  = 0;
             if ( item ) {
                 // avoid soft hyphens inside text string
-                w = item->advance;
+                w = item->advance_26_6 >> 6;
                 if ( item->bmp_width && item->bmp_height ) {
                     buf->Draw( x + item->origin_x,
                         y + baseline - item->origin_y,
