@@ -1893,6 +1893,7 @@ public:
                 if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
                     posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
                     posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
+                    /* temporarily disabled, to allow comparing emboldening with and without advance ajustments
                     if (_synth_weight > 0) {
                         // Tweak some metrics if synthesized weight
                         if ( glyph_pos[cluster].x_advance > 0 ) {
@@ -1904,6 +1905,7 @@ public:
                             posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset - _synth_weight_strength);
                         }
                     }
+                    */
                     return true;
                 }
             }
