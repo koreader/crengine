@@ -1893,6 +1893,17 @@ public:
                 if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
                     posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
                     posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
+                    if (_synth_weight > 0) {
+                        // Tweak some metrics if synthesized weight
+                        if ( glyph_pos[cluster].x_advance > 0 ) {
+                            posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance + _synth_weight_strength );
+                        }
+                        else { // probable diacritic
+                            // Compensate the width added to the previous advancing char
+                            // by making the negative originX more negative
+                            posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset - _synth_weight_strength);
+                        }
+                    }
                     return true;
                 }
             }
@@ -2072,6 +2083,21 @@ public:
         // (Old) Note: these >>6 on a negative number will floor() it, so we'll get
         // a ceil()'ed value when considering negative numbers as some overflow,
         // which is good when we're using it for adding some padding.
+
+        if (_synth_weight > 0) {
+            // Tweak some metrics if synthesized weight
+            if ( _slot->metrics.horiAdvance > 0 ) {
+                glyph->width = (lUInt16)( FONT_METRIC_TO_PX( myabs(_slot->metrics.horiAdvance) + _synth_weight_strength ) );
+            }
+            else { // probable diacritic
+                // Compensate the width added to the previous advancing char
+                // by making the negative originX more negative
+                glyph->originX =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingX - _synth_weight_strength ) );
+            }
+            if (glyph->blackBoxX != 0)
+                glyph->rsb = (lInt16)(FONT_METRIC_TO_PX( (myabs(_slot->metrics.horiAdvance) + _synth_weight_strength
+                                            - _slot->metrics.horiBearingX - _slot->metrics.width) ) );
+        }
         return true;
     }
 #if 0
@@ -2424,14 +2450,16 @@ public:
                                 // And go on with the found glyph now that we fixed what was before
                             }
                             // Glyph found in this font
-                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
+                            if ( glyph_pos[hg].x_advance )
+                                advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance + _synth_weight_strength);
                         }
                         else {
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(glyph not found) ");
                             #endif
                             // Keep the advance of .notdef/tofu in case there is no fallback font to correct them
-                            advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance);
+                            if ( glyph_pos[hg].x_advance )
+                                advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance + _synth_weight_strength);
                             if ( t_notdef_start < 0 ) {
                                 t_notdef_start = t;
                             }
@@ -2794,11 +2822,13 @@ public:
                 return NULL;  /* ignore errors */
             }
 
+            bool is_embolden = false;
             if (_synth_weight > 0) {
                 if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
                     // See setSynthWeight() for details
                     FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
                     FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+                    is_embolden = true; // _slot->format changes to BITMAP after render
                 }
             }
             if (_italic == 2) {
@@ -2807,6 +2837,18 @@ public:
             if (_synth_weight > 0 || _italic == 2) {
                 // Render now that transformations are applied
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
+            }
+
+            if (_synth_weight > 0 && is_embolden) {
+                // Tweak some metrics if synthesized weight
+                if ( _slot->metrics.horiAdvance > 0 ) {
+                    _slot->metrics.horiAdvance += _synth_weight_strength;
+                }
+                else { // probable diacritic
+                    // Compensate the width added to the previous advancing char
+                    // by making the negative originX more negative
+                    _slot->metrics.horiBearingX -= _synth_weight_strength;
+                }
             }
 
             item = newItem( &_glyph_cache, (lChar32)ch, _slot ); //, _drawMonochrome
@@ -2855,11 +2897,13 @@ public:
                 return NULL;  /* ignore errors */
             }
 
+            bool is_embolden = false;
             if (_synth_weight > 0) {
                 if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
                     // See setSynthWeight() for details
                     FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
                     FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+                    is_embolden = true; // _slot->format changes to BITMAP after render
                 }
             }
             if (_italic==2) {
@@ -2868,6 +2912,20 @@ public:
             if (_synth_weight > 0 || _italic == 2) {
                 // Render now that transformations are applied
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
+            }
+            if (_synth_weight > 0 && is_embolden) {
+                if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                    // Tweak some metrics if synthesized weight
+                    if ( _slot->metrics.horiAdvance > 0 ) {
+                        _slot->metrics.horiAdvance += _synth_weight_strength;
+                        // (this won't be used with Harfbuzz, but we'll tweak glyph_pos[hg].x_advance the same way)
+                    }
+                    else { // probable diacritic
+                        // Compensate the width added to the previous advancing char
+                        // by making the negative originX more negative
+                        _slot->metrics.horiBearingX -= _synth_weight_strength;
+                    }
+                }
             }
 
             item = newItem(&_glyph_cache2, index, _slot);
@@ -3638,7 +3696,11 @@ public:
                             }
                             else {
                                 // Regular drawing of glyph at the baseline
-                                int w = FONT_METRIC_TO_PX(glyph_pos[i].x_advance);
+                                int w;
+                                if ( glyph_pos[i].x_advance )
+                                    w = FONT_METRIC_TO_PX(glyph_pos[i].x_advance + _synth_weight_strength);
+                                else
+                                    w = 0;
                                 #ifdef DEBUG_DRAW_TEXT
                                     printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
                                             item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
