@@ -2178,11 +2178,6 @@ public:
         else if ( letter_spacing > MAX_LETTER_SPACING ) {
             letter_spacing = MAX_LETTER_SPACING;
         }
-        int orig_letter_spacing = letter_spacing; // to provide to fallback fonts
-        if ( _synth_weight_strength != 0 ) {
-            // Compensate the bolder/thinner body with letter spacing
-            letter_spacing += FONT_METRIC_TO_PX(_synth_weight_strength);
-        }
 
         int i;
 
@@ -2280,7 +2275,7 @@ public:
 
             // Some additional care might need to be taken, see:
             //   https://www.w3.org/TR/css-text-3/#letter-spacing-property
-            if ( letter_spacing != 0 ) {
+            if ( letter_spacing > 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
                 if ( isHBScriptCursive(script) )
@@ -2405,7 +2400,7 @@ public:
                                         fb_hints &= ~LFNT_HINT_ENDS_PARAGRAPH;
                                     fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
                                                     widths + t_notdef_start, flags + t_notdef_start,
-                                                    max_width, def_char, lang_cfg, orig_letter_spacing, allow_hyphenation,
+                                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                                     fb_hints );
                                     // Fix previous bad measurements
                                     int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
@@ -2505,7 +2500,7 @@ public:
                     int chars_measured = fallback->measureText( text + t_notdef_start, // start
                                     t_notdef_end - t_notdef_start, // len
                                     widths + t_notdef_start, flags + t_notdef_start,
-                                    max_width, def_char, lang_cfg, orig_letter_spacing, allow_hyphenation,
+                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                     fb_hints );
                     lastFitChar = t_notdef_start + chars_measured;
                     int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
@@ -3389,12 +3384,6 @@ public:
         else if ( letter_spacing > MAX_LETTER_SPACING ) {
             letter_spacing = MAX_LETTER_SPACING;
         }
-        int orig_letter_spacing = letter_spacing; // to provide to fallback fonts
-        if ( _synth_weight_strength != 0 ) {
-            // Compensate the bolder/thinner body with letter spacing
-            letter_spacing += FONT_METRIC_TO_PX(_synth_weight_strength);
-        }
-
         lvRect clip;
         buf->GetClipRect( &clip );
         updateTransform(); // no-op
@@ -3460,7 +3449,7 @@ public:
             hb_buffer_guess_segment_properties(_hb_buffer);
 
             // See measureText() for details
-            if ( letter_spacing != 0 ) {
+            if ( letter_spacing > 0 ) {
                 // Don't apply letter-spacing if the script is cursive
                 hb_script_t script = hb_buffer_get_script(_hb_buffer);
                 if ( isHBScriptCursive(script) )
@@ -3624,7 +3613,7 @@ public:
                     // text decoration, that we dropped: no update needed)
                     int fb_advance = fallback->DrawTextString( buf, x, fb_y,
                        fb_text, fb_len,
-                       def_char, palette, fb_addHyphen, lang_cfg, fb_flags, orig_letter_spacing,
+                       def_char, palette, fb_addHyphen, lang_cfg, fb_flags, letter_spacing,
                        width, text_decoration_back_gap, target_w, target_h );
                     x += fb_advance;
                     #ifdef DEBUG_DRAW_TEXT
