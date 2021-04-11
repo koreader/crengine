@@ -2438,7 +2438,7 @@ public:
             flags[i] = GET_CHAR_FLAGS(ch); //calcCharFlags( ch );
 
             /* load glyph image into the slot (erase previous one) */
-            int w = _wcache.get(ch);
+            lUInt16 w = _wcache.get(ch);
             if ( w == CACHED_UNSIGNED_METRIC_NOT_SET ) {
                 glyph_info_t glyph;
                 if ( getGlyphInfo( ch, &glyph, def_char ) ) {
@@ -3553,7 +3553,10 @@ public:
                             item->bmp_width,
                             item->bmp_height,
                             palette);
-                        x += posInfo.width + letter_spacing;
+                        // Assume zero advance means it's a diacritic, and we should not apply
+                        // any letter spacing on this char (now, and when justifying)
+                        if ( posInfo.width != 0 )
+                            x += posInfo.width + letter_spacing;
                     }
                 }
             }
@@ -3633,7 +3636,10 @@ public:
                         item->bmp_height,
                         palette);
 
-                    x  += w + letter_spacing;
+                    // Assume zero advance means it's a diacritic, and we should not apply
+                    // any letter spacing on this char (now, and when justifying)
+                    if ( w != 0 )
+                        x += w + letter_spacing;
                 }
                 previous = ch_glyph_index;
             }
