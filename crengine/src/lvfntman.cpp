@@ -583,20 +583,31 @@ public:
     }
     virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index )
     {
+        int base_weight = bold ? 700 : 400;
+        LVFontDef * best_def = NULL;
+        int best_delta;
         for ( int i=0; i<_registered_list.length(); i++ ) {
             if (_registered_list[i]->getDef()->getDocumentId() == -1) {
                 LVFontDef * fdef = _registered_list[i]->getDef();
                 lString32 facename = Utf8ToUnicode( fdef->getTypeFace() );
                 if (facename != name )
                     continue;
-                if ( (bold && fdef->getWeight() < 650) || (!bold && fdef->getWeight() >= 650) )
-                    continue;
                 if ( (italic && !fdef->isRealItalic()) || (!italic && fdef->isRealItalic()) )
                     continue;
-                filename = fdef->getName();
-                index = fdef->getIndex();
-                return true;
+                // We may meet multiple fonts with various weight: get the nearest.
+                // We add +1 to get consistent results: when looking for 400, if both 300
+                // and 500 are found, 300 will get -99 and 500 will get 101: we'll choose 300
+                int delta = fdef->getWeight() - base_weight + 1;
+                if ( !best_def || myabs(delta) < best_delta ) {
+                    best_def = fdef;
+                    best_delta = myabs(delta);
+                }
             }
+        }
+        if ( best_def ) {
+            filename = best_def->getName();
+            index = best_def->getIndex();
+            return true;
         }
         return false;
     }
