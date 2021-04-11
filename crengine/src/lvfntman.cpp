@@ -3129,6 +3129,9 @@ public:
                     value = 60;
                 break;
 #endif // MATHML_SUPPORT==1
+            default:
+                value = 0;
+                break;
             }
             _extra_metric[metric] = value;
         }
@@ -3762,16 +3765,18 @@ public:
         if ( error ) {
             return;
         }
-        if (_embolden) { // Embolden and render
+        if (_embolden) {
             // See setEmbolden() for details
             if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
                 FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
                 FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
             }
-            FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
         }
         if (_italic==2) { // Obliquen and render
             FT_GlyphSlot_Oblique(_slot);
+        }
+        if (_embolden || _italic==2) {
+            // Render now that transformations are applied
             FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
         }
         FT_Bitmap * bitmap = &_slot->bitmap;
