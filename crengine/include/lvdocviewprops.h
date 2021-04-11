@@ -9,7 +9,7 @@
 #define PROP_FONT_KERNING            "font.kerning.mode"
 #define PROP_FONT_COLOR              "font.color.default"
 #define PROP_FONT_FACE               "font.face.default"
-#define PROP_FONT_WEIGHT_EMBOLDEN    "font.face.weight.embolden"
+#define PROP_FONT_BASE_WEIGHT        "font.face.base.weight"        // replaces PROP_FONT_WEIGHT_EMBOLDEN ("font.face.weight.embolden")
 #define PROP_BACKGROUND_COLOR        "background.color.default"
 #define PROP_BACKGROUND_IMAGE        "background.image.filename"
 #define PROP_TXT_OPTION_PREFORMATTED "crengine.file.txt.preformatted"

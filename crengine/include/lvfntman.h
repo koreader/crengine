@@ -588,6 +588,10 @@ public:
     /// returns most similar font
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features=0, int documentId = -1, bool useBias=false) = 0;
+
+    /// return available font weight values
+    virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) = 0;
+
     /// set fallback font faces (separated by '|')
     virtual bool SetFallbackFontFaces( lString8 facesString ) { CR_UNUSED(facesString); return false; }
     /// get fallback font faces string (returns empty string if no fallback font is set)

@@ -47,7 +47,7 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftoutln.h>    // for FT_Outline_Embolden()
-#include <freetype/ftsynth.h>    // for FT_GlyphSlot_Embolden()
+#include <freetype/ftsynth.h>    // for FT_GlyphSlot_Oblique()
 #include <freetype/ftglyph.h>    // for FT_Matrix_Multiply()
 #include <freetype/tttables.h>   // for FT_Get_Sfnt_Table()
 
@@ -414,6 +414,7 @@ private:
     int               _documentId;
     LVByteArrayRef    _buf;
     int               _bias;
+    bool _real_weight;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
@@ -428,6 +429,7 @@ public:
         , _documentId(documentId)
         , _buf(buf)
         , _bias(0)
+        , _real_weight(true)
         {
         }
     LVFontDef(const LVFontDef & def)
@@ -442,6 +444,7 @@ public:
         , _documentId(def._documentId)
         , _buf(def._buf)
         , _bias(def._bias)
+        , _real_weight(def._real_weight)
         {
         }
 
@@ -451,6 +454,7 @@ public:
         return ( _size == def._size || _size == -1 || def._size == -1 )
             && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
             && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
+            && _real_weight == def._real_weight
             && _features == def._features
             && _family == def._family
             && _typeface == def._typeface
@@ -472,7 +476,8 @@ public:
     int getSize() const { return _size; }
     void setSize( int size ) { _size = size; }
     int getWeight() const { return _weight; }
-    void setWeight( int weight ) { _weight = weight; }
+    void setWeight(int weight, bool real = true) { _weight = weight; _real_weight = real; }
+    bool isRealWeight() const { return _real_weight; }
     bool getItalic() const { return _italic!=0; }
     bool isRealItalic() const { return _italic==1; }
     void setItalic( int italic ) { _italic=italic; }
@@ -531,6 +536,7 @@ public:
     void gc(); // garbage collector
     void update( const LVFontDef * def, LVFontRef ref );
     void removeDocumentFonts(int documentId);
+    void getAvailableFontWeights(LVArray<int>& weights, lString8 faceName);
     int  length() { return _registered_list.length(); }
     void addInstance( const LVFontDef * def, LVFontRef ref );
     bool setAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias );
@@ -985,11 +991,58 @@ void LVFontGlobalGlyphCache::clear()
 lString8 familyName( FT_Face face )
 {
     lString8 faceName( face->family_name );
-    if ( faceName == "Arial" && face->style_name && !strcmp(face->style_name, "Narrow") )
-        faceName << " " << face->style_name;
-    else if ( /*faceName == "Arial" &&*/ face->style_name && strstr(face->style_name, "Condensed") )
-        faceName << " " << "Condensed";
+    if ( face->style_name ) {
+        if (faceName == "Arial" && !strcmp(face->style_name, "Narrow"))
+            faceName << " " << face->style_name;
+        else if (strstr(face->style_name, "ExtraCondensed"))
+            faceName << " " << "ExtraCondensed";
+        else if (strstr(face->style_name, "SemiCondensed"))
+            faceName << " " << "SemiCondensed";
+        else if (strstr(face->style_name, "Condensed"))
+            faceName << " " << "Condensed";
+    }
     return faceName;
+}
+
+int getFontWeight(FT_Face face) {
+    if (!face)
+        return -1;
+    int weight = -1;
+    bool bold_flag = (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
+    lString32 style32(face->style_name);
+    style32 = style32.lowercase();
+    if (style32.pos("extrablack") >= 0 || style32.pos("ultrablack") >= 0
+          || style32.pos("extra black") >= 0 || style32.pos("ultra black") >= 0)
+        weight = 950;
+    else if (style32.pos("extrabold") >= 0 || style32.pos("ultrabold") >= 0
+          || style32.pos("extra bold") >= 0 || style32.pos("ultra bold") >= 0)
+        weight = 800;
+    else if (style32.pos("demibold") >= 0 || style32.pos("semibold") >= 0
+          || style32.pos("demi bold") >= 0 || style32.pos("semi bold") >= 0)
+        weight = 600;
+    else if (style32.pos("extralight") >= 0 || style32.pos("ultralight") >= 0
+          || style32.pos("extra light") >= 0 || style32.pos("ultra light") >= 0)
+        weight = 200;
+    else if (style32.pos("demilight") >= 0 || style32.pos("light") >= 0
+          || style32.pos("demi light") >= 0)
+        weight = 300;
+    else if (style32.pos("regular") >= 0 || style32.pos("normal") >= 0 || style32.pos("book") >= 0 || style32.pos("text") >= 0)
+        weight = 400;
+    else if (style32.pos("thin") >= 0)
+        weight = 100;
+    else if (style32.pos("medium") >= 0)
+        weight = 500;
+    else if (style32.pos("bold") >= 0)
+        weight = 700;
+    else if (style32.pos("black") >= 0 || style32.pos("heavy") >= 0)
+        weight = 900;
+
+    if (-1 == weight)
+        weight = bold_flag ? 700 : 400;
+    else if (weight <= 400 && bold_flag)
+        weight = 700;
+    // printf("%s %d: %s => %d\n", face->family_name, face->style_flags & FT_STYLE_FLAG_BOLD, face->style_name, weight);
+    return weight;
 }
 
 // The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
@@ -1083,8 +1136,9 @@ protected:
     LVFontRef      _fallbackFont;
     bool           _nextFallbackFontIsSet;
     LVFontRef      _nextFallbackFont;
-    bool           _embolden; // fake/synthetized bold
-    FT_Pos         _embolden_half_strength; // for emboldening with Harfbuzz
+    int            _synth_weight; // fake/synthetized weight
+    FT_Pos         _synth_weight_strength; // for emboldening with Harfbuzz
+    FT_Pos         _synth_weight_half_strength;
     int            _features; // requested OpenType features bitmap
 #if USE_HARFBUZZ==1
     hb_font_t* _hb_font;
@@ -1109,7 +1163,7 @@ public:
     LVFont * getFallbackFont() {
         if ( _fallbackFontIsSet )
             return _fallbackFont.get();
-        _fallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic);
+        _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic);
         _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
@@ -1125,14 +1179,14 @@ public:
     LVFont * getNextFallbackFont() {
         if ( _nextFallbackFontIsSet )
             return _nextFallbackFont.get();
-        _nextFallbackFont = fontMan->GetFallbackFont(_size, _weight, _italic, _faceName);
+        _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic, _faceName);
         _nextFallbackFontIsSet = true;
         return _nextFallbackFont.get();
     }
 
 
     /// returns font weight
-    virtual int getWeight() const { return _weight; }
+    virtual int getWeight() const { return _synth_weight > 0 ? _synth_weight : _weight; }
     /// returns italic flag
     virtual int getItalic() const { return _italic; }
     /// sets face name
@@ -1145,10 +1199,11 @@ public:
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
         : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL)
         , _size(0), _hyphen_width(0), _baseline(0)
-        , _weight(400), _italic(0), _embolden(false), _features(0), _extra_metric(NULL)
+        , _weight(400), _italic(0), _features(0), _extra_metric(NULL)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
         , _fallbackFontIsSet(false), _nextFallbackFontIsSet(false)
+        , _synth_weight(0), _synth_weight_strength(0), _synth_weight_half_strength(0)
         #if USE_HARFBUZZ==1
         , _glyph_cache2(globalCache)
         , _width_cache2(1024)
@@ -1359,56 +1414,60 @@ public:
     }
     virtual bool getBitmapMode() { return _drawMonochrome; }
 
-    // Synthetized bold on a font that does not come with a bold variant.
-    void setEmbolden() {
-        _embolden = true;
-        // A real bold font has weight 700, vs 400 for the regular.
-        // LVFontBoldTransform did +200, so we get 600 (demibold).
-        // Let's do the same (even if I don't see why not +300).
-        _weight = (_weight + 200 > 900) ? 900 : _weight + 200;
-        // And add +1 so we can know it's a fake/synthetized font, so we
-        // can avoid getting it (and get the original regular font instead)
-        // when synthetizing an other variant of that font.
-        _weight += 1;
-        // When not using Harfbuzz, we will simply call FT_GlyphSlot_Embolden()
-        // to get the glyphinfo and glyph with synthetized bold and increased
-        // metrics, and everything should work naturally:
+    // Synthetic thin/bold on a font that does not come with a corresponding variant.
+    void setSynthWeight(int synth_weight) {
+        if (_weight == synth_weight) {
+            _synth_weight = 0;
+            _synth_weight_half_strength = 0;
+            _synth_weight_strength = 0;
+            clearCache();
+            return;
+        }
+        _synth_weight = synth_weight;
+        // We will simply call FT_Outline_Embolden()
+        // to get the glyphinfo and glyph with synthetized bold.
+        // To increase metrics, we add some embolding strength to glyph advance.
         //   "Embolden a glyph by a 'reasonable' value (which is highly a matter
         //   of taste) [...] For emboldened outlines the height, width, and
         //   advance metrics are increased by the strength of the emboldening".
-        //
-        // When using Harfbuzz, which uses itself the font metrics, that we
-        // can't tweak at all from outside, we'll get positioning based on
-        // the not-bolded font. We can't increase them as that would totally
-        // mess HB work.
-        // We can only do as MuPDF does (source/fitz/font.c): keep the HB
+        // We can do as MuPDF does (source/fitz/font.c): keep the HB
         // positions, offset and advances, embolden the glyph by some value
         // of 'strength', and shift left/bottom by 1/2 'strength', so the
         // boldened glyph is centered on its original: the glyph being a
         // bit larger, it will blend over its neighbour glyphs, but it
         // looks quite allright.
-        // Caveat: words in fake bold will be bolder, but not larger than
-        // the same word in the regular font (unlike with a real bold font
-        // were they would be bolder and larger).
         // We need to compute the strength as done in FT_GlyphSlot_Embolden():
         //   xstr = FT_MulFix( face->units_per_EM, face->size->metrics.y_scale ) / 24;
         //   ystr = xstr;
         //   FT_Outline_EmboldenXY( &slot->outline, xstr, ystr );
-        // and will do as MuPDF does (with some private value of 'strength'):
+        // and will do as MuPDF does (with some private value of 'strength'
+        // but glyph translation is only on the Y axis, since we are using an additional horizontal compensate advance.
         //   FT_Outline_Embolden(&face->glyph->outline, strength);
-        //   FT_Outline_Translate(&face->glyph->outline, -strength/2, -strength/2);
-        // (with strength: 0=no change; 64=1px embolden; 128=2px embolden and 1px x/y translation)
+        //   FT_Outline_Translate(&face->glyph->outline, 0, -strength/2);
+        // (with strength (26.6 fixed point): 0=no change; 64=1px embolden; 128=2px embolden and 1px x/y translation)
         // int strength = (_face->units_per_EM * _face->size->metrics.y_scale) / 24;
-        FT_Pos embolden_strength = FT_MulFix(_face->units_per_EM, _face->size->metrics.y_scale) / 24;
+        // Calculations (old) for 400 -> 600 scaling:
+        // FT_Pos embolden_strength = FT_MulFix(_face->units_per_EM, _face->size->metrics.y_scale) / 24;
         // Make it slightly less bold than Freetype's bold, as we get less spacing
         // around glyphs with HarfBuzz, by getting the unbolded advances.
-        embolden_strength = embolden_strength * 3/4; // (*1/2 is fine but a tad too light)
-        _embolden_half_strength = embolden_strength / 2;
+        // embolden_strength = embolden_strength * 3/4; // (*1/2 is fine but a tad too light)
+        // Simplifing...
+        // embolden_strength = (_face->units_per_EM*_face->size->metrics.y_scale)/(65536*32)
+        // So for any other scaling:
+        // Introducing scaling coefficient:
+        // diff_weight == 0   -> k = 0
+        // diff_weight == 200 -> k = 1/32
+        // k = ((_synth_weight - _weight) / 200) / 32;
+        // embolden_strength = k * ((_face->units_per_EM * _face->size->metrics.y_scale) / 65536);
+        _synth_weight_strength = FT_MulFix(_face->units_per_EM, _face->size->metrics.y_scale);
+        _synth_weight_strength = FT_MulDiv(_synth_weight_strength, _synth_weight - _weight, 6400);
+        _synth_weight_half_strength = _synth_weight_strength / 2;
+        clearCache();
     }
 
     // Used when an embedded font (registered by RegisterDocumentFont()) is intantiated
     bool loadFromBuffer(LVByteArrayRef buf, int index, int size, css_font_family_t fontFamily,
-                                            bool monochrome, bool italicize ) {
+                                            bool monochrome, bool italicize, int weight=-1 ) {
         FONT_GUARD
         _hintingMode = fontMan->GetHintingMode();
         _drawMonochrome = monochrome;
@@ -1488,7 +1547,7 @@ public:
         _height = FONT_METRIC_TO_PX( _face->size->metrics.height );
         _size = size; //(_face->size->metrics.height >> 6);
         _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
-        _weight = _face->style_flags & FT_STYLE_FLAG_BOLD ? 700 : 400;
+        _weight = weight > 0 ? weight : getFontWeight(_face);
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
         if ( !error && italicize && !_italic ) {
@@ -1520,7 +1579,7 @@ public:
 
     // Load font from file path
     bool loadFromFile( const char * fname, int index, int size, css_font_family_t fontFamily,
-                                           bool monochrome, bool italicize ) {
+                                           bool monochrome, bool italicize, int weight=-1 ) {
         FONT_GUARD
         _hintingMode = fontMan->GetHintingMode();
         _drawMonochrome = monochrome;
@@ -1604,7 +1663,10 @@ public:
         _height = FONT_METRIC_TO_PX( _face->size->metrics.height );
         _size = size; //(_face->size->metrics.height >> 6);
         _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
-        _weight = _face->style_flags & FT_STYLE_FLAG_BOLD ? 700 : 400;
+        // When enumerating fonts using FontConfig, we already got a font weight
+        // it may not match the font weight obtained by parsing the FreeType font style.
+        // Well, let's trust FontConfig for this.
+        _weight = weight > 0 ? weight : getFontWeight(_face);
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
 
         if ( !error && italicize && !_italic ) {
@@ -1795,6 +1857,11 @@ public:
         else if (_hintingMode == HINTING_MODE_DISABLED) {
             flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
         }
+        if (_synth_weight > 0 || _italic == 2) { // Don't render yet
+            flags &= ~FT_LOAD_RENDER;
+            // Also disable any hinting, as it would be wrong after embolden
+            flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+        }
         updateTransform(); // no-op
         int error = FT_Load_Glyph(
             _face,          /* handle to face object */
@@ -1808,9 +1875,12 @@ public:
         if ( error )
             return false;
 
-        if (_embolden) { // Embolden so we get the real embolden metrics
-            // See setEmbolden() for details
-            FT_GlyphSlot_Embolden(_slot);
+        if (_synth_weight > 0) { // Synthetized weight so we get the real metrics
+            if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                // See setSynthWeight() for details
+                FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+            }
         }
         if (_italic == 2) {
             // When the font does not provide italic glyphs (_italic = 2), some fake
@@ -1870,7 +1940,7 @@ public:
         glyph->blackBoxY = (lUInt16)( FONT_METRIC_TO_PX( _slot->metrics.height ) );
         glyph->originX =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingX ) );
         glyph->originY =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingY ) );
-        glyph->width =     (lUInt16)( FONT_METRIC_TO_PX( myabs(_slot->metrics.horiAdvance )) );
+        glyph->width =     (lUInt16)( FONT_METRIC_TO_PX( myabs(_slot->metrics.horiAdvance) ) );
         if (glyph->blackBoxX == 0) // If a glyph has no blackbox (a spacing
             glyph->rsb =   0;      // character), there is no bearing
         else
@@ -2582,7 +2652,7 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
-            if (_embolden || _italic==2) { // Don't render yet
+            if (_synth_weight > 0 || _italic == 2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
                 // Also disable any hinting, as it would be wrong after embolden
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
@@ -2602,13 +2672,17 @@ public:
                 return NULL;  /* ignore errors */
             }
 
-            if (_embolden) {
-                FT_GlyphSlot_Embolden(_slot); // See setEmbolden() for details
+            if (_synth_weight > 0) {
+                if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                    // See setSynthWeight() for details
+                    FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                    FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+                }
             }
             if (_italic == 2) {
                 FT_GlyphSlot_Oblique(_slot);
             }
-            if (_embolden || _italic==2) {
+            if (_synth_weight > 0 || _italic == 2) {
                 // Render now that transformations are applied
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
@@ -2638,7 +2712,7 @@ public:
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
 
-            if (_embolden || _italic==2) { // Don't render yet
+            if (_synth_weight > 0 || _italic == 2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
                 // Also disable any hinting, as it would be wrong after embolden
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
@@ -2658,17 +2732,17 @@ public:
                 return NULL;  /* ignore errors */
             }
 
-            if (_embolden) {
+            if (_synth_weight > 0) {
                 if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
-                    // See setEmbolden() for details
-                    FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
-                    FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
+                    // See setSynthWeight() for details
+                    FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                    FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
                 }
             }
             if (_italic==2) {
                 FT_GlyphSlot_Oblique(_slot);
             }
-            if (_embolden || _italic==2) {
+            if (_synth_weight > 0 || _italic == 2) {
                 // Render now that transformations are applied
                 FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
             }
@@ -3753,7 +3827,7 @@ public:
         else if (_hintingMode == HINTING_MODE_DISABLED) {
             rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
         }
-        if (_embolden || _italic==2) { // Don't render yet
+        if (_synth_weight > 0 || _italic == 2) { // Don't render yet
             rend_flags &= ~FT_LOAD_RENDER;
             // Also disable any hinting, as it would be wrong after embolden
             rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
@@ -3771,20 +3845,21 @@ public:
         if ( error ) {
             return;
         }
-        if (_embolden) {
-            // See setEmbolden() for details
+        if (_synth_weight > 0) {
+            // See setSynthWeight() for details
             if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
-                FT_Outline_Embolden(&_slot->outline, 2*_embolden_half_strength);
-                FT_Outline_Translate(&_slot->outline, -_embolden_half_strength, -_embolden_half_strength);
+                FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
             }
         }
-        if (_italic==2) { // Obliquen and render
+        if (_italic==2) {
             FT_GlyphSlot_Oblique(_slot);
         }
-        if (_embolden || _italic==2) {
+        if (_synth_weight > 0 || _italic == 2) {
             // Render now that transformations are applied
             FT_Render_Glyph(_slot, _drawMonochrome?FT_RENDER_MODE_MONO:FT_RENDER_MODE_LIGHT);
         }
+
         FT_Bitmap * bitmap = &_slot->bitmap;
 
         // Position the resulting bitmap in the targeted area (and center the rounding errors)
@@ -4409,6 +4484,7 @@ public:
         // assuming the fallback font is a standalone regular font
         // without any bold/italic sibling.
         // GetFont() works just as fine when we need specified weigh and italic.
+        weight &= 0xFFFE;
         return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFaces[idx], 0, -1);
     }
 
@@ -4519,7 +4595,7 @@ public:
 
             FcObjectSet *os = FcObjectSetBuild(FC_FILE, FC_WEIGHT, FC_FAMILY,
                                                FC_SLANT, FC_SPACING, FC_INDEX,
-                                               FC_STYLE, NULL);
+                                               FC_STYLE, FC_SCALABLE, NULL);
             FcPattern *pat = FcPatternCreate();
             //FcBool b = 1;
             FcPatternAddBool(pat, FC_SCALABLE, 1);
@@ -4554,7 +4630,7 @@ public:
                                               !fn32.endsWith(".pfb") && !fn32.endsWith(".pfa") ) {
                     continue;
                 }
-                int weight = FC_WEIGHT_MEDIUM;
+                int weight = FC_WEIGHT_REGULAR;
                 res = FcPatternGetInteger(fontset->fonts[i], FC_WEIGHT, 0, &weight);
                 if(res != FcResultMatch) {
                     CRLog::debug("no FC_WEIGHT for %s", s);
@@ -4565,10 +4641,14 @@ public:
                     weight = 100;
                     break;
                 case FC_WEIGHT_EXTRALIGHT:    //    40
+                case 45:                      // TODO: find what is it...
                 //case FC_WEIGHT_ULTRALIGHT        FC_WEIGHT_EXTRALIGHT
                     weight = 200;
                     break;
                 case FC_WEIGHT_LIGHT:         //    50
+                case FC_WEIGHT_DEMILIGHT:     //    55
+                    weight = 300;
+                    break;
                 case FC_WEIGHT_BOOK:          //    75
                 case FC_WEIGHT_REGULAR:       //    80
                 //case FC_WEIGHT_NORMAL:            FC_WEIGHT_REGULAR
@@ -4595,15 +4675,18 @@ public:
             #ifdef FC_WEIGHT_EXTRABLACK
                 case FC_WEIGHT_EXTRABLACK:    //    215
                 //case FC_WEIGHT_ULTRABLACK:        FC_WEIGHT_EXTRABLACK
-                    weight = 900;
+                    weight = 950;
                     break;
             #endif
                 default:
                     weight = 400;
                     break;
                 }
-                FcBool scalable = 0;
+                FcBool scalable = FcFalse;
                 res = FcPatternGetBool(fontset->fonts[i], FC_SCALABLE, 0, &scalable);
+                if(res != FcResultMatch) {
+                    CRLog::debug("no FC_SCALABLE for %s", s);
+                }
                 int index = 0;
                 res = FcPatternGetInteger(fontset->fonts[i], FC_INDEX, 0, &index);
                 if(res != FcResultMatch) {
@@ -4661,12 +4744,14 @@ public:
                 bool italic = (slant!=FC_SLANT_ROMAN);
 
                 lString8 face((const char*)family);
-                lString32 style32((const char*)style);
-                style32.lowercase();
-                if (style32.pos("condensed") >= 0)
+                lString8 style8((const char*)style);
+                style8.lowercase();
+                if (style8.pos("extracondensed") >= 0)
+                    face << " ExtraCondensed";
+                else if (style8.pos("semicondensed") >= 0)
+                    face << " SemiCondensed";
+                else if (style8.pos("condensed") >= 0)
                     face << " Condensed";
-                else if (style32.pos("extralight") >= 0)
-                    face << " Extra Light";
 
                 LVFontDef def(
                     lString8((const char*)s),
@@ -4678,7 +4763,6 @@ public:
                     face,
                     index
                 );
-
                 CRLog::debug("FONTCONFIG: Font family:%s style:%s weight:%d slant:%d spacing:%d file:%s",
                                                 family, style, weight, slant, spacing, s);
                 if ( _cache.findDuplicate( &def ) ) {
@@ -4687,7 +4771,7 @@ public:
                 }
                 _cache.update( &def, LVFontRef(NULL) );
 
-                if ( scalable && !def.getItalic() ) {
+                if ( scalable != FcFalse && !def.getItalic() ) {
                     LVFontDef newDef( def );
                     newDef.setItalic(2); // can italicize
                     if ( !_cache.findDuplicate( &newDef ) )
@@ -4839,13 +4923,13 @@ public:
                 fontFamily = css_ff_serif;
             */
 
-            bool boldFlag = !facename.empty() ? bold : (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
+            int weight = !facename.empty() ? (bold ? 700 : 400) : getFontWeight(face);
             bool italicFlag = !facename.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
 
             LVFontDef def2(
                     item->getDef()->getName(),
                     -1, // height==-1 for scalable fonts
-                    boldFlag ? 700 : 400,
+                    weight,
                     italicFlag,
                     -1, // OpenType features = -1 for not yet instantiated fonts
                     fontFamily,
@@ -4942,10 +5026,17 @@ public:
                 // has features different than the ones requested.
             }
             else {
+            #ifdef USE_FT_EMBOLDEN
+                int deltaWeight = myabs(weight - item->getDef()->getWeight());
+                if (deltaWeight >= 25) {
+                    // This instantiated cached font has a too different weight
+                    // when USE_FT_EMBOLDEN, ignore this other-weight cached font instance
+                    // and go loading from the font file again to apply embolden.
+                }
+            #else
                 int deltaWeight = weight - item->getDef()->getWeight();
                 if ( deltaWeight >= 200 ) {
                     // This instantiated cached font has a too low weight
-                    #ifndef USE_FT_EMBOLDEN
                         // embolden using LVFontBoldTransform
                         CRLog::debug("font: apply Embolding to increase weight from %d to %d",
                                             newDef.getWeight(), newDef.getWeight() + 200 );
@@ -4953,10 +5044,8 @@ public:
                         LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
                         _cache.update( &newDef, ref );
                         return ref;
-                    #endif
-                    // when USE_FT_EMBOLDEN, ignore this low-weight cached font instance
-                    // and go loading from the font file again to apply embolden.
                 }
+            #endif
                 else {
                     //fprintf(_log, "    : fount existing\n");
                     return item->getFont();
@@ -4996,9 +5085,9 @@ public:
         //printf("going to load font file %s\n", fname.c_str());
         bool loaded = false;
         if (item->getDef()->getBuf().isNull())
-            loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize );
+            loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight() );
         else
-            loaded = font->loadFromBuffer(item->getDef()->getBuf(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize );
+            loaded = font->loadFromBuffer(item->getDef()->getBuf(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight() );
         if (loaded) {
             //fprintf(_log, "    : loading from file %s : %s %d\n", item->getDef()->getName().c_str(),
             //    item->getDef()->getTypeFace().c_str(), item->getDef()->getSize() );
@@ -5011,26 +5100,30 @@ public:
             newDef.setSize( size );
             //item->setFont( ref );
             //_cache.update( def, ref );
-            int deltaWeight = weight - newDef.getWeight();
-            if ( 1 && deltaWeight >= 200 ) {
+        #ifdef USE_FT_EMBOLDEN
+            int deltaWeight = myabs(weight - newDef.getWeight());
+            if (deltaWeight >= 25) {
                 // embolden
-                #ifndef USE_FT_EMBOLDEN
-                    CRLog::debug("font: apply Embolding to increase weight from %d to %d",
-                                        newDef.getWeight(), newDef.getWeight() + 200 );
-                    // Create a wrapper with LVFontBoldTransform which will bolden the glyphs
-                    newDef.setWeight( newDef.getWeight() + 200 );
-                    ref = LVFontRef( new LVFontBoldTransform( ref, &_globalCache ) );
-                #else
-                    // Will make some of this font's methods do embolden the glyphs and widths
-                    font->setEmbolden();
-                    newDef.setWeight( font->getWeight() );
-                #endif
+                // Will make some of this font's methods do embolden the glyphs and widths
+                font->setSynthWeight(weight);
+                newDef.setWeight( weight, false );
+                // Now newDef contains fake/synthetic weight
+            }
+        #else
+            int deltaWeight = weight - newDef.getWeight();
+            if ( deltaWeight >= 200 ) {
+                CRLog::debug("font: apply Embolding to increase weight from %d to %d",
+                                    newDef.getWeight(), newDef.getWeight() + 200 );
+                // Create a wrapper with LVFontBoldTransform which will bolden the glyphs
+                newDef.setWeight( newDef.getWeight() + 200 );
+                ref = LVFontRef( new LVFontBoldTransform( ref, &_globalCache ) );
+            }
+        #endif
                 /*
                 printf("CRE: %s:%d [%s %d%s]: fake bold%s\n", fname.c_str(), item->getDef()->getIndex(),
                         font->getFaceName().c_str(), font->getSize(),
                         italic?" i":"", italicize?", fake italic":""); // font->getWeight());
                 */
-            }
             _cache.update( &newDef, ref );
             // int rsz = ref->getSize();
             // if ( rsz!=size ) {
@@ -5045,6 +5138,10 @@ public:
         //delete def;
         delete font;
         return LVFontRef(NULL);
+    }
+
+    void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {
+        _cache.getAvailableFontWeights(weights, typeface);
     }
 
     bool checkCharSet( FT_Face face )
@@ -5159,13 +5256,13 @@ public:
                 fontFamily = css_ff_serif;
             */
 
-            bool boldFlag = !faceName.empty() ? bold : (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
+            int weight = !faceName.empty() ? (bold ? 700 : 400) : getFontWeight(face);
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
 
             LVFontDef def(
                 name8,
                 -1, // height==-1 for scalable fonts
-                boldFlag ? 700 : 400,
+                weight,
                 italicFlag,
                 -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
@@ -5268,8 +5365,8 @@ public:
             LVFontDef def(
                 fname,
                 -1, // height==-1 for scalable fonts
-                bold?700:400,
-                italic?true:false,
+                bold ? 700 : 400,
+                italic,
                 -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
                 family_name,
@@ -5375,7 +5472,7 @@ public:
             LVFontDef def(
                 name,
                 -1, // height==-1 for scalable fonts
-                ( face->style_flags & FT_STYLE_FLAG_BOLD ) ? 700 : 400,
+                getFontWeight(face),
                 ( face->style_flags & FT_STYLE_FLAG_ITALIC ) ? true : false,
                 -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
@@ -5508,6 +5605,9 @@ public:
         delete font;
         return LVFontRef(NULL);
     }
+
+    virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {}
+
     virtual bool RegisterFont( lString8 name )
     {
         lString8 fname = makeFontFileName( name );
@@ -5644,6 +5744,8 @@ public:
         delete font;
         return LVFontRef(NULL);
     }
+
+    virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {}
 
     virtual bool RegisterFont( const LOGFONTA * lf )
     {
@@ -5873,20 +5975,22 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     // 'this' (or '', properties not prefixed) is either an instance of a
     //     registered font, or a registered font definition,
     // 'def' is the requested definition.
-    // 'def' can never be italic=2 (fake italic) or weight=601 (fake bold), but
-    //    either 0 or 1, or a 400,700,... any multiple of 100
+    // 'def' can never be italic=2 (fake italic) or !_real_weight (fake weight), but
+    //    either 0 or 1, or a 400, 500, 600, 700, ... for standard weight
+    //    or any multiple of 25 for synthetic weights
     // 'this' registered can be only 400 when the font has no bold sibling,
-    //           or 700 when 'this' is the bold sibling
+    //           or any other real weight: 500, 600, 700 ...
     // 'this' instantiated can be 400 (for the regular original)
     //           or 700 when 'this' is the bold sibling instantiated
-    //           or 601 when it has been synthetised from the regular.
+    //           or any other value with disabled flags _real_weight
+    //           when it has been synthesized from the other font with real weight.
     // We want to avoid an instantiated fake bold (resp. fake bold italic) to
     // have a higher score than the registered original when a fake bold italic
     // (resp. fake bold) is requested, so the italic/non italic requested can
     // be re-synthetized. Otherwise, we'll get some italic when not wanting
     // italic (or vice versa), depending on which has been instantiated first...
     //
-    if ( _weight & 1) {           // 'this' is an instantiated fake bold font
+    if ( !_real_weight ) {        // 'this' is an instantiated fake weight font
         if ( def._italic > 0 ) {  // italic requested
             if ( _italic == 0 ) { // 'this' is fake bold but non-italic
                 weight_match = 0; // => drop score
@@ -5903,6 +6007,11 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
                 // The regular is available and will get a better score
                 // than 'this'
             }
+        }
+        // Also, never use a synthetic weight font to synthesize another one
+        if ( weight_diff >= 25 ) {
+            weight_match = 0;
+            italic_match = 0;
         }
     }
 
@@ -6256,6 +6365,30 @@ void LVFontCache::removeDocumentFonts(int documentId)
         if (_registered_list[i]->_def.getDocumentId() == documentId)
             delete _registered_list.remove(i);
     }
+}
+
+static int s_int_comparator(const void * n1, const void * n2)
+{
+    int* i1 = (int*)n1;
+    int* i2 = (int*)n2;
+    return *i1 == *i2 ? 0 : (*i1 < *i2 ? -1 : 1);
+}
+
+void LVFontCache::getAvailableFontWeights(LVArray<int>& weights, lString8 faceName) {
+    weights.clear();
+    for (int i = 0; i < _registered_list.length(); i++) {
+        const LVFontCacheItem* item = _registered_list[i];
+        if (item->_def.getTypeFace() == faceName) {
+            if (item->_def.isRealWeight()) {       // ignore fonts with fake weight
+                int weight = item->_def.getWeight();
+                if (weights.indexOf(weight) < 0) {
+                    weights.add(weight);
+                }
+            }
+        }
+    }
+    int* ptr = weights.get();
+    qsort(ptr, (size_t)weights.length(), sizeof(int), s_int_comparator);
 }
 
 // garbage collector

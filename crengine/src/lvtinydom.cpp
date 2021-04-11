@@ -388,8 +388,7 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // layout and paragraphs' heights. We just need to _renderedBlockCache.clear()
     // when hinting mode is changed to reformat paragraphs.
     // hash = hash * 31 + (int)fontMan->GetHintingMode();
-    if ( LVRendGetFontEmbolden() )
-        hash = hash * 75 + 2384761;
+    hash = hash * 31 + LVRendGetBaseFontWeight();
     hash = hash * 31 + gRenderDPI;
     // If not yet rendered (initial loading with XML parsing), we can
     // ignore some global flags that have not yet produced any effect,
