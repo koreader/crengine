@@ -629,6 +629,106 @@ public:
             }
         }
     }
+    virtual void regularizeRegisteredFontsWeights(bool print_updates=false)
+    {
+        // Make sure registered fonts have a proper entry at weight 400 and 700 when
+        // possible, to avoid having synthesized fonts for these normal and bold weights.
+        // This allows restoring a bit of the previous behaviour of crengine when it
+        // wasn't handling font styles, and associated for each typeface one single
+        // font to regular (400) and one to bold (700).
+        // It should ensure we use real fonts (and not synthesized ones) for normal text
+        // and bold text with the font_base_weight setting set to its default value of 400.
+        class BestCandidates {
+            public:
+            LVFontCacheItem * regular;
+            LVFontCacheItem * regular_fake_italic;
+            LVFontCacheItem * regular_italic;
+            LVFontCacheItem * bold;
+            LVFontCacheItem * bold_fake_italic;
+            LVFontCacheItem * bold_italic;
+            BestCandidates()
+                : regular(NULL), regular_fake_italic(NULL), regular_italic(NULL)
+                , bold(NULL), bold_fake_italic(NULL), bold_italic(NULL)
+                { }
+            ~BestCandidates() { }
+        };
+        // Find the best registered font for each typeface (weight 400|700 , italic 0|1|2)
+        // (each non-italic font got a clone with italic=2, in case fake italic is needed)
+        LVHashTable<lString8, BestCandidates*> typefaces(20);
+        for ( int i=0; i<_registered_list.length(); i++ ) {
+            LVFontCacheItem * font = _registered_list[i];
+            LVFontDef * def = font->getDef();
+            if (def->getDocumentId() != -1)
+                continue;
+            lString8 name = def->getTypeFace();
+            int weight = def->getWeight();
+            int italic = def->getItalic() ? (def->isRealItalic() ? 1 : 2) : 0;
+            BestCandidates * best;
+            if ( !typefaces.get(name, best) ) {
+                best = new BestCandidates();
+                typefaces.set(name, best);
+            }
+            LVFontCacheItem ** slot;
+            if ( weight < 700 ) {
+                if ( italic == 0 )
+                    slot = &best->regular;
+                else if ( italic == 1 )
+                    slot = &best->regular_italic;
+                else
+                    slot = &best->regular_fake_italic;
+                // We want the nearest to 400, but gives preference to 500 over 300 by comparing against 401
+                if ( *slot == NULL || (myabs(weight - 401) < myabs((*slot)->getDef()->getWeight() - 401)) ) {
+                    *slot = font;
+                }
+            }
+            else {
+                if ( italic == 0 )
+                    slot = &best->bold;
+                else if ( italic == 1 )
+                    slot = &best->bold_italic;
+                else
+                    slot = &best->bold_fake_italic;
+                if ( *slot == NULL || (weight - 700 < (*slot)->getDef()->getWeight() - 700) ) {
+                    *slot = font;
+                }
+            }
+        }
+        // Check each best candidates, and update their weight is it's not 400 or 700
+        LVHashTable<lString8, BestCandidates*>::iterator it = typefaces.forwardIterator();
+        LVHashTable<lString8, BestCandidates*>::pair* pair;
+        while ( (pair = it.next()) ) {
+            lString8 name = pair->key;
+            BestCandidates * best = pair->value;
+            if ( best->regular && best->regular->getDef()->getWeight() != 400 ) {
+                printf("CRE: font %s regular: updated weight from %d to 400\n", name.c_str(), best->regular->getDef()->getWeight());
+                best->regular->getDef()->setWeight(400);
+            }
+            if ( best->regular_italic && best->regular_italic->getDef()->getWeight() != 400 ) {
+                printf("CRE: font %s regular italic: updated weight from %d to 400\n", name.c_str(), best->regular_italic->getDef()->getWeight());
+                best->regular_italic->getDef()->setWeight(400);
+            }
+            if ( best->regular_fake_italic && best->regular_fake_italic->getDef()->getWeight() != 400 ) {
+                // No printf needed, as each non-italic get one of these
+                best->regular_fake_italic->getDef()->setWeight(400);
+            }
+            if ( best->bold && best->bold->getDef()->getWeight() != 700 ) {
+                printf("CRE: font %s bold: updated weight from %d to 700\n", name.c_str(), best->bold->getDef()->getWeight());
+                best->bold->getDef()->setWeight(700);
+            }
+            if ( best->bold_italic && best->bold_italic->getDef()->getWeight() != 700 ) {
+                printf("CRE: font %s bold italic: updated weight from %d to 700\n", name.c_str(), best->bold_italic->getDef()->getWeight());
+                best->bold_italic->getDef()->setWeight(700);
+            }
+            if ( best->bold_fake_italic && best->bold_fake_italic->getDef()->getWeight() != 700 ) {
+                // No printf needed, as each non-italic get one of these
+                best->bold_fake_italic->getDef()->setWeight(700);
+            }
+
+            delete pair->value;
+        }
+
+    }
+
     LVFontCache( )
     { }
     virtual ~LVFontCache() { }
@@ -4880,6 +4980,14 @@ public:
     {
         FONT_MAN_GUARD
         _cache.getFontFileNameList(list);
+    }
+
+    /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,
+    /// to avoid having synthesized fonts for these normal and bold weights
+    virtual void RegularizeRegisteredFontsWeights(bool print_updates)
+    {
+        FONT_MAN_GUARD
+        _cache.regularizeRegisteredFontsWeights(print_updates);
     }
 
     virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index )
