@@ -608,6 +608,9 @@ public:
     virtual bool RegisterDocumentFont(int /*documentId*/, LVContainerRef /*container*/, lString32 /*name*/, lString8 /*face*/, bool /*bold*/, bool /*italic*/) { return false; }
     /// unregisters all document fonts
     virtual void UnregisterDocumentFonts(int /*documentId*/) { }
+    /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,
+    /// to avoid having synthesized fonts for these normal and bold weights
+    virtual void RegularizeRegisteredFontsWeights(bool print_changes=false) { }
     /// initializes font manager
     virtual bool Init( lString8 path ) = 0;
     /// get count of registered fonts
