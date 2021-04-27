@@ -1200,8 +1200,8 @@ struct LVCharTriplet
 
 struct LVCharPosInfo
 {
-    int offset;
-    int width;
+    lInt16 offset;
+    lInt16 width;
 };
 
 inline lUInt32 getHash( const struct LVCharTriplet& triplet )
@@ -1274,7 +1274,7 @@ public:
     LVFont * getFallbackFont() {
         if ( _fallbackFontIsSet )
             return _fallbackFont.get();
-        _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic);
+        _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0);
         _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
@@ -1290,7 +1290,7 @@ public:
     LVFont * getNextFallbackFont() {
         if ( _nextFallbackFontIsSet )
             return _nextFallbackFont.get();
-        _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic, _faceName);
+        _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0, _faceName);
         _nextFallbackFontIsSet = true;
         return _nextFallbackFont.get();
     }
@@ -1869,7 +1869,7 @@ public:
         }
         hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
         hb_buffer_guess_segment_properties(_hb_buffer);
-        hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), _hb_features.length());
+        hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), (unsigned int)_hb_features.length());
         unsigned int glyph_count = hb_buffer_get_length(_hb_buffer);
         if (segLen == glyph_count) {
             hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, &glyph_count);
@@ -1891,8 +1891,8 @@ public:
                 // which will be the one that will be rendered
                 FT_UInt ch_glyph_index = FT_Get_Char_Index( _face, triplet.Char );
                 if ( glyph_info[cluster].codepoint == ch_glyph_index ) {
-                    posInfo->offset = FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
-                    posInfo->width = FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
+                    posInfo->offset = (lInt16)FONT_METRIC_TO_PX(glyph_pos[cluster].x_offset);
+                    posInfo->width = (lInt16)FONT_METRIC_TO_PX(glyph_pos[cluster].x_advance);
                     if (_synth_weight > 0) {
                         // Tweak some metrics if synthesized weight
                         if ( glyph_pos[cluster].x_advance > 0 ) {
@@ -1955,7 +1955,7 @@ public:
     */
     virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false ) {
         //FONT_GUARD
-        int glyph_index;
+        FT_UInt glyph_index;
         if ( code_is_glyph_index ) {
             // Accept 0 and give info about the notdef/tofu char
             glyph_index = code;
@@ -2208,6 +2208,7 @@ public:
         int i;
 
         lUInt16 prev_width = 0;
+        lUInt16 cur_width = 0;
         int lastFitChar = 0;
         updateTransform(); // no-op
         // measure character widths
@@ -2313,7 +2314,7 @@ public:
             // cf in *some* minikin repositories: libs/minikin/Layout.cpp
 
             // Shape
-            hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), _hb_features.length());
+            hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), (unsigned int)_hb_features.length());
 
             // Harfbuzz has guessed and set a direction even if we did not provide one.
             bool is_rtl = false;
@@ -2380,8 +2381,6 @@ public:
             // glyphs) with the fallback font, and update the wrongs width
             // and flags.
 
-            int prev_width = 0;
-            int cur_width = 0;
             int cur_cluster = 0;
             int hg = 0;  // index in glyph_info/glyph_pos
             int hcl = 0; // cluster glyph at hg
@@ -2603,8 +2602,7 @@ public:
                 else {
                     widths[i] += letter_spacing;
                 }
-                if ( !isHyphen ) // avoid soft hyphens inside text string
-                    prev_width = widths[i];
+                prev_width = widths[i];
                 if ( prev_width > max_width ) {
                     if ( lastFitChar < i + 7)
                         break;
@@ -2693,8 +2691,7 @@ public:
             else {
                 widths[i] += letter_spacing;
             }
-            if ( !isHyphen ) // avoid soft hyphens inside text string
-                prev_width = widths[i];
+            prev_width = widths[i];
             if ( prev_width > max_width ) {
                 if ( lastFitChar < i + 7)
                     break;
@@ -3515,7 +3512,7 @@ public:
             }
 
             // Shape
-            hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), _hb_features.length());
+            hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), (unsigned int)_hb_features.length());
 
             // If direction is RTL, hb_shape() has reversed the order of the glyphs, so
             // they are in visual order and ready to be iterated and drawn. So,
