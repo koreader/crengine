@@ -4497,7 +4497,6 @@ public:
         // assuming the fallback font is a standalone regular font
         // without any bold/italic sibling.
         // GetFont() works just as fine when we need specified weigh and italic.
-        weight &= 0xFFFE;
         return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFaces[idx], 0, -1);
     }
 
@@ -5957,6 +5956,15 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     int weight_match = (_weight==-1 || def._weight==-1) ?
                 256
             : ( 256 - weight_diff * 256 / 800 );
+    // It might happen that 2 fonts with different weights can get the same
+    // score, e.g. with def._weight=550, a font with _weight=400 and an other
+    // with _weight=700. Any could then be picked depending on their random
+    // ordering in the cache, which may mess a book on re-openings.
+    // To avoid this inconsistency, we give arbitrarily a small increase to
+    // the score of the smaller weight font (mostly so that with the above
+    // case, we keep synthesizing the 550 from the 400)
+    if ( _weight < def._weight )
+        weight_match += 1;
 
     // italic
     int italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1) ?
