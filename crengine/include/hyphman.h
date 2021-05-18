@@ -130,6 +130,7 @@ class HyphMan
     friend class TexHyph;
     friend class AlgoHyph;
     friend class SoftHyphensHyph;
+    friend class UserHyphenDict;
     // Obsolete: now fetched from TextLangMan main lang TextLangCfg
     // static HyphMethod * _method;
     // static HyphDictionary * _selectedDictionary;
@@ -167,6 +168,31 @@ public:
         return _method->hyphenate( str, len, widths, flags, hyphCharWidth, maxWidth, flagSize );
     }
     */
+};
+
+class UserHyphenDict
+{
+private:
+    static lUInt32 hash_value; // for calculating rendering hashes
+
+    static lUInt32 wordsInFile;
+    static lUInt32 wordsInMemory;
+    static lString32 *words;
+    static char **masks;
+
+    static bool addEntry(const char *word, const char* hyphenation);
+
+public:
+    UserHyphenDict();
+    ~UserHyphenDict();
+
+    static bool init(const char* filename) { return init(lString32(filename)); }
+    static bool init(lString32 filename);
+    static lUInt32 getHash();
+    static void release();
+
+    static lString32 getHyphenation(const char *word);
+    static bool getMask(lChar32 *word, char *mask);
 };
 
 #endif

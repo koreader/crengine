@@ -6678,6 +6678,10 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 TextLangMan::setHyphenationSoftHyphensOnly( enabled );
                 REQUEST_RENDER("propsApply textlang hyphenation_soft_hyphens_only")
             }
+        } else if (name == PROP_TEXTLANG_HYPH_USER_DICT) {
+            lString32 dict = props->getStringDef(PROP_TEXTLANG_HYPH_USER_DICT, "");
+            if ( UserHyphenDict::init(dict) )
+                REQUEST_RENDER("propsApply textlang user dictionary")
         } else if (name == PROP_TEXTLANG_HYPH_FORCE_ALGORITHMIC) {
             bool enabled = props->getIntDef(PROP_TEXTLANG_HYPH_FORCE_ALGORITHMIC, TEXTLANG_DEFAULT_HYPH_FORCE_ALGORITHMIC);
             if ( enabled != TextLangMan::getHyphenationForceAlgorithmic() ) {
