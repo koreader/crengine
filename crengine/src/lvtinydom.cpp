@@ -406,10 +406,9 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
         hash = hash * 31 + HyphMan::getLeftHyphenMin();
         hash = hash * 31 + HyphMan::getRightHyphenMin();
         hash = hash * 31 + HyphMan::getTrustSoftHyphens();
+        // if the user hyphenation dictionary changes we also might need a rerender
+        hash = hash * 31 + UserHyphenDict::getHash();
     }
-    // if the user hyphenation dictionary changes we also might need a rerender
-    // no need to increase FORMATTING_VERSION_ID, because hash is changed.
-    hash = hash * 31 + UserHyphenDict::getHash();
     return hash;
 }
 
