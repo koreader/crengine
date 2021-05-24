@@ -1144,6 +1144,30 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
     return hyphenation;
 }
 
+// Use word as a template for hyphenation upper/lower case
+lString32 UserHyphenDict::formatHyphenation(const char *hyphenation, const char* word)
+{
+    lString32 val;
+    lString32 original_word(word);
+    lString32 lowercase_word = lString32(word).lowercase();
+    lString32 suggestion = lString32(hyphenation).lowercase();
+
+    size_t word_len = original_word.length();
+    size_t suggestion_len = suggestion.length();
+    for( size_t i=0, j=0; i<word_len && j<suggestion_len; ++i, ++j) {
+
+        if ( suggestion[j] == '-' ) {
+            val += '-';
+            j++;
+        }
+        if ( lowercase_word[i] == suggestion[j] )
+            val += original_word[i];
+        else
+            return suggestion;
+    }
+    return val;
+}
+
 bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( HyphMan::_TrustSoftHyphens ) {

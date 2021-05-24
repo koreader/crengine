@@ -191,8 +191,10 @@ public:
     static lUInt32 getHash();
     static void release();
 
-    static lString32 getHyphenation(const char *word);
     static bool getMask(lChar32 *word, char *mask);
+
+    static lString32 getHyphenation(const char *word);
+    static lString32 formatHyphenation(const char* hyphenation, const char *word);
 };
 
 #endif
