@@ -188,6 +188,7 @@ public:
 
     static bool init(const char* filename) { return init(lString32(filename)); }
     static bool init(lString32 filename);
+    static inline bool isInitialized() { return wordsInMemory > 0; }
     static lUInt32 getHash();
     static void release();
 

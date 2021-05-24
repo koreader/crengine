@@ -934,10 +934,10 @@ UserHyphenDict::UserHyphenDict()
 #endif
 
 lUInt32 UserHyphenDict::hash_value = 0;
-lUInt32 UserHyphenDict::wordsInFile;
-lUInt32 UserHyphenDict::wordsInMemory;
-lString32* UserHyphenDict::words;
-char** UserHyphenDict::masks;
+lUInt32 UserHyphenDict::wordsInFile = 0;
+lUInt32 UserHyphenDict::wordsInMemory = 0;
+lString32* UserHyphenDict::words = 0;
+char** UserHyphenDict::masks = 0;
 
 UserHyphenDict::~UserHyphenDict()
 {
@@ -947,7 +947,7 @@ UserHyphenDict::~UserHyphenDict()
 // free memory used by user hyphenation dictionary
 void UserHyphenDict::release()
 {
-    for ( unsigned i = 0; i<wordsInMemory; ++i )
+    for ( size_t i = 0; i<wordsInMemory; ++i )
         free(masks[i]);
     free(masks);
     wordsInFile = 0;
@@ -964,20 +964,20 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 {
     // copy word to user dict, lowercase
     words[wordsInMemory] = Utf8ToUnicode(word).lowercase();
-    lUInt32 words_len = words[wordsInMemory].length();
+    size_t words_len = words[wordsInMemory].length();
 
-    lString32 hyphenation_utf8 = Utf8ToUnicode(hyphenation).lowercase();
-    lUInt32 hyphenation_len = hyphenation_utf8.length();
+    lString32 hyphenation_lower = Utf8ToUnicode(hyphenation).lowercase();
+    size_t hyphenation_len = hyphenation_lower.length();
 
     // generate mask
     masks[wordsInMemory] = (char*) malloc((words_len+1) * sizeof(char)); // +1 for termination
 
-    lUInt32 hyphenation_pos = 0;
-    for ( lUInt32 i = 0; i < words_len && hyphenation_pos < hyphenation_len; ++i ) {
-        if (hyphenation_utf8[hyphenation_pos] != '-') {
-            if ( hyphenation_utf8[hyphenation_pos] != words[wordsInMemory][i] ) {
+    size_t hyphenation_pos = 0;
+    for ( size_t i = 0; i < words_len && hyphenation_pos < hyphenation_len; ++i ) {
+        if (hyphenation_lower[hyphenation_pos] != '-') {
+            if ( hyphenation_lower[hyphenation_pos] != words[wordsInMemory][i] ) {
                 hyphenation_pos = hyphenation_len + 1; // for sanity_check
-                printf("UserHyphen::addEntry wrong entry ind dictionary: %s; %s\n",word, hyphenation);
+                printf("CRE WARNING: Trying to add a wrong entry to the dictionary: word=%s; hyphenation=%s\n",word, hyphenation);
             }
             masks[wordsInMemory][i] = '0';
         } else {
@@ -1003,14 +1003,12 @@ bool UserHyphenDict::init(lString32 filename)
     if ( wordsInFile != 0 )
         release();
 
-    if ( filename.length() == 0 ) {
-        printf("USER HYPEN DICTIONARY released. No new dictionary requested.\n");
+    if ( filename.length() == 0 )
         return true;
-    }
 
     LVStreamRef instream = LVOpenFileStream( filename.c_str(), LVOM_READ );
     if ( !instream ) {
-        printf("USER HYPHEN DICTIONARY open: cannot open file %s\n", LCSTR(filename));
+        printf("CRE WARNING: Cannot open file user hyphen dictionary at: %s\n", LCSTR(filename));
         return false;
     }
 
@@ -1048,7 +1046,7 @@ bool UserHyphenDict::init(lString32 filename)
             hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
         }
         word[i] = ' ';
-        word[i+1] = 0;
+        word[i+1] = '\0';
 
         mask[0] = ' ';
         for ( i=1; i<WORD_LENGTH-3; ++i ) { // -3 because of leading and trailing space and NULL
@@ -1063,12 +1061,12 @@ bool UserHyphenDict::init(lString32 filename)
             mask[i] = buf[pos++];
         }
         mask[i] = ' ';
-        mask[i+1] = 0;
+        mask[i+1] = '\0';
         addEntry(word, mask);
         hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
     }
     if ( wordsInMemory != wordsInFile )
-        printf("UserHyphenDict: error in dictionary\n");
+        printf("CRE WARNING: Error in user dictionary\n");
 
     free(buf);
     return true;
@@ -1082,7 +1080,7 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
     // dictionary should be alphabetically sorted
     // so don't search the whole dict. -> binarySearch is faster
 #if 1 == 0  // use this only for tests as this might get really slow on big dictionaries
-    lUInt32 i = 0;
+    size_t i = 0;
     while ( i < wordsInMemory && words[i].compare(word) < 0 ) {
         ++i;
     }
@@ -1093,9 +1091,9 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
     return false;
 #endif
 
-    lUInt32 left = 0;
-    lUInt32 right = wordsInMemory-1;
-    lUInt32 mid = right;
+    size_t left = 0;
+    size_t right = wordsInMemory-1;
+    size_t mid = right;
     while ( left <= right )
     {
         mid = left + (right-left)/2;
@@ -1118,11 +1116,11 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
 lString32 UserHyphenDict::getHyphenation(const char *word)
 {
     lString32 word_str(word);
-    lUInt32 len = word_str.length();
+    size_t len = word_str.length();
     lUInt16 widths[len+2];
     lUInt8 flags[len+2];
 
-    for ( lUInt32 i = 0; i < len; ++i ) {
+    for ( size_t i = 0; i < len; ++i ) {
         widths[i] = 0;
         flags[i] = 0;
     }
@@ -1130,10 +1128,9 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
     TextLangMan::getTextLangCfg()->getHyphMethod()->hyphenate(word_str.lowercase().c_str(), len, widths, flags, 0, 0xFFFF, 1);
 
     lString32 hyphenation;
-    int i;
+    size_t i;
     int right_hyphen_min = HyphMan::_RightHyphenMin ? HyphMan::_RightHyphenMin : HyphMan::getRightHyphenMin();
-    for ( i=0; i<len-right_hyphen_min; ++i )
-    {
+    for ( i=0; i<len-right_hyphen_min; ++i ) {
         hyphenation += word_str[i];
         if (flags[i] & LCHAR_ALLOW_HYPH_WRAP_AFTER )
             hyphenation += "-";
@@ -1195,9 +1192,8 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
     word[w++] = ' ';
     if ( wlen<=3 )
         return false;
-
     lStr_lowercase(word+1, wlen);
-
+    // printf("word:%s => #%s# (%d => %d)\n", LCSTR(lString32(str, len)), LCSTR(lString32(word)), len, wlen);
 #if DUMP_HYPHENATION_WORDS==1
     CRLog::trace("word to hyphenate: '%s'", LCSTR(lString32(word)));
 #endif
@@ -1207,7 +1203,7 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
 
     // check if word is in user's hyphen dict
     // if so set the mask to the user mask
-    if ( UserHyphenDict::getMask(word, mask) ) {
+    if ( UserHyphenDict::isInitialized() && UserHyphenDict::getMask(word, mask) ) {
         found = true;
     } else {
         // Find matches from dict patterns, at any position in word.
