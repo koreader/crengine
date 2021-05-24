@@ -173,6 +173,9 @@ public:
 class UserHyphenDict
 {
 private:
+    static lString32 _filename;
+    static size_t _filesize;
+
     static lUInt32 hash_value; // for calculating rendering hashes
 
     static lUInt32 wordsInFile;

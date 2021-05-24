@@ -933,6 +933,8 @@ UserHyphenDict::UserHyphenDict()
     #define HYPH_HASH_MULT 7
 #endif
 
+lString32 UserHyphenDict::_filename = U"";
+size_t UserHyphenDict::_filesize = 0;
 lUInt32 UserHyphenDict::hash_value = 0;
 lUInt32 UserHyphenDict::wordsInFile = 0;
 lUInt32 UserHyphenDict::wordsInMemory = 0;
@@ -1011,6 +1013,12 @@ bool UserHyphenDict::init(lString32 filename)
         printf("CRE WARNING: Cannot open file user hyphen dictionary at: %s\n", LCSTR(filename));
         return false;
     }
+
+    if ( _filename.compare(filename)==0 && _filesize == instream->GetSize() )
+        return true;
+
+    _filename = filename;
+    _filesize = instream->GetSize();
 
     lUInt32 bufsize = instream->GetSize();
     // buffer to hold user hyphenation file
