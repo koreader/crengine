@@ -935,8 +935,8 @@ UserHyphenDict::UserHyphenDict()
 
 lString32 UserHyphenDict::_filename = U"";
 size_t UserHyphenDict::_filesize = 0;
-lUInt32 UserHyphenDict::hash_value = 0;
-lUInt32 UserHyphenDict::wordsInFile = 0;
+lUInt32 UserHyphenDict::_hash_value = 0;
+
 lUInt32 UserHyphenDict::wordsInMemory = 0;
 lString32* UserHyphenDict::words = 0;
 char** UserHyphenDict::masks = 0;
@@ -951,15 +951,15 @@ void UserHyphenDict::release()
 {
     for ( size_t i = 0; i<wordsInMemory; ++i )
         free(masks[i]);
-    free(masks);
-    wordsInFile = 0;
+    if ( wordsInMemory>0 )
+        free(masks);
     wordsInMemory = 0;
-    hash_value = 0;
+    _hash_value = 0;
 }
 
 lUInt32 UserHyphenDict::getHash()
 {
-    return hash_value;
+    return _hash_value;
 }
 
 bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
@@ -1002,38 +1002,50 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 
 bool UserHyphenDict::init(lString32 filename)
 {
-    if ( wordsInFile != 0 )
+    if ( filename.length() == 0 ) {
         release();
-
-    if ( filename.length() == 0 )
         return true;
+    }
 
     LVStreamRef instream = LVOpenFileStream( filename.c_str(), LVOM_READ );
     if ( !instream ) {
+        release();
         printf("CRE WARNING: Cannot open file user hyphen dictionary at: %s\n", LCSTR(filename));
         return false;
     }
 
-    if ( _filename.compare(filename)==0 && _filesize == instream->GetSize() )
-        return true;
+    size_t filesize = instream->GetSize();
 
-    _filename = filename;
-    _filesize = instream->GetSize();
-
-    lUInt32 bufsize = instream->GetSize();
     // buffer to hold user hyphenation file
-    char *buf = (char*) malloc(bufsize * sizeof(char));
+    char *buf = (char*) malloc(filesize * sizeof(char));
 
     lvsize_t count = 0;
-    instream->Read(buf, bufsize, &count);
+    instream->Read(buf, filesize, &count);
 
+    lUInt32 hash_value = 0;
+    unsigned wordsInFile = 0;
     for ( lvsize_t i=0; i<count; ++i) {
-        if ( buf[i] == '\r' &&  i+1<bufsize && buf[i+1] == '\n' ) {
+        hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
+        if ( buf[i] == '\r' &&  i+1<filesize && buf[i+1] == '\n' ) {
             ++i;
             ++wordsInFile;
         } else if ( buf[i] == '\n' || buf[i] == '\r' )
             ++wordsInFile;
     }
+
+    // do fast checks first
+    if ( _filename.compare(filename)==0 && _filesize == filesize && _hash_value == hash_value )
+        return true;
+    else
+        release();
+
+    _filename = filename;
+    _filesize = filesize;
+    _hash_value = hash_value;
+
+    printf("xxxxxxxx dictionary reload\n");
+
+
 
     words = new lString32[wordsInFile];
     masks = (char**) calloc(wordsInFile, sizeof(char*) );
@@ -1041,7 +1053,6 @@ bool UserHyphenDict::init(lString32 filename)
     char word[WORD_LENGTH];
     char mask[WORD_LENGTH];
     lvsize_t pos = 0; // pos in puffer
-    hash_value = 0;
     while (pos < count ) {
         int i;
         word[0] = ' ';
@@ -1051,14 +1062,13 @@ bool UserHyphenDict::init(lString32 filename)
                 break;
             }
             word[i] = buf[pos++];   //todo check case
-            hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
         }
         word[i] = ' ';
         word[i+1] = '\0';
 
         mask[0] = ' ';
         for ( i=1; i<WORD_LENGTH-3; ++i ) { // -3 because of leading and trailing space and NULL
-            if ( buf[i] == '\r' &&  i+1<bufsize && buf[i+1] == '\n' ) {
+            if ( buf[i] == '\r' &&  i+1<filesize && buf[i+1] == '\n' ) {
                 pos += 2;
                 break;
             }
@@ -1071,7 +1081,6 @@ bool UserHyphenDict::init(lString32 filename)
         mask[i] = ' ';
         mask[i+1] = '\0';
         addEntry(word, mask);
-        hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
     }
     if ( wordsInMemory != wordsInFile )
         printf("CRE WARNING: Error in user dictionary\n");
@@ -1211,7 +1220,7 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
 
     // check if word is in user's hyphen dict
     // if so set the mask to the user mask
-    if ( UserHyphenDict::isInitialized() && UserHyphenDict::getMask(word, mask) ) {
+    if ( UserHyphenDict::hasWords() && UserHyphenDict::getMask(word, mask) ) {
         found = true;
     } else {
         // Find matches from dict patterns, at any position in word.

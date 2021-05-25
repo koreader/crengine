@@ -175,10 +175,8 @@ class UserHyphenDict
 private:
     static lString32 _filename;
     static size_t _filesize;
+    static lUInt32 _hash_value; // for calculating rendering hashes
 
-    static lUInt32 hash_value; // for calculating rendering hashes
-
-    static lUInt32 wordsInFile;
     static lUInt32 wordsInMemory;
     static lString32 *words;
     static char **masks;
@@ -191,7 +189,7 @@ public:
 
     static bool init(const char* filename) { return init(lString32(filename)); }
     static bool init(lString32 filename);
-    static inline bool isInitialized() { return wordsInMemory > 0; }
+    static inline bool hasWords() { return wordsInMemory > 0; }
     static lUInt32 getHash();
     static void release();
 
