@@ -187,8 +187,8 @@ public:
     UserHyphenDict();
     ~UserHyphenDict();
 
-    static bool init(const char* filename) { return init(lString32(filename)); }
-    static bool init(lString32 filename);
+    static bool init(const char* filename, bool no_sloppy_load = false) { return init(lString32(filename), no_sloppy_load); }
+    static bool init(lString32 filename, bool no_sloppy_load = false);
     static inline bool hasWords() { return wordsInMemory > 0; }
     static lUInt32 getHash();
     static void release();
