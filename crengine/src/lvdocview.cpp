@@ -6679,15 +6679,9 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 REQUEST_RENDER("propsApply textlang hyphenation_soft_hyphens_only")
             }
         } else if (name == PROP_TEXTLANG_HYPH_USER_DICT) {
-            lString32 dict = props->getStringDef(PROP_TEXTLANG_HYPH_USER_DICT, ""); // a dictionary name with/without a trailling "-reload"
-            lString32 ending = U"-reload";
-            bool reload = false;
-            if ( dict.endsWith(ending) ) {
-                dict = dict.substr(0,dict.length()-ending.length());
-                reload = true;
-            }
-            if ( UserHyphenDict::init(dict, reload) )
-                REQUEST_RENDER("propsApply textlang user dictionary")
+            lString32 dict = props->getStringDef(PROP_TEXTLANG_HYPH_USER_DICT, "");
+            if ( UserHyphenDict::init(dict) )
+                REQUEST_RENDER("propsApply textlang user dictionary");
         } else if (name == PROP_TEXTLANG_HYPH_FORCE_ALGORITHMIC) {
             bool enabled = props->getIntDef(PROP_TEXTLANG_HYPH_FORCE_ALGORITHMIC, TEXTLANG_DEFAULT_HYPH_FORCE_ALGORITHMIC);
             if ( enabled != TextLangMan::getHyphenationForceAlgorithmic() ) {
