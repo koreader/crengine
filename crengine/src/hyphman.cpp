@@ -1003,7 +1003,7 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 
 // (Re)initializes the user hyphen dict, if the filename and filesize have changed.
 // no_sloppy_load==true -> do also check if the hash has changed
-bool UserHyphenDict::init(lString32 filename, bool no_sloppy_load)
+bool UserHyphenDict::init(lString32 filename, bool reload)
 {
     if ( filename.length() == 0 ) {
         release();
@@ -1017,7 +1017,7 @@ bool UserHyphenDict::init(lString32 filename, bool no_sloppy_load)
     }
 
     size_t filesize = instream->GetSize();
-    if ( _filename.compare(filename)==0 && _filesize == filesize && not no_sloppy_load ) {
+    if ( _filename.compare(filename)==0 && _filesize == filesize && not reload ) {
         printf("xxxxxxxxxxxx sloppy load done\n");
         return true;
     }
