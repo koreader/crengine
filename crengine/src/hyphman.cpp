@@ -1045,8 +1045,6 @@ bool UserHyphenDict::init(lString32 filename)
 
     printf("xxxxxxxx dictionary reload\n");
 
-
-
     words = new lString32[wordsInFile];
     masks = (char**) calloc(wordsInFile, sizeof(char*) );
 
@@ -1128,6 +1126,12 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
         }
     }
     return false;
+}
+
+lString32 UserHyphenDict::getLower(const char *word)
+{
+    lString32 word_str(word);
+    return word_str.lowercase();
 }
 
 lString32 UserHyphenDict::getHyphenation(const char *word)
