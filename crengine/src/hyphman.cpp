@@ -1003,8 +1003,7 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 
 // (Re)initializes the user hyphen dict, if the filename and filesize have changed.
 // filename ... filename of the user hyphen dictionary. An empty string releases the dict.
-//              format: recommended lowercase,
-//                      one entry per line, no spaces: hyphenation;hyph-en-ation
+//              format: one entry per line, no spaces: hyphenation;hyph-en-ation
 //                                                     sauerstoffflasche;sauer-stoff-fla-sche
 // reload==true -> do also check if the hash of thr requested dict matches the loaded one
 // returns: true   the dict has changed
@@ -1140,18 +1139,11 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
     return false;
 }
 
-lString32 UserHyphenDict::getLower(const char *word)
-{
-    lString32 word_str(word);
-    return word_str.lowercase();
-}
-
 // get the hyphenation for word
 // return: hypenated word
 // e.g.: Danger -> Dan-ger
 lString32 UserHyphenDict::getHyphenation(const char *word)
 {
-    printf("xxxxxxxxxxxxxxxxxxx %s", word);
     lString32 word_str(word);
     size_t len = word_str.length();
     lUInt16 widths[len+2];
@@ -1175,42 +1167,7 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
     for ( ; i<len; ++i ) {
         hyphenation += word_str[i];
     }
-    printf("   xxxxxxxxxxxxxxxxxxx %s", LCSTR(hyphenation));
     return hyphenation;
-}
-
-// Use word as a template for hyphenation upper/lower case
-// hyphenation: the hyphenated word in lowercase (as we get it from hyphenate())
-// word: a word without hyphenation with upper and lower cases
-//
-// return: the hyphenated word with the cases of word
-//
-// e.g: dan-ger, danger -> dan-ger
-//      dan-ger, Danger -> Dan-ger
-//      dan-ger, DANGER -> DAN-GER
-//      dan-ger, DaNGeR -> DaN-GeR
-
-lString32 UserHyphenDict::formatHyphenation(const char *hyphenation, const char* word)
-{
-    lString32 val;
-    lString32 original_word(word);
-    lString32 lowercase_word = lString32(word).lowercase();
-    lString32 suggestion = lString32(hyphenation).lowercase();
-
-    size_t word_len = original_word.length();
-    size_t suggestion_len = suggestion.length();
-    for( size_t i=0, j=0; i<word_len && j<suggestion_len; ++i, ++j) {
-
-        if ( suggestion[j] == '-' ) {
-            val += '-';
-            j++;
-        }
-        if ( lowercase_word[i] == suggestion[j] )
-            val += original_word[i];
-        else
-            return suggestion;
-    }
-    return val;
 }
 
 bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )

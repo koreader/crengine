@@ -196,8 +196,6 @@ public:
     static bool getMask(lChar32 *word, char *mask);
 
     static lString32 getHyphenation(const char *word);
-    static lString32 getLower(const char *word);
-    static lString32 formatHyphenation(const char* hyphenation, const char *word);
 };
 
 #endif
