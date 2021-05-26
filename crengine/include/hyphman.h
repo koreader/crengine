@@ -195,6 +195,7 @@ public:
 
     static bool getMask(lChar32 *word, char *mask);
 
+    static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     static lString32 getHyphenation(const char *word);
 };
 
