@@ -177,7 +177,7 @@ private:
     static size_t _filesize;
     static lUInt32 _hash_value; // for calculating rendering hashes
 
-    static lUInt32 wordsInMemory;
+    static lUInt32 words_in_memory;
     static lString32 *words;
     static char **masks;
 
@@ -189,7 +189,7 @@ public:
 
     static bool init(const char* filename, bool reload = false) { return init(lString32(filename), reload); }
     static bool init(lString32 filename, bool reload = false);
-    static inline bool hasWords() { return wordsInMemory > 0; }
+    static inline bool hasWords() { return words_in_memory > 0; }
     static lUInt32 getHash();
     static void release();
 

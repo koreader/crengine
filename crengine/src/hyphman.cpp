@@ -937,7 +937,7 @@ lString32 UserHyphenDict::_filename = U"";
 size_t UserHyphenDict::_filesize = 0;
 lUInt32 UserHyphenDict::_hash_value = 0;
 
-lUInt32 UserHyphenDict::wordsInMemory = 0;
+lUInt32 UserHyphenDict::words_in_memory = 0;
 lString32* UserHyphenDict::words = 0;
 char** UserHyphenDict::masks = 0;
 
@@ -949,11 +949,11 @@ UserHyphenDict::~UserHyphenDict()
 // free memory used by user hyphenation dictionary
 void UserHyphenDict::release()
 {
-    for ( size_t i = 0; i<wordsInMemory; ++i )
+    for ( size_t i = 0; i<words_in_memory; ++i )
         free(masks[i]);
-    if ( wordsInMemory>0 )
+    if ( words_in_memory>0 )
         free(masks);
-    wordsInMemory = 0;
+    words_in_memory = 0;
     _hash_value = 0;
 }
 
@@ -965,44 +965,50 @@ lUInt32 UserHyphenDict::getHash()
 bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 {
     // copy word to user dict, lowercase
-    words[wordsInMemory] = Utf8ToUnicode(word).lowercase();
-    size_t words_len = words[wordsInMemory].length();
+    words[words_in_memory] = Utf8ToUnicode(word).lowercase();
+    size_t word_len = words[words_in_memory].length();
 
     lString32 hyphenation_lower = Utf8ToUnicode(hyphenation).lowercase();
     size_t hyphenation_len = hyphenation_lower.length();
 
     // generate mask
-    masks[wordsInMemory] = (char*) malloc((words_len+1) * sizeof(char)); // +1 for termination
+    masks[words_in_memory] = (char*) malloc((word_len+1) * sizeof(char)); // +1 for termination
 
     size_t hyphenation_pos = 0;
-    for ( size_t i = 0; i < words_len && hyphenation_pos < hyphenation_len; ++i ) {
+    for ( size_t i = 0; i < word_len && hyphenation_pos < hyphenation_len; ++i ) {
         if (hyphenation_lower[hyphenation_pos] != '-') {
-            if ( hyphenation_lower[hyphenation_pos] != words[wordsInMemory][i] ) {
+            if ( hyphenation_lower[hyphenation_pos] != words[words_in_memory][i] ) {
                 hyphenation_pos = hyphenation_len + 1; // for sanity_check
-                printf("CRE WARNING: Trying to add a wrong entry to the dictionary: word=%s; hyphenation=%s\n",word, hyphenation);
+                printf("CRE WARNING: Trying to add a wrong/hyphenation mismatch: %s/%s\n", word, hyphenation);
             }
-            masks[wordsInMemory][i] = '0';
+            masks[words_in_memory][i] = '0';
         } else {
-            masks[wordsInMemory][i] = '1';
+            masks[words_in_memory][i] = '1';
             hyphenation_pos++;
         }
         hyphenation_pos++;
     }
-    masks[wordsInMemory][words_len] = '\0';
+    masks[words_in_memory][word_len] = '\0';
 
     // sanity check, if entry is ok
     if ( hyphenation_pos > hyphenation_len ) {
-        free(masks[wordsInMemory]);
-        words[wordsInMemory] = "";
+        free(masks[words_in_memory]);
+        words[words_in_memory] = "";
         return false;
     }
-     ++wordsInMemory;
+     ++words_in_memory;
     return true;
 }
 
 
 // (Re)initializes the user hyphen dict, if the filename and filesize have changed.
-// no_sloppy_load==true -> do also check if the hash has changed
+// filename ... filename of the user hyphen dictionary. An empty string releases the dict.
+//              format: recommended lowercase,
+//                      one entry per line, no spaces: hyphenation;hyph-en-ation
+//                                                     sauerstoffflasche;sauer-stoff-fla-sche
+// reload==true -> do also check if the hash of thr requested dict matches the loaded one
+// returns: true   the dict has changed
+//          false  no changes
 bool UserHyphenDict::init(lString32 filename, bool reload)
 {
     if ( filename.length() == 0 ) {
@@ -1013,13 +1019,13 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
     if ( !instream ) {
         release();
         printf("CRE WARNING: Cannot open file user hyphen dictionary at: %s\n", LCSTR(filename));
-        return false;
+        return true;
     }
 
     size_t filesize = instream->GetSize();
     if ( _filename.compare(filename)==0 && _filesize == filesize && not reload ) {
-        printf("xxxxxxxxxxxx sloppy load done\n");
-        return true;
+        printf("xxxxxxxxxxxx no dict reload: filesize, filename match\n");
+        return false;
     }
 
     // buffer to hold user hyphenation file
@@ -1029,19 +1035,19 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
     instream->Read(buf, filesize, &count);
 
     lUInt32 hash_value = 0;
-    unsigned wordsInFile = 0;
+    unsigned words_in_file = 0;
     for ( lvsize_t i=0; i<count; ++i) {
         hash_value = ( hash_value * HYPH_HASH_MULT ) ^ buf[i];
         if ( buf[i] == '\r' &&  i+1<filesize && buf[i+1] == '\n' ) {
             ++i;
-            ++wordsInFile;
+            ++words_in_file;
         } else if ( buf[i] == '\n' || buf[i] == '\r' )
-            ++wordsInFile;
+            ++words_in_file;
     }
 
-    // do fast checks first
+    // do fast thourogh check if requested dictionary matches the loaded one
     if ( _filename.compare(filename)==0 && _filesize == filesize && _hash_value == hash_value )
-        return true;
+        return false;
     else
         release();
 
@@ -1051,8 +1057,8 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
 
     printf("xxxxxxxx dictionary reload\n");
 
-    words = new lString32[wordsInFile];
-    masks = (char**) calloc(wordsInFile, sizeof(char*) );
+    words = new lString32[words_in_file];
+    masks = (char**) calloc(words_in_file, sizeof(char*) );
 
     char word[WORD_LENGTH];
     char mask[WORD_LENGTH];
@@ -1086,8 +1092,8 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
         mask[i+1] = '\0';
         addEntry(word, mask);
     }
-    if ( wordsInMemory != wordsInFile )
-        printf("CRE WARNING: Error in user dictionary\n");
+    if ( words_in_memory != words_in_file )
+        printf("CRE WARNING: user hyph dict %d words ignored\n", words_in_file - words_in_memory);
 
     free(buf);
     return true;
@@ -1095,17 +1101,17 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
 
 bool UserHyphenDict::getMask(lChar32 *word, char *mask)
 {
-    if ( wordsInMemory == 0 )
+    if ( words_in_memory == 0 )
         return false; // no dictionary, or dictionary not initialized
 
     // dictionary should be alphabetically sorted
     // so don't search the whole dict. -> binarySearch is faster
 #if 1 == 0  // use this only for tests as this might get really slow on big dictionaries
     size_t i = 0;
-    while ( i < wordsInMemory && words[i].compare(word) < 0 ) {
+    while ( i < words_in_memory && words[i].compare(word) < 0 ) {
         ++i;
     }
-    if (i < wordsInMemory && words[i].compare(word) == 0) {
+    if (i < words_in_memory && words[i].compare(word) == 0) {
         lStr_cpy(mask, masks[i]);
         return true;
     }
@@ -1113,7 +1119,7 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
 #endif
 
     size_t left = 0;
-    size_t right = wordsInMemory-1;
+    size_t right = words_in_memory-1;
     size_t mid = right;
     while ( left <= right )
     {
@@ -1140,8 +1146,12 @@ lString32 UserHyphenDict::getLower(const char *word)
     return word_str.lowercase();
 }
 
+// get the hyphenation for word
+// return: hypenated word
+// e.g.: Danger -> Dan-ger
 lString32 UserHyphenDict::getHyphenation(const char *word)
 {
+    printf("xxxxxxxxxxxxxxxxxxx %s", word);
     lString32 word_str(word);
     size_t len = word_str.length();
     lUInt16 widths[len+2];
@@ -1152,7 +1162,7 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
         flags[i] = 0;
     }
 
-    TextLangMan::getTextLangCfg()->getHyphMethod()->hyphenate(word_str.lowercase().c_str(), len, widths, flags, 0, 0xFFFF, 1);
+    TextLangMan::getTextLangCfg()->getHyphMethod()->hyphenate(word_str.c_str(), len, widths, flags, 0, 0xFFFF, 1);
 
     lString32 hyphenation;
     size_t i;
@@ -1165,10 +1175,21 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
     for ( ; i<len; ++i ) {
         hyphenation += word_str[i];
     }
+    printf("   xxxxxxxxxxxxxxxxxxx %s", LCSTR(hyphenation));
     return hyphenation;
 }
 
 // Use word as a template for hyphenation upper/lower case
+// hyphenation: the hyphenated word in lowercase (as we get it from hyphenate())
+// word: a word without hyphenation with upper and lower cases
+//
+// return: the hyphenated word with the cases of word
+//
+// e.g: dan-ger, danger -> dan-ger
+//      dan-ger, Danger -> Dan-ger
+//      dan-ger, DANGER -> DAN-GER
+//      dan-ger, DaNGeR -> DaN-GeR
+
 lString32 UserHyphenDict::formatHyphenation(const char *hyphenation, const char* word)
 {
     lString32 val;
