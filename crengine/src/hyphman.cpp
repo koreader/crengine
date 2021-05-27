@@ -1013,6 +1013,7 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 bool UserHyphenDict::init(lString32 filename, bool reload)
 {
     if ( filename.length() == 0 ) {
+        printf("xxxxxxxxx dictionary released\n");
         release();
         return true;
     }
@@ -1066,9 +1067,9 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
     lvsize_t pos = 0; // pos in puffer
     while (pos < count ) {
         int i;
-        for (i = 0; i < WORD_LENGTH-3; ++i ) { // -3 because of leading and trailing space and NULL
+        for ( i = 0; i < WORD_LENGTH-1; ++i ) { // -1 because of trailing NULL
             if (buf[pos] == ';') {
-                pos++;
+                ++pos;
                 break;
             }
             word[i] = buf[pos++];   //todo check case
@@ -1081,7 +1082,7 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
                 break;
             }
             else if (buf[pos] == '\n' || buf[pos] == '\r') {
-                pos++;
+                ++pos;
                 break;
             }
             mask[i] = buf[pos++];
@@ -1138,7 +1139,7 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
     return false;
 }
 
-// get the hyphenation for word
+// get the hyphenation for word; shows all hyphenation positions, don't obey _xxx_hypphen_min
 // return: hypenated word
 // e.g.: Danger -> Dan-ger
 lString32 UserHyphenDict::getHyphenation(const char *word)
@@ -1157,14 +1158,10 @@ lString32 UserHyphenDict::getHyphenation(const char *word)
 
     lString32 hyphenation;
     size_t i;
-    int right_hyphen_min = HyphMan::_RightHyphenMin ? HyphMan::_RightHyphenMin : HyphMan::getRightHyphenMin();
-    for ( i=0; i<len-right_hyphen_min; ++i ) {
+    for ( i=0; i<len; ++i ) {
         hyphenation += word_str[i];
         if (flags[i] & LCHAR_ALLOW_HYPH_WRAP_AFTER )
             hyphenation += "-";
-    }
-    for ( ; i<len; ++i ) {
-        hyphenation += word_str[i];
     }
     return hyphenation;
 }
@@ -1191,7 +1188,7 @@ bool UserHyphenDict::hyphenate( const lChar32 * str, int len, lUInt16 * widths, 
         }
     }
     wlen = w-1;
-    if ( wlen<=3 )
+    if ( wlen<3 ) // don't hyphenate words with three letters
         return false;
     lStr_lowercase(word, wlen);
     // printf("word:%s => #%s# (%d => %d)\n", LCSTR(lString32(str, len)), LCSTR(lString32(word)), len, wlen);
