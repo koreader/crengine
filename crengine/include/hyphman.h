@@ -170,6 +170,11 @@ public:
     */
 };
 
+#define USER_DICT_RELOAD    0
+#define USER_DICT_NOCHANGE  1
+#define USER_DICT_MALFORMED 2
+#define USER_DICT_ERROR     3
+
 class UserHyphenDict
 {
 private:
@@ -181,19 +186,20 @@ private:
     static lString32 *words;
     static char **masks;
 
-    static bool addEntry(const char *word, const char* hyphenation);
+    static void release();
+
+    static lUInt8 addEntry(const char *word, const char* hyphenation);
+    static bool getMask(lChar32 *word, char *mask);
 
 public:
     UserHyphenDict();
     ~UserHyphenDict();
 
-    static bool init(const char* filename, bool reload = false) { return init(lString32(filename), reload); }
-    static bool init(lString32 filename, bool reload = false);
+    static lUInt8 init(const char* filename, bool reload = false) { return init(lString32(filename), reload); }
+    static lUInt8 init(lString32 filename, bool reload = false);
     static inline bool hasWords() { return words_in_memory > 0; }
-    static lUInt32 getHash();
-    static void release();
 
-    static bool getMask(lChar32 *word, char *mask);
+    static lUInt32 getHash();
 
     static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     static lString32 getHyphenation(const char *word);

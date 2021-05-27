@@ -1150,6 +1150,12 @@ UserHyphenDict::UserHyphenDict()
 {
 }
 
+/*
+ * -------------------------------------------
+ *               UserHyphenDict
+ * -------------------------------------------
+*/
+
 #ifndef HYPH_HASH_MULT
     #define HYPH_HASH_MULT 7
 #endif
@@ -1183,7 +1189,7 @@ lUInt32 UserHyphenDict::getHash()
     return _hash_value;
 }
 
-bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
+lUInt8 UserHyphenDict::addEntry(const char *word, const char* hyphenation)
 {
     // copy word to user dict, lowercase
     words[words_in_memory] = Utf8ToUnicode(word).lowercase();
@@ -1196,54 +1202,61 @@ bool UserHyphenDict::addEntry(const char *word, const char* hyphenation)
     masks[words_in_memory] = (char*) malloc((word_len+1) * sizeof(char)); // +1 for termination
 
     size_t hyphenation_pos = 1;
-    for ( size_t i = hyphenation_pos; i < word_len && hyphenation_pos < hyphenation_len; ++i ) {
-        if (hyphenation_lower[hyphenation_pos] != '-') {
+    size_t i = hyphenation_pos;
+    for ( ; i < word_len && hyphenation_pos < hyphenation_len; ++i, ++hyphenation_pos ) {
+        if ( hyphenation_lower[hyphenation_pos] != '-' ) {
             masks[words_in_memory][i-1] = '0';
         } else {
             masks[words_in_memory][i-1] = '1';
             ++hyphenation_pos;
         }
-        ++hyphenation_pos;
     }
     masks[words_in_memory][word_len-1]= '0';
     masks[words_in_memory][word_len] = '\0';
 
+    // check if alphabetically sorted
+    if ( words_in_memory > 0 && words[words_in_memory].compare(words[words_in_memory-1]) <= 0 ) {
+        printf("CRE WARNING: User dictionary not sorted %s/%s\n", LCSTR(words[words_in_memory-1]), LCSTR(words[words_in_memory]));
+        return USER_DICT_ERROR;
+    }
+
     // sanity check, if entry is ok
-    if ( hyphenation_pos > hyphenation_len ) {
+    if ( hyphenation_pos != hyphenation_len || i != word_len) {
+        printf("CRE WARNING: Malformed entry %s;%s\n", word, hyphenation);
         free(masks[words_in_memory]);
         words[words_in_memory] = "";
-        return false;
+        return USER_DICT_MALFORMED;
     }
-     ++words_in_memory;
+
+    ++words_in_memory;
     return true;
 }
-
 
 // (Re)initializes the user hyphen dict, if the filename and filesize have changed.
 // filename ... filename of the user hyphen dictionary. An empty string releases the dict.
 //              format: one entry per line, no spaces: hyphenation;hyph-en-ation
 //                                                     sauerstoffflasche;sauer-stoff-fla-sche
 // reload==true -> do also check if the hash of thr requested dict matches the loaded one
-// returns: true   the dict has changed
-//          false  no changes
-bool UserHyphenDict::init(lString32 filename, bool reload)
+// returns    USER_DICT_RELOAD
+//            USER_DICT_NOCHANGE
+//            USER_DICT_MALFORMED
+//            USER_DICT_ERROR
+lUInt8 UserHyphenDict::init(lString32 filename, bool reload)
 {
     if ( filename.length() == 0 ) {
-        printf("xxxxxxxxx dictionary released\n");
         release();
-        return true;
+        return USER_DICT_RELOAD;
     }
     LVStreamRef instream = LVOpenFileStream( filename.c_str(), LVOM_READ );
     if ( !instream ) {
         release();
         printf("CRE WARNING: Cannot open file user hyphen dictionary at: %s\n", LCSTR(filename));
-        return true;
+        return USER_DICT_RELOAD;
     }
 
     size_t filesize = instream->GetSize();
     if ( _filename.compare(filename)==0 && _filesize == filesize && not reload ) {
-        printf("xxxxxxxx dictionary not changed` loaded\n");
-        return false;
+        return USER_DICT_NOCHANGE;
     }
 
     // buffer to hold user hyphenation file
@@ -1265,7 +1278,7 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
 
     // do fast thourogh check if requested dictionary matches the loaded one
     if ( _filename.compare(filename)==0 && _filesize == filesize && _hash_value == hash_value )
-        return false;
+        return 0;
     else
         release();
 
@@ -1273,45 +1286,57 @@ bool UserHyphenDict::init(lString32 filename, bool reload)
     _filesize = filesize;
     _hash_value = hash_value;
 
-    printf("xxxxxxxx dictionary reload\n");
+    lUInt8 return_value = USER_DICT_RELOAD;
 
     words = new lString32[words_in_file];
     masks = (char**) calloc(words_in_file, sizeof(char*) );
 
+    #define HYPHENATION_LENGTH (WORD_LENGTH*2+2)  // hypenation can get longer than word
     char word[WORD_LENGTH];
-    char mask[WORD_LENGTH];
+    char mask[HYPHENATION_LENGTH];
     lvsize_t pos = 0; // pos in puffer
     while (pos < count ) {
         int i;
         for ( i = 0; i < WORD_LENGTH-1; ++i ) { // -1 because of trailing NULL
-            if (buf[pos] == ';') {
+            if ( buf[pos] == ';' ) {
                 ++pos;
                 break;
             }
             word[i] = buf[pos++];   //todo check case
         }
         word[i] = '\0';
+        if ( i == WORD_LENGTH )
+            printf("CRE WARNING: User dictionary word '%s' is too long\n", word);
 
-        for ( i = 0; i<WORD_LENGTH-3; ++i ) { // -3 because of leading and trailing space and NULL
+        for ( i = 0; i<HYPHENATION_LENGTH-1; ++i ) { // -1 because of tailling NULL
             if ( buf[i] == '\r' &&  i+1<filesize && buf[i+1] == '\n' ) {
                 pos += 2;
                 break;
             }
-            else if (buf[pos] == '\n' || buf[pos] == '\r') {
+            else if ( buf[pos] == '\n' || buf[pos] == '\r' ) {
                 ++pos;
                 break;
             }
             mask[i] = buf[pos++];
         }
         mask[i] = '\0';
-        addEntry(word, mask);
+        if ( i == HYPHENATION_LENGTH )
+            printf("CRE WARNING: User dictionary hypenation '%s' is to long\n", mask);
 
+        lUInt8 tmp = addEntry(word, mask);
+        if ( tmp == USER_DICT_MALFORMED )
+            return_value = USER_DICT_MALFORMED;
+        else if ( tmp == USER_DICT_ERROR ) {
+            free(buf);
+            release();
+            return USER_DICT_ERROR;
+        }
     }
     if ( words_in_memory != words_in_file )
         printf("CRE WARNING: user hyph dict %d words ignored\n", words_in_file - words_in_memory);
 
     free(buf);
-    return true;
+    return return_value;
 }
 
 bool UserHyphenDict::getMask(lChar32 *word, char *mask)
@@ -1325,11 +1350,10 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
     size_t i = 0;
     while ( i < words_in_memory && words[i].compare(word) < 0 )
         ++i;
-    if (i < words_in_memory && words[i].compare(word) == 0) {
+    if ( i < words_in_memory && words[i].compare(word) == 0) {
         lStr_cpy(mask, masks[i]);
         return true;
     }
-//    printf("mask not found: %s\n", LCSTR(word));
     return false;
 #endif
 
@@ -1347,7 +1371,7 @@ bool UserHyphenDict::getMask(lChar32 *word, char *mask)
         else if ( cmp < 0 )
             left = mid + 1;
         else {
-            if (mid == 0)
+            if ( mid == 0 )
                 break; // as right is unsigned and cannot be -1!
             right = mid - 1;
         }
