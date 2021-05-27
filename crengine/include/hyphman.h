@@ -130,7 +130,6 @@ class HyphMan
     friend class TexHyph;
     friend class AlgoHyph;
     friend class SoftHyphensHyph;
-    friend class UserHyphenDict;
     // Obsolete: now fetched from TextLangMan main lang TextLangCfg
     // static HyphMethod * _method;
     // static HyphDictionary * _selectedDictionary;

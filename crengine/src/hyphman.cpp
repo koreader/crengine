@@ -1050,7 +1050,6 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
         if ( UserHyphenDict::hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
             return true;
     }
-
     if ( HyphMan::_TrustSoftHyphens ) {
         if ( softhyphens_hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
             return true;
@@ -1146,10 +1145,6 @@ AlgoHyph::~AlgoHyph()
 {
 }
 
-UserHyphenDict::UserHyphenDict()
-{
-}
-
 /*
  * -------------------------------------------
  *               UserHyphenDict
@@ -1167,6 +1162,10 @@ lUInt32 UserHyphenDict::_hash_value = 0;
 lUInt32 UserHyphenDict::words_in_memory = 0;
 lString32* UserHyphenDict::words = 0;
 char** UserHyphenDict::masks = 0;
+
+UserHyphenDict::UserHyphenDict()
+{
+}
 
 UserHyphenDict::~UserHyphenDict()
 {
