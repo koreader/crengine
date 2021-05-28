@@ -406,8 +406,7 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
         hash = hash * 31 + HyphMan::getLeftHyphenMin();
         hash = hash * 31 + HyphMan::getRightHyphenMin();
         hash = hash * 31 + HyphMan::getTrustSoftHyphens();
-        // if the user hyphenation dictionary changes we also might need a rerender
-        hash = hash * 31 + UserHyphenDict::getHash();
+        hash = hash * 31 + UserHyphDict::getHash();
     }
     return hash;
 }

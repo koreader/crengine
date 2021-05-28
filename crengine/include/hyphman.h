@@ -169,12 +169,12 @@ public:
     */
 };
 
-#define USER_DICT_RELOAD    0
-#define USER_DICT_NOCHANGE  1
-#define USER_DICT_MALFORMED 2
-#define USER_DICT_ERROR     3
+#define USER_HYPH_DICT_RELOAD    0
+#define USER_HYPH_DICT_NOCHANGE  1
+#define USER_HYPH_DICT_MALFORMED 2
+#define USER_HYPH_DICT_ERROR     3
 
-class UserHyphenDict
+class UserHyphDict
 {
 private:
     static lString32 _filename;
@@ -191,14 +191,14 @@ private:
     static bool getMask(lChar32 *word, char *mask);
 
 public:
-    UserHyphenDict();
-    ~UserHyphenDict();
+    UserHyphDict();
+    ~UserHyphDict();
 
     static lUInt8 init(const char* filename, bool reload = false) { return init(lString32(filename), reload); }
     static lUInt8 init(lString32 filename, bool reload = false);
     static inline bool hasWords() { return words_in_memory > 0; }
 
-    static lUInt32 getHash();
+    static inline lUInt32 getHash() { return _hash_value; };
 
     static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     static lString32 getHyphenation(const char *word);
