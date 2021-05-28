@@ -68,6 +68,7 @@
 #define PROP_TEXTLANG_HYPHENATION_ENABLED    "crengine.textlang.hyphenation.enabled"
 #define PROP_TEXTLANG_HYPH_SOFT_HYPHENS_ONLY "crengine.textlang.hyphenation.soft.hyphens.only"
 #define PROP_TEXTLANG_HYPH_FORCE_ALGORITHMIC "crengine.textlang.hyphenation.force.algorithmic"
+#define PROP_TEXTLANG_HYPH_USER_DICT         "crengine.textlang.hyphenation.user.dict"
 
 #define PROP_FLOATING_PUNCTUATION    "crengine.style.floating.punctuation.enabled"
 

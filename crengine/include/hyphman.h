@@ -169,4 +169,39 @@ public:
     */
 };
 
+#define USER_HYPH_DICT_RELOAD    0
+#define USER_HYPH_DICT_NOCHANGE  1
+#define USER_HYPH_DICT_MALFORMED 2
+#define USER_HYPH_DICT_ERROR_NOT_SORTED 3
+
+class UserHyphDict
+{
+private:
+    static lString32 _filename;
+    static size_t _filesize;
+    static lUInt32 _hash_value; // for calculating rendering hashes
+
+    static lUInt32 words_in_memory;
+    static lString32 *words;
+    static char **masks;
+
+    static void release();
+
+    static lUInt8 addEntry(const char *word, const char* hyphenation);
+    static bool getMask(lChar32 *word, char *mask);
+
+public:
+    UserHyphDict();
+    ~UserHyphDict();
+
+    static lUInt8 init(const char* filename, bool reload = false) { return init(lString32(filename), reload); }
+    static lUInt8 init(lString32 filename, bool reload = false);
+    static inline bool hasWords() { return words_in_memory > 0; }
+
+    static inline lUInt32 getHash() { return _hash_value; };
+
+    static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
+    static lString32 getHyphenation(const char *word);
+};
+
 #endif
