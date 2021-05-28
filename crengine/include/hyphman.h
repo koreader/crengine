@@ -172,7 +172,7 @@ public:
 #define USER_HYPH_DICT_RELOAD    0
 #define USER_HYPH_DICT_NOCHANGE  1
 #define USER_HYPH_DICT_MALFORMED 2
-#define USER_HYPH_DICT_ERROR     3
+#define USER_HYPH_DICT_ERROR_NOT_SORTED 3
 
 class UserHyphDict
 {
