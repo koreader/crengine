@@ -1173,11 +1173,19 @@ UserHyphDict::~UserHyphDict()
 // free memory used by user hyphenation dictionary
 void UserHyphDict::release()
 {
-    for ( size_t i = 0; i<words_in_memory; ++i )
+    for ( size_t i = 0; i<words_in_memory; ++i ) {
         free(masks[i]);
-    if ( words_in_memory>0 )
+        words[i].clear();
+    }
+
+    if ( words_in_memory>0 ) {
         free(masks);
+        delete[] words;
+    }
+
     words_in_memory = 0;
+    _filename = U"";
+    _filesize = 0;
     _hash_value = 0;
 }
 
@@ -1216,7 +1224,7 @@ lUInt8 UserHyphDict::addEntry(const char *word, const char* hyphenation)
     if ( hyphenation_pos != hyphenation_len || i != word_len) {
         printf("CRE WARNING: UserHyphDict malformed entry %s;%s\n", word, hyphenation);
         free(masks[words_in_memory]);
-        words[words_in_memory] = "";
+        words[words_in_memory].clear();
         return USER_HYPH_DICT_MALFORMED;
     }
 
