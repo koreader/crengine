@@ -1484,25 +1484,45 @@ void LVColorDrawBuf::Clear( lUInt32 color )
 {
     // NOTE: Guard against _dx <= 0?
     if ( _bpp==16 ) {
-        const lUInt16 cl16 = rgb888to565(color);
-        for (int y=0; y<_dy; y++)
-        {
-            lUInt16 * __restrict dst = (lUInt16 *)GetScanLine(y);
-            size_t px_count = _dx;
-            while (px_count--)
+        // Shortcut for black & white
+        if (color == 0x00000000) {
+            memset(_data, 0x00, _rowsize * _dy);
+        } else if (color == 0x00FFFFFF) {
+            memset(_data, 0xFF, _rowsize * _dy);
+        } else {
+            const lUInt16 cl16 = rgb888to565(color);
+            for (int y=0; y<_dy; y++)
             {
-                *dst++ = cl16;
+                lUInt16 * __restrict dst = (lUInt16 *)GetScanLine(y);
+                size_t px_count = _dx;
+                while (px_count--)
+                {
+                    *dst++ = cl16;
+                }
             }
         }
     } else {
         const lUInt32 cl32 = color;
-        for (int y=0; y<_dy; y++)
-        {
-            lUInt32 * __restrict dst = (lUInt32 *)GetScanLine(y);
-            size_t px_count = _dx;
-            while (px_count--)
+        // Shortcut for black & white
+        if (cl32 == 0x00000000) {
+            memset(_data, 0x00, _rowsize * _dy);
+        } else if (cl32 == 0x00FFFFFF) {
+            memset(_data, 0xFF, _rowsize * _dy);
+            // We need to take care of the alpha component now...
+            const unsigned char* const end = _data + (_rowsize * _dy);
+            // Start at the first alpha byte, then loop over each subsequent alpha byte, pixel-by-pixel
+            for (unsigned char* p = _data + 3U; p <= end; p += 4U) {
+                *p = 0x00;
+            }
+        } else {
+            for (int y=0; y<_dy; y++)
             {
-                *dst++ = cl32;
+                lUInt32 * __restrict dst = (lUInt32 *)GetScanLine(y);
+                size_t px_count = _dx;
+                while (px_count--)
+                {
+                    *dst++ = cl32;
+                }
             }
         }
     }
