@@ -134,17 +134,27 @@ struct LVFontGlyphCacheItem
     lInt16  origin_x;
     lInt16  origin_y;
     lUInt16 advance;
-    lUInt8 bmp[1];
+    // NOTE: We stash the actual *storage* in there, so, make sure this will be on an address aligned like malloc would.
+    //       This is a bit of a shortcut: __BIGGEST_ALIGNMENT__ will often be higher than the usual malloc alignment,
+    //       which is usually 16 on 64-bits and 8 otherwise (c.f., https://www.gnu.org/software/libc/manual/html_node/Aligned-Memory-Blocks.html).
+    //       But it's also 16 on x86 on recent glibcs (c.f., https://sourceware.org/bugzilla/show_bug.cgi?id=21120),
+    //       so we can't really fake it via __SIZEOF_POINTER__ * 2 ;).
+    //       In any case, we only care about the *offset* of bmp here, so, even if we overalign
+    //       (e.g., it's 32 on Skylake), it doesn't matter, because the layout of the struct ensures we get the same offset,
+    //       the only difference being more *trailing* padding, which we don't care about.
+    lUInt8 bmp[1] __attribute__((aligned(__BIGGEST_ALIGNMENT__)));
     //=======================================================================
     int getSize()
     {
-        return sizeof(LVFontGlyphCacheItem)
-            + (bmp_width * bmp_height - 1) * sizeof(lUInt8);
+        // NOTE: Again, we stash the data *in place of* the bmp array, so, the effective size of our object is:
+        //       LVFontGlyphCacheItem-up-to-bmp + the glyph storage size.
+        //       Given the alignment constraints on bmp, the only sane way to compute that is via offsetof.
+        return offsetof(LVFontGlyphCacheItem, bmp) + ((bmp_width * bmp_height) * sizeof(*bmp));
     }
     static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lChar32 ch, int w, int h )
     {
-        LVFontGlyphCacheItem * item = (LVFontGlyphCacheItem *)malloc( sizeof(LVFontGlyphCacheItem)
-                                                                        + (w*h - 1)*sizeof(lUInt8) );
+        LVFontGlyphCacheItem * item = (LVFontGlyphCacheItem *)malloc( offsetof(LVFontGlyphCacheItem, bmp)
+                                                                        + ((w*h) * sizeof(*bmp)) );
 	if (item) {
 	    item->data.ch = ch;
 	    item->bmp_width = (lUInt16)w;
@@ -163,8 +173,8 @@ struct LVFontGlyphCacheItem
     #if USE_HARFBUZZ==1
     static LVFontGlyphCacheItem *newItem(LVFontLocalGlyphCache* local_cache, lUInt32 glyph_index, int w, int h)
     {
-        LVFontGlyphCacheItem *item = (LVFontGlyphCacheItem *) malloc( sizeof(LVFontGlyphCacheItem)
-                                                                        + (w*h - 1)*sizeof(lUInt8) );
+        LVFontGlyphCacheItem * item = (LVFontGlyphCacheItem *)malloc( offsetof(LVFontGlyphCacheItem, bmp)
+                                                                        + ((w*h) * sizeof(*bmp)) );
         if (item) {
             item->data.gindex = glyph_index;
             item->bmp_width = (lUInt16) w;
