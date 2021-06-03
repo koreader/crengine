@@ -142,7 +142,7 @@ struct LVFontGlyphCacheItem
     //       In any case, we only care about the *offset* of bmp here, so, even if we overalign
     //       (e.g., it's 32 on Skylake), it doesn't matter, because the layout of the struct ensures we get the same offset,
     //       the only difference being more *trailing* padding, which we don't care about.
-    lUInt8 bmp[1] __attribute__((aligned(__BIGGEST_ALIGNMENT__)));
+    alignas(__BIGGEST_ALIGNMENT__) lUInt8 bmp[1];
     //=======================================================================
     int getSize()
     {
