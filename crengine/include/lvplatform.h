@@ -82,13 +82,4 @@
 #  endif
 #endif
 
-// In case the compiler doesn't define __BIGGEST_ALIGNMENT__ (MSVC?)
-#ifndef __BIGGEST_ALIGNMENT__
-#  if defined(__SIZEOF_POINTER__)
-#    define __BIGGEST_ALIGNMENT__ (__SIZEOF_POINTER__ * 2)
-#  else
-#    define __BIGGEST_ALIGNMENT__ (16)
-#  endif
-#endif
-
 #endif // LVPLATFORM_H_INCLUDED

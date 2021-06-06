@@ -134,15 +134,11 @@ struct LVFontGlyphCacheItem
     lInt16  origin_x;
     lInt16  origin_y;
     lUInt16 advance;
-    // NOTE: We stash the actual *storage* in there, so, make sure this will be on an address aligned like malloc would.
-    //       This is a bit of a shortcut: __BIGGEST_ALIGNMENT__ will often be higher than the usual malloc alignment,
-    //       which is usually 16 on 64-bits and 8 otherwise (c.f., https://www.gnu.org/software/libc/manual/html_node/Aligned-Memory-Blocks.html).
-    //       But it's also 16 on x86 on recent glibcs (c.f., https://sourceware.org/bugzilla/show_bug.cgi?id=21120),
-    //       so we can't really fake it via __SIZEOF_POINTER__ * 2 ;).
-    //       In any case, we only care about the *offset* of bmp here, so, even if we overalign
-    //       (e.g., it's 32 on Skylake), it doesn't matter, because the layout of the struct ensures we get the same offset,
-    //       the only difference being more *trailing* padding, which we don't care about.
-    alignas(__BIGGEST_ALIGNMENT__) lUInt8 bmp[1];
+    // NOTE: We stash the actual *storage* in there, so, make sure this will be on an address aligned like a 64-bit malloc would.
+    //       This is usually 16 on 64-bit and 8 otherwise (c.f., https://www.gnu.org/software/libc/manual/html_node/Aligned-Memory-Blocks.html).
+    //       It's also 16 on x86 on recent glibcs (c.f., https://sourceware.org/bugzilla/show_bug.cgi?id=21120).
+    //       We just use 16 everywhere, as this turned out to be mildly helpful on armv7 (c.f., https://github.com/koreader/crengine/pull/441).
+    alignas(16) lUInt8 bmp[1];
     //=======================================================================
     int getSize()
     {
