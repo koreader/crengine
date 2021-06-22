@@ -234,7 +234,12 @@ enum CacheFileBlockType {
 #include <xxhash.h>
 #include <lvtextfm.h>
 
+#define REGEX_SEARCH 1
+
+#if REGEX_SEARCH == 1
 #include <regex>
+#endif
+
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
@@ -10727,8 +10732,6 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     }
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY );
 }
-
-#define REGEX_SEARCH 1
 
 #if REGEX_SEARCH==1
 // count characters in an utf8 encoded char*
