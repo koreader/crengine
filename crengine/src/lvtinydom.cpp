@@ -10744,13 +10744,23 @@ static size_t countChars( const char* str, int end)
     }
     return count;
 }
-#endif
 
-static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & orig_pattern )
+#define REGEX_NOT_FOUND        -1
+#define REGEX_FOUND             0
+#define REGEX_FOUND_SOFT_HYPHEN 1
+
+/* searching a regex in str starting at pos
+ *
+ * returns
+ *     REGEX_NOT_FOUND if pattern not found
+ *                        no changes to pos, endpos, search_pattern
+ *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
+ *                        changes pos, endpos
+ *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
+ *                        changes search_pattern
+ */
+static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & search_pattern )
 {
-    lString32 pattern = orig_pattern; // will be overwritten by a regex match
-
-    #if REGEX_SEARCH == 1
     //check if there are soft-hyphs in str
     bool soft_hyphens = false;
 
@@ -10764,11 +10774,11 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(orig_pattern).c_str());
+    std::regex regexp(UnicodeToUtf8(search_pattern).c_str());
     std::cmatch match;
 
     if (!regex_search(str_utf8_c_str, match, regexp))
-        return false;
+        return REGEX_NOT_FOUND;
 
     int start = match.position(); // in utf8
     int length = match.length(); // in utf8
@@ -10776,12 +10786,79 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
     if (!soft_hyphens) {  //no softhyphens, we are ready
         pos += countChars(str_utf8_c_str, start);
         endpos = pos + countChars(str_utf8_c_str+start, length);
-        return true;
+        return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
-    pattern = Utf8ToUnicode(str_utf8_c_str+start, length);
+    search_pattern = Utf8ToUnicode(str_utf8_c_str+start, length);
+    return REGEX_FOUND_SOFT_HYPHEN;
+}
 
-    // here we have soft-hyphens again; search for pattern
+/* searches for a regex in str before pos
+ *
+ * returns
+ *     REGEX_NOT_FOUND if pattern not found
+ *                        no changes to pos, endpos, search_pattern
+ *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
+ *                        changes pos, endpos
+ *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
+ *                        changes search_pattern
+ */
+static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & search_pattern )
+{
+    bool soft_hyphens = false;
+    lString32 tmp;
+    for (int i=0; i<pos && str[i]; ++i) {
+        if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
+            tmp += str[i];
+        else
+            soft_hyphens = true;
+    }
+    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[0..pos-1], without softhyphens
+    const char* str_utf8_c_str = str_utf8.c_str();
+
+    std::regex regexp(UnicodeToUtf8(search_pattern).c_str());
+    std::cmatch match;
+
+    int start = 0;
+    int length = 0;
+    bool found = false;
+    while ( countChars(str_utf8_c_str, start) < pos) {
+        if (regex_search(str_utf8_c_str+start, match, regexp)) {
+            found = true;
+            length = match.length(); // in utf8
+            start += match.position()+1; // in utf8
+        } else
+            break;
+    }
+    if (!found)
+        return REGEX_NOT_FOUND;
+
+    --start; // in utf8
+
+    if (!soft_hyphens) {  //no softhyphens, we are ready
+        pos = countChars(str_utf8_c_str, start); //in lString32
+        endpos = pos + countChars(str_utf8_c_str+start, length); // in lString32
+        return REGEX_FOUND;
+    }
+    // if we have softhyphens in original str, we search for the found pattern
+    search_pattern = Utf8ToUnicode(str_utf8.c_str()+start, length); // copy match to Unicode
+    return REGEX_FOUND_SOFT_HYPHEN;
+}
+
+#endif // REGEX_SEARCH
+
+static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & orig_pattern )
+{
+    lString32 pattern = orig_pattern; // will be overwritten by a regex match
+
+    #if REGEX_SEARCH == 1
+    int retval = findRegex(str, pos, endpos, pattern);
+    if (retval == REGEX_NOT_FOUND)
+        return false;
+    else if (retval == REGEX_FOUND)
+        return true;
+
+    // if we come here pattern has changed from a regex to the actual string found
     #endif
 
     int len = pattern.length();
@@ -10818,43 +10895,13 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
     lString32 pattern = orig_pattern; // may be overwritten by a regex match
 
     #if REGEX_SEARCH == 1
-    bool soft_hyphens = false;
-    lString32 tmp;
-    for (int i=0; i<pos && str[i]; ++i) {
-        if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
-            tmp += str[i];
-        else
-            soft_hyphens = true;
-    }
-    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[0..pos-1], without softhyphens
-    const char* str_utf8_c_str = str_utf8.c_str();
-
-    std::regex regexp(UnicodeToUtf8(orig_pattern).c_str());
-    std::cmatch match;
-
-    int start = 0;
-    int length = 0;
-    bool found = false;
-    while ( countChars(str_utf8_c_str, start) < pos) {
-        if (regex_search(str_utf8_c_str+start, match, regexp)) {
-            found = true;
-            length = match.length(); // in utf8
-            start += match.position()+1; // in utf8
-        } else
-            break;
-    }
-    if (!found)
+    int retval = findRegexRev(str, pos, endpos, pattern);
+    if (retval == REGEX_NOT_FOUND)
         return false;
-
-    --start; // in utf8
-
-    if (!soft_hyphens) {  //no softhyphens, we are ready
-        pos = countChars(str_utf8_c_str, start); //in lString32
-        endpos = pos + countChars(str_utf8_c_str+start, length); // in lString32
+    else if (retval == REGEX_FOUND)
         return true;
-    }
-    // if we have softhyphens in original str, we search for the found pattern
-    pattern = Utf8ToUnicode(str_utf8.c_str()+start, length); // copy match to Unicode
+
+    // if we come here pattern has changed from a regex to the actual string found
     #endif
 
     int len = pattern.length();
