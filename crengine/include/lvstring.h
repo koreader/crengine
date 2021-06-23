@@ -1222,7 +1222,7 @@ void free_ls_storage();
 lUInt64 GetCurrentTimeMillis();
 void CRReinitTimer();
 
-
+int Utf8CharCount( const lChar8 * str, int len );
 
 #ifdef _DEBUG
 #include <stdio.h>

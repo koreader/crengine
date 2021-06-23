@@ -10734,16 +10734,6 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
 }
 
 #if REGEX_SEARCH == 1
-// count characters in an utf8 encoded char*
-static size_t countChars( const char* str, int end)
-{
-    size_t count = 0;
-    for ( size_t i=0; i<end && str[i]; ++i) {
-        if ((str[i]&0xC0) != 0x80)
-            ++count;
-    }
-    return count;
-}
 
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
@@ -10752,7 +10742,7 @@ static size_t countChars( const char* str, int end)
 /* searching a regex in str starting at pos; forwards
  *
  * returns
- *     REGEX_NOT_FOUND if pattern not found
+ *     REGEX_NOT_FOUND if pattern not found or pattern length is zero
  *                        no changes to pos, endpos, search_pattern
  *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
  *                        changes pos, endpos
@@ -10782,10 +10772,12 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
 
     int start = match.position(); // in utf8
     int length = match.length(); // in utf8
+    if (length == 0)
+        return REGEX_NOT_FOUND;
 
     if (!soft_hyphens) {  //no softhyphens, we are ready
-        pos += countChars(str_utf8_c_str, start);
-        endpos = pos + countChars(str_utf8_c_str+start, length);
+        pos += Utf8CharCount(str_utf8_c_str, start);
+        endpos = pos + Utf8CharCount(str_utf8_c_str+start, length);
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
@@ -10794,14 +10786,7 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
 }
 
 /* searches for a regex in str before pos; backwards
- *
- * returns
- *     REGEX_NOT_FOUND if pattern not found
- *                        no changes to pos, endpos, search_pattern
- *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
- *                        changes pos, endpos
- *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
- *                        changes search_pattern
+ * return: see findRegex()
  */
 static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & search_pattern )
 {
@@ -10822,10 +10807,12 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     int start = 0;
     int length = 0;
     bool found = false;
-    while ( countChars(str_utf8_c_str, start) < pos) {
+    while ( Utf8CharCount(str_utf8_c_str, start) < pos) {
         if (regex_search(str_utf8_c_str+start, match, regexp)) {
             found = true;
             length = match.length(); // in utf8
+            if (length == 0)
+                return REGEX_NOT_FOUND;
             start += match.position()+1; // in utf8
         } else
             break;
@@ -10836,8 +10823,8 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     --start; // in utf8
 
     if (!soft_hyphens) {  //no softhyphens, we are ready
-        pos = countChars(str_utf8_c_str, start); //in lString32
-        endpos = pos + countChars(str_utf8_c_str+start, length); // in lString32
+        pos = Utf8CharCount(str_utf8_c_str, start); //in lString32
+        endpos = pos + Utf8CharCount(str_utf8_c_str+start, length); // in lString32
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
@@ -10941,7 +10928,6 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 /// searches for specified text inside range
 bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool useRegex )
 {
-
     if ( caseInsensitive )
         pattern.lowercase();
     words.clear();
