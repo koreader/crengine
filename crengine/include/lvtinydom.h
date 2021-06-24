@@ -2014,7 +2014,7 @@ public:
     };
 
     /// searches for specified text inside range
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool useRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false );
 };
 
 class ldomMarkedText
@@ -2617,7 +2617,7 @@ public:
     /// get rendered block cache object
     CVRendBlockCache & getRendBlockCache() { return _renderedBlockCache; }
 
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool useRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false );
 #endif
 };
 

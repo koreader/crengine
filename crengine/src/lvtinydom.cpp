@@ -10662,7 +10662,7 @@ void ldomXRangeList::split( ldomXRange * r )
 
 #if BUILD_LITE!=1
 
-bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool useRegex )
+bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex )
 {
     if ( minY<0 )
         minY = 0;
@@ -10730,7 +10730,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
         CRLog::debug("No text found: Range is empty");
         return false;
     }
-    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, useRegex );
+    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
 #if REGEX_SEARCH == 1
@@ -10764,7 +10764,7 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(search_pattern).c_str());
+    std::regex regexp(UnicodeToUtf8(search_pattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
 
     if (!regex_search(str_utf8_c_str, match, regexp))
@@ -10798,10 +10798,10 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
         else
             soft_hyphens = true;
     }
-    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[0..pos-1], without softhyphens
+    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(search_pattern).c_str());
+    std::regex regexp(UnicodeToUtf8(search_pattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
 
     int start = 0;
@@ -10834,12 +10834,12 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
 
 #endif // REGEX_SEARCH
 
-static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & orig_pattern, bool useRegex )
+static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & search_pattern, bool patternIsRegex )
 {
-    lString32 pattern = orig_pattern; // will be overwritten by a regex match
+    lString32 pattern = search_pattern; // will be overwritten by a regex match
 
     #if REGEX_SEARCH == 1
-    if (useRegex) {
+    if (patternIsRegex) {
         int retval = findRegex(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)
             return false;
@@ -10879,12 +10879,12 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
     return false;
 }
 
-static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & orig_pattern, bool useRegex )
+static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & search_pattern, bool patternIsRegex )
 {
-    lString32 pattern = orig_pattern; // may be overwritten by a regex match
+    lString32 pattern = search_pattern; // may be overwritten by a regex match
 
     #if REGEX_SEARCH == 1
-    if (useRegex) {
+    if (patternIsRegex) {
         int retval = findRegexRev(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)
             return false;
@@ -10926,7 +10926,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 }
 
 /// searches for specified text inside range
-bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool useRegex )
+bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
 {
     if ( caseInsensitive )
         pattern.lowercase();
@@ -10957,7 +10957,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findTextRev( txt, offs, endpos, pattern, useRegex ) ) {
+            while ( ::findTextRev( txt, offs, endpos, pattern, patternIsRegex ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _end.getNode(), offs );
                     int currentTextY = p.toPoint().y;
@@ -10999,7 +10999,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findText( txt, offs, endpos, pattern, useRegex ) ) {
+            while ( ::findText( txt, offs, endpos, pattern, patternIsRegex ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _start.getNode(), offs );
                     int currentTextY = p.toPoint().y;
