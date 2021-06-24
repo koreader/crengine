@@ -10743,28 +10743,28 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
  *
  * returns
  *     REGEX_NOT_FOUND if pattern not found or pattern length is zero
- *                        no changes to pos, endpos, search_pattern
+ *                        no changes to pos, endpos, searchPattern
  *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
  *                        changes pos, endpos
  *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
- *                        changes search_pattern
+ *                        changes searchPattern
  */
-static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & search_pattern )
+static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
     //check if there are soft-hyphs in str
-    bool soft_hyphens = false;
+    bool has_soft_hyphens = false;
 
     lString32 tmp;
     for (int i=pos; str[i]; ++i) {
         if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
             tmp += str[i];
         else
-            soft_hyphens = true;
+            has_soft_hyphens = true;
     }
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(search_pattern).c_str(), std::regex::ECMAScript);
+    std::regex regexp(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
 
     if (!regex_search(str_utf8_c_str, match, regexp))
@@ -10775,33 +10775,33 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     if (length == 0)
         return REGEX_NOT_FOUND;
 
-    if (!soft_hyphens) {  //no softhyphens, we are ready
+    if (!has_soft_hyphens) {  //no softhyphens, we are ready
         pos += Utf8CharCount(str_utf8_c_str, start);
         endpos = pos + Utf8CharCount(str_utf8_c_str+start, length);
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
-    search_pattern = Utf8ToUnicode(str_utf8_c_str+start, length);
+    searchPattern = Utf8ToUnicode(str_utf8_c_str+start, length);
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
 /* searches for a regex in str before pos; backwards
  * return: see findRegex()
  */
-static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & search_pattern )
+static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
-    bool soft_hyphens = false;
+    bool has_soft_hyphens = false;
     lString32 tmp;
     for (int i=0; i<pos && str[i]; ++i) {
         if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
             tmp += str[i];
         else
-            soft_hyphens = true;
+            has_soft_hyphens = true;
     }
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(search_pattern).c_str(), std::regex::ECMAScript);
+    std::regex regexp(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
 
     int start = 0;
@@ -10822,21 +10822,21 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
 
     --start; // in utf8
 
-    if (!soft_hyphens) {  //no softhyphens, we are ready
+    if (!has_soft_hyphens) {  //no softhyphens, we are ready
         pos = Utf8CharCount(str_utf8_c_str, start); //in lString32
         endpos = pos + Utf8CharCount(str_utf8_c_str+start, length); // in lString32
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
-    search_pattern = Utf8ToUnicode(str_utf8_c_str+start, length); // copy match to Unicode
+    searchPattern = Utf8ToUnicode(str_utf8_c_str+start, length); // copy match to Unicode
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
 #endif // REGEX_SEARCH
 
-static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & search_pattern, bool patternIsRegex )
+static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
-    lString32 pattern = search_pattern; // will be overwritten by a regex match
+    lString32 pattern = searchPattern; // will be overwritten by a regex match
 
     #if REGEX_SEARCH == 1
     if (patternIsRegex) {
@@ -10879,9 +10879,9 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
     return false;
 }
 
-static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & search_pattern, bool patternIsRegex )
+static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
-    lString32 pattern = search_pattern; // may be overwritten by a regex match
+    lString32 pattern = searchPattern; // may be overwritten by a regex match
 
     #if REGEX_SEARCH == 1
     if (patternIsRegex) {
