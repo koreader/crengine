@@ -234,12 +234,6 @@ enum CacheFileBlockType {
 #include <xxhash.h>
 #include <lvtextfm.h>
 
-#define REGEX_SEARCH 1
-
-#if REGEX_SEARCH == 1
-#include <regex>
-#endif
-
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
@@ -10733,11 +10727,33 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-#if REGEX_SEARCH == 1
+#if USE_STD_REGEX == 1
 
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
+
+int checkRegex(const lString32 & searchPattern)
+{
+    try {
+        std::regex test(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
+    }
+    catch (const std::regex_error& e) {
+        return 1;
+    }
+    return 0;
+}
+
+static bool generateRegex(const lString32 & searchPattern, std::regex & regexp)
+{
+    try {
+        regexp = std::regex(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
+    }
+    catch (const std::regex_error& e) {
+        return false;
+    }
+    return true;
+}
 
 /* searching a regex in str starting at pos; forwards
  *
@@ -10764,8 +10780,10 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
+    std::regex regexp;
+    if (!generateRegex( searchPattern, regexp))
+        return REGEX_NOT_FOUND;
 
     if (!regex_search(str_utf8_c_str, match, regexp))
         return REGEX_NOT_FOUND;
@@ -10801,8 +10819,10 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
 
-    std::regex regexp(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
     std::cmatch match;
+    std::regex regexp;
+    if (!generateRegex( searchPattern, regexp))
+        return REGEX_NOT_FOUND;
 
     int start = 0;
     int length = 0;
@@ -10832,13 +10852,13 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
-#endif // REGEX_SEARCH
+#endif // USE_STD_REGEX
 
 static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
     lString32 pattern = searchPattern; // will be overwritten by a regex match
 
-    #if REGEX_SEARCH == 1
+    #if USE_STD_REGEX == 1
     if (patternIsRegex) {
         int retval = findRegex(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)
@@ -10883,7 +10903,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 {
     lString32 pattern = searchPattern; // may be overwritten by a regex match
 
-    #if REGEX_SEARCH == 1
+    #if USE_STD_REGEX == 1
     if (patternIsRegex) {
         int retval = findRegexRev(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)

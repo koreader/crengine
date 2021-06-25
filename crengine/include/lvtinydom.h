@@ -45,6 +45,9 @@
 #if MATHML_SUPPORT==1
 #include "mathml.h"
 #endif
+#if USE_STD_REGEX==1
+#include <regex>
+#endif
 
 // Allows for requesting older DOM building code (including bugs NOT fixed)
 extern const int gDOMVersionCurrent;
@@ -2956,5 +2959,8 @@ void compressCachedData(bool enable);
 /// increase the 4 hardcoded TEXT_CACHE_UNPACKED_SPACE, ELEM_CACHE_UNPACKED_SPACE,
 // RECT_CACHE_UNPACKED_SPACE and STYLE_CACHE_UNPACKED_SPACE by this factor
 void setStorageMaxUncompressedSizeFactor(float factor);
+
+/// check a regular expression
+int checkRegex(const lString32 & searchPattern);
 
 #endif
