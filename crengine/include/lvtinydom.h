@@ -45,9 +45,6 @@
 #if MATHML_SUPPORT==1
 #include "mathml.h"
 #endif
-#if USE_STD_REGEX==1
-#include <regex>
-#endif
 
 // Allows for requesting older DOM building code (including bugs NOT fixed)
 extern const int gDOMVersionCurrent;

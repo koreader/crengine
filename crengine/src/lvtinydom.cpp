@@ -237,6 +237,9 @@ enum CacheFileBlockType {
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
+#if USE_STD_REGEX==1
+#include <regex>
+#endif
 
 // default is to compress to use smaller cache files (but slower rendering
 // and page turns with big documents)
