@@ -10821,32 +10821,45 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     }
     lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
     const char* str_utf8_c_str = str_utf8.c_str();
+    int nb_chars = Utf8CharCount(str_utf8_c_str); // nb_chars from 0 to pos
 
     std::cmatch match;
     std::regex regexp;
     if (!generateRegex( searchPattern, regexp))
         return REGEX_NOT_FOUND;
 
-    int start = 0;
+    int left = 0;
+    int right = nb_chars;
+    int start = (left + right)/2;
     int length = 0;
     bool found = false;
-    while ( Utf8CharCount(str_utf8_c_str, start) < pos) {
-        if (regex_search(str_utf8_c_str+start, match, regexp)) {
+    int match_pos = -1;
+    // Doing binary search of the regex from back;
+    // Faster than linear search, which will bring doulbe hits.
+    // As a (wanted) sideffect it will reduce matches by minimizes double hits.
+    while ( left < right ) {
+        bool search_val = regex_search(str_utf8_c_str+start, match, regexp);
+        if (search_val) {
             found = true;
             length = match.length(); // in utf8
             if (length == 0)
                 return REGEX_NOT_FOUND;
-            start += match.position()+1; // in utf8
-        } else
-            break;
+            match_pos = start + match.position();
+            left = match_pos + length;
+            if (left >= right)
+                break;
+            start = (left + right)/2; // in utf8
+        } else {
+            right = start;
+            start = (left + right)/2;
+        }
     }
     if (!found)
         return REGEX_NOT_FOUND;
 
-    --start; // in utf8
-
     if (!has_soft_hyphens) {  //no softhyphens, we are ready
-        pos = Utf8CharCount(str_utf8_c_str, start); //in lString32
+        start = match_pos; // in utf8
+        pos = Utf8CharCount(str_utf8_c_str, start); // in lString32
         endpos = pos + Utf8CharCount(str_utf8_c_str+start, length); // in lString32
         return REGEX_FOUND;
     }
@@ -10919,6 +10932,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
     #endif
 
     int len = pattern.length();
+    pos--;
     if ( pos+len>(int)str.length() )
         pos = str.length()-len;
     if ( pos < 0 )
@@ -10988,7 +11002,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                         firstFoundTextY = currentTextY;
                 }
                 words.add( ldomWord(_end.getNode(), offs, endpos ) );
-                offs--;
+                offs;
             }
             if ( !_end.prevVisibleText() )
                 break;
@@ -11035,7 +11049,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                     }
                 }
                 words.add( ldomWord(_start.getNode(), offs, endpos ) );
-                offs++;
+                offs = endpos; // we can go to the next potiential position
             }
             if ( !_start.nextVisibleText() )
                 break;
