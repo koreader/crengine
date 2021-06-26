@@ -10784,9 +10784,15 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     const char* str_utf8_c_str = str_utf8.c_str();
 
     std::cmatch match;
-    std::regex regexp;
-    if (!generateRegex( searchPattern, regexp))
-        return REGEX_NOT_FOUND;
+
+    // a poor mans cache
+    static lString32 last_pattern;
+    static std::regex regexp;
+    if (searchPattern != last_pattern) {
+        last_pattern = searchPattern;
+        if (!generateRegex( searchPattern, regexp))
+            return REGEX_NOT_FOUND;
+    }
 
     if (!regex_search(str_utf8_c_str, match, regexp))
         return REGEX_NOT_FOUND;
@@ -10824,9 +10830,14 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     int nb_chars = Utf8CharCount(str_utf8_c_str); // nb_chars from 0 to pos
 
     std::cmatch match;
-    std::regex regexp;
-    if (!generateRegex( searchPattern, regexp))
-        return REGEX_NOT_FOUND;
+    // a poor mans cache
+    static lString32 last_pattern;
+    static std::regex regexp;
+    if (searchPattern != last_pattern) {
+        last_pattern = searchPattern;
+        if (!generateRegex( searchPattern, regexp))
+            return REGEX_NOT_FOUND;
+    }
 
     int left = 0;
     int right = nb_chars;
