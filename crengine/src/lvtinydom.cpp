@@ -10805,6 +10805,12 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     if (!has_soft_hyphens) {  //no softhyphens, we are ready
         pos += Utf8CharCount(str_utf8_c_str, start);
         endpos = pos + Utf8CharCount(str_utf8_c_str+start, length);
+
+        // Check if the match end is within an utf8 sequence. Can happen with '.' in regex
+        char last_char = *(str_utf8_c_str+start+length);
+        if ( (last_char & 0x80 ) != 0)
+            ++endpos;
+
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
