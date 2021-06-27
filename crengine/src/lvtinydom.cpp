@@ -10789,9 +10789,9 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     static lString32 last_pattern;
     static std::regex regexp;
     if (searchPattern != last_pattern) {
-        last_pattern = searchPattern;
         if (!generateRegex( searchPattern, regexp))
             return REGEX_NOT_FOUND;
+        last_pattern = searchPattern;
     }
 
     if (!regex_search(str_utf8_c_str, match, regexp))
@@ -10834,9 +10834,9 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     static lString32 last_pattern;
     static std::regex regexp;
     if (searchPattern != last_pattern) {
-        last_pattern = searchPattern;
         if (!generateRegex( searchPattern, regexp))
             return REGEX_NOT_FOUND;
+        last_pattern = searchPattern;
     }
 
     int left = 0;
@@ -11013,7 +11013,6 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                         firstFoundTextY = currentTextY;
                 }
                 words.add( ldomWord(_end.getNode(), offs, endpos ) );
-                offs;
             }
             if ( !_end.prevVisibleText() )
                 break;
