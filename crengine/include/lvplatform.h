@@ -67,4 +67,19 @@
 #  define STDIO_CLOEXEC
 #endif
 
+// In case the compiler doesn't define __SIZEOF_POINTER__ (MSVC?)
+// c.f., https://github.com/qt/qtbase/blob/dev/src/corelib/global/qprocessordetection.h
+#ifndef __SIZEOF_POINTER__
+#  if defined(__aarch64__) || defined(__ARM64__) || defined(_M_ARM64) ||                 \
+      defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(_M_X64) || \
+      defined(__ia64) || defined(__ia64__) || defined(_M_IA64) ||                        \
+      defined(_MIPS_ARCH_MIPS64) || defined(__mips64) ||                                 \
+      defined(__ppc64__) || defined(__powerpc64__) || defined(__64BIT__)                 \
+      defined(__EMSCRIPTEN__)
+#    define __SIZEOF_POINTER__ 8
+#  else
+#    define __SIZEOF_POINTER__ 4
+#  endif
+#endif
+
 #endif // LVPLATFORM_H_INCLUDED

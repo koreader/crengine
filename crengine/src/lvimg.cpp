@@ -831,6 +831,13 @@ public:
 
 #if (USE_LIBPNG==1)
 
+// c.f., <linux/kernel.h>
+#define ALIGN(x, a)                                                                                              \
+({                                                                                                               \
+	auto mask__ = (a) -1U;                                                                                   \
+	(((x) + (mask__)) & ~(mask__));                                                                          \
+})
+
 LVPngImageSource::LVPngImageSource( ldomNode * node, LVStreamRef stream )
         : LVNodeImageSource(node, stream)
 {
@@ -929,14 +936,24 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
         png_set_bgr(png_ptr);
 
         png_set_interlace_handling(png_ptr);
-        png_read_update_info(png_ptr, info_ptr);//update after set
+        png_read_update_info(png_ptr, info_ptr);  // update after set
 
         size_t rowbytes = png_get_rowbytes(png_ptr, info_ptr);
         size_t image_size = height * rowbytes;
+        unsigned char * storage = NULL;
         unsigned char * __restrict image = NULL;
         png_bytep * __restrict row_pointers = NULL;
-        image = new unsigned char[image_size];
-        row_pointers = new png_bytep[height];
+
+        // NOTE: Stash *both* the array of row pointers *and* the image data in a single allocation.
+        //       This implies some alignment trickery to ensure both pointers are aligned as malloc would.
+        //       c.f., the comments for LVFontGlyphCacheItem in lvfntman.h
+        // To that effect, compute the size of the array of row pointers, and align it on a 16-byte boundary.
+        size_t image_offset = ALIGN((height * sizeof(*row_pointers)), 16);
+        // And we can now alloc the whole thing...
+        storage = (unsigned char *) malloc(image_offset + image_size);
+        // ...and update both pointers to point to the right storage location.
+        image = storage + image_offset; // Still aligned properly, thanks to the above trickery.
+        row_pointers = (png_bytep * __restrict) storage;
 
         for (size_t y = 0; y < height; y++) {
             row_pointers[y] = image + y * rowbytes;
@@ -948,8 +965,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
 
         png_read_end(png_ptr, info_ptr);
         callback->OnEndDecode(this, false);
-        delete [] image;
-        delete [] row_pointers;
+        free(storage);
     }
     png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 
