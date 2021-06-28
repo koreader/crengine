@@ -2958,6 +2958,6 @@ void compressCachedData(bool enable);
 void setStorageMaxUncompressedSizeFactor(float factor);
 
 /// check a regular expression
-int checkRegex(const lString32 & searchPattern);
+int checkRegex(lString32 & searchPattern);
 
 #endif

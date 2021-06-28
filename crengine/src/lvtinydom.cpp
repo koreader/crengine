@@ -238,7 +238,7 @@ enum CacheFileBlockType {
 #define USE_PERSISTENT_TEXT 1
 
 #if USE_STD_REGEX==1
-#include <regex>
+#include <srell.hpp>
 #endif
 
 // default is to compress to use smaller cache files (but slower rendering
@@ -10736,26 +10736,26 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
 
-int checkRegex(const lString32 & searchPattern)
+static bool generateRegex(lString32 & searchPattern, srell::u32regex & regexp)
 {
+    lString32 tmp = removeSoftHyphens(searchPattern);
+    lChar32 *ptr = tmp.modify();
     try {
-        std::regex test(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
+        regexp = srell::u32regex(ptr);  //, std::regex::ECMAScript
     }
-    catch (const std::regex_error& e) {
-        return 1;
-    }
-    return 0;
-}
-
-static bool generateRegex(const lString32 & searchPattern, std::regex & regexp)
-{
-    try {
-        regexp = std::regex(UnicodeToUtf8(searchPattern).c_str(), std::regex::ECMAScript);
-    }
-    catch (const std::regex_error& e) {
+    catch (...) {
         return false;
     }
     return true;
+}
+
+int checkRegex(lString32 & searchPattern)
+{
+    srell::u32regex regexp;
+    if (generateRegex(searchPattern, regexp))
+        return 0;
+
+    return 1;
 }
 
 /* searching a regex in str starting at pos; forwards
@@ -10770,51 +10770,47 @@ static bool generateRegex(const lString32 & searchPattern, std::regex & regexp)
  */
 static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
-    //check if there are soft-hyphs in str
-    bool has_soft_hyphens = false;
-
-    lString32 tmp;
-    for (int i=pos; str[i]; ++i) {
-        if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
-            tmp += str[i];
-        else
-            has_soft_hyphens = true;
-    }
-    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
-    const char* str_utf8_c_str = str_utf8.c_str();
-
-    std::cmatch match;
-
-    // a poor mans cache
-    static lString32 last_pattern;
-    static std::regex regexp;
-    if (searchPattern != last_pattern) {
+    static lString32 oldPattern;
+    static srell::u32regex regexp;
+    // poor mans cache
+    if (oldPattern != searchPattern) {
         if (!generateRegex( searchPattern, regexp))
             return REGEX_NOT_FOUND;
-        last_pattern = searchPattern;
+        oldPattern = searchPattern;
     }
 
-    if (!regex_search(str_utf8_c_str, match, regexp))
+    static lString32 old_str;
+    static lString32 str_wo_hyph;
+    static bool has_soft_hyphens;
+    if (old_str != str) {
+        str_wo_hyph = removeSoftHyphens(str);
+        has_soft_hyphens = str_wo_hyph.length() != str.length();
+        old_str = str;
+    }
+
+    lChar32 *str_arr = str_wo_hyph.modify() + pos;
+
+    srell::u32cmatch match;
+    if (!srell::regex_search(str_arr, match, regexp))
         return REGEX_NOT_FOUND;
 
-    int start = match.position(); // in utf8
-    int length = match.length(); // in utf8
+    int length = match.length();
+
     if (length == 0)
         return REGEX_NOT_FOUND;
 
+    int start = match.position();
     if (!has_soft_hyphens) {  //no softhyphens, we are ready
-        pos += Utf8CharCount(str_utf8_c_str, start);
-        endpos = pos + Utf8CharCount(str_utf8_c_str+start, length);
-
-        // Check if the match end is within an utf8 sequence. Can happen with '.' in regex
-        char last_char = *(str_utf8_c_str+start+length);
-        if ( (last_char & 0x80 ) != 0)
-            ++endpos;
-
+        pos += start;
+        endpos = pos + length;
         return REGEX_FOUND;
     }
+
     // if we have softhyphens in original str, we search for the found pattern
-    searchPattern = Utf8ToUnicode(str_utf8_c_str+start, length);
+    searchPattern = "";
+    for (int i = pos+start; i<pos+start+length; ++i)
+        searchPattern += str_arr[i];
+
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
@@ -10823,65 +10819,67 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
  */
 static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
-    bool has_soft_hyphens = false;
-    lString32 tmp;
-    for (int i=0; i<pos && str[i]; ++i) {
-        if (str[i] != UNICODE_SOFT_HYPHEN_CODE)
-            tmp += str[i];
-        else
-            has_soft_hyphens = true;
-    }
-    lString8 str_utf8 = UnicodeToUtf8(tmp); // str[pos..end], without softhyphens
-    const char* str_utf8_c_str = str_utf8.c_str();
-    int nb_chars = Utf8CharCount(str_utf8_c_str); // nb_chars from 0 to pos
-
-    std::cmatch match;
-    // a poor mans cache
-    static lString32 last_pattern;
-    static std::regex regexp;
-    if (searchPattern != last_pattern) {
+    static lString32 oldPattern;
+    static srell::u32regex regexp;
+    // poor mans cache
+    if (oldPattern != searchPattern) {
         if (!generateRegex( searchPattern, regexp))
             return REGEX_NOT_FOUND;
-        last_pattern = searchPattern;
+        oldPattern = searchPattern;
     }
 
+    static lString32 old_str;
+    static lString32 str_wo_hyph;
+    static bool has_soft_hyphens;
+    if (old_str != str) {
+        str_wo_hyph = removeSoftHyphens(str);
+        has_soft_hyphens = str_wo_hyph.length() != str.length();
+        old_str = str;
+    }
+
+    lChar32 *str_arr = str_wo_hyph.modify();
+
     int left = 0;
-    int right = nb_chars;
+    int right = pos+1;
     int start = (left + right)/2;
-    int length = 0;
     bool found = false;
-    int match_pos = -1;
+    int length;
+    int match_pos;
     // Doing binary search of the regex from back;
     // Faster than linear search, which will bring doulbe hits.
     // As a (wanted) sideffect it will reduce matches by minimizes double hits.
+    srell::u32cmatch match;
     while ( left < right ) {
-        bool search_val = regex_search(str_utf8_c_str+start, match, regexp);
-        if (search_val) {
+        bool search_val = srell::regex_search((str_arr+start), match, regexp);
+        if (search_val && start + match.position() < right) {
             found = true;
-            length = match.length(); // in utf8
-            if (length == 0)
+            length = match.length();
+            if (length == 0) {
                 return REGEX_NOT_FOUND;
+            }
             match_pos = start + match.position();
             left = match_pos + length;
             if (left >= right)
                 break;
-            start = (left + right)/2; // in utf8
         } else {
             right = start;
-            start = (left + right)/2;
         }
+        start = (left + right)/2;
     }
+
     if (!found)
         return REGEX_NOT_FOUND;
 
     if (!has_soft_hyphens) {  //no softhyphens, we are ready
-        start = match_pos; // in utf8
-        pos = Utf8CharCount(str_utf8_c_str, start); // in lString32
-        endpos = pos + Utf8CharCount(str_utf8_c_str+start, length); // in lString32
+        pos = match_pos;
+        endpos = pos + length;
         return REGEX_FOUND;
     }
     // if we have softhyphens in original str, we search for the found pattern
-    searchPattern = Utf8ToUnicode(str_utf8_c_str+start, length); // copy match to Unicode
+    searchPattern = "";
+    for (int i = match_pos; i<match_pos+length; ++i)
+        searchPattern += str_arr[i];
+
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
@@ -10928,7 +10926,6 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
         s1++;
         pos++;
     }
-
     return false;
 }
 
@@ -10938,7 +10935,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 
     #if USE_STD_REGEX == 1
     if (patternIsRegex) {
-        int retval = findRegexRev(str, pos, endpos, pattern);
+        int retval = findRegexRev(str, pos, endpos, pattern );
         if (retval == REGEX_NOT_FOUND)
             return false;
         else if (retval == REGEX_FOUND)
@@ -10949,7 +10946,6 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
     #endif
 
     int len = pattern.length();
-    pos--;
     if ( pos+len>(int)str.length() )
         pos = str.length()-len;
     if ( pos < 0 )
@@ -11019,6 +11015,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                         firstFoundTextY = currentTextY;
                 }
                 words.add( ldomWord(_end.getNode(), offs, endpos ) );
+                offs--;
             }
             if ( !_end.prevVisibleText() )
                 break;
@@ -11049,6 +11046,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             }
 
             lString32 txt = _start.getNode()->getText();
+
             if ( caseInsensitive )
                 txt.lowercase();
 
@@ -11065,7 +11063,8 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                     }
                 }
                 words.add( ldomWord(_start.getNode(), offs, endpos ) );
-                offs = endpos; // we can go to the next potiential position
+                //offs = endpos; // we can go to the next potiential position
+                offs++;
             }
             if ( !_start.nextVisibleText() )
                 break;
