@@ -237,7 +237,7 @@ enum CacheFileBlockType {
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
-#if USE_STD_REGEX==1
+#if USE_SRELL==1
 #include <srell.hpp>
 #endif
 
@@ -10730,7 +10730,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-#if USE_STD_REGEX == 1
+#if USE_SRELL == 1
 
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
@@ -10858,7 +10858,7 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     while ( left < right ) {
         bool search_val;
         try {
-            srell::regex_search((str_arr+start), match, regexp);
+            search_val = srell::regex_search((str_arr+start), match, regexp);
         } catch (...) {
             return REGEX_TO_COMPLEX;
         }
@@ -10895,13 +10895,13 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
-#endif // USE_STD_REGEX
+#endif // USE_SRELL
 
 static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
     lString32 pattern = searchPattern; // will be overwritten by a regex match
 
-    #if USE_STD_REGEX == 1
+    #if USE_SRELL == 1
     if (patternIsRegex) {
         int retval = findRegex(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)
@@ -10947,7 +10947,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 {
     lString32 pattern = searchPattern; // may be overwritten by a regex match
 
-    #if USE_STD_REGEX == 1
+    #if USE_SRELL == 1
     if (patternIsRegex) {
         int retval = findRegexRev(str, pos, endpos, pattern );
         if (retval == REGEX_NOT_FOUND)
