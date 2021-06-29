@@ -1052,10 +1052,6 @@ lString32 Utf8ToUnicode( const char * s );
 lString32 Utf8ToUnicode( const char * s, int sz );
 /// converts utf-8 string fragment to wide unicode string
 void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar32 * dst, int &dstlen);
-/// counts characters in utf-8 string
-int Utf8CharCount( const lChar8 * str );
-/// counts characters in utf-8 string
-int Utf8CharCount( const lChar8 * str, int len );
 /// decodes path like "file%20name" to "file name"
 lString32 DecodeHTMLUrlString( lString32 s );
 /// truncates string by specified size, appends ... if truncated, prefers to wrap whole words
