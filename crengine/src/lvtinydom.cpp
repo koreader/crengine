@@ -11046,7 +11046,6 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             }
 
             lString32 txt = _start.getNode()->getText();
-
             if ( caseInsensitive )
                 txt.lowercase();
 
