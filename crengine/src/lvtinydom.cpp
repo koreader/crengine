@@ -10735,6 +10735,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
+#define REGEX_TO_COMPLEX        2
 
 static bool generateRegex(lString32 & searchPattern, srell::u32regex & regexp)
 {
@@ -10767,6 +10768,7 @@ int checkRegex(lString32 & searchPattern)
  *                        changes pos, endpos
  *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
  *                        changes searchPattern
+ *     REGEX_TO_COMPLEX if the regex does some kind of ReDoS
  */
 static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
@@ -10791,8 +10793,12 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     lChar32 *str_arr = str_wo_hyph.modify() + pos;
 
     srell::u32cmatch match;
-    if (!srell::regex_search(str_arr, match, regexp))
-        return REGEX_NOT_FOUND;
+    try {
+        if (!srell::regex_search(str_arr, match, regexp))
+            return REGEX_NOT_FOUND;
+    } catch (...) {
+        return REGEX_TO_COMPLEX;
+    }
 
     int length = match.length();
 
@@ -10850,7 +10856,13 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     // As a (wanted) sideffect it will reduce matches by minimizes double hits.
     srell::u32cmatch match;
     while ( left < right ) {
-        bool search_val = srell::regex_search((str_arr+start), match, regexp);
+        bool search_val;
+        try {
+            srell::regex_search((str_arr+start), match, regexp);
+        } catch (...) {
+            return REGEX_TO_COMPLEX;
+        }
+
         if (search_val && start + match.position() < right) {
             found = true;
             length = match.length();
@@ -10896,6 +10908,8 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
             return false;
         else if (retval == REGEX_FOUND)
             return true;
+        else if (retval == REGEX_TO_COMPLEX)
+            return false;
 
         // if we come here pattern has changed from a regex to the actual string found
     }
@@ -10940,6 +10954,8 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
             return false;
         else if (retval == REGEX_FOUND)
             return true;
+        else if (retval == REGEX_TO_COMPLEX)
+            return false;
 
         // if we come here pattern has changed from a regex to the actual string found
     }
