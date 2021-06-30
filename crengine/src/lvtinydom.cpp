@@ -10772,6 +10772,10 @@ int checkRegex(const lString32 & searchPattern)
  */
 static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
+    // only match start of line regex on position 0
+    if ( pos != 0 && searchPattern[0] == '^')
+        return REGEX_NOT_FOUND;
+
     static lString32 oldPattern;
     static srell::u32regex regexp;
     // poor mans cache
@@ -10793,21 +10797,32 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     const lChar32 *str_arr = str_wo_hyph.data() + pos;
 
     srell::u32cmatch match;
-    try {
-        if (!srell::regex_search(str_arr, match, regexp))
-            return REGEX_NOT_FOUND;
-    } catch (...) {
-        return REGEX_TOO_COMPLEX;
-    }
+    int length = 0;
+    int start = 0;
+    int offs = 0;
 
-    int length = match.length();
+    bool search_val;
+    do {
+        if (offs != 0 && searchPattern[0] == '^' )
+            break; // only search '^' at the start of a str
 
-    if (length == 0)
+        try {
+            search_val = srell::regex_search(str_arr+offs, match, regexp);
+        } catch (...) {
+            return REGEX_TOO_COMPLEX;
+        }
+        if (search_val && match.length() > 0) { // skip zero length matches
+            length = match.length();
+            start = match.position();
+            break;
+        }
+    } while (str_arr[++offs]);
+
+    if (!search_val || length == 0)
         return REGEX_NOT_FOUND;
 
-    int start = match.position();
     if (!has_soft_hyphens) {  //no softhyphens, we are ready
-        pos += start;
+        pos += start + offs;
         endpos = pos + length;
         return REGEX_FOUND;
     }
@@ -10825,6 +10840,9 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
  */
 static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
 {
+    if ( pos < 0 )
+        return REGEX_NOT_FOUND;
+
     // poor mans cache of regexp and str_wo_hyphens across calls
     static lString32 oldPattern;
     static srell::u32regex regexp;
@@ -10843,40 +10861,56 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
         old_str = str;
     }
 
+    printf("xxxxx pos start: %d\n", pos);
     const lChar32 *str_arr = str_wo_hyph.data();
+    printf("xxx`%s`  len=%d\n", LCSTR(str_wo_hyph), str_wo_hyph.length());
 
-    int left = 0;
-    int right = pos+1;
-    int start = (left + right)/2;
-    bool found = false;
-    int length;
-    int match_pos;
-    // Doing binary search of the regex from back;
-    // Faster than linear search, which will bring doulbe hits.
-    // As a (wanted) sideffect it will reduce matches by minimizes double hits.
     srell::u32cmatch match;
-    while ( left < right ) {
+    bool found = false;
+    int length = 0;
+    int match_pos;
+
+    // only search "^" on beginning of a string
+    if ( searchPattern[0] == '^') {
         bool search_val;
         try {
-            search_val = srell::regex_search((str_arr+start), match, regexp);
+            search_val = srell::regex_search(str_arr, match, regexp);
         } catch (...) {
             return REGEX_TOO_COMPLEX;
         }
-
-        if (search_val && start + match.position() < right) {
+        if (search_val) {
             found = true;
             length = match.length();
-            if (length == 0) {
-                return REGEX_NOT_FOUND;
-            }
-            match_pos = start + match.position();
-            left = match_pos + length;
-            if (left >= right)
-                break;
-        } else {
-            right = start;
+            match_pos = match.position();
         }
-        start = (left + right)/2;
+    } else {
+        int left = 0;
+        int right = pos+1;
+        int start = (left + right)/2;
+        // Doing binary search of the regex from back;
+        // Faster than linear search, which will bring doulbe hits.
+        // As a (wanted) sideffect it will reduce matches by minimizes double hits.
+        while ( left < right ) {
+            bool search_val;
+            try {
+                search_val = srell::regex_search((str_arr+start), match, regexp);
+            } catch (...) {
+                return REGEX_TOO_COMPLEX;
+            }
+
+            if (search_val && start + match.position() < right && match.length() > 0) {
+                found = true;
+                length = match.length();
+                match_pos = start + match.position();
+                left = match_pos + length;
+                if (left >= right)
+                    break;
+            } else {
+                right = start;
+            }
+            start = (left + right)/2;
+            printf("xxx left=%d, start=%d, right=%d\n", left, start, right);
+        }
     }
 
     if (!found)
@@ -10900,7 +10934,6 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
 static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
     lString32 pattern = searchPattern; // will be overwritten by a regex match
-
     #if USE_SRELL == 1
     if (patternIsRegex) {
         int retval = findRegex(str, pos, endpos, pattern);
@@ -10945,6 +10978,7 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
 
 static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
+    printf("xxxx findTextRev\n");
     lString32 pattern = searchPattern; // may be overwritten by a regex match
 
     #if USE_SRELL == 1
@@ -11077,8 +11111,8 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                             firstFoundTextY = currentTextY;
                     }
                 }
+
                 words.add( ldomWord(_start.getNode(), offs, endpos ) );
-                //offs = endpos; // we can go to the next potiential position
                 offs++;
             }
             if ( !_start.nextVisibleText() )
