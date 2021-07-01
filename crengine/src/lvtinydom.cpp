@@ -10731,8 +10731,13 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-#if USE_SRELL_REGEX == 1
+#if USE_SRELL_REGEX !=1
+int checkRegex(const lString32 & searchPattern)
+{
+    return 0; // no error
+}
 
+#else // USE_SRELL_REGEX == 1
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
@@ -10751,6 +10756,7 @@ static bool generateRegex(const lString32 & searchPattern, srell::u32regex & reg
     return true;
 }
 
+// returns 0 if searchPattern is a valid regex; an error code otherwise
 int checkRegex(const lString32 & searchPattern)
 {
     srell::u32regex regexp;
@@ -10779,7 +10785,7 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
 
     static lString32 oldPattern;
     static srell::u32regex regexp;
-    // poor mans cache
+    // poor mans cache of regexp and str_wo_hyphens across calls
     if (oldPattern != searchPattern) {
         if (!generateRegex( searchPattern, regexp))
             return REGEX_NOT_FOUND;
@@ -10886,9 +10892,9 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
         int left = 0;
         int right = pos+1;
         int start = (left + right)/2;
-        // Doing binary search of the regex from back;
-        // Faster than linear search, which will bring doulbe hits.
-        // As a (wanted) sideffect it will reduce matches by minimizes double hits.
+        // Doing binary search of the regex from back.
+        // Faster than linear search, which will bring double hits.
+        // As a (wanted) side effect it will reduce matches by minimizing double hits.
         while ( left < right ) {
             bool search_val;
             try {
@@ -11108,7 +11114,6 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                             firstFoundTextY = currentTextY;
                     }
                 }
-
                 words.add( ldomWord(_start.getNode(), offs, endpos ) );
                 offs++;
             }
