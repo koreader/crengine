@@ -237,7 +237,8 @@ enum CacheFileBlockType {
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
-#if USE_SRELL==1
+#if USE_SRELL_REGEX==1
+#define SRELL_NO_UNICODE_DATA
 #include <srell.hpp>
 #endif
 
@@ -10730,7 +10731,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-#if USE_SRELL == 1
+#if USE_SRELL_REGEX == 1
 
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
@@ -10742,7 +10743,7 @@ static bool generateRegex(const lString32 & searchPattern, srell::u32regex & reg
     lString32 tmp = removeSoftHyphens(searchPattern);
     const lChar32 *ptr = tmp.data();
     try {
-        regexp = srell::u32regex(ptr);  //, std::regex::ECMAScript
+        regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
     }
     catch (...) {
         return false;
@@ -10861,9 +10862,7 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
         old_str = str;
     }
 
-    printf("xxxxx pos start: %d\n", pos);
     const lChar32 *str_arr = str_wo_hyph.data();
-    printf("xxx`%s`  len=%d\n", LCSTR(str_wo_hyph), str_wo_hyph.length());
 
     srell::u32cmatch match;
     bool found = false;
@@ -10909,7 +10908,6 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
                 right = start;
             }
             start = (left + right)/2;
-            printf("xxx left=%d, start=%d, right=%d\n", left, start, right);
         }
     }
 
@@ -10929,12 +10927,12 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     return REGEX_FOUND_SOFT_HYPHEN;
 }
 
-#endif // USE_SRELL
+#endif // USE_SRELL_REGEX
 
 static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
     lString32 pattern = searchPattern; // will be overwritten by a regex match
-    #if USE_SRELL == 1
+    #if USE_SRELL_REGEX == 1
     if (patternIsRegex) {
         int retval = findRegex(str, pos, endpos, pattern);
         if (retval == REGEX_NOT_FOUND)
@@ -10978,10 +10976,9 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
 
 static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
-    printf("xxxx findTextRev\n");
     lString32 pattern = searchPattern; // may be overwritten by a regex match
 
-    #if USE_SRELL == 1
+    #if USE_SRELL_REGEX == 1
     if (patternIsRegex) {
         int retval = findRegexRev(str, pos, endpos, pattern );
         if (retval == REGEX_NOT_FOUND)
