@@ -10743,27 +10743,44 @@ int checkRegex(const lString32 & searchPattern)
 #define REGEX_FOUND_SOFT_HYPHEN 1
 #define REGEX_TOO_COMPLEX       2
 
-static bool generateRegex(const lString32 & searchPattern, srell::u32regex & regexp)
+static int generateRegex(const lString32 & searchPattern, srell::u32regex & regexp)
 {
     lString32 tmp = removeSoftHyphens(searchPattern);
     const lChar32 *ptr = tmp.data();
     try {
         regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
+    } catch (const srell::regex_error &e) {
+        return e.code();
+    } catch (...) {
+        return -1;
     }
-    catch (...) {
-        return false;
-    }
-    return true;
+    return 0;
 }
 
-// returns 0 if searchPattern is a valid regex; an error code otherwise
+/* checks if a given searchPattern is a valid regex.
+ * returns 0 if searchPattern is a valid regex, an error code otherwise
+ * error_collate    = 100;
+ * error_ctype      = 101;
+ * error_escape     = 102;
+ * error_backref    = 103;
+ * error_brack      = 104;
+ * error_paren      = 105;
+ * error_brace      = 106;
+ * error_badbrace   = 107;
+ * error_range      = 108;
+ * error_space      = 109;
+ * error_badrepeat  = 110;
+ * error_complexity = 111;
+ * error_stack      = 112;
+ * error_utf8       = 113;
+ * error_lookbehind = 200;
+ * error_internal   = 999;
+ * error_anything_else = -1;
+*/
 int checkRegex(const lString32 & searchPattern)
 {
     srell::u32regex regexp;
-    if (generateRegex(searchPattern, regexp))
-        return 0;
-
-    return 1;
+    return generateRegex(searchPattern, regexp);
 }
 
 /* searching a regex in str starting at pos; forwards
@@ -10787,7 +10804,7 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     static srell::u32regex regexp;
     // poor mans cache of regexp and str_wo_hyphens across calls
     if (oldPattern != searchPattern) {
-        if (!generateRegex( searchPattern, regexp))
+        if (generateRegex( searchPattern, regexp) != 0)
             return REGEX_NOT_FOUND;
         oldPattern = searchPattern;
     }
@@ -10854,7 +10871,7 @@ static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString
     static lString32 oldPattern;
     static srell::u32regex regexp;
     if (oldPattern != searchPattern) {
-        if (!generateRegex( searchPattern, regexp))
+        if (generateRegex( searchPattern, regexp) != 0)
             return REGEX_NOT_FOUND;
         oldPattern = searchPattern;
     }
