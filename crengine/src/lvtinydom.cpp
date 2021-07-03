@@ -10741,14 +10741,71 @@ int checkRegex(const lString32 & searchPattern)
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
-#define REGEX_TOO_COMPLEX       2
+#define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
+
+/* test for some kown evil regex (exponential time)
+ * see https://en.wikipedia.org/wiki/ReDoS#Evil_regexes
+ *
+ * Examples of such evil regex, which will be detected in this function:
+ * (a*)+
+ * ([a-zA-Z]+)*
+ * (a|aa)+
+ * (a|a?)+
+ * (\w|[^ ])*
+ * (a|x|aa)* some cases (a|aa|x) are not detected yet
+ */
+static int checkEvilRegex(const lChar32* regex)
+{
+    srell::u32regex test;
+    srell::u32cmatch match;
+
+    // detect regex like '(a+)*'
+    test = srell::u32regex(U"[*+][^)]*\\)[*+]");
+    try {
+        if (srell::regex_search(regex, match, test))
+            return REGEX_TOO_COMPLEX;
+    } catch (...) {
+        assert( 1 == 2);
+    }
+
+    // detect regex like '(aa|a)', '(aaa|a?)' or '(\w|[^ ])'
+    test = srell::u32regex(U".*(?<left>[^\\(][^|]+)\\|(?<right>[^\\|][^\\)]+).*");
+    try {
+        if (srell::regex_match(regex, match, test)) {
+            // check if left is contained in right and vice versa
+            if ( match.size() == 3) {
+                srell::u32cmatch match_left;
+                srell::u32cmatch match_right;
+                srell::u32regex regex_right(match[2].str().c_str());
+                srell::u32regex regex_left(match[1].str().c_str());
+                if (srell::regex_search(match[1].str().c_str(), match_left, regex_right))
+                    return REGEX_TOO_COMPLEX;
+                if (srell::regex_search(match[2].str().c_str(), match_right, regex_left))
+                    return REGEX_TOO_COMPLEX;
+            }
+        }
+    } catch (...) {
+        assert( 1 == 2);
+    }
+
+    return false;
+}
 
 static int generateRegex(const lString32 & searchPattern, srell::u32regex & regexp)
 {
     lString32 tmp = removeSoftHyphens(searchPattern);
     const lChar32 *ptr = tmp.data();
+    if (checkEvilRegex(ptr))
+        return REGEX_TOO_COMPLEX;
+
     try {
         regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
+        // A greater value means more search time for evil regex
+        // like '(\w*|[^ ])*x[^ ]*'
+        // A smaller value means that not all possible hits for
+        // such evil regex are found.
+        // Default is 1<<24, but 1<<20 seems to be a good compromise
+        regexp.limit_counter = 1<<20;
     } catch (const srell::regex_error &e) {
         return e.code();
     } catch (...) {
