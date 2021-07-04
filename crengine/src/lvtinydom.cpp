@@ -10758,7 +10758,7 @@ void lowercasePattern(lString32 & pattern)
 void lowercasePattern(lString32 & pattern) {
     for (int i = 0; i < pattern.length(); ++i) {
         if (pattern[i] == U'\\') {
-            ++i; //skip next character e.g. `\W`, `\w`
+            ++i; // skip next character e.g. `\W`, `\w`
             continue;
         }
         pattern[i] = tolower(pattern[i]);
@@ -10779,18 +10779,11 @@ int clearRegexSearchError()
 /* test for some kown evil regex (exponential time)
  * see https://en.wikipedia.org/wiki/ReDoS#Evil_regexes
  *
- * Examples of such evil regex, which will be detected in this function:
- * (a*)+
- * ([a-zA-Z]+)*
- * (a|aa)+
- * (a|a?)+
- * (\w|[^ ])*
- * (a|x|aa)* some cases (a|aa|x) are not detected yet
+ * (a*)+; (a+)*; (x+|a)* ...
  */
 static int checkEvilRegex(const lChar32* regex)
 {
     srell::u32cmatch match;
-
     // detect regex like '(a+)*'
     const static srell::u32regex test1(U"[*+][^)]*\\)[*+]");
     try {
@@ -10799,27 +10792,6 @@ static int checkEvilRegex(const lChar32* regex)
     } catch (...) {
         return false; // allthough never seen, this could be caused by an SRELL internal error.
     }
-
-    // detect regex like '(aa|a)', '(aaa|a?)' or '(\w|[^ ])'
-    const static srell::u32regex test2(U".*\\((?<left>[^|]+)\\|(?<right>[^\\)]+).*");
-    try {
-        if (srell::regex_match(regex, match, test2)) {
-            // check if left is contained in right and vice versa
-            if ( match.size() == 3) {
-                srell::u32cmatch match_left;
-                srell::u32cmatch match_right;
-                srell::u32regex regex_right(match[2].str().c_str());
-                srell::u32regex regex_left(match[1].str().c_str());
-                if (srell::regex_search(match[1].str().c_str(), match_left, regex_right))
-                    return true;
-                if (srell::regex_search(match[2].str().c_str(), match_right, regex_left))
-                    return true;
-            }
-        }
-    } catch (...) {
-        return false; // allthough never seen, this could be caused by an SRELL internal error.
-    }
-
     return false;
 }
 
@@ -10833,11 +10805,12 @@ static int generateRegex(const lString32 & searchPattern, srell::u32regex & rege
     try {
         regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
         // A greater value means more search time for evil regex
-        // like '(\w*|[^ ])*x[^ ]*'
+        // like '(\w|[^ ])*x[^ ]*'.
         // A smaller value means that not all possible hits for
         // such evil regex are found.
-        // Default is 1<<24, but 1<<20 seems to be a good compromise
-        regexp.limit_counter = 1<<20;
+        // Default is 1<<24, but 1<<15 seems to be a good compromise
+        // on slow devices.
+        regexp.limit_counter = 1<<15;
     } catch (const srell::regex_error &e) {
         return e.code();
     } catch (...) {
