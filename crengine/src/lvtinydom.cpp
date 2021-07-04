@@ -10737,7 +10737,7 @@ int checkRegex(const lString32 & searchPattern)
     return 0; // no error
 }
 
-int clearRegexSearchError()
+int getAndClearRegexSearchError()
 {
     return 0; // no error
 }
@@ -10750,7 +10750,7 @@ int clearRegexSearchError()
 #define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
 #define REGEX_IS_EVIL         666
 
-static void lowercasePattern(lString32 & pattern)
+static inline void lowercasePattern(lString32 & pattern)
 {
     lChar32 * pattern_str = pattern.modify();
     for (int i = 0; i < pattern.length(); ++i) {
@@ -10766,7 +10766,7 @@ static void lowercasePattern(lString32 & pattern)
 static int regexSearchError = 0;
 
 // get and clear regexSearchError
-int clearRegexSearchError()
+int getAndClearRegexSearchError()
 {
     int retval = regexSearchError;
     regexSearchError = 0;
@@ -10787,7 +10787,7 @@ static int checkEvilRegex(const lChar32* regex)
         if (srell::regex_search(regex, match, test1))
             return true;
     } catch (...) {
-        return false; // allthough never seen, this could be caused by an SRELL internal error.
+        return false; // although never seen, this could be caused by an SRELL internal error.
     }
     return false;
 }

@@ -1223,6 +1223,7 @@ lUInt64 GetCurrentTimeMillis();
 void CRReinitTimer();
 
 
+
 #ifdef _DEBUG
 #include <stdio.h>
 class DumpFile
