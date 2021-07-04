@@ -10742,6 +10742,11 @@ int clearRegexSearchError(int clear)
     return 0; // no error
 }
 
+void lowercasePattern(lString32 & pattern)
+{
+    return;
+}
+
 #else // USE_SRELL_REGEX == 1
 #define REGEX_UNDEFINED_ERROR  -2
 #define REGEX_NOT_FOUND        -1
@@ -10749,6 +10754,16 @@ int clearRegexSearchError(int clear)
 #define REGEX_FOUND_SOFT_HYPHEN 1
 #define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
 #define REGEX_IS_EVIL         666
+
+void lowercasePattern(lString32 & pattern) {
+    for (int i = 0; i < pattern.length(); ++i) {
+        if (pattern[i] == U'\\') {
+            ++i; //skip next character e.g. `\W`, `\w`
+            continue;
+        }
+        pattern[i] = tolower(pattern[i]);
+    }
+}
 
 // error set if regex_search throws an error
 static int regexSearchError = 0;
@@ -10831,7 +10846,6 @@ static int generateRegex(const lString32 & searchPattern, srell::u32regex & rege
     return 0;
 }
 
-#define ERROR_REGEX_IS_EVIL 666
 /* checks if a given searchPattern is a valid regex.
  * returns 0 if searchPattern is a valid regex, an error code otherwise
  * error_collate    = 100;
@@ -11128,8 +11142,12 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 /// searches for specified text inside range
 bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
 {
-    if ( caseInsensitive )
-        pattern.lowercase();
+    if ( caseInsensitive ) {
+        if ( !patternIsRegex )
+            pattern.lowercase();
+        else
+            lowercasePattern( pattern );
+    }
     words.clear();
     if ( pattern.empty() )
         return false;

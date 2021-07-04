@@ -2671,6 +2671,33 @@ lString32 & lString32::fullWidthChars()
     return *this;
 }
 
+lChar32 tolower(lChar32 ch)
+{
+#if (USE_UTF8PROC==1)
+    return utf8proc_tolower(ch);
+#else
+    if ( ch>='A' && ch<='Z' ) {
+        return ch + 0x20;
+    } else if ( ch>=0xC0 && ch<=0xDF ) {
+        return ch + 0x20;
+    } else if ( ch>=0x410 && ch<=0x42F ) {
+        return ch + 0x20;
+    } else if ( ch>=0x390 && ch<=0x3aF ) {
+        return ch + 0x20;
+    } else if ( (ch >> 8)==0x1F ) { // greek
+        lChar32 n = ch & 255;
+        if (n<0x70) {
+            return ch & (~8);
+        } else if (n<0x80) {
+
+        } else if (n<0x0) {
+            return ch & (~8);
+        }
+    }
+    return ch;
+#endif
+}
+
 void lStr_uppercase( lChar8 * str, int len )
 {
     for ( int i=0; i<len; i++ ) {
