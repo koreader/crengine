@@ -10737,11 +10737,29 @@ int checkRegex(const lString32 & searchPattern)
     return 0; // no error
 }
 
+int clearRegexSearchError(int clear)
+{
+    return 0; // no error
+}
+
 #else // USE_SRELL_REGEX == 1
+#define REGEX_UNDEFINED_ERROR  -2
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
 #define REGEX_FOUND_SOFT_HYPHEN 1
 #define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
+#define REGEX_IS_EVIL         666
+
+// error set if regex_search throws an error
+static int regexSearchError = 0;
+
+// get and clear regexSearchError
+int clearRegexSearchError()
+{
+    int retval = regexSearchError;
+    regexSearchError = 0;
+    return retval;
+}
 
 /* test for some kown evil regex (exponential time)
  * see https://en.wikipedia.org/wiki/ReDoS#Evil_regexes
@@ -10756,22 +10774,21 @@ int checkRegex(const lString32 & searchPattern)
  */
 static int checkEvilRegex(const lChar32* regex)
 {
-    srell::u32regex test;
     srell::u32cmatch match;
 
     // detect regex like '(a+)*'
-    test = srell::u32regex(U"[*+][^)]*\\)[*+]");
+    const static srell::u32regex test1(U"[*+][^)]*\\)[*+]");
     try {
-        if (srell::regex_search(regex, match, test))
-            return REGEX_TOO_COMPLEX;
+        if (srell::regex_search(regex, match, test1))
+            return true;
     } catch (...) {
-        assert( 1 == 2);
+        return false; // allthough never seen, this could be caused by an SRELL internal error.
     }
 
     // detect regex like '(aa|a)', '(aaa|a?)' or '(\w|[^ ])'
-    test = srell::u32regex(U".*(?<left>[^\\(][^|]+)\\|(?<right>[^\\|][^\\)]+).*");
+    const static srell::u32regex test2(U".*\\((?<left>[^|]+)\\|(?<right>[^\\)]+).*");
     try {
-        if (srell::regex_match(regex, match, test)) {
+        if (srell::regex_match(regex, match, test2)) {
             // check if left is contained in right and vice versa
             if ( match.size() == 3) {
                 srell::u32cmatch match_left;
@@ -10779,13 +10796,13 @@ static int checkEvilRegex(const lChar32* regex)
                 srell::u32regex regex_right(match[2].str().c_str());
                 srell::u32regex regex_left(match[1].str().c_str());
                 if (srell::regex_search(match[1].str().c_str(), match_left, regex_right))
-                    return REGEX_TOO_COMPLEX;
+                    return true;
                 if (srell::regex_search(match[2].str().c_str(), match_right, regex_left))
-                    return REGEX_TOO_COMPLEX;
+                    return true;
             }
         }
     } catch (...) {
-        assert( 1 == 2);
+        return false; // allthough never seen, this could be caused by an SRELL internal error.
     }
 
     return false;
@@ -10796,7 +10813,7 @@ static int generateRegex(const lString32 & searchPattern, srell::u32regex & rege
     lString32 tmp = removeSoftHyphens(searchPattern);
     const lChar32 *ptr = tmp.data();
     if (checkEvilRegex(ptr))
-        return REGEX_TOO_COMPLEX;
+        return REGEX_IS_EVIL;
 
     try {
         regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
@@ -10809,11 +10826,12 @@ static int generateRegex(const lString32 & searchPattern, srell::u32regex & rege
     } catch (const srell::regex_error &e) {
         return e.code();
     } catch (...) {
-        return -1;
+        return REGEX_UNDEFINED_ERROR;
     }
     return 0;
 }
 
+#define ERROR_REGEX_IS_EVIL 666
 /* checks if a given searchPattern is a valid regex.
  * returns 0 if searchPattern is a valid regex, an error code otherwise
  * error_collate    = 100;
@@ -10831,6 +10849,7 @@ static int generateRegex(const lString32 & searchPattern, srell::u32regex & rege
  * error_stack      = 112;
  * error_utf8       = 113;
  * error_lookbehind = 200;
+ * regex_is_evil    = 666;
  * error_internal   = 999;
  * error_anything_else = -1;
 */
@@ -11019,8 +11038,10 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
             return false;
         else if (retval == REGEX_FOUND)
             return true;
-        else if (retval == REGEX_TOO_COMPLEX)
+        else if (retval == REGEX_TOO_COMPLEX) {
+            regexSearchError = REGEX_TOO_COMPLEX;
             return false;
+        }
 
         // if we come here pattern has changed from a regex to the actual string found
     }
@@ -11065,8 +11086,10 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
             return false;
         else if (retval == REGEX_FOUND)
             return true;
-        else if (retval == REGEX_TOO_COMPLEX)
+        else if (retval == REGEX_TOO_COMPLEX) {
+            regexSearchError = REGEX_TOO_COMPLEX;
             return false;
+        }
 
         // if we come here pattern has changed from a regex to the actual string found
     }
