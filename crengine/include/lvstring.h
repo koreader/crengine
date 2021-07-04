@@ -1222,7 +1222,6 @@ void free_ls_storage();
 lUInt64 GetCurrentTimeMillis();
 void CRReinitTimer();
 
-lChar32 tolower(lChar32 ch);
 
 #ifdef _DEBUG
 #include <stdio.h>

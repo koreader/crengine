@@ -10737,14 +10737,9 @@ int checkRegex(const lString32 & searchPattern)
     return 0; // no error
 }
 
-int clearRegexSearchError(int clear)
+int clearRegexSearchError()
 {
     return 0; // no error
-}
-
-void lowercasePattern(lString32 & pattern)
-{
-    return;
 }
 
 #else // USE_SRELL_REGEX == 1
@@ -10755,13 +10750,15 @@ void lowercasePattern(lString32 & pattern)
 #define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
 #define REGEX_IS_EVIL         666
 
-void lowercasePattern(lString32 & pattern) {
+static void lowercasePattern(lString32 & pattern)
+{
+    lChar32 * pattern_str = pattern.modify();
     for (int i = 0; i < pattern.length(); ++i) {
         if (pattern[i] == U'\\') {
             ++i; // skip next character e.g. `\W`, `\w`
             continue;
         }
-        pattern[i] = tolower(pattern[i]);
+        lStr_lowercase( pattern_str+i, 1 );
     }
 }
 
@@ -11116,10 +11113,14 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
 {
     if ( caseInsensitive ) {
-        if ( !patternIsRegex )
+        #if USE_SRELL_REGEX != 1
             pattern.lowercase();
-        else
-            lowercasePattern( pattern );
+        #else
+            if ( !patternIsRegex )
+                pattern.lowercase();
+            else
+                lowercasePattern( pattern );
+        #endif
     }
     words.clear();
     if ( pattern.empty() )
