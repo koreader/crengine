@@ -2962,9 +2962,6 @@ void setStorageMaxUncompressedSizeFactor(float factor);
 int checkRegex(const lString32 & searchPattern);
 /// clear the last Regex search result; return last error
 int getAndClearRegexSearchError();
-#else
-inline int checkRegex(const lString32 & searchPattern) { return -1; }
-inline int getAndClearRegexSearchError() { return -1; }
 #endif
 
 #endif
