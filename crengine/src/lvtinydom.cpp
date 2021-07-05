@@ -10731,18 +10731,8 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
     return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-#if USE_SRELL_REGEX !=1
-int checkRegex(const lString32 & searchPattern)
-{
-    return 0; // no error
-}
+#if USE_SRELL_REGEX ==1
 
-int getAndClearRegexSearchError()
-{
-    return 0; // no error
-}
-
-#else // USE_SRELL_REGEX == 1
 #define REGEX_UNDEFINED_ERROR  -2
 #define REGEX_NOT_FOUND        -1
 #define REGEX_FOUND             0
@@ -11026,7 +11016,6 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
             regexSearchError = REGEX_TOO_COMPLEX;
             return false;
         }
-
         // if we come here pattern has changed from a regex to the actual string found
     }
     #endif
@@ -11074,7 +11063,6 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
             regexSearchError = REGEX_TOO_COMPLEX;
             return false;
         }
-
         // if we come here pattern has changed from a regex to the actual string found
     }
     #endif

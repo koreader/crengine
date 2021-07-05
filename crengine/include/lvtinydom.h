@@ -2957,9 +2957,14 @@ void compressCachedData(bool enable);
 // RECT_CACHE_UNPACKED_SPACE and STYLE_CACHE_UNPACKED_SPACE by this factor
 void setStorageMaxUncompressedSizeFactor(float factor);
 
+#if USE_SRELL_REGEX == 1
 /// check a regular expression
 int checkRegex(const lString32 & searchPattern);
 /// clear the last Regex search result; return last error
 int getAndClearRegexSearchError();
+#else
+inline int checkRegex(const lString32 & searchPattern) { return -1; }
+inline int getAndClearRegexSearchError() { return -1; }
+#endif
 
 #endif
