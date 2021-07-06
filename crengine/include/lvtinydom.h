@@ -2014,7 +2014,7 @@ public:
     };
 
     /// searches for specified text inside range
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false );
 };
 
 class ldomMarkedText
@@ -2617,7 +2617,7 @@ public:
     /// get rendered block cache object
     CVRendBlockCache & getRendBlockCache() { return _renderedBlockCache; }
 
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1 );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false );
 #endif
 };
 
@@ -2956,5 +2956,12 @@ void compressCachedData(bool enable);
 /// increase the 4 hardcoded TEXT_CACHE_UNPACKED_SPACE, ELEM_CACHE_UNPACKED_SPACE,
 // RECT_CACHE_UNPACKED_SPACE and STYLE_CACHE_UNPACKED_SPACE by this factor
 void setStorageMaxUncompressedSizeFactor(float factor);
+
+#if USE_SRELL_REGEX == 1
+/// check a regular expression
+int checkRegex(const lString32 & searchPattern);
+/// clear the last Regex search result; return last error
+int getAndClearRegexSearchError();
+#endif
 
 #endif

@@ -237,6 +237,10 @@ enum CacheFileBlockType {
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
 
+#if USE_SRELL_REGEX==1
+#define SRELL_NO_UNICODE_DATA
+#include <srell.hpp>
+#endif
 
 // default is to compress to use smaller cache files (but slower rendering
 // and page turns with big documents)
@@ -10656,7 +10660,7 @@ void ldomXRangeList::split( ldomXRange * r )
 
 #if BUILD_LITE!=1
 
-bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY )
+bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex )
 {
     if ( minY<0 )
         minY = 0;
@@ -10724,11 +10728,298 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
         CRLog::debug("No text found: Range is empty");
         return false;
     }
-    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY );
+    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
-static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & pattern )
+#if USE_SRELL_REGEX ==1
+
+#define REGEX_UNDEFINED_ERROR  -2
+#define REGEX_NOT_FOUND        -1
+#define REGEX_FOUND             0
+#define REGEX_FOUND_SOFT_HYPHEN 1
+#define REGEX_TOO_COMPLEX       srell::regex_constants::error_complexity
+#define REGEX_IS_EVIL         666
+
+static inline void lowercasePattern(lString32 & pattern)
 {
+    lChar32 * pattern_str = pattern.modify();
+    for (int i = 0; i < pattern.length(); ++i) {
+        if (pattern[i] == U'\\') {
+            ++i; // skip next character e.g. `\W`, `\w`
+            continue;
+        }
+        lStr_lowercase( pattern_str+i, 1 );
+    }
+}
+
+// error set if regex_search throws an error
+static int regexSearchError = 0;
+
+// get and clear regexSearchError
+int getAndClearRegexSearchError()
+{
+    int retval = regexSearchError;
+    regexSearchError = 0;
+    return retval;
+}
+
+/* test for some kown evil regex (exponential time)
+ * see https://en.wikipedia.org/wiki/ReDoS#Evil_regexes
+ *
+ * (a*)+; (a+)*; (x+|a)* ...
+ */
+static int checkEvilRegex(const lChar32* regex)
+{
+    srell::u32cmatch match;
+    // detect regex like '(a+)*'
+    const static srell::u32regex test1(U"[*+][^)]*\\)[*+]");
+    try {
+        if (srell::regex_search(regex, match, test1))
+            return true;
+    } catch (...) {
+        return false; // although never seen, this could be caused by an SRELL internal error.
+    }
+    return false;
+}
+
+static int generateRegex(const lString32 & searchPattern, srell::u32regex & regexp)
+{
+    lString32 tmp = removeSoftHyphens(searchPattern);
+    const lChar32 *ptr = tmp.data();
+    if (checkEvilRegex(ptr))
+        return REGEX_IS_EVIL;
+
+    try {
+        regexp = srell::u32regex(ptr, srell::regex::ECMAScript);
+        // A greater value means more search time for evil regex
+        // like '(\w|[^ ])*x[^ ]*'.
+        // A smaller value means that not all possible hits for
+        // such evil regex are found.
+        // Default is 1<<24, but 1<<15 seems to be a good compromise
+        // on slow devices.
+        regexp.limit_counter = 1<<15;
+    } catch (const srell::regex_error &e) {
+        return e.code();
+    } catch (...) {
+        return REGEX_UNDEFINED_ERROR;
+    }
+    return 0;
+}
+
+/* checks if a given searchPattern is a valid regex.
+ * returns 0 if searchPattern is a valid regex, an error code otherwise
+ * error_collate    = 100;
+ * error_ctype      = 101;
+ * error_escape     = 102;
+ * error_backref    = 103;
+ * error_brack      = 104;
+ * error_paren      = 105;
+ * error_brace      = 106;
+ * error_badbrace   = 107;
+ * error_range      = 108;
+ * error_space      = 109;
+ * error_badrepeat  = 110;
+ * error_complexity = 111;
+ * error_stack      = 112;
+ * error_utf8       = 113;
+ * error_lookbehind = 200;
+ * regex_is_evil    = 666;
+ * error_internal   = 999;
+ * error_anything_else = -1;
+*/
+int checkRegex(const lString32 & searchPattern)
+{
+    srell::u32regex regexp;
+    return generateRegex(searchPattern, regexp);
+}
+
+/* searching a regex in str starting at pos; forwards
+ *
+ * returns
+ *     REGEX_NOT_FOUND if pattern not found or pattern length is zero
+ *                        no changes to pos, endpos, searchPattern
+ *     REGEX_FOUND     if pattern found and no softhyphens -> ready to go
+ *                        changes pos, endpos
+ *     REGEX_FOUND_SOFT_HYPHEN if pattern found and there are softhyphens
+ *                        changes searchPattern
+ *     REGEX_TOO_COMPLEX if the regex does some kind of ReDoS
+ */
+static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
+{
+    // only match start of line regex on position 0
+    if ( pos != 0 && searchPattern[0] == '^')
+        return REGEX_NOT_FOUND;
+
+    static lString32 oldPattern;
+    static srell::u32regex regexp;
+    // poor mans cache of regexp and str_wo_hyphens across calls
+    if (oldPattern != searchPattern) {
+        if (generateRegex( searchPattern, regexp) != 0)
+            return REGEX_NOT_FOUND;
+        oldPattern = searchPattern;
+    }
+
+    static lString32 old_str;
+    static lString32 str_wo_hyph;
+    static bool has_soft_hyphens;
+    if (old_str != str) {
+        str_wo_hyph = removeSoftHyphens(str);
+        has_soft_hyphens = str_wo_hyph.length() != str.length();
+        old_str = str;
+    }
+
+    const lChar32 *str_arr = str_wo_hyph.data() + pos;
+
+    srell::u32cmatch match;
+    int length = 0;
+    int start = 0;
+    int offs = 0;
+
+    bool search_val;
+    do {
+        if (offs != 0 && searchPattern[0] == '^' )
+            break; // only search '^' at the start of a str
+
+        try {
+            search_val = srell::regex_search(str_arr+offs, match, regexp);
+        } catch (...) {
+            return REGEX_TOO_COMPLEX;
+        }
+        if (search_val && match.length() > 0) { // skip zero length matches
+            length = match.length();
+            start = match.position();
+            break;
+        }
+    } while (str_arr[++offs]);
+
+    if (!search_val || length == 0)
+        return REGEX_NOT_FOUND;
+
+    if (!has_soft_hyphens) {  //no softhyphens, we are ready
+        pos += start + offs;
+        endpos = pos + length;
+        return REGEX_FOUND;
+    }
+
+    // if we have softhyphens in original str, we search for the found pattern
+    searchPattern = "";
+    for (int i = pos+start; i<pos+start+length; ++i)
+        searchPattern += str_arr[i];
+
+    return REGEX_FOUND_SOFT_HYPHEN;
+}
+
+/* searches for a regex in str before pos; backwards
+ * return: see findRegex()
+ */
+static int findRegexRev( const lString32 & str, int & pos, int & endpos, lString32 & searchPattern )
+{
+    if ( pos < 0 )
+        return REGEX_NOT_FOUND;
+
+    // poor mans cache of regexp and str_wo_hyphens across calls
+    static lString32 oldPattern;
+    static srell::u32regex regexp;
+    if (oldPattern != searchPattern) {
+        if (generateRegex( searchPattern, regexp) != 0)
+            return REGEX_NOT_FOUND;
+        oldPattern = searchPattern;
+    }
+
+    static lString32 old_str;
+    static lString32 str_wo_hyph;
+    static bool has_soft_hyphens;
+    if (old_str != str) {
+        str_wo_hyph = removeSoftHyphens(str);
+        has_soft_hyphens = str_wo_hyph.length() != str.length();
+        old_str = str;
+    }
+
+    const lChar32 *str_arr = str_wo_hyph.data();
+
+    srell::u32cmatch match;
+    bool found = false;
+    int length = 0;
+    int match_pos;
+
+    // only search "^" on beginning of a string
+    if ( searchPattern[0] == '^') {
+        bool search_val;
+        try {
+            search_val = srell::regex_search(str_arr, match, regexp);
+        } catch (...) {
+            return REGEX_TOO_COMPLEX;
+        }
+        if (search_val) {
+            found = true;
+            length = match.length();
+            match_pos = match.position();
+        }
+    } else {
+        int left = 0;
+        int right = pos+1;
+        int start = (left + right)/2;
+        // Doing binary search of the regex from back.
+        // Faster than linear search, which will bring double hits.
+        // As a (wanted) side effect it will reduce matches by minimizing double hits.
+        while ( left < right ) {
+            bool search_val;
+            try {
+                search_val = srell::regex_search((str_arr+start), match, regexp);
+            } catch (...) {
+                return REGEX_TOO_COMPLEX;
+            }
+
+            if (search_val && start + match.position() < right && match.length() > 0) {
+                found = true;
+                length = match.length();
+                match_pos = start + match.position();
+                left = match_pos + length;
+                if (left >= right)
+                    break;
+            } else {
+                right = start;
+            }
+            start = (left + right)/2;
+        }
+    }
+
+    if (!found)
+        return REGEX_NOT_FOUND;
+
+    if (!has_soft_hyphens) {  //no softhyphens, we are ready
+        pos = match_pos;
+        endpos = pos + length;
+        return REGEX_FOUND;
+    }
+    // if we have softhyphens in original str, we search for the found pattern
+    searchPattern = "";
+    for (int i = match_pos; i<match_pos+length; ++i)
+        searchPattern += str_arr[i];
+
+    return REGEX_FOUND_SOFT_HYPHEN;
+}
+
+#endif // USE_SRELL_REGEX
+
+static bool findText( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
+{
+    lString32 pattern = searchPattern; // will be overwritten by a regex match
+    #if USE_SRELL_REGEX == 1
+    if (patternIsRegex) {
+        int retval = findRegex(str, pos, endpos, pattern);
+        if (retval == REGEX_NOT_FOUND)
+            return false;
+        else if (retval == REGEX_FOUND)
+            return true;
+        else if (retval == REGEX_TOO_COMPLEX) {
+            regexSearchError = REGEX_TOO_COMPLEX;
+            return false;
+        }
+        // if we come here pattern has changed from a regex to the actual string found
+    }
+    #endif
+
     int len = pattern.length();
     if ( pos < 0 || pos + len > (int)str.length() )
         return false;
@@ -10757,8 +11048,25 @@ static bool findText( const lString32 & str, int & pos, int & endpos, const lStr
     return false;
 }
 
-static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & pattern )
+static bool findTextRev( const lString32 & str, int & pos, int & endpos, const lString32 & searchPattern, bool patternIsRegex )
 {
+    lString32 pattern = searchPattern; // may be overwritten by a regex match
+
+    #if USE_SRELL_REGEX == 1
+    if (patternIsRegex) {
+        int retval = findRegexRev(str, pos, endpos, pattern );
+        if (retval == REGEX_NOT_FOUND)
+            return false;
+        else if (retval == REGEX_FOUND)
+            return true;
+        else if (retval == REGEX_TOO_COMPLEX) {
+            regexSearchError = REGEX_TOO_COMPLEX;
+            return false;
+        }
+        // if we come here pattern has changed from a regex to the actual string found
+    }
+    #endif
+
     int len = pattern.length();
     if ( pos+len>(int)str.length() )
         pos = str.length()-len;
@@ -10790,10 +11098,18 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 }
 
 /// searches for specified text inside range
-bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart )
+bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
 {
-    if ( caseInsensitive )
-        pattern.lowercase();
+    if ( caseInsensitive ) {
+        #if USE_SRELL_REGEX != 1
+            pattern.lowercase();
+        #else
+            if ( !patternIsRegex )
+                pattern.lowercase();
+            else
+                lowercasePattern( pattern );
+        #endif
+    }
     words.clear();
     if ( pattern.empty() )
         return false;
@@ -10821,7 +11137,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findTextRev( txt, offs, endpos, pattern ) ) {
+            while ( ::findTextRev( txt, offs, endpos, pattern, patternIsRegex ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _end.getNode(), offs );
                     int currentTextY = p.toPoint().y;
@@ -10863,7 +11179,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
             if ( caseInsensitive )
                 txt.lowercase();
 
-            while ( ::findText( txt, offs, endpos, pattern ) ) {
+            while ( ::findText( txt, offs, endpos, pattern, patternIsRegex ) ) {
                 if ( firstFoundTextY==-1 && maxHeight>0 ) {
                     ldomXPointer p( _start.getNode(), offs );
                     int currentTextY = p.toPoint().y;
