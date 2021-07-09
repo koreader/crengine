@@ -173,7 +173,7 @@ LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 			m_pageMargins(DEFAULT_PAGE_MARGIN,
 					DEFAULT_PAGE_MARGIN / 2 /*+ INFO_FONT_SIZE + 4 */,
 					DEFAULT_PAGE_MARGIN, DEFAULT_PAGE_MARGIN / 2),
-			m_pagesVisible(2), m_pagesVisible_onlyIfSane(true),
+			m_pagesVisible(2), m_pagesVisible_onlyIfSane(true), m_twoVisiblePagesAsOnePageNumber(false),
 			m_pageHeaderInfo(PGHDR_PAGE_NUMBER
 #ifndef LBOOK
 					| PGHDR_CLOCK
