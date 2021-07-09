@@ -8289,6 +8289,17 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                             // check link start flag for every word
                             if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
                                 const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
+                                if ( line->words[w].flags & LTEXT_WORD_IS_INLINE_BOX ) {
+                                    // With an inline box, links were already parsed when it was rendered,
+                                    // and have been stored in the txform buffer
+                                    lString32Collection * links = txform->GetInlineBoxLinks( (ldomNode*)src->object );
+                                    if ( links ) {
+                                        for ( int n=0; n<links->length(); n++ ) {
+                                            flow->getPageContext()->addLink( links->at(n), link_insert_pos );
+                                        }
+                                    }
+                                    continue;
+                                }
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
                                     ldomNode * parent = node->getParentNode();
