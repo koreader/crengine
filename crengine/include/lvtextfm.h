@@ -266,6 +266,7 @@ typedef struct
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
+   LVHashTable<lUInt32, lString32Collection*> * inlineboxes_links;
 
     // Each line box starts with a zero-width inline box (called "strut") with
     // the element's font and line height properties:
@@ -481,6 +482,8 @@ public:
     {
         return m_pbuffer->floats[index];
     }
+
+    lString32Collection * GetInlineBoxLinks( ldomNode * node );
 
     void Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * marks = NULL,  ldomMarkedRangeList *bookmarks = NULL );
 

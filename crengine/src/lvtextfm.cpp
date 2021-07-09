@@ -197,6 +197,15 @@ void lvtextFreeFormatter( formatted_text_fragment_t * pbuffer )
         }
         free( pbuffer->floats );
     }
+    if (pbuffer->inlineboxes_links)
+    {
+        LVHashTable<lUInt32, lString32Collection*>::iterator it = pbuffer->inlineboxes_links->forwardIterator();
+        LVHashTable<lUInt32, lString32Collection*>::pair* pair;
+        while ( (pair = it.next()) ) {
+            delete pair->value;
+        }
+        free( pbuffer->inlineboxes_links );
+    }
     free(pbuffer);
 }
 
@@ -2051,22 +2060,22 @@ public:
                             RENDER_RECT_SET_FLAG(fmt, BOX_IS_RENDERED);
                             // We'll have alignLine() do the fmt.setX/Y once it is fully positioned
 
-                            // We'd like to gather footnote links accumulated by alt_context
-                            // (we do that for floats), but it's quite more complicated:
-                            // we have them here too early, and we would need to associate
-                            // the links to this "char" index, so needing in LVFormatter
-                            // something like:
-                            //   LVHashTable<lUInt32, lString32Collection> m_inlinebox_links
-                            // When adding this inlineBox to a frmline, we could then get back
-                            // the links, and associate them to the frmline (so, needing a
-                            // new field holding a lString32Collection, which would hold
-                            // all the links in all the inlineBoxs part of that line).
-                            // Finally, in renderBlockElementEnhanced, when adding
-                            // links for words, we'd also need to add the one found
-                            // in the frmline's lString32Collection.
-                            // A bit complicated, for a probably very rare case, so
-                            // let's just forget it and not have footnotes from inlineBox
-                            // among our in-page footnotes...
+                            // Gather footnote links accumulated by alt_context
+                            lString32Collection * link_ids = alt_context.getLinkIds();
+                            if (link_ids->length() > 0) {
+                                if ( m_pbuffer->inlineboxes_links == NULL ) {
+                                    m_pbuffer->inlineboxes_links = new LVHashTable<lUInt32, lString32Collection*>(16);
+                                }
+                                lString32Collection * links;
+                                lUInt32 key = node->getDataIndex();
+                                if ( !m_pbuffer->inlineboxes_links->get(key, links) ) {
+                                    links = new lString32Collection();
+                                    m_pbuffer->inlineboxes_links->set(key, links);
+                                }
+                                for ( int n=0; n<link_ids->length(); n++ ) {
+                                    links->add( link_ids->at(n) );
+                                }
+                            }
                         }
                         // (renderBlockElement() above may update our RenderRectAccessor(),
                         // so (re)get it only now)
@@ -2990,6 +2999,17 @@ public:
                         baseline_to_bottom = word->o.height - word->o.baseline;
                         // We can't really ensure strut_confined with inline-block boxes,
                         // or we could miss content (it would be overwritten by next lines)
+                        if ( m_pbuffer->inlineboxes_links ) {
+                            // The buffer has some inline boxes with footnote links.
+                            // If this inline box has some, let lvrend.cpp know, so it can
+                            // fetch them when adding this line to the page split context
+                            lString32Collection * links;
+                            lUInt32 key = ((ldomNode *) srcline->object)->getDataIndex();
+                            if ( m_pbuffer->inlineboxes_links->get(key, links) ) {
+                                word->flags |= LTEXT_WORD_IS_LINK_START;
+                                        // we re-use this flag already used by lvrend.cpp
+                            }
+                        }
                     }
                     else { // image
                         word->flags = LTEXT_WORD_IS_OBJECT;
@@ -4536,6 +4556,18 @@ static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
     }
     m_pbuffer->floats = NULL;
     m_pbuffer->floatcount = 0;
+
+    // Also clear inlinebox links containers
+    if (m_pbuffer->inlineboxes_links)
+    {
+        LVHashTable<lUInt32, lString32Collection*>::iterator it = m_pbuffer->inlineboxes_links->forwardIterator();
+        LVHashTable<lUInt32, lString32Collection*>::pair* pair;
+        while ( (pair = it.next()) ) {
+            delete pair->value;
+        }
+        free( m_pbuffer->inlineboxes_links );
+    }
+    m_pbuffer->inlineboxes_links = NULL;
 }
 
 // experimental formatter
@@ -4615,6 +4647,16 @@ lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, int para_dire
     }
 
     return h;
+}
+
+lString32Collection * LFormattedText::GetInlineBoxLinks( ldomNode * node ) {
+    if ( m_pbuffer->inlineboxes_links ) {
+        lString32Collection * links;
+        if ( m_pbuffer->inlineboxes_links->get(node->getDataIndex(), links) ) {
+            return links;
+        }
+    }
+    return NULL;
 }
 
 void LFormattedText::setImageScalingOptions( img_scaling_options_t * options )
