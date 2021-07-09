@@ -1864,6 +1864,7 @@ static const char * css_lb_names[] =
     "loose",
     "strict",
     "anywhere",
+    "-cr-loose",
     NULL
 };
 
