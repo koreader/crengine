@@ -14,7 +14,10 @@
 #include "../include/lvtinydom.h"
 #include <time.h>
 
-// Uncomment for debugging page splitting algorithm:
+// Uncomment to use old page splitter code
+// #define USE_LEGACY_PAGESPLITTER
+
+// Uncomment for debugging legacy page splitting algorithm:
 // #define DEBUG_PAGESPLIT
 // (Also change '#if 0' around 'For debugging lvpagesplitter.cpp'
 // to '#if 1' in src/lvdocview.cpp to get a summary of pages.
@@ -172,6 +175,7 @@ void LVRendPageContext::AddLine( int starty, int endy, int flags )
 // between text and first footnote)
 #define FOOTNOTE_MARGIN_REM 1
 
+#ifdef USE_LEGACY_PAGESPLITTER
 // helper class
 struct PageSplitState {
 public:
@@ -769,18 +773,471 @@ public:
         return false;
     }
 };
+#endif // USE_LEGACY_PAGESPLITTER
+
+#ifndef USE_LEGACY_PAGESPLITTER
+struct PageSplitState2 {
+public:
+    LVRendPageList * page_list;
+    LVPtrVector<LVRendLineInfo> & lines;
+    int page_height;
+    int doc_font_size;
+    int footnote_margin;
+    int nb_lines;
+
+    int cur_page_top;
+    int cur_page_bottom;
+    int cur_page_footnotes_h;
+    int cur_page_nb_lines;
+    int cur_page_nb_lines_rtl;
+    int cur_page_nb_footnotes_lines;
+    int cur_page_nb_footnotes_lines_rtl;
+    int cur_page_flow;
+    int prev_page_flow;
+
+    LVArray<LVPageFootNoteInfo> cur_page_footnotes;
+    LVArray<LVFootNote *> cur_page_seen_footnotes; // footnotes already on this page, to avoid duplicates
+    LVArray<LVFootNote *> delayed_footnotes; // footnotes to be displayed on a next page
+
+    PageSplitState2(LVRendPageList * pl, LVPtrVector<LVRendLineInfo> & ls, int pageHeight, int docFontSize)
+        : page_list(pl) // output
+        , lines(ls)     // input
+        , page_height(pageHeight) // parameters
+        , doc_font_size(docFontSize)
+    {
+        footnote_margin = FOOTNOTE_MARGIN_REM * doc_font_size;
+        nb_lines = lines.length();
+        prev_page_flow = 0;
+        // With FB2 books with a cover, a first page has already been added
+        // by ldomDocument::render(), and the first content line's y is not 0
+        resetCurPageData(nb_lines ? lines[0]->getStart() : 0);
+    }
+
+    void resetCurPageData(int page_top) {
+        cur_page_top = page_top;
+        cur_page_bottom = page_top;
+        cur_page_footnotes_h = 0;
+        cur_page_nb_lines = 0;
+        cur_page_nb_lines_rtl = 0;
+        cur_page_nb_footnotes_lines = 0;
+        cur_page_nb_footnotes_lines_rtl = 0;
+        cur_page_flow = -1;
+        cur_page_seen_footnotes.reset();
+    }
+
+    inline void accountLine(bool is_rtl=false) {
+        cur_page_nb_lines++;
+        if ( is_rtl)
+            cur_page_nb_lines_rtl++;
+    }
+
+    inline void accountFootnoteLine(bool is_rtl=false) {
+        cur_page_nb_footnotes_lines++;
+        if ( is_rtl)
+            cur_page_nb_footnotes_lines_rtl++;
+    }
+
+    inline int getCurPageMaxBottom() {
+        return cur_page_top + (page_height - cur_page_footnotes_h);
+    }
+
+    inline int getAvailableHeightForFootnotes() {
+        // If no footnote height yet, account for the margin that would be used with the first line
+        return page_height - (cur_page_bottom - cur_page_top)
+                      - (cur_page_footnotes_h > 0 ? cur_page_footnotes_h : footnote_margin);
+    }
+
+    void flushCurrentPage(bool push_delayed=true) {
+        if ( cur_page_nb_lines > 0 || cur_page_nb_footnotes_lines > 0 ) {
+            #ifdef DEBUG_PAGESPLIT
+                printf("PS: ========= ADDING PAGE %d: %d > %d h=%d",
+                    page_list->length(), cur_page_top, cur_page_bottom, cur_page_bottom - cur_page_top);
+                if ( cur_page_footnotes.length() > 0 )
+                    printf(" (+ %d footnotes, fh=%d)", cur_page_footnotes.length(), cur_page_footnotes_h);
+                printf(" [rtl l:%d/%d fl:%d/%d]\n", cur_page_nb_lines_rtl, cur_page_nb_lines,
+                                            cur_page_nb_footnotes_lines_rtl, cur_page_nb_footnotes_lines);
+            #endif
+            // Some content was added: create and add the new page
+            LVRendPageInfo * page = new LVRendPageInfo(cur_page_top, cur_page_bottom - cur_page_top, page_list->length());
+            page_list->add(page);
+
+            // Flag the page if it looks like it has more RTL than LTR content
+            if ( cur_page_nb_lines_rtl > cur_page_nb_lines / 2 )
+                page->flags |= RN_PAGE_MOSTLY_RTL;
+            if ( cur_page_nb_footnotes_lines_rtl > cur_page_nb_footnotes_lines / 2 )
+                page->flags |= RN_PAGE_FOOTNOTES_MOSTLY_RTL;
+
+            // If no cur_page_flow set (page with only footnotes), use the one from previous page
+            page->flow = cur_page_flow < 0 ? prev_page_flow : cur_page_flow;
+            prev_page_flow = page->flow;
+
+            // Add footnotes
+	    if ( cur_page_footnotes.length() > 0 ) {
+		page->footnotes.add( cur_page_footnotes );
+		cur_page_footnotes.reset();
+	    }
+
+            // Make the new page start when the previous page ended
+            resetCurPageData(cur_page_bottom);
+        }
+        if ( push_delayed ) {
+            if ( !delayed_footnotes.empty() ) {
+                // Pushed delayed footnote on the new page
+                for ( int i=0; i<delayed_footnotes.length(); i++ )
+                    addFootnoteToPage( delayed_footnotes[i] );
+                delayed_footnotes.reset();
+            }
+        }
+    }
+
+    void addLinesToPage(int start, int end) {
+        // We're usually called with a single line (start==end), but we
+        // can get multiple lines.
+        // We may have backward lines (overlapping with previous lines),
+        // so find out the bottomest of all.
+        // (We don't care about parts that would overlap with what has
+        // already been added to the page.)
+        int lines_max_bottom = cur_page_bottom;
+        bool has_footnotes = false;
+        bool push_delayed_footnotes = false; // done only in one specific case below
+        int start_if_new_page = -1;
+        int orig_start = start; // to not ignore footnotes on lines discarded at start
+        for ( int i=start; i <= end; i++ ) {
+            LVRendLineInfo * line = lines[i];
+            if ( start_if_new_page < 0 && !(line->flags & RN_SPLIT_DISCARD_AT_START) ) {
+                // Margin lines with SPLIT_AUTO are flagged with RN_SPLIT_DISCARD_AT_START:
+                // They should be shown inside a page, but should be discarded if they
+                // would be at the top of a new page.
+                start_if_new_page = i;
+            }
+            if ( lines_max_bottom < lines[i]->getEnd() ) {
+                lines_max_bottom = lines[i]->getEnd();
+            }
+            if ( !has_footnotes && lines[i]->getLinks() ) {
+                has_footnotes = true;
+            }
+        }
+        #ifdef DEBUG_PAGESPLIT
+            printf("PS: adding (%d+%d) to current page %d>%d\n", lines[start]->getStart() - cur_page_bottom,
+                            lines_max_bottom - lines[start]->getStart(), cur_page_top, cur_page_bottom);
+        #endif
+        // printf("addLinesToPage %d (%d %d) [%d->%d %d]\n", end-start+1, start, end,
+        // lines[start]->getStart(), lines[end]->getEnd(), lines[end]->getEnd() - lines[start]->getStart());
+        if ( lines_max_bottom > getCurPageMaxBottom() ) {
+            // Does not fit on this page
+            if ( lines_max_bottom - cur_page_bottom <= page_height ) {
+                // If we end current page at the current cur_page_bottom,
+                // these lines will fit in a new empty page
+                flushCurrentPage(false);
+                // We don't push delayed footnotes (as this would reduce
+                // the available height and these lines may then not fit),
+                // so make sure that if there is any, we'll push them below
+                // before adding our lines' own footnotes
+                push_delayed_footnotes = true;
+            }
+        }
+        if ( cur_page_nb_lines == 0 && start_if_new_page != start ) {
+            // Empty page, either after our flush or already empty:
+            // ignore first line(s) marked with RN_SPLIT_DISCARD_AT_START
+            if ( start_if_new_page < 0 ) {
+                // Only discardable lines: ignore them, make the new page start after them
+                cur_page_top = lines[end]->getEnd();
+                cur_page_bottom = cur_page_top;
+                return;
+            }
+            start = start_if_new_page;
+            cur_page_top = lines[start]->getStart();
+            cur_page_bottom = cur_page_top;
+        }
+        // Either we have enough room to fit them all on the page,
+        // or we made a new page (but we may still not have enough room)
+        for ( int i=start; i <= end; i++ ) {
+            LVRendLineInfo * line = lines[i];
+            if ( cur_page_flow < 0 ) {
+                // We set the flow from the first line (non-footnote) that will
+                // go on this page (we can't just use the last, as the last line
+                // in a non-linear flow may be some bottom vertical margin which
+                // will collapse with some of the next non non-linear one, and
+                // could get flow=0. (This was witnessed, not sure it's not a
+                // bug in lvrend.cpp non-linear-flow/sequence handling.)
+                cur_page_flow = line->flow;
+            }
+            int line_bottom = line->getEnd();
+            if ( line_bottom <= getCurPageMaxBottom() ) {
+                // This line fits on the current page: just add it
+                if ( cur_page_bottom < line_bottom ) {
+                    cur_page_bottom = line_bottom;
+                }
+                accountLine( line->flags & RN_LINE_IS_RTL);
+            }
+            else {
+                // This line does not fit on the current page.
+                // We could do what we did for the first line above: make
+                // a new page if this line would fit on an empty page, but
+                // this could add lots of blank space and kill the notion
+                // of break:avoid associated with all the lines we get here.
+                // It feels better (although possibly uglier) to keep them
+                // stacked onto each other and filling the pages, by slicing
+                // individual lines
+                // But if the line fits on a page, and the blank space we'd
+                // get at bottom by flushing the page is sufficiently small,
+                // we may do that. (If the line does not fit on a page, it
+                // will be sliced anyway, so we may as well slice it now.)
+                // Let's use 2em as "sufficiently small", which should ensure
+                // that lines of main content text (and small headings), that
+                // can't fit in what's left on a page, are pushed uncut to
+                // the next page, avoiding cutted lines of text.
+                if ( (line->getHeight() <= page_height) &&
+                     (getCurPageMaxBottom()-cur_page_bottom < doc_font_size*2) ) {
+                    flushCurrentPage(false);
+                    push_delayed_footnotes = true; // as done above
+                    cur_page_flow = line->flow;
+                    if ( line->flags & RN_SPLIT_DISCARD_AT_START ) {
+                        // If this line we're slicing should be discarded
+                        // at start, forget it now
+                        cur_page_top = line_bottom;
+                        cur_page_bottom = cur_page_top;
+                    }
+                    else {
+                        cur_page_bottom = line_bottom;
+                        accountLine( line->flags & RN_LINE_IS_RTL);
+                    }
+                }
+                else {
+                    // Slice this line.
+                    // We have no knowledge of what this 'line' contains (text,
+                    // image...), so we can't really find a better 'y' to cut
+                    // at than the page height. We may then cut in the middle
+                    // of a text line, and have halves displayed on different
+                    // pages (although it seems crengine deals with displaying
+                    // the cut line fully at start of next page).
+                    // So, slice it and make pages as long as it keeps not fitting
+                    bool discarded = false;
+                    while ( line_bottom > getCurPageMaxBottom() ) {
+                        cur_page_bottom = getCurPageMaxBottom();
+                        accountLine( line->flags & RN_LINE_IS_RTL);
+                        // Don't push any delayed footnote, so get the most
+                        // of space for these lines
+                        flushCurrentPage(false);
+                        push_delayed_footnotes = true; // as done above
+                        if ( line->flags & RN_SPLIT_DISCARD_AT_START ) {
+                            // If this line we're slicing should be discarded
+                            // at start, forget it now
+                            cur_page_top = line_bottom;
+                            cur_page_bottom = cur_page_top;
+                            discarded = true;
+                            break;
+                        }
+                        cur_page_flow = line->flow;
+                    }
+                    if ( !discarded ) {
+                        cur_page_bottom = line_bottom;
+                        accountLine( line->flags & RN_LINE_IS_RTL);
+                    }
+                }
+            }
+        }
+        // Handle footnotes (if any) after we have handled all the non-splittable main lines
+        if ( push_delayed_footnotes && !delayed_footnotes.empty() ) {
+            // Above, we flushed one or more new pages without pushing
+            // delayed footnotes, so push them now.
+            // But only if the first line of them fits. Otherwise, keep
+            // them delayed (our own footnotes will then be delayed too).
+            if ( delayed_footnotes[0]->getLines()[0]->getHeight() <= getAvailableHeightForFootnotes() ) {
+                for ( int i=0; i<delayed_footnotes.length(); i++ )
+                    addFootnoteToPage( delayed_footnotes[i] );
+                delayed_footnotes.reset();
+            }
+        }
+        if ( has_footnotes ) {
+            addLinesFootnotesToPage(orig_start, end);
+        }
+    }
+
+    void addFootnoteToPage(LVFootNote * note) {
+        if ( note->empty() )
+            return;
+        // Avoid duplicated footnotes in the same page
+        if ( cur_page_seen_footnotes.indexOf(note) >= 0 )
+            return;
+        cur_page_seen_footnotes.add(note);
+
+        int note_nb_lines = note->getLines().length();
+        int note_top = -1;
+        int note_bottom = -1;
+        for ( int i=0; i < note_nb_lines; i++ ) {
+            // Note: we don't ensure SPLIT_AVOID/ALWAYS inside footnotes
+            LVRendLineInfo * line = note->getLines()[i];
+            if ( note_top < 0 )
+                note_top = line->getStart();
+            int new_note_bottom = line->getEnd();
+            if ( new_note_bottom - note_top > getAvailableHeightForFootnotes() ) {
+                // This new line makes the footnote not fit
+                if ( note_bottom >= 0 ) {
+                    // Some previous lines fitted: add them to current page
+                    int note_height = note_bottom - note_top;
+                    cur_page_footnotes.add( LVPageFootNoteInfo( note_top, note_height ) );
+                    if (cur_page_footnotes_h == 0)
+                        cur_page_footnotes_h = footnote_margin;
+                    cur_page_footnotes_h += note_height;
+                    // We'll add a new footnote with remaining lines to the new page
+                    note_top = line->getStart();
+                }
+                flushCurrentPage(false); // avoid re-adding delayed footnotes, which we might be doing
+                // We're not yet done adding this footnote (so it will continue
+                // on the new page): consider it already present in this new page
+                // (even if one won't see the starting text and footnote number,
+                // it's better than seeing again the same duplicated footnote text)
+                cur_page_seen_footnotes.add(note);
+            }
+            // This footnote line fits
+            note_bottom = new_note_bottom;
+            accountFootnoteLine(line->flags & RN_LINE_IS_RTL);
+        }
+        // Add this footnote (or the remaining part of it) to current page
+        int note_height = note_bottom - note_top;
+        if ( note_height > 0 ) {
+            cur_page_footnotes.add( LVPageFootNoteInfo( note_top, note_height ) );
+            if (cur_page_footnotes_h == 0)
+                cur_page_footnotes_h = footnote_margin;
+            cur_page_footnotes_h += note_height;
+        }
+        // Note: we don't handle individual footnote lines larger than page height (which
+        // must be rare), but it looks like we'll just make with this line a page larger
+        // than screen height, that will then be truncated when rendered. Next page will
+        // continue with the remaining footnotes or content lines - which looks fine.
+    }
+
+    void addLinesFootnotesToPage(int start, int end) {
+        for ( int i=start; i <= end; i++ ) {
+            LVRendLineInfo * line = lines[i];
+            if ( !line->getLinks() )
+                continue;
+            for ( int j=0; j<line->getLinks()->length(); j++ ) {
+                LVFootNote* note = line->getLinks()->get(j);
+                if ( note->empty() )
+                    continue;
+                if ( cur_page_seen_footnotes.indexOf(note) >= 0 )
+                    continue; // Already shown on this page
+                if ( !delayed_footnotes.empty() ) {
+                    // Already some delayed footnotes
+                    if ( delayed_footnotes.indexOf(note) < 0 )
+                        delayed_footnotes.add( note );
+                    continue;
+                }
+                if ( cur_page_nb_footnotes_lines == 0 ) {
+                    // See if a first footnote line + its top margin fit on the page.
+                    // If they don't, delay all footnotes but don't flush the page,
+                    // as some main content line could still fit on this page.
+                    if ( note->getLines()[0]->getHeight() > getAvailableHeightForFootnotes() ) {
+                        if ( delayed_footnotes.indexOf(note) < 0 )
+                            delayed_footnotes.add( note );
+                        continue;
+                    }
+                    // Note: this could be made even more generic, delaying 2++ lines
+                    // of a footnote and 2++ footnotes in case of tall footnotes lines
+                    // (images? tables? which must be rare)
+                }
+                // We can proceed adding this footnote to the page (and flushing pages,
+                // continuing a footnote or adding others on new pages)
+                addFootnoteToPage( note );
+            }
+        }
+    }
+
+    void splitToPages() {
+        // A "line" is a slice of the document, it's a unit of what can be stacked
+        // into pages. It has a y coordinate as start and an other at end,
+        // that make its height.
+        // It's usually a line of text, or an image, but we also have one
+        // for each non-zero vertical margin, border and padding above and
+        // below block elements.
+        // A single "line" can also include multiple lines of text that have to
+        // be considered as a slice-unit for technical reasons: this happens with
+        // table rows (TR), so a table row will usually not be splitted among
+        // multiple pages, but pushed to the next page (except when a single row
+        // can't fit on a page: we'll then split inside that unit of slice).
+        if (nb_lines == 0)
+            return;
+        // Some of these lines can be flagged to indicate they should stick
+        // together: if not enough room at a bottom of a page, they can force
+        // a new page so they have more room at the top of the next page. This
+        // includes: top/bottom margins/borders/padding around blocks, lines of
+        // text with explicite page-break-inside: avoid, lines of text when CSS
+        // widows/orphans, lines of text surrounded by floats spanning them...
+        //
+        // Check for and handle lines per group of non-breakable lines
+        int start = 0;
+        for ( int i=0; i < nb_lines; i++ ) {
+            #ifdef DEBUG_PAGESPLIT
+                LVRendLineInfo * line = lines[i];
+                printf("PS:   line %d>%d h=%d, flags=<%d|%d>\n",
+                    line->getStart(), line->getEnd(), line->getHeight(),
+                    line->getSplitBefore(), line->getSplitAfter());
+            #endif
+            bool force_new_page = false;
+            bool is_last_line = i == nb_lines-1;
+            int nxt_line_start = 0;
+            if ( !is_last_line ) {
+                LVRendLineInfo * cur_line = lines[i];
+                LVRendLineInfo * nxt_line = lines[i+1];
+                int cur_after = cur_line->getSplitAfter();
+                int nxt_before = nxt_line->getSplitBefore();
+                if ( cur_after==RN_SPLIT_AVOID || nxt_before==RN_SPLIT_AVOID) {
+                    // Should stick together
+                    continue;
+                }
+                nxt_line_start = nxt_line->getStart();
+                if ( nxt_line_start < cur_line->getEnd() ) {
+                    // Next line has some backward part that overlaps with current line:
+                    // avoid a split between them
+                    continue;
+                    // Note: we may have later lines that could start backward and
+                    // overlap with what we have already pushed... Nothing much we can
+                    // do except looking way ahead here, which feels excessive.
+                    // This should be rare though.
+                }
+                force_new_page = cur_after==RN_SPLIT_ALWAYS || nxt_before==RN_SPLIT_ALWAYS;
+                // (any AVOID has precedence over ALWAYS)
+            }
+            // We're allowed to break after cur_line (most often, we
+            // have start==i and we're just adding a single line).
+            addLinesToPage(start, i);
+            start = i+1;
+            if ( force_new_page && nxt_line_start < cur_page_bottom ) {
+                // Next line is backward and overlaps with what has been put
+                // on current page: cancel the forced page break
+                force_new_page = false;
+                // Note: it might feel ok to still make a new page, and (below
+                // after flushCurrentPage()) adjust the new page top to start
+                // at next_line_start - but in some heavy negative margins
+                // conditions, we might see some amount of the same text
+                // content on 2 pages, which feels really odd.
+            }
+            if ( force_new_page || is_last_line ) {
+                flushCurrentPage();
+            }
+        }
+    }
+};
+#endif // !USE_LEGACY_PAGESPLITTER
 
 void LVRendPageContext::split()
 {
     if ( !page_list )
         return;
-    PageSplitState s(page_list, page_h, doc_font_size);
     #ifdef DEBUG_PAGESPLIT
         printf("PS: splitting lines into pages, page height=%d\n", page_h);
     #endif
 
-    int lineCount = lines.length();
+#ifndef USE_LEGACY_PAGESPLITTER
+    PageSplitState2 s(page_list, lines, page_h, doc_font_size);
+    s.splitToPages();
 
+#else
+    PageSplitState s(page_list, page_h, doc_font_size);
+
+    int lineCount = lines.length();
 
     LVRendLineInfo * line = NULL;
     for ( int lindex=0; lindex<lineCount; lindex++ ) {
@@ -815,6 +1272,7 @@ void LVRendPageContext::split()
         }
     }
     s.Finalize();
+#endif // USE_LEGACY_PAGESPLITTER
 }
 
 void LVRendPageContext::Finalize()

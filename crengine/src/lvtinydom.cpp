@@ -87,7 +87,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.62k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0027
+#define FORMATTING_VERSION_ID 0x0028
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
