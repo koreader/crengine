@@ -226,10 +226,10 @@ public:
         _count++;
     }
 
-    /// returns index of specified value, -1 if not found
-    int indexOf(int value) const {
+    /// returns index of specified item, -1 if not found
+    int indexOf(T item) const {
         for ( int i=0; i<_count; i++ ) {
-            if ( _array[i] == value )
+            if ( _array[i] == item )
                 return i;
         }
         return -1;
