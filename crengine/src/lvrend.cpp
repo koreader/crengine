@@ -5099,10 +5099,11 @@ private:
                            // allows knowing how much the main text glyphs and hanging punctuation
                            // can protrude inside this float (we limit that to the first level margin,
                            // not including any additional inner padding or margin)
+        lString32Collection links; // footnote links found in this float
         bool is_right;
         bool final_pos; // true if y0/y1 are the final absolute position and this
                         // float should not be moved when pushing vertical margins.
-        BlockFloat( int x0, int y0, int x1, int y1, bool r, int l, bool f, ldomNode * n=NULL) :
+        BlockFloat( int x0, int y0, int x1, int y1, bool r, int l, bool f, ldomNode * n=NULL, lString32Collection * linkids=NULL) :
                 lvRect(x0,y0,x1,y1),
                 level(l),
                 inward_margin(0),
@@ -5120,7 +5121,19 @@ private:
                         else
                             inward_margin = (x1 - x0) - (fmt.getX() + fmt.getWidth());
                     }
+                    if (linkids && linkids->length() > 0) {
+                        // This floats has footnotes, that we'll push to page context
+                        // when the float is passed by
+                        links.addAll(*linkids);
+                    }
                 }
+        void addLinks(LVRendPageContext * context) {
+            // Associate footnote links with the last line added to context
+            for ( int n=0; n<links.length(); n++ ) {
+                context->addLink( links[n] );
+            }
+            links.clear(); // Be sure we don't add them again
+        }
     };
     int direction; // flow inline direction (LTR/RTL)
     lInt32 lang_node_idx; // dataIndex of nearest upper node with a lang="" attribute (0 if none)
@@ -5215,6 +5228,7 @@ public:
         // by leaveBlockLevel(). But let's ensure we clean up well.
         for (int i=_floats.length()-1; i>=0; i--) {
             BlockFloat * flt = _floats[i];
+            flt->addLinks(&context);
             _floats.remove(i);
             delete flt;
         }
@@ -6123,6 +6137,7 @@ public:
             for (int i=_floats.length()-1; i>=0; i--) {
                 BlockFloat * flt = _floats[i];
                 if (flt->level > level) {
+                    flt->addLinks(&context);
                     _floats.remove(i);
                     delete flt;
                 }
@@ -6171,6 +6186,7 @@ public:
             if (flt->bottom <= c_y) {
                 // This float is past, we shouldn't have to worry
                 // about it anymore
+                flt->addLinks(&context);
                 _floats.remove(i);
                 delete flt;
             }
@@ -6322,7 +6338,7 @@ public:
         }
         return fit_top_y;
     }
-    void addFloat( ldomNode * node, css_clear_t clear, bool is_right, int top_margin ) {
+    void addFloat( ldomNode * node, css_clear_t clear, bool is_right, int top_margin, lString32Collection * link_ids=NULL ) {
         RenderRectAccessor fmt( node );
         int width = fmt.getWidth();
         int height = fmt.getHeight();
@@ -6339,7 +6355,7 @@ public:
             fy = pos_y;
         int fx = 0;
         fy = getYWithAvailableWidth(fy, width, height, x_min, x_max, fx, is_right);
-        _floats.push( new BlockFloat( fx, fy, fx + width, fy + height, is_right, level, true, node) );
+        _floats.push( new BlockFloat( fx, fy, fx + width, fy + height, is_right, level, true, node, link_ids) );
 
         // Get relative coordinates to current container top
         shift_x = fx - x_min;
@@ -7830,14 +7846,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // no border (if borders, only the padding can be used).
                         renderBlockElement( alt_context, child, (is_rtl ? 0 : list_marker_padding) + padding_left,
                                     0, width - list_marker_padding - padding_left - padding_right, 0, 0, direction );
-                        flow->addFloat(child, child_clear, is_right, flt_vertical_margin);
-                        // Gather footnotes links accumulated by alt_context
-                        lString32Collection * link_ids = alt_context.getLinkIds();
-                        if (link_ids->length() > 0) {
-                            for ( int n=0; n<link_ids->length(); n++ ) {
-                                flow->getPageContext()->addLink( link_ids->at(n) );
-                            }
-                        }
+                        flow->addFloat(child, child_clear, is_right, flt_vertical_margin, alt_context.getLinkIds());
+                            // We pass the footnote links accumulated by alt_context,
+                            // so they can be forwarded onto the main context lines.
                     }
                     else {
                         css_clear_t child_clear = child_style->clear;
