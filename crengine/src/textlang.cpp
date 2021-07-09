@@ -771,6 +771,14 @@ lChar32 TextLangCfg::getCssLbCharSub(css_line_break_t css_linebreak, css_word_br
             }
             #endif
         }
+
+        // Private keyword: "line-break: -cr-loose", to ignore no-break-space (some books
+        // may abuse &nbsp; between words like article and noun, possibly to make it easier
+        // for people with reading difficulties)
+        if ( css_linebreak == css_lb_cr_loose ) {
+            if ( ch==0x00A0 ) return ' ';    // non-breaking space => space
+            if ( ch==0x2011 ) return 0x2010; // non-breaking hyphen => hyphen
+        }
     }
     return ch;
 }

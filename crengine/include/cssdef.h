@@ -348,7 +348,8 @@ enum css_line_break_t {
     css_lb_normal,
     css_lb_loose,
     css_lb_strict,
-    css_lb_anywhere
+    css_lb_anywhere,
+    css_lb_cr_loose // private value "line-break: -cr-loose" to ignore &nbsp;
 };
 
 /// word-break property values
