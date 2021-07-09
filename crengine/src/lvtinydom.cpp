@@ -6170,6 +6170,7 @@ int initTableRendMethods( ldomNode * enode, int state )
             first_unproper = -1;
             last_unproper = -1;
         }
+        child->persist();
     }
     // if ( state==0 ) {
     //     dumpRendMethods( enode, cs32("   ") );
@@ -7617,6 +7618,8 @@ void ldomNode::initNodeRendMethod()
             }
         }
     #endif
+
+    persist();
 }
 #endif
 
@@ -18623,6 +18626,7 @@ void ldomNode::moveItemsTo( ldomNode * destination, int startChildIndex, int end
         item->setParentNode(destination);
         destination->addChild( item->getDataIndex() );
     }
+    destination->persist();
     // TODO: renumber rest of children in necessary
 /*#ifdef _DEBUG
     if ( !_document->checkConsistency( false ) )
