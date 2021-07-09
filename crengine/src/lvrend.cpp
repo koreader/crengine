@@ -10078,8 +10078,14 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // it's better or not: we'll see.
     // (Note that we can use * { font-variant: normal !important; } to
     // stop any font-variant without !important from being applied.)
-    pstyle->font_features.value |= parent_style->font_features.value;
-    pstyle->font_features.type = css_val_unspecified;
+    // There is one case where we don't inherit: when styles had this
+    // node ending up being (css_val_unspecified, 0), which can only
+    // happen with "font-variant(-*): normal/none", that might be
+    // used to prevent some upper font-variant to be inherited.
+    if ( pstyle->font_features.type == css_val_inherited || pstyle->font_features.value != 0 ) {
+        pstyle->font_features.value |= parent_style->font_features.value;
+        pstyle->font_features.type = css_val_unspecified;
+    }
 
     // cr_hint is also a bitmap, and only some bits are inherited.
     // A node starts with (css_val_inherited, 0), but if some

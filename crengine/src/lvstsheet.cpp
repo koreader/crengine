@@ -3186,7 +3186,16 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
         case cssd_font_features:
             // We want to 'OR' the bitmap from any declaration that is to be applied to this node
             // (while still ensuring !important).
-            style->ApplyAsBitmapOr( read_length(p), &style->font_features, imp_bit_font_features, is_important );
+            {
+                css_length_t font_features = read_length(p);
+                if ( font_features.value == 0 && font_features.type == css_val_unspecified ) {
+                    // except if "font-variant: normal/none", which resets all previously set bits
+                    style->Apply( font_features, &style->font_features, imp_bit_font_features, is_important );
+                }
+                else {
+                    style->ApplyAsBitmapOr( font_features, &style->font_features, imp_bit_font_features, is_important );
+                }
+            }
             break;
         case cssd_text_indent:
             style->Apply( read_length(p), &style->text_indent, imp_bit_text_indent, is_important );
