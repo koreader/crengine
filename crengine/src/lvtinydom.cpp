@@ -10850,9 +10850,11 @@ static int findRegex( const lString32 & str, int & pos, int & endpos, lString32 
     static lString32 oldPattern;
     static srell::u32regex regexp;
     // poor mans cache of regexp and str_wo_hyphens across calls
-    if (oldPattern != searchPattern) {
-        if (generateRegex( searchPattern, regexp) != 0)
+    if (oldPattern != searchPattern || oldPattern == "") {
+        if (generateRegex( searchPattern, regexp) != 0) {
+            oldPattern = ""; // invalidate cache
             return REGEX_NOT_FOUND;
+        }
         oldPattern = searchPattern;
     }
 
