@@ -2550,7 +2550,7 @@ void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int perce
         drawbuf->Draw( icon, rc.left,
             rc.top,
             sz.x,
-            sz.y, false );
+            sz.y, false, true );
         if ( charging )
             drawText = false;
         rc.left += 3;
