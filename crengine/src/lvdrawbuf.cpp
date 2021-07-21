@@ -416,7 +416,7 @@ private:
     bool smoothscale;
     lUInt8 * __restrict decoded;
     bool isNinePatch;
-    bool use_opaque;
+    bool use_transparency;
 public:
     static int * __restrict GenMap( int src_len, int dst_len )
     {
@@ -462,9 +462,9 @@ public:
         }
         return map;
     }
-    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv, bool smooth, bool use_opaque=false )
+    LVImageScaledDrawCallback(LVBaseDrawBuf * dstbuf, LVImageSourceRef img, int x, int y, int width, int height, bool dith, bool inv, bool smooth, bool use_transparency=false )
     : src(img), dst(dstbuf), dst_x(x), dst_y(y), dst_dx(width), dst_dy(height), xmap(0), ymap(0), dither(dith), invert(inv), smoothscale(smooth), decoded(0),
-      use_opaque(use_opaque)
+      use_transparency(use_transparency)
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
@@ -579,7 +579,7 @@ public:
                     //       (i.e., 0 is opaque, 0xFF is transparent)...
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
-                        if ( invert && !use_opaque ) {
+                        if ( invert && !use_transparency ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
                             // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
                             // c.f., https://github.com/koreader/koreader/issues/4986
@@ -620,7 +620,7 @@ public:
                     // NOTE: See final branch of the ladder. Not quite sure why some alpha ranges are treated differently...
                     if ( alpha >= 0xF0 ) {
                         // Transparent, don't plot it...
-                        if ( invert && !use_opaque ) {
+                        if ( invert && !use_transparency ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake an inverted background
                             // (i.e., a *black* background, so it gets inverted back to white with NightMode, since white is our expected "standard" background color)
                             // c.f., https://github.com/koreader/koreader/issues/4986
@@ -654,7 +654,7 @@ public:
                     const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
-                        if ( invert && !use_opaque ) {
+                        if ( invert && !use_transparency ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
                             cl = 0x00FFFFFF;
                         } else {
@@ -714,7 +714,7 @@ public:
                     const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha == 0xFF ) {
                         // Transparent, don't plot it...
-                        if ( invert && !use_opaque ) {
+                        if ( invert && !use_transparency ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
                             cl = 0x00FFFFFF;
                         } else {
@@ -760,7 +760,7 @@ public:
                     const lUInt8 alpha = (cl >> 24)&0xFF;
                     if ( alpha & 0x80 ) {
                         // Transparent, don't plot it...
-                        if ( invert && ! use_opaque ) {
+                        if ( invert && ! use_transparency ) {
                             // ...unless we're doing night-mode shenanigans, in which case, we need to fake a white background.
                             cl = 0x00FFFFFF;
                         } else {
@@ -846,12 +846,12 @@ int  LVGrayDrawBuf::GetBitsPerPixel() const
     return _bpp;
 }
 
-void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_opaque )
+void LVGrayDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_transparency )
 {
     //fprintf( stderr, "LVGrayDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
     if ( width<=0 || height<=0 )
         return;
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages, _invertImages, _smoothImages, use_opaque );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, _ditherImages, _invertImages, _smoothImages, use_transparency );
     img->Decode( &drawcb );
 
     _drawnImagesCount++;
@@ -1472,10 +1472,10 @@ int  LVColorDrawBuf::GetBitsPerPixel() const
     return _bpp;
 }
 
-void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_opaque )
+void LVColorDrawBuf::Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_transparency )
 {
     //fprintf( stderr, "LVColorDrawBuf::Draw( img(%d, %d), %d, %d, %d, %d\n", img->GetWidth(), img->GetHeight(), x, y, width, height );
-    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages, _smoothImages, use_opaque );
+    LVImageScaledDrawCallback drawcb( this, img, x, y, width, height, dither, _invertImages, _smoothImages, use_transparency );
     img->Decode( &drawcb );
     _drawnImagesCount++;
     _drawnImagesSurface += width*height;

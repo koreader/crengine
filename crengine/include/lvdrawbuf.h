@@ -179,7 +179,7 @@ public:
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette ) = 0;
     /// draws image
-    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither=true, bool use_opaque = false ) = 0;
+    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither=true, bool use_transparency = false ) = 0;
     /// draws part of source image, possible rescaled
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, int srcx, int srcy, int srcwidth, int srcheight, bool dither=true ) { CR_UNUSED10(img, x, y, width, height, srcx, srcy, srcwidth, srcheight, dither); }
     /// for GL buf only - rotated drawing
@@ -394,7 +394,7 @@ public:
     /// sets new size
     virtual void Resize( int dx, int dy );
     /// draws image
-    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_opaque = false );
+    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_transparency = false );
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
     /// constructor
@@ -519,7 +519,7 @@ public:
     /// sets new size
     virtual void Resize( int dx, int dy );
     /// draws image
-    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_opaque = false );
+    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_transparency = false );
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
     /// returns scanline pointer
@@ -598,7 +598,7 @@ public:
         FillRect( x0, y0, x1, y1, color0);
     }
     /// draws image
-    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_opaque = false ) {
+    virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither, bool use_transparency = false ) {
         // An image (even if empty) sets the ink area
         // printf("  ink Draw image %d %d %d %d\n", x, y, width, height);
         updateInkBounds(x, y, x+width, y+height);
