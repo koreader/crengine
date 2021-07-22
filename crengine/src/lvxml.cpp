@@ -2870,8 +2870,7 @@ inline bool IsSpaceChar( lChar32 ch )
     return (ch == ' ')
         || (ch == '\t')
         || (ch == '\r')
-        || (ch == '\n')
-        || (ch == 0xfeff);
+        || (ch == '\n');
 }
 
 /// returns true if format is recognized by parser
@@ -2911,7 +2910,7 @@ bool LVXMLParser::CheckFormat()
                 res = true;
                 // check that only whitespace chars before <
                 for ( int i=0; i<lt_pos && res; i++)
-                    res = IsSpaceChar( chbuf[i] );
+                    res = IsSpaceChar( chbuf[i] ) || chbuf[i] == 0xfeff;
             }
         }
     }
