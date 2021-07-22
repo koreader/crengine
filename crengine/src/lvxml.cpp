@@ -2870,7 +2870,8 @@ inline bool IsSpaceChar( lChar32 ch )
     return (ch == ' ')
         || (ch == '\t')
         || (ch == '\r')
-        || (ch == '\n');
+        || (ch == '\n')
+        || (ch == 0xfeff);
 }
 
 /// returns true if format is recognized by parser
