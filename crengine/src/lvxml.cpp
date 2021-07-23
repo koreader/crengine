@@ -2910,7 +2910,7 @@ bool LVXMLParser::CheckFormat()
                 res = true;
                 // check that only whitespace chars before <
                 for ( int i=0; i<lt_pos && res; i++)
-                    res = IsSpaceChar( chbuf[i] );
+                    res = IsSpaceChar( chbuf[i] ) || chbuf[i] == 0xfeff;
             }
         }
     }
