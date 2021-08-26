@@ -30,7 +30,7 @@ for pattern in "${pattern_files[@]}"; do
     xmllint "$pattern" >/dev/null || SHELLSCRIPT_ERROR=1
 done
 
-changed_files="$(git diff --name-only --diff-filter=d origin/master HEAD | grep -E '\.([CcHh]|[ch]pp)$')"
+changed_files="$(git diff --name-only origin/master HEAD | grep -E '\.([CcHh]|[ch]pp)$')"
 
 if [ -n "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
