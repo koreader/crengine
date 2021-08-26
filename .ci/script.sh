@@ -11,15 +11,12 @@ for entry in "$search_dir"/*; do
         [ ! "$file_list" = "" ] && file_list="$file_list"$'\n'"$entry" || file_list="$entry"
     fi
 done
-file_list=$(echo "$file_list"|tr " " "\n"|sort -u|tr "\n" " ")
 
 file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
-file_list_jq=$(echo "$file_list_jq"|tr " " "\n"|sort -u|tr "\n" " ")
 
-echo 1
-echo $file_list
-echo 2
-echo $file_list_jq
+# Sort to ensure they're in exactly the same order.
+file_list=$(echo "$file_list"|tr " " "\n"|sort -u|tr "\n" " ")
+file_list_jq=$(echo "$file_list_jq"|tr " " "\n"|sort -u|tr "\n" " ")
 
 if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
