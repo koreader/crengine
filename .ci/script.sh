@@ -14,6 +14,11 @@ done
 
 file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
 
+echo 1
+echo $file_list
+echo 2
+echo $file_list_jq
+
 if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
     diff <(echo "$file_list") <(echo "$file_list_jq")
