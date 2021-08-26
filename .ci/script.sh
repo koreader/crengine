@@ -14,6 +14,10 @@ done
 
 file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
 
+# Sort to ensure they're in exactly the same order.
+file_list=$(echo "$file_list"|tr " " "\n"|sort -u|tr "\n" " ")
+file_list_jq=$(echo "$file_list_jq"|tr " " "\n"|sort -u|tr "\n" " ")
+
 if [ ! "$file_list" = "$file_list_jq" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
     diff <(echo "$file_list") <(echo "$file_list_jq")
@@ -26,7 +30,7 @@ for pattern in "${pattern_files[@]}"; do
     xmllint "$pattern" >/dev/null || SHELLSCRIPT_ERROR=1
 done
 
-changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([CcHh]|[ch]pp)$')"
+changed_files="$(git diff --name-only origin/master HEAD | grep -E '\.([CcHh]|[ch]pp)$')"
 
 if [ -n "${changed_files}" ]; then
     echo "Running cppcheck on ${changed_files}"
@@ -58,7 +62,7 @@ if [ -n "${changed_files}" ]; then
     # ignore header files in clang-tidy for now
     # @TODO rename to *.hpp (or *.hxx)?
     # see https://github.com/koreader/crengine/pull/130#issuecomment-373823848
-    changed_files="$(git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep -E '\.([Cc]|[c]pp)$')"
+    changed_files="$(git diff --name-only origin/master HEAD | grep -E '\.([Cc]|[c]pp)$')"
     # To check them all, uncomment this:
     # changed_files="$(find crengine/src | grep -E '\.([Cc]|[c]pp)$')"
     echo "Running clang-tidy on ${changed_files}"

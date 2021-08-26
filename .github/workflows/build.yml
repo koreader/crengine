@@ -1,0 +1,19 @@
+name: CI
+on: push
+
+jobs:
+  linux:
+    name: Static linting
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install prerequisites
+      run: sudo apt-get install clang-tidy-10 cppcheck jq libxml2-utils
+
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Lint
+      run: .ci/script.sh
