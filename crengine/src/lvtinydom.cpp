@@ -12325,7 +12325,7 @@ bool ldomXPointerEx::nextVisibleWordEnd( bool thisBlockOnly )
 }
 
 /// move to previous visible word beginning (in sentence)
-bool ldomXPointerEx::prevVisibleWordStartInSentence()
+bool ldomXPointerEx::prevVisibleWordStartInSentence(bool thisBlockOnly)
 {
     if ( isNull() )
         return false;
@@ -12334,7 +12334,7 @@ bool ldomXPointerEx::prevVisibleWordStartInSentence()
     for ( ;; ) {
         if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
             // move to previous text
-            if ( !prevVisibleText(false) )
+            if ( !prevVisibleText(thisBlockOnly) )
                 return false;
             node = getNode();
             text = node->getText();
@@ -12361,7 +12361,7 @@ bool ldomXPointerEx::prevVisibleWordStartInSentence()
 }
 
 /// move to next visible word beginning (in sentence)
-bool ldomXPointerEx::nextVisibleWordStartInSentence()
+bool ldomXPointerEx::nextVisibleWordStartInSentence(bool thisBlockOnly)
 {
     if ( isNull() )
         return false;
@@ -12372,7 +12372,7 @@ bool ldomXPointerEx::nextVisibleWordStartInSentence()
     for ( ;; ) {
         if ( !isText() || !isVisible() ) {
             // move to next text
-            if ( !nextVisibleText(false) )
+            if ( !nextVisibleText(thisBlockOnly) )
                 return false;
             node = getNode();
             text = node->getText();
@@ -12386,7 +12386,7 @@ bool ldomXPointerEx::nextVisibleWordStartInSentence()
                 textLen = text.length();
                 if ( _data->getOffset() < textLen )
                     break;
-                if ( !nextVisibleText(false) )
+                if ( !nextVisibleText(thisBlockOnly) )
                     return false;
                 _data->setOffset( 0 );
                 moved = true;
@@ -12450,7 +12450,7 @@ bool ldomXPointerEx::thisVisibleWordEndInSentence()
 }
 
 /// move to next visible word end (in sentence)
-bool ldomXPointerEx::nextVisibleWordEndInSentence()
+bool ldomXPointerEx::nextVisibleWordEndInSentence(bool thisBlockOnly)
 {
     if ( isNull() )
         return false;
@@ -12461,7 +12461,7 @@ bool ldomXPointerEx::nextVisibleWordEndInSentence()
     for ( ;; ) {
         if ( !isText() || !isVisible() ) {
             // move to previous text
-            if ( !nextVisibleText(true) )
+            if ( !nextVisibleText(thisBlockOnly) )
                 return false;
             node = getNode();
             text = node->getText();
@@ -12475,7 +12475,7 @@ bool ldomXPointerEx::nextVisibleWordEndInSentence()
                 textLen = text.length();
                 if ( _data->getOffset() < textLen )
                     break;
-                if ( !nextVisibleText(true) )
+                if ( !nextVisibleText(thisBlockOnly) )
                     return false;
                 _data->setOffset( 0 );
             }
@@ -12512,7 +12512,7 @@ bool ldomXPointerEx::nextVisibleWordEndInSentence()
 }
 
 /// move to previous visible word end (in sentence)
-bool ldomXPointerEx::prevVisibleWordEndInSentence()
+bool ldomXPointerEx::prevVisibleWordEndInSentence(bool thisBlockOnly)
 {
     if ( isNull() )
         return false;
@@ -12522,7 +12522,7 @@ bool ldomXPointerEx::prevVisibleWordEndInSentence()
     for ( ;; ) {
         if ( !isText() || !isVisible() || _data->getOffset()==0 ) {
             // move to previous text
-            if ( !prevVisibleText(false) )
+            if ( !prevVisibleText(thisBlockOnly) )
                 return false;
             node = getNode();
             text = node->getText();
@@ -12676,16 +12676,26 @@ bool ldomXPointerEx::isSentenceStart()
     int i = _data->getOffset();
     lChar32 currCh = i<textLen ? text[i] : 0;
     lChar32 prevCh = i>0 ? text[i-1] : 0;
+    lChar32 prevPrevNonSpace = 0;
     lChar32 prevNonSpace = 0;
+    int prevNonSpace_i = -1;
     for ( ;i>0; i-- ) {
         lChar32 ch = text[i-1];
         if ( !IsUnicodeSpace(ch) ) {
             prevNonSpace = ch;
+            prevNonSpace_i = i - 1;
             break;
         }
     }
-#if 0
-    // At this implementation it's a wrong to check previous node
+    if (prevNonSpace) {
+        for (i = prevNonSpace_i; i>0; i-- ) {
+            lChar32 ch = text[i-1];
+            if ( !IsUnicodeSpace(ch) ) {
+                prevPrevNonSpace = ch;
+                break;
+            }
+        }
+    }
     if ( !prevNonSpace ) {
         ldomXPointerEx pos(*this);
         while ( !prevNonSpace && pos.prevVisibleText(true) ) {
@@ -12694,12 +12704,18 @@ bool ldomXPointerEx::isSentenceStart()
                 lChar32 ch = prevText[j];
                 if ( !IsUnicodeSpace(ch) ) {
                     prevNonSpace = ch;
+                    for (int k = j; k > 0; k--) {
+                        ch = prevText[k-1];
+                        if (!IsUnicodeSpace(ch)) {
+                            prevPrevNonSpace = ch;
+                            break;
+                        }
+                    }
                     break;
                 }
             }
         }
     }
-#endif
 
     // skip separated separator.
     if (1 == textLen) {
@@ -12707,7 +12723,7 @@ bool ldomXPointerEx::isSentenceStart()
             case '.':
             case '?':
             case '!':
-            case U'\x2026': // horizontal ellypsis
+            case U'\x2026': // horizontal ellipsis
                 return false;
         }
     }
@@ -12718,8 +12734,18 @@ bool ldomXPointerEx::isSentenceStart()
         case '.':
         case '?':
         case '!':
-        case U'\x2026': // horizontal ellypsis
+        case U'\x2026': // horizontal ellipsis
             return true;
+        case '"':       // QUOTATION MARK
+        case U'\x201d': // RIGHT DOUBLE QUOTATION MARK
+            switch (prevPrevNonSpace) {
+            case '.':
+            case '?':
+            case '!':
+            case U'\x2026': // horizontal ellipsis
+                return true;
+            }
+            break;
         default:
             return false;
         }
@@ -12740,14 +12766,25 @@ bool ldomXPointerEx::isSentenceEnd()
     int i = _data->getOffset();
     lChar32 currCh = i<textLen ? text[i] : 0;
     lChar32 prevCh = i>0 ? text[i-1] : 0;
+    lChar32 prevPrevCh = i>1 ? text[i-2] : 0;
     if ( IsUnicodeSpaceOrNull(currCh) ) {
         switch (prevCh) {
         case 0:
         case '.':
         case '?':
         case '!':
-        case U'\x2026': // horizontal ellypsis
+        case U'\x2026': // horizontal ellipsis
             return true;
+        case '"':
+        case U'\x201d': // RIGHT DOUBLE QUOTATION MARK
+            switch (prevPrevCh) {
+            case '.':
+            case '?':
+            case '!':
+            case U'\x2026': // horizontal ellipsis
+                return true;
+            }
+            break;
         default:
             break;
         }
@@ -12755,8 +12792,8 @@ bool ldomXPointerEx::isSentenceEnd()
     // word is not ended with . ! ?
     // check whether it's last word of block
     ldomXPointerEx pos(*this);
-    //return !pos.nextVisibleWordStartInSentence();
-    return !pos.thisVisibleWordEndInSentence();
+    return !pos.nextVisibleWordStartInSentence(false);
+    //return !pos.thisVisibleWordEndInSentence();
 }
 
 /// move to beginning of current visible text sentence
@@ -12769,7 +12806,7 @@ bool ldomXPointerEx::thisSentenceStart()
     for (;;) {
         if ( isSentenceStart() )
             return true;
-        if ( !prevVisibleWordStartInSentence() )
+        if ( !prevVisibleWordStartInSentence(true) )
             return false;
     }
 }
@@ -12784,7 +12821,7 @@ bool ldomXPointerEx::thisSentenceEnd()
     for (;;) {
         if ( isSentenceEnd() )
             return true;
-        if ( !nextVisibleWordEndInSentence() )
+        if ( !nextVisibleWordEndInSentence(true) )
             return false;
     }
 }
@@ -12795,7 +12832,7 @@ bool ldomXPointerEx::nextSentenceStart()
     if ( !isSentenceStart() && !thisSentenceEnd() )
         return false;
     for (;;) {
-        if ( !nextVisibleWordStartInSentence() )
+        if ( !nextVisibleWordStartInSentence(false) )
             return false;
         if ( isSentenceStart() )
             return true;
@@ -12808,7 +12845,7 @@ bool ldomXPointerEx::prevSentenceStart()
     if ( !thisSentenceStart() )
         return false;
     for (;;) {
-        if ( !prevVisibleWordStartInSentence() )
+        if ( !prevVisibleWordStartInSentence(false) )
             return false;
         if ( isSentenceStart() )
             return true;
@@ -12829,7 +12866,7 @@ bool ldomXPointerEx::prevSentenceEnd()
     if ( !thisSentenceStart() )
         return false;
     for (;;) {
-        if ( !prevVisibleWordEndInSentence() )
+        if ( !prevVisibleWordEndInSentence(false) )
             return false;
         if ( isSentenceEnd() )
             return true;
