@@ -389,14 +389,6 @@ private:
     void updateDocStyleSheet();
 
 protected:
-
-
-    virtual void drawNavigationBar( LVDrawBuf * drawbuf, int pageIndex, int percent );
-
-    virtual void getNavigationBarRectangle( lvRect & rc );
-
-    virtual void getNavigationBarRectangle( int pageIndex, lvRect & rc );
-
     /// returns document offset for next page
     int getNextPageOffset();
     /// returns document offset for previous page
