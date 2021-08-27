@@ -8,7 +8,7 @@ jobs:
 
     steps:
     - name: Install prerequisites
-      run: sudo apt-get install clang-tidy-10 cppcheck jq libxml2-utils
+      run: sudo apt-get install clang-tidy cppcheck jq libxml2-utils
 
     - name: Checkout
       uses: actions/checkout@v2
