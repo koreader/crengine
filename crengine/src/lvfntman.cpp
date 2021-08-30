@@ -2214,7 +2214,7 @@ public:
 
         lUInt16 prev_width = 0;
         lUInt16 cur_width = 0;
-        int lastFitChar = 0;
+        lUInt16 lastFitChar = 0;
         updateTransform(); // no-op
         // measure character widths
 
@@ -2428,17 +2428,22 @@ public:
                                         fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
                                     if ( t_notdef_end < len )
                                         fb_hints &= ~LFNT_HINT_ENDS_PARAGRAPH;
-                                    fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
+                                    lUInt16 last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
+                                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
                                                     widths + t_notdef_start, flags + t_notdef_start,
-                                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
+                                                    max_width - last_good_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                                     fb_hints );
+                                    lastFitChar = t_notdef_start + chars_measured;
                                     // Fix previous bad measurements
-                                    int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
-                                    for (int tn = t_notdef_start; tn < t_notdef_end; tn++) {
+                                    for (int tn = t_notdef_start; tn < lastFitChar; tn++) {
                                         widths[tn] += last_good_width;
+                                        if (widths[tn] > max_width) {
+                                            lastFitChar = tn;
+                                            break;
+                                        }
                                     }
                                     // And fix our current width
-                                    cur_width = widths[t_notdef_end-1];
+                                    cur_width = widths[lastFitChar-1];
                                     prev_width = cur_width;
                                     #ifdef DEBUG_MEASURE_TEXT
                                         printf("MTHB ### measured past failures > W= %d\n[...]", cur_width);
@@ -2529,18 +2534,22 @@ public:
                     lUInt32 fb_hints = hints | LFNT_HINT_IS_FALLBACK_FONT;
                     if ( t_notdef_start > 0 )
                         fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
-                    int chars_measured = fallback->measureText( text + t_notdef_start, // start
+                    lUInt16 last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
+                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, // start
                                     t_notdef_end - t_notdef_start, // len
                                     widths + t_notdef_start, flags + t_notdef_start,
-                                    max_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
+                                    max_width - last_good_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                     fb_hints );
                     lastFitChar = t_notdef_start + chars_measured;
-                    int last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
-                    for (int tn = t_notdef_start; tn < t_notdef_end; tn++) {
+                    for (int tn = t_notdef_start; tn < lastFitChar; tn++) {
                         widths[tn] += last_good_width;
+                        if (widths[tn] > max_width) {
+                            lastFitChar = tn;
+                            break;
+                        }
                     }
                     // And add all that to our current width
-                    cur_width = widths[t_notdef_end-1];
+                    cur_width = widths[lastFitChar-1];
                     #ifdef DEBUG_MEASURE_TEXT
                         printf("MTHB ### measured past failures at EOT > W= %d\n[...]", cur_width);
                     #endif
@@ -2553,7 +2562,7 @@ public:
             }
 
             // i is used below to "fill props for rest of chars", so make it accurate
-            i = len; // actually make it do nothing
+            i = lastFitChar;
 
             #ifdef DEBUG_MEASURE_TEXT
                 printf("MTHB <<< W=%d [%s]\n", cur_width, _faceName.c_str());
