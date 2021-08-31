@@ -151,8 +151,8 @@ rb, rubyBox[T=rb] {
     line-height: 1;
 }
 rt, rubyBox[T=rt] {
-    line-height: 1.2;
-    font-size: 50%;
+    line-height: 1.6;
+    font-size: 42%;
     font-variant-east-asian: ruby;
     -cr-hint: text-selection-skip;
 }
