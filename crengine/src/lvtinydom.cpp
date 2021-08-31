@@ -7646,8 +7646,14 @@ void ldomNode::initNodeRendMethod()
 
 void ldomElementWriter::onBodyExit()
 {
-    if ( _isSection )
+    if ( _isSection ) {
+        // Generic handling of FictionBook (FB2) structure (nested <section><title>),
+        // from which we build a TOC at DOM built time. This works also with
+        // other formats that get a <FictionBook> based DOM, but it shouldn't
+        // trigger much with other HTML based formats like HTML and EPUB, that
+        // will get their TOC from some other context/source.
         updateTocItem();
+    }
 
 #if BUILD_LITE!=1
     if ( !_document->isDefStyleSet() )
