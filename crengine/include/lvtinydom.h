@@ -2809,7 +2809,7 @@ private:
     ldomNode * baseElement;
     ldomNode * lastBaseElement;
 
-    lString8 headStyleText;
+    lString32 headStyleText;
     int headStyleState;
 
     lString32 htmlDir;
@@ -2821,7 +2821,7 @@ private:
 public:
 
     /// return content of html/head/style element
-    lString8 getHeadStyleText() { return headStyleText; }
+    lString8 getHeadStyleText() { return UnicodeToUtf8(headStyleText); }
 
     ldomNode * getBaseElement() { return lastBaseElement; }
 
@@ -2877,7 +2877,7 @@ public:
     virtual void OnText( const lChar32 * text, int len, lUInt32 flags )
     {
         if (headStyleState == 1) {
-            headStyleText << UnicodeToUtf8(lString32(text, len));
+            headStyleText << lString32(text, len);
             return;
         }
         if ( insideTag )

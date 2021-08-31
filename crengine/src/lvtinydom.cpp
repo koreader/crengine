@@ -7896,7 +7896,7 @@ void ldomDocumentWriter::OnTagBody()
             import << "\");\n";
             imports << import;
         }
-        lString32 styleText = imports + _headStyleText.c_str();
+        lString32 styleText = imports + _headStyleText;
         _stylesheetLinks.clear();
         _headStyleText.clear();
 
@@ -13723,7 +13723,7 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                     imports << import;
                 }
                 stylesheetLinks.clear();
-                lString32 styleText = imports + headStyleText.c_str();
+                lString32 styleText = imports + headStyleText;
                 // Add it to <DocFragment><stylesheet>, so it becomes:
                 //   <stylesheet href="...">
                 //     @import url(path_to_css_2nd_file)
