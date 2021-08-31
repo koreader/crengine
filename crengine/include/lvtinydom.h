@@ -2814,6 +2814,7 @@ private:
 
     lString32 htmlDir;
     lString32 htmlLang;
+    lString32 htmlStyle;
     bool insideHtmlTag;
 
     bool m_nonlinear = false;
@@ -2851,6 +2852,7 @@ public:
         insideHtmlTag = false;
         htmlDir.clear();
         htmlLang.clear();
+        htmlStyle.clear();
     }
     /// called on parsing end
     virtual void OnStop()
