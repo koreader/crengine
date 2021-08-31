@@ -4774,6 +4774,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->visibility = css_v_visible;
     s->line_break = css_lb_auto;
     s->word_break = css_wb_normal;
+    s->box_sizing = css_bs_content_box;
     s->cr_hint.type = css_val_unspecified;
     s->cr_hint.value = CSS_CR_HINT_NONE;
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));

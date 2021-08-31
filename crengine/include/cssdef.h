@@ -361,6 +361,13 @@ enum css_word_break_t {
     css_wb_keep_all
 };
 
+/// box-sizing property values
+enum css_box_sizing_t {
+    css_bs_inherit,
+    css_bs_content_box,
+    css_bs_border_box
+};
+
 enum css_generic_value_t {
     css_generic_auto = -1,         // (css_val_unspecified, css_generic_auto), for "margin: auto"
     css_generic_normal = -2,       // (css_val_unspecified, css_generic_normal), for "line-height: normal"

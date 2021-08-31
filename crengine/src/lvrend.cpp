@@ -4173,6 +4173,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->visibility = source->visibility;
     dest->line_break = source->line_break;
     dest->word_break = source->word_break;
+    dest->box_sizing = source->box_sizing;
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
@@ -7000,7 +7001,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                  is_length_relative_unit(style_height.type) ||
                  is_hr || is_empty_line_elem ) {
                 style_h = lengthToPx( enode, style_height, 0 );
-                if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+                if ( style->box_sizing == css_bs_content_box ) {
                     // If W3C box model requested, CSS height specifies the height
                     // of the content box, so we just add paddings and borders
                     // to the height we got from styles (paddings will be removed
@@ -7019,7 +7020,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                  style_max_height.type == css_val_screen_px ||
                  is_length_relative_unit(style_max_height.type) ) {
                 int style_max_h = lengthToPx( enode, style_max_height, 0 );
-                if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+                if ( style->box_sizing == css_bs_content_box ) {
                     style_max_h += padding_top + padding_bottom;
                 }
                 if ( style_h > style_max_h ) {
@@ -7035,7 +7036,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                  style_min_height.type == css_val_screen_px ||
                  is_length_relative_unit(style_min_height.type) ) {
                 int style_min_h = lengthToPx( enode, style_min_height, 0 );
-                if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+                if ( style->box_sizing == css_bs_content_box ) {
                     style_min_h += padding_top + padding_bottom;
                 }
                 if ( style_h < style_min_h ) {
@@ -7175,7 +7176,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         int floatBox_paddings = padding_left + padding_right;
         // We let getRenderedWidths() give us the width of the float content:
         // if the float element itself has a style->width, we'll get it, with
-        // or without paddings depending on USE_W3C_BOX_MODEL).
+        // or without paddings depending on style->box_sizing).
         int max_content_width = 0;
         int min_content_width = 0;
         // If the floating child does not have a width, inner elements may have one
@@ -7247,8 +7248,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // It's an exception to the W3C box model, as witnessed
                 // with Firefox, and discussed at:
                 //  https://stackoverflow.com/questions/19068909/why-is-box-sizing-acting-different-on-table-vs-div
+                // Note: per CSS3 specs, specifying box-sizing:content-box on a table
+                // should have it used - but we don't, to not complexify out table
+                // rendering algorithm
             }
-            else if ( BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) ) {
+            else if ( style->box_sizing == css_bs_content_box ) {
                 // If W3C box model requested, CSS width specifies the width
                 // of the content box.
                 // In crengine, the width we deal with is the border box, so we
@@ -7273,7 +7277,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                      style_max_width.type == css_val_screen_px || // in case it was converted to screen_px beforehand
                      is_length_relative_unit(style_max_width.type) ) {
                     max_width = lengthToPx( enode, style_max_width, container_width );
-                    if ( style->display != css_d_table && BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) )
+                    if ( style->display != css_d_table && style->box_sizing == css_bs_content_box )
                         max_width += padding_left + padding_right;
                     if ( width > max_width ) {
                         width = max_width;
@@ -7288,7 +7292,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                      is_length_relative_unit(style_min_width.type) ) {
                     // As just above if apply_style_width
                     min_width = lengthToPx( enode, style_min_width, container_width );
-                    if ( style->display != css_d_table && BLOCK_RENDERING(flags, USE_W3C_BOX_MODEL) )
+                    if ( style->display != css_d_table && style->box_sizing == css_bs_content_box )
                         min_width += padding_left + padding_right;
                     if ( width < min_width ) {
                         width = min_width;
@@ -9620,6 +9624,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     lUInt16 nodeElementId = enode->getNodeId();
     ldomDocument * doc = enode->getDocument();
+    lUInt32 rend_flags = doc->getRenderBlockRenderingFlags();
     lUInt32 domVersionRequested = doc->getDOMVersionRequested();
 
     if (domVersionRequested < 20180524) {
@@ -9694,6 +9699,13 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         if ( body ) {
             pstyle->text_align = body->getStyle()->text_align;
         }
+    }
+
+    if ( !BLOCK_RENDERING(rend_flags, USE_W3C_BOX_MODEL) ) {
+        // In enhanced mode, box sizing can be set as default to be border-box
+        // with this flag - which can then be overriden by embedded styles.
+        pstyle->box_sizing = css_bs_border_box;
+        // Legacy mode will additionally reset this below to border-box.
     }
 
     // Handle <epub:switch> <epub:case required-namespace="..."> <epub:default>
@@ -9856,7 +9868,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->display = css_d_none;
     }
 
-    lUInt32 rend_flags = doc->getRenderBlockRenderingFlags();
     if ( BLOCK_RENDERING(rend_flags, PREPARE_FLOATBOXES) ) {
         // https://developer.mozilla.org/en-US/docs/Web/CSS/float
         //  As float implies the use of the block layout, it modifies the computed value
@@ -9978,6 +9989,11 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                 pstyle->display = orig_elem_display;
             }
         }
+    }
+
+    if ( !BLOCK_RENDERING(rend_flags, ENHANCED) ) {
+        // Legacy mode: reset any box sizing set by embedded styles
+        pstyle->box_sizing = css_bs_border_box;
     }
 
     // Avoid some new features when migration to normalized xpointers has not yet been done
@@ -10897,14 +10913,14 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         }
 
         // For all the previous cases, if ensuring width, ensure min-width and max-width, but at
-        // this point only. Now if USE_W3C_BOX_MODEL, later if not (after we've computed paddings)
+        // this point only. Now if box-sizing:content-box, later if border-box (after we've computed paddings)
         int ensured_min_width_late = -1;
         int ensured_max_width_late = -1;
         if ( BLOCK_RENDERING(rendFlags, ENSURE_STYLE_WIDTH) && (style->display <= css_d_table || is_boxing_elem) ) {
             // We ignore width for table sub-elements (except if it is one of our boxing elements, see above why).
-            // Table themselves, even when USE_W3C_BOX_MODEL, follow the border box model,
+            // Table themselves, even if css_bs_content_box, follow the border box model,
             // so we'll apply them later.
-            bool ensure_min_max_width_later = !BLOCK_RENDERING(rendFlags, USE_W3C_BOX_MODEL) || style->display == css_d_table;
+            bool ensure_min_max_width_later = style->box_sizing != css_bs_content_box || style->display == css_d_table;
             // Ignore widths in %, as we can't do much with them (for the starting node,
             // they may have been converted to screen_px before calling us
             // We do max-width first, and then min-width (https://www.w3.org/TR/CSS2/visudet.html#min-max-widths)
@@ -10945,9 +10961,9 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         // For both erm_block or erm_final, adds padding/margin/border
         // to _maxWidth and _minWidth (see comment above)
 
-        // Style width includes paddings and border in the traditional box model,
-        // but not in the W3C box model
-        bool ignorePadding = use_style_width && !BLOCK_RENDERING(rendFlags, USE_W3C_BOX_MODEL);
+        // Style width includes paddings and border in the traditional box model (border-box)
+        // but not in the W3C box model (content-box)
+        bool ignorePadding = use_style_width && style->box_sizing != css_bs_content_box;
 
         int padLeft = 0; // these will include padding, border and margin
         int padRight = 0;
