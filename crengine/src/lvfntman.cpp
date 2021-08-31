@@ -1240,6 +1240,8 @@ protected:
     int           _baseline;
     int           _weight; // original font weight 400: normal, 700: bold, 100..900 thin..black
     int           _italic; // 0: regular, 1: italic, 2: fake/synthesized italic
+    int           _underline_offset;
+    int           _underline_thickness;
     int *         _extra_metric;
     LVFontGlyphUnsignedMetricCache   _wcache;   // glyph width cache
     LVFontGlyphSignedMetricCache     _lsbcache; // glyph left side bearing cache
@@ -1314,7 +1316,7 @@ public:
 
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
         : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL)
-        , _size(0), _hyphen_width(0), _baseline(0)
+        , _size(0), _hyphen_width(0), _baseline(0), _underline_offset(0), _underline_thickness(0)
         , _weight(400), _italic(0), _features(0), _extra_metric(NULL)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
@@ -1360,6 +1362,40 @@ public:
             _hyphen_width = getCharWidth( UNICODE_SOFT_HYPHEN_CODE );
         }
         return _hyphen_width;
+    }
+
+    void updateUnderlineMetrics() {
+        // Defaults if no valid metrics:
+        _underline_thickness = _size > 30 ? 2 : 1;
+        _underline_offset = _underline_thickness;
+        if ( FT_IS_SCALABLE(_face) ) {
+            // Looking at many fonts, regular vs bold, it seems the bold font does not
+            // get these metrics different from the regular one.
+            // Thought this was a bug and tried to scale the thickness with the weight
+            // (real or synthesized) delta from the regular 400, but it feels it looks
+            // better if we just don't.
+            // If needed, alternative ad-hoc algorithm for when no metric is available:
+            //   https://code.qt.io/cgit/qt/qtbase.git/tree/src/gui/text/freetype/qfontengine_ft.cpp#n761
+            int thickness = FT_MulFix(_face->underline_thickness, _face->size->metrics.y_scale);
+            int position = FT_MulFix(_face->underline_position, _face->size->metrics.y_scale);
+            if (thickness > 0) {
+                _underline_thickness = FONT_METRIC_TO_PX(thickness);
+                if ( _underline_thickness < 1 )
+                    _underline_thickness = 1;
+            }
+            if (position < 0) {
+                // Feels like the offset below baseline too does not need to be changed
+                // with weight.
+                _underline_offset = FONT_METRIC_TO_PX(-position);
+                // But be sure we don't overflow the font natural line height bottom, and
+                // that we keep 1px free (so to keep a gap between a overline on next line)
+                int overflow = _baseline + _underline_offset + _underline_thickness + 1 - _height;
+                if ( overflow > 0 )
+                    _underline_offset -= overflow;
+                if ( _underline_offset < 1 )
+                    _underline_offset = 1;
+            }
+        }
     }
 
     #if USE_HARFBUZZ==1
@@ -1587,6 +1623,7 @@ public:
         _synth_weight_strength = FT_MulFix(_face->units_per_EM, _face->size->metrics.y_scale);
         _synth_weight_strength = FT_MulDiv(_synth_weight_strength, _synth_weight - _weight, 6400);
         _synth_weight_half_strength = _synth_weight_strength / 2;
+        updateUnderlineMetrics();
         clearCache();
     }
 
@@ -1674,6 +1711,7 @@ public:
         _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
         _weight = weight > 0 ? weight : getFontWeight(_face);
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
+        updateUnderlineMetrics();
 
         if ( !error && italicize && !_italic ) {
             _italic = 2;
@@ -1793,6 +1831,7 @@ public:
         // Well, let's trust FontConfig for this.
         _weight = weight > 0 ? weight : getFontWeight(_face);
         _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
+        updateUnderlineMetrics();
 
         if ( !error && italicize && !_italic ) {
             _italic = 2;
@@ -3930,20 +3969,21 @@ public:
             // And start the decoration before x0 if it is continued
             // from previous word
             x0 -= text_decoration_back_gap;
-            int h = _size > 30 ? 2 : 1;
             lUInt32 cl = buf->GetTextColor();
             if ( flags & LFNT_DRAW_UNDERLINE ) {
-                int liney = y + _baseline + h;
-                buf->FillRect( x0, liney, x, liney+h, cl );
+                int liney = y + _baseline + _underline_offset;
+                buf->FillRect( x0, liney, x, liney+_underline_thickness, cl );
             }
             if ( flags & LFNT_DRAW_OVERLINE ) {
-                int liney = y + h;
-                buf->FillRect( x0, liney, x, liney+h, cl );
+                // For now, we use the underline thickness as the offset from top, so
+                // to not be too high (should probably be computed from other metrics)
+                int liney = y + _underline_thickness;
+                buf->FillRect( x0, liney, x, liney+_underline_thickness, cl );
             }
             if ( flags & LFNT_DRAW_LINE_THROUGH ) {
                 // int liney = y + _baseline - _size/4 - h/2;
                 int liney = y + _baseline - _size*2/7;
-                buf->FillRect( x0, liney, x, liney+h, cl );
+                buf->FillRect( x0, liney, x, liney+_underline_thickness, cl );
             }
         }
         return advance;
