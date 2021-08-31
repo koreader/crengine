@@ -5455,7 +5455,7 @@ static lString32 getSectionHeader( ldomNode * section )
     lString32 header;
     if ( !section || section->getChildCount() == 0 )
         return header;
-    ldomNode * child = section->getChildElementNode(0, U"title");
+    ldomNode * child = section->getChildElementNode(0, el_title);
     if ( !child )
         return header;
     header = child->getText(U' ', 1024);
@@ -6165,7 +6165,7 @@ int initTableRendMethods( ldomNode * enode, int state )
                     // be remembered and re-used when styles change, and just
                     // setting the appropriate rendering method is all that is
                     // needed for rendering after this.
-                    // tbox->setAttributeValue(LXML_NS_NONE, enode->getDocument()->getAttrNameIndex(U"style"), U"display: table-row");
+                    // tbox->setAttributeValue(LXML_NS_NONE, attr_style, U"display: table-row");
                     tbox->initNodeStyle();
                     tbox->setRendMethod( erm_table_row );
                     cellCount += initTableRendMethods( tbox, 3 ); // > row
@@ -7845,7 +7845,7 @@ void ldomDocumentWriter::OnStart(LVFileFormatParser * parser)
     if ( !_headerOnly )
         _stopTagId = 0xFFFE;
     else {
-        _stopTagId = _document->getElementNameIndex(U"description");
+        _stopTagId = el_description;
         //CRLog::trace( "ldomDocumentWriter() : header only, tag id=%d", _stopTagId );
     }
     LVXMLParserCallback::OnStart( parser );
@@ -7873,7 +7873,7 @@ void ldomDocumentWriter::OnTagBody()
     // _headStyleText and _stylesheetLinks are then empty. Styles for EPUB
     // are handled in :OnTagOpen() when being a DocFragment and meeting
     // the BODY.)
-    if ( _currNode && _currNode->getElement() && _currNode->getElement()->isNodeName("body") &&
+    if ( _currNode && _currNode->getElement() && _currNode->getElement()->getNodeId() == el_body &&
             ( !_headStyleText.empty() || _stylesheetLinks.length() > 0 ) ) {
         // If we're BODY, and we have meet styles in the previous HEAD
         // (links to css files or <STYLE> content), we need to save them
@@ -8052,9 +8052,9 @@ void ldomDocumentWriter::OnTagClose( const lChar32 *, const lChar32 * tagname, b
     if ( id == el_link && curNodeId == el_link ) { // link node
         ldomNode * n = _currNode->getElement();
         if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head &&
-                 lString32(n->getAttributeValue("rel")).lowercase() == U"stylesheet" &&
-                 lString32(n->getAttributeValue("type")).lowercase() == U"text/css" ) {
-            lString32 href = n->getAttributeValue("href");
+                 n->getAttributeValueLC(attr_rel) == U"stylesheet" &&
+                 n->getAttributeValueLC(attr_type) == U"text/css" ) {
+            lString32 href = n->getAttributeValue(attr_href);
             lString32 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
             // We no more apply it immediately: it will be when <BODY> is met
@@ -13803,30 +13803,25 @@ void ldomDocumentFragmentWriter::OnTagBody()
 void ldomDocumentWriterFilter::setClass( const lChar32 * className, bool overrideExisting )
 {
     ldomNode * node = _currNode->_element;
-    if ( _classAttrId==0 ) {
-        _classAttrId = _document->getAttrNameIndex(U"class");
-    }
-    if ( overrideExisting || !node->hasAttribute(_classAttrId) ) {
-        node->setAttributeValue(LXML_NS_NONE, _classAttrId, className);
+    if ( overrideExisting || !node->hasAttribute(attr_class) ) {
+        node->setAttributeValue(LXML_NS_NONE, attr_class, className);
     }
 }
 
 void ldomDocumentWriterFilter::appendStyle( const lChar32 * style )
 {
     ldomNode * node = _currNode->_element;
-    if ( _styleAttrId==0 ) {
-        _styleAttrId = _document->getAttrNameIndex(U"style");
-    }
+
     // Append to the style attribute even if embedded styles are disabled
     // at loading time, otherwise it won't be there if we enable them later
     // if (!_document->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES))
     //     return; // disabled
 
-    lString32 oldStyle = node->getAttributeValue(_styleAttrId);
+    lString32 oldStyle = node->getAttributeValue(attr_style);
     if ( !oldStyle.empty() && oldStyle.at(oldStyle.length()-1)!=';' )
         oldStyle << "; ";
     oldStyle << style;
-    node->setAttributeValue(LXML_NS_NONE, _styleAttrId, oldStyle.c_str());
+    node->setAttributeValue(LXML_NS_NONE, attr_style, oldStyle.c_str());
 }
 
 // Legacy auto close handler (gDOMVersionRequested < 20200824)
@@ -14820,9 +14815,9 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar32 * /*nsname*/, const lCh
     if ( id == el_link && curNodeId == el_link ) { // link node
         ldomNode * n = _currNode->getElement();
         if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head &&
-                 lString32(n->getAttributeValue("rel")).lowercase() == U"stylesheet" &&
-                 lString32(n->getAttributeValue("type")).lowercase() == U"text/css" ) {
-            lString32 href = n->getAttributeValue("href");
+                 n->getAttributeValueLC(attr_rel) == U"stylesheet" &&
+                 n->getAttributeValueLC(attr_type) == U"text/css" ) {
+            lString32 href = n->getAttributeValue(attr_href);
             lString32 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
             // We no more apply it immediately: it will be when <BODY> is met
@@ -15048,8 +15043,6 @@ ldomDocumentWriterFilter::ldomDocumentWriterFilter(ldomDocument * document, bool
 , _libRuDocumentDetected(false)
 , _libRuParagraphStart(false)
 , _libRuParseAsPre(false)
-, _styleAttrId(0)
-, _classAttrId(0)
 , _tagBodyCalled(true)
 , _htmlTagSeen(false)
 , _headTagSeen(false)
@@ -18943,20 +18936,16 @@ lString32 ldomNode::getObjectImageRefName(bool percentDecode)
     const css_elem_def_props_t * et = getDocument()->getElementTypePtr(getNodeId());
     if (!et || !et->is_object)
         return lString32::empty_str;
-    lUInt16 hrefId = getDocument()->getAttrNameIndex("href");
-    lUInt16 srcId = getDocument()->getAttrNameIndex("src");
-    lUInt16 recIndexId = getDocument()->getAttrNameIndex("recindex");
-    lString32 refName = getAttributeValue( getDocument()->getNsNameIndex("xlink"),
-        hrefId );
 
+    lString32 refName = getAttributeValue( ns_xlink, attr_href );
     if ( refName.empty() )
-        refName = getAttributeValue( getDocument()->getNsNameIndex("l"), hrefId );
+        refName = getAttributeValue( ns_l, attr_href );
     if ( refName.empty() )
-        refName = getAttributeValue( LXML_NS_ANY, hrefId ); //LXML_NS_NONE
+        refName = getAttributeValue( LXML_NS_ANY, attr_href ); //LXML_NS_NONE
     if ( refName.empty() )
-        refName = getAttributeValue( LXML_NS_ANY, srcId ); //LXML_NS_NONE
+        refName = getAttributeValue( LXML_NS_ANY, attr_src ); //LXML_NS_NONE
     if (refName.empty()) {
-        lString32 recindex = getAttributeValue( LXML_NS_ANY, recIndexId );
+        lString32 recindex = getAttributeValue( LXML_NS_ANY, attr_recindex );
         if (!recindex.empty()) {
             int n;
             if (recindex.atoi(n)) {
