@@ -1946,7 +1946,7 @@ enum cr_only_if_t {
     cr_only_if_fb2_document, // fb2 or fb3
 };
 
-bool LVCssDeclaration::parse( const char * &decl, lUInt32 domVersionRequested, bool higher_importance, lxmlDocBase * doc, lString32 codeBase )
+bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString32 codeBase )
 {
     if ( !decl )
         return false;
@@ -1979,7 +1979,7 @@ bool LVCssDeclaration::parse( const char * &decl, lUInt32 domVersionRequested, b
                 {
                     int dom_version;
                     if ( parse_integer( decl, dom_version ) ) {
-                        if ( domVersionRequested >= dom_version ) {
+                        if ( !doc || doc->getDOMVersionRequested() >= dom_version ) {
                             return false; // ignore the whole declaration
                         }
                     }
@@ -2114,7 +2114,7 @@ bool LVCssDeclaration::parse( const char * &decl, lUInt32 domVersionRequested, b
                 break;
             case cssd_display:
                 n = parse_name( decl, css_d_names, -1 );
-                if (domVersionRequested < 20180524 && n == css_d_list_item_block) {
+                if (n == css_d_list_item_block && doc && doc->getDOMVersionRequested() < 20180524) {
                     n = css_d_list_item_legacy; // legacy rendering of list-item
                 }
                 break;
@@ -4660,7 +4660,6 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 co
     LVCssSelector * prev_selector;
     int err_count = 0;
     int rule_count = 0;
-    lUInt32 domVersionRequested = _doc->getDOMVersionRequested();
     for (;*str;)
     {
         // new rule
@@ -4694,7 +4693,7 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 co
             }
             // parse declaration
             LVCssDeclRef decl( new LVCssDeclaration );
-            if ( !decl->parse( str, domVersionRequested, higher_importance, _doc, codeBase ) )
+            if ( !decl->parse( str, higher_importance, _doc, codeBase ) )
             {
                 err = true;
                 err_count++;
