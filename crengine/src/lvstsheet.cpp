@@ -498,6 +498,7 @@ bool parse_number_value( const char * & str, css_length_t & value,
                                     bool accept_auto,
                                     bool accept_none,
                                     bool accept_normal,
+                                    bool accept_unspecified,
                                     bool accept_contain_cover,
                                     bool is_font_size )
 {
@@ -656,11 +657,16 @@ bool parse_number_value( const char * & str, css_length_t & value,
         value.type = css_val_vmin;
     else if ( substr_icompare( "vmax", str ) )
         value.type = css_val_vmax;
+    else if ( css_is_alpha(*str) ) { // some other unit we don't support
+        str = orig_pos; // revert our possible str++
+        return false;
+    }
     else if (n == 0 && frac == 0)
         value.type = css_val_px;
-    // allow unspecified unit (for line-height)
-    // else
-    //    return false;
+    else if ( !accept_unspecified ) {
+        str = orig_pos; // revert our possible str++
+        return false;
+    }
 
     // The largest frac here is 999999, limited above, with a frac_div of
     // 1000000, and even scaling it by 256 it does not overflow a 32 bit
@@ -2540,12 +2546,16 @@ bool LVCssDeclaration::parse( const char * &decl, lUInt32 domVersionRequested, b
                     bool accept_normal = false;
                     if ( prop_code==cssd_line_height || prop_code==cssd_letter_spacing )
                         accept_normal = true;
+                    // only line-height accepts numbers with unspecified unit
+                    bool accept_unspecified = false;
+                    if ( prop_code==cssd_line_height )
+                        accept_unspecified = true;
                     // only font-size is... font-size
                     bool is_font_size = false;
                     if ( prop_code==cssd_font_size )
                         is_font_size = true;
                     css_length_t len;
-                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, false, is_font_size) ) {
+                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, is_font_size) ) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
@@ -2997,7 +3007,7 @@ bool LVCssDeclaration::parse( const char * &decl, lUInt32 domVersionRequested, b
                     css_length_t len[2];
                     int i;
                     for (i = 0; i < 2; i++) {
-                        if ( !parse_number_value( decl, len[i], true, false, true, false, false, true ) )
+                        if ( !parse_number_value( decl, len[i], true, false, true, false, false, false, true ) )
                             break;
                     }
                     if (i) {
