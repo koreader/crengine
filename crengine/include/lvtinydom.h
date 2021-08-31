@@ -2754,8 +2754,6 @@ protected:
     bool _libRuDocumentDetected;
     bool _libRuParagraphStart;
     bool _libRuParseAsPre;
-    lUInt16 _styleAttrId;
-    lUInt16 _classAttrId;
     lUInt16 * _rules[MAX_ELEMENT_TYPE_ID];
     bool _tagBodyCalled;
     // Some states used when gDOMVersionRequested >= 20200824

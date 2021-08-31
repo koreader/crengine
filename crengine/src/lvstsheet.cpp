@@ -3807,7 +3807,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                         }
                         lString32 dir = elem->getAttributeValue( attr_dir );
                         dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
-                        if ( dir.compare(_value) == 0 )
+                        if ( dir == _value )
                             return true;
                         // We could ignore invalide values, but for now, just stop looking.
                         return false;

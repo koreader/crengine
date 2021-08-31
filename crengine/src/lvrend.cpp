@@ -354,15 +354,14 @@ public:
 
                 int item_direction = elem_direction;
                 if ( item->hasAttribute( attr_dir ) ) {
-                    lString32 dir = item->getAttributeValue( attr_dir );
-                    dir = dir.lowercase();
-                    if ( dir.compare("rtl") == 0 ) {
+                    lString32 dir = item->getAttributeValueLC( attr_dir );
+                    if ( dir == U"rtl" ) {
                         item_direction = REND_DIRECTION_RTL;
                     }
-                    else if ( dir.compare("ltr") == 0 ) {
+                    else if ( dir == U"ltr" ) {
                         item_direction = REND_DIRECTION_LTR;
                     }
-                    else if ( dir.compare("auto") == 0 ) {
+                    else if ( dir == U"auto" ) {
                         item_direction = REND_DIRECTION_UNSET;
                     }
                 }
@@ -3722,8 +3721,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // When meeting them, we add the equivalent unicode opening and closing chars so
                 // that fribidi (working on text only) can ensure what's specified with HTML tags.
                 // See http://unicode.org/reports/tr9/#Markup_And_Formatting
-                lString32 dir = enode->getAttributeValue( attr_dir );
-                dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
+                lString32 dir = enode->getAttributeValueLC( attr_dir );
                 if ( nodeElementId == el_bdo ) {
                     // <bdo> (bidirectional override): prevents the bidirectional algorithm from
                     //       rearranging the sequence of characters it encloses
@@ -3735,14 +3733,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     //  dir=rtl  => FSI RLO
                     //  leaving  => PDF PDI
                     // but it then doesn't have the intended effect (fribidi bug or limitation?)
-                    if ( dir.compare("rtl") == 0 ) {
+                    if ( dir == "rtl" ) {
                         // txform->AddSourceLine( U"\x2068\x202E", 1, cl, bgcl, font, lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         // closeWithPDFPDI = true;
                         txform->AddSourceLine( U"\x202E", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         closeWithPDF = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
-                    else if ( dir.compare("ltr") == 0 ) {
+                    else if ( dir == "ltr" ) {
                         // txform->AddSourceLine( U"\x2068\x202D", 1, cl, bgcl, font, lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         // closeWithPDFPDI = true;
                         txform->AddSourceLine( U"\x202D", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
@@ -3757,17 +3755,17 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     //  dir=rtl  => RLI     U+2067  RIGHT-TO-LEFT ISOLATE
                     //  dir=auto => FSI     U+2068  FIRST STRONG ISOLATE
                     //  leaving  => PDI     U+2069  POP DIRECTIONAL ISOLATE
-                    if ( dir.compare("rtl") == 0 ) {
+                    if ( dir == "rtl" ) {
                         txform->AddSourceLine( U"\x2067", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
-                    else if ( dir.compare("ltr") == 0 ) {
+                    else if ( dir == "ltr" ) {
                         txform->AddSourceLine( U"\x2066", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
-                    else if ( nodeElementId == el_bdi || dir.compare("auto") == 0 ) {
+                    else if ( nodeElementId == el_bdi || dir == "auto" ) {
                         txform->AddSourceLine( U"\x2068", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
@@ -6816,15 +6814,14 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // See if dir= attribute or CSS specified direction
     int direction = flow->getDirection();
     if ( enode->hasAttribute( attr_dir ) ) {
-        lString32 dir = enode->getAttributeValue( attr_dir );
-        dir = dir.lowercase(); // (no need for trim(), it's done by the XMLParser)
-        if ( dir.compare("rtl") == 0 ) {
+        lString32 dir = enode->getAttributeValueLC( attr_dir );
+        if ( dir == "rtl" ) {
             direction = REND_DIRECTION_RTL;
         }
-        else if ( dir.compare("ltr") == 0 ) {
+        else if ( dir == "ltr" ) {
             direction = REND_DIRECTION_LTR;
         }
-        else if ( dir.compare("auto") == 0 ) {
+        else if ( dir == "auto" ) {
             direction = REND_DIRECTION_UNSET; // let fribidi detect direction
         }
     }
