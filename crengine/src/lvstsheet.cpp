@@ -380,6 +380,24 @@ static bool skip_spaces( const char * & str )
     return *str != 0;
 }
 
+static bool parse_ident( const char * &str, char * ident, size_t maxsize )
+{
+    // Note: skipping any space before or after should be ensured by caller if needed
+    *ident = 0;
+    if ( !css_is_alpha( *str ) )
+        return false;
+    int i;
+    int max_i = maxsize - 1;
+    for (i=0; css_is_alnum(str[i]); i++) {
+        if ( i < max_i )
+            ident[i] = str[i];
+        // Keep parsing/skipping even if not accumulated in ident
+    }
+    ident[i < max_i ? i : max_i] = 0;
+    str += i;
+    return true;
+}
+
 static css_decl_code parse_property_name( const char * & res )
 {
     const char * str = res;
@@ -3431,20 +3449,6 @@ lUInt32 LVCssDeclaration::getHash() {
     return hash;
 }
 
-static bool parse_ident( const char * &str, char * ident )
-{
-    // Note: skipping any space before or after should be ensured by caller if needed
-    *ident = 0;
-    if ( !css_is_alpha( *str ) )
-        return false;
-    int i;
-    for (i=0; css_is_alnum(str[i]); i++)
-        ident[i] = str[i];
-    ident[i] = 0;
-    str += i;
-    return true;
-}
-
 // We are storing specificity/weight in a lUInt32.
 // We also want to include in it the order in which we have
 // seen/parsed the selectors, so we store in the lower bits
@@ -4096,7 +4100,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     if (*str=='.') {
         // E.class
         str++;
-        if (!parse_ident( str, attrvalue ))
+        if (!parse_ident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         lString32 s( attrvalue );
@@ -4106,7 +4110,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str=='#' ) {
         // E#id
         str++;
-        if (!parse_ident( str, attrvalue ))
+        if (!parse_ident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
         lString32 s( attrvalue );
@@ -4162,7 +4166,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     str++;
     // We may find and skip spaces inside [...]
     skip_spaces( str );
-    if (!parse_ident( str, attrname ))
+    if (!parse_ident( str, attrname, 512 ))
         return NULL;
     skip_spaces( str );
     attrvalue[0] = 0;
@@ -4309,7 +4313,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             // ident
             char ident[64];
-            if (!parse_ident( str, ident ))
+            if (!parse_ident( str, ident, 64 ))
                 return false;
             // All element names have been lowercased by HTMLParser (except
             // a few ones that are added explicitely by crengine): we need
@@ -4750,7 +4754,7 @@ bool LVStyleSheet::parseCharsetRule( const char * &str )
     if ( *str == '@' ) {
         str++;
         char word[64];
-        if ( parse_ident( str, word ) ) {
+        if ( parse_ident( str, word, 64 ) ) {
             lString8 keyword(word);
             if (keyword == "charset") {
                 // skip required space(s)
