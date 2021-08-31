@@ -5,10 +5,6 @@
 #include "../include/chmfmt.h"
 #include <chm_lib.h>
 
-#include "../include/fb2def.h"
-#define XS_IMPLEMENT_SCHEME 1
-#include "../include/fb2def.h"
-
 #define DUMP_CHM_DOC 0
 
 struct crChmExternalFileStream : public chmExternalFileStream {
@@ -859,7 +855,7 @@ public:
     }
 };
 
-ldomDocument * LVParseCHMHTMLStream( LVStreamRef stream, lString32 defEncodingName )
+ldomDocument * LVParseCHMHTMLStream( LVStreamRef stream, lString32 defEncodingName, ldomDocument * parent_doc )
 {
     if ( stream.isNull() )
         return NULL;
@@ -903,9 +899,7 @@ ldomDocument * LVParseCHMHTMLStream( LVStreamRef stream, lString32 defEncodingNa
     ldomDocument * doc;
     doc = new ldomDocument();
     doc->setDocFlags( 0 );
-    doc->setNodeTypes(fb2_elem_table);
-    doc->setAttributeTypes(fb2_attr_table);
-    doc->setNameSpaceTypes(fb2_ns_table);
+    doc->setAllTypesFrom(parent_doc);
 
     ldomDocumentWriterFilter writerFilter(doc, false, HTML_AUTOCLOSE_TABLE);
     writerFilter.setFlags(writerFilter.getFlags() | TXTFLG_CONVERT_8BIT_ENTITY_ENCODING);
@@ -1104,7 +1098,7 @@ public:
                 CRLog::error("CHM: Cannot open .hhc");
                 return false;
             }
-            ldomDocument * doc = LVParseCHMHTMLStream( tocStream, defEncodingName );
+            ldomDocument * doc = LVParseCHMHTMLStream( tocStream, defEncodingName, _doc );
             if ( !doc ) {
                 CRLog::error("CHM: Cannot parse .hhc");
                 return false;
