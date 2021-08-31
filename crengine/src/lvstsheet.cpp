@@ -4346,6 +4346,20 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                 // selectors (eg: blah {font-style: italic}) may have different values
                 // returned by getElementNameIndex() across book loadings, and cause:
                 // "cached rendering is invalid (style hash mismatch): doing full rendering"
+            if ( _id == el_html ) {
+                int doc_format = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none);
+                if ( doc_format == doc_format_epub || doc_format == doc_format_chm ) {
+                    // When building DOM from EPUB or CHM files, the <html> element is skipped
+                    // and its <body> child is wrapped in a <DocFragment> element (so, taking
+                    // the place of the skipped <html>).
+                    // So, make a selector for "html" actually match "DocFragment".
+                    _id = el_DocFragment;
+                    // For embedded styles, this will help here with descendants selectors
+                    // like "html div {}". For CSS targetting the HTML element, we'll re-initNodeStyle()
+                    // the parent <DocFragment> when meeting the <body> (as at the time we meet
+                    // this document stylesheet, we've already past/entered the DocFragment.)
+                }
+            }
             _specificity += WEIGHT_SPECIFICITY_ELEMENT; // we have an element: update specificity
             if (*str==' ' || *str=='\t' || *str=='\n' || *str == '\r')
                 check_attribute_rules = false;

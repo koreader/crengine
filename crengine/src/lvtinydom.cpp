@@ -85,7 +85,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.62k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.63k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0028
 
@@ -5551,6 +5551,12 @@ void ldomElementWriter::onBodyEnter()
 
 void ldomNode::ensurePseudoElement( bool is_before ) {
 #if BUILD_LITE!=1
+    if ( getNodeId() == el_DocFragment || getNodeId() == el_html ) {
+        // These elements are top most and may get re-initNodeStyle() from
+        // their <body> sub-element: adding children may cause issues
+        // (and using pseudo elements on them feels hackish): ignore them.
+        return;
+    }
     // This node should have that pseudoElement, but it might already be there,
     // so check if there is already one, and if not, create it.
     // This happens usually in the initial loading phase, but it might in
@@ -7914,6 +7920,13 @@ void ldomDocumentWriter::OnTagBody()
         // We needed to add that /\ to the _document->_stylesheet before this
         // onBodyEnter \/, for any body {} css declaration to be available
         // as this onBodyEnter will apply the current _stylesheet to this BODY node.
+        // But before that, also re-init the style of the parent <HTML>, which may
+        // get styled by the stylesheets, and this <BODY> may inherit styles from it.
+        ldomNode * parentNode = _currNode->_element->getParentNode();
+        if ( parentNode->getNodeId() == el_html ) {
+            parentNode->initNodeStyle();
+        }
+        // Now, enter the body (which will get its styled applied)
         _currNode->onBodyEnter();
         _flags = _currNode->getFlags(); // _flags may have been updated (if white-space: pre)
         // And only after this we can add the <stylesheet> as a first child
@@ -7982,6 +7995,13 @@ ldomNode * ldomDocumentWriter::OnTagOpen( const lChar32 * nsname, const lChar32 
         _currNode->_stylesheetIsSet = _currNode->getElement()->applyNodeStylesheet();
         // _stylesheetIsSet will be used to pop() the stylesheet when
         // leaving/destroying this DocFragment ldomElementWriter
+        if (_currNode->_stylesheetIsSet) {
+            // If there's a stylesheet, re-init the styles of the parent DocFragment,
+            // which has taken  the place of the initial <HTML>: stylesheet for EPUBs
+            // have had CSS declarations targeting a <html> set to target <DocFragment>.
+            // The <BODY> we will be creating may inherit styles from the re-styled <HTML>.
+            _currNode->_element->initNodeStyle();
+        }
     }
 
     //if ( id==_stopTagId ) {
@@ -13626,6 +13646,8 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lCha
                 htmlDir = attrvalue;
             else if ( !lStr_cmp(attrname, "lang") )
                 htmlLang = attrvalue;
+            else if ( !lStr_cmp(attrname, "style") )
+                htmlStyle = attrvalue;
         }
         else if ( styleDetectionState ) {
             if ( !lStr_cmp(attrname, "rel") && lString32(attrvalue).lowercase() == U"stylesheet" )
@@ -13669,6 +13691,7 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
             insideHtmlTag = true;
             htmlDir.clear();
             htmlLang.clear();
+            htmlStyle.clear();
         }
     }
 
@@ -13708,6 +13731,8 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                 parent->OnAttribute(U"", U"dir", htmlDir.c_str() );
             if ( !htmlLang.empty() ) // add attribute <DocFragment lang="ar" from <html lang="ar"> tag
                 parent->OnAttribute(U"", U"lang", htmlLang.c_str() );
+            if ( !htmlStyle.empty() ) // add attribute <DocFragment style="..." from <html style="..."> tag
+                parent->OnAttribute(U"", U"style", htmlStyle.c_str() );
             if (this->m_nonlinear)
                 parent->OnAttribute(U"", U"NonLinear", U"" );
 
@@ -17679,6 +17704,16 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
     // as first child or a link to stylesheet file in attribute
     if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body ) {
         styleSheetChanged = node->applyNodeStylesheet();
+        if ( styleSheetChanged ) {
+            // For HTML files, if the parent of this <body> is a <html>,
+            // re-init its styles so this stylesheet can apply to it.
+            // (For EPUBs, the DocFragment, which has replaced the <html>
+            // element, will be initNodeStyle()'ed just below.)
+            ldomNode * parentNode = node->getParentNode();
+            if ( parentNode->getNodeId() == el_html ) {
+                parentNode->initNodeStyle();
+            }
+        }
         // We don't have access to much metric to show the progress of
         // this recursive phase. Do that anyway as we progress among
         // the collection of DocFragments.
