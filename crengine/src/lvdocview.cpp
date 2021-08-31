@@ -4870,6 +4870,11 @@ bool LVDocView::ParseDocument() {
 					m_doc_props->setString(DOC_PROP_TITLE, s);
 				}
 			}
+			// HTML documents may have gotten a TOC built from ldomElementWriter internal
+			// support for FictionBook (FB2) structure (nested <section><title>), which
+			// would have gather not much info from HTML. So build a new TOC from classic
+			// HTML headings.
+			m_doc->buildTocFromHeadings();
 		}
 
 		//        lString32 docstyle = m_doc->createXPointer(U"/FictionBook/stylesheet").getText();
