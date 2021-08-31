@@ -4697,6 +4697,7 @@ void LVDocView::insertBookmarkPercentInfo(int start_page, int end_y, int percent
 bool LVDocView::ParseDocument() {
 
 	createEmptyDocument();
+	setRenderProps(0, 0); // to allow apply styles and rend method while loading
 
 	if (m_stream->GetSize() > DOCUMENT_CACHING_MIN_SIZE) {
 		// try loading from cache
@@ -4715,7 +4716,6 @@ bool LVDocView::ParseDocument() {
 		//m_doc->getStyleSheet()->clear();
 		//m_doc->getStyleSheet()->parse(m_stylesheet.c_str());
 
-		setRenderProps(0, 0); // to allow apply styles and rend method while loading
         if (m_doc->openFromCache(this, m_callback)) {
 			CRLog::info("Document is found in cache, will reuse");
 
