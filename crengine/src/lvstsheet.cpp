@@ -22,6 +22,12 @@
 // define to dump all tokens
 //#define DUMP_CSS_PARSING
 
+// Helper to debug string parsing, showing current position and context
+static void dbg_str_pos(const char * prefix, const char * str) {
+    printf("/----------|---------- %s\n", prefix);
+    printf("\\%.*s\n", 20, str - 10);
+}
+
 #define IMPORTANT_DECL_HIGHER   ((lUInt32)0x80000000U) // | to prop_code
 #define IMPORTANT_DECL_SET      ((lUInt32)0x40000000U) // | to prop_code
 #define IMPORTANT_DECL_REMOVE   ((lUInt32)0x3FFFFFFFU) // & to prop_code
@@ -448,34 +454,81 @@ static lUInt32 parse_important( const char *str ) // does not advance the origin
     return 0;
 }
 
-static bool next_property( const char * & str )
+static inline bool skip_to_next( const char * & str, char stop_char_to_skip, char stop_char_no_skip, char token_sep_char=0 )
 {
-    // todo:
     // https://www.w3.org/TR/CSS2/syndata.html#parsing-errors
-    // User agents must handle unexpected tokens encountered while
-    // parsing a declaration by reading until the end of the
-    // declaration, while observing the rules for matching pairs
-    // of (), [], {}, "", and '', and correctly handling escapes.
-    while (*str && *str !=';' && *str!='}')
+    //  "User agents must handle unexpected tokens encountered while
+    //  parsing a declaration by reading until the end of the
+    //  declaration, while observing the rules for matching pairs
+    //  of (), [], {}, "", and '', and correctly handling escapes."
+    // We handle quotes, and one pair of parens (which should allow
+    // nested balanced pairs of different types of parens).
+    char quote_ch = 0;
+    char closing_paren_ch = 0;
+    while (*str) {
+        if ( *str == '\\' ) {
+            str++; // skip '\', so the escaped char will be skipped instead
+        }
+        else if ( quote_ch ) {
+            if ( *str == quote_ch ) {
+                quote_ch = 0;
+            }
+            // skip closing quote, or anything not this quote when inside quote
+        }
+        else if ( closing_paren_ch ) {
+            if ( *str == closing_paren_ch ) {
+                closing_paren_ch = 0;
+            }
+            // skip closing paren, or anything not this closing paren when
+            // inside parens and not inside quotes (handled above)
+        }
+        else if ( *str == stop_char_to_skip ) {
+            // i.e. ';' after "property:value;" if not inside quotes/parens nor escaped
+            str++; // skip it
+            break;
+        }
+        else if ( *str == stop_char_no_skip ) {
+            // i.e. '}' or ')', skipping handled by callers
+            break;
+        }
+        else if ( *str == token_sep_char ) {
+            // token_sep_char provided and met
+            if ( skip_spaces( str ) ) {
+                if ( *str != stop_char_to_skip && *str != stop_char_no_skip ) {
+                    // Something else before any stop char (before next property or end of declaration)
+                    return true;
+                }
+            }
+            return false; // no next token
+        }
+        // These could be used as stop_chars, so check only after we have checked stop_chars
+        else if ( *str == '\'' || *str=='\"' ) {
+            // Quote met while not yet inside quotes
+            quote_ch = *str;
+        }
+        else if ( *str == '(' ) {
+            closing_paren_ch = ')';
+        }
+        else if ( *str == '[' ) {
+            closing_paren_ch = ']';
+        }
+        else if ( *str == '{' ) {
+            closing_paren_ch = '}';
+        }
         str++;
-    if (*str == ';')
-        str++;
+    }
     return skip_spaces( str );
 }
 
-static bool next_token( const char * & str )
+// Give more explicite names to classic usages of skip_to_next()
+static inline bool next_property( const char * & str )
 {
-    // todo: as for next_property()
-    while (*str && *str !=';' && *str!='}' && *str!=' ')
-        str++;
-    if (*str == ' ') {
-        if ( skip_spaces( str ) ) {
-            if (*str && *str !=';' && *str!='}')
-                // Something else before next property or end of declaration
-                return true;
-        }
-    }
-    return false;
+    return skip_to_next( str, ';', '}' );
+}
+
+static inline bool next_token( const char * & str, char stop_char='}')
+{
+    return skip_to_next( str, ';', stop_char, ' ' );
 }
 
 static bool parse_integer( const char * & str, int & value)
