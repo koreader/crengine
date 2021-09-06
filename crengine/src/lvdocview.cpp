@@ -3766,6 +3766,7 @@ void LVDocView::Resize(int dx, int dy) {
 	clearImageCache();
 	//m_drawbuf.Resize(dx, dy);
 	if (m_doc) {
+		m_doc->setScreenSize(m_dx, m_dy); // only used for CSS @media queries
 		//ldomXPointer bm = getBookmark();
 		if (dx != m_dx || dy != m_dy || m_view_mode != DVM_SCROLL
 				|| !m_is_rendered) {
@@ -4641,6 +4642,7 @@ void LVDocView::createEmptyDocument() {
         m_doc->setInterlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE);
     else
         m_doc->setInterlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE * m_def_interline_space / 100);
+    m_doc->setScreenSize(m_dx, m_dy); // only used for CSS @media queries
 
     m_doc->setContainer(m_container);
     // This sets the element names default style (display, whitespace)
