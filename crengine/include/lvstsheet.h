@@ -79,12 +79,17 @@ struct ldomNode;
 class LVCssDeclaration {
 private:
     int * _data;
+    bool _check_if_supported;
 public:
     void apply( css_style_rec_t * style );
     bool empty() { return _data==NULL; }
     bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL, lString32 codeBase=lString32::empty_str );
+    bool parseAndCheckIfSupported( const char * & decl, lxmlDocBase * doc=NULL ) {
+        _check_if_supported = true; // will tweak parse() behaviour and meaning of return value
+        return parse(decl, false, doc);
+    }
     lUInt32 getHash();
-    LVCssDeclaration() : _data(NULL) { }
+    LVCssDeclaration() : _data(NULL), _check_if_supported(false) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
 };
 
@@ -205,10 +210,10 @@ public:
 */
 class LVStyleSheet {
     lxmlDocBase * _doc;
+    bool _nested;
 
     int _selector_count;
     LVArray <int> _selector_count_stack;
-    lString8 _charset;
 
     LVPtrVector <LVCssSelector> _selectors;
     LVPtrVector <LVPtrVector <LVCssSelector> > _stack;
@@ -227,8 +232,8 @@ class LVStyleSheet {
     }
 
     void set(LVPtrVector<LVCssSelector> & v );
-public:
 
+public:
 
     // save current state of stylesheet
     void push()
@@ -263,13 +268,16 @@ public:
     /// set document to retrieve ID values from
     void setDocument( lxmlDocBase * doc ) { _doc = doc; }
     /// constructor
-    LVStyleSheet( lxmlDocBase * doc = NULL ) : _doc(doc), _selector_count(0) { }
+    LVStyleSheet( lxmlDocBase * doc=NULL, bool nested=false ) : _doc(doc) , _nested(nested) , _selector_count(0) { }
     /// copy constructor
     LVStyleSheet( LVStyleSheet & sheet );
     /// parse stylesheet, compile and add found rules to sheet
-    bool parse( const char * str, bool higher_importance=false, lString32 codeBase=lString32::empty_str );
-    /// parse @charset rule
-    bool parseCharsetRule( const char * &str );
+    bool parseAndAdvance( const char * &str, bool higher_importance=false, lString32 codeBase=lString32::empty_str );
+    bool parse( const char * str, bool higher_importance=false, lString32 codeBase=lString32::empty_str ) {
+        // (Need this wrapper for 'const char * &str' to work with string litteral/LCSTR()/c_str())
+        const char * s = str;
+        return parseAndAdvance(s, higher_importance, codeBase);
+    }
     /// apply stylesheet to node style
     void apply( const ldomNode * node, css_style_rec_t * style );
     /// calculate hash

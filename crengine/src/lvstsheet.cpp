@@ -1193,7 +1193,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
 }
 
 // Parse a CSS "content:" property into an intermediate format single string.
-bool parse_content_property( const char * & str, lString32 & parsed_content)
+bool parse_content_property( const char * & str, lString32 & parsed_content, bool & has_unsupported, char stop_char='}')
 {
     // https://developer.mozilla.org/en-US/docs/Web/CSS/content
     // The property may have multiple tokens:
@@ -1228,7 +1228,7 @@ bool parse_content_property( const char * & str, lString32 & parsed_content)
     // values make the whole thing 'none'.
     bool has_none = false;
     bool needs_processing_when_applying = false;
-    while ( skip_spaces( str ) && *str!=';' && *str!='}' && *str!='!' ) {
+    while ( skip_spaces( str ) && *str!=';' && *str!=stop_char && *str!='!' ) {
         if ( substr_icompare("none", str) ) {
             has_none = true;
             continue; // continue parsing
@@ -1281,6 +1281,7 @@ bool parse_content_property( const char * & str, lString32 & parsed_content)
         }
         else if ( substr_icompare("url", str) ) {
             // Unsupported for now, but parse it
+            has_unsupported = true;
             if ( *str == '(' ) {
                 str++;
                 skip_spaces( str );
@@ -1369,8 +1370,9 @@ bool parse_content_property( const char * & str, lString32 & parsed_content)
         }
         else {
             // Not supported
+            has_unsupported = true;
             parsed_content << U'z';
-            next_token(str);
+            next_token(str, stop_char);
         }
     }
     if ( has_none ) {
@@ -1588,6 +1590,757 @@ static void resolve_url_path( lString8 & str, lString32 codeBase ) {
     // printf("url: [%s]+%s => %s\n", UnicodeToLocal(codeBase).c_str(), str.c_str(), UnicodeToUtf8(path).c_str());
     str = UnicodeToUtf8(path);
 }
+
+enum css_atrule_keyword {
+    css_atkw_and,
+    css_atkw_or,
+    css_atkw_not,
+    css_atkw_unknown
+};
+static const char * css_atrule_keyword_name[] = {
+    "and",
+    "or",
+    "not",
+    NULL
+};
+
+// Base class for AtSupportsLogicalConditionParser and AtMediaLogicalConditionParser
+class AtRuleLogicalConditionParser {
+protected:
+    // Nested levels' current result and operand (and, or)
+    LVArray<bool> result;
+    LVArray<bool> negated;
+    LVArray<int> operand;
+    int level;
+    bool malformed;
+    lxmlDocBase * doc;
+    lChar32 stop_char;
+    lChar32 stop_char2;
+    AtRuleLogicalConditionParser(lxmlDocBase * d, char stopchar='{', char stopchar2=0)
+    : doc(d), stop_char(stopchar), stop_char2(stopchar2) {
+        malformed = false;
+        level = -1;
+        enterLevel(); // first level
+    }
+    ~AtRuleLogicalConditionParser() {}
+    void setResult(bool res) {
+        result[level] = res;
+    }
+    void enterLevel() {
+        level++;
+        result.add(true); // True if nothing
+        negated.add(false);
+        operand.add(css_atkw_unknown); // not known until after first element
+    }
+    void leaveLevel() {
+        bool res = result.remove(level);
+        bool neg = negated.remove(level);
+        if (neg)
+            res = !res;
+        level--;
+        if (level >= 0) {
+            // Still an active level: update it with result of sublevel
+            int op = operand[level];
+            if ( op == css_atkw_unknown ) {
+                // No operand = first element = use its result
+                result[level] = res;
+            }
+            else if ( op == css_atkw_and ) {
+                if (!res)
+                    result[level] = false;
+            }
+            else if ( op == css_atkw_or ) {
+                if (res)
+                    result[level] = true;
+            }
+        }
+    }
+    virtual void parseCondition(const char * &str) {
+        // Dummy implementation to be overidden by subclasses
+        setResult( true );
+        while ( *str && *str != ')' && *str != stop_char )
+            str++;
+    }
+public:
+    bool getResult() {
+        if ( level != 0 ) // invalid if we didn't get back to 0
+            return false;
+        if ( malformed )
+            return false;
+        bool res = result.remove(0);
+        bool neg = negated.remove(0);
+        if (neg)
+            res = !res;
+        return res;
+    }
+    void parse(const char * &str) {
+        // This is a generic parser which should work with @supports and @media.
+        // We don't check the full grammar validity (we'll wrongly accept "and and not and"),
+        // but we should handle properly grammatically correct expressions.
+        while (true) {
+            skip_spaces(str);
+            if ( !*str || *str == stop_char || *str == stop_char2 )
+                break;
+            if ( *str == '(' ) {
+                enterLevel();
+                str++;
+                continue;
+            }
+            if ( *str == ')' ) {
+                leaveLevel();
+                str++;
+                continue;
+            }
+            int name = parse_name( str, css_atrule_keyword_name, css_atkw_unknown);
+            if ( name == css_atkw_not ) {
+                negated[level] = true;
+                continue;
+            }
+            else if ( name == css_atkw_and ) {
+                if ( operand[level] == css_atkw_unknown )
+                    operand[level] = css_atkw_and;
+                else if ( operand[level] != css_atkw_and )
+                    malformed = true;
+                continue;
+            }
+            else if ( name == css_atkw_or ) {
+                if ( operand[level] == css_atkw_unknown )
+                    operand[level] = css_atkw_or;
+                else if ( operand[level] != css_atkw_or )
+                    malformed = true;
+                continue;
+            }
+            else if ( name != css_atkw_unknown ) {
+                // Skip unhandled known keyword
+                continue;
+            }
+            // Uknown keyword: must be what we need to validate
+            parseCondition(str);
+        }
+    }
+};
+
+// https://drafts.csswg.org/css-conditional/#at-supports
+class AtSupportsLogicalConditionParser : public AtRuleLogicalConditionParser {
+public:
+    AtSupportsLogicalConditionParser(lxmlDocBase * d)
+        : AtRuleLogicalConditionParser(d, '{', 0) {}
+protected:
+    virtual void parseCondition(const char * &str) {
+        // Use our regular declaration parser to see if supported
+        LVCssDeclaration tmp_decl;
+        setResult( tmp_decl.parseAndCheckIfSupported( str, doc ) );
+    }
+};
+
+static bool check_at_supports_condition( const char * &str, lxmlDocBase * doc )
+{
+    AtSupportsLogicalConditionParser parser(doc);
+    parser.parse(str);
+    return parser.getResult();
+}
+
+// https://developer.mozilla.org/en-US/docs/Web/CSS/Media_Queries/Using_media_queries
+// https://www.w3.org/TR/css3-mediaqueries/#media0
+enum css_atmedia_code {
+    css_atmedia_width,
+    css_atmedia_min_width,
+    css_atmedia_max_width,
+    css_atmedia_height,
+    css_atmedia_min_height,
+    css_atmedia_max_height,
+    css_atmedia_aspect_ratio,
+    css_atmedia_min_aspect_ratio,
+    css_atmedia_max_aspect_ratio,
+    css_atmedia_orientation,
+    css_atmedia_device_width,
+    css_atmedia_min_device_width,
+    css_atmedia_max_device_width,
+    css_atmedia_device_height,
+    css_atmedia_min_device_height,
+    css_atmedia_max_device_height,
+    css_atmedia_device_aspect_ratio,
+    css_atmedia_min_device_aspect_ratio,
+    css_atmedia_max_device_aspect_ratio,
+    css_atmedia_resolution,
+    css_atmedia_min_resolution,
+    css_atmedia_max_resolution,
+    css_atmedia_color,
+    css_atmedia_min_color,
+    css_atmedia_max_color,
+    css_atmedia_monochrome,
+    css_atmedia_grid,
+    css_atmedia_scripting,
+    css_atmedia_update,
+    css_atmedia_overflow_inline,
+    css_atmedia_overflow_block,
+    css_atmedia_unknown
+};
+
+static const char * css_atmedia_name[] = {
+    // These are related to the size of the page (in CSS pixels, which may
+    // not be screen pixels), excluding crengine margins. They will change
+    // a lot when switching between single and 2-pages mode).
+    "width",
+    "min-width",
+    "max-width",
+    "height",
+    "min-height",
+    "max-height",
+    "aspect-ratio",
+    "min-aspect-ratio",
+    "max-aspect-ratio",
+    "orientation",
+
+    // These are related to the size of the screen (in CSS pixels, which may
+    // not be screen pixels)
+    "device-width",
+    "min-device-width",
+    "max-device-width",
+    "device-height",
+    "min-device-height",
+    "max-device-height",
+    "device-aspect-ratio",
+    "min-device-aspect-ratio",
+    "max-device-aspect-ratio",
+
+    // These are to be compared to gRenderDPI
+    "resolution",
+    "min-resolution",
+    "max-resolution",
+
+    "color",            // We don't know the buffer type when loading a document,
+    "min-color",        // so we can't be accurate: we'll pretend for now we have 16M colors
+    "max-color",
+    "monochrome",       // For now, we'll say we're not monochrome, even on eInk
+    "grid",             // false, we're not a tty terminal with a fixed font
+    "scripting",        // "none", we don't support scripting
+    "update",           // "none", "Once it has been rendered, the layout can no longer be updated"
+    "overflow-inline",  // "none", no horizontal scrolling
+    "overflow-block",   // "paged", which is our main purpose (even if we have a scroll mode)
+
+    // Not implemented:
+    // "color-index",
+    // "min-color-index",
+    // "max-color-index",
+    NULL
+};
+
+class AtMediaLogicalConditionParser : public AtRuleLogicalConditionParser {
+public:
+    AtMediaLogicalConditionParser(lxmlDocBase * d, char stop_char='{')
+        : AtRuleLogicalConditionParser(d, stop_char, ',') {}
+            // stop on a ',', which is another independant media condition (to be OR'ed)
+protected:
+    virtual void parseCondition(const char * &str) {
+        setResult( false ); // until proven guilty of truth
+        skip_spaces( str );
+        int name = parse_name(str, css_atmedia_name, css_atmedia_unknown);
+        if ( name == css_atmedia_unknown ) {
+            // Property unknown
+            skip_to_next( str, 0, ')' );
+            return;
+        }
+        skip_spaces( str );
+        bool use_default_value = false;
+        if ( *str == ':' ) { // some value follows
+            str++; // skip it
+            skip_spaces( str );
+        }
+        else if ( *str == ')' ) {
+            // For some media features, a value is optional
+            switch ( name ) {
+                case css_atmedia_width:
+                case css_atmedia_height:
+                case css_atmedia_device_width:
+                case css_atmedia_device_height:
+                case css_atmedia_resolution:
+                case css_atmedia_color:
+                case css_atmedia_monochrome:
+                case css_atmedia_grid:
+                    use_default_value = true;
+                    break;
+                default: // invalid
+                    return;
+            }
+        }
+        else { // unexpected
+            skip_to_next( str, 0, ')' );
+            return;
+        }
+        // Property known, parse value and check
+        switch ( name ) {
+            case css_atmedia_width:
+            case css_atmedia_min_width:
+            case css_atmedia_max_width:
+            case css_atmedia_height:
+            case css_atmedia_min_height:
+            case css_atmedia_max_height:
+            case css_atmedia_device_width:
+            case css_atmedia_min_device_width:
+            case css_atmedia_max_device_width:
+            case css_atmedia_device_height:
+            case css_atmedia_min_device_height:
+            case css_atmedia_max_device_height:
+                {
+                    if ( ! doc )
+                        break; // No doc provided: not able to check
+                    if ( use_default_value ) {
+                        setResult( true ); // these are always > 0
+                        break;
+                    }
+                    css_length_t val;
+                    if ( parse_number_value(str, val, false) ) {
+                        int size = lengthToPx(doc->getRootNode(), val, 0);
+                        // This CSS length has been scaled according to gRenderDPI from CSS pixels to screen pixels,
+                        // so we can compare it with the viewport or screen width/height which are in screen pixels
+                        if ( name <= css_atmedia_max_width ) {
+                            int viewport_width = ((ldomDocument*)doc)->getPageWidth();
+                            if ( name == css_atmedia_width && viewport_width == size )
+                                setResult( true );
+                            if ( name == css_atmedia_min_width && viewport_width >= size )
+                                setResult( true );
+                            if ( name == css_atmedia_max_width && viewport_width <= size )
+                                setResult( true );
+                        }
+                        else if ( name <= css_atmedia_max_height ) {
+                            int viewport_height = ((ldomDocument*)doc)->getPageHeight();
+                            if ( name == css_atmedia_height && viewport_height == size )
+                                setResult( true );
+                            if ( name == css_atmedia_min_height && viewport_height >= size )
+                                setResult( true );
+                            if ( name == css_atmedia_max_height && viewport_height <= size )
+                                setResult( true );
+                        }
+                        else if ( name <= css_atmedia_max_device_width ) {
+                            int screen_width = ((ldomDocument*)doc)->getScreenWidth();
+                            if ( name == css_atmedia_device_width && screen_width == size )
+                                setResult( true );
+                            if ( name == css_atmedia_min_device_width && screen_width >= size )
+                                setResult( true );
+                            if ( name == css_atmedia_max_device_width && screen_width <= size )
+                                setResult( true );
+                        }
+                        else {
+                            int screen_height = ((ldomDocument*)doc)->getScreenHeight();
+                            if ( name == css_atmedia_device_height && screen_height == size )
+                                setResult( true );
+                            if ( name == css_atmedia_min_device_height && screen_height >= size )
+                                setResult( true );
+                            if ( name == css_atmedia_max_device_height && screen_height <= size )
+                                setResult( true );
+                        }
+                    }
+                }
+                break;
+            case css_atmedia_aspect_ratio:
+            case css_atmedia_min_aspect_ratio:
+            case css_atmedia_max_aspect_ratio:
+            case css_atmedia_device_aspect_ratio:
+            case css_atmedia_min_device_aspect_ratio:
+            case css_atmedia_max_device_aspect_ratio:
+                {
+                    if ( ! doc )
+                        break; // No doc provided: not able to check
+                    // The value may be a fraction like "4/3"
+                    int num;
+                    int den = 1;
+                    if ( parse_integer(str, num) && num > 0 ) {
+                        skip_spaces(str);
+                        if ( *str == '/' ) {
+                            str++;
+                            skip_spaces(str);
+                            if ( parse_integer(str, den) ) {
+                                if ( den <= 0 )
+                                    den = 1;
+                            }
+                        }
+                        int ratio = 1000 * num / den;
+                        if ( name <= css_atmedia_max_aspect_ratio ) {
+                            int viewport_ratio = 1000 * ((ldomDocument*)doc)->getPageWidth() / ((ldomDocument*)doc)->getPageHeight();
+                            if ( name == css_atmedia_aspect_ratio && viewport_ratio == ratio )
+                                setResult( true );
+                            if ( name == css_atmedia_min_aspect_ratio && viewport_ratio >= ratio )
+                                setResult( true );
+                            if ( name == css_atmedia_max_aspect_ratio && viewport_ratio <= ratio )
+                                setResult( true );
+                        }
+                        else {
+                            int screen_ratio = 1000 * ((ldomDocument*)doc)->getScreenWidth() / ((ldomDocument*)doc)->getScreenHeight();
+                            if ( name == css_atmedia_device_aspect_ratio && screen_ratio == ratio )
+                                setResult( true );
+                            if ( name == css_atmedia_min_device_aspect_ratio && screen_ratio >= ratio )
+                                setResult( true );
+                            if ( name == css_atmedia_max_device_aspect_ratio && screen_ratio <= ratio )
+                                setResult( true );
+                        }
+                    }
+                }
+                break;
+            case css_atmedia_orientation:
+                {
+                    if ( ! doc )
+                        break; // No doc provided: not able to check
+                    char ident[16];
+                    if ( parse_ident(str, ident, 16) ) {
+                        bool is_portrait = ((ldomDocument*)doc)->getPageHeight() >= ((ldomDocument*)doc)->getPageWidth();
+                        lString8 orientation(ident);
+                        orientation.lowercase();
+                        if ( orientation == "portrait" && is_portrait )
+                            setResult( true );
+                        else if ( orientation == "landscape" && !is_portrait )
+                            setResult( true );
+                    }
+                }
+                break;
+            case css_atmedia_resolution:
+            case css_atmedia_min_resolution:
+            case css_atmedia_max_resolution:
+                {
+                    if ( ! doc )
+                        break; // No doc provided: not able to check
+                    if ( use_default_value ) {
+                        setResult( true ); // resolution is always > 0
+                        break;
+                    }
+                    int num;
+                    if ( parse_integer(str, num) ) {
+                        int dpi = -1;
+                        if ( substr_icompare( "dpi", str ) ) {
+                            dpi = num;
+                        }
+                        else if ( substr_icompare( "dpcm", str ) ) {
+                            dpi = num * 2.54;
+                        }
+                        if ( dpi >= 0 ) {
+                            if ( name == css_atmedia_resolution && gRenderDPI == dpi )
+                                setResult( true );
+                            if ( name == css_atmedia_min_resolution && gRenderDPI >= dpi )
+                                setResult( true );
+                            if ( name == css_atmedia_max_resolution && gRenderDPI <= dpi )
+                                setResult( true );
+                        }
+                    }
+                }
+                break;
+            case css_atmedia_color:
+            case css_atmedia_min_color:
+            case css_atmedia_max_color:
+            case css_atmedia_monochrome:
+                {
+                    // For now, pretend we have 8 bits per color (24/32 bpp)
+                    int colors = 8;
+                    int value;
+                    if ( use_default_value ) { // "other than zero" per specs
+                        if ( name == css_atmedia_color )
+                            setResult( true );
+                        else if ( name == css_atmedia_monochrome )
+                            setResult( false );
+                    }
+                    else if ( parse_integer(str, value) ) {
+                        if ( name == css_atmedia_color && colors == value )
+                            setResult( true );
+                        if ( name == css_atmedia_min_color && colors >= value )
+                            setResult( true );
+                        if ( name == css_atmedia_max_color && colors <= value )
+                            setResult( true );
+                        if ( name == css_atmedia_monochrome )
+                            setResult( false );
+                    }
+                }
+                break;
+            case css_atmedia_grid:
+                {
+                    int value;
+                    if ( use_default_value ) // "other than zero" per specs
+                        setResult( false );
+                    else if ( parse_integer(str, value) && value == 0 )
+                        setResult( true );
+                }
+                break;
+            case css_atmedia_scripting:
+            case css_atmedia_update:
+            case css_atmedia_overflow_inline:
+                {
+                    char ident[8];
+                    if ( parse_ident(str, ident, 8) && lString8(ident).lowercase() == "none" )
+                        setResult( true );
+                }
+                break;
+            case css_atmedia_overflow_block:
+                {
+                    char ident[8];
+                    if ( parse_ident(str, ident, 8) && lString8(ident).lowercase() == "paged" )
+                        setResult( true );
+                }
+                break;
+            default:
+                break;
+        }
+        skip_to_next( str, 0, ')' );
+    }
+};
+
+static bool check_at_media_condition( const char * &str, lxmlDocBase * doc, char stop_char='{' )
+{
+    bool final_res = false;
+    // Multiple conditions can be separated by ',' (which means 'or')
+    while (true) {
+        skip_spaces(str);
+        bool res = true; // if no media type condition
+        bool negated = false;
+        // First, parse the initial media "type"
+        char ident[8];
+        while ( parse_ident( str, ident, 8 ) ) { // parse keywords
+            lString8 keyword(ident);
+            keyword.lowercase();
+            if ( keyword == "not" ) {
+                negated = true;
+            }
+            else if ( keyword == "only" || keyword == "and" ) {
+                // No meaning, or (condition) follows
+            }
+            else if ( keyword == "all" || keyword == "screen" ) {
+                // Supported media type: "screen" only
+                // "print" is "intended for paged material and documents viewed on a screen
+                // in print preview mode" which could be nice in our eReader context, but
+                // some may conflict/override what is set in "screen"
+            }
+            else {
+                res = false; // unsupported media type
+            }
+            skip_spaces(str);
+        }
+        // Then, parse any condition(s) that follows
+        if ( res && *str == '(' ) {
+            AtMediaLogicalConditionParser parser(doc, stop_char);
+            parser.parse(str);
+            res = parser.getResult();
+        }
+        if ( negated )
+            res = !res;
+        if ( !final_res && res ) // multiple conditions are OR'ed
+            final_res = true;
+        if ( *str == ',' ) { // there is a next OR'ed condition
+            str++;
+            continue;
+        }
+        break;
+    }
+    return final_res;
+}
+
+enum css_atrule_code {
+    css_at_charset,
+    css_at_import,
+    css_at_namespace,
+    css_at_custom_selector,
+    css_at_custom_media,
+    css_at_media,
+    css_at_supports,
+    css_at_scope,
+    css_at_document,
+    css_at_keyframes,
+    css_at_font_face,
+    css_at_page,
+    css_at_bottom_center,
+    css_at_bottom_left,
+    css_at_bottom_left_corner,
+    css_at_bottom_right,
+    css_at_bottom_right_corner,
+    css_at_left_bottom,
+    css_at_left_center,
+    css_at_left_middle,
+    css_at_left_top,
+    css_at_right_bottom,
+    css_at_right_bottom_corner,
+    css_at_right_middle,
+    css_at_right_top,
+    css_at_top_center,
+    css_at_top_left,
+    css_at_top_left_corner,
+    css_at_top_right,
+    css_at_top_right_corner,
+    css_at_font_feature_values,
+    css_at_annotation,
+    css_at_character_variant,
+    css_at_ornaments,
+    css_at_styleset,
+    css_at_stylistic,
+    css_at_swash,
+    css_at_color_profile,
+    css_at_counter_style,
+    css_at_property,
+    css_at_viewport,
+    css_at_unknown
+};
+
+static const char * css_atrule_name[] = {
+    // Supported ones are marked with '// +', unsupported ones with '// -'
+    // These ones are followed by some text up to ';'. No followup CSS block
+    "charset",   // - we expect UTF-8
+    "import",    // - (@import at start of stylesheet are handled elsewhere, @import after start is invalid and should be ignored)
+    "namespace", // - we don't handle prefixes and namespaces, all elements and CSS selectors are/target a single global namespace
+    "custom-selector", // - not supported
+    "custom-media",    // - not supported
+
+    // These ones are followed by some prelude and then a CSS block which is a full stylesheet
+    "media",     // + media query
+    "supports",  // + query for CSS property name:value support
+    "scope",     // - Scoping (followup stylesheet applies only in a scope): not supported
+    "document",  // - (deprecated) match url or filename
+    "keyframes", // - CSS animations (not really a stylesheet, but looks like one with 'from' and 'to' selectors)
+
+    // These ones may or may not have a prelude, and then a CSS block which is only a declaration (and
+    // not a full stylesheet as a list of selectors+declarations) which may contain other at-rules
+    // All of these are unsupported
+    "font-face", // - already quickly parsed in epubfmt.cpp, ignored at this point
+    "page",      // - CSS properties used for printing (usually to set larger margins)
+        "bottom-center",      // - sub-at-rules allowed inside @page { }
+        "bottom-left",        //   The list of names differ among specifications,
+        "bottom-left-corner", //   and some are redundant, but let's have them all.
+        "bottom-right",
+        "bottom-right-corner",
+        "left-bottom",
+        "left-center",
+        "left-middle",
+        "left-top",
+        "right-bottom",
+        "right-bottom-corner",
+        "right-middle",
+        "right-top",
+        "top-center",
+        "top-left",
+        "top-left-corner",
+        "top-right",
+        "top-right-corner",
+    "font-feature-values", // - used to set nickname for font-variant-alternates
+        "annotation",      // - sub-at-rules allowed inside @font-feature-values { }
+        "character-variant",
+        "ornaments",
+        "styleset",
+        "stylistic",
+        "swash",
+    "color-profile", // - for CSS color() function
+    "counter-style", // - custom styling of UL list items
+    "property",      // - CSS custom properties definitions
+    "viewport",      // - (deprecated) specifies viewport to use
+    NULL
+};
+
+// Uncomment for debugging @rules processing
+// #define DEBUG_AT_RULES_PROCESSING
+
+/// Parse (or skip) @keyword rule
+static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc )
+{
+    // https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule
+    // We only handle a few of them, and we may not parse according to the full complex
+    // rules, but we hope the CSS we meet is not too twisted and hope for the best...
+    if (!str || *str != '@')
+        return false;
+    #ifdef DEBUG_AT_RULES_PROCESSING
+        const char * start = str;
+    #endif
+    str++; // skip '@'
+    int name = parse_name( str, css_atrule_name, css_at_unknown);
+    skip_spaces(str);
+
+    // At-rules can have different followup content and kind of CSS blocks
+    // See https://github.com/tabatkins/parse-css for a list
+    bool skip_to_next_semi_colon = false;
+    bool has_nested_stylesheet = false;
+    bool has_nested_declaration = false;
+    if ( name == css_at_import ) {
+        // We could check the condition, and read and include the file here,
+        // but @import, per specs, is only valid at start of CSS content, which
+        // is handled (with media conditions checked) by LVProcessStyleSheetImport()
+        // and its callers. So, just skip any one met out of the allowed context.
+        skip_to_next_semi_colon = true;
+    }
+    else if ( name <= css_at_custom_media ) { // @charset, @namespace, @custom-selector, @custom-media
+        skip_to_next_semi_colon = true;
+    }
+    else if ( name <= css_at_keyframes ) { // @media, @supports, @scope, @document, @keyframes
+        has_nested_stylesheet = true;
+    }
+    else if ( name < css_at_unknown ) { // @font-face, @page, and all others
+        has_nested_declaration = true;
+    }
+    else {
+        // Not known, we don't know what to expect, try to guess
+        const char * tmp = str;
+        skip_to_next( tmp, ';', '{');
+        if ( *tmp != '{' ) { // probably stop_char_to_skip=';' met
+            skip_to_next_semi_colon = true;
+        }
+        else { // on '{'
+            tmp++;
+            skip_to_next( tmp, ';', '{');
+            if ( *tmp != '{' ) // probably stop_char_to_skip=';' met before a '{'
+                has_nested_declaration = true;
+            else // '{' + some selectors without any semicolon + '{': looks like a stylesheet
+                has_nested_stylesheet = true;
+        }
+    }
+
+    if ( skip_to_next_semi_colon ) {
+        skip_to_next( str, ';', 0);
+        #ifdef DEBUG_AT_RULES_PROCESSING
+            printf("-; %.*s\n", str-start > 60 ? 60 : str-start, start);
+        #endif
+        return true;
+    }
+
+    // We don't support mostly anything but @media and @supports, so skip their block
+    bool process_nested_block = false;
+    if ( name == css_at_media ) {
+        process_nested_block = check_at_media_condition( str, doc );
+    }
+    else if ( name == css_at_supports ) {
+        process_nested_block = check_at_supports_condition( str, doc );
+    }
+
+    // Whether checked or not, move to next '{'
+    skip_to_next( str, ';', '{' );
+    if ( *str != '{' ) // not the expected block start
+        return false;
+
+    if ( process_nested_block ) {
+        #ifdef DEBUG_AT_RULES_PROCESSING
+            printf("++ %.*s\n", str-start, start);
+        #endif
+        str++; // skip opening '{'
+        // Just go on reading normally: we'll be erroring on the unexpected closing '}'
+        // but we'll just skip it with skip_until_end_of_rule()
+        return true;
+    }
+
+    // Skip nested block
+    #ifdef DEBUG_AT_RULES_PROCESSING
+        printf("-%c %.*s\n", (has_nested_stylesheet ? 's' : has_nested_declaration ? 'd' : '?'), str-start, start);
+    #endif
+    // We can't just skip until the next '}' as the block may have nested
+    // declarations with '{ }'. We also don't want to count nested '{' and '}',
+    // as some of them may be inside "::before { content: '{'; }".
+    // The safest way to handle all the edge cases is to just parse what's coming
+    // with our regular stylesheet and declaration parsers, and trash what we parsed.
+    if ( has_nested_stylesheet ) {
+        LVStyleSheet tmp_stylesheet(doc, true); // nested=true :
+        tmp_stylesheet.parseAndAdvance( str );  // will stop after first unbalanced '}'
+        tmp_stylesheet.clear(); // trash what was parsed
+    }
+    else if ( has_nested_declaration ) {
+        LVCssDeclaration tmp_decl;
+        tmp_decl.parse( str, false, doc );
+    }
+    #ifdef DEBUG_AT_RULES_PROCESSING
+        printf("     done at [...%.*s]%.*s...\n", 10, str-10, 10, str);
+    #endif
+    skip_spaces(str);
+    return true;
+}
+
 
 // The order of items in following tables should match the order in the enums in include/cssdef.h
 static const char * css_d_names[] = 
@@ -2004,13 +2757,21 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
     if ( !decl )
         return false;
     skip_spaces( decl );
-    if ( *decl != '{' )
-        return false;
-    decl++;
+
+    if ( !_check_if_supported ) {
+        if ( *decl != '{' )
+            return false;
+        decl++;
+    }
+    // Normal declarations end with '}', while @supports checks end with ')'
+    // (we keep checking for ';' with @supports, but we shouldn't meet any,
+    // and we return after the first declaration checked)
+    char stop_char = _check_if_supported ? ')' : '}';
+
     SerialBuf buf(512, true);
 
     bool ignoring = false;
-    while ( *decl && *decl != '}' ) {
+    while ( *decl && *decl != stop_char ) {
         skip_spaces( decl );
         css_decl_code prop_code = parse_property_name( decl );
         if ( ignoring && prop_code != cssd_cr_only_if ) {
@@ -2022,6 +2783,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
         lString8 strValue;
         lUInt32 importance = higher_importance ? IMPORTANT_DECL_HIGHER : 0;
         lUInt32 parsed_important = 0; // for !important that may be parsed along the way
+        bool skip_to_next_property = true; // to do when done (except if we've parsed a @rule)
         if (prop_code != cssd_unknown) {
             // parsed ok
             int n = -1;
@@ -2120,7 +2882,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     int hints = 0; // "none" = no hint
                     int nb_parsed = 0;
                     int nb_invalid = 0;
-                    while ( *decl && *decl !=';' && *decl!='}') {
+                    while ( *decl && *decl !=';' && *decl!=stop_char) {
                         // Details in crengine/include/cssdef.h (checks ordered by most likely to be seen)
                         if ( substr_icompare("none", decl) ) {
                             // Forget everything parsed previously, and prevent inheritance
@@ -2151,7 +2913,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else { // unsupported or invalid named value
                             nb_invalid++;
                             // Walk over unparsed value, and continue checking
-                            while (*decl && *decl !=' ' && *decl !=';' && *decl!='}')
+                            while (*decl && *decl !=' ' && *decl !=';' && *decl!=stop_char)
                                 decl++;
                         }
                         nb_parsed++;
@@ -2408,7 +3170,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     int features = 0; // "normal" = no extra feature
                     int nb_parsed = 0;
                     int nb_invalid = 0;
-                    while ( *decl && *decl !=';' && *decl!='}') {
+                    while ( *decl && *decl !=';' && *decl!=stop_char) {
                         if ( substr_icompare("normal", decl) ) {
                             features = 0;
                         }
@@ -2458,7 +3220,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             // As we don't parse all valid values (eg. styleset(user-defined-ident)), we just skip
                             // them without failing the whole.
                             // Walk over unparsed value
-                            while (*decl && *decl !=' ' && *decl !=';' && *decl!='}')
+                            while (*decl && *decl !=' ' && *decl !=';' && *decl!=stop_char)
                                 decl++;
                         }
                         nb_parsed++;
@@ -2922,7 +3684,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     lString8 str;
                     const char *tmp = decl;
                     int len=0;
-                    while (*tmp && *tmp!=';' && *tmp!='}' && *tmp!='!') {
+                    while (*tmp && *tmp!=';' && *tmp!=stop_char && *tmp!='!') {
                         if ( *tmp == '(' && *(tmp-3) == 'u' && *(tmp-2) == 'r' && *(tmp-1) == 'l') {
                             // Accepts everything until ')' after 'url(', including ';'
                             // needed when parsing: url("data:image/png;base64,abcd...")
@@ -2976,7 +3738,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     skip_spaces(decl);
                     const char *tmp = decl;
                     int len = 0;
-                    while (*tmp && *tmp!=';' && *tmp!='}' && *tmp!='!') {
+                    while (*tmp && *tmp!=';' && *tmp!=stop_char && *tmp!='!') {
                         if ( *tmp == '(' && *(tmp-3) == 'u' && *(tmp-2) == 'r' && *(tmp-1) == 'l') {
                             // Accepts everything until ')' after 'url(', including ';'
                             // needed when parsing: url("data:image/png;base64,abcd...")
@@ -3138,11 +3900,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_content:
                 {
                     lString32 parsed_content;
-                    if ( parse_content_property( decl, parsed_content) ) {
-                        buf<<(lUInt32) (cssd_content | importance | parsed_important | parse_important(decl));
-                        buf<<(lUInt32) parsed_content.length();
-                        for (int i=0; i < parsed_content.length(); i++) {
-                            buf<<(lUInt32) parsed_content[i];
+                    bool has_unsupported = false;
+                    if ( parse_content_property( decl, parsed_content, has_unsupported, stop_char ) ) {
+                        if ( _check_if_supported && has_unsupported ) {
+                            // When checking @supports (content: "foo" bar), any unsupported token makes
+                            // the whole content unsupported - so don't add to buf if any unsupported
+                        }
+                        else {
+                            buf<<(lUInt32) (cssd_content | importance | parsed_important | parse_important(decl));
+                            buf<<(lUInt32) parsed_content.length();
+                            for (int i=0; i < parsed_content.length(); i++) {
+                                buf<<(lUInt32) parsed_content[i];
+                            }
                         }
                     }
                 }
@@ -3170,8 +3939,30 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
         }
         else {
             // skip unknown property
+            if ( *decl == '@' ) {
+                // Unless it's an atrule (ie. "@top-left {}" inside "@page {}"),
+                // and we need to parse or skip it properly
+                parse_or_skip_at_rule(decl, doc);
+                // This will have properly skipped any closing ';' or '}' - the latter
+                // does not require a followup ';', so avoid skipping what follows it
+                skip_to_next_property = false;
+            }
         }
-        next_property( decl );
+        if ( _check_if_supported ) {
+            // If no data added to buf: unknown property, or known property but unsupported or invalid value
+            bool res = buf.pos() > 0;
+            // Our parsing code above grabs what it can understand, but may leave followup
+            // unsupported stuff (that would be skipped by next_property() below)
+            // Here, we want to be sure there's nothing left not handled.
+            skip_spaces( decl );
+            if ( *decl != ')' )
+                res = false;
+            skip_to_next( decl, 0, ')' );
+            return res;
+        }
+        if ( skip_to_next_property ) {
+            next_property( decl );
+        }
     }
 
     // store parsed result
@@ -3187,7 +3978,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
         //      buf >> _data[i];
     }
 
-    // skip }
+    // skip '}' (we don't check stop_char, as with @supports (),
+    // we shouldn't see any - and we must have returned above)
     skip_spaces( decl );
     if (*decl == '}') {
         decl++;
@@ -4615,10 +5407,10 @@ void LVStyleSheet::set(LVPtrVector<LVCssSelector> & v  )
 
 LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
 :   _doc( sheet._doc )
+,   _nested( sheet._nested )
 {
     set( sheet._selectors );
     _selector_count = sheet._selector_count;
-    _charset = sheet._charset;
 }
 
 void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style )
@@ -4717,7 +5509,7 @@ lUInt32 LVStyleSheet::getHash()
     return hash;
 }
 
-bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 codeBase )
+bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, lString32 codeBase )
 {
     if ( !_doc ) {
         // We can't parse anything if no _doc to get element name ids from
@@ -4734,9 +5526,6 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 co
         bool err = false;
         for (;*str;)
         {
-            // parse charset, and... ignored it
-            // just to avoid generating a parse error
-            parseCharsetRule(str);
             // parse selector(s)
             // Have selector count number make the initial value
             // of _specificity, so order of selectors is preserved
@@ -4779,8 +5568,19 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 co
             // error:
             // delete chain of selectors
             delete selector;
-            // ignore current rule
-            skip_until_end_of_rule( str );
+            // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly
+            if ( *str == '@' ) {
+                parse_or_skip_at_rule(str, _doc);
+            }
+            else if ( *str == '}' && _nested ) {
+                // We're done parsing this nested CSS block
+                str++; // skip it so upper stylesheet can continue from there
+                return true;
+            }
+            else {
+                // ignore current rule: skip to block closing '}'
+                skip_until_end_of_rule( str );
+            }
         }
         else
         {
@@ -4819,34 +5619,6 @@ bool LVStyleSheet::parse( const char * str, bool higher_importance, lString32 co
         }
     }
     return _selectors.length() > 0;
-}
-
-bool LVStyleSheet::parseCharsetRule( const char * &str )
-{
-    // Parse rule '@charset' according https://developer.mozilla.org/en-US/docs/Web/CSS/@charset
-    if (!str || !*str)
-        return false;
-    skip_spaces( str );
-    if ( *str == '@' ) {
-        str++;
-        char word[64];
-        if ( parse_ident( str, word, 64 ) ) {
-            lString8 keyword(word);
-            if (keyword == "charset") {
-                // skip required space(s)
-                if (*str == ' ' || *str == '\t') {
-                    skip_spaces(str);
-                    if (parse_attr_value(str, word, ';')) {
-                        if (_charset.empty()) {
-                            _charset = word;
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return false;
 }
 
 /// extract @import filename from beginning of CSS
