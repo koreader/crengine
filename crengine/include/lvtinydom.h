@@ -2638,6 +2638,7 @@ class ldomElementWriter
     bool _allowText;
     bool _isBlock;
     bool _isSection;
+    bool _stripLeadingNewlineChar;
 #if MATHML_SUPPORT==1
     bool _insideMathML;
 #endif
