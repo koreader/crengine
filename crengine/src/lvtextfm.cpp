@@ -1334,6 +1334,11 @@ public:
                                 has_non_space = true;
                             }
                         }
+                        if ( preformatted && is_space ) {
+                            // Be sure the various places we may change the width
+                            // of a space don't trigger
+                            m_flags[pos] |= LCHAR_LOCKED_SPACING;
+                        }
                     }
                     prev_was_space = is_space || (c == '\n');
                         // We might meet '\n' in PRE text, which shouldn't make any space
@@ -1466,11 +1471,20 @@ public:
                             // (Not certain this is really needed, but let's do it, as the
                             // code expecting that has been quite well tested and fixed over
                             // the months, so let's avoid adding uncertainty.)
-                            if ( m_flags[pos-1] & LCHAR_IS_COLLAPSED_SPACE ) {
-                                // We have spaces before, and if we are allowed to break,
-                                // the break is allowed on all preceeding spaces.
+                            if ( m_text[pos-1] == ' ' ) {
+                                // Allowed break after a space. If we have other spaces before,
+                                // we are allowed to break after each of them too.
+                                // This space and the previous ones (except the first) are probably
+                                // LCHAR_IS_COLLAPSED_SPACE, but they can also be non-collapsable
+                                // spaces if from white-space:pre nodes (which can be mixed).
+                                // We should still be allowed to break on any of them (and this
+                                // really matter with white-space:pre, as we don't want a long
+                                // sequence of spaces to not break (otherwise, the only break
+                                // could be with hyphenating the previous word...)
+                                // (If white-space:nowrap, wrap will be prevented later thanks
+                                // to LCHAR_DEPRECATED_WRAP_AFTER we have set earlier.)
                                 int j = pos-2;
-                                while ( j >= 0 && ( (m_flags[j] & LCHAR_IS_COLLAPSED_SPACE) || m_text[j] == ' ' ) ) {
+                                while ( j >= 0 && ( m_text[j] == ' ' ) ) {
                                     m_flags[j] |= LCHAR_ALLOW_WRAP_AFTER;
                                     j--;
                                 }
