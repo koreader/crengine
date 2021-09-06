@@ -19,7 +19,7 @@
 // Users of this library can request the old behaviour by setting
 // gDOMVersionRequested to an older version to request the old (possibly
 // buggy) behaviour.
-#define DOM_VERSION_CURRENT 20200824
+#define DOM_VERSION_CURRENT 20210904
 
 // Also defined in include/lvtinydom.h
 #define DOM_VERSION_WITH_NORMALIZED_XPOINTERS 20200223
@@ -80,6 +80,9 @@
 //
 // 20200824: added more HTML5 elements, and HTML parser changes
 // to be (only a little bit) more HTML5 conformant
+//
+// 20210904: per HTML specs, strip a leading newline character
+// immediately following the <pre> or <textarea> element start tag
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
@@ -5356,15 +5359,26 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     // Default (for elements not specified in fb2def.h) is to allow text
     // (except for the root node which must have children)
     _allowText = _typeDef ? _typeDef->allow_text : (_parent?true:false);
-    if (_document->getDOMVersionRequested() < 20180528) { // revert what was changed 20180528
-        // <hr>, <ul>, <ol>, <dl>, <output>, <section>, <svg> didn't allow text
-        if ( id==el_hr || id==el_ul || id==el_ol || id==el_dl ||
-                id==el_output || id==el_section || id==el_svg ) {
-            _allowText = false;
-        }
-        // <code> was white-space: pre
-        if ( id==el_code ) {
-            _flags |= TXTFLG_PRE;
+
+    // For historical reasons, in the HTML syntax, a leading newline character
+    // immediately following the pre element start tag is stripped.
+    //   https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element
+    //   https://html.spec.whatwg.org/multipage/syntax.html#element-restrictions
+    _stripLeadingNewlineChar = id==el_pre || id==el_textarea;
+
+    // Re-introduce bugs for older DOM versions
+    if (_document->getDOMVersionRequested() < 20210904) { // revert what was changed 20210904
+        _stripLeadingNewlineChar = false; // wasn't handled
+        if (_document->getDOMVersionRequested() < 20180528) { // revert what was changed 20180528
+            // <hr>, <ul>, <ol>, <dl>, <output>, <section>, <svg> didn't allow text
+            if ( id==el_hr || id==el_ul || id==el_ol || id==el_dl ||
+                    id==el_output || id==el_section || id==el_svg ) {
+                _allowText = false;
+            }
+            // <code> was white-space: pre
+            if ( id==el_code ) {
+                _flags |= TXTFLG_PRE;
+            }
         }
     }
 
@@ -5373,6 +5387,10 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
         if ( insert_before_last_child )
             index--;
         _element = _parent->getElement()->insertChildElement( index, nsid, id );
+        if ( parent->_stripLeadingNewlineChar ) {
+            // We have inserted a node child in a <PRE>, we don't need to care about further text children
+            parent->_stripLeadingNewlineChar = false;
+        }
     }
     else
         _element = _document->getRootNode(); //->insertChildElement( (lUInt32)-1, nsid, id );
@@ -7704,13 +7722,22 @@ void ldomElementWriter::onText( const lChar32 * text, int len, lUInt32, bool ins
     //logfile << "{t";
     {
         // normal mode: store text copy
-        // add text node, if not first empty space string of block node
-        if ( !_isBlock || _element->getChildCount()!=0 || !IsEmptySpace( text, len ) || (_flags&TXTFLG_PRE) ) {
-            lString8 s8 = UnicodeToUtf8(text, len);
-            _element->insertChildText(s8, insert_before_last_child);
-        } else {
+        if ( _isBlock && _element->getChildCount()==0 && IsEmptySpace( text, len ) && !(_flags&TXTFLG_PRE) ) {
+            // but not if first empty space string of a non-pre block node
             //CRLog::trace("ldomElementWriter::onText: Ignoring first empty space of block item");
+            return;
         }
+        if ( _stripLeadingNewlineChar ) {
+            // "In the HTML syntax, a leading newline character immediately
+            // following the pre element start tag is stripped."
+            if ( len > 0 && *text == '\n' && _element->getChildCount()==0 ) {
+                text++;
+                len--;
+            }
+            _stripLeadingNewlineChar = false; // we won't need to care further
+        }
+        lString8 s8 = UnicodeToUtf8(text, len);
+        _element->insertChildText(s8, insert_before_last_child);
     }
     //logfile << "}";
 }
