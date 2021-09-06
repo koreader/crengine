@@ -2431,6 +2431,8 @@ private:
     lUInt32 _last_docflags;
     int _page_height;
     int _page_width;
+    int _screen_height;
+    int _screen_width;
     bool _parsing;
     bool _rendered;
     bool _just_rendered_from_cache;
@@ -2562,6 +2564,15 @@ public:
     int getPageHeight() { return _page_height; }
     /// returns page width setting
     int getPageWidth() { return _page_width; }
+
+    /// Get/set the device screen size, which  is only used to support CSS media queries
+    /// like "@media (min-device-width:300px) or (max-device-aspect-ratio:4/3)"
+    /// set screen size
+    void setScreenSize(int width, int height) { _screen_width = width; _screen_height = height; }
+    /// returns screen height info
+    int getScreenHeight() { return _screen_height; }
+    /// returns screen width info
+    int getScreenWidth() { return _screen_width; }
 #endif
     /// saves document contents as XML to stream with specified encoding
     bool saveToStream( LVStreamRef stream, const char * codepage, bool treeLayout=false );
