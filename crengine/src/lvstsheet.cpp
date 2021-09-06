@@ -5622,14 +5622,23 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
 }
 
 /// extract @import filename from beginning of CSS
-bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file )
+bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file, lxmlDocBase * doc )
 {
+    // @import are only valid at the top of a stylesheet
     const char * p = str;
     import_file.clear();
     skip_spaces( p );
     if ( *p !='@' )
         return false;
     p++;
+    // The only thing that can happen before @import is @charset, so skip it
+    if (strncmp(p, "charset", 7) == 0) {
+        skip_to_next( p, ';', 0);
+        skip_spaces( p );
+        if ( *p !='@' )
+            return false;
+        p++;
+    }
     if (strncmp(p, "import", 6) != 0)
         return false;
     p+=6;
@@ -5667,8 +5676,30 @@ bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file )
             return false;
         p++;
     }
-    // Remove trailing ';' at end of "@import url(..);"
     skip_spaces( p );
+
+    if ( *p!=';' ) {
+        // A media query is allowed before the ';', and ends with the ';'
+        bool ok = check_at_media_condition( p, doc , ';');
+        if ( !ok ) {
+            // Condition not met: skip it, look for next @import
+            // (This could have been better handled by a while loop surrounding
+            // all this function content - but let's do it via recursive calls
+            // just to limit the amount of diff)
+            import_file.clear();
+            skip_spaces( p );
+            if ( *p==';' )
+                p++;
+            if ( LVProcessStyleSheetImport(p, import_file, doc) ) {
+                str = p;
+                return true;
+            }
+            return false;
+        }
+    }
+    skip_spaces( p );
+
+    // Remove trailing ';' at end of "@import url(..);"
     if ( *p==';' )
         p++;
     if ( import_file.empty() )
@@ -5677,7 +5708,7 @@ bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file )
     return true;
 }
 
-/// load stylesheet from file, with processing of import
+/// load stylesheet from file, with processing of first @import only
 bool LVLoadStylesheetFile( lString32 pathName, lString8 & css )
 {
     LVStreamRef file = LVOpenFileStream( pathName.c_str(), LVOM_READ );

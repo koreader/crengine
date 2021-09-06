@@ -2819,10 +2819,12 @@ void LVDocView::setRenderProps(int dx, int dy) {
 		dy = m_pageRects[0].height() - m_pageMargins.top - m_pageMargins.bottom
 				- getPageHeaderHeight();
 
-    updateDocStyleSheet();
-
+    // updateDocStyleSheet(); // moved after next line as possible CSS media queries like "(orientation:portrait)"
+                              // need these props to be available and accurate in m_doc
     m_doc->setRenderProps(dx, dy, m_showCover, m_showCover ? dy
             + m_pageMargins.bottom * 4 : 0, m_font, m_def_interline_space, m_props);
+    updateDocStyleSheet();
+
     text_highlight_options_t h;
     h.bookmarkHighlightMode = m_props->getIntDef(PROP_HIGHLIGHT_COMMENT_BOOKMARKS, highlight_mode_underline);
     h.selectionColor = (m_props->getColorDef(PROP_HIGHLIGHT_SELECTION_COLOR, 0xC0C0C0) & 0xFFFFFF);

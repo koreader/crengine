@@ -2706,6 +2706,7 @@ protected:
     bool _inHeadStyle;
     lString32 _headStyleText;
     lString32Collection _stylesheetLinks;
+    lString32Collection _stylesheetLinksMediaConditions;
 #if MATHML_SUPPORT==1
     MathMLHelper _mathMLHelper;
 #endif
@@ -2811,9 +2812,10 @@ private:
     lString32 codeBase;
     lString32 filePathName;
     lString32 codeBasePrefix;
-    lString32 stylesheetFile;
-    lString32 tmpStylesheetFile;
+    lString32 tmpStylesheetLink;
+    lString32 tmpStylesheetMediaCondition;
     lString32Collection stylesheetLinks;
+    lString32Collection stylesheetLinksMediaConditions;
     bool insideTag;
     int styleDetectionState;
     LVHashTable<lString32, lString32> pathSubstitutions;

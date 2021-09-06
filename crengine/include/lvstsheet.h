@@ -305,8 +305,8 @@ void update_style_content_property( css_style_rec_t * style, ldomNode * node );
 lString32 get_applied_content_property( ldomNode * node );
 
 /// extract @import filename from beginning of CSS
-bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file );
-/// load stylesheet from file, with processing of import
+bool LVProcessStyleSheetImport( const char * &str, lString8 & import_file, lxmlDocBase * doc=NULL );
+/// load stylesheet from file, with processing of first @import only
 bool LVLoadStylesheetFile( lString32 pathName, lString8 & css );
 
 #endif // __LVSTSHEET_H_INCLUDED__
