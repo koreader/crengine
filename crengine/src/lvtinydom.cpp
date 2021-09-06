@@ -5938,20 +5938,24 @@ ldomNode * ldomNode::boxWrapChildren( int startIndex, int endIndex, lUInt16 elem
 {
     if ( !isElement() )
         return NULL;
+    css_style_ref_t style = getStyle();
+    bool pre = ( style->white_space >= css_ws_pre_line );
+
     int firstNonEmpty = startIndex;
     int lastNonEmpty = endIndex;
-
-    while ( firstNonEmpty<=endIndex && getChildNode(firstNonEmpty)->isText() ) {
-        lString32 s = getChildNode(firstNonEmpty)->getText();
-        if ( !IsEmptySpace(s.c_str(), s.length() ) )
-            break;
-        firstNonEmpty++;
-    }
-    while ( lastNonEmpty>=endIndex && getChildNode(lastNonEmpty)->isText() ) {
-        lString32 s = getChildNode(lastNonEmpty)->getText();
-        if ( !IsEmptySpace(s.c_str(), s.length() ) )
-            break;
-        lastNonEmpty--;
+    if (!pre) {
+        while ( firstNonEmpty<=endIndex && getChildNode(firstNonEmpty)->isText() ) {
+            lString32 s = getChildNode(firstNonEmpty)->getText();
+            if ( !IsEmptySpace(s.c_str(), s.length() ) )
+                break;
+            firstNonEmpty++;
+        }
+        while ( lastNonEmpty>=endIndex && getChildNode(lastNonEmpty)->isText() ) {
+            lString32 s = getChildNode(lastNonEmpty)->getText();
+            if ( !IsEmptySpace(s.c_str(), s.length() ) )
+                break;
+            lastNonEmpty--;
+        }
     }
 
     // printf("boxWrapChildren %d>%d | %d<%d\n", startIndex, firstNonEmpty, lastNonEmpty, endIndex);
@@ -5978,8 +5982,9 @@ ldomNode * ldomNode::boxWrapChildren( int startIndex, int endIndex, lUInt16 elem
 // init table element render methods
 // states: 0=table, 1=colgroup, 2=rowgroup, 3=row, 4=cell
 // returns table cell count
-// When BLOCK_RENDERING_COMPLETE_INCOMPLETE_TABLES, we follow rules
-// from the "Generate missing child wrappers" section in:
+// When BLOCK_RENDERING_COMPLETE_INCOMPLETE_TABLES, we follow rules from
+// the sections "Generate missing child wrappers" and "Remove irrelevant
+// boxes" in:
 //   https://www.w3.org/TR/CSS22/tables.html#anonymous-boxes
 //   https://www.w3.org/TR/css-tables-3/#fixup (clearer than previous one)
 // and we wrap unproper children in a tabularBox element.
@@ -5996,25 +6001,40 @@ int initTableRendMethods( ldomNode * enode, int state )
     int i;
     int first_unproper = -1; // keep track of consecutive unproper children that
     int last_unproper = -1;  // must all be wrapped in a single wrapper
+    ldomNode * prev_whitespace = NULL; // white space only node, handling depends on surrounding
     for (i=0; i<cnt; i++) {
         ldomNode * child = enode->getChildNode( i );
         css_display_t d;
+        // Whitespace only text node around table elements may have been stripped
+        // out by the XML parsers, or removed or ignored by initNodeRendMethod(),
+        // but in some cases, it may have been kept and even autoBoxed (i.e. when
+        // the table has "white-space: pre").
+        // Depending on their surrounding, these whitespace nodes should be ignored
+        // here when at start or end, or solely between 2 table sub elements (even
+        // if white-space:pre) and by the table rendering algorithm - or should be
+        // kept when near unproper children and should be wrapped with them.
+        bool is_whitespace = false;
         if ( child->isElement() ) {
             d = child->getStyle()->display;
+            if ( child->getNodeId() == el_autoBoxing && child->getChildCount() == 1 && child->getChildNode(0)->isText()) {
+                // A text node wrapped in an <autoBoxing> because it was surrounded
+                // by non-inline elements (the other table subelements)
+                lString32 s = child->getChildNode(0)->getText();
+                if ( IsEmptySpace(s.c_str(), s.length()) ) {
+                    is_whitespace = true;
+                }
+            }
         }
         else { // text node
             d = css_d_inline;
-            // Not sure about what to do with whitespace only text nodes:
-            // we shouldn't meet any alongside real elements (as whitespace
-            // around and at start/end of block nodes are discarded), but
-            // we may in case of style changes (inline > table) after
-            // a book has been loaded.
-            // Not sure if we should handle them differently when no unproper
-            // elements yet (they will be discarded by the table render algo),
-            // and when among unpropers (they could find their place in the
-            // wrapped table cell).
-            // Note that boxWrapChildren() called below will remove
-            // them at start or end of an unproper elements sequence.
+            // Most text around table sub elements should have been stripped
+            // by the XML parsers, but we may see some when completing
+            // incomplete tables or when white-space:pre, or in case of
+            // style changes (inline > table) after a book has been loaded.
+            lString32 s = child->getText();
+            if ( IsEmptySpace(s.c_str(), s.length()) ) {
+                is_whitespace = true;
+            }
         }
         bool is_last = (i == cnt-1);
         bool is_proper = false;
@@ -6128,6 +6148,43 @@ int initTableRendMethods( ldomNode * enode, int state )
             // child->setRendMethod( erm_final );
         }
 
+        if ( is_whitespace && prev_whitespace ) {
+            // consecutive whitespaces: both become unproper
+            is_proper = false;
+            if ( first_unproper < 0 )
+                first_unproper = i-1;
+            is_whitespace = false;
+            prev_whitespace = NULL;
+        }
+        if ( is_whitespace ) {
+            if ( first_unproper >= 0 ) {
+                // already some unproper, keep this whitespace with it/them
+                is_proper = false;
+            }
+            else {
+                // either first node, or following a proper
+                is_proper = true; // don't handle it until we see what comes next
+                if ( i == cnt-1 ) { // last (or single) node: nothing comes next
+                    child->setRendMethod( erm_invisible );
+                }
+                else {
+                    prev_whitespace = child; // remember it for later
+                }
+            }
+        }
+        else if ( prev_whitespace ) {
+            if ( is_proper ) {
+                // whitespace between 2 proper: does not need to be wrapped
+                prev_whitespace->setRendMethod( erm_invisible );
+            }
+            else {
+                // unproper, bring prev whitespace into this set of unpropers
+                if ( first_unproper < 0 )
+                    first_unproper = i-1;
+            }
+            prev_whitespace = NULL;
+        }
+
         // Check and deal with unproper children
         if ( !is_proper ) { // Unproper child met
             // printf("initTableRendMethods(%d): child %d is unproper\n", state, i);
@@ -6191,11 +6248,13 @@ int initTableRendMethods( ldomNode * enode, int state )
                     // setting the appropriate rendering method is all that is
                     // needed for rendering after this.
                     // tbox->setAttributeValue(LXML_NS_NONE, attr_style, U"display: table-row");
+                    tbox->setAttributeValue(LXML_NS_NONE, attr_T, U"MissingChildRow");
                     tbox->initNodeStyle();
                     tbox->setRendMethod( erm_table_row );
                     cellCount += initTableRendMethods( tbox, 3 ); // > row
                 }
-                else if ( state==3 ) {
+                else if ( state==3 ) { // in row: tbox is a table cell
+                    tbox->setAttributeValue(LXML_NS_NONE, attr_T, U"MissingChildCell");
                     tbox->initNodeStyle();
                     // This will set the rend method of the cell to either erm_block
                     // or erm_final, depending on its content.
@@ -6203,8 +6262,29 @@ int initTableRendMethods( ldomNode * enode, int state )
                     cellCount++;
                 }
                 else if ( state==1 ) { // should not happen, see above
+                    tbox->setAttributeValue(LXML_NS_NONE, attr_T, U"MissingChildColumn");
                     tbox->initNodeStyle();
                     tbox->setRendMethod( erm_table_column );
+                }
+                if ( state != 3 ) {
+                    // We may have included in the wrap whitespace-only text nodes,
+                    // that are irrelevant to the table rendering algorithm.
+                    // But on a next re-rendering, when initNodeRendMethod() will
+                    // meet this tabularBox as initially a regular block element,
+                    // it may want to autoboxChildren() these inline text elements
+                    // mixed among other table elements or tabularBoxes, which
+                    // would autobox them and cause a style hash mismatch.
+                    // So, autobox them now.
+                    int tbcnt = tbox->getChildCount();
+                    for (int j=0; j<tbcnt; j++) {
+                        if ( tbox->getChildNode(j)->isText() ) {
+                            ldomNode * abox = tbox->boxWrapChildren(j, j, el_autoBoxing);
+                            if ( abox && !abox->isNull() ) {
+                                abox->initNodeStyle();
+                                abox->setRendMethod(erm_invisible);
+                            }
+                        }
+                    }
                 }
             }
             // If tbox is NULL, all unproper have been removed, and no element added
@@ -6775,7 +6855,8 @@ void ldomNode::initNodeRendMethod()
         // which were handled just like erm_inline with ugly side effects...)
         // So, best to introduce a decicated element: <tabularBox>.
         //
-        // We follow rules from section "Generate missing parents" in:
+        // We follow rules from the sections "Generate missing parents" and
+        // "Remove irrelevant boxes" in:
         //   https://www.w3.org/TR/CSS22/tables.html#anonymous-boxes
         //   https://www.w3.org/TR/css-tables-3/#fixup (clearer than previous one)
         // Note: we do that not in the order given by the specs... As we walk
@@ -6793,13 +6874,19 @@ void ldomNode::initNodeRendMethod()
             // Look if we have css_d_table_cell that we must wrap in a proper erm_table_row
             int last_table_cell = -1;
             int first_table_cell = -1;
-            int last_visible_child = -1;
+            int nb_irrelevant = 0;
             bool did_wrap = false;
             int len = getChildCount();
             for ( int i=len-1; i>=0; i-- ) {
                 ldomNode * child = getChildNode(i);
                 int cd = child->getStyle()->display;
                 int cm = child->getRendMethod();
+                int is_whitespace = false;
+                if ( child->getNodeId() == el_autoBoxing && child->getChildCount() == 1 && child->getChildNode(0)->isText() ) {
+                    lString32 s = child->getChildNode(0)->getText();
+                    if ( IsEmptySpace(s.c_str(), s.length()) )
+                        is_whitespace = true;
+                }
                 if ( cd == css_d_table_cell ) {
                     if ( last_table_cell < 0 ) {
                         last_table_cell = i;
@@ -6816,8 +6903,7 @@ void ldomNode::initNodeRendMethod()
                     }
                     if ( i == 0 )
                         first_table_cell = 0;
-                    if ( last_visible_child < 0 )
-                        last_visible_child = i;
+                    nb_irrelevant = 0; // reset (include passed-by irrelevants in the wrap)
                 }
                 else if ( last_table_cell >= 0 && child->getNodeId()==el_tabularBox ) {
                     // We've seen a css_d_table_cell and we're seeing a tabularBox:
@@ -6825,27 +6911,23 @@ void ldomNode::initNodeRendMethod()
                     // children of a css_d_table_row: make it part of the row
                     if ( i == 0 )
                         first_table_cell = 0;
-                    if ( last_visible_child < 0 )
-                        last_visible_child = i;
+                    nb_irrelevant = 0; // reset (include passed-by irrelevants in the wrap)
                 }
-                else if ( cd == css_d_none || cm == erm_invisible ) {
-                    // Can be left inside or outside the wrap
-                    if ( i == 0 && last_table_cell >= 0 ) {
-                        // Include it if first and we're wrapping
-                        first_table_cell = 0;
+                else if ( cd == css_d_none || cm == erm_invisible || is_whitespace ) {
+                    // Will be wrapped or left as is depending on what we see next
+                    nb_irrelevant++;
+                    if ( i == 0 && last_table_cell >= 0 ) { // first node:
+                        first_table_cell = nb_irrelevant;   // left it out
                     }
                 }
-                else {
+                else { // non cell, non irrelevant, must be left out with the irrelevants not included
                     if ( last_table_cell >= 0)
-                        first_table_cell = i+1;
-                    if ( last_visible_child < 0 )
-                        last_visible_child = i;
+                        first_table_cell = i+1+nb_irrelevant; // exclude the irrelevants from the wrap
                 }
                 if ( first_table_cell >= 0 ) {
-                    if ( first_table_cell == 0 && last_table_cell == last_visible_child
-                                && getNodeId()==el_tabularBox && !did_wrap ) {
-                        // All children are table cells, and we're not css_d_table_row,
-                        // but we are a tabularBox!
+                    if ( i==0 && getNodeId()==el_tabularBox && !did_wrap ) {
+                        // We didn't have to wrap: all children are table cells or irrelevants,
+                        // and we're not css_d_table_row, but we are a tabularBox!
                         // We were most probably created here in a previous rendering,
                         // so just set us to be the anonymous table row.
                         #ifdef DEBUG_INCOMPLETE_TABLE_COMPLETION
@@ -6865,6 +6947,7 @@ void ldomNode::initNodeRendMethod()
                         #endif
                         ldomNode * tbox = boxWrapChildren(first_table_cell, last_table_cell, el_tabularBox);
                         if ( tbox && !tbox->isNull() ) {
+                            tbox->setAttributeValue(LXML_NS_NONE, attr_T, U"MissingParentRow");
                             tbox->initNodeStyle();
                             tbox->setRendMethod( erm_table_row );
                         }
@@ -6872,6 +6955,7 @@ void ldomNode::initNodeRendMethod()
                     }
                     last_table_cell = -1;
                     first_table_cell = -1;
+                    nb_irrelevant = 0;
                 }
             }
         }
@@ -6882,13 +6966,19 @@ void ldomNode::initNodeRendMethod()
         // style->display among css_d_table*. Let's do as litterally as the specs.
         int last_misparented = -1;
         int first_misparented = -1;
-        int last_visible_child = -1;
+        int nb_irrelevant = 0;
         bool did_wrap = false;
         int len = getChildCount();
         for ( int i=len-1; i>=0; i-- ) {
             ldomNode * child = getChildNode(i);
             int cd = child->getStyle()->display;
             int cm = child->getRendMethod();
+            int is_whitespace = false;
+            if ( child->getNodeId() == el_autoBoxing && child->getChildCount() == 1 && child->getChildNode(0)->isText() ) {
+                lString32 s = child->getChildNode(0)->getText();
+                if ( IsEmptySpace(s.c_str(), s.length()) )
+                    is_whitespace = true;
+            }
             bool is_misparented = false;
             if ( (cd == css_d_table_row || cm == erm_table_row)
                             && d != css_d_table && d != css_d_table_row_group
@@ -6924,34 +7014,29 @@ void ldomNode::initNodeRendMethod()
                 }
                 if (i == 0)
                     first_misparented = 0;
-                if ( last_visible_child < 0 )
-                    last_visible_child = i;
+                nb_irrelevant = 0; // reset (include passed-by irrelevants in the wrap)
             }
             else if ( last_misparented >= 0 && child->getNodeId()==el_tabularBox ) {
                 // As above for table cells: include tabularBox siblings in the wrap
                 if (i == 0)
                     first_misparented = 0;
-                if ( last_visible_child < 0 )
-                    last_visible_child = i;
+                nb_irrelevant = 0; // reset (include passed-by irrelevants in the wrap)
             }
-            else if ( cd == css_d_none || cm == erm_invisible ) {
-                // Can be left inside or outside the wrap
-                if ( i == 0 && last_misparented >= 0 ) {
-                    // Include it if first and we're wrapping
-                    first_misparented = 0;
+            else if ( cd == css_d_none || cm == erm_invisible || is_whitespace ) {
+                // Will be wrapped or left as is depending on what we see next
+                nb_irrelevant++;
+                if ( i == 0 && last_misparented >= 0 ) { // first node:
+                    first_misparented = nb_irrelevant;   // left it out
                 }
             }
-            else {
+            else { // non misparented, non irrelevant, must be left out with the irrelevants not included
                 if ( last_misparented >= 0 )
-                    first_misparented = i+1;
-                if ( last_visible_child < 0 )
-                    last_visible_child = i;
+                    first_misparented = i+1+nb_irrelevant; // exclude the irrelevants from the wrap
             }
             if ( first_misparented >= 0 ) {
-                if ( first_misparented == 0 && last_misparented == last_visible_child
-                            && getNodeId()==el_tabularBox && !did_wrap ) {
-                    // All children are misparented, and we're not css_d_table,
-                    // but we are a tabularBox!
+                if ( i==0 && getNodeId()==el_tabularBox && !did_wrap ) {
+                    // We didn't have to wrap: all children are table cells or irrelevants,
+                    // and we're not css_d_table, but we are a tabularBox!
                     // We were most probably created here in a previous rendering,
                     // so just set us to be the anonymous table.
                     #ifdef DEBUG_INCOMPLETE_TABLE_COMPLETION
@@ -6972,6 +7057,7 @@ void ldomNode::initNodeRendMethod()
                     #endif
                     ldomNode * tbox = boxWrapChildren(first_misparented, last_misparented, el_tabularBox);
                     if ( tbox && !tbox->isNull() ) {
+                        tbox->setAttributeValue(LXML_NS_NONE, attr_T, U"MissingParentTable");
                         tbox->initNodeStyle();
                         tbox->setRendMethod( erm_table );
                         initTableRendMethods( tbox, 0 );
@@ -6980,6 +7066,7 @@ void ldomNode::initNodeRendMethod()
                 }
                 last_misparented = -1;
                 first_misparented = -1;
+                nb_irrelevant = 0;
                 // Note:
                 //   https://www.w3.org/TR/css-tables-3/#fixup
                 //   "An anonymous table or inline-table box must be generated
