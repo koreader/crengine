@@ -6090,7 +6090,7 @@ int initTableRendMethods( ldomNode * enode, int state )
             if ( d==css_d_table_cell ) {
                 // This will set the rend method of the cell to either erm_block
                 // or erm_final, depending on its content.
-                child->initNodeRendMethodRecursive();
+                child->initNodeRendMethod();
                 cellCount++;
                 is_proper = true;
             }
@@ -6105,7 +6105,7 @@ int initTableRendMethods( ldomNode * enode, int state )
                 #endif
                 // This will set the rend method of the cell to either erm_block
                 // or erm_final, depending on its content.
-                child->initNodeRendMethodRecursive();
+                child->initNodeRendMethod();
                 cellCount++;
                 is_proper = true;
             }
@@ -6199,7 +6199,7 @@ int initTableRendMethods( ldomNode * enode, int state )
                     tbox->initNodeStyle();
                     // This will set the rend method of the cell to either erm_block
                     // or erm_final, depending on its content.
-                    tbox->initNodeRendMethodRecursive();
+                    tbox->initNodeRendMethod();
                     cellCount++;
                 }
                 else if ( state==1 ) { // should not happen, see above
