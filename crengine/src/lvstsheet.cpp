@@ -3082,8 +3082,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                     else { // skip current char that might be a space
                                         str++;
                                     }
-                                    // skip next char until we find a space, that would start a new token
-                                    while (*str && *str != ' ' ) {
+                                    // skip next char until we find a space or '!', that would start
+                                    // a new token or '!important" itself if stuck to previous token
+                                    while (*str && *str != ' ' && *str != '!') {
                                         str++;
                                     }
                                 }
