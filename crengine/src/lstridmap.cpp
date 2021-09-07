@@ -127,8 +127,14 @@ bool LDOMNameIdMap::deserialize( SerialBuf & buf )
     lUInt16 count;
     buf >> count;
     if ( count>m_size ) {
-        buf.seterror();
-        return false;
+        m_by_id = cr_realloc( m_by_id, count );
+        m_by_name = cr_realloc( m_by_name, count );
+        for (lUInt16 i = m_size; i<count; i++)
+        {
+            m_by_id[i] = NULL;
+            m_by_name[i] = NULL;
+        }
+        m_size = count;
     }
     for ( int i=0; i<count; i++ ) {
         LDOMNameIdMapItem * item = LDOMNameIdMapItem::deserialize(buf);
