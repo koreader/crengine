@@ -80,8 +80,8 @@ extern const int gDOMVersionCurrent;
 
 #define DOC_STRING_HASH_SIZE  256
 #define RESERVED_DOC_SPACE    4096
-#define MAX_TYPE_ID           1024 // max of element, ns, attr
-#define MAX_ELEMENT_TYPE_ID   1024
+#define MAX_TYPE_ID          32768 // max of element, ns, attr (for safety)
+#define MAX_ELEMENT_TYPE_ID   1024 // initial maxsize of these maps (will grow if needed)
 #define MAX_NAMESPACE_TYPE_ID 64
 #define MAX_ATTRIBUTE_TYPE_ID 1024
 #define UNKNOWN_ELEMENT_TYPE_ID   (MAX_ELEMENT_TYPE_ID>>1)
