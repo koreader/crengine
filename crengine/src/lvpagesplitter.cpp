@@ -847,6 +847,14 @@ public:
                       - (cur_page_footnotes_h > 0 ? cur_page_footnotes_h : footnote_margin);
     }
 
+    inline void pushDelayedFootnotes() {
+        if ( !delayed_footnotes.empty() ) {
+            for ( int i=0; i<delayed_footnotes.length(); i++ )
+                addFootnoteToPage( delayed_footnotes[i] );
+            delayed_footnotes.reset();
+        }
+    }
+
     void flushCurrentPage(bool push_delayed=true) {
         if ( cur_page_nb_lines > 0 || cur_page_nb_footnotes_lines > 0 ) {
             #ifdef DEBUG_PAGESPLIT
@@ -880,13 +888,8 @@ public:
             // Make the new page start when the previous page ended
             resetCurPageData(cur_page_bottom);
         }
-        if ( push_delayed ) {
-            if ( !delayed_footnotes.empty() ) {
-                // Pushed delayed footnote on the new page
-                for ( int i=0; i<delayed_footnotes.length(); i++ )
-                    addFootnoteToPage( delayed_footnotes[i] );
-                delayed_footnotes.reset();
-            }
+        if ( push_delayed ) { // Add any delayed footnotes to the new page
+            pushDelayedFootnotes();
         }
     }
 
@@ -943,6 +946,11 @@ public:
                 // Only discardable lines: ignore them, make the new page start after them
                 cur_page_top = lines[end]->getEnd();
                 cur_page_bottom = cur_page_top;
+                if ( push_delayed_footnotes ) {
+                    // We made a new page just above, but didn't add any line:
+                    // add any delayted footnotes (as we would do below)
+                    pushDelayedFootnotes();
+                }
                 return;
             }
             start = start_if_new_page;
@@ -1044,9 +1052,7 @@ public:
             // But only if the first line of them fits. Otherwise, keep
             // them delayed (our own footnotes will then be delayed too).
             if ( delayed_footnotes[0]->getLines()[0]->getHeight() <= getAvailableHeightForFootnotes() ) {
-                for ( int i=0; i<delayed_footnotes.length(); i++ )
-                    addFootnoteToPage( delayed_footnotes[i] );
-                delayed_footnotes.reset();
+                pushDelayedFootnotes();
             }
         }
         if ( has_footnotes ) {
