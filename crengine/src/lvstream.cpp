@@ -2676,7 +2676,6 @@ public:
         bool require64 = false;
         bool zip64 = false;
         lUInt64 NextPosition64 = 0;
-        CurPos = 0;
         NextPosition = 0;
         if (fileSize < sizeof(ReadBuf) - 18)
             CurPos = -(lvpos_t)fileSize;
