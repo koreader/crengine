@@ -2036,6 +2036,7 @@ public:
 
 
 #pragma pack(push, 1)
+
 typedef struct {
     lUInt32  Mark;      // 0
     lUInt8   UnpVer;    // 4
@@ -2077,6 +2078,9 @@ typedef struct {
             //cnv.rev( &AddLen );
         }
     }
+    //  Omitted fields (which follow this structure):
+    // FileName (size = NameLen)
+    // ExtraField (size = AddLen)
 } ZipLocalFileHdr;
 #pragma pack(pop)
 
@@ -2092,8 +2096,8 @@ struct ZipHd2
     lUInt16     Method; // A
     lUInt32    ftime;   // C
     lUInt32    CRC;     // 10
-    lUInt32    PackSize;// 14
-    lUInt32    UnpSize; // 18
+    lUInt32    PackSize;// 14, ZIP64: if == 0xFFFFFFFF use Zip64ExtInfo
+    lUInt32    UnpSize; // 18, ZIP64: if == 0xFFFFFFFF use Zip64ExtInfo
     lUInt16     NameLen;// 1C
     lUInt16     AddLen; // 1E
     lUInt16     CommLen;// 20
@@ -2104,7 +2108,7 @@ struct ZipHd2
     lUInt16     _Attr_and_Offset[5];   // 24
     lUInt16     getZIPAttr() { return _Attr_and_Offset[0]; }
     lUInt32     getAttr() { return _Attr_and_Offset[1] | ((lUInt32)_Attr_and_Offset[2]<<16); }
-    lUInt32     getOffset() { return _Attr_and_Offset[3] | ((lUInt32)_Attr_and_Offset[4]<<16); }
+    lUInt32     getOffset() { return _Attr_and_Offset[3] | ((lUInt32)_Attr_and_Offset[4]<<16); }    // ZIP64: if == 0xFFFFFFFF use Zip64ExtInfo
     void        setOffset(lUInt32 offset) {
         _Attr_and_Offset[3] = (lUInt16)(offset & 0xFFFF);
         _Attr_and_Offset[4] = (lUInt16)(offset >> 16);
@@ -2133,7 +2137,43 @@ struct ZipHd2
             cnv.rev( &_Attr_and_Offset[4] );
         }
     }
+    //  Omitted fields (which follow this structure):
+    // FileName (size = NameLen)
+    // ExtraField (size = AddLen)
+    // FileComment (size = CommLen)
 };
+
+struct Zip64ExtInfo
+{
+    lUInt16 Tag;        // 0x0001
+    lUInt16 Size;       // 4-28
+    lUInt8 data[28];
+
+    void byteOrderConv() {
+        lvByteOrderConv cnv;
+        if ( cnv.msf() ) {
+            cnv.rev( &Tag );
+            cnv.rev( &Size );
+        }
+    }
+    lUInt32 getField32(int pos) {
+        if (pos >= 0 && pos + 3 < Size) {
+            return (lUInt32)data[pos] | (((lUInt32)data[pos + 1]) << 8) |
+                    (((lUInt32)data[pos + 2]) << 16) | (((lUInt32)data[pos + 3]) << 24);
+        }
+        return 0UL;
+    }
+    lUInt64 getField64(int pos) {
+        if (pos >= 0 && pos + 7 < Size) {
+            return (lUInt64)data[pos] | (((lUInt64)data[pos + 1]) << 8) |
+                    (((lUInt64)data[pos + 2]) << 16) | (((lUInt64)data[pos + 3]) << 24) |
+                    (((lUInt64)data[pos + 4]) << 32) | (((lUInt64)data[pos + 5]) << 40) |
+                    (((lUInt64)data[pos + 6]) << 48) | (((lUInt64)data[pos + 7]) << 56);
+        }
+        return 0UL;
+    }
+};
+
 #pragma pack(pop)
 
 //#define ARC_INBUF_SIZE  4096
@@ -2210,9 +2250,9 @@ private:
                 inpos = 0;
             }
             int tailpos = inpos + m_zstream.avail_in;
-            int bytes_to_read = ARC_INBUF_SIZE - tailpos;
-            if ( bytes_to_read > (int)m_inbytesleft )
-                bytes_to_read = (int)m_inbytesleft;
+            lvsize_t bytes_to_read = ARC_INBUF_SIZE - tailpos;
+            if ( bytes_to_read > (lvsize_t)m_inbytesleft )
+                bytes_to_read = (lvsize_t)m_inbytesleft;
             if (bytes_to_read > 0)
             {
                 lvsize_t bytesRead = 0;
@@ -2456,21 +2496,79 @@ public:
     {
         return LVERR_NOTIMPL;
     }
-    static LVStream * Create( LVStreamRef stream, lvpos_t pos, lString32 name, lUInt32 srcPackSize, lUInt32 srcUnpSize )
+    static LVStream * Create( LVStreamRef stream, lvpos_t pos, lString32 name, lvsize_t srcPackSize, lvsize_t srcUnpSize )
     {
         ZipLocalFileHdr hdr;
         unsigned hdr_size = 0x1E; //sizeof(hdr);
         if ( stream->Seek( pos, LVSEEK_SET, NULL )!=LVERR_OK )
             return NULL;
-        lvsize_t sz = 0;
-        if ( stream->Read( &hdr, hdr_size, &sz)!=LVERR_OK || sz!=hdr_size )
+        lvsize_t ReadSize = 0;
+        if ( stream->Read( &hdr, hdr_size, &ReadSize)!=LVERR_OK || ReadSize!=hdr_size )
             return NULL;
         hdr.byteOrderConv();
+
+        lvsize_t packSize = (lvsize_t)hdr.getPackSize();
+        lvsize_t unpSize = (lvsize_t)hdr.getUnpSize();
+
+#if LVLONG_FILE_SUPPORT == 1
+        // ZIP64: read extra data and use related fields
+        int extraPosUnpSize = -1;
+        int extraPosPackSize = -1;
+        int extraLastPos = 0;
+        Zip64ExtInfo* zip64ExtInfo = NULL;
+        if (0xFFFFFFFF == hdr.getUnpSize()) {
+            extraPosUnpSize = extraLastPos;
+            extraLastPos += 8;
+        }
+        if (0xFFFFFFFF == hdr.getPackSize()) {
+            extraPosPackSize = extraLastPos;
+            extraLastPos += 8;
+        }
+        bool zip64 = extraLastPos > 0;
+        if ( stream->Seek(hdr.getNameLen(), LVSEEK_CUR, NULL) != LVERR_OK) {
+            return NULL;
+        }
+        // read extra data
+        const lvsize_t max_EXTRA = 128;
+        if (hdr.getAddLen() > max_EXTRA) {
+            CRLog::error("ZIP entry extra length is too big: %d", (int)hdr.getAddLen());
+            return NULL;
+        }
+        lvsize_t extraSizeToRead = (hdr.getAddLen() < max_EXTRA) ? hdr.getAddLen() : max_EXTRA;
+        lUInt8 extra[max_EXTRA];
+        lverror_t err = stream->Read(extra, extraSizeToRead, &ReadSize);
+        if (err != LVERR_OK || ReadSize != extraSizeToRead) {
+            CRLog::error("error while reading zip header extra data");
+            return NULL;
+        }
+        // Find Zip64 extension if required
+        lvsize_t offs = 0;
+        Zip64ExtInfo* ext;
+        if (zip64) {
+            while (offs + 4 < extraSizeToRead) {
+                ext = (Zip64ExtInfo*)&extra[offs];
+                ext->byteOrderConv();
+                if ( 0x0001 == ext->Tag ) {
+                    zip64ExtInfo = ext;
+                    break;
+                } else {
+                    offs += 4 + ext->Size;
+                }
+            }
+        }
+        if (zip64ExtInfo != NULL) {
+            if (extraPosUnpSize >= 0)
+                unpSize = zip64ExtInfo->getField64(extraPosUnpSize);
+            if (extraPosPackSize >= 0)
+                packSize = zip64ExtInfo->getField64(extraPosPackSize);
+        }
+#endif
+
         pos += 0x1e + hdr.getNameLen() + hdr.getAddLen();
+#if LVLONG_FILE_SUPPORT != 1
         if ( stream->Seek( pos, LVSEEK_SET, NULL )!=LVERR_OK )
             return NULL;
-        lUInt32 packSize = hdr.getPackSize();
-        lUInt32 unpSize = hdr.getUnpSize();
+#endif
         if ( packSize==0 && unpSize==0 ) {
             // Can happen when local header does not carry these sizes
             // Use the ones provided that come from zip central directory
@@ -2479,26 +2577,24 @@ public:
         }
         if ((lvpos_t)(pos + packSize) > (lvpos_t)stream->GetSize())
             return NULL;
-        if (hdr.getMethod() == 0)
-        {
+        if (hdr.getMethod() == 0) {
             // store method, copy as is
             if ( packSize != unpSize )
                 return NULL;
             LVStreamFragment * fragment = new LVStreamFragment( stream, pos, packSize);
             fragment->SetName( name.c_str() );
             return fragment;
-        }
-        else if (hdr.getMethod() == 8)
-        {
+        } else if (hdr.getMethod() == 8) {
             // deflate
             LVStreamRef srcStream( new LVStreamFragment( stream, pos, packSize) );
             LVZipDecodeStream * res = new LVZipDecodeStream( srcStream, pos,
                 packSize, unpSize, hdr.getCRC() );
             res->SetName( name.c_str() );
             return res;
-        }
-        else
+        } else {
+            CRLog::error("Unimplemented compression method: 0x%02X", hdr.getMethod());
             return NULL;
+        }
     }
 };
 
@@ -2555,60 +2651,54 @@ public:
     virtual ~LVZipArc()
     {
     }
-    virtual int ReadContents()
-    {
+    virtual int ReadContents() {
         lvByteOrderConv cnv;
         //bool arcComment = false;
         bool truncated = false;
 
         m_list.clear();
-        if (!m_stream || m_stream->Seek(0, LVSEEK_SET, NULL)!=LVERR_OK)
-            return 0;
+        if (!m_stream || m_stream->Seek(0, LVSEEK_SET, NULL) != LVERR_OK)
+            return -1;
 
-        SetName( m_stream->GetName() );
+        SetName(m_stream->GetName());
 
-
-        lvsize_t sz = 0;
-        if (m_stream->GetSize( &sz )!=LVERR_OK)
-                return 0;
-        lvsize_t fileSize = sz;
+        lvsize_t fileSize = 0;
+        if (m_stream->GetSize(&fileSize) != LVERR_OK)
+            return -1;
 
         char ReadBuf[1024];
         lUInt32 NextPosition;
         lvoffset_t NextOffset;
         lvpos_t CurPos;
         lvsize_t ReadSize;
-        int Buf;
         bool found = false;
-#if LVLONG_FILE_SUPPORT==1
         bool found64 = false;
         bool require64 = false;
+        bool zip64 = false;
         lUInt64 NextPosition64 = 0;
-#endif
-        CurPos = (lvpos_t)fileSize;
+        CurPos = 0;
         NextPosition = 0;
-        if (CurPos < sizeof(ReadBuf)-18)
-            CurPos = 0;
+        if (fileSize < sizeof(ReadBuf) - 18)
+            CurPos = -(lvpos_t)fileSize;
         else
-            CurPos -= sizeof(ReadBuf)-18;
+            CurPos = -(lvpos_t)sizeof(ReadBuf) + 18;
         // Find End of central directory record (EOCD)
-        for ( Buf=0; Buf<64 && !found; Buf++ )
-        {
-            //SetFilePointer(ArcHandle,CurPos,NULL,FILE_BEGIN);
-            m_stream->Seek( CurPos, LVSEEK_SET, NULL );
-            m_stream->Read( ReadBuf, sizeof(ReadBuf), &ReadSize);
-            if (ReadSize==0)
+        for (int bufNo = 0; bufNo < 64; bufNo++) {
+            if (m_stream->Seek(CurPos, LVSEEK_END, NULL) != LVERR_OK)
                 break;
-            for (int I=(int)ReadSize-4;I>=0;I--)
-            {
-                if (ReadBuf[I]==0x50 && ReadBuf[I+1]==0x4b &&
-                    ReadBuf[I+2]==0x05 && ReadBuf[I+3]==0x06)
-                {
-                    m_stream->Seek( CurPos+I+16, LVSEEK_SET, NULL );
-                    m_stream->Read( &NextPosition, sizeof(NextPosition), &ReadSize);
-		    		cnv.lsf( &NextPosition );
-                    found=true;
-#if LVLONG_FILE_SUPPORT==1
+            if (m_stream->Read(ReadBuf, sizeof(ReadBuf), &ReadSize) != LVERR_OK)
+                break;
+            if (ReadSize == 0)
+                break;
+            for (int i = (int)ReadSize - 4; i >= 0; i--) {
+                if (ReadBuf[i] == 0x50 && ReadBuf[i + 1] == 0x4b &&
+                    ReadBuf[i + 2] == 0x05 && ReadBuf[i + 3] == 0x06) {
+                    if (m_stream->Seek(CurPos + i + 16, LVSEEK_END, NULL) != LVERR_OK)
+                        break;
+                    if (m_stream->Read(&NextPosition, sizeof(NextPosition), &ReadSize) != LVERR_OK)
+                        break;
+                    cnv.lsf(&NextPosition);
+                    found = true;
                     if (0xFFFFFFFFUL == NextPosition) {
                         require64 = true;
                         if (found64)
@@ -2616,40 +2706,39 @@ public:
                     } else {
                         break;
                     }
-#else
-                    break;
-#endif
                 }
-#if LVLONG_FILE_SUPPORT==1
-                if (ReadBuf[I]==0x50 && ReadBuf[I+1]==0x4b &&
-                    ReadBuf[I+2]==0x06 && ReadBuf[I+3]==0x06)
-                {
-                    m_stream->Seek( CurPos+I+48, LVSEEK_SET, NULL );
-                    m_stream->Read( &NextPosition64, sizeof(NextPosition64), &ReadSize);
-                    cnv.lsf( &NextPosition64 );
-                    found64=true;
+                if (ReadBuf[i] == 0x50 && ReadBuf[i + 1] == 0x4b &&
+                    ReadBuf[i + 2] == 0x06 && ReadBuf[i + 3] == 0x06) {
+                    if (m_stream->Seek(CurPos + i + 48, LVSEEK_END, NULL) != LVERR_OK)
+                        break;
+                    if (m_stream->Read(&NextPosition64, sizeof(NextPosition64), &ReadSize) != LVERR_OK)
+                        break;
+                    cnv.lsf(&NextPosition64);
+                    found64 = true;
                     break;
                 }
-#endif
             }
-            if (CurPos==0)
+            if (CurPos <= -fileSize)
                 break;
-            if (CurPos<sizeof(ReadBuf)-4)
-                CurPos=0;
+            if (fileSize < sizeof(ReadBuf) - 4)
+                CurPos = -fileSize;
             else
-                CurPos-=sizeof(ReadBuf)-4;
+                CurPos -= (lvpos_t)sizeof(ReadBuf) - 4;
         }
+        zip64 = found64 || require64;
 
-#if LVLONG_FILE_SUPPORT==1
-        if (found64 || (found && !require64))
-            truncated = false;
-        else
-            truncated = true;
+#if LVLONG_FILE_SUPPORT == 1
         if (found64)
             NextOffset = NextPosition64;
         else if (found && !require64)
             NextOffset = NextPosition;
+        else
+            truncated = true;
 #else
+        if (zip64) {
+            CRLog::error("zip64 signature found, but large file support is not enabled, stop processing.");
+            return -1;
+        }
         truncated = !found;
         NextOffset = NextPosition;
 #endif
@@ -2667,105 +2756,156 @@ public:
             m_alt_reading_method = true;
 
         if (truncated)
-            NextOffset=0;
+            NextOffset = 0;
 
         //================================================================
-        // get files
+        // get file list
 
 
+        lverror_t err;
         ZipLocalFileHdr ZipHd1;
         ZipHd2 ZipHeader = { 0 };
         unsigned ZipHeader_size = 0x2E; //sizeof(ZipHd2); //0x34; //
         unsigned ZipHd1_size = 0x1E; //sizeof(ZipHd1); //sizeof(ZipHd1)
-          //lUInt32 ReadSize;
 
         for (;;) {
 
-            if (m_stream->Seek( NextOffset, LVSEEK_SET, NULL )!=LVERR_OK)
+            if (m_stream->Seek(NextOffset, LVSEEK_SET, NULL) != LVERR_OK)
                 return 0;
 
-            if (truncated)
-            {
+            if (truncated) {
                 // The offset (that we don't find in a local header, but
                 // that we will store in the ZipHeader we're building)
                 // happens to be the current position here.
                 lUInt32 offset = (lUInt32)m_stream->GetPos();
 
-                m_stream->Read( &ZipHd1, ZipHd1_size, &ReadSize);
+                err = m_stream->Read(&ZipHd1, ZipHd1_size, &ReadSize);
                 ZipHd1.byteOrderConv();
 
-                //ReadSize = fread(&ZipHd1, 1, sizeof(ZipHd1), f);
-                if (ReadSize != ZipHd1_size) {
-                        //fclose(f);
-                    if (ReadSize==0 && NextOffset==(lvoffset_t)fileSize)
+                if (err != LVERR_OK || ReadSize != ZipHd1_size) {
+                    if (ReadSize == 0 && NextOffset == (lvoffset_t)fileSize)
                         return m_list.length();
-                    if ( ReadSize==0 )
+                    if (ReadSize == 0)
                         return m_list.length();
                     return 0;
                 }
 
-                ZipHeader.UnpVer=ZipHd1.UnpVer;
-                ZipHeader.UnpOS=ZipHd1.UnpOS;
-                ZipHeader.Flags=ZipHd1.Flags;
-                ZipHeader.ftime=ZipHd1.getftime();
-                ZipHeader.PackSize=ZipHd1.getPackSize();
-                ZipHeader.UnpSize=ZipHd1.getUnpSize();
-                ZipHeader.NameLen=ZipHd1.getNameLen();
-                ZipHeader.AddLen=ZipHd1.getAddLen();
-                ZipHeader.Method=ZipHd1.getMethod();
+                ZipHeader.UnpVer = ZipHd1.UnpVer;
+                ZipHeader.UnpOS = ZipHd1.UnpOS;
+                ZipHeader.Flags = ZipHd1.Flags;
+                ZipHeader.ftime = ZipHd1.getftime();
+                ZipHeader.PackSize = ZipHd1.getPackSize();
+                ZipHeader.UnpSize = ZipHd1.getUnpSize();
+                ZipHeader.NameLen = ZipHd1.getNameLen();
+                ZipHeader.AddLen = ZipHd1.getAddLen();
+                ZipHeader.Method = ZipHd1.getMethod();
                 ZipHeader.setOffset(offset);
                 // We may get a last invalid record with NameLen=0, which shouldn't hurt.
                 // If it does, use:
                 // if (ZipHeader.NameLen == 0) break;
             } else {
 
-                m_stream->Read( &ZipHeader, ZipHeader_size, &ReadSize);
+                err = m_stream->Read(&ZipHeader, ZipHeader_size, &ReadSize);
 
                 ZipHeader.byteOrderConv();
-                    //ReadSize = fread(&ZipHeader, 1, sizeof(ZipHeader), f);
-                if (ReadSize!=ZipHeader_size) {
-                            if (ReadSize>16 && ZipHeader.Mark==0x06054B50 ) {
-                                    break;
-                            }
-                            //fclose(f);
-                            return 0;
+                if (err != LVERR_OK || ReadSize != ZipHeader_size) {
+                    if (ReadSize > 16 && (ZipHeader.Mark == 0x06054B50 || ZipHeader.Mark == 0x06064b50)) {
+                        break;
+                    }
+                    return 0;
                 }
             }
 
-            if (ReadSize==0 || ZipHeader.Mark==0x06054b50 || ZipHeader.Mark==0x06064b50 ||
-                    (truncated && ZipHeader.Mark==0x02014b50) )
-            {
-//                if (!truncated && *(lUInt16 *)((char *)&ZipHeader+20)!=0)
-//                    arcComment=true;
+            if (ReadSize == 0 || ZipHeader.Mark == 0x06054b50 || ZipHeader.Mark == 0x06064b50 ||
+                (truncated && ZipHeader.Mark == 0x02014b50)) {
+                //                if (!truncated && *(lUInt16 *)((char *)&ZipHeader+20)!=0)
+                //                    arcComment=true;
                 break; //(GETARC_EOF);
             }
 
-            //const int NM = 513;
-            const int max_NM = 4096;
-            if ( ZipHeader.NameLen>max_NM ) {
-                CRLog::error("ZIP entry name length is too big: %d", (int)ZipHeader.NameLen);
-                return 0;
+#if LVLONG_FILE_SUPPORT == 1
+            int extraPosUnpSize = -1;
+            int extraPosPackSize = -1;
+            int extraPosOffset = -1;
+            int extraLastPos = 0;
+            Zip64ExtInfo *zip64ExtInfo = NULL;
+            if (0xFFFFFFFF == ZipHeader.UnpSize) {
+                extraPosUnpSize = extraLastPos;
+                extraLastPos += 8;
             }
-            lUInt32 SizeToRead=(ZipHeader.NameLen<max_NM) ? ZipHeader.NameLen : max_NM;
-            char fnbuf[max_NM+1];
-            m_stream->Read( fnbuf, SizeToRead, &ReadSize);
+            if (0xFFFFFFFF == ZipHeader.PackSize) {
+                extraPosPackSize = extraLastPos;
+                extraLastPos += 8;
+            }
+            if (0xFFFFFFFF == ZipHeader.getOffset()) {
+                extraPosOffset = extraLastPos;
+                extraLastPos += 8;
+            }
+            if (!zip64 && extraLastPos > 0)
+                zip64 = true;
+#endif
 
-            if (ReadSize!=SizeToRead) {
+            //const lvsize_t NM = 513;
+            const lvsize_t max_NM = 4096;
+            if (ZipHeader.NameLen > max_NM) {
+                CRLog::error("ZIP entry name length is too big: %d, trunc to %d",
+                             (int)ZipHeader.NameLen, (int)max_NM);
+            }
+            lvsize_t fnameSizeToRead = (ZipHeader.NameLen < max_NM) ? ZipHeader.NameLen : max_NM;
+            lvoffset_t NM_skipped_sz = (ZipHeader.NameLen > max_NM) ? (lvoffset_t)(ZipHeader.NameLen - max_NM) : 0;
+            char fnbuf[max_NM + 1];
+            err = m_stream->Read(fnbuf, fnameSizeToRead, &ReadSize);
+            if (err != LVERR_OK || ReadSize != fnameSizeToRead) {
                 CRLog::error("error while reading zip entry name");
                 return 0;
             }
+            fnbuf[fnameSizeToRead] = 0;
+            if (NM_skipped_sz > 0) {
+                if (m_stream->Seek(NM_skipped_sz, LVSEEK_CUR, NULL) != LVERR_OK) {
+                    CRLog::error("error while skipping the long zip entry name");
+                    return 0;
+                }
+            }
 
-            fnbuf[SizeToRead]=0;
+            // read extra data
+            const lvsize_t max_EXTRA = 512;
+            if (ZipHeader.AddLen > max_EXTRA) {
+                CRLog::error("ZIP entry extra length is too big: %d", (int)ZipHeader.AddLen);
+                return 0;
+            }
+            lvsize_t extraSizeToRead = (ZipHeader.AddLen < max_EXTRA) ? ZipHeader.AddLen : max_EXTRA;
+            lUInt8 extra[max_EXTRA];
+            err = m_stream->Read(extra, extraSizeToRead, &ReadSize);
+            if (err != LVERR_OK || ReadSize != extraSizeToRead) {
+                CRLog::error("error while reading zip entry extra data");
+                return 0;
+            }
+#if LVLONG_FILE_SUPPORT == 1
+            // Find Zip64 extension if required
+            lvsize_t offs = 0;
+            Zip64ExtInfo *ext;
+            if (zip64) {
+                while (offs + 4 < extraSizeToRead) {
+                    ext = (Zip64ExtInfo *)&extra[offs];
+                    ext->byteOrderConv();
+                    if (0x0001 == ext->Tag) {
+                        zip64ExtInfo = ext;
+                        break;
+                    } else {
+                        offs += 4 + ext->Size;
+                    }
+                }
+            }
+#endif
 
-            long SeekLen=ZipHeader.AddLen+ZipHeader.CommLen;
-
+            lUInt32 SeekLen = ZipHeader.CommLen;
             if (truncated)
-                SeekLen+=ZipHeader.PackSize;
+                SeekLen += ZipHeader.PackSize;
 
             NextOffset = (lvoffset_t)m_stream->GetPos();
             NextOffset += SeekLen;
-            if (NextOffset >= (lvoffset_t)sz) {
-                CRLog::error("invalid offset, stop to read content.");
+            if (NextOffset >= (lvoffset_t)fileSize) {
+                CRLog::error("invalid offset, stop to read contents.");
                 break;
             }
 
@@ -2777,7 +2917,7 @@ public:
                 //CRLog::trace("ZIP 6.3: Language encoding flag (EFS) enabled, using UTF-8 encoding.");
                 fName = Utf8ToUnicode(fnbuf);
             } else {
-                if (isValidUtf8Data((const unsigned char *)fnbuf, SizeToRead)) {
+                if (isValidUtf8Data((const unsigned char *)fnbuf, fnameSizeToRead)) {
                     //CRLog::trace("autodetected UTF-8 encoding.");
                     fName = Utf8ToUnicode(fnbuf);
                 } else {
@@ -2786,28 +2926,58 @@ public:
                     //  "Win32","SMS/QDOS","Acorn RISC OS","Win32 VFAT","MVS",
                     //  "BeOS","Tandem"};
                     // TODO: try to detect proper charset using 0x0008 Extra Field (InfoZip APPNOTE-6.3.5, Appendix D.4).
-                    const lChar32 * enc_name = (ZipHeader.PackOS==0) ? U"cp866" : U"cp1251";
+                    const lChar32 *enc_name = (ZipHeader.PackOS == 0) ? U"cp866" : U"cp1251";
                     //CRLog::trace("detected encoding %s", LCSTR(enc_name));
-                    const lChar32 * table = GetCharsetByte2UnicodeTable( enc_name );
-                    fName = ByteToUnicode( lString8(fnbuf), table );
+                    const lChar32 *table = GetCharsetByte2UnicodeTable(enc_name);
+                    fName = ByteToUnicode(lString8(fnbuf), table);
                 }
             }
 
-            LVCommonContainerItemInfo * item = new LVCommonContainerItemInfo();
+            LVCommonContainerItemInfo *item = new LVCommonContainerItemInfo();
+#if LVLONG_FILE_SUPPORT == 1
+            lvsize_t fileUnpSize = (lvsize_t)ZipHeader.UnpSize;
+            lvsize_t filePackSize = (lvsize_t)ZipHeader.PackSize;
+            lvpos_t fileOffset = (lvpos_t)ZipHeader.getOffset();
+            if (zip64ExtInfo != NULL) {
+                if (extraPosUnpSize >= 0)
+                    fileUnpSize = zip64ExtInfo->getField64(extraPosUnpSize);
+                if (extraPosPackSize >= 0)
+                    filePackSize = zip64ExtInfo->getField64(extraPosPackSize);
+                if (extraPosOffset >= 0)
+                    fileOffset = zip64ExtInfo->getField64(extraPosOffset);
+            }
+            item->SetItemInfo(fName.c_str(), fileUnpSize, (ZipHeader.getAttr() & 0x3f));
+            item->SetSrc(fileOffset, filePackSize, ZipHeader.Method);
+#else
             item->SetItemInfo(fName.c_str(), ZipHeader.UnpSize, (ZipHeader.getAttr() & 0x3f));
-            item->SetSrc( ZipHeader.getOffset(), ZipHeader.PackSize, ZipHeader.Method );
+            item->SetSrc(ZipHeader.getOffset(), ZipHeader.PackSize, ZipHeader.Method);
+#endif
+            m_list.add(item);
 
 //#define DUMP_ZIP_HEADERS
 #ifdef DUMP_ZIP_HEADERS
-            CRLog::trace("ZIP entry '%s' unpSz=%d, pSz=%d, m=%x, offs=%x, zAttr=%x, flg=%x", LCSTR(fName), (int)ZipHeader.UnpSize, (int)ZipHeader.PackSize, (int)ZipHeader.Method, (int)ZipHeader.getOffset(), (int)ZipHeader.getZIPAttr(), (int)ZipHeader.getAttr());
+#if LVLONG_FILE_SUPPORT == 1
+            CRLog::trace("ZIP entry '%s' unpSz=%llu, pSz=%llu, m=%x, offs=%llu, zAttr=%x, flg=%x, addL=%d, commL=%d, dn=%d", LCSTR(fName), fileUnpSize, filePackSize, (int)ZipHeader.Method, fileOffset, (int)ZipHeader.getZIPAttr(), (int)ZipHeader.getAttr(), (int)ZipHeader.AddLen, (int)ZipHeader.CommLen, (int)ZipHeader.DiskNum);
+#else
+            CRLog::trace("ZIP entry '%s' unpSz=%d, pSz=%d, m=%x, offs=%x, zAttr=%x, flg=%x, addL=%d, commL=%d, dn=%d", LCSTR(fName), (int)ZipHeader.UnpSize, (int)ZipHeader.PackSize, (int)ZipHeader.Method, (int)ZipHeader.getOffset(), (int)ZipHeader.getZIPAttr(), (int)ZipHeader.getAttr(), (int)ZipHeader.AddLen, (int)ZipHeader.CommLen, (int)ZipHeader.DiskNum);
+#endif
             //, addL=%d, commL=%d, dn=%d
             //, (int)ZipHeader.AddLen, (int)ZipHeader.CommLen, (int)ZipHeader.DiskNum
+#define EXTRA_DEC_MAX   (1536+1)
+            if (extraSizeToRead > 0) {
+                char extra_buff[EXTRA_DEC_MAX];
+                memset(extra_buff, 0, EXTRA_DEC_MAX);
+                char* ptr = &extra_buff[0];
+                for (lvsize_t i = 0; i < extraSizeToRead; i++) {
+                    sprintf(ptr, ":%02X", extra[i]);
+                    ptr += 3;
+                }
+                *ptr = 0;
+                CRLog::trace("  ZIP entry extra data: %s", extra_buff);
+            }
 #endif
-
-            m_list.add(item);
         }
-        int sz2 = m_list.length();
-        return sz2;
+        return m_list.length();
     }
 
     static LVArcContainerBase * OpenArchieve( LVStreamRef stream )
@@ -2828,7 +2998,7 @@ public:
         if ( itemCount > 0 && arc->usedAltReadingMethod() ) {
             printf("CRE WARNING: zip file truncated: going on with possibly partial content.\n");
         }
-        else if ( itemCount <= 0 && !arc->usedAltReadingMethod() ) {
+        else if ( itemCount == 0 && !arc->usedAltReadingMethod() ) {
             printf("CRE WARNING: zip file corrupted or invalid: trying alternative processing...\n");
             arc->useAltReadingMethod();
             itemCount = arc->ReadContents();
