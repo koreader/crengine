@@ -88,7 +88,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.64k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.63k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0029
 
@@ -4530,21 +4530,20 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
             }
             else {
                 // We need to parse the stylesheet tag text to extract css files path.
-                // We write its content without indentation and add \n at start and
-                // end for readability.
+                // We write its content without indentation and add a \n for readability.
                 lString8 txt = node->getText8();
-                if ( txt.firstChar() != '\n' )
-                    *stream << "\n";
+                int txtlen = txt.length();
+                if (txtlen && txt.substr(txtlen-1) != "\n") {
+                    txt << "\n";
+                }
                 *stream << txt;
-                if ( txt.lastChar() != '\n' )
-                    *stream << "\n";
                 // Parse @import'ed files to gather linked css files (we don't really need to
                 // do recursive parsing of @import, which are very rare, we just want to get
                 // the 2nd++ linked css files that were put there by crengine).
                 const char * s = txt.c_str();
                 while (true) {
                     lString8 import_file;
-                    if ( ! LVProcessStyleSheetImport( s, import_file, node->getDocument() ) ) {
+                    if ( ! LVProcessStyleSheetImport( s, import_file ) ) {
                         break;
                     }
                     lString32 cssFile = LVCombinePaths( node->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
@@ -4614,7 +4613,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                             const char * s = txt.c_str();
                             while (true) {
                                 lString8 import_file;
-                                if ( ! LVProcessStyleSheetImport( s, import_file, node->getDocument() ) ) {
+                                if ( ! LVProcessStyleSheetImport( s, import_file ) ) {
                                     break;
                                 }
                                 lString32 cssFile = LVCombinePaths( pnode->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
@@ -4712,7 +4711,7 @@ public:
         while (_nestingLevel < 11) { //arbitrary limit
             lString8 import_file;
 
-            if ( LVProcessStyleSheetImport( s, import_file, _document ) ) {
+            if ( LVProcessStyleSheetImport( s, import_file ) ) {
                 lString32 importFilename = LVCombinePaths( codeBase, Utf8ToUnicode(import_file) );
                 if ( !importFilename.empty() && !_inProgress.contains(importFilename) ) {
                     ret = Parse(importFilename) || ret;
@@ -8019,17 +8018,11 @@ void ldomDocumentWriter::OnTagBody()
         for (int i = 0; i < _stylesheetLinks.length(); i++) {
             lString32 import("@import url(\"");
             import << _stylesheetLinks.at(i);
-            import << "\")";
-            if ( !_stylesheetLinksMediaConditions.at(i).empty() ) {
-                import << " ";
-                import << _stylesheetLinksMediaConditions.at(i);
-            }
-            import << ";\n";
+            import << "\");\n";
             imports << import;
         }
         lString32 styleText = imports + _headStyleText;
         _stylesheetLinks.clear();
-        _stylesheetLinksMediaConditions.clear();
         _headStyleText.clear();
 
         // It's only at this point that we push() the previous stylesheet state
@@ -8203,8 +8196,9 @@ void ldomDocumentWriter::OnTagClose( const lChar32 *, const lChar32 * tagname, b
     // (duplicated in ldomDocumentWriterFilter::OnTagClose)
     if ( id == el_link && curNodeId == el_link ) { // link node
         ldomNode * n = _currNode->getElement();
-        if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head && n->getAttributeValueLC(attr_rel) == U"stylesheet"
-                    && ( n->getAttributeValueLC(attr_type) == U"text/css" || n->getAttributeValueLC(attr_type).empty() ) ) {
+        if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head &&
+                 n->getAttributeValueLC(attr_rel) == U"stylesheet" &&
+                 n->getAttributeValueLC(attr_type) == U"text/css" ) {
             lString32 href = n->getAttributeValue(attr_href);
             lString32 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
@@ -8212,7 +8206,6 @@ void ldomDocumentWriter::OnTagClose( const lChar32 *, const lChar32 * tagname, b
             // _document->setDocStylesheetFileName(stylesheetFile);
             // _document->applyDocumentStyleSheet();
             _stylesheetLinks.add(stylesheetFile);
-            _stylesheetLinksMediaConditions.add( n->getAttributeValue(attr_media) ); // empty string if no attribute
         }
     }
 
@@ -8326,7 +8319,6 @@ ldomDocumentWriter::ldomDocumentWriter(ldomDocument * document, bool headerOnly)
 {
     _headStyleText.clear();
     _stylesheetLinks.clear();
-    _stylesheetLinksMediaConditions.clear();
     _stopTagId = 0xFFFE;
     IS_FIRST_BODY = true;
     _document->_parsing = true;
@@ -13747,6 +13739,7 @@ void ldomDocumentFragmentWriter::setCodeBase( lString32 fileName )
         CRLog::trace("codeBasePrefix is empty for path %s", LCSTR(fileName));
         codeBasePrefix = pathSubstitutions.get(fileName);
     }
+    stylesheetFile.clear();
 }
 
 /// called on attribute
@@ -13775,28 +13768,28 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lCha
                 htmlStyle = attrvalue;
         }
         else if ( styleDetectionState ) {
-            // We won't include this <link/> element in the DOM, but we'll include the
-            // stylesheet href in an inner element. We need to analyze and remember some
-            // attributes as we meet them here to decide if it is a valid stylesheet link
-            // when done with it in OnTagBody().
-            if ( !lStr_cmp(attrname, "rel") ) { // rel="stylesheet" required
-                if ( lString32(attrvalue).lowercase() == U"stylesheet" )
-                    styleDetectionState |= 0x02; // bit 2 required
+            if ( !lStr_cmp(attrname, "rel") && lString32(attrvalue).lowercase() == U"stylesheet" )
+                styleDetectionState |= 2;
+            else if ( !lStr_cmp(attrname, "type") ) {
+                if ( lString32(attrvalue).lowercase() == U"text/css")
+                    styleDetectionState |= 4;
                 else
-                    styleDetectionState |= 0x80; // not a stylesheet (bit 8 set)
-            }
-            else if ( !lStr_cmp(attrname, "type") ) { // type="text/css" optional, but any other value is invalid
-                if ( lString32(attrvalue).lowercase() != U"text/css")
-                    styleDetectionState |= 0x80; // not a stylesheet (bit 8 set)
-            }
-            else if ( !lStr_cmp(attrname, "href") ) { // href= required
-                styleDetectionState |= 0x04; // bit 4 required
+                    styleDetectionState = 0;  // text/css type supported only
+            } else if ( !lStr_cmp(attrname, "href") ) {
+                styleDetectionState |= 8;
                 lString32 href = attrvalue;
-                tmpStylesheetLink = href;
+                if ( stylesheetFile.empty() )
+                    tmpStylesheetFile = LVCombinePaths( codeBase, href );
+                else
+                    tmpStylesheetFile = href;
             }
-            else if ( !lStr_cmp(attrname, "media") ) { // media= optional
-                lString32 media = attrvalue;
-                tmpStylesheetMediaCondition = media;
+            if (styleDetectionState == 15) {
+                if ( !stylesheetFile.empty() )
+                    stylesheetLinks.add(tmpStylesheetFile);
+                else
+                    stylesheetFile = tmpStylesheetFile;
+                styleDetectionState = 0;
+                CRLog::trace("CSS file href: %s", LCSTR(stylesheetFile));
             }
         }
     }
@@ -13808,11 +13801,8 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
     if ( insideTag ) {
         return parent->OnTagOpen(nsname, tagname);
     } else {
-        if ( !lStr_cmp(tagname, "link") ) {
-            styleDetectionState = 1; // See OnAttribute() above: bit 1 required
-            tmpStylesheetLink.clear();
-            tmpStylesheetMediaCondition.clear();
-        }
+        if ( !lStr_cmp(tagname, "link") )
+            styleDetectionState = 1;
         else if ( !lStr_cmp(tagname, "style") )
             headStyleState = 1;
         else if ( !lStr_cmp(tagname, "html") ) {
@@ -13830,7 +13820,7 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
     //   <DocFragment StyleSheet="OEBPS/Styles/main.css" id="_doc_fragment_2">
     //     <stylesheet href="OEBPS/Text/">
     //       @import url("../Styles/other.css");
-    //       @import url(path_to_3rd_css_file) screen and (color);
+    //       @import url(path_to_3rd_css_file)
     //       here is <HEAD><STYLE> content
     //     </stylesheet>
     //     <body>
@@ -13848,18 +13838,10 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
         if ( !baseTagReplacement.empty() ) { // with EPUBs: baseTagReplacement="DocFragment"
             baseElement = parent->OnTagOpen(U"", baseTagReplacement.c_str()); // start <DocFragment
             lastBaseElement = baseElement;
-            if ( stylesheetLinks.length() > 0 && stylesheetLinksMediaConditions[0].empty() ) {
-                // First <link rel="stylesheet"> has no media= condition: we can add it as an
-                // attribute to our DocFragment, so we may avoid creating a child element
-                // for 2nd++ stylesheets if there aren't any, to save creating a text node
-                // and just use an attribute (but if it has a media=, we'll need to put it
-                // inside the child <stylesheet> element).
-                // Add attribute <DocFragment StyleSheet="path_to_css_1st_file"
-                lString32 stylesheetFile = LVCombinePaths( codeBase, stylesheetLinks[0] );
+            if ( !stylesheetFile.empty() ) {
+                // add attribute <DocFragment StyleSheet="path_to_css_1st_file"
                 parent->OnAttribute(U"", U"StyleSheet", stylesheetFile.c_str() );
                 CRLog::debug("Setting StyleSheet attribute to %s for document fragment", LCSTR(stylesheetFile) );
-                stylesheetLinks.erase(0, 1);
-                stylesheetLinksMediaConditions.erase(0, 1);
             }
             if ( !codeBasePrefix.empty() ) // add attribute <DocFragment id="..html_file_name"
                 parent->OnAttribute(U"", U"id", codeBasePrefix.c_str() );
@@ -13877,27 +13859,19 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                 // add stylesheet element as child of <DocFragment>: <stylesheet href="...">
                 parent->OnTagOpen(U"", U"stylesheet");
                 parent->OnAttribute(U"", U"href", codeBase.c_str() );
-                // Add all other <link> stylesheets as @import url() in this element,
-                // before the original <head><style> content.
                 lString32 imports;
                 for (int i = 0; i < stylesheetLinks.length(); i++) {
                     lString32 import("@import url(\"");
                     import << stylesheetLinks.at(i);
-                    import << "\")";
-                    if ( !stylesheetLinksMediaConditions.at(i).empty() ) {
-                        import << " ";
-                        import << stylesheetLinksMediaConditions.at(i);
-                    }
-                    import << ";\n";
+                    import << "\");\n";
                     imports << import;
                 }
                 stylesheetLinks.clear();
-                stylesheetLinksMediaConditions.clear();
                 lString32 styleText = imports + headStyleText;
                 // Add it to <DocFragment><stylesheet>, so it becomes:
                 //   <stylesheet href="...">
-                //     @import url(path_to_css_2nd_file);
-                //     @import url(path_to_css_3rd_file) screen and (color);
+                //     @import url(path_to_css_2nd_file)
+                //     @import url(path_to_css_3rd_file)
                 //     here is <HEAD><STYLE> content
                 //   </stylesheet>
                 parent->OnTagBody();
@@ -13946,14 +13920,15 @@ void ldomDocumentFragmentWriter::OnTagBody()
     else if ( insideHtmlTag ) {
         insideHtmlTag = false;
     }
-    if ( styleDetectionState ) { // <link.../> closing
-        // Check we have meet all required attributes, and that nothing made it invalid
-        if ( (styleDetectionState & 0x07) && !(styleDetectionState & 0x80) ) {
-            stylesheetLinks.add(tmpStylesheetLink);
-            stylesheetLinksMediaConditions.add(tmpStylesheetMediaCondition);
-        }
+    if ( styleDetectionState == 11 ) {
+        // incomplete <link rel="stylesheet", href="..." />; assuming type="text/css"
+        if ( !stylesheetFile.empty() )
+            stylesheetLinks.add(tmpStylesheetFile);
+        else
+            stylesheetFile = tmpStylesheetFile;
         styleDetectionState = 0;
-    }
+    } else
+        styleDetectionState = 0;
 }
 
 
@@ -14989,8 +14964,9 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar32 * /*nsname*/, const lCh
     // (duplicated in ldomDocumentWriter::OnTagClose)
     if ( id == el_link && curNodeId == el_link ) { // link node
         ldomNode * n = _currNode->getElement();
-        if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head && n->getAttributeValueLC(attr_rel) == U"stylesheet"
-                    && ( n->getAttributeValueLC(attr_type) == U"text/css" || n->getAttributeValueLC(attr_type).empty() ) ) {
+        if ( n->getParentNode() && n->getParentNode()->getNodeId() == el_head &&
+                 n->getAttributeValueLC(attr_rel) == U"stylesheet" &&
+                 n->getAttributeValueLC(attr_type) == U"text/css" ) {
             lString32 href = n->getAttributeValue(attr_href);
             lString32 stylesheetFile = LVCombinePaths( _document->getCodeBase(), href );
             CRLog::debug("Internal stylesheet file: %s", LCSTR(stylesheetFile));
@@ -14998,7 +14974,6 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar32 * /*nsname*/, const lCh
             // _document->setDocStylesheetFileName(stylesheetFile);
             // _document->applyDocumentStyleSheet();
             _stylesheetLinks.add(stylesheetFile);
-            _stylesheetLinksMediaConditions.add( n->getAttributeValue(attr_media) ); // empty string if no attribute
         }
     }
 
