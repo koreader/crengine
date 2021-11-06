@@ -134,7 +134,7 @@ public:
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
-    void setAttr( lUInt16 id, lString32 value ) { _attrid = id; _value = value; }
+    void setAttr( lUInt16 id, const lString32 value ) { _attrid = id; _value = value; }
     LVCssSelectorRule * getNext() { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
