@@ -8280,6 +8280,23 @@ void ldomDocumentWriter::OnAttribute( const lChar32 * nsname, const lChar32 * at
     //logfile << "ldomDocumentWriter::OnAttribute() [" << nsname << ":" << attrname << "]";
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
     lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
+
+    if ( attr_id == attr_class ) { // class="something" in an ldomDocument
+        // To make it less expensive in LVCssSelectorRule::check() when checking classname
+        // selectors for a class attribute with multiple classnames (separated by spaces),
+        // we append a space now if there is any inside attrvalue (we are provided with it
+        // trimmed, so a trailing space will mean there is an inner space)
+        lChar32 * c = (lChar32*)attrvalue;
+        for ( ; *c != 0; c++) {
+            if ( *c == U' ' ) { // There is at least one space
+                lString32 new_value = lString32(attrvalue);
+                new_value.append(U" ");
+                _currNode->addAttribute( attr_ns, attr_id, new_value.c_str() );
+                return;
+            }
+        }
+    }
+
     _currNode->addAttribute( attr_ns, attr_id, attrvalue );
 
     //logfile << " !a!\n";
@@ -14945,6 +14962,22 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar32 * nsname, const lChar3
     // Othewise, add the attribute
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
     lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
+
+    if ( attr_id == attr_class ) { // class="something" in an ldomDocument
+        // To make it less expensive in LVCssSelectorRule::check() when checking classname
+        // selectors for a class attribute with multiple classnames (separated by spaces),
+        // we append a space now if there is any inside attrvalue (we are provided with it
+        // trimmed, so a trailing space will mean there is an inner space)
+        lChar32 * c = (lChar32*)attrvalue;
+        for ( ; *c != 0; c++) {
+            if ( *c == U' ' ) { // There is at least one space
+                lString32 new_value = lString32(attrvalue);
+                new_value.append(U" ");
+                _currNode->addAttribute( attr_ns, attr_id, new_value.c_str() );
+                return;
+            }
+        }
+    }
 
     _currNode->addAttribute( attr_ns, attr_id, attrvalue );
 
