@@ -1406,7 +1406,7 @@ void lString32Collection::erase(int offset, int cnt)
 {
     if (count<=0)
         return;
-    if (offset < 0 || offset + cnt >= count)
+    if (offset < 0 || offset + cnt > count)
         return;
     int i;
     for (i = offset; i < offset + cnt; i++)
