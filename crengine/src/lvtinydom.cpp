@@ -13913,7 +13913,12 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
             // ldomElementWriter for DocFragment is left/destroyed (by onBodyExit(),
             // because this OnTagOpen has set to it _stylesheetIsSet).
             parent->OnTagOpen(U"", baseTag.c_str());
-            parent->OnTagBody();
+            // Calling parent->OnTagBody() here shouldn't be needed, as
+            // it will be done when the parser that called us will call
+            // ldomDocumentFragmentWriter::OnTagBody() below. Doing it
+            // here would have it done twice, and can cause issues with
+            // styles and font set on this BODY element. So don't do it.
+            // parent->OnTagBody();
             return baseElement;
         }
     }
