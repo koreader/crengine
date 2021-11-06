@@ -4610,26 +4610,20 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         break;
     case cssrt_class:         // E.class
         {
-            lString32 val = node->getAttributeValue(attr_class);
+            const lString32 val = node->getAttributeValue(attr_class);
             if ( val.empty() )
                 return false;
             // val.lowercase(); // className should be case sensitive
-            // if ( val.length() != _value.length() )
-            //     return false;
-            //CRLog::trace("attr_class: %s %s", LCSTR(val), LCSTR(_value) );
-            /*As I have eliminated leading and ending spaces in the attribute value, any space in
-             *val means there are more than one classes */
-            if (val.pos(" ") != -1) {
+            // we have appended a space when there was some inner space, meaning
+            // this class attribute contains multiple class names, which needs
+            // more complex checks
+            if ( val[val.length()-1] == ' ' ) {
                 lString32 value_w_space_after = _value + " ";
                 if (val.pos(value_w_space_after) == 0)
                     return true; // at start
-                lString32 value_w_space_before = " " + _value;
-                int pos = val.pos(value_w_space_before);
-                if (pos != -1 && pos + value_w_space_before.length() == val.length())
-                    return true; // at end
                 lString32 value_w_spaces_before_after = " " + _value + " ";
                 if (val.pos(value_w_spaces_before_after) != -1)
-                    return true; // in between
+                    return true; // in between or at end
                 return false;
             }
             return val == _value;
