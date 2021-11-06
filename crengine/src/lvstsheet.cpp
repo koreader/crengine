@@ -4593,19 +4593,26 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         break;
     case cssrt_id:            // E#id
         {
-            lString32 val = node->getAttributeValue(attr_id);
+            const lString32 val = node->getAttributeValue(attr_id);
             if ( val.empty() )
                 return false;
-            /*lString32 ldomDocumentFragmentWriter::convertId( lString32 id ) adds codeBasePrefix to
-             *original id name, I can not get codeBasePrefix from here so I add a space to identify the
-             *real id name.*/
-            int pos = val.pos(" ");
-            if (pos != -1) {
-                val = val.substr(pos + 1, val.length() - pos - 1);
-            }
-            if (_value.length()>val.length())
+            // With EPUBs and CHMs, using ldomDocumentFragmentWriter,
+            // we get the codeBasePrefix (+ a space) prepended to the
+            // original id, ie: id="_doc_fragment_7_ origId"
+            if ( !val.endsWith(_value) )
                 return false;
-            return val == _value;
+            int prefix_len = val.length() - _value.length();
+            if ( prefix_len == 0 )
+                return true; // exact match (non EPUB/CHM)
+            if ( val[prefix_len - 1] != U' ' )
+                return false; // not a space, can't be a match
+            // Ensure this prefix looks enough like a codeBasePrefix so
+            // that we can consider it a match
+            if ( prefix_len >= 2 && val[prefix_len - 2] != U'_' )
+                return false; // not the trailing '_' of a "_doc_fragment_7_"
+            if ( val.startsWith(U"_doc_fragment_") )
+                return true;
+            return false;
         }
         break;
     case cssrt_class:         // E.class
@@ -4953,7 +4960,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         if (!parse_ident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
-        lString32 s( attrvalue );
+        const lString32 s( attrvalue );
         // s.lowercase(); // className should be case sensitive
         rule->setAttr(attr_class, s);
         return rule;
@@ -4963,7 +4970,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         if (!parse_ident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
-        lString32 s( attrvalue );
+        const lString32 s( attrvalue );
         rule->setAttr(attr_id, s);
         return rule;
     } else if ( *str==':' ) {
