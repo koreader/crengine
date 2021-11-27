@@ -2734,6 +2734,14 @@ static const char * css_cr_only_if_names[]={
         "full-featured",
         "epub-document",
         "fb2-document",
+        "html-document",
+        "txt-document",
+        "rtf-document",
+        "chm-document",
+        "doc-document",
+        "docx-document",
+        "odt-document",
+        "pdb-document",
         NULL
 };
 enum cr_only_if_t {
@@ -2750,6 +2758,14 @@ enum cr_only_if_t {
     cr_only_if_full_featured,
     cr_only_if_epub_document,
     cr_only_if_fb2_document, // fb2 or fb3
+    cr_only_if_html_document,
+    cr_only_if_txt_document,
+    cr_only_if_rtf_document,
+    cr_only_if_chm_document,
+    cr_only_if_doc_document,
+    cr_only_if_docx_document,
+    cr_only_if_odt_document,
+    cr_only_if_pdb_document,
 };
 
 bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString32 codeBase )
@@ -2860,6 +2876,54 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else if ( name == cr_only_if_fb2_document ) {
                             int doc_format = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none);
                             match = (doc_format == doc_format_fb2) || (doc_format == doc_format_fb3);
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_html_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_html;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_txt_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_txt;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_rtf_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_rtf;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_chm_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_chm;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_doc_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_doc;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_docx_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_docx;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_odt_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_odt;
+                            if (invert) {
+                                match = !match;
+                            }
+                        }
+                        else if ( name == cr_only_if_pdb_document ) {
+                            match = doc->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none) == doc_format_pdb;
                             if (invert) {
                                 match = !match;
                             }
