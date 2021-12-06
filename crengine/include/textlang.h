@@ -146,7 +146,7 @@ public:
     lString32 & getClosingQuote( bool update_level=true );
 
     int getHyphenHangingPercent();
-    int getHangingPercent( bool right_hanging, bool & check_font, const lChar32 * text, int pos, int next_usable );
+    int getHangingPercent( bool right_hanging, bool rtl_line, bool & check_font, const lChar32 * text, int pos, int next_usable );
 
     #if USE_HARFBUZZ==1
     hb_language_t getHBLanguage() const { return _hb_language; }

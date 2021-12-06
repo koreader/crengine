@@ -1023,7 +1023,7 @@ int TextLangCfg::getHyphenHangingPercent() {
     return 70; // 70%
 }
 
-int TextLangCfg::getHangingPercent( bool right_hanging, bool & check_font, const lChar32 * text, int pos, int next_usable ) {
+int TextLangCfg::getHangingPercent( bool right_hanging, bool rtl_line, bool & check_font, const lChar32 * text, int pos, int next_usable ) {
     // We get provided with the BiDi re-ordered m_text (so, visually
     // ordered) and the index of char: if needed, we can look at
     // previous or next chars for context to decide how much to hang
@@ -1046,9 +1046,16 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool & check_font, const
     // Or we could round any value to 0 or 100%  (and/or tweak any
     // glyph in lvtextfm.cpp so it looks like it is full-width).
 
+    // We may return a greater ratio if some char happens at end of
+    // line (hanging in the right margin in a LTR paragraph, or in
+    // the left margin in a RTL one) as it may have more hanging
+    // company on this side.
+    bool line_end_hanging = right_hanging != rtl_line;
+
     lChar32 ch = text[pos];
     int ratio = 0;
 
+    /* Commented out, as currently no longer needed :
     // In French, there's usually a space before and after guillemets,
     // or before a quotation mark. Having them hanging, and then a
     // space, looks like there's a hole in the margin.
@@ -1076,6 +1083,7 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool & check_font, const
             }
         }
     }
+    */
 
     // For the common punctuations, parens and quotes, we check and
     // return the same value whether asked for left or right hanging.
@@ -1110,12 +1118,6 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool & check_font, const
         case 0x201B: // ‛ single high-reversed-9 quotation mark
             ratio = 70;
             break;
-        case 0x2039: // ‹ left single guillemet
-        case 0x203A: // › right single guillemet
-            // These are wider than the previous ones, and hanging by 70% with a space
-            // alongside can give a feeling of bad justification. So, hang less.
-            ratio = space_alongside ? 20 : 70;
-            break;
         case 0x0022: // " double quote
         case 0x003A: // : colon
         case 0x003B: // ; semicolon
@@ -1126,15 +1128,36 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool & check_font, const
         case 0x201F: // ‟ double high-reversed-9 quotation mark
             ratio = 50;
             break;
-        case 0x00AB: // « left guillemet
-        case 0x00BB: // » right guillemet
-            // These are wider than the previous ones, and hanging by 50% with a space
-            // alongside can give a feeling of bad justification. So, hang less.
-            ratio = space_alongside ? 20 : 50;
-            break;
         case 0x2013: // – endash
             // Should have enough body inside (with only 30% hanging)
             ratio = 30;
+            break;
+        /* This early idea feels not the best: these have a side taller than
+         * the other, and the glyph may have some strong body with some fonts:
+        case 0x2039: // ‹ left single guillemet
+        case 0x203A: // › right single guillemet
+            // These are wider than the previous ones, and hanging by 70% with a space
+            // alongside can give a feeling of bad justification. So, hang less.
+            ratio = space_alongside ? 20 : 70;
+            break;
+        case 0x00AB: // « left guillemet
+        case 0x00BB: // » right guillemet
+            ratio = space_alongside ? 20 : 50;
+            break;
+        */
+        // If feels better to not bother about any space alongside and use smaller values.
+        // It also feels among German and French users that the orientation of the guillemet
+        // doesn't matter, and we can hang the same ratio whether the tall or the small side
+        // will be hanging.
+        // We also go with a tad larger value on the line-end margin (right margin if LTR)
+        // so it blends better with the more probable other punctuation handling there.
+        case 0x2039: // ‹ left single guillemet
+        case 0x203A: // › right single guillemet
+            ratio = line_end_hanging ? 40 : 35;
+            break;
+        case 0x00AB: // « left guillemet
+        case 0x00BB: // » right guillemet
+            ratio = line_end_hanging ? 20 : 15;
             break;
         case 0x0021: // !
         case 0x003F: // ?
