@@ -3319,7 +3319,7 @@ public:
                             int shift_x = 0;
                             if ( allow_hanging ) {
                                 bool check_font;
-                                int percent = srcline->lang_cfg->getHangingPercent(false, check_font, m_text, wstart, end-wstart-1);
+                                int percent = srcline->lang_cfg->getHangingPercent(false, m_para_dir_is_rtl, check_font, m_text, wstart, end-wstart-1);
                                 if ( percent && check_font && left_overflow > 0 ) {
                                     // Some fonts might already have enough negative
                                     // left side bearing for some chars, that would
@@ -3487,7 +3487,7 @@ public:
                                 }
                                 else {
                                     bool check_font;
-                                    int percent = srcline->lang_cfg->getHangingPercent(true, check_font, m_text, lastnonspace, end-lastnonspace-1);
+                                    int percent = srcline->lang_cfg->getHangingPercent(true, m_para_dir_is_rtl, check_font, m_text, lastnonspace, end-lastnonspace-1);
                                     if ( percent && check_font && right_overflow > 0 ) {
                                         // Some fonts might already have enough negative
                                         // right side bearing for some chars, that would
