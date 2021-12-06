@@ -3583,6 +3583,8 @@ void LVDocView::setStatusFontSize(int newSize) {
 	m_status_font_size = newSize;
 	if (oldSize != newSize) {
 		propsGetCurrent()->setInt(PROP_STATUS_FONT_SIZE, m_status_font_size);
+		m_infoFont = fontMan->GetFont(m_status_font_size, 400, false,
+			DEFAULT_FONT_FAMILY, m_statusFontFace);
         REQUEST_RENDER("setStatusFontSize")
 	}
 	//goToBookmark(_posBookmark);
@@ -3623,6 +3625,7 @@ void LVDocView::setFontSize(int newSize) {
         propsGetCurrent()->setInt(PROP_FONT_SIZE, m_requested_font_size);
         m_font_size = scaleFontSizeForDPI(m_requested_font_size);
         CRLog::debug("New requested font size: %d (asked: %d)", m_requested_font_size, newSize);
+        updateLayout(); // when 2 visible pages, the middle margin width depends on this font size
         REQUEST_RENDER("setFontSize")
     }
     //goToBookmark(_posBookmark);
@@ -3635,6 +3638,8 @@ void LVDocView::setDefaultFontFace(const lString8 & newFace) {
 
 void LVDocView::setStatusFontFace(const lString8 & newFace) {
 	m_statusFontFace = newFace;
+	m_infoFont = fontMan->GetFont(m_status_font_size, 400, false,
+			DEFAULT_FONT_FAMILY, m_statusFontFace);
     REQUEST_RENDER("setStatusFontFace")
 }
 
