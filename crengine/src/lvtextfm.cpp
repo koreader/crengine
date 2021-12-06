@@ -3434,6 +3434,10 @@ public:
                         // Adjust line end if needed.
                         // If we need to adjust last word's last char, we need to put the delta
                         // in this word->width, which will make it into frmline->width.
+                        // By reducing the last word width and so frmline->width, we'll have
+                        // its drawing (with its real width) overflow the line width. We'll
+                        // store this overflow in frmline->width_overflow so we can include
+                        // it in text highlighting.
 
                         // Find the real last drawn glyph
                         int lastnonspace = i-1;
@@ -3509,6 +3513,9 @@ public:
                                 shift_w = usable_right_overflow + rsb;
                             }
                             word->width -= shift_w;
+                            // This last word will overflow over frmline->width: remember it,
+                            // so we can include it in the drawing of native text selection.
+                            frmline->width_overflow = shift_w;
                         }
                     }
 
@@ -4903,7 +4910,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
 #ifndef CR_USE_INVERT_FOR_SELECTION_MARKS
             if ( marks!=NULL && marks->length()>0 ) {
                 // Here is drawn the "native highlighting" of a selection in progress
-                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width, frmline->y + frmline->height );
+                // (We include frmline->width_overflow so any hanging punctuation overflow
+                // over frmline->width is included in the drawing.)
+                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width + frmline->width_overflow, frmline->y + frmline->height );
                 for ( int i=0; i<marks->length(); i++ ) {
                     lvRect mark;
                     ldomMarkedRange * range = marks->get(i);
@@ -4915,7 +4924,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 }
             }
             if (bookmarks!=NULL && bookmarks->length()>0) {
-                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width, frmline->y + frmline->height );
+                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width + frmline->width_overflow, frmline->y + frmline->height );
                 for ( int i=0; i<bookmarks->length(); i++ ) {
                     lvRect mark;
                     ldomMarkedRange * range = bookmarks->get(i);
@@ -4930,7 +4939,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
 #ifdef CR_USE_INVERT_FOR_SELECTION_MARKS
             // process bookmarks
             if ( bookmarks != NULL && bookmarks->length() > 0 ) {
-                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width, frmline->y + frmline->height );
+                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width + frmline->width_overflow, frmline->y + frmline->height );
                 for ( int i=0; i<bookmarks->length(); i++ ) {
                     lvRect bookmark_rc;
                     ldomMarkedRange * range = bookmarks->get(i);
@@ -5116,7 +5125,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
 #ifdef CR_USE_INVERT_FOR_SELECTION_MARKS
             // process marks
             if ( marks!=NULL && marks->length()>0 ) {
-                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width, frmline->y + frmline->height );
+                lvRect lineRect( frmline->x, frmline->y, frmline->x + frmline->width + frmline->width_overflow, frmline->y + frmline->height );
                 for ( int i=0; i<marks->length(); i++ ) {
                     lvRect mark;
                     ldomMarkedRange * range = marks->get(i);

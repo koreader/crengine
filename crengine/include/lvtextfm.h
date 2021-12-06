@@ -210,6 +210,7 @@ typedef struct
    lUInt16            width;       /**< width */
    lUInt16            height;      /**< height */
    lUInt16            baseline;    /**< baseline y offset */
+   lUInt16            width_overflow; /**< right edge glyph overflow over width (when hanging punctuation) */
    lUInt8             flags;       /**< flags */
    lUInt8             align;       /**< alignment */
 } formatted_line_t;
