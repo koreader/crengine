@@ -2925,6 +2925,8 @@ lString32 extractDocTitle( ldomDocument * doc );
 lString32 extractDocLanguage( ldomDocument * doc );
 /// returns "(Series Name #number)" if pSeriesNumber is NULL, separate name and number otherwise
 lString32 extractDocSeries( ldomDocument * doc, int * pSeriesNumber=NULL );
+/// returns both series name and series number as strings
+lString32 extractDocSeriesAndNumber( ldomDocument * doc, lString32 & seriesNumber );
 lString32 extractDocKeywords( ldomDocument * doc );
 lString32 extractDocDescription( ldomDocument * doc );
 

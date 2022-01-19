@@ -4911,10 +4911,16 @@ bool LVDocView::ParseDocument() {
 			m_doc_props->setString(DOC_PROP_LANGUAGE, extractDocLanguage(m_doc));
 			m_doc_props->setString(DOC_PROP_KEYWORDS, extractDocKeywords(m_doc));
 			m_doc_props->setString(DOC_PROP_DESCRIPTION, extractDocDescription(m_doc));
+            /* EPUB returns seriesNumber as a string, which can hold numbers with decimal: do the same
             int seriesNumber = -1;
             lString32 seriesName = extractDocSeries(m_doc, &seriesNumber);
             m_doc_props->setString(DOC_PROP_SERIES_NAME, seriesName);
             m_doc_props->setString(DOC_PROP_SERIES_NUMBER, seriesNumber>0 ? lString32::itoa(seriesNumber) :lString32::empty_str);
+            */
+            lString32 seriesNumber;
+            lString32 seriesName = extractDocSeriesAndNumber(m_doc, seriesNumber);
+            m_doc_props->setString(DOC_PROP_SERIES_NAME, seriesName);
+            m_doc_props->setString(DOC_PROP_SERIES_NUMBER, seriesNumber);
         }
 	}
 	//m_doc->persist();
