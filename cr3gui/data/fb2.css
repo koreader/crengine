@@ -114,6 +114,13 @@ body[name="comments"] section title {
     page-break-inside: auto;
     page-break-after: auto;
 }
+/* Mark BODYs others than the first as non-linear, so they can be hidden by frontend code.
+   (this is actually suggested by the FB2 specs: "... multiple bodies are used for additional information,
+   like footnotes, that do not appear in the main book flow. The first body is presented to the reader by
+   default, and content in the other bodies should be accessible by hyperlinks.") */
+body + body {
+    -cr-hint: non-linear;
+}
 
 description { display: block; }
 title-info { display: block; }

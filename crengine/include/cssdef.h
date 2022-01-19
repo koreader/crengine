@@ -415,6 +415,11 @@ enum css_generic_value_t {
 // and to be displayed at the bottom of all pages that contain a link to it.
 #define CSS_CR_HINT_FOOTNOTE_INPAGE         0x00080000 // -cr-hint: footnote-inpage
 
+// To be set on a block element: this block makes a non-linear flow that can be hidden from normal flow by frontends.
+// Consecutive siblings all hinted with 'non-linear-combining' combine all into a single flow.
+#define CSS_CR_HINT_NON_LINEAR              0x00100000 // -cr-hint: non-linear
+#define CSS_CR_HINT_NON_LINEAR_COMBINING    0x00300000 // -cr-hint: non-linear-combining  (2 bits flag, includes previous one)
+
 // For footnote popup detection by koreader-base/cre.cpp
 #define CSS_CR_HINT_NOTEREF                 0x01000000 // -cr-hint: noteref         link is to a footnote
 #define CSS_CR_HINT_NOTEREF_IGNORE          0x02000000 // -cr-hint: noteref-ignore  link is not to a footnote (even if

@@ -5164,6 +5164,8 @@ private:
     bool avoid_pb_inside_just_toggled_off;
     bool seen_content_since_page_split; // to avoid consecutive page split when only empty or padding in between
     int  last_split_after_flag; // in case we need to adjust upcoming line's flag vs previous line's
+    bool in_non_linear_sequence;
+    bool in_combining_non_linear_sequence;
 
     // vm_* : state of our handling of collapsable vertical margins
     bool vm_has_some;              // true when some vertical margin added, reset to false when pushed
@@ -5199,6 +5201,8 @@ public:
         avoid_pb_inside_just_toggled_off(false),
         seen_content_since_page_split(false),
         last_split_after_flag(RN_SPLIT_AUTO),
+        in_non_linear_sequence(false),
+        in_combining_non_linear_sequence(false),
         vm_has_some(false),
         vm_disabled(false),
         vm_target_node(NULL),
@@ -5283,8 +5287,16 @@ public:
     // "sequence" is what elsewhere we've called "flow",
     // just changing the name here to make it clear that
     // this is not the "flow" of FlowState
-    void newSequence( int nonlinear ) {
+    void newSequence( int nonlinear, bool combining=false ) {
         context.newFlow( nonlinear ) ;
+        in_non_linear_sequence = nonlinear;
+        in_combining_non_linear_sequence = nonlinear && combining;
+    }
+    bool isInNonLinearSequence() {
+        return in_non_linear_sequence;
+    }
+    bool isInCombiningNonLinearSequence() {
+        return in_non_linear_sequence && in_combining_non_linear_sequence;
     }
 
     void setRequestedBaselineType(int baseline_req_type) {
@@ -6788,27 +6800,32 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     css_style_ref_t style = enode->getStyle();
     lUInt16 nodeElementId = enode->getNodeId();
 
-    // force_pb will force a page break before and after the fragment
-    // this is necessary for non-linear fragments if we want the
-    // possibility of hiding them from the normal paging flow
-    bool force_pb = false;
-    if ( nodeElementId == el_DocFragment) {
-        if ( enode->hasAttribute( attr_NonLinear ) ) {
-            flow->newSequence(true);
-            force_pb = enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK);
+    // <DocFragment NonLinear> in EPUBs are set "-cr-hint: non-linear", and so are 2nd++ <body> in FB2,
+    // so they can start a new non-linear sequence/flow, that can be hidden from the normal paging flow.
+    // This hint can also be set on other elements as needed, so we handle this generically.
+    bool is_involded_in_current_non_linear_sequence = false; // if true, checks/work to do when leaving this node
+    bool is_combining_non_linear_sequence = false;
+    bool has_started_non_linear_sequence = false; // will emit page_break_before if true
+    if ( STYLE_HAS_CR_HINT(style, NON_LINEAR) && (m == erm_block || m == erm_final) && flow->isMainFlow() ) {
+        // We only handle "-cr-hint: non-linear*" set on block elements in the main flow.
+        bool is_combining = STYLE_HAS_CR_HINT(style, NON_LINEAR_COMBINING);
+        if ( flow->isInNonLinearSequence() ) {
+            // Already in a non-linear sequence: don't kill it, don't start a nested one
+            if ( is_combining && flow->isInCombiningNonLinearSequence() ) {
+                // Current non-linear sequance started by "-cr-hint: non-linear-combining",
+                // and we are another non-linear-combining: we may need to close this
+                // sequence if not followed by another non-linear-combining.
+                is_involded_in_current_non_linear_sequence = true;
+                is_combining_non_linear_sequence = true;
+            }
+            // Otherwise, it was started by an upper "-cr-hint: non-linear": do nothing
         }
         else {
-            flow->newSequence(false);
-        }
-    }
-    else if ( nodeElementId == el_body ) {
-        // We also set this attribute on 2nd++ BODYs in FB2 documents
-        // (as this attribute is only set on FB2 documents, and all
-        // 2nd++ BODYs get it, no need to check for the doc format and
-        // no need to reset flow sequence when BODY without met.)
-        if ( enode->hasAttribute( attr_NonLinear ) ) {
-            flow->newSequence(true);
-            force_pb = enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK);
+            // Start a new non-linear sequence
+            flow->newSequence(true, is_combining);
+            has_started_non_linear_sequence = true;
+            is_involded_in_current_non_linear_sequence = true;
+            is_combining_non_linear_sequence = is_combining;
         }
     }
 
@@ -7525,10 +7542,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // Note: some test suites seem to indicate that an inner "break-inside: auto"
     // can override an outer "break-inside: avoid". We don't ensure that.
 
-    // enforce page breaks if needed
-    if (force_pb) {
+    if ( has_started_non_linear_sequence && enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK) ) {
+        // This flag is set when frontend activates "Hide non-linear fragments": we need such non-linear
+        // sequences to be on individual pages, to be able to hide such pages from the normal paging flow.
         break_before = RN_SPLIT_ALWAYS;
-        break_after = RN_SPLIT_ALWAYS;
     }
 
     if ( no_margin_collapse ) {
@@ -7998,6 +8015,25 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 fmt.push();
                 // if (top_overflow > 0) printf("block top_overflow=%d\n", top_overflow);
                 // if (bottom_overflow > 0) printf("block bottom_overflow=%d\n", bottom_overflow);
+
+                if ( is_involded_in_current_non_linear_sequence ) {
+                    // We started a non-linear sequence (or did not if we are combining), so close it
+                    // (except if we are combining and the followup sibling would combine too).
+                    bool close_sequence = true;
+                    if ( is_combining_non_linear_sequence ) {
+                        ldomNode * sibling = enode->getUnboxedNextSibling(true); // skip text nodes
+                        if ( sibling && !sibling->getStyle().isNull() && STYLE_HAS_CR_HINT(sibling->getStyle(), NON_LINEAR_COMBINING) ) {
+                            // Next sibling is also "-cr-hint: non-linear-combining", don't close it
+                            close_sequence = false;
+                        }
+                    }
+                    if ( close_sequence ) {
+                        flow->newSequence(false);
+                        if ( enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK) ) {
+                            break_after = RN_SPLIT_ALWAYS;
+                        }
+                    }
+                }
 
                 flow->addVerticalMargin( enode, margin_bottom, break_after );
                 if ( no_margin_collapse ) {
