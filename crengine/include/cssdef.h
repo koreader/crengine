@@ -222,7 +222,9 @@ enum css_list_style_type_t {
 enum css_list_style_position_t {
     css_lsp_inherit,
     css_lsp_inside,
-    css_lsp_outside
+    css_lsp_outside,
+    css_lsp_cr_outside // private value "list-style-position: -cr-outside", legacy rendering
+                       // of outside, with marker left-aligned instead of right near the content
 };
 
 /// css length value types, see:

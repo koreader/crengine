@@ -2546,6 +2546,7 @@ static const char * css_lsp_names[] =
     "inherit",
     "inside",
     "outside",
+    "-cr-outside",
     NULL
 };
 ///border style names
