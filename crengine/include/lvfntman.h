@@ -534,6 +534,11 @@ public:
     virtual void setNextFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
     /// get next fallback font for this font (when already used as a fallback font)
     LVFont * getNextFallbackFont() { return NULL; }
+
+    /// get alternative font for drawing decimal list item numbers (could return same font with OTF tabular-nums)
+    virtual LVFont * getDecimalListItemFont() { return this; }
+    /// get alternative font for drawing disc/circle/square list item markers (could return an other font with better bullet glyphs)
+    virtual LVFont * getBulletListItemFont() { return this; }
 };
 
 typedef LVProtectedFastRef<LVFont> LVFontRef;

@@ -87,6 +87,13 @@
 #define MAX_LINE_WIDTH 2048
 #define MAX_LETTER_SPACING MAX_LINE_WIDTH/2
 
+// For use by getBulletListItemFont(): list of possibly shipped fonts with consistent glyphs
+// (enough body but not too heavy, normal vertical position, small left and right spacing)
+// for disc (U+2022), circle (U+25E6) and square (U+25AA), to be used instead of the normal
+// list item node font for drawing its marker.
+// FreeSans is preferred as it has these glyphs larger than FreeSerif; both have all of the needed glyphs.
+// (Times New Roman has all three, but the glyphs are a bit too up to be interesting.)
+static const char * PREFERRED_BULLET_FONTS = "FreeSans, FreeSerif";
 
 //DEFINE_NULL_REF( LVFont )
 
@@ -315,6 +322,33 @@ static lChar32 getReplacementChar(lUInt32 code, bool * can_be_ignored = NULL) {
         // some Kindle built-ins) substitute a different zero-width
         // character instead of one with width.
         return UNICODE_ZERO_WIDTH_NO_BREAK_SPACE;
+    case 0x2000: // Other Unicode non-zero-fixed-width spaces
+    case 0x2001:
+    case 0x2002:
+    case 0x2003:
+    case 0x2004:
+    case 0x2005:
+    case 0x2006:
+    case 0x2007:
+    case 0x2008:
+    case 0x2009: // thin space: let's keep using a space rather than zero width
+    case 0x200a: // hair space                        even for these small ones
+    case 0x202f:
+    case 0x205f:
+    case 0x3000:
+        return ' ';
+    case 0x202a: // Unicode BiDi directionnal formatting characters
+    case 0x202b:
+    case 0x202c:
+    case 0x202d:
+    case 0x202e:
+    case 0x2066:
+    case 0x2067:
+    case 0x2068:
+    case 0x2069:
+        if (can_be_ignored)
+            *can_be_ignored = true;
+        return UNICODE_ZERO_WIDTH_SPACE;
     case 0x2010:
     case 0x2011:
     case 0x2012:
@@ -1254,6 +1288,10 @@ protected:
     LVFontRef      _fallbackFont;
     bool           _nextFallbackFontIsSet;
     LVFontRef      _nextFallbackFont;
+    bool           _DecimalListItemFontIsSet;
+    LVFontRef      _DecimalListItemFont;
+    bool           _BulletListItemFontIsSet;
+    LVFontRef      _BulletListItemFont;
     int            _synth_weight; // fake/synthesized weight
     FT_Pos         _synth_weight_strength; // for emboldening with FT_Outline_Embolden()
     FT_Pos         _synth_weight_half_strength;
@@ -1302,6 +1340,65 @@ public:
         return _nextFallbackFont.get();
     }
 
+    virtual LVFont * getDecimalListItemFont() {
+        if ( _DecimalListItemFontIsSet )
+            return _DecimalListItemFont.get();
+        if ( _kerningMode == KERNING_MODE_HARFBUZZ && !(getFeatures() & LFNT_OT_FEATURES_P_TNUM) ) {
+            // We can request the same font with OpenType feature "tabular nums", for fixed width
+            // digits and better alignment of decimal list items (no need to do it if this feature
+            // has already been enabled for this font). If the font does not support the feature,
+            // we'll just have another useless instance of the font.
+            _DecimalListItemFont = fontMan->GetFont(
+                getSize(),
+                getWeight(),
+                getItalic(),
+                getFontFamily(),
+                getTypeFace(),
+                getFeatures() | LFNT_OT_FEATURES_P_TNUM,
+                -1, false);
+            if ( _DecimalListItemFont.isNull() ) // shouldn't happen
+                _DecimalListItemFont = LVFontRef(this);
+        }
+        else {
+            // LFNT_OT_FEATURES_P_TNUM won't be used with other kerning modes, so use this same font
+            _DecimalListItemFont = LVFontRef(this);
+        }
+        _DecimalListItemFontIsSet = true;
+        return _DecimalListItemFont.get();
+    }
+
+    virtual LVFont * getBulletListItemFont() {
+        if ( _BulletListItemFontIsSet )
+            return _BulletListItemFont.get();
+        lString8 preferred_bullet_fonts(PREFERRED_BULLET_FONTS);
+        _BulletListItemFont = fontMan->GetFont(
+            getSize(),
+            400,  // regular weight   // bullets stays the regular weight and non-italic, even
+            0,    // no italic        // when their UL and LI are bold and/or italic
+            getFontFamily(),
+            preferred_bullet_fonts,   // We can provide a list, fontMan->GetFont() will split t and look for each
+            0,    // no feature needed
+            -1, false);
+        if ( _BulletListItemFont.isNull() ) { // shouldn't happen
+            _BulletListItemFont = LVFontRef(this);
+        }
+        else {
+            // Be sure the font we get is from our requested list
+            lString8Collection list;
+            splitPropertyValueList(preferred_bullet_fonts.c_str(), list);
+            bool found = false;
+            for (int i = 0; i < list.length(); i++) {
+                if ( list[i] == _BulletListItemFont->getTypeFace() ) {
+                    found = true;
+                    break;
+                }
+            }
+            if ( !found ) // None found: use this same font
+                _BulletListItemFont = LVFontRef(this);
+        }
+        _BulletListItemFontIsSet = true;
+        return _BulletListItemFont.get();
+    }
 
     /// returns font weight
     virtual int getWeight() const { return _synth_weight > 0 ? _synth_weight : _weight; }
@@ -1321,6 +1418,7 @@ public:
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
         , _fallbackFontIsSet(false), _nextFallbackFontIsSet(false)
+        , _DecimalListItemFontIsSet(false), _BulletListItemFontIsSet(false)
         , _synth_weight(0), _synth_weight_strength(0), _synth_weight_half_strength(0)
         #if USE_HARFBUZZ==1
         , _glyph_cache2(globalCache)
@@ -1513,6 +1611,7 @@ public:
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
+        _DecimalListItemFontIsSet = false; // depends on kerning mode
         _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
         #if USE_HARFBUZZ==1
         setupHBFeatures();

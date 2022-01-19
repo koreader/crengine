@@ -2952,24 +2952,57 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
             if ( STYLE_HAS_CR_HINT(style, STRUT_CONFINED) )
                 flags |= LTEXT_STRUT_CONFINED;
         }
-        marker += "\t";
-        // That "\t" had some purpose in css_d_list_item_legacy rendering to mark the end
-        // of the marker, and by providing the marker_width as negative indent, so that
-        // the following text can have some constant indent by rendering it just like
-        // negative/hanging text-indent. It has no real use if we provide a 0-indent
-        // like we do below.
-        // But coincidentally, this "\t" acts for fribidi as a text segment separator (SS)
-        // which will bidi-isolate the marker from the followup text, and will ensure,
-        // for example, that:
-        //   <li style="list-style-type: lower-roman; list-style-type: inside">Some text</li>
-        // in a RTL direction context, will be rightly rendered as:
-        //   "Some text   xviii"
-        // and not wrongly (like it would if we were to use a space instead of \t):
-        //   "xviii Some text"
-        // (the "xviii" marker will be in its own LTR segment, and the followup text
-        // in another LTR segment)
         if ( txform ) {
             TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg( enode );
+            flags |= LTEXT_FLAG_PREFORMATTED; // per-specs, avoids suffix space to collapse with spaces at start of content
+            // For some list style types, some variation or alternative font can be preferred (should be
+            // similar to what is done in getNodeListMarker(), so measured width and the drawing match)
+            css_list_style_type_t list_type = style->list_style_type;
+            if ( list_type == css_lst_decimal ) {
+                font = font->getDecimalListItemFont();
+                // Currently, this can only be the same font: no baseline/height differences
+            }
+            else if ( list_type == css_lst_disc || list_type == css_lst_circle || list_type == css_lst_square ) {
+                int orig_font_baseline = font->getBaseline();
+                int orig_font_height = font->getHeight();
+                font = font->getBulletListItemFont();
+                // We might now be using FreeSans instead of the original font. With some rare fonts
+                // (ChareInk, Diavlo, Volkorn), FreeSans can be taller.
+                // With list-style-position:inside, a bullet in FreeSans would increase the formatted line's height,
+                // breaking the steady interline space of the original font for the first line of each list item.
+                // It's less dramatic with With list-style-position:outside, where we would just get the bullet
+                // a bit lower than the baseline.
+                // We can fix these issues by tweaking the line_h provided to AddSourceLine().
+                int font_baseline = font->getBaseline();
+                int font_height = font->getHeight();
+                if ( orig_font_baseline > orig_font_height ) {
+                    // Buggy font (ie. Charter): don't do anything, don't make it worse.
+                    // (size=21 orig font baseline=20 height=16 vs FreeSans baseline=18 height=23)
+                }
+                else if ( font_baseline > orig_font_baseline ) {
+                    // We can compensate the baseline difference by reducing the line_h we provide:
+                    // line_h makes out top_to_baseline in lvtextfm.cpp; we want a line_h that will
+                    // compute for the new font to the value of top_to_baseline we'd get with the
+                    // original font, so that the baseline of the bullet aligns with the baseline
+                    // of the list item text (drawn with the original font).
+                    int orig_half_leading = (line_h - orig_font_height) / 2;
+                    int orig_top_to_baseline = orig_font_baseline + orig_half_leading;
+                    int wanted_half_leading = orig_top_to_baseline - font_baseline;
+                    line_h = 2 * wanted_half_leading + font_height;
+                        // marker[marker.length()-1] = U'.'; // for debugging, to see them
+                    // Note: when baseline differs, height often also differs, but by a smaller difference.
+                    // With the fonts used for testing this case, The half_leading reduction done for aligning
+                    // baselines has always compensated (by more than needed) the height differences.
+                    // In theory, we would need to now look again at heights, but as I couldn't find a font to
+                    // test this case, best to do nothing than working out bad computations in the abstract.
+                }
+                else if ( font_height > orig_font_height ) {
+                    // A positive height difference with no positive baseline difference has only been
+                    // witnessed with "Unifont". Seems simpler to fix:
+                    line_h = line_h - (font_height - orig_font_height);
+                        // marker[marker.length()-1] = U'|'; // for debugging, to see them
+                }
+            }
             txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, 0, 0, enode);
         }
     }
@@ -3541,6 +3574,10 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 if ( sp >= css_lsp_outside )
                     margin = -marker_width; // will ensure negative/hanging indent-like rendering
                 marker += "\t";
+                // That "\t" has some purpose in css_d_list_item_legacy rendering to mark the end
+                // of the marker, and by providing the marker_width as negative indent, so that
+                // the following text can have some constant indent by rendering it just like
+                // negative/hanging text-indent.
                 txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy,
                                         margin, enode );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
@@ -10585,8 +10622,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int list_marker_width = 0;
         bool list_marker_width_as_padding = false;
         if ( style->display == css_d_list_item_block ) {
-            LFormattedTextRef txform( node->getDocument()->createFormattedText() );
-            lString32 marker = renderListItemMarker( node, list_marker_width, txform.get(), -1, 0);
+            lString32 marker = renderListItemMarker( node, list_marker_width, NULL, -1, 0);
             #ifdef DEBUG_GETRENDEREDWIDTHS
                 printf("GRW: list_marker_width: %d\n", list_marker_width);
             #endif
