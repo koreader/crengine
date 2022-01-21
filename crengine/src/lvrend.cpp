@@ -2982,7 +2982,7 @@ bool renderAsListStylePositionInside( const css_style_ref_t style, bool is_rtl=f
     if ( style->list_style_position == css_lsp_inside ) {
         return true;
     }
-    else if ( style->list_style_position == css_lsp_outside ) {
+    else if ( style->list_style_position >= css_lsp_outside ) {
         // Rendering hack: we do that too when list-style-position = outside AND
         // (with LTR) text-align "right" or "center", as this will draw the marker
         // at the near left of the text (otherwise, the marker would be drawn on
@@ -3538,7 +3538,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 lUInt32 cl = getForegroundColor(style);
                 lUInt32 bgcl = getBackgroundColor(style);
                 int margin = 0;
-                if ( sp==css_lsp_outside )
+                if ( sp >= css_lsp_outside )
                     margin = -marker_width; // will ensure negative/hanging indent-like rendering
                 marker += "\t";
                 txform->AddSourceLine( marker.c_str(), marker.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy,
@@ -4708,7 +4708,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                         int list_marker_width;
                         lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
                         list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
-                        if ( style->list_style_position == css_lsp_outside &&
+                        if ( style->list_style_position >= css_lsp_outside &&
                             style->text_align != css_ta_center && style->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the whole block
                             // to the right and reduce the available width, which is done
@@ -4809,7 +4809,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     if ( style->display == css_d_list_item_block ) {
                         // list_item_block rendered as final (containing only text and inline elements)
                         // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
-                        if ( style->list_style_position == css_lsp_outside &&
+                        if ( style->list_style_position >= css_lsp_outside &&
                             style->text_align != css_ta_center && style->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
@@ -9353,8 +9353,16 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     }
 
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
-                    // If RTL, have the marker aligned to the right inside list_marker_width
-                    lUInt32 txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : 0;
+                    // Different marker alignement whether LTR/RTL or outside/-cr-outside
+                    lUInt32 txt_flags;
+                    if ( style->list_style_position == css_lsp_cr_outside ) {
+                        // Legacy "outside": align it on the start of line
+                        txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : LTEXT_ALIGN_LEFT;
+                    }
+                    else {
+                        // As browsers do "outside": align it near the following content
+                        txt_flags = is_rtl ? LTEXT_ALIGN_LEFT: LTEXT_ALIGN_RIGHT;
+                    }
                     int list_marker_width;
                     lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
                     /*
@@ -9537,9 +9545,16 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     int shift_x = float_footprint.getTopShiftX(inner_width, is_rtl);
 
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
-
-                    // If RTL, have the marker aligned to the right inside list_marker_width
-                    lUInt32 txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : 0;
+                    // Different marker alignement whether LTR/RTL or outside/-cr-outside
+                    lUInt32 txt_flags;
+                    if ( style->list_style_position == css_lsp_cr_outside ) {
+                        // Legacy "outside": align it on the start of line
+                        txt_flags = is_rtl ? LTEXT_ALIGN_RIGHT : LTEXT_ALIGN_LEFT;
+                    }
+                    else {
+                        // As browsers do "outside": align it near the following content
+                        txt_flags = is_rtl ? LTEXT_ALIGN_LEFT: LTEXT_ALIGN_RIGHT;
+                    }
                     int list_marker_width;
                     lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
                     /*
