@@ -12,6 +12,17 @@ head, script {
 DocFragment {
     page-break-before: always;
 }
+/* Non-linear fragments (hideable) */
+DocFragment[NonLinear] {
+    -cr-hint: non-linear;
+}
+section[type=footnotes] {
+    -cr-hint: non-linear;
+}
+aside[type=footnote] {
+    -cr-hint: non-linear-combining;
+}
+
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
