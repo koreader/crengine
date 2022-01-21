@@ -6693,6 +6693,12 @@ void ldomNode::initNodeRendMethod()
             // (don't ignore it as it might be some HR with borders/padding,
             // even if no content)
             setRendMethod( erm_block );
+            // Except for the peculiar case of an empty list item with list-style-position:inside:
+            // we need to show the marker, and this can be more easily done (without the need for
+            // adding any specific code) if set erm_final
+            if ( d == css_d_list_item_block && getStyle()->list_style_position == css_lsp_inside ) {
+                setRendMethod( erm_final );
+            }
         } else if ( hasBlockItems && hasInline ) {
             // Mixed content of blocks and inline elements:
             // the consecutive inline elements should be considered part
