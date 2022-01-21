@@ -27,6 +27,16 @@
     empty-line {
         height: 1em;
     }
+/* crengine: support for non-linear fragments (hideable) */
+    DocFragment[NonLinear] {
+        -cr-hint: non-linear;
+    }
+    section[type=footnotes] {
+        -cr-hint: non-linear;
+    }
+    aside[type=footnote] {
+        -cr-hint: non-linear-combining;
+    }
 
 /* Hidden elements */
 
