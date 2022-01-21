@@ -2900,9 +2900,15 @@ void SplitLines( const lString32 & str, lString32Collection & lines )
 // marker_width is updated and can be used to add indent or padding necessary to make
 // room for the marker (what and how to do it depending of list-style_position (inside/outside)
 // is left to the caller)
-lString32 renderListItemMarker( ldomNode * enode, int & marker_width, LFormattedText * txform, int line_h, lUInt32 flags ) {
+// If final_line_h is provided, it is updated with the list item computed line_h (which should
+// be the same value that txform->Format() would return)
+lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * final_line_h=NULL,
+                                LFormattedText * txform=NULL, lUInt32 flags=0, int line_h=-1 ) {
     lString32 marker;
     marker_width = 0;
+    if ( final_line_h ) {
+        *final_line_h = line_h > 0 ? line_h : 0; // Update it with the provided one
+    }
     ldomDocument* doc = enode->getDocument();
     // The UL > LI parent-child chain may have had some of our boxing elements inserted
     ldomNode * parent = enode->getUnboxedParent();
@@ -2913,9 +2919,9 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
         int maxWidth = 0;
         ldomNode * sibling = parent->getUnboxedFirstChild(true);
         while ( sibling ) {
-            lString32 marker;
+            lString32 sMarker;
             int markerWidth = 0;
-            if ( sibling->getNodeListMarker( counterValue, marker, markerWidth ) ) {
+            if ( sibling->getNodeListMarker( counterValue, sMarker, markerWidth ) ) {
                 if ( markerWidth > maxWidth )
                     maxWidth = markerWidth;
             }
@@ -2927,12 +2933,15 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
     // Note: node->getNodeListMarker() uses font->getTextWidth() without any hint about
     // text direction, so the marker is measured LTR.. We should probably upgrade them
     // to measureText() with the right direction, to get a correct marker_width...
-    // For now, as node->getNodeListMarker() adds some whitespace and padding, we should
-    // be fine with any small error due to different measuring with LTR vs RTL.
+    // For now, as node->getNodeListMarker() adds some whitespace, we should be
+    // fine with any small error due to different measuring with LTR vs RTL.
     int counterValue = 0;
     if ( enode->getNodeListMarker( counterValue, marker, marker_width ) ) {
         if ( !listProps.isNull() )
             marker_width = listProps->maxWidth;
+        if ( !txform && !final_line_h ) {
+            return marker; // nothing more to do
+        }
         css_style_ref_t style = enode->getStyle();
         LVFontRef font = enode->getFont();
         lUInt32 cl = getForegroundColor(style);
@@ -2951,6 +2960,12 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, LFormatted
                 line_h = (line_h * doc->getInterlineScaleFactor()) >> INTERLINE_SCALE_FACTOR_SHIFT;
             if ( STYLE_HAS_CR_HINT(style, STRUT_CONFINED) )
                 flags |= LTEXT_STRUT_CONFINED;
+            if ( final_line_h ) {
+                // When requested, it is to get the min height of the list item block (if it would
+                // have no content). We return this nominal line_h, not the one possible adjusted
+                // below when using getBulletListItemFont().
+                *final_line_h = line_h;
+            }
         }
         if ( txform ) {
             TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg( enode );
@@ -3591,7 +3606,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // (we don't draw anything when list-style-type=none)
             if ( renderAsListStylePositionInside(style, is_rtl) && style->list_style_type != css_lst_none ) {
                 int marker_width;
-                lString32 marker = renderListItemMarker( enode, marker_width, txform, line_h, flags );
+                lString32 marker = renderListItemMarker( enode, marker_width, NULL, txform, flags, line_h );
                 if ( marker.length() ) {
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
                 }
@@ -3610,7 +3625,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             if ( listPropNodeIndex ) {
                 ldomNode * list_item_block_parent = enode->getDocument()->getTinyNode( listPropNodeIndex );
                 int marker_width;
-                lString32 marker = renderListItemMarker( list_item_block_parent, marker_width, txform, line_h, flags );
+                lString32 marker = renderListItemMarker( list_item_block_parent, marker_width, NULL, txform, flags, line_h );
                 if ( marker.length() ) {
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
                 }
@@ -4741,10 +4756,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                     if ( style->display == css_d_list_item_block ) {
                         // list_item_block rendered as block (containing text and block elements)
                         // Get marker width and height
-                        LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                         int list_marker_width;
-                        lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
-                        list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight() );
+                        renderListItemMarker( enode, list_marker_width, &list_marker_height );
                         if ( style->list_style_position >= css_lsp_outside &&
                             style->text_align != css_ta_center && style->text_align != css_ta_right) {
                             // When list_style_position = outside, we have to shift the whole block
@@ -4851,7 +4864,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
                             int list_marker_width;
-                            lString32 marker = renderListItemMarker( enode, list_marker_width, NULL, -1, 0 );
+                            renderListItemMarker( enode, list_marker_width );
                             fmt.setX( fmt.getX() + list_marker_width );
                             width -= list_marker_width;
                         }
@@ -7758,10 +7771,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( style->display == css_d_list_item_block ) {
                     // list_item_block rendered as block (containing text and block elements)
                     // Get marker width and height
-                    LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     int list_marker_width;
-                    lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, 0);
-                    list_marker_height = txform->Format( (lUInt16)(width - list_marker_width), (lUInt16)enode->getDocument()->getPageHeight(), direction );
+                    renderListItemMarker( enode, list_marker_width, &list_marker_height );
                     if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
                         // When list_style_position = outside, we have to shift the whole block
                         // to the right and reduce the available width, which is done
@@ -8089,7 +8100,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
                         // When list_style_position = outside, we have to shift the final block
                         // to the right (or to the left if RTL) and reduce its width
-                        lString32 marker = renderListItemMarker( enode, list_marker_padding, NULL, -1, 0 );
+                        renderListItemMarker( enode, list_marker_padding );
                         // With css_lsp_outside, the marker is outside: it shifts x left and reduces width
                         width -= list_marker_padding;
                         fmt.setWidth( width );
@@ -9401,7 +9412,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         txt_flags = is_rtl ? LTEXT_ALIGN_LEFT: LTEXT_ALIGN_RIGHT;
                     }
                     int list_marker_width;
-                    lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
+                    renderListItemMarker( enode, list_marker_width, NULL, txform.get(), txt_flags);
                     /*
                     lUInt32 h = txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
                     lvRect clip;
@@ -9593,7 +9604,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         txt_flags = is_rtl ? LTEXT_ALIGN_LEFT: LTEXT_ALIGN_RIGHT;
                     }
                     int list_marker_width;
-                    lString32 marker = renderListItemMarker( enode, list_marker_width, txform.get(), -1, txt_flags);
+                    renderListItemMarker( enode, list_marker_width, NULL, txform.get(), txt_flags);
                     /*
                     lUInt32 h = txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
                     lvRect clip;
@@ -10622,7 +10633,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int list_marker_width = 0;
         bool list_marker_width_as_padding = false;
         if ( style->display == css_d_list_item_block ) {
-            lString32 marker = renderListItemMarker( node, list_marker_width, NULL, -1, 0);
+            renderListItemMarker( node, list_marker_width );
             #ifdef DEBUG_GETRENDEREDWIDTHS
                 printf("GRW: list_marker_width: %d\n", list_marker_width);
             #endif
