@@ -831,6 +831,8 @@ public:
                     state = 2;
             else if (state == 3 && c == ('/'))    // ex. [/*heh*/]
                     state = 0;
+            else if (state == 3 && c == ('*'))    // ex. [/*heh**]
+                    state = 3;
             else if (state == 3)                // ex. [/*heh*e]
                     state = 2;
             /* Moved up for faster normal path:
