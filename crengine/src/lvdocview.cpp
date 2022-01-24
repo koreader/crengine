@@ -168,6 +168,7 @@ LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 			 */
 			, m_stream(NULL), m_doc(NULL), m_stylesheet(def_stylesheet),
             m_backgroundTiled(true),
+            m_stylesheetUseMacros(true),
             m_stylesheetNeedsUpdate(true),
             m_highlightBookmarks(1),
 			m_pageMargins(DEFAULT_PAGE_MARGIN,
@@ -508,11 +509,12 @@ lString8 substituteCssMacros(lString8 src, CRPropRef props) {
 }
 
 /// set document stylesheet text
-void LVDocView::setStyleSheet(lString8 css_text) {
+void LVDocView::setStyleSheet(lString8 css_text, bool use_macros) {
 	LVLock lock(getMutex());
     REQUEST_RENDER("setStyleSheet")
 
     m_stylesheet = css_text;
+    m_stylesheetUseMacros = use_macros;
     m_stylesheetNeedsUpdate = true;
 }
 
@@ -521,7 +523,10 @@ void LVDocView::updateDocStyleSheet() {
     if (m_is_rendered && !m_stylesheetNeedsUpdate)
         return;
     CRPropRef p = m_props->getSubProps("styles.");
-    m_doc->setStyleSheet(substituteCssMacros(m_stylesheet, p).c_str(), true);
+    if ( m_stylesheetUseMacros )
+        m_doc->setStyleSheet(substituteCssMacros(m_stylesheet, p).c_str(), true);
+    else
+        m_doc->setStyleSheet(m_stylesheet.c_str(), true);
     m_stylesheetNeedsUpdate = false;
 }
 
