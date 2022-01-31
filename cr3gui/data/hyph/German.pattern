@@ -4,7 +4,7 @@ See: http://projekte.dante.de/Trennmuster/WebHome GERMAN-HYPHENATION-PATTERNS
 
 German hyphenations description (modern orphography) for FBReader (original was taken from the teTeX distribution)
 
-------------------------------------------------------------------------------------------
+###############################################################################
 From the original /usr/share/texmf-texlive/tex/generic/hyphen/dehyphn.tex file:
 
 % Copyright (C) 1988,1991 Rechenzentrum der Ruhr-Universitaet Bochum
@@ -21,7 +21,7 @@ From the original /usr/share/texmf-texlive/tex/generic/hyphen/dehyphn.tex file:
 % archives in directory macros/latex/base/lppl.txt; either
 % version 1 of the License, or any later version.
 
-------------------------------------------------------------------------------------------
+###############################################################################
 Information from the original /crengine/Tools/HyphConv/mkpattern.cpp:
 
 All the files *.pattern were produced from the original TeX files. All changes
@@ -33,7 +33,7 @@ are the notation changes:
 with the patterns with weights 7 and 8
 
 original Author: Nikolay Pultsin (geometer@fbreader.org)
-------------------------------------------------------------------------------------------
+###############################################################################
 
 preamble from pat-gen by Martin.Zwicknagl@kirchbichl.net
 pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
