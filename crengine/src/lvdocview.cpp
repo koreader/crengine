@@ -1354,10 +1354,10 @@ lString32 LVDocView::getTimeString() {
 	tm * bt = localtime(&t);
 	char str[12];
 	if ( m_props->getBoolDef(PROP_SHOW_TIME_12HOURS, false) ) {
-		sprintf(str, "%d:%02d", bt->tm_hour > 12 ? bt->tm_hour % 12 : bt->tm_hour, bt->tm_min);
+		strftime(str, sizeof(str), "%I:%M %p", bt);
 	}
 	else {
-		sprintf(str, "%02d:%02d", bt->tm_hour, bt->tm_min);
+		strftime(str, sizeof(str), "%H:%M", bt);
 	}
 	return Utf8ToUnicode(lString8(str));
 }
