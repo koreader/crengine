@@ -3108,8 +3108,15 @@ lString32 Utf8ToUnicode( const lString8 & str )
 
 #define CONT_BYTE(index,shift) (((lChar32)(s[index]) & 0x3F) << shift)
 
-static void DecodeUtf8(const char * s,  lChar32 * p, int len)
+static void DecodeUtf8(const char * str,  lChar32 * p, int len)
 {
+    const char *s = str;
+#if (USE_UTF8PROC==1)
+    // normalize utf8
+    s = (const char *) utf8proc_NFC((const unsigned char*) str);
+    const char *normalized_s = s;
+#endif
+
     lChar32 * endp = p + len;
     lUInt32 ch;
     while (p < endp) {
@@ -3137,6 +3144,9 @@ static void DecodeUtf8(const char * s,  lChar32 * p, int len)
             *p++ = (char) (ch & 0x7F);
         }
     }
+#if (USE_UTF8PROC==1)
+    free((void*) normalized_s);
+#endif
 }
 
 // Top two bits are 10, i.e. original & 11000000(2) == 10000000(2)
