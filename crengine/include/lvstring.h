@@ -1037,6 +1037,11 @@ public:
     }
 };
 
+#if (USE_UTF8PROC==1)
+// normalizes an utf8 string
+const char * Utf8Normalize_NFKC( const char * s );
+#endif
+
 lString8  UnicodeToTranslit( const lString32 & str );
 /// converts wide unicode string to local 8-bit encoding
 lString8  UnicodeToLocal( const lString32 & str );
@@ -1067,7 +1072,6 @@ int TrimDoubleSpaces(lChar32 * buf, int len,  bool allowStartSpace, bool allowEn
 
 /// remove soft-hyphens from string
 lString32 removeSoftHyphens( lString32 s );
-
 
 #define LCSTR(x) (UnicodeToUtf8(x).c_str())
 bool splitIntegerList( lString32 s, lString32 delim, int & value1, int & value2 );

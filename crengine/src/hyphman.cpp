@@ -1424,11 +1424,22 @@ bool UserHyphDict::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lU
     // Make word from str, with soft-hyphens stripped out.
     int wlen;
     int w = 0;
+#if (USE_UTF8PROC==1)
+    const char * norm_word = Utf8Normalize_NFKC( LCSTR(lString32(str)) );
+    lString32 norm_str = Utf8ToUnicode( norm_word );
+    for ( int i=0; i<len; i++ ) {
+        if ( norm_str[i] != UNICODE_SOFT_HYPHEN_CODE ) {
+            word[w++] = norm_str[i];
+        }
+    }
+    free( (void *) norm_word );
+#else
     for ( int i=0; i<len; i++ ) {
         if ( str[i] != UNICODE_SOFT_HYPHEN_CODE ) {
             word[w++] = str[i];
         }
     }
+#endif
     wlen = w-1;
     if ( wlen<3 ) // don't hyphenate words with three letters
         return false;

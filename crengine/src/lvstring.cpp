@@ -3009,6 +3009,14 @@ lUInt32 lString8::getHash() const
 
 const lString8 lString8::empty_str;
 
+#if (USE_UTF8PROC==1)
+// normalize utf8
+const char * Utf8Normalize_NFKC( const char * s )
+{
+    return (const char *) utf8proc_NFKC( (const unsigned char *) s );
+}
+#endif
+
 int Utf8CharCount( const lChar8 * str )
 {
     int count = 0;
@@ -3111,11 +3119,6 @@ lString32 Utf8ToUnicode( const lString8 & str )
 static void DecodeUtf8(const char * str,  lChar32 * p, int len)
 {
     const char *s = str;
-#if (USE_UTF8PROC==1)
-    // normalize utf8
-    s = (const char *) utf8proc_NFC((const unsigned char*) str);
-    const char *normalized_s = s;
-#endif
 
     lChar32 * endp = p + len;
     lUInt32 ch;
@@ -3144,9 +3147,6 @@ static void DecodeUtf8(const char * str,  lChar32 * p, int len)
             *p++ = (char) (ch & 0x7F);
         }
     }
-#if (USE_UTF8PROC==1)
-    free((void*) normalized_s);
-#endif
 }
 
 // Top two bits are 10, i.e. original & 11000000(2) == 10000000(2)
