@@ -5006,7 +5006,10 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         // box, and restore it when done.
                         lvRect curclip;
                         buf->GetClipRect( &curclip ); // backup clip
-                        buf->SetClipRect(NULL); // no clipping
+                        draw_extra_info_t * draw_extra_info = (draw_extra_info_t*)buf->GetDrawExtraInfo();
+                        if ( draw_extra_info ) {
+                            buf->SetClipRect( &draw_extra_info->content_overflow_clip );
+                        }
                         DrawDocument( *buf, node, x0, y0, dx, dy, doc_x, doc_y, page_height, absmarks, bookmarks );
                         buf->SetClipRect(&curclip); // restore original page clip
                     }

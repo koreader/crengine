@@ -1931,24 +1931,25 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 }
 
 void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
-		lvRect * pageRect, int pageCount, int basePage) {
+		lvRect * pageRect, int pageCount, int basePage, bool hasTwoVisiblePages, bool isRightPage, bool isLastPage) {
 	int start = page.start;
 	int height = page.height;
 	int headerHeight = getPageHeaderHeight();
 	//CRLog::trace("drawPageTo(%d,%d)", start, height);
+
+	// pageRect is actually the full draw buffer, except in 2-page mode where
+	// it is half the width plus/minus some possibly tweaked middle margin
 	lvRect fullRect(0, 0, drawbuf->GetWidth(), drawbuf->GetHeight());
 	if (!pageRect)
 		pageRect = &fullRect;
-    drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES);
-	//int offset = (pageRect->height() - m_pageMargins.top - m_pageMargins.bottom - height) / 3;
-	//if (offset>16)
-	//    offset = 16;
-	//if (offset<0)
-	//    offset = 0;
-	int offset = 0;
+	drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES);
+
+	// Clip, for normal content drawing: we use the computed pageRect, and the page.height
+	// made from page splitting (that we have to enforce to not get painted some content
+	// that is set to be on prev/next page).
 	lvRect clip;
-	clip.top = pageRect->top + m_pageMargins.top + headerHeight + offset;
-	clip.bottom = pageRect->top + m_pageMargins.top + height + headerHeight + offset;
+	clip.top = pageRect->top + m_pageMargins.top + headerHeight;
+	clip.bottom = pageRect->top + m_pageMargins.top + height + headerHeight;
 	// clip.left = pageRect->left + m_pageMargins.left;
 	// clip.right = pageRect->left + pageRect->width() - m_pageMargins.right;
 	// We don't really need to enforce left and right clipping of page margins:
@@ -1956,6 +1957,48 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	// end of line with some fonts) to not be cut by this clipping.
 	clip.left = pageRect->left;
 	clip.right = pageRect->left + pageRect->width();
+
+	// Extra info that DrawDocument() can fetch from drawbuf when some
+	// alternative clipping is preferred
+	draw_extra_info_t draw_extra_info = { 0 };
+	drawbuf->SetDrawExtraInfo(&draw_extra_info);
+	draw_extra_info.is_page_mode = true;
+	draw_extra_info.is_left_page = false;
+	draw_extra_info.is_right_page = false;
+	draw_extra_info.draw_body_background = true;
+	draw_extra_info.body_background_clip.top  = headerHeight;
+	draw_extra_info.body_background_clip.bottom  = fullRect.bottom;
+	draw_extra_info.body_background_clip.left  = fullRect.left;
+	draw_extra_info.body_background_clip.right  = fullRect.right;
+	draw_extra_info.content_overflow_clip.top  = headerHeight;
+	draw_extra_info.content_overflow_clip.bottom = fullRect.bottom; // will be reduced if footnotes
+	draw_extra_info.content_overflow_clip.left  = fullRect.left;
+	draw_extra_info.content_overflow_clip.right  = fullRect.right;
+
+	if (hasTwoVisiblePages) {
+		// Don't trust pageRects and their tweaked middle margin
+		int middle_x = fullRect.left + fullRect.width() / 2;
+		if (isRightPage) {
+			clip.left = middle_x;
+			clip.right = fullRect.right;
+			draw_extra_info.is_right_page = true;
+		}
+		else {
+			clip.left = fullRect.left;
+			clip.right = middle_x;
+			draw_extra_info.is_left_page = true;
+		}
+		draw_extra_info.body_background_clip.left  = clip.left;
+		draw_extra_info.body_background_clip.right  = clip.right;
+		if ( !isRightPage && isLastPage ) {
+			// Left page is last page: have any background
+			// drawn also on the right blank area
+			draw_extra_info.body_background_clip.right  = fullRect.right;
+		}
+		draw_extra_info.content_overflow_clip.left  = clip.left;
+		draw_extra_info.content_overflow_clip.right  = clip.right;
+	}
+
 	if (page.flags & RN_PAGE_TYPE_COVER)
 		clip.top = pageRect->top + m_pageMargins.top;
 	if ( (m_pageHeaderInfo || !m_pageHeaderOverride.empty()) && getViewMode() == DVM_PAGES ) {
@@ -2024,49 +2067,68 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			//CRLog::trace("Entering drawCoverTo()");
 			drawCoverTo(drawbuf, rc);
 		} else {
-			// draw main page text
-            if ( m_markRanges.length() )
-                CRLog::trace("Entering DrawDocument() : %d ranges", m_markRanges.length());
-			//CRLog::trace("Entering DrawDocument()");
-			if (page.height)
-				DrawDocument(*drawbuf, m_doc->getRootNode(), pageRect->left
-						+ m_pageMargins.left, clip.top, pageRect->width()
-						- m_pageMargins.left - m_pageMargins.right, height, 0,
-                                                -start + offset, m_dy, &m_markRanges, &m_bmkRanges);
-			//CRLog::trace("Done DrawDocument() for main text");
-			// draw footnotes
-#define FOOTNOTE_MARGIN_REM 1 // as in lvpagesplitter.cpp
+			// If we have footnotes that we'll put at bottom of page, make sure we
+			// clip above them (tall inline-block content, even if split across pages,
+			// could have their content painted over the footnotes)
+			bool has_footnotes = false;
+			#define FOOTNOTE_MARGIN_REM 1 // as in lvpagesplitter.cpp
 			int footnote_margin = FOOTNOTE_MARGIN_REM * m_font_size;
-			int fny = clip.top + (page.height ? page.height + footnote_margin
-					: footnote_margin);
-			// Try to push footnotes to the bottom of page if possible
 			int footnotes_height = 0;
 			for (int fn = 0; fn < page.footnotes.length(); fn++) {
 				footnotes_height += page.footnotes[fn].height;
+				has_footnotes = true;
 			}
+			if ( has_footnotes) {
+				// We'll be drawing a separator at 2/3 in the footnote margin.
+				// Allow over-painting to 1/2 in this footnote margin (so any
+				// drop-cap tail and such may not get clipped out.
+				draw_extra_info.content_overflow_clip.bottom = fullRect.bottom - m_pageMargins.bottom - footnotes_height - footnote_margin/2;
+			}
+
+			// draw main page text
+			if ( m_markRanges.length() )
+				CRLog::trace("Entering DrawDocument() : %d ranges", m_markRanges.length());
+			//CRLog::trace("Entering DrawDocument()");
+			if (page.height)
+				DrawDocument(*drawbuf, m_doc->getRootNode(),
+						pageRect->left + m_pageMargins.left, // x0
+						clip.top,                            // y0
+						pageRect->width() - m_pageMargins.left - m_pageMargins.right, // dx
+						height,  // dy
+						0,       // doc_x
+						-start,  // doc_y
+						m_dy,    // page_height
+						&m_markRanges, &m_bmkRanges);
+			//CRLog::trace("Done DrawDocument() for main text");
+
+			// Draw footnotes at the bottom of page (put any remaining blank space above them)
+			int fny = clip.top + (page.height ? page.height + footnote_margin
+					: footnote_margin);
 			if (footnotes_height > 0) {
 				int h_avail = m_dy - getPageHeaderHeight()
 						   - m_pageMargins.top - m_pageMargins.bottom
 						   - height - footnote_margin;
 				fny += h_avail - footnotes_height; // put empty space before first footnote
+				draw_extra_info.draw_body_background = false;
 			}
 			int fy = fny;
 			bool footnoteDrawed = false;
 			for (int fn = 0; fn < page.footnotes.length(); fn++) {
 				int fstart = page.footnotes[fn].start;
 				int fheight = page.footnotes[fn].height;
-				clip.top = fy + offset;
-				clip.bottom = fy + offset + fheight;
-				// Also avoid left and right clipping of page margins with footnotes
-				// clip.left = pageRect->left + m_pageMargins.left;
-				// clip.right = pageRect->right - m_pageMargins.right;
-				clip.left = pageRect->left;
-				clip.right = pageRect->right;
+				clip.top = fy;
+				clip.bottom = fy + fheight;
+				// We keep the original clip.left/right unchanged
 				drawbuf->SetClipRect(&clip);
-				DrawDocument(*drawbuf, m_doc->getRootNode(), pageRect->left
-						+ m_pageMargins.left, fy + offset, pageRect->width()
-						- m_pageMargins.left - m_pageMargins.right, fheight, 0,
-						-fstart + offset, m_dy, &m_markRanges);
+				DrawDocument(*drawbuf, m_doc->getRootNode(),
+						pageRect->left + m_pageMargins.left, // x0
+						fy,                                  // y0
+						pageRect->width() - m_pageMargins.left - m_pageMargins.right, // dx
+						fheight,  // dy
+						0,        // doc_x
+						-fstart,  // doc_y
+						m_dy,     // page_height
+						&m_markRanges);
 				footnoteDrawed = true;
 				fy += fheight;
 			}
@@ -2075,8 +2137,8 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 				// the margin between text and footnotes
 				fny -= footnote_margin * 1/3;
 				drawbuf->SetClipRect(NULL);
-                lUInt32 cl = drawbuf->GetTextColor();
-                cl = (cl & 0xFFFFFF) | (0x55000000);
+				lUInt32 cl = drawbuf->GetTextColor();
+				cl = (cl & 0xFFFFFF) | (0x55000000);
 				// The line separator was using the full page width:
 				//   int x1 = pageRect->right - m_pageMargins.right;
 				// but 1/7 of page width looks like what we can see in some books
@@ -2420,9 +2482,15 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 			rc.right -= m_pageMargins.right;
 			drawCoverTo(&drawbuf, rc);
 		}
-		DrawDocument(drawbuf, m_doc->getRootNode(), m_pageMargins.left, 0, drawbuf.GetWidth()
-				- m_pageMargins.left - m_pageMargins.right, drawbuf.GetHeight(), 0, -position,
-				drawbuf.GetHeight(), &m_markRanges, &m_bmkRanges);
+		DrawDocument(drawbuf, m_doc->getRootNode(),
+				m_pageMargins.left,  // x0
+				0,                   // y0
+				drawbuf.GetWidth() - m_pageMargins.left - m_pageMargins.right, // dx
+				drawbuf.GetHeight(), // dy
+				0,                   // doc_x
+				-position,           // doc_y
+				drawbuf.GetHeight(), // page_height
+				&m_markRanges, &m_bmkRanges);
 	} else {
 		int pc = getVisiblePageCount();
 		//CRLog::trace("searching for page with offset=%d", position);
@@ -2435,10 +2503,10 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 
         if (page >= 0 && page < m_pages.length())
 			drawPageTo(&drawbuf, *m_pages[page], &m_pageRects[0],
-					m_pages.length(), 1);
+					m_pages.length(), 1, pc==2, false, page==m_pages.length()-1);
 		if (pc == 2 && page >= 0 && page + 1 < m_pages.length())
 			drawPageTo(&drawbuf, *m_pages[page + 1], &m_pageRects[1],
-					m_pages.length(), 1);
+					m_pages.length(), 1, true, true, page+1==m_pages.length()-1);
 	}
 #if CR_INTERNAL_PAGE_ORIENTATION==1
 	if ( rotate ) {
