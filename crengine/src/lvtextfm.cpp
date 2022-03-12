@@ -903,15 +903,10 @@ public:
                         // that contains it does fit in the page without any
                         // uneeded page break
                         m_max_img_height = m_pbuffer->page_height;
-                        // remove parent nodes' margin/border/padding
-                        m_max_img_height -= node->getSurroundingAddedHeight();
-                        // remove height taken by the strut baseline (but not
-                        // if negative, ie. when a small line-height has pushed
-                        // the baseline below the line box)
-                        int baseline_to_bottom = m_pbuffer->strut_height - m_pbuffer->strut_baseline;
-                        if ( baseline_to_bottom > 0 ) {
-                            m_max_img_height -= baseline_to_bottom;
-                        }
+                        // remove parent nodes' margin/border/padding, and any strut height
+                        // below baseline for any erm_final parent (mostly always one: this
+                        // paragraph, but may be more if inside inlineBox or floatBox)
+                        m_max_img_height -= node->getSurroundingAddedHeight(true);
                         m_has_images = true;
                     }
                 }

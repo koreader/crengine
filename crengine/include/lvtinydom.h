@@ -1109,7 +1109,7 @@ public:
     /// returns object image stream
     LVStreamRef getObjectImageStream();
     /// returns the sum of this node and its parents' top and bottom margins, borders and paddings
-    int getSurroundingAddedHeight();
+    int getSurroundingAddedHeight(bool account_height_below_strut_baseline=false);
     /// formats final block
     int renderFinalBlock( LFormattedTextRef & frmtext, RenderRectAccessor * fmt, int width,
                               BlockFloatFootprint * float_footprint=NULL );
