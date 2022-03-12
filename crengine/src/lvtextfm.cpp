@@ -5153,9 +5153,6 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
         RenderRectAccessor fmt( node );
         int top_overflow = fmt.getTopOverflow();
         int bottom_overflow = fmt.getBottomOverflow();
-        // Note: some dropcaps may still not being draw in spite of this
-        // because of the checks with _hidePartialGlyphs in lvdrawbuf.cpp
-        // (todo: get rid of these _hidePartialGlyphs checks ?)
 
         if (y + flt->y - top_overflow < clip.bottom && y + flt->y + flt->height + bottom_overflow > clip.top) {
             // DrawDocument() parameters (y0 + doc_y must be equal to our y,

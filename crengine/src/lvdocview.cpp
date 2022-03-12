@@ -1942,7 +1942,15 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	lvRect fullRect(0, 0, drawbuf->GetWidth(), drawbuf->GetHeight());
 	if (!pageRect)
 		pageRect = &fullRect;
-	drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES);
+	// drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES); // (is always true)
+	// setHidePartialGlyphs() was added to "fix partial glyph drawing for small interline spaces
+	// (<100%) in page mode", but it's not really clear what it is supposed to fix. Moreover,
+	// while its implementation for top of glyph is understandable (clip, if less of 1/2 original
+	// height remain, don't draw the glyph), what it does on the bottom is less (if just remove
+	// the clip and allow drawing the full glyph below the bottom clip!).
+	// It just feels best to not use it, and just have glyphs all truncated similarly along
+	// the line of the clip (instead of having a mix of glyphs cut and glyphs absent)
+	drawbuf->setHidePartialGlyphs(false);
 
 	// Clip, for normal content drawing: we use the computed pageRect, and the page.height
 	// made from page splitting (that we have to enforce to not get painted some content
