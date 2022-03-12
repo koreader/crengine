@@ -4483,6 +4483,11 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     {
     case cssrt_parent:        // E > F (child combinator)
         {
+            if ( node->getNodeId() == el_DocFragment ) {
+                // Don't go check the parent of DocFragment (which crengine made it
+                // unfortunately be a <body> element, but it shouldn't match any CSS)
+                return false;
+            }
             node = node->getUnboxedParent(exceptBoxingNodeId);
             if (!node || node->isNull())
                 return false;
@@ -4495,6 +4500,11 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     case cssrt_ancessor:      // E F (descendant combinator)
         {
             for (;;) {
+                if ( node->getNodeId() == el_DocFragment ) {
+                    // Don't go check the parent of DocFragment (which crengine made it
+                    // unfortunately be a <body> element, but it shouldn't match any CSS)
+                    return false;
+                }
                 node = node->getUnboxedParent(exceptBoxingNodeId);
                 if (!node || node->isNull())
                     return false;
@@ -5488,6 +5498,11 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style )
         return; // no rules!
         
     lUInt16 id = node->getNodeId();
+    if ( id == el_body && node->getParentNode()->isRoot() ) {
+        // Don't apply anything to the <body> container of <DocFragment>
+        // (other normal <body> have a non-root parent: <html>)
+        return;
+    }
     if ( id == el_pseudoElem ) { // get the id chain from the parent element
         // Note that a "div:before {float:left}" will result in: <div><floatBox><pseudoElem>
         // There is just one kind of boxing element that is explicitely
