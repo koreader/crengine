@@ -134,6 +134,7 @@ int decodeDecimal( const lChar32 * str, int len );
 #define CH_PROP_RTL         0x1000 ///< RTL character
 #define CH_PROP_AVOID_WRAP_AFTER   0x2000 ///< avoid wrap on following space
 #define CH_PROP_AVOID_WRAP_BEFORE  0x4000 ///< avoid wrap on preceding space
+#define CH_PROP_MODIFIER    0x8000 ///< modifier character (diacritics & similar)
 
 /// retrieve character properties mask array for wide c-string
 void lStr_getCharProps( const lChar32 * str, int sz, lUInt16 * props );
