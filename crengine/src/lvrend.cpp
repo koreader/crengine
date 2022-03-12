@@ -8994,7 +8994,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         }
     }
 }
-void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y, int width, int height)
+void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y, int width, int height, bool clip_to_target=true)
 {
     // (The provided width and height gives the area we have to draw the background image on)
     css_style_ref_t style=enode->getStyle();
@@ -9186,32 +9186,211 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                                                hori_transform, vert_transform, transform_x, transform_y);
             // We use the DrawBuf clip facility to ensure we don't draw outside this node fmt
             lvRect orig_clip;
-            drawbuf.GetClipRect( &orig_clip ); // Backup the original one
-            // Set a new one to the target area
-            lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);;
-            // But don't overflow page top and bottom, in case target spans multiple pages
-            if ( target_clip.top < orig_clip.top )
-                target_clip.top = orig_clip.top;
-            if ( target_clip.bottom > orig_clip.bottom )
-                target_clip.bottom = orig_clip.bottom;
-            drawbuf.SetClipRect( &target_clip );
+            if (clip_to_target) {
+                drawbuf.GetClipRect( &orig_clip ); // Backup the original one
+                // Set a new one to the target area
+                lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);;
+                // But don't overflow page top and bottom, in case target spans multiple pages
+                if ( target_clip.top < orig_clip.top )
+                    target_clip.top = orig_clip.top;
+                if ( target_clip.bottom > orig_clip.bottom )
+                    target_clip.bottom = orig_clip.bottom;
+                drawbuf.SetClipRect( &target_clip );
+            }
             // Draw
             drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
-            drawbuf.SetClipRect( &orig_clip ); // Restore the original one
+            if (clip_to_target) {
+                drawbuf.SetClipRect( &orig_clip ); // Restore the original one
+            }
         }
     }
+}
+
+void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_image, ldomNode * enode, int x0, int y0, int dx, int dy, int doc_x, int doc_y)
+{
+    // https://www.w3.org/TR/CSS2/colors.html#background
+    // <body> background does not obey margin rules, and it is to be drawn
+    // instead on the whole canvas/viewport.
+    // This is rather complex with EPUBs and DocFragment based documents,
+    // as there are multiple BODYs that are usually split on new pages,
+    // but could also meet on a page.
+    // We don't draw on the fmt width, but on the drawbuf width.
+    // Also, when in page mode, we'd rather have a fully fixed background,
+    // (so, not respecting background-repeat and background-position)
+    // to avoid ghosting and refreshes issues on eInk.
+    // We try to do this right when there are multiple <BODY>, with possibly
+    // different background colors/images, in the viewed page. This is a bit
+    // harder to do right when in 2-pages mode, which can have a few issues.
+
+    // We can draw on the whole buffer or clip area, unless some previous
+    // or next body restrict these
+    int bg_top = 0;
+    int bg_bottom = drawbuf.GetHeight();
+    int bg_left = 0;
+    int bg_right = drawbuf.GetWidth();
+
+    // Use the specific body background clip so the background is drawn
+    // on the full canvas even on pages with shorter text.
+    lvRect curclip;
+    drawbuf.GetClipRect( &curclip );
+    draw_extra_info_t * draw_extra_info = (draw_extra_info_t*)drawbuf.GetDrawExtraInfo();
+    if ( draw_extra_info ) {
+        // Set body background clip (we get one if in page mode)
+        drawbuf.SetClipRect( &draw_extra_info->body_background_clip );
+        // If there is a header or we are in 2-pages mode, the clip would ensure
+        // we don't draw over them. But we want to position the drawing
+        // adequately so the background-position can be ensured;
+        // just use the provided clip as the area to paint
+        bg_top = draw_extra_info->body_background_clip.top;
+        bg_bottom = draw_extra_info->body_background_clip.bottom;
+        bg_left = draw_extra_info->body_background_clip.left;
+        bg_right = draw_extra_info->body_background_clip.right;
+    }
+
+    // If the current body we're dealing starts on ends inside this page/screen,
+    // it does not necessarily mean there is a previous or next body that ends
+    // or starts inside this page/screen: we may have inter body margins, or
+    // some initial top margin above the first body.
+    // We need to check there is really none to be able to draw on the whole buffer.
+    bool no_visible_previous_body = doc_y <= 0; // This body started before page top
+    if ( !no_visible_previous_body ) {
+        // Find previous body if any, to see if would have some part in this page
+        // We expect either sibling BODY (FB2) or sibling DocFragement>BODY (EPUB)
+        ldomNode * prevBody = NULL;
+        ldomNode * n;
+        n = enode->getUnboxedPrevSibling(true);
+        if ( n && n->getNodeId() == el_body ) {
+            prevBody = n;
+        }
+        else {
+            n = enode->getUnboxedParent();
+            if ( n && n->getNodeId() == el_DocFragment ) {
+                n = n->getUnboxedPrevSibling(true);
+                if ( n && n->getNodeId() == el_DocFragment ) {
+                    n = n->getUnboxedLastChild(true);
+                    if ( n && n->getNodeId() == el_body ) {
+                        prevBody = n;
+                    }
+                }
+            }
+        }
+        if ( !prevBody ) {
+            no_visible_previous_body = true;
+        }
+        else {
+            // Make out the doc_y this prev body would have
+            lvRect prevrect;
+            prevBody->getAbsRect(prevrect);
+            lvRect thisrect;
+            enode->getAbsRect(thisrect);
+            int prev_bottom_doc_y = doc_y - thisrect.top + prevrect.bottom;
+            if ( prev_bottom_doc_y <= 0 ) { // previous body ends before this page
+                no_visible_previous_body = true;
+            }
+            else {
+                // There may be unused space between this prev body bottom and
+                // this body top, caused by collapsed body top/bottom margins.
+                // Make the boundary between backgrounds at the middle of this (round up)
+                bg_top = y0 + doc_y - (thisrect.top - prevrect.bottom)/2;
+            }
+        }
+    }
+    // Same checks as above, but for a next body below this one
+    RenderRectAccessor fmt( enode );
+    bool no_visible_next_body = doc_y + fmt.getHeight() >= dy; // this body ends after page bottom
+    if ( !no_visible_next_body ) {
+        // Find next body
+        ldomNode * nextBody = NULL;
+        ldomNode * n;
+        n = enode->getUnboxedNextSibling(true);
+        if ( n && n->getNodeId() == el_body ) {
+            nextBody = n;
+        }
+        else {
+            n = enode->getUnboxedParent();
+            if ( n && n->getNodeId() == el_DocFragment ) {
+                n = n->getUnboxedNextSibling(true);
+                if ( n && n->getNodeId() == el_DocFragment ) {
+                    n = n->getUnboxedLastChild(true); // body can be preceded by <styleSheet>
+                    if ( n && n->getNodeId() == el_body ) {
+                        nextBody = n;
+                    }
+                }
+            }
+        }
+        if ( !nextBody ) {
+            no_visible_next_body = true;
+        }
+        else {
+            lvRect nextrect;
+            nextBody->getAbsRect(nextrect);
+            lvRect thisrect;
+            enode->getAbsRect(thisrect);
+            int next_top_doc_y = doc_y - thisrect.top + nextrect.top;
+            if ( next_top_doc_y >= dy ) { // next body starts after this page
+                no_visible_next_body = true;
+            }
+            else {
+                // There may be unused space between this next body top and
+                // this body bottom, caused by collapsed body top/bottom margins
+                // Make the boundary between backgrounds at the middle of this (round down)
+                bg_bottom = y0 + doc_y + fmt.getHeight() + (nextrect.top - thisrect.bottom + 1)/2;
+            }
+        }
+    }
+
+    if ( draw_bg_color ) {
+        int bg_color = enode->getStyle()->background_color.value;
+        drawbuf.FillRect(bg_left, bg_top, bg_right, bg_bottom, bg_color);
+    }
+    if ( draw_bg_image ) {
+        // We will provide clip_to_target=false to DrawBackgroundImage() for it to not
+        // limit the clip to the body boundaries, which could give unexpected results
+        // and is tricky to visualize how it would behave in all cases... It's easier
+        // to just adjust the clip to limit the painted area.
+        lvRect clip;
+        drawbuf.GetClipRect( &clip );
+        // We got either the orig fullscreen clip in scroll mode, or body_background_clip
+        // in page mode, which have proper clip left and right.
+        if ( clip.top < bg_top )
+            clip.top = bg_top;
+        if ( clip.bottom > bg_bottom )
+            clip.bottom = bg_bottom;
+        drawbuf.SetClipRect(&clip);
+        // We provide x=0 w=screen width so that even if the clip crops out half of
+        // this width, we get the background image positionned (background-position)
+        // and repeated (backgroud-repeat) the same way whether we're drawing the
+        // left of the right page: that way, drawings will coincide and look like a
+        // single full page drawing, instead of having a cut in the middle.
+        // We provide y=bg_top, so that when the body starts in the middle of the
+        // page, the image have its top where it starts, as this might matter for
+        // some images.
+        DrawBackgroundImage(enode, drawbuf, 0, bg_top, 0, 0, drawbuf.GetWidth(), drawbuf.GetHeight()-bg_top, false);
+    }
+
+    drawbuf.SetClipRect(&curclip); // restore clip
 }
 
 //=======================================================================
 // Draw document
 //=======================================================================
 // Recursively called as children nodes are walked.
-// x0, y0 are coordinates of top left point to draw to in buffer
-// dx, dy are width and height to draw to in buffer
-// doc_x, doc_y are offset coordinates in document:
-//   doc_x is initially 0, and doc_y is set to a negative
-//   value (- page.start) from the y of the top of the page
-//   (in the whole book height) we want to start showing
+// x0, y0 are offsets in draw buffer for the top left point where the document should be drawn
+//   they are and stay fixed in recursive calls:
+//     (left_margin, header_height+margin_top) in page mode
+//     (left_margin, 0) in scroll mode
+// dx, dy are width and height to draw into in buffer
+//   they are and stay fixed in recursive calls:
+//     (buffer_width-L/R_margins, page_height) in page mode
+//     (buffer_width-L/R_margins, buffer_height) in scroll mode
+// doc_x, doc_y are dynamic offset coordinates in document:
+//   doc_x is initially 0, and doc_y is set to a negative value (- page.start).
+//   As we walk recursively siblings and children down, doc_y gets added all the getY() to
+//   end up being the absolute Y of a node: when -page.start+node_abs_y == 0,
+//   doc_y is 0 and the node is at the top of the page we are drawing.
+//   So, we are drawing everything that ends up having (doc_y, doc_y+fmt.getHeight())
+//   intersect with (0, dy).
+// page_height is actually the drawbuf height and is constant
 void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx, int dy, int doc_x, int doc_y,
                    int page_height, ldomMarkedRangeList * marks, ldomMarkedRangeList *bookmarks,
                    bool draw_content, bool draw_background, bool skip_initial_borders )
@@ -9273,60 +9452,46 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         bool restoreBackgroundColor = false;
         css_length_t bg = style->background_color;
         lUInt32 oldColor = 0;
+
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
         // override bgcolor of cells with rowspan > 1. We spread, in setNodeStyle(),
         // the TR bgcolor to its TDs that must have it, as it should be done (the
         // border spacing between cells does not have the bg color of the TR: only
         // cells have it).
-        if ( bg.type==css_val_color && !isTableRowLike && !isHidden ) {
-            // Even if we don't draw/fill background, we may need to
-            // drawbuf.SetBackgroundColor() for the text to be correctly
-            // drawn over this background color
-            oldColor = drawbuf.GetBackgroundColor();
-            drawbuf.SetBackgroundColor( bg.value );
-            restoreBackgroundColor = true;
-            if ( draw_background )
-                drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
-        }
-        if ( draw_background && !style->background_image.empty() && !isHidden ) {
-            if ( enode->getNodeId() == el_body ) {
-                // CSS specific: <body> background does not obey margin rules
-                // We don't draw on the fmt width, but on the drawbuf width.
-                // Also, when in page mode, we'd rather have a fully fixed background,
-                // (so, not respecting background-repeat and background-position)
-                // to avoid ghosting and refreshes issues on eInk.
-                // (This is not easy to ensure when there are multiple <BODY>, with
-                // possibly different background images, in the viewed page. Drawing
-                // a second background on the whole drawbuf would override the text
-                // of the previous body.)
-                lvRect curclip;
-                drawbuf.GetClipRect( &curclip );
-                // Cheap and possibly wrong (if 0-bottom margin and page just fits screen)
-                // detection of page mode:
-                bool is_page_mode = curclip.bottom != drawbuf.GetHeight();
-                if ( is_page_mode && doc_y <= 0 ) {
-                    // If doc_y > 0, we're a BODY starting on this page, and there
-                    // may be a previous one that had already set the background
-                    // image and draw text, that we'd rather not override with
-                    // a new full screen background image.
-                    // Remove the clip, so the background is drawn on the full page
-                    // even on pages with shorter text.
-                    drawbuf.SetClipRect(NULL);
-                    DrawBackgroundImage(enode, drawbuf, 0, 0, 0, 0, drawbuf.GetWidth(), drawbuf.GetHeight());
-                    drawbuf.SetClipRect(&curclip); // restore clip
+        if ( !isTableRowLike && !isHidden ) {
+            bool draw_bg_color = false;
+            if ( bg.type == css_val_color ) {
+                draw_bg_color = draw_background;
+                // Even if we don't draw/fill background here (done earlier if in
+                // 2-steps drawing), we may need to drawbuf.SetBackgroundColor()
+                // for the text to be correctly drawn over this background color.
+                oldColor = drawbuf.GetBackgroundColor();
+                drawbuf.SetBackgroundColor( bg.value );
+                restoreBackgroundColor = true;
+            }
+            bool draw_bg_image = draw_background && !style->background_image.empty();
+            if ( draw_bg_color || draw_bg_image ) {
+                if ( enode->getNodeId() == el_body ) {
+                    // Body background color and image drawing is specific, as it is not constrained
+                    // to the body border box, but should be drawn on the canvas: the screen, the page,
+                    // or part of the page.
+                    draw_extra_info_t * draw_extra_info = (draw_extra_info_t*)drawbuf.GetDrawExtraInfo();
+                    if ( draw_extra_info && !draw_extra_info->draw_body_background ) {
+                        // Explicite request to not draw (ie. when drawing in-page footnotes)
+                    }
+                    else {
+                        DrawBodyBackground( drawbuf, draw_bg_color, draw_bg_image, enode, x0, y0, dx, dy, doc_x, doc_y);
+                    }
                 }
                 else {
-                    // No fixed background.
-                    // This seems to work fine both in page and scroll modes, with proper
-                    // drawing if multiple body with different backgrounds, with some
-                    // occasional blank white space at DocFragment boundaries.
-                    DrawBackgroundImage(enode, drawbuf, 0, y0, 0, doc_y, drawbuf.GetWidth(), fmt.getHeight());
+                    // Regular element: draw bgcolor or image inside its border box
+                    if ( draw_bg_color )
+                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
+                    if ( draw_bg_image )
+                        DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
+                        // (Commented identical calls below as they seem redundant with what was just done here)
                 }
             }
-            else { // regular drawing
-                DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
-            }
-            // (Commented identical calls below as they seem redundant with what was just done here)
         }
         #if (DEBUG_TREE_DRAW!=0)
             lUInt32 color;

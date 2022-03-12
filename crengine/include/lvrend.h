@@ -116,6 +116,16 @@ public:
         { }
 };
 
+// Extra info for drawing that can be stored in DrawBuf
+typedef struct {
+    bool is_page_mode;
+    bool is_left_page;
+    bool is_right_page;
+    bool draw_body_background;
+    lvRect body_background_clip;
+    lvRect content_overflow_clip;
+} draw_extra_info_t;
+
 /// returns true if styles are identical
 bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 );
 /// removes format data from node
