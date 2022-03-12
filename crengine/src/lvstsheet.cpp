@@ -1125,7 +1125,6 @@ static int hexDigit( char c )
 
 bool parse_color_value( const char * & str, css_length_t & value )
 {
-    // Does not support "rgb(0, 127, 255)" nor "rgba(0,127,255)"
     const char * orig_pos = str;
     value.type = css_val_unspecified;
     skip_spaces( str );
@@ -1141,13 +1140,13 @@ bool parse_color_value( const char * & str, css_length_t & value )
         value.value = css_generic_currentcolor;
         return true;
     }
-    if ( substr_compare( "inherit", str ) )
+    if ( substr_icompare( "inherit", str ) )
     {
         value.type = css_val_inherited;
         value.value = 0;
         return true;
     }
-    if ( substr_compare( "none", str ) )
+    if ( substr_icompare( "none", str ) )
     {
         value.type = css_val_unspecified;
         value.value = 0;
@@ -1159,14 +1158,20 @@ bool parse_color_value( const char * & str, css_length_t & value )
         int nDigits = 0;
         for ( ; hexDigit(str[nDigits])>=0; nDigits++ )
             ;
-        if ( nDigits==3 ) {
+        if ( nDigits==3 || nDigits==4 ) {
             int r = hexDigit( *str++ );
             int g = hexDigit( *str++ );
             int b = hexDigit( *str++ );
             value.type = css_val_color;
             value.value = (((r + r*16) * 256) | (g + g*16)) * 256 | (b + b*16);
+            if ( nDigits==4 ) {
+                int a = hexDigit( *str++ );
+                // cre color upper byte is inverted alpha (0x00=opaque, 0xFF=transparency)
+                // value.value |= ((a + a*16)^0xFF)<<24;
+                // Disabled for now, as support for alpha needs work
+            }
             return true;
-        } else if ( nDigits==6 ) {
+        } else if ( nDigits==6 || nDigits==8 ) {
             int r = hexDigit( *str++ ) * 16;
             r += hexDigit( *str++ );
             int g = hexDigit( *str++ ) * 16;
@@ -1175,11 +1180,141 @@ bool parse_color_value( const char * & str, css_length_t & value )
             b += hexDigit( *str++ );
             value.type = css_val_color;
             value.value = ((r * 256) | g) * 256 | b;
+            if ( nDigits==8 ) {
+                int a = hexDigit( *str++ ) * 16;
+                a += hexDigit( *str++ );
+                // cre color upper byte is inverted alpha
+                // value.value |= ((a + a*16)^0xFF)<<24;
+                // Disabled for now, as support for alpha needs work
+            }
             return true;
         } else {
             str = orig_pos; // revert our possible str++
             return false;
         }
+    }
+    if ( substr_icompare( "rgb(", str ) || substr_icompare( "rgba(", str ) ) {
+        skip_spaces(str);
+        bool valid = true;
+        int color = 0;
+        // Per-specs, separators, and numbers and percentages, can't be mixed: the first type met decides.
+        bool allow_unspecified = true;
+        bool allow_percent = true;
+        bool has_comma_separator = false;
+        for ( int i=1; i<=3; i++ ) {
+            css_length_t num;
+            if ( parse_number_value(str, num, true, true, false, false, false, true) ) { // accept percent, negative, unspecified
+                // Firefox actually caps the values (-123 is considered as 0, 300 as 255)
+                int n = 0; // defaults to 0 if negative met below
+                if ( allow_unspecified && num.type == css_val_unspecified ) {
+                    if (num.value >= 0 ) {
+                        n = (num.value + 0x7F) >> 8; // round it
+                        if (n > 255) {
+                            n = 255;
+                        }
+                    }
+                    // else: keep n=0
+                    allow_percent = false;
+                }
+                else if ( allow_unspecified && num.type == css_val_px && num.value == 0 ) { // when parsing "0"
+                    // keep n=0
+                    allow_percent = false;
+                }
+                else if ( allow_percent && num.type == css_val_percent ) {
+                    if (num.value >= 0 ) {
+                        n = ( 255 * num.value / 100 ) >> 8;
+                        if (n > 255) {
+                            n = 255;
+                        }
+                    }
+                    // else: keep n=0
+                    allow_unspecified = false;
+                }
+                else {
+                    valid = false;
+                    break;
+                }
+                color = (color << 8) + n;
+            }
+            else {
+                valid = false;
+                break;
+            }
+            skip_spaces(str);
+            // separator may be a space or ',', and it should then always be the same
+            if ( i == 1 && *str == ',' ) {
+                has_comma_separator = true;
+            }
+            bool expecting_4th_number = false;
+            if ( has_comma_separator ) { // skip it and more spaces
+                if ( *str == ',' ) {
+                    str++;
+                    skip_spaces(str);
+                    if ( i == 3 )
+                        expecting_4th_number = true;
+                }
+                else if ( i < 3 ) { // separator non consistent
+                    valid = false;
+                    break;
+                }
+            }
+            else {
+                // If there is a 4th number, and the separator was a space, it
+                // should be a '/' before the 4th number.
+                if ( i == 3 && *str == '/' ) {
+                    str++;
+                    skip_spaces(str);
+                    expecting_4th_number = true;
+                }
+            }
+            if ( expecting_4th_number ) {
+                if ( parse_number_value(str, num, true, true, false, false, false, true) ) {
+                    int n = 0;
+                    if ( num.type == css_val_unspecified ) {
+                        if (num.value >= 0 ) {
+                            // "0.0" gives num.value=0, "1.0" gives num.value=256 (that we translate to 255)
+                            n = num.value;
+                            if (num.value > 255) {
+                                n = 255;
+                            }
+                        }
+                        // else: keep n=0
+                    }
+                    else if ( num.type == css_val_px && num.value == 0 ) { // when parsing "0"
+                        // keep n=0
+                    }
+                    else if ( num.type == css_val_percent ) {
+                        if (num.value >= 0 ) {
+                            n = ( 255 * num.value / 100 ) >> 8;
+                            if (n > 255) {
+                                n = 255;
+                            }
+                        }
+                        // else: keep n=0
+                    }
+                    else {
+                        valid = false;
+                        break;
+                    }
+                    // cre color upper byte is inverted alpha (0x00=opaque, 0xFF=transparency)
+                    // color = ((n^0xFF)<<24) | color;
+                    // Disabled for now, as support for alpha needs work
+                }
+                else {
+                    valid = false;
+                    break;
+                }
+                skip_spaces(str);
+            }
+        }
+        if ( !valid || *str != ')' ) { // invalid
+            str = orig_pos; // revert our possible str++
+            return false;
+        }
+        str++;
+        value.type = css_val_color;
+        value.value = color;
+        return true;
     }
     for ( int i=0; standard_color_table[i].name != NULL; i++ ) {
         if ( substr_icompare( standard_color_table[i].name, str ) ) {
