@@ -1382,11 +1382,20 @@ bool UserHyphDict::getMask(lChar32 *word, char *mask)
 }
 
 // get the hyphenation for word; shows all hyphenation positions, don't obey _xxx_hyphen_min
+// use lStr_findWordBounds to trim the word
 // return: hyphenated word
 // e.g.: Danger -> Dan-ger
 lString32 UserHyphDict::getHyphenation(const char *word)
 {
-    lString32 word_str(word);
+    lString32 orig_word_str(word);
+    size_t orig_len = orig_word_str.length();
+
+    int start;
+    int end;
+    bool is_rtl = false;
+    lStr_findWordBounds( orig_word_str.c_str(), orig_len, orig_len/2 + 1, start, end, is_rtl);
+
+    lString32 word_str(orig_word_str.c_str() + start - 1, end - start + 1);
     size_t len = word_str.length();
     lUInt16 widths[len+2];
     lUInt8 flags[len+2];
