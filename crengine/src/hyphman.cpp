@@ -1393,9 +1393,9 @@ lString32 UserHyphDict::getHyphenation(const char *word)
     int start;
     int end;
     bool is_rtl = false;
-    lStr_findWordBounds( orig_word_str.c_str(), orig_len, orig_len/2 + 1, start, end, is_rtl);
+    lStr_findWordBounds( orig_word_str.c_str(), orig_len, orig_len, start, end, is_rtl);
 
-    lString32 word_str(orig_word_str.c_str() + start - 1, end - start + 1);
+    lString32 word_str(orig_word_str.c_str() + start, end - start);
     size_t len = word_str.length();
     lUInt16 widths[len+2];
     lUInt8 flags[len+2];
