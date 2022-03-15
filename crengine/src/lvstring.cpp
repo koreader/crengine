@@ -5075,9 +5075,6 @@ bool lStr_isWordSeparator( lChar32 ch )
 /// find alpha sequence bounds
 void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int & end, bool & has_rtl )
 {
-    int hwStart, hwEnd;
-    has_rtl = false;
-
     // 20180615: don't split anymore on UNICODE_SOFT_HYPHEN_CODE, consider
     // it like an alpha char of zero width not drawn.
     // Only hyphenation code will care about it
@@ -5086,79 +5083,49 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
     // only be used before calling hyphenate() to find a real word to
     // give to the hyphenation algorithms.
 
-//    // skip spaces
-//    for (hwStart=pos-1; hwStart>0; hwStart--)
-//    {
-//        lChar32 ch = str[hwStart];
-//        if ( ch<(int)maxchar ) {
-//            lUInt16 props = char_props[ch];
-//            if ( !(props & CH_PROP_SPACE) )
-//                break;
-//        }
-//    }
-//    // skip punctuation signs and digits
-//    for (; hwStart>0; hwStart--)
-//    {
-//        lChar32 ch = str[hwStart];
-//        if ( ch<(int)maxchar ) {
-//            lUInt16 props = char_props[ch];
-//            if ( !(props & (CH_PROP_PUNCT|CH_PROP_DIGIT)) )
-//                break;
-//        }
-//    }
-    // skip until first alpha
-    for (hwStart = pos-1; hwStart > 0; hwStart--)
-    {
-        lChar32 ch = str[hwStart];
-        lUInt16 props = getCharProp(ch);
+    has_rtl = false;
+
+    // Check if alpha at pos, or find one on its left
+    // (Note: previously, this was looking from pos-1 down to 1, for no
+    // obvious reason. Now, we look from pos down to 0.)
+    int cur = pos;
+    for (; cur>=0; cur--) {
+        lUInt16 props = getCharProp(str[cur]);
         if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) )
             break;
     }
-    if ( hwStart<0 ) {
-        // no alphas found
+    if ( cur<0 ) { // no alpha found at pos or on its left
         start = end = pos;
         return;
     }
-    hwEnd = hwStart+1;
-    int hwStartSure = hwStart;
-    // skipping while alpha
-    for (; hwStart>0; hwStart--)
-    {
-        lChar32 ch = str[hwStart];
-        //int lastAlpha = -1;
-        lUInt16 props = getCharProp(ch);
+    pos = cur; // We'll start looking on the right from there
+
+    // Find the furthest alpha on the left
+    int first = cur;
+    cur--;
+    for (; cur>=0; cur--) {
+        lUInt16 props = getCharProp(str[cur]);
         if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) ) {
-            hwStartSure = hwStart;
+            first = cur;
             if ( props & CH_PROP_RTL )
                 has_rtl = true;
-            //lastAlpha = hwStart;
         }
         else if ( props & CH_PROP_MODIFIER ) {
             // depends on preceeding non-modifier char: don't break
         }
-        else {
-            hwStart++;
+        else { // not an alpha/modifier
             break;
         }
     }
-    hwStart = hwStartSure;
-//    if ( lastAlpha<0 ) {
-//        // no alphas found
-//        start = end = pos;
-//        return;
-//    }
-    for (hwEnd=hwStart+1; hwEnd<sz; hwEnd++) // 20080404
-    {
-        lChar32 ch = str[hwEnd];
-        lUInt16 props = getCharProp(ch);
+    start = first; // returned 'start' in inclusive
+
+    // Find the furthest alpha (or modifiers following an alpha) on the right
+    for (cur=pos+1; cur<sz; cur++) {
+        lUInt16 props = getCharProp(str[cur]);
         if ( !(props & (CH_PROP_ALPHA|CH_PROP_HYPHEN|CH_PROP_MODIFIER)) )
             break;
-        ch = str[hwEnd-1];
-        if ( ch==' ' ) // || ch==UNICODE_SOFT_HYPHEN_CODE) )
-            break;
     }
-    start = hwStart;
-    end = hwEnd;
+    end = cur; // returned 'end' is exclusive
     //CRLog::debug("Word bounds: '%s'", LCSTR(lString32(str+start, end-start)));
 }
 
