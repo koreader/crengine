@@ -1382,11 +1382,40 @@ bool UserHyphDict::getMask(lChar32 *word, char *mask)
 }
 
 // get the hyphenation for word; shows all hyphenation positions, don't obey _xxx_hyphen_min
+// use lStr_findWordBounds to trim the word
 // return: hyphenated word
 // e.g.: Danger -> Dan-ger
+// This is not performance critical, as it is done only for single words on user interaction.
 lString32 UserHyphDict::getHyphenation(const char *word)
 {
-    lString32 word_str(word);
+    lString32 orig_word_str(word);
+    size_t orig_len = orig_word_str.length();
+
+    // Given some combined words like stairway2heaven, we want to get the first potential part
+    // as the candidate for hyphenation for a clearer layout, with smaller gaps.
+    // Imagine the following lines:
+    //
+    // |<--      page width       -->|
+    // bla bla bla bla bla bla stairway2heaven
+    // bla bla bla bla bla stairway2heaven
+    //
+    // A hypenation at stairway would give us a hyphenation in both cases,
+    // whereas hyphenating at heaven will only hyphenate the later case.
+    // -> So hyphenation at stairway will yield smaller gaps.
+
+    // As lStr_findWordBounds() will only look on the left side of the provided "pos" (our f_start here),
+    // and as orig_word may start with some non-alpha that would be ignored, if we want to find the first part
+    // of a combined word, we need to increase f_start until some start of word is found (which will make start != end)
+    bool is_rtl = false;
+    int start = 0;
+    int end = 0;
+    int f_start = 1;
+    while (start == end && f_start <= orig_len) {
+        lStr_findWordBounds( orig_word_str.c_str(), orig_len, f_start, start, end, is_rtl);
+        f_start++;
+    }
+
+    lString32 word_str(orig_word_str.c_str() + start, end - start);
     size_t len = word_str.length();
     lUInt16 widths[len+2];
     lUInt8 flags[len+2];
