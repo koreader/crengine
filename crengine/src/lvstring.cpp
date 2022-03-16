@@ -5064,6 +5064,8 @@ bool lStr_isWordSeparator( lChar32 ch )
     // CJK puncutation
     if (ch>=UNICODE_CJK_PUNCTUATION_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_END) return true;
     if (ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) return true;
+    // Other punctuation
+    if (ch == 0x0387 ) return true;  // GREEK ANO TELEIA
     // Some others(from https://www.cs.tut.fi/~jkorpela/chars/spaces.html)
     if (ch == 0x1680 ) return true;  // OGHAM SPACE MARK
     if (ch == 0x180E ) return true;  // MONGOLIAN VOWEL SEPARATOR
