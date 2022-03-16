@@ -1391,21 +1391,24 @@ lString32 UserHyphDict::getHyphenation(const char *word)
     lString32 orig_word_str(word);
     size_t orig_len = orig_word_str.length();
 
-    int start = 0;
-    int end = 0;
-    bool is_rtl = false;
-
-    // Given some combined words like stairway2heaven, start from the beginning to find
-    // the first potential part to hyphenate (->stairway) for a clearer typeface, with smaller gaps.
+    // Given some combined words like stairway2heaven, we want to get the first potential part
+    // as the candidate for hyphenation for a clearer layout, with smaller gaps.
     // Imagine the following lines:
-    // 1.
-    // |<-- page width            -->|
+    //
+    // |<--      page width       -->|
     // bla bla bla bla bla bla stairway2heaven
     // bla bla bla bla bla stairway2heaven
     //
     // A hypenation at stairway would give us a hyphenation in both cases,
     // whereas hyphenating at heaven will only hyphenate the later case.
-    // -> So hyphenation at abcd will yield smaller gaps.
+    // -> So hyphenation at stairway will yield smaller gaps.
+
+    // As lStr_findWordBounds() will only look on the left side of the provided "pos" (our f_start here),
+    // and as orig_word may start with some non-alpha that would be ignored, if we want to find the first part
+    // of a combined word, we need to increase f_start until some start of word is found (which will make start != end)
+    bool is_rtl = false;
+    int start = 0;
+    int end = 0;
     int f_start = 1;
     while (start == end && f_start <= orig_len) {
         lStr_findWordBounds( orig_word_str.c_str(), orig_len, f_start, start, end, is_rtl);
