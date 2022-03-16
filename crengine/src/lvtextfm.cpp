@@ -4143,10 +4143,6 @@ public:
                     // lStr_findWordBounds() will find the word contained at wordpos
                     // (or the previous word if wordpos happens to be a space or some
                     // punctuation) by looking only for alpha chars in m_text.
-                    // Note: it actually does that with the char at wordpos-1 - not sure
-                    // if we shoud correct it, here or there - or if this is fine - but
-                    // let's go with it as-is as it might be a safety and might help
-                    // us not be stuck in some infinite loop here.
                     int wstart, wend;
                     bool has_rtl;
                     lStr_findWordBounds( m_text, m_length, wordpos, wstart, wend, has_rtl );
