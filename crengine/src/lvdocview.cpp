@@ -1353,12 +1353,21 @@ lString32 LVDocView::getTimeString() {
 	time_t t = (time_t) time(0);
 	tm * bt = localtime(&t);
 	char str[12];
+#if defined(_WIN32)
+	if ( m_props->getBoolDef(PROP_SHOW_TIME_12HOURS, false) ) {
+		sprintf(str, "%d:%02d", bt->tm_hour > 12 ? bt->tm_hour % 12 : bt->tm_hour, bt->tm_min);
+	}
+	else {
+		sprintf(str, "%02d:%02d", bt->tm_hour, bt->tm_min);
+	}
+#else
 	if ( m_props->getBoolDef(PROP_SHOW_TIME_12HOURS, false) ) {
 		strftime(str, sizeof(str), "%I:%M %p", bt);
 	}
 	else {
 		strftime(str, sizeof(str), "%H:%M", bt);
 	}
+#endif
 	return Utf8ToUnicode(lString8(str));
 }
 
