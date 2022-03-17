@@ -36,20 +36,20 @@ original Author: Nikolay Pultsin (geometer@fbreader.org)
 ###############################################################################
 
 preamble from pat-gen by Martin.Zwicknagl@kirchbichl.net
-pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
+pattern file used: de-1996_righthyphenmin3-2022-03-17.pat
 
 % title: German Hyphenation Patterns (Reformed Orthography, 2006)
 %
 % notice: TeX-Trennmuster für die reformierte (2006) deutsche Rechtschreibung
 %
-% version: 2022-01-31
+% version: 2022-03-17
 %
 % authors:
 %   -
 %     name:    Deutschsprachige Trennmustermannschaft
 %     contact: trennmuster@dante.de
 %
-% copyright: Copyright (c) 2013-2021
+% copyright: Copyright (c) 2013-2022
 %            Stephan Hennig, Werner Lemberg, Günter Milde,
 %            Sander van Geloven, Georg Pfeiffer, Gisbert W. Selke,
 %            Tobias Wendorf, Keno Wehr
@@ -79,7 +79,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 %           FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 %           OTHER DEALINGS IN THE SOFTWARE.
 %
-% source: http://repo.or.cz/w/wortliste.git?a=commit;h=32d38d436fb6ba52e42a49c2a110d587cdcec12f
+% source: http://repo.or.cz/w/wortliste.git?a=commit;h=7d912ad590c414f9968d37f693ff08ab9104f819
 %
 % language:
 %     name: German, reformed spelling
@@ -95,7 +95,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 %
 % ===========================================================================
 
-\message{German Hyphenation Patterns (Reformed Orthography, 2006) `dehyphn-x' 2022-01-31 (WL)}
+\message{German Hyphenation Patterns (Reformed Orthography, 2006) `dehyphn-x' 2022-03-17 (WL)}
 
 %
 % The used patgen parameters are
@@ -379,6 +379,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern> end5ei</pattern>
 <pattern> en4d5er4</pattern>
 <pattern> en5der </pattern>
+<pattern> end5ost</pattern>
 <pattern> en4d3r</pattern>
 <pattern> end3s</pattern>
 <pattern> en4dü</pattern>
@@ -619,7 +620,8 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern> lei6derf</pattern>
 <pattern> lei5ert</pattern>
 <pattern> lei4tr</pattern>
-<pattern> le3n4i</pattern>
+<pattern> len4i</pattern>
+<pattern> le5nin</pattern>
 <pattern> len4k5a</pattern>
 <pattern> len4kl</pattern>
 <pattern> len4kr</pattern>
@@ -656,7 +658,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern> md2</pattern>
 <pattern> mee4ru</pattern>
 <pattern> me4gas</pattern>
-<pattern> me3ni</pattern>
 <pattern> men6schl</pattern>
 <pattern> men6schw</pattern>
 <pattern> me3ra</pattern>
@@ -1129,6 +1130,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>a2bem</pattern>
 <pattern>4aben </pattern>
 <pattern>abenen4</pattern>
+<pattern>abe4nin</pattern>
 <pattern>4abents</pattern>
 <pattern>a2beo</pattern>
 <pattern>a2beq</pattern>
@@ -1169,7 +1171,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>a2blö</pattern>
 <pattern>1abn</pattern>
 <pattern>ab2o</pattern>
-<pattern>3abo </pattern>
 <pattern>2abod</pattern>
 <pattern>a2bon</pattern>
 <pattern>abor5ang</pattern>
@@ -1354,7 +1355,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>adel6spo</pattern>
 <pattern>3adelu</pattern>
 <pattern>a4dema</pattern>
-<pattern>ade4nat</pattern>
+<pattern>ade4na</pattern>
 <pattern>adenes4</pattern>
 <pattern>a4denet</pattern>
 <pattern>aden4se</pattern>
@@ -1368,7 +1369,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>a4dero</pattern>
 <pattern>ader4sa</pattern>
 <pattern>a5deru</pattern>
-<pattern>a4d3erz</pattern>
 <pattern>2ades</pattern>
 <pattern>a4desa</pattern>
 <pattern>a4dese</pattern>
@@ -1527,6 +1527,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>af4t5ric</pattern>
 <pattern>aft5rin</pattern>
 <pattern>aft4spi</pattern>
+<pattern>aft6stic</pattern>
 <pattern>af4tur</pattern>
 <pattern>a2f3um</pattern>
 <pattern>a2f3ur</pattern>
@@ -1560,6 +1561,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2agel</pattern>
 <pattern>agel5d</pattern>
 <pattern>agelei6s</pattern>
+<pattern>a4gelem</pattern>
 <pattern>a4geli</pattern>
 <pattern>a4gema</pattern>
 <pattern>a4gemö</pattern>
@@ -1758,7 +1760,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ai4l5auf</pattern>
 <pattern>ai4lei</pattern>
 <pattern>ail5erl</pattern>
-<pattern>ailge3</pattern>
 <pattern>ail3st</pattern>
 <pattern>a3imp</pattern>
 <pattern>2ain</pattern>
@@ -1889,6 +1890,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>a4l5ande</pattern>
 <pattern>al5angel</pattern>
 <pattern>al5angr</pattern>
+<pattern>ala3ni</pattern>
 <pattern>al3ann</pattern>
 <pattern>al3ans</pattern>
 <pattern>al3anz</pattern>
@@ -2106,6 +2108,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>als2e</pattern>
 <pattern>al5ses</pattern>
 <pattern>al3sex</pattern>
+<pattern>als2p</pattern>
 <pattern>al5s6temp</pattern>
 <pattern>al3sti</pattern>
 <pattern>als4to</pattern>
@@ -2336,6 +2339,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>an4dok</pattern>
 <pattern>an4doo</pattern>
 <pattern>an4dop</pattern>
+<pattern>ando3s</pattern>
 <pattern>and5ott</pattern>
 <pattern>and5rai</pattern>
 <pattern>an4drau</pattern>
@@ -2643,6 +2647,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2ar </pattern>
 <pattern>a1ra</pattern>
 <pattern>a4ra </pattern>
+<pattern>ar4a3a</pattern>
 <pattern>ar3abb</pattern>
 <pattern>ar3abt</pattern>
 <pattern>ar3abz</pattern>
@@ -2928,6 +2933,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ar4z3au</pattern>
 <pattern>ar2zä</pattern>
 <pattern>2arze</pattern>
+<pattern>arz5elf</pattern>
 <pattern>arz5ente</pattern>
 <pattern>arzer4</pattern>
 <pattern>ar4z5erl</pattern>
@@ -2981,7 +2987,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>a4sero</pattern>
 <pattern>aser3t</pattern>
 <pattern>as4es</pattern>
-<pattern>as3e4ta</pattern>
+<pattern>as3eta</pattern>
 <pattern>as3eva</pattern>
 <pattern>a2sex</pattern>
 <pattern>2asf</pattern>
@@ -3669,6 +3675,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2ä1he</pattern>
 <pattern>ä2h3ei</pattern>
 <pattern>ä2h3e2l</pattern>
+<pattern>ähe2n</pattern>
 <pattern>äher6gebn</pattern>
 <pattern>ä1hi</pattern>
 <pattern>äh3in</pattern>
@@ -3817,7 +3824,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ä2r3e2l</pattern>
 <pattern>äre2m</pattern>
 <pattern>ä4r3emi</pattern>
-<pattern>äre4n</pattern>
+<pattern>äre2n</pattern>
 <pattern>ären3a</pattern>
 <pattern>ä4r5ener</pattern>
 <pattern>ären5zw</pattern>
@@ -4008,7 +4015,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>1äuß</pattern>
 <pattern>äu2tr</pattern>
 <pattern>1äx2</pattern>
-<pattern>äze3ni</pattern>
 <pattern>â1</pattern>
 <pattern>âte2</pattern>
 <pattern>á1</pattern>
@@ -4099,6 +4105,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>b3app</pattern>
 <pattern>ba4r3ab</pattern>
 <pattern>ba4rad</pattern>
+<pattern>bar5akt</pattern>
 <pattern>bar5ang</pattern>
 <pattern>bar5ast</pattern>
 <pattern>ba4r3at</pattern>
@@ -4255,6 +4262,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>be3eu</pattern>
 <pattern>bef2</pattern>
 <pattern>4befäl</pattern>
+<pattern>be3fe</pattern>
 <pattern>befen4</pattern>
 <pattern>2b3eff</pattern>
 <pattern>4beflä</pattern>
@@ -4355,7 +4363,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4benah</pattern>
 <pattern>ben4an </pattern>
 <pattern>be4nat</pattern>
-<pattern>be4n3au</pattern>
+<pattern>ben3au</pattern>
 <pattern>be2nä</pattern>
 <pattern>ben5da </pattern>
 <pattern>ben4del</pattern>
@@ -4391,8 +4399,11 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ben4san</pattern>
 <pattern>ben4s5au</pattern>
 <pattern>ben4s5el</pattern>
+<pattern>bens5end</pattern>
 <pattern>ben6sere</pattern>
 <pattern>ben6spar</pattern>
+<pattern>bens5trau</pattern>
+<pattern>bens5trä</pattern>
 <pattern>5bensz</pattern>
 <pattern>4b3entb</pattern>
 <pattern>4b3entd</pattern>
@@ -4504,6 +4515,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>bess4t</pattern>
 <pattern>b5esst </pattern>
 <pattern>bes3sz</pattern>
+<pattern>be6stang</pattern>
 <pattern>beste4</pattern>
 <pattern>be6stein</pattern>
 <pattern>be4ster</pattern>
@@ -5958,7 +5970,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>de3ef</pattern>
 <pattern>de3eg</pattern>
 <pattern>de3em</pattern>
-<pattern>dee4n</pattern>
 <pattern>de3ep</pattern>
 <pattern>de3er</pattern>
 <pattern>de3es</pattern>
@@ -6107,6 +6118,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4de5narr</pattern>
 <pattern>4de5nase</pattern>
 <pattern>de5nau </pattern>
+<pattern>de5naue</pattern>
 <pattern>dende4n</pattern>
 <pattern>4d3endh</pattern>
 <pattern>4d3endk</pattern>
@@ -6638,7 +6650,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2do3sp</pattern>
 <pattern>dos5sa</pattern>
 <pattern>dos2t</pattern>
-<pattern>d3ost </pattern>
 <pattern>dosta4s</pattern>
 <pattern>doste4c</pattern>
 <pattern>dosten4</pattern>
@@ -6744,7 +6755,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>3drif</pattern>
 <pattern>4d3riff</pattern>
 <pattern>d4rift</pattern>
-<pattern>dr4in</pattern>
 <pattern>4d3rind</pattern>
 <pattern>4d5ring </pattern>
 <pattern>2d3rip</pattern>
@@ -7372,7 +7382,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>een3er</pattern>
 <pattern>een3e4v</pattern>
 <pattern>e3en4ga</pattern>
-<pattern>ee3ni</pattern>
 <pattern>ee3n4o</pattern>
 <pattern>eenot3</pattern>
 <pattern>een3sh</pattern>
@@ -7615,7 +7624,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>eh3öff</pattern>
 <pattern>ehö4r5er</pattern>
 <pattern>ehra2</pattern>
-<pattern>ehr3ag</pattern>
 <pattern>ehr3ak</pattern>
 <pattern>ehr3al</pattern>
 <pattern>ehr3an</pattern>
@@ -7822,7 +7830,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>e3i4nit</pattern>
 <pattern>e4ink4</pattern>
 <pattern>ein6karn</pattern>
-<pattern>3einmi</pattern>
 <pattern>ein3n2</pattern>
 <pattern>ein4nen</pattern>
 <pattern>ein6nere</pattern>
@@ -7948,7 +7955,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>1ekd</pattern>
 <pattern>e1ke</pattern>
 <pattern>3ekeln</pattern>
-<pattern>e3ken</pattern>
+<pattern>e3ke2n</pattern>
 <pattern>e3kes</pattern>
 <pattern>e1ki</pattern>
 <pattern>e1k2l</pattern>
@@ -7957,7 +7964,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>eko4m3a</pattern>
 <pattern>ek4or</pattern>
 <pattern>ekor4da</pattern>
-<pattern>2ekr</pattern>
+<pattern>2e3kr</pattern>
 <pattern>ek2sa</pattern>
 <pattern>eks3p</pattern>
 <pattern>ek4s3te</pattern>
@@ -7971,6 +7978,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ek2t3ä</pattern>
 <pattern>ekt3eb</pattern>
 <pattern>ek4t3el</pattern>
+<pattern>ekt5ende</pattern>
 <pattern>ekt5erf</pattern>
 <pattern>ekt5erg</pattern>
 <pattern>ekt5erk</pattern>
@@ -8132,7 +8140,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>e6l5ereig</pattern>
 <pattern>e6l5er6fah</pattern>
 <pattern>e6lerfin</pattern>
-<pattern>e4l5erfo</pattern>
+<pattern>e6l5erfol</pattern>
 <pattern>e4l5ergä</pattern>
 <pattern>e6lergeb</pattern>
 <pattern>elergene6</pattern>
@@ -8149,7 +8157,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>el3eru</pattern>
 <pattern>el3erw</pattern>
 <pattern>e6lerwei</pattern>
-<pattern>el3erz</pattern>
+<pattern>e4l3erz</pattern>
 <pattern>e3les </pattern>
 <pattern>e4les4p</pattern>
 <pattern>el3ess</pattern>
@@ -8404,6 +8412,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ena4ch</pattern>
 <pattern>en5ach </pattern>
 <pattern>en5achs </pattern>
+<pattern>e4nack</pattern>
 <pattern>e3nae</pattern>
 <pattern>en3ake</pattern>
 <pattern>e3nal </pattern>
@@ -8419,7 +8428,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>e4natm</pattern>
 <pattern>en5atom</pattern>
 <pattern>enat4s3</pattern>
-<pattern>e3naue</pattern>
 <pattern>enau4f3</pattern>
 <pattern>enauto6re</pattern>
 <pattern>e2nav</pattern>
@@ -8461,11 +8469,9 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>end3t</pattern>
 <pattern>end2ü</pattern>
 <pattern>e4ne </pattern>
-<pattern>e5nece</pattern>
 <pattern>ene4ck</pattern>
 <pattern>e2ned</pattern>
 <pattern>en3eff</pattern>
-<pattern>e5nehm</pattern>
 <pattern>e5neien</pattern>
 <pattern>e2nek</pattern>
 <pattern>en3elb</pattern>
@@ -8549,7 +8555,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2enh</pattern>
 <pattern>enhof5s</pattern>
 <pattern>2eni</pattern>
-<pattern>e4ni </pattern>
 <pattern>eni5als</pattern>
 <pattern>e4nici</pattern>
 <pattern>en3ide</pattern>
@@ -8561,8 +8566,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>eni2m</pattern>
 <pattern>en3ima</pattern>
 <pattern>en3imi</pattern>
-<pattern>e2nin</pattern>
-<pattern>e3nin </pattern>
 <pattern>enin3a</pattern>
 <pattern>en3inn</pattern>
 <pattern>e4n3ion</pattern>
@@ -8622,6 +8625,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>e4n3ost</pattern>
 <pattern>en3osz</pattern>
 <pattern>eno3to</pattern>
+<pattern>e3nov</pattern>
 <pattern>eno2w</pattern>
 <pattern>e1nö</pattern>
 <pattern>en3ö2d</pattern>
@@ -8652,7 +8656,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2enso</pattern>
 <pattern>en4s5off</pattern>
 <pattern>en4s5ont</pattern>
-<pattern>en5s6pen</pattern>
+<pattern>en5spen</pattern>
 <pattern>ens4pu</pattern>
 <pattern>2enst</pattern>
 <pattern>enst5alt</pattern>
@@ -9075,7 +9079,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>erich6ter</pattern>
 <pattern>ericht5er6s</pattern>
 <pattern>e4r3ico</pattern>
-<pattern>4erie</pattern>
+<pattern>4e3rie</pattern>
 <pattern>erief4</pattern>
 <pattern>erie5fl</pattern>
 <pattern>erie4ne</pattern>
@@ -9093,6 +9097,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>e4r3ind</pattern>
 <pattern>e5rind </pattern>
 <pattern>e3ring</pattern>
+<pattern>er3inh</pattern>
 <pattern>e4r3i4ni4</pattern>
 <pattern>e4r3in5k</pattern>
 <pattern>er3inl</pattern>
@@ -9214,6 +9219,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>5erregt</pattern>
 <pattern>5erringu</pattern>
 <pattern>4errü</pattern>
+<pattern>5ersatzo</pattern>
 <pattern>ersch4</pattern>
 <pattern>5erscheinu</pattern>
 <pattern>ers2e</pattern>
@@ -10236,6 +10242,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ffe2m</pattern>
 <pattern>f4f3emi</pattern>
 <pattern>ffe4rec</pattern>
+<pattern>f4f3erh</pattern>
 <pattern>f4f5erze</pattern>
 <pattern>ffe4tr</pattern>
 <pattern>f2fex</pattern>
@@ -10345,6 +10352,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>f4i3na</pattern>
 <pattern>fi4nant</pattern>
 <pattern>fi4nar</pattern>
+<pattern>fin4dia</pattern>
 <pattern>fi4nel</pattern>
 <pattern>fi4net</pattern>
 <pattern>finge6ro</pattern>
@@ -10534,6 +10542,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2f3rad</pattern>
 <pattern>f3raf</pattern>
 <pattern>frage5i</pattern>
+<pattern>fra4gel</pattern>
 <pattern>fra4gem</pattern>
 <pattern>fra4ges</pattern>
 <pattern>2f3rah</pattern>
@@ -10556,6 +10565,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2f3rät</pattern>
 <pattern>f3rec</pattern>
 <pattern>fre4e</pattern>
+<pattern>2f3ref</pattern>
 <pattern>f3reh</pattern>
 <pattern>f4rei </pattern>
 <pattern>4f3reic</pattern>
@@ -10781,7 +10791,9 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ft4sin</pattern>
 <pattern>ft2so</pattern>
 <pattern>ft4staf</pattern>
+<pattern>fts5tick</pattern>
 <pattern>ft6stier</pattern>
+<pattern>ft4stor</pattern>
 <pattern>ft6streu</pattern>
 <pattern>ft6strop</pattern>
 <pattern>ft4stur</pattern>
@@ -10798,6 +10810,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ftz2</pattern>
 <pattern>1fu</pattern>
 <pattern>2fu </pattern>
+<pattern>fuch4s5a</pattern>
 <pattern>f2uh</pattern>
 <pattern>fu2k</pattern>
 <pattern>fuku3</pattern>
@@ -10834,6 +10847,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>fus4sa</pattern>
 <pattern>fusser4</pattern>
 <pattern>fus4s3p</pattern>
+<pattern>2fu3s2t</pattern>
 <pattern>fu4ß3er</pattern>
 <pattern>3fut</pattern>
 <pattern>fu3to</pattern>
@@ -10941,6 +10955,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>3g4anfu</pattern>
 <pattern>gan4gar</pattern>
 <pattern>gan6g5e6be</pattern>
+<pattern>gan4g5el</pattern>
 <pattern>gan6g5er6b</pattern>
 <pattern>gan4gra</pattern>
 <pattern>gan4g3u</pattern>
@@ -10983,9 +10998,10 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ga2sä</pattern>
 <pattern>2gasc</pattern>
 <pattern>gasche4</pattern>
+<pattern>gase2</pattern>
 <pattern>ga4s3ei</pattern>
 <pattern>ga4sel</pattern>
-<pattern>ga4s3e4m</pattern>
+<pattern>ga4s3em</pattern>
 <pattern>gas5endr</pattern>
 <pattern>ga4s5ene</pattern>
 <pattern>ga4s5ent</pattern>
@@ -11099,6 +11115,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2g3eff</pattern>
 <pattern>ge3fo</pattern>
 <pattern>g2eg</pattern>
+<pattern>4gegar</pattern>
 <pattern>4gegebo</pattern>
 <pattern>4gegel</pattern>
 <pattern>4gegem</pattern>
@@ -11187,7 +11204,9 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>gena4c</pattern>
 <pattern>4genah</pattern>
 <pattern>4gename</pattern>
+<pattern>ge4nar</pattern>
 <pattern>ge5n4au </pattern>
+<pattern>ge5naue</pattern>
 <pattern>ge5n6auste</pattern>
 <pattern>3genb</pattern>
 <pattern>4genda </pattern>
@@ -11211,7 +11230,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ge4n5ess</pattern>
 <pattern>4genetz</pattern>
 <pattern>ge4nim</pattern>
-<pattern>gen3in</pattern>
+<pattern>ge4n3in</pattern>
 <pattern>4geniv</pattern>
 <pattern>genk2</pattern>
 <pattern>3genm</pattern>
@@ -11902,7 +11921,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>gs4t5rit</pattern>
 <pattern>g5s4trop</pattern>
 <pattern>g5ström</pattern>
-<pattern>g3stut</pattern>
 <pattern>g3stüc</pattern>
 <pattern>g2su2</pattern>
 <pattern>g3sub</pattern>
@@ -12079,6 +12097,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>hal4b5rü</pattern>
 <pattern>halb5s</pattern>
 <pattern>2hale</pattern>
+<pattern>hale4n</pattern>
 <pattern>ha6l5ents</pattern>
 <pattern>2halh</pattern>
 <pattern>2halk</pattern>
@@ -12298,6 +12317,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>he4f5erm</pattern>
 <pattern>2heff</pattern>
 <pattern>he4f3id</pattern>
+<pattern>he4find</pattern>
 <pattern>he4f5in4g</pattern>
 <pattern>he4f3le</pattern>
 <pattern>he4flo</pattern>
@@ -12339,6 +12359,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>hei4n5er</pattern>
 <pattern>h5eingab</pattern>
 <pattern>h5einkä</pattern>
+<pattern>h5einmi</pattern>
 <pattern>hein5sk</pattern>
 <pattern>h5eintra</pattern>
 <pattern>4heio</pattern>
@@ -12386,7 +12407,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>he2mo</pattern>
 <pattern>2h3emp</pattern>
 <pattern>he2na2</pattern>
-<pattern>he4n3au</pattern>
+<pattern>hen3au</pattern>
 <pattern>he2nä</pattern>
 <pattern>he4neb</pattern>
 <pattern>hen5e4be</pattern>
@@ -12414,6 +12435,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>h5enger </pattern>
 <pattern>he4nil</pattern>
 <pattern>he4n3im</pattern>
+<pattern>he4nin</pattern>
 <pattern>henke6l5i</pattern>
 <pattern>hen6k5rin</pattern>
 <pattern>henmen6s</pattern>
@@ -12592,7 +12614,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>hil4da</pattern>
 <pattern>hil4dr</pattern>
 <pattern>hilen4</pattern>
-<pattern>hile5ni</pattern>
 <pattern>hi4let</pattern>
 <pattern>hil4fä</pattern>
 <pattern>hilfe5s</pattern>
@@ -13116,6 +13137,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>h5riesl</pattern>
 <pattern>hr3imk</pattern>
 <pattern>hrings4</pattern>
+<pattern>hr3inh</pattern>
 <pattern>hr3ins</pattern>
 <pattern>hr3int</pattern>
 <pattern>h3risi</pattern>
@@ -13994,6 +14016,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>i4demü</pattern>
 <pattern>i4de5nad</pattern>
 <pattern>idener4</pattern>
+<pattern>ide4ni</pattern>
 <pattern>iden3o4</pattern>
 <pattern>4identz</pattern>
 <pattern>iden4zi</pattern>
@@ -14107,7 +14130,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ielen4s</pattern>
 <pattern>ielen4z</pattern>
 <pattern>ieler6fin</pattern>
-<pattern>ieler6fo</pattern>
+<pattern>ieler6fol</pattern>
 <pattern>ieler6gä</pattern>
 <pattern>ieler6geb</pattern>
 <pattern>ieler6la</pattern>
@@ -14119,7 +14142,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ie4less</pattern>
 <pattern>iel5eta</pattern>
 <pattern>ie4lev</pattern>
-<pattern>ielge5n6a</pattern>
+<pattern>ielgen6a</pattern>
 <pattern>ielgene6</pattern>
 <pattern>ie4l3i4d</pattern>
 <pattern>ie4l5inf</pattern>
@@ -14149,7 +14172,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ienge4z</pattern>
 <pattern>ie4nid</pattern>
 <pattern>ie4n3im</pattern>
-<pattern>ien3in</pattern>
+<pattern>ie4n3in</pattern>
 <pattern>ienk2</pattern>
 <pattern>ie2no</pattern>
 <pattern>i3ens </pattern>
@@ -14205,6 +14228,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ie3roh</pattern>
 <pattern>ie3ron</pattern>
 <pattern>ier3ö</pattern>
+<pattern>iersau4</pattern>
 <pattern>ier4s5eh</pattern>
 <pattern>ier4sko</pattern>
 <pattern>ier5sta</pattern>
@@ -14297,6 +14321,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>iff4spe</pattern>
 <pattern>iff4spr</pattern>
 <pattern>iff4sti</pattern>
+<pattern>iff4stu</pattern>
 <pattern>if3inf</pattern>
 <pattern>i4f3ins</pattern>
 <pattern>if3lac</pattern>
@@ -14684,7 +14709,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>i6l5er6sta</pattern>
 <pattern>i4l5er4wä</pattern>
 <pattern>iler6weit</pattern>
-<pattern>i5lerz</pattern>
 <pattern>i4le5se</pattern>
 <pattern>i4lesp</pattern>
 <pattern>i4lesta</pattern>
@@ -14699,8 +14723,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ilf4sta</pattern>
 <pattern>i2l3id</pattern>
 <pattern>ilie4n3</pattern>
-<pattern>iliga4</pattern>
-<pattern>ilig5ab</pattern>
+<pattern>ilig5a4b</pattern>
 <pattern>il3imp</pattern>
 <pattern>il5init</pattern>
 <pattern>i4l3inv</pattern>
@@ -14895,6 +14918,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>in6de5sto</pattern>
 <pattern>5index </pattern>
 <pattern>5indexe</pattern>
+<pattern>3india</pattern>
 <pattern>3indiv</pattern>
 <pattern>ind2o</pattern>
 <pattern>in4doc</pattern>
@@ -15156,7 +15180,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>i1pi</pattern>
 <pattern>ipi3el</pattern>
 <pattern>ipie4n3</pattern>
-<pattern>ipir4</pattern>
 <pattern>ipli3</pattern>
 <pattern>ip2lu</pattern>
 <pattern>i2poc</pattern>
@@ -15259,6 +15282,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>irt4s3e</pattern>
 <pattern>irt4s3t</pattern>
 <pattern>i1ru</pattern>
+<pattern>irup3</pattern>
 <pattern>iru2s3</pattern>
 <pattern>iruse4</pattern>
 <pattern>iru5sta</pattern>
@@ -15349,9 +15373,9 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>i4selu</pattern>
 <pattern>i4sema</pattern>
 <pattern>i4s3emb</pattern>
+<pattern>ise2n</pattern>
 <pattern>i6senatr</pattern>
-<pattern>ise4ne</pattern>
-<pattern>i4se5neb</pattern>
+<pattern>i4seneb</pattern>
 <pattern>i4senec</pattern>
 <pattern>isen5en</pattern>
 <pattern>isenk4</pattern>
@@ -15702,6 +15726,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>i3ut</pattern>
 <pattern>i1ü2</pattern>
 <pattern>2iv</pattern>
+<pattern>iv3ab</pattern>
 <pattern>i2v3ad</pattern>
 <pattern>iv3af</pattern>
 <pattern>i2v3a2g</pattern>
@@ -15817,6 +15842,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>jee2p3</pattern>
 <pattern>je2g</pattern>
 <pattern>jek4ta</pattern>
+<pattern>jek6tend</pattern>
 <pattern>jek4ter</pattern>
 <pattern>jek4t5in</pattern>
 <pattern>jektor4</pattern>
@@ -15920,6 +15946,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2kadd</pattern>
 <pattern>kade3i</pattern>
 <pattern>kadein4</pattern>
+<pattern>kade4n</pattern>
 <pattern>ka4dez</pattern>
 <pattern>2k3adm</pattern>
 <pattern>2k3a2dr</pattern>
@@ -15964,6 +15991,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ka4lig</pattern>
 <pattern>ka4lil</pattern>
 <pattern>ka4lim</pattern>
+<pattern>kal5ins</pattern>
 <pattern>kal4kan</pattern>
 <pattern>kal4k5le</pattern>
 <pattern>kal4kri</pattern>
@@ -16202,7 +16230,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>kena4b</pattern>
 <pattern>4kena4c</pattern>
 <pattern>kena4g</pattern>
-<pattern>ke4n3au</pattern>
+<pattern>ken3au</pattern>
 <pattern>ke2nä</pattern>
 <pattern>4k3endg</pattern>
 <pattern>kend4s</pattern>
@@ -16294,6 +16322,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>k5erlau</pattern>
 <pattern>ker4leb</pattern>
 <pattern>ker3m</pattern>
+<pattern>ker5nab</pattern>
 <pattern>ker4nar</pattern>
 <pattern>kerner5</pattern>
 <pattern>ker6nere</pattern>
@@ -16645,6 +16674,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>kop3an</pattern>
 <pattern>ko3pas</pattern>
 <pattern>ko3pat</pattern>
+<pattern>2kopä</pattern>
 <pattern>4koper</pattern>
 <pattern>kopfa4</pattern>
 <pattern>kop4f5en</pattern>
@@ -16904,7 +16934,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>kstro4m5</pattern>
 <pattern>k4strop</pattern>
 <pattern>k3stub</pattern>
-<pattern>k3stut</pattern>
 <pattern>k4s3tüt</pattern>
 <pattern>ks1u</pattern>
 <pattern>k4s3um </pattern>
@@ -17073,7 +17102,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>k5ungeb</pattern>
 <pattern>k3unk</pattern>
 <pattern>2k3unm</pattern>
-<pattern>kun2s2</pattern>
+<pattern>kun4s2</pattern>
 <pattern>kunst3</pattern>
 <pattern>2kunt</pattern>
 <pattern>2kunw</pattern>
@@ -17155,6 +17184,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2labl</pattern>
 <pattern>la4ble</pattern>
 <pattern>2labn</pattern>
+<pattern>l3abo </pattern>
 <pattern>l3abon</pattern>
 <pattern>l4abor</pattern>
 <pattern>2l3abp</pattern>
@@ -17655,6 +17685,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>l3den</pattern>
 <pattern>ldena4</pattern>
 <pattern>l4denet</pattern>
+<pattern>lde4ni</pattern>
 <pattern>l4dentl</pattern>
 <pattern>l4d5ents</pattern>
 <pattern>l4d3enz</pattern>
@@ -17737,7 +17768,8 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>le4bel</pattern>
 <pattern>le4bem</pattern>
 <pattern>le4bene</pattern>
-<pattern>leben4s5</pattern>
+<pattern>leben4s</pattern>
+<pattern>lebens5e</pattern>
 <pattern>le5ber</pattern>
 <pattern>le6berec</pattern>
 <pattern>4le4bes</pattern>
@@ -17754,7 +17786,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>le6chens</pattern>
 <pattern>lech5o4f</pattern>
 <pattern>lecht6st</pattern>
-<pattern>leder5i</pattern>
 <pattern>le4dit</pattern>
 <pattern>le2dr</pattern>
 <pattern>4leei</pattern>
@@ -18038,10 +18069,10 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>l4erwec</pattern>
 <pattern>6l5erweit</pattern>
 <pattern>4l3erz </pattern>
-<pattern>l4erza</pattern>
-<pattern>4lerzä</pattern>
+<pattern>5l4erza</pattern>
 <pattern>4l5erzeu</pattern>
 <pattern>4l3er4zo</pattern>
+<pattern>5lerzu</pattern>
 <pattern>le4s3al</pattern>
 <pattern>2lesc</pattern>
 <pattern>3lese</pattern>
@@ -18146,6 +18177,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>lge3in4</pattern>
 <pattern>l2gej</pattern>
 <pattern>l2gek</pattern>
+<pattern>lge3na</pattern>
 <pattern>l4genat</pattern>
 <pattern>lgene6ri</pattern>
 <pattern>lge6ners</pattern>
@@ -18203,6 +18235,8 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>lid4a</pattern>
 <pattern>l3idee</pattern>
 <pattern>li3dek</pattern>
+<pattern>lider4</pattern>
+<pattern>li4d5ers</pattern>
 <pattern>l3i4dio</pattern>
 <pattern>li3dri</pattern>
 <pattern>3lie </pattern>
@@ -18304,7 +18338,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>li4ns2</pattern>
 <pattern>4l5insel</pattern>
 <pattern>4linspe</pattern>
-<pattern>lin6struk</pattern>
 <pattern>4l3insz</pattern>
 <pattern>2lint</pattern>
 <pattern>3lintu</pattern>
@@ -18475,6 +18508,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ll5endl</pattern>
 <pattern>ll5en6dun</pattern>
 <pattern>lle6nens</pattern>
+<pattern>lle4nin</pattern>
 <pattern>llen6sem</pattern>
 <pattern>l4l5entf</pattern>
 <pattern>l4l5entk</pattern>
@@ -18596,7 +18630,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>lm3ehe</pattern>
 <pattern>lm5eins</pattern>
 <pattern>lm3emu</pattern>
-<pattern>lme2n</pattern>
 <pattern>l4m5ends</pattern>
 <pattern>l6mensem</pattern>
 <pattern>l4ment</pattern>
@@ -18731,6 +18764,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>lo4seh</pattern>
 <pattern>2losk</pattern>
 <pattern>lo4ske</pattern>
+<pattern>2loso</pattern>
 <pattern>los3pr</pattern>
 <pattern>los4su</pattern>
 <pattern>4losta</pattern>
@@ -19513,7 +19547,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>marg4</pattern>
 <pattern>mar3gh</pattern>
 <pattern>m3argu</pattern>
-<pattern>ma3r4i</pattern>
+<pattern>ma3ri</pattern>
 <pattern>mar4k5lo</pattern>
 <pattern>mar4kr</pattern>
 <pattern>m3armb</pattern>
@@ -19642,6 +19676,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>md3är</pattern>
 <pattern>m2d3ei</pattern>
 <pattern>m4d3e4mi</pattern>
+<pattern>mde2n</pattern>
 <pattern>m4d3ent</pattern>
 <pattern>mder2</pattern>
 <pattern>m4d3erf</pattern>
@@ -19748,7 +19783,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>me4na4b</pattern>
 <pattern>me3n4ag</pattern>
 <pattern>me4nan</pattern>
-<pattern>me4n3au</pattern>
+<pattern>men3au</pattern>
 <pattern>me2nä</pattern>
 <pattern>4m3endl</pattern>
 <pattern>men3e4b</pattern>
@@ -19763,6 +19798,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4men4gag</pattern>
 <pattern>men5gen</pattern>
 <pattern>me4nid</pattern>
+<pattern>me4nil</pattern>
 <pattern>me4n3im</pattern>
 <pattern>me4nist</pattern>
 <pattern>menk2</pattern>
@@ -19830,6 +19866,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4m3er4lö</pattern>
 <pattern>merns4</pattern>
 <pattern>me3ron</pattern>
+<pattern>mersau4</pattern>
 <pattern>mer4siv</pattern>
 <pattern>mer3sm</pattern>
 <pattern>mer3sn</pattern>
@@ -20291,6 +20328,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>m4s3ang</pattern>
 <pattern>m4s3anr</pattern>
 <pattern>m4s3ant</pattern>
+<pattern>m4s3anz</pattern>
 <pattern>m2s3a2s</pattern>
 <pattern>m4s3auf</pattern>
 <pattern>msau4g</pattern>
@@ -20415,7 +20453,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>mts5eid</pattern>
 <pattern>mt4s3e4l</pattern>
 <pattern>mt4sen4</pattern>
-<pattern>mt5send</pattern>
 <pattern>mt5s4kel</pattern>
 <pattern>mts5kr</pattern>
 <pattern>mts5pri</pattern>
@@ -20458,10 +20495,10 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>mun6dant</pattern>
 <pattern>mun4dar</pattern>
 <pattern>mun6d5erf</pattern>
+<pattern>mund3r</pattern>
 <pattern>muner4</pattern>
 <pattern>mu4nerk</pattern>
 <pattern>4m5ungeb</pattern>
-<pattern>mu4nin</pattern>
 <pattern>4m3u4niv</pattern>
 <pattern>2munw</pattern>
 <pattern>mur3au</pattern>
@@ -20523,6 +20560,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nab5erk</pattern>
 <pattern>nab5er4r</pattern>
 <pattern>2nabf</pattern>
+<pattern>nab4fr</pattern>
 <pattern>2nabg</pattern>
 <pattern>n3abh</pattern>
 <pattern>4nabir</pattern>
@@ -20533,7 +20571,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>na4bre</pattern>
 <pattern>na4bri</pattern>
 <pattern>n4ab4rü</pattern>
-<pattern>2nabs</pattern>
+<pattern>4nabs</pattern>
 <pattern>2n3abt</pattern>
 <pattern>2nabu</pattern>
 <pattern>na4bus</pattern>
@@ -20654,7 +20692,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nal3ö</pattern>
 <pattern>nal5s4ka</pattern>
 <pattern>nal5skr</pattern>
-<pattern>nal4spu</pattern>
 <pattern>n3alt </pattern>
 <pattern>n3altd</pattern>
 <pattern>na2lu</pattern>
@@ -20784,7 +20821,9 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>n3atmu</pattern>
 <pattern>n2ato</pattern>
 <pattern>4natom</pattern>
+<pattern>3nator</pattern>
 <pattern>4natow</pattern>
+<pattern>3natr</pattern>
 <pattern>nats5ac</pattern>
 <pattern>nat6scheng</pattern>
 <pattern>nats5en</pattern>
@@ -20794,11 +20833,14 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>natu6renz</pattern>
 <pattern>n1au</pattern>
 <pattern>n2aue</pattern>
+<pattern>3nauem</pattern>
+<pattern>3naues</pattern>
 <pattern>5naugeh</pattern>
 <pattern>3naui</pattern>
 <pattern>3n2aul</pattern>
 <pattern>4nausb</pattern>
 <pattern>4nausd</pattern>
+<pattern>4nausf</pattern>
 <pattern>3nauso</pattern>
 <pattern>4nauss</pattern>
 <pattern>naussen6</pattern>
@@ -20939,7 +20981,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>n6d5en6gel </pattern>
 <pattern>nden6geln</pattern>
 <pattern>n6dengli</pattern>
-<pattern>nden5in</pattern>
+<pattern>nde4n5in</pattern>
 <pattern>nden5s4k</pattern>
 <pattern>ndens6tem</pattern>
 <pattern>n4dentl</pattern>
@@ -20959,6 +21001,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nde4sam</pattern>
 <pattern>nde4sel</pattern>
 <pattern>nde6stät</pattern>
+<pattern>n6de5stran</pattern>
 <pattern>nde5stri</pattern>
 <pattern>n2dez</pattern>
 <pattern>nd3imm</pattern>
@@ -20971,7 +21014,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ndo4n5au</pattern>
 <pattern>n4d3orb</pattern>
 <pattern>n4d3o4ri</pattern>
-<pattern>n4do3st</pattern>
+<pattern>n4dost</pattern>
 <pattern>n2dou</pattern>
 <pattern>nd3out</pattern>
 <pattern>n2doz</pattern>
@@ -21207,6 +21250,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4nereg</pattern>
 <pattern>ne4r5eic</pattern>
 <pattern>nere5ide</pattern>
+<pattern>6n5ereign</pattern>
 <pattern>ne4rein</pattern>
 <pattern>ne4rek</pattern>
 <pattern>ne4r5ere</pattern>
@@ -21404,6 +21448,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nge6rend</pattern>
 <pattern>nge6rers</pattern>
 <pattern>ngerin6st</pattern>
+<pattern>n6g5erwei</pattern>
 <pattern>nger4zä</pattern>
 <pattern>n4g3es4s</pattern>
 <pattern>n6gestic</pattern>
@@ -21539,34 +21584,22 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2nimo</pattern>
 <pattern>2n3imp</pattern>
 <pattern>ni3mu</pattern>
-<pattern>3nina </pattern>
 <pattern>ni3nac</pattern>
 <pattern>2ni3nä</pattern>
-<pattern>3ninba</pattern>
 <pattern>2n3ind</pattern>
 <pattern>2n3inf</pattern>
 <pattern>3ning </pattern>
-<pattern>3ningi</pattern>
 <pattern>3nings</pattern>
 <pattern>2n3inh</pattern>
-<pattern>3ninis</pattern>
-<pattern>n3i4n3it</pattern>
+<pattern>4n3i4n3it</pattern>
 <pattern>2n3inj</pattern>
 <pattern>2n3ink2</pattern>
-<pattern>3nino</pattern>
-<pattern>3ninp</pattern>
-<pattern>n3ins</pattern>
-<pattern>n4ins </pattern>
-<pattern>4ninsc</pattern>
-<pattern>4ninse</pattern>
-<pattern>4ninsl</pattern>
-<pattern>4ninso</pattern>
-<pattern>4ninst</pattern>
-<pattern>4ninsu</pattern>
+<pattern>4ninno</pattern>
+<pattern>2n3ins</pattern>
+<pattern>3n4ins </pattern>
 <pattern>2n3int</pattern>
 <pattern>ni3n2u</pattern>
 <pattern>2n3inv</pattern>
-<pattern>3ninw</pattern>
 <pattern>2niob</pattern>
 <pattern>nio2k3</pattern>
 <pattern>ni4ron</pattern>
@@ -21748,7 +21781,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2n1m2</pattern>
 <pattern>n3ma</pattern>
 <pattern>nma6l5erl</pattern>
-<pattern>nme3ni</pattern>
 <pattern>nmi6schw</pattern>
 <pattern>nmi2t</pattern>
 <pattern>n3mo</pattern>
@@ -21785,7 +21817,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nne3lu</pattern>
 <pattern>nnend4</pattern>
 <pattern>nne4r3a</pattern>
-<pattern>n6n5ereig</pattern>
 <pattern>nner6fol</pattern>
 <pattern>n4n5er4fü</pattern>
 <pattern>n6ner6geb</pattern>
@@ -22024,6 +22055,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>n4sama</pattern>
 <pattern>n4s3anb</pattern>
 <pattern>n4s3ane</pattern>
+<pattern>n4sanga</pattern>
 <pattern>n4s5ange</pattern>
 <pattern>n4s3anh</pattern>
 <pattern>ns5anka</pattern>
@@ -22177,7 +22209,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nst5erke</pattern>
 <pattern>ns6terne</pattern>
 <pattern>ns6terns</pattern>
-<pattern>nst5ersa</pattern>
 <pattern>ns4teu</pattern>
 <pattern>n5steue</pattern>
 <pattern>n3s4tic</pattern>
@@ -22264,7 +22295,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>nterz4</pattern>
 <pattern>n4t5erz </pattern>
 <pattern>n4te3sa</pattern>
-<pattern>n4t3es4s</pattern>
+<pattern>n4t3ess</pattern>
 <pattern>n6te5stei</pattern>
 <pattern>n4testo</pattern>
 <pattern>ntest5r</pattern>
@@ -22879,6 +22910,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>of4sto</pattern>
 <pattern>of2s3u</pattern>
 <pattern>of3th</pattern>
+<pattern>of4t3ri</pattern>
 <pattern>oft3s</pattern>
 <pattern>o2f3uh</pattern>
 <pattern>o2f3um</pattern>
@@ -23028,6 +23060,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>okale4</pattern>
 <pattern>oka4lei</pattern>
 <pattern>oka6lere</pattern>
+<pattern>oka4lin</pattern>
 <pattern>okal5th</pattern>
 <pattern>oka3pf</pattern>
 <pattern>ok4ar</pattern>
@@ -23115,6 +23148,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ol4geg</pattern>
 <pattern>ol4gel</pattern>
 <pattern>ol4gem</pattern>
+<pattern>ol6genac</pattern>
 <pattern>ol4geo</pattern>
 <pattern>ol4gep</pattern>
 <pattern>ol4gera</pattern>
@@ -23241,7 +23275,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>o4mele</pattern>
 <pattern>ome3na</pattern>
 <pattern>om5ener</pattern>
-<pattern>ome3ni</pattern>
 <pattern>o5mer </pattern>
 <pattern>ome3ra</pattern>
 <pattern>om3er4h</pattern>
@@ -23392,7 +23425,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>o4ni4kr</pattern>
 <pattern>o4nikse</pattern>
 <pattern>o2nim</pattern>
-<pattern>o4nins</pattern>
 <pattern>o4nis4o</pattern>
 <pattern>onk2</pattern>
 <pattern>3onke</pattern>
@@ -23510,12 +23542,14 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>op3arm</pattern>
 <pattern>opas4t</pattern>
 <pattern>opau2</pattern>
+<pattern>op3äh</pattern>
 <pattern>o3pec</pattern>
 <pattern>o3ped</pattern>
 <pattern>op3ef</pattern>
 <pattern>op3eig</pattern>
 <pattern>o3pek</pattern>
-<pattern>o3pe2n</pattern>
+<pattern>o3pen</pattern>
+<pattern>ope4ne</pattern>
 <pattern>3opera</pattern>
 <pattern>op3erh</pattern>
 <pattern>3opern</pattern>
@@ -23596,7 +23630,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>or3ace</pattern>
 <pattern>or3ach</pattern>
 <pattern>or3adr</pattern>
-<pattern>ora5gel</pattern>
 <pattern>4o3rak </pattern>
 <pattern>or5akad</pattern>
 <pattern>3orake</pattern>
@@ -23686,7 +23719,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>or3emp</pattern>
 <pattern>or3emu</pattern>
 <pattern>o3ren </pattern>
-<pattern>oren3i</pattern>
+<pattern>ore4n3i</pattern>
 <pattern>o4renki</pattern>
 <pattern>oren6nen </pattern>
 <pattern>o6rennet</pattern>
@@ -23866,6 +23899,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>osch5lei</pattern>
 <pattern>os2co</pattern>
 <pattern>os2e</pattern>
+<pattern>o4se </pattern>
 <pattern>o2sea</pattern>
 <pattern>o2seg</pattern>
 <pattern>o4s3eie</pattern>
@@ -23919,7 +23953,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>os4spo</pattern>
 <pattern>os2st</pattern>
 <pattern>oss3ta</pattern>
-<pattern>o4st </pattern>
 <pattern>ost5abl</pattern>
 <pattern>ost3ac</pattern>
 <pattern>os4tad</pattern>
@@ -24320,8 +24353,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>öt1a</pattern>
 <pattern>ötau3</pattern>
 <pattern>ö2t3ei</pattern>
-<pattern>ötel2</pattern>
-<pattern>öteln3</pattern>
+<pattern>ötel4n3</pattern>
 <pattern>öte2n</pattern>
 <pattern>öten3e</pattern>
 <pattern>ö4tesp</pattern>
@@ -24592,12 +24624,13 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2pemi</pattern>
 <pattern>3pena</pattern>
 <pattern>pena4b</pattern>
-<pattern>pe4n3au</pattern>
+<pattern>pen3au</pattern>
 <pattern>pe2nä</pattern>
 <pattern>pen3d4a</pattern>
 <pattern>pende4c</pattern>
 <pattern>5pendel</pattern>
 <pattern>3pendl</pattern>
+<pattern>pen5do</pattern>
 <pattern>pen3ed</pattern>
 <pattern>pe4n3en</pattern>
 <pattern>penen5e</pattern>
@@ -24765,7 +24798,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>pf3sl</pattern>
 <pattern>pfspor4</pattern>
 <pattern>pf3str</pattern>
-<pattern>pf3stu</pattern>
 <pattern>pf3sz</pattern>
 <pattern>2pf1t</pattern>
 <pattern>pft4r</pattern>
@@ -24842,6 +24874,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>pie4leb</pattern>
 <pattern>pieler6ke</pattern>
 <pattern>pieler6kl</pattern>
+<pattern>piel6erz</pattern>
 <pattern>pie4lob</pattern>
 <pattern>pi3ens</pattern>
 <pattern>pi5ent </pattern>
@@ -25317,6 +25350,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2pulw</pattern>
 <pattern>2p3umg</pattern>
 <pattern>pum4pa</pattern>
+<pattern>pumpe4</pattern>
 <pattern>pump3f</pattern>
 <pattern>pum4p3h</pattern>
 <pattern>pum4p3l</pattern>
@@ -25368,6 +25402,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2quew</pattern>
 <pattern>2quip</pattern>
 <pattern>2ra </pattern>
+<pattern>2raa</pattern>
 <pattern>ra2ab</pattern>
 <pattern>r3aal</pattern>
 <pattern>ra3arb</pattern>
@@ -25423,6 +25458,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>rad5erk</pattern>
 <pattern>ra4dern</pattern>
 <pattern>rad5ers</pattern>
+<pattern>rad5erz</pattern>
 <pattern>ra3de3s</pattern>
 <pattern>ra4dest</pattern>
 <pattern>3radf</pattern>
@@ -25454,7 +25490,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>raf6t5erz</pattern>
 <pattern>raft3s4</pattern>
 <pattern>ra4geg</pattern>
-<pattern>ra4gel</pattern>
 <pattern>ra4geo</pattern>
 <pattern>ra4geru</pattern>
 <pattern>ra4gese</pattern>
@@ -25485,6 +25520,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ra3k2l</pattern>
 <pattern>2rakr</pattern>
 <pattern>ra4kre</pattern>
+<pattern>4rakti</pattern>
 <pattern>2r3akz</pattern>
 <pattern>rala2</pattern>
 <pattern>ral3ab</pattern>
@@ -25514,6 +25550,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ralin4g</pattern>
 <pattern>ral5insp</pattern>
 <pattern>ra6l5inst</pattern>
+<pattern>ralin6str</pattern>
 <pattern>ralin4t</pattern>
 <pattern>ra4lin4v</pattern>
 <pattern>ra4l5ita</pattern>
@@ -25604,6 +25641,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>r3anhö</pattern>
 <pattern>ran4i</pattern>
 <pattern>r3a4nil</pattern>
+<pattern>ra3nin</pattern>
 <pattern>ran4kop</pattern>
 <pattern>2ranl</pattern>
 <pattern>r3anme</pattern>
@@ -25799,7 +25837,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>r4b3ang</pattern>
 <pattern>r4b3ant</pattern>
 <pattern>r4b3arz</pattern>
-<pattern>rbb2</pattern>
+<pattern>rb3b2</pattern>
 <pattern>r4beab</pattern>
 <pattern>r4beba</pattern>
 <pattern>r4beef</pattern>
@@ -26109,6 +26147,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>r2eif</pattern>
 <pattern>2r2eig</pattern>
 <pattern>3reigä</pattern>
+<pattern>5reigel</pattern>
 <pattern>r5eigene</pattern>
 <pattern>5reigeno</pattern>
 <pattern>r5eigensc</pattern>
@@ -26173,6 +26212,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>rekter6z</pattern>
 <pattern>rek4tin</pattern>
 <pattern>rek4top</pattern>
+<pattern>rek4tum</pattern>
 <pattern>rekturin6</pattern>
 <pattern>2rekz</pattern>
 <pattern>2r3el2b</pattern>
@@ -26504,6 +26544,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>rgel5in</pattern>
 <pattern>rgene6rals</pattern>
 <pattern>rgeni3</pattern>
+<pattern>rgens4p</pattern>
 <pattern>r4g5entr</pattern>
 <pattern>rgen4zw</pattern>
 <pattern>rgerin6t</pattern>
@@ -26711,7 +26752,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>r2ing</pattern>
 <pattern>rin4g3a</pattern>
 <pattern>rin4gei</pattern>
-<pattern>rin6g5erw</pattern>
 <pattern>rin4gl</pattern>
 <pattern>ring5le</pattern>
 <pattern>rin4gr</pattern>
@@ -26719,7 +26759,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ring5s6en</pattern>
 <pattern>ring5sti</pattern>
 <pattern>ring5s6tr</pattern>
-<pattern>2r3inh</pattern>
+<pattern>2rinh</pattern>
 <pattern>5rini </pattern>
 <pattern>4rinit</pattern>
 <pattern>2r3inj</pattern>
@@ -27341,6 +27381,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>rr3a4ck</pattern>
 <pattern>rr2ad</pattern>
 <pattern>rra4den</pattern>
+<pattern>rra4der</pattern>
 <pattern>rrad3r</pattern>
 <pattern>r4rako</pattern>
 <pattern>r4r3akt</pattern>
@@ -27811,6 +27852,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ru2p3a</pattern>
 <pattern>2rupd</pattern>
 <pattern>ru2p3h</pattern>
+<pattern>rupt4o</pattern>
 <pattern>2r1ur</pattern>
 <pattern>ru4r3e</pattern>
 <pattern>ru4sam</pattern>
@@ -28013,6 +28055,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>sa3kar</pattern>
 <pattern>3s4aki</pattern>
 <pattern>2sakk</pattern>
+<pattern>sa3kl</pattern>
 <pattern>2sakt</pattern>
 <pattern>2saku</pattern>
 <pattern>sa4kus</pattern>
@@ -28453,7 +28496,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>se3am</pattern>
 <pattern>sea2n</pattern>
 <pattern>se3ap</pattern>
-<pattern>seauto4</pattern>
+<pattern>seauto6r</pattern>
 <pattern>2seä</pattern>
 <pattern>2seb</pattern>
 <pattern>se4ben</pattern>
@@ -28662,13 +28705,14 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>sen3ad</pattern>
 <pattern>sena4g</pattern>
 <pattern>se4natt</pattern>
-<pattern>se4n3au</pattern>
+<pattern>sen3au</pattern>
 <pattern>se5n4au </pattern>
 <pattern>se2nä</pattern>
 <pattern>sen4dea</pattern>
-<pattern>sen4del</pattern>
+<pattern>5sen4del</pattern>
 <pattern>senderin6f</pattern>
 <pattern>sen6desi</pattern>
+<pattern>se3neb</pattern>
 <pattern>sen5eck</pattern>
 <pattern>senei4</pattern>
 <pattern>se4nel</pattern>
@@ -28686,7 +28730,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>senhaus6</pattern>
 <pattern>3seni</pattern>
 <pattern>se4n3im</pattern>
-<pattern>sen3in</pattern>
+<pattern>se4n3in</pattern>
 <pattern>6s5en6keli</pattern>
 <pattern>sen6kero</pattern>
 <pattern>sen4k5ni</pattern>
@@ -29080,6 +29124,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>si4t3re</pattern>
 <pattern>sit3s</pattern>
 <pattern>sit4zel</pattern>
+<pattern>si4umst</pattern>
 <pattern>2siun</pattern>
 <pattern>si2v3a</pattern>
 <pattern>si4v5er4f</pattern>
@@ -29195,7 +29240,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>smar4k5n</pattern>
 <pattern>sma3sp</pattern>
 <pattern>smau2</pattern>
-<pattern>sme3ni</pattern>
 <pattern>smen4t5i</pattern>
 <pattern>sme3ra</pattern>
 <pattern>s3mi</pattern>
@@ -29509,6 +29553,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2spup</pattern>
 <pattern>3spur</pattern>
 <pattern>spu4rer</pattern>
+<pattern>4spurpu</pattern>
 <pattern>2sput</pattern>
 <pattern>1spü</pattern>
 <pattern>s2pür</pattern>
@@ -29832,6 +29877,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4stechn</pattern>
 <pattern>ste2d</pattern>
 <pattern>st3edi</pattern>
+<pattern>5stedt</pattern>
 <pattern>2stee</pattern>
 <pattern>3s2teg</pattern>
 <pattern>ste4gra</pattern>
@@ -29892,6 +29938,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>stenei6l</pattern>
 <pattern>ste4no</pattern>
 <pattern>stens4</pattern>
+<pattern>st5entd</pattern>
 <pattern>s4t5entf</pattern>
 <pattern>s4t5entg</pattern>
 <pattern>s4t5entl</pattern>
@@ -30206,7 +30253,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4s4t3urt</pattern>
 <pattern>3s4turz</pattern>
 <pattern>2stus</pattern>
-<pattern>s2tut</pattern>
+<pattern>3s2tut</pattern>
 <pattern>1stü</pattern>
 <pattern>4stübu</pattern>
 <pattern>4stüch</pattern>
@@ -30677,6 +30724,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>tan4gar</pattern>
 <pattern>t5angek</pattern>
 <pattern>tan5gen</pattern>
+<pattern>t5angez</pattern>
 <pattern>5tango </pattern>
 <pattern>5tangos</pattern>
 <pattern>t3angr</pattern>
@@ -31166,7 +31214,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ten3ad</pattern>
 <pattern>te4nan</pattern>
 <pattern>te4n3ar</pattern>
-<pattern>te4n3au</pattern>
+<pattern>ten3au</pattern>
 <pattern>te2nä</pattern>
 <pattern>ten3äh</pattern>
 <pattern>4t5endal</pattern>
@@ -31214,7 +31262,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>6tenglis</pattern>
 <pattern>te4nid</pattern>
 <pattern>te4nil</pattern>
-<pattern>ten3in</pattern>
+<pattern>te4n3in</pattern>
 <pattern>4teniv</pattern>
 <pattern>t2enk4</pattern>
 <pattern>tenn2</pattern>
@@ -31407,6 +31455,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>te4sph</pattern>
 <pattern>4tespi</pattern>
 <pattern>tes4por</pattern>
+<pattern>tes6senz </pattern>
 <pattern>tes3si</pattern>
 <pattern>test5ab</pattern>
 <pattern>test5ak</pattern>
@@ -31419,8 +31468,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4te5s4tel</pattern>
 <pattern>test5elt</pattern>
 <pattern>4te5step</pattern>
-<pattern>tester5</pattern>
-<pattern>tes6t5ere</pattern>
+<pattern>tes6t5er5e</pattern>
 <pattern>tes6t5er6f</pattern>
 <pattern>tes6ter6g</pattern>
 <pattern>tes6t5erh</pattern>
@@ -31782,7 +31830,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>tings4p</pattern>
 <pattern>4tingu</pattern>
 <pattern>ti4nig</pattern>
-<pattern>tin4in</pattern>
+<pattern>ti3n4in</pattern>
 <pattern>t3i4n3it</pattern>
 <pattern>2t3inj</pattern>
 <pattern>tin4kla</pattern>
@@ -32123,6 +32171,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>4trafg</pattern>
 <pattern>4trafr</pattern>
 <pattern>4trafu</pattern>
+<pattern>tra6gele</pattern>
 <pattern>trag3l</pattern>
 <pattern>3tragö</pattern>
 <pattern>4trahl</pattern>
@@ -33366,7 +33415,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>uf4spre</pattern>
 <pattern>uf5s4tra</pattern>
 <pattern>uf5stri</pattern>
-<pattern>uf3stu</pattern>
 <pattern>ufta4g</pattern>
 <pattern>uft3eb</pattern>
 <pattern>ufte4m</pattern>
@@ -33652,6 +33700,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>u2mak</pattern>
 <pattern>um3aku</pattern>
 <pattern>u4m3all</pattern>
+<pattern>u4m3alt</pattern>
 <pattern>u2mam</pattern>
 <pattern>u5mann</pattern>
 <pattern>um3anr</pattern>
@@ -34012,7 +34061,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>ur3ehr</pattern>
 <pattern>ur3eig</pattern>
 <pattern>u4r3ein</pattern>
-<pattern>urein4d</pattern>
 <pattern>u4rele</pattern>
 <pattern>u3ren</pattern>
 <pattern>ure4ne</pattern>
@@ -34021,6 +34069,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>u4reni</pattern>
 <pattern>urens4</pattern>
 <pattern>uren6sem</pattern>
+<pattern>u4r5entg</pattern>
 <pattern>uren6thu</pattern>
 <pattern>u4r5entn</pattern>
 <pattern>u4rents</pattern>
@@ -34480,6 +34529,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2übd</pattern>
 <pattern>übe2</pattern>
 <pattern>ü3bec</pattern>
+<pattern>2ü3bef</pattern>
 <pattern>übe5n4au</pattern>
 <pattern>über3</pattern>
 <pattern>ü2bet</pattern>
@@ -34814,10 +34864,10 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>1v</pattern>
 <pattern>2va </pattern>
 <pattern>2vaä</pattern>
-<pattern>2v1ab</pattern>
-<pattern>v2aba</pattern>
-<pattern>v2abä</pattern>
-<pattern>v2ab2r</pattern>
+<pattern>2vab</pattern>
+<pattern>3vabo</pattern>
+<pattern>vab2r</pattern>
+<pattern>v3abs</pattern>
 <pattern>va2de</pattern>
 <pattern>va1e2</pattern>
 <pattern>2vaf</pattern>
@@ -35011,7 +35061,6 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>vin4zin</pattern>
 <pattern>vire4n3</pattern>
 <pattern>vis2a</pattern>
-<pattern>vise2</pattern>
 <pattern>vis4o</pattern>
 <pattern>vi5sor</pattern>
 <pattern>vi2u</pattern>
@@ -35166,6 +35215,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>wart4st</pattern>
 <pattern>war4za</pattern>
 <pattern>war4z5ei</pattern>
+<pattern>war4zel</pattern>
 <pattern>war6zent</pattern>
 <pattern>3was</pattern>
 <pattern>wa3s2a</pattern>
@@ -35253,6 +35303,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>wegs4t</pattern>
 <pattern>3weh</pattern>
 <pattern>weh3l</pattern>
+<pattern>wehr3a</pattern>
 <pattern>weh4rei</pattern>
 <pattern>weh4r5er4</pattern>
 <pattern>wei5ber</pattern>
@@ -35317,7 +35368,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>w5endem</pattern>
 <pattern>wendes4</pattern>
 <pattern>wen4gl</pattern>
-<pattern>we3n4i</pattern>
+<pattern>wen4i</pattern>
 <pattern>wen4kau</pattern>
 <pattern>wen4k5la</pattern>
 <pattern>wen4k5ri</pattern>
@@ -35782,6 +35833,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>y1c</pattern>
 <pattern>yce3r</pattern>
 <pattern>y4chia</pattern>
+<pattern>ych3n</pattern>
 <pattern>yd3al</pattern>
 <pattern>ydri2</pattern>
 <pattern>ydrid3</pattern>
@@ -36166,7 +36218,7 @@ pattern file used: de-1996_righthyphenmin3-2022-01-31.pat
 <pattern>2z3emp</pattern>
 <pattern>3zen </pattern>
 <pattern>zena4g</pattern>
-<pattern>ze4n3au</pattern>
+<pattern>zen3au</pattern>
 <pattern>ze2nä</pattern>
 <pattern>zende4c</pattern>
 <pattern>zende4k</pattern>
