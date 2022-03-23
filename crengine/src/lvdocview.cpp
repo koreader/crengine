@@ -3163,7 +3163,7 @@ bool LVDocView::getCursorRect(ldomXPointer ptr, lvRect & rc,
 
 		lvPoint topLeft = rc.topLeft();
 		lvPoint bottomRight = rc.bottomRight();
-		if (docToWindowPoint(topLeft) && docToWindowPoint(bottomRight)) {
+		if (docToWindowPoint(topLeft) && docToWindowPoint(bottomRight, true)) {
 			rc.setTopLeft(topLeft);
 			rc.setBottomRight(bottomRight);
 			return true;
