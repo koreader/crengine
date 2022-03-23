@@ -1345,7 +1345,7 @@ public:
                      * collapses into nothing", not excluding Korea chars
                      * (to be tested/optimized by a CJK dev)
                     if ( ch == ' ' && k>0 && k<len-1
-                            && (isCJKIdeograph(m_text[pos-1]) || isCJKIdeograph(m_text[pos+1])) ) {
+                            && (lStr_isCJK(m_text[pos-1]) || lStr_isCJK(m_text[pos+1])) ) {
                         m_flags[pos] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
                         // m_text[pos] = '_';
                     }
@@ -1492,37 +1492,8 @@ public:
                         // Also try to detect if we have RTL chars, so that if we don't have any,
                         // we don't need to invoke expensive fribidi processing below (which
                         // may add a 50% duration increase to the text rendering phase).
-                        // Looking at fribidi/lib/bidi-type.tab.i and its rules for tagging
-                        // a char as RTL, only the following ranges will trigger it:
-                        //   0590>08FF      Hebrew, Arabic, Syriac, Thaana, Nko, Samaritan...
-                        //   200F 202B      Right-To-Left mark/embedding control chars
-                        //   202E 2067      Right-To-Left override/isolate control chars
-                        //   FB1D>FDFF      Hebrew and Arabic presentation forms
-                        //   FE70>FEFF      Arabic presentation forms
-                        //   10800>10FFF    Other rare scripts possibly RTL
-                        //   1E800>1EEBB    Other rare scripts possibly RTL
-                        // (There may be LTR chars in these ranges, but it's fine, we'll
-                        // invoke fribidi, which will say there's no bidi.)
                         if ( !has_rtl ) {
-                            // Try to balance the searches
-                            if ( c >= 0x0590 ) {
-                                if ( c <= 0x2067 ) {
-                                    if ( c <= 0x08FF ) has_rtl = true;
-                                    else if ( c >= 0x200F ) {
-                                        if ( c == 0x200F || c == 0x202B || c == 0x202E || c == 0x2067 ) has_rtl = true;
-                                    }
-                                }
-                                else if ( c >= 0xFB1D ) {
-                                    if ( c <= 0xFDFF ) has_rtl = true;
-                                    else if ( c <= 0xFEFF ) {
-                                        if ( c >= 0xFE70) has_rtl = true;
-                                    }
-                                    else if ( c <= 0x1EEBB ) {
-                                        if (c >= 0x1E800) has_rtl = true;
-                                        else if ( c <= 0x10FFF && c >= 0x10800 ) has_rtl = true;
-                                    }
-                                }
-                            }
+                            has_rtl = lStr_isRTL(c);
                         }
                     #endif
 
@@ -2891,11 +2862,11 @@ public:
             if ( i>wstart && (   newSrc!=lastSrc
                               || space
                               || lastWord
-                              || isCJKIdeograph(m_text[i])
                               || isRTL != lastIsRTL
                               || bidiLogicalIndicesShift
                               || scriptChanged
                               || isToIgnore
+                              || lStr_isCJK(m_text[i], false, true) // (ignore_fullwidth_ascii=true: keep them as words)
                              ) ) {
                 // New HTML source node, space met just before, last word, or CJK char:
                 // create and add new word with chars from wstart to i-1
@@ -3417,7 +3388,7 @@ public:
                         //else
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                     }
-                    else if ( !firstWord && isCJKIdeograph(m_text[i]) ) {
+                    else if ( !firstWord && lStr_isCJK(m_text[i]) ) {
                         // Current word is a CJK char: we can increase the space
                         // between previous word and this one if needed
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
@@ -3784,23 +3755,15 @@ public:
         return 0;
     }
 
-    bool isCJKIdeograph(lChar32 c) {
-        return c >= UNICODE_CJK_IDEOGRAPHS_BEGIN &&
-               c <= UNICODE_CJK_IDEOGRAPHS_END   &&
-               ( c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN ||
-                 c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END );
-    }
-
     #if (USE_LIBUNIBREAK!=1)
     bool isCJKPunctuation(lChar32 c) {
-        return ( c >= UNICODE_CJK_PUNCTUATION_BEGIN && c <= UNICODE_CJK_PUNCTUATION_END ) ||
-               ( c >= UNICODE_GENERAL_PUNCTUATION_BEGIN && c <= UNICODE_GENERAL_PUNCTUATION_END &&
+        return ( c >= 0x3000 && c <= 0x303F ) || // CJK Symbols and Punctuation
+               ( c >= 0x2000 && c <= 0x206F &&   // General Punctuation, except these:
                     c!=0x2018 && c!=0x201a && c!=0x201b &&    // ‘ ‚ ‛  left quotation marks
                     c!=0x201c && c!=0x201e && c!=0x201f &&    // “ „ ‟  left double quotation marks
                     c!=0x2035 && c!=0x2036 && c!=0x2037 &&    // ‵ ‶ ‷ reversed single/double/triple primes
                     c!=0x2039 && c!=0x2045 && c!=0x204c  ) || // ‹ ⁅ ⁌ left angle quot mark, bracket, bullet
-               ( c >= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN &&
-                 c <= UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END ) ||
+               ( c >= 0xFF01 && c <= 0xFFEE ) || // Halfwidth and Fullwidth Forms (obviously wrong)
                ( c == 0x00b7 ); // · middle dot
     }
 
@@ -3814,6 +3777,7 @@ public:
     bool isLeftPunctuation(lChar32 c) {
         // Opening quotation marks and dashes that we don't want a followup space to
         // have its width changed
+        // (We don't use CH_PROP_PUNCT_OPEN as we consider a few more non-punctuation chars.)
         return ( c >= 0x2010 && c <= 0x2027 ) || // Hyphens, dashes, quotation marks, bullets...
                ( c >= 0x2032 && c <= 0x205E ) || // Primes, bullets...
                ( c >= 0x002A && c <= 0x002F ) || // Ascii * + , - . /
@@ -4011,7 +3975,7 @@ public:
                 // to the next if:
                 //  || lGetCharProps(m_text[i]) == 0
                 // but this does not look right, as any other unicode char would allow wrap.
-                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || isCJKIdeograph(m_text[i])) {
+                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || lStr_isCJK(m_text[i], false, true)) {
                     // Need to check if previous and next non-space char request a wrap on
                     // this space (or CJK char) to be avoided
                     bool avoidWrap = false;

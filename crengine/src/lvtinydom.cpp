@@ -90,7 +90,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.67k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x002A
+#define FORMATTING_VERSION_ID 0x002B
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -13217,7 +13217,7 @@ public:
                 _list.add( ldomWord( node, beginOfWord, i ) );
                 beginOfWord = -1;
             }
-            if (lGetCharProps(text[i]) == CH_PROP_CJK && i < len) { // a CJK char makes its own word
+            if (lStr_isCJK(text[i], true) && i < len) { // a CJK char makes its own word
                 _list.add( ldomWord( node, i, i+1 ) );
                 beginOfWord = -1;
             }

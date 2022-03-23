@@ -11585,16 +11585,6 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 if ( (flags[i] & LCHAR_IS_SPACE) && (space_width_scale_percent != 100) ) {
                     w = w * space_width_scale_percent / 100;
                 }
-                bool is_cjk = (c >= UNICODE_CJK_IDEOGRAPHS_BEGIN && c <= UNICODE_CJK_IDEOGRAPHS_END
-                            && ( c<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN
-                                || c>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) );
-                            // Do we need to do something about CJK punctuation?
-                    // Having CJK columns min_width the width of a single CJK char
-                    // may, on some pages, make some table cells have a single
-                    // CJK char per line, which can look uglier than when not
-                    // dealing with them specifically (see with: bool is_cjk=false).
-                    // But Firefox does that too, may be a bit less radically than
-                    // us, so our table algorithm may need some tweaking...
                 if (flags[i] & LCHAR_ALLOW_WRAP_AFTER) { // A space
                     if (is_collapsable_space) { // a collapsable ascii space
                         if (collapseNextSpace) // ignore this space
@@ -11615,7 +11605,14 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                         minWidth = curWordWidth; // longest word found
                     curWordWidth = 0;
                 }
-                else if (is_cjk) { // CJK chars are themselves a word
+                else if ( lStr_isCJK(c) ) { // CJK chars are themselves a word
+                    // Do we need to do something about CJK punctuation?
+                    // Having CJK columns min_width the width of a single CJK char
+                    // may, on some pages, make some table cells have a single
+                    // CJK char per line, which can look uglier than when not
+                    // dealing with them specifically (see with: bool is_cjk=false).
+                    // But Firefox does that too, may be a bit less radically than
+                    // us, so our table algorithm may need some tweaking...
                     collapseNextSpace = false; // next space should not be ignored
                     lastSpaceWidth = 0; // no width to take off if we stop with this char
                     curMaxWidth += w;

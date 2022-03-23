@@ -1082,9 +1082,9 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
                     continue;
                 if ( widths[i] > maxWidth )
                     break;
-                if ( chprops[i] & CH_PROP_VOWEL ) {
+                if ( CH_PROP_IS_VOWEL(chprops[i]) ) {
                     for ( j=i+1; j<end; ++j ) {
-                        if ( chprops[j] & CH_PROP_VOWEL ) {
+                        if ( CH_PROP_IS_VOWEL(chprops[j]) ) {
                             int next = i+1;
                             while ( (chprops[next] & CH_PROP_HYPHEN) && next<end-MIN_WORD_LEN_TO_HYPHEN) {
                                 // printf("next++\n");
@@ -1095,9 +1095,9 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
                                 // printf("next2++\n");
                                 next2++;
                             }
-                            if ( (chprops[next] & CH_PROP_CONSONANT) && (chprops[next2] & CH_PROP_CONSONANT) )
+                            if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_CONSONANT(chprops[next2]) )
                                 i = next;
-                            else if ( (chprops[next] & CH_PROP_CONSONANT) && ( chprops[next2] & CH_PROP_ALPHA_SIGN ) )
+                            else if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_ALPHA_SIGN(chprops[next2]) )
                                 i = next2;
                             if ( i-start>=1 && end-i>2 ) {
                                 // insert hyphenation mark
