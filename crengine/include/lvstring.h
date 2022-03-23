@@ -26,12 +26,14 @@
 
 /// Unicode spaces
 #define UNICODE_NO_BREAK_SPACE            0x00A0
-#define UNICODE_ZERO_WIDTH_NO_BREAK_SPACE 0xfeff
-#define UNICODE_WORD_JOINER      0x2060
+#define UNICODE_ZERO_WIDTH_NO_BREAK_SPACE 0xfeff // (as written in antiword/wordconst.h)
+#define UNICODE_WORD_JOINER               0x2060
+#define UNICODE_CJK_IDEOGRAPHIC_SPACE     0x3000
+
 // All chars from U+2000 to U+200B allow wrap after, except U+2007
 #define UNICODE_EN_QUAD          0x2000
 #define UNICODE_FIGURE_SPACE     0x2007
-#define UNICODE_ZERO_WIDTH_SPACE 0x200b
+#define UNICODE_ZERO_WIDTH_SPACE 0x200b // (as written in antiword/wordconst.h)
 
 /// Unicode hyphens
 #define UNICODE_SOFT_HYPHEN_CODE 0x00AD
@@ -41,21 +43,9 @@
 #define UNICODE_NO_BREAK_HYPHEN  0x2011
 #define UNICODE_EM_DASH          0x2014
 
-// Punctuation and CJK ranges
-#define UNICODE_GENERAL_PUNCTUATION_BEGIN 0x2000
-#define UNICODE_GENERAL_PUNCTUATION_END 0x206F
-#define UNICODE_CJK_IDEOGRAPHS_BEGIN 0x3041
-#define UNICODE_CJK_IDEOGRAPHS_END 0x02CEAF
-#define UNICODE_CJK_IDEOGRAPHIC_SPACE 0x3000
-#define UNICODE_CJK_PUNCTUATION_BEGIN 0x3000
-#define UNICODE_CJK_PUNCTUATION_END 0x303F
-// These may be wrong as this block contain katakana and hangul
-// letters, as well as ascii full-width chars:
-#define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN 0xFF01
-#define UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END 0xFFEE
-
-#define UNICODE_ASCII_FULL_WIDTH_BEGIN 0xFF01
-#define UNICODE_ASCII_FULL_WIDTH_END 0xFF5E
+// For use by lStr_fullWidthChars()
+#define UNICODE_ASCII_FULL_WIDTH_BEGIN  0xFF01
+#define UNICODE_ASCII_FULL_WIDTH_END    0xFF5E
 #define UNICODE_ASCII_FULL_WIDTH_OFFSET 0xFEE0 // substract or add to convert to/from ASCII
 
 
@@ -118,23 +108,44 @@ int decodeHex( const lChar32 * str, int len );
 int decodeDecimal( const lChar32 * str, int len );
 
 
+//// These are exclusives (equivalent to Unicode categories, but smaller set of categories)
+#define CH_PROP_CATEG_MASK  0x03FF ///< mask over the bits used for category below
+// Word elements (for text selection and hyphenation word bounds)
 #define CH_PROP_UPPER       0x0001 ///< uppercase alpha character flag
 #define CH_PROP_LOWER       0x0002 ///< lowercase alpha character flag
 #define CH_PROP_ALPHA       0x0003 ///< alpha flag is combination of uppercase and lowercase flags
-#define CH_PROP_DIGIT       0x0004 ///< digit character flag
-#define CH_PROP_PUNCT       0x0008 ///< pubctuation character flag
-#define CH_PROP_SPACE       0x0010 ///< space character flag
-#define CH_PROP_HYPHEN      0x0020 ///< hyphenation character flag
-#define CH_PROP_VOWEL       0x0040 ///< vowel character flag
-#define CH_PROP_CONSONANT   0x0080 ///< consonant character flag
-#define CH_PROP_SIGN        0x0100 ///< sign character flag
-#define CH_PROP_ALPHA_SIGN  0x0200 ///< alpha sign character flag
-#define CH_PROP_DASH        0x0400 ///< minus, emdash, endash, ... (- signs)
-#define CH_PROP_CJK         0x0800 ///< CJK ideographs
-#define CH_PROP_RTL         0x1000 ///< RTL character
-#define CH_PROP_AVOID_WRAP_AFTER   0x2000 ///< avoid wrap on following space
-#define CH_PROP_AVOID_WRAP_BEFORE  0x4000 ///< avoid wrap on preceding space
-#define CH_PROP_MODIFIER    0x8000 ///< modifier character (diacritics & similar)
+#define CH_PROP_MODIFIER    0x0004 ///< modifier character (diacritics & similar)
+#define CH_PROP_HYPHEN      0x0008 ///< hyphenation character flag
+// Word elements (for text selection)
+#define CH_PROP_DIGIT       0x0010 ///< digit character flag
+// Word separators (where text selection move by word steps on)
+#define CH_PROP_SIGN        0x0020 ///< sign/symbol character flag
+#define CH_PROP_SPACE       0x0040 ///< space character flag
+#define CH_PROP_PUNCT_OPEN  0x0100 ///< opening punctuation character flag
+#define CH_PROP_PUNCT_CLOSE 0x0200 ///< closing punctuation character flag
+#define CH_PROP_PUNCT       0x0300 ///< other punctuation character flag (both previous bits set = other)
+
+//// These (exclusive) are used by algorithmic hyphenation
+#define CH_PROP_VOWEL       0x1000 ///< vowel character flag
+#define CH_PROP_CONSONANT   0x2000 ///< consonant character flag
+#define CH_PROP_ALPHA_SIGN  0x3000 ///< alpha sign character flag (only 4 cyrillic chars)
+
+//// Used for line breaking when not using libunibreak
+#define CH_PROP_AVOID_WRAP_AFTER   0x4000 ///< avoid wrap on following space
+#define CH_PROP_AVOID_WRAP_BEFORE  0x8000 ///< avoid wrap on preceding space
+
+
+// These 3 exclusive properties are managed by 2 bits
+#define CH_PROP_IS_PUNCT_OPENING(c) ( (bool)( (c & CH_PROP_PUNCT) == CH_PROP_PUNCT_OPEN ) )
+#define CH_PROP_IS_PUNCT_CLOSING(c) ( (bool)( (c & CH_PROP_PUNCT) == CH_PROP_PUNCT_CLOSE ) )
+#define CH_PROP_IS_PUNCT_OTHER(c)   ( (bool)( (c & CH_PROP_PUNCT) == CH_PROP_PUNCT ) )
+#define CH_PROP_IS_PUNCT(c)         ( (bool)( (c & CH_PROP_PUNCT) ) )
+
+// These 3 exclusive properties are managed by 2 bits
+#define CH_PROP_IS_VOWEL(c)      ( (bool)( (c & CH_PROP_VOWEL) && !(c & CH_PROP_CONSONANT) ) )
+#define CH_PROP_IS_CONSONANT(c)  ( (bool)( (c & CH_PROP_CONSONANT) && !(c & CH_PROP_VOWEL) ) )
+#define CH_PROP_IS_ALPHA_SIGN(c) ( (bool)( (c & CH_PROP_ALPHA_SIGN) == CH_PROP_ALPHA_SIGN ) )
+
 
 /// retrieve character properties mask array for wide c-string
 void lStr_getCharProps( const lChar32 * str, int sz, lUInt16 * props );
@@ -145,6 +156,181 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
 // is char a word separator
 bool lStr_isWordSeparator( lChar32 ch );
 
+// Is char CJK?
+inline bool lStr_isCJK( lChar32 c, bool ignore_punctuation=false, bool ignore_fullwidth_ascii=false ) {
+    // Did not find a definitive list of ranges to be considered as CJK, which
+    // for us are characters that should be considered each as a single word,
+    // mostly for text selection and consideration in line breaking.
+    // The reference is https://www.unicode.org/reports/tr45/, but this gives no range.
+    // Here is a list (taken from harfbuzz hb-ot-os2-unicode-ranges.hh, and completed),
+    // with, handpicked, the ranges considered as CJK non-indented (with, indented,
+    // neighbour ranges not included, for context):
+    //       {  0x1100,   0x11FF,  28}, // Hangul Jamo (not considered as possibly combining, so not standalone)
+    //       [...]
+    //       {  0x2DE0,   0x2DFF,   9}, // Cyrillic Extended-A
+    //       {  0x2E00,   0x2E7F,  31}, // Supplemental Punctuation
+    // {  0x2E80,   0x2EFF,  59}, // CJK Radicals Supplement
+    // {  0x2F00,   0x2FDF,  59}, // Kangxi Radicals
+    // {  0x2FF0,   0x2FFF,  59}, // Ideographic Description Characters
+    // {  0x3000,   0x303F,  48}, // CJK Symbols And Punctuation
+    // {  0x3040,   0x309F,  49}, // Hiragana
+    // {  0x30A0,   0x30FF,  50}, // Katakana
+    // {  0x3100,   0x312F,  51}, // Bopomofo
+    // {  0x3130,   0x318F,  52}, // Hangul Compatibility Jamo
+    // {  0x3190,   0x319F,  59}, // Kanbun
+    // {  0x31A0,   0x31BF,  51}, // Bopomofo Extended
+    // {  0x31C0,   0x31EF,  61}, // CJK Strokes
+    // {  0x31F0,   0x31FF,  50}, // Katakana Phonetic Extensions
+    // {  0x3200,   0x32FF,  54}, // Enclosed CJK Letters And Months
+    // {  0x3300,   0x33FF,  55}, // CJK Compatibility
+    // {  0x3400,   0x4DBF,  59}, // CJK Unified Ideographs Extension A
+    // {  0x4DC0,   0x4DFF,  99}, // Yijing Hexagram Symbols
+    // {  0x4E00,   0x9FFF,  59}, // CJK Unified Ideographs
+    //       {  0xA000,   0xA48F,  83}, // Yi Syllables
+    //       {  0xA490,   0xA4CF,  83}, // Yi Radicals
+    //       {  0xA500,   0xA63F,  12}, // Vai
+    //       {  0xA640,   0xA69F,   9}, // Cyrillic Extended-B
+    //       [...]
+    //       {  0xA930,   0xA95F, 117}, // Rejang
+    //       {  0xAA00,   0xAA5F, 118}, // Cham
+    // {  0xAC00,   0xD7AF,  56}, // Hangul Syllables
+    //       {  0xD800,   0xDFFF,  57}, // Non-Plane 0 *
+    //       {  0xE000,   0xF8FF,  60}, // Private Use Area (plane 0)
+    // {  0xF900,   0xFAFF,  61}, // CJK Compatibility Ideographs
+    //       {  0xFB00,   0xFB4F,  62}, // Alphabetic Presentation Forms
+    //       {  0xFB50,   0xFDFF,  63}, // Arabic Presentation Forms-A
+    //       {  0xFE00,   0xFE0F,  91}, // Variation Selectors
+    //       {  0xFE10,   0xFE1F,  65}, // Vertical Forms
+    //       {  0xFE20,   0xFE2F,  64}, // Combining Half Marks
+    // {  0xFE30,   0xFE4F,  65}, // CJK Compatibility Forms
+    //       {  0xFE50,   0xFE6F,  66}, // Small Form Variants
+    //       {  0xFE70,   0xFEFF,  67}, // Arabic Presentation Forms-B
+    // {  0xFF00,   0xFFEF,  68}, // Halfwidth And Fullwidth Forms
+    //       {  0xFFF0,   0xFFFF,  69}, // Specials
+    //       { 0x10000,  0x1007F, 101}, // Linear B Syllabary
+    //       { 0x10080,  0x100FF, 101}, // Linear B Ideograms
+    //       [...]
+    //       { 0x1D400,  0x1D7FF,  89}, // Mathematical Alphanumeric Symbols
+    //       { 0x1F000,  0x1F02F, 122}, // Mahjong Tiles
+    //       { 0x1F030,  0x1F09F, 122}, // Domino Tiles
+    // { 0x1F200,  0x1F2FF,  ++}, // Enclosed Ideographic Supplement
+    //       { 0x1F300,  0x1FBFF,  ++}, // Symbols, emoticons...
+    // { 0x20000,  0x2A6DF,  59}, // CJK Unified Ideographs Extension B
+    // { 0x2A700,  0x2B73F,  ++}, // CJK Unified Ideographs Extension C
+    // { 0x2B740,  0x2B81F,  ++}, // CJK Unified Ideographs Extension D
+    // { 0x2B820,  0x2CEAF,  ++}, // CJK Unified Ideographs Extension E
+    // { 0x2CEB0,  0x2EBEF,  ++}, // CJK Unified Ideographs Extension F
+    // { 0x2F800,  0x2FA1F,  61}, // CJK Compatibility Ideographs Supplement
+    // { 0x30000,  0x3134F,  ++}, // CJK Unified Ideographs Extension F
+    //       { 0xE0000,  0xE007F,  92}, // Tags
+    //       { 0xE0100,  0xE01EF,  91}, // Variation Selectors Supplement
+    //       { 0xF0000,  0xFFFFD,  90}, // Private Use (plane 15)
+    //       {0x100000, 0x10FFFD,  90}, // Private Use (plane 16)
+    if ( c >= 0x2E80 ) {
+        if ( c < 0xA000 ) {
+            if ( ignore_punctuation ) {
+                if ( c >= 0x3000 && c <= 0x303F ) {
+                    return false;
+                }
+                // Note: there might be other rare punctuation in the other ranges, haven't checked.
+            }
+            return true; // 2E80 > 9FFF (main CJK)
+        }
+        else if ( c >= 0x1F200 ) {
+            if ( c >= 0x20000 ) {
+                if ( c <= 0x3134F ) {
+                    return true; // 20000 > 3134F (main CJK extensions)
+                }
+            }
+            else {
+                if ( c < 0x1F300 ) {
+                    return true; // 1F200 > 1F2FF (enclosed ideographic)
+                }
+            }
+        }
+        else if ( c >= 0xAC00 ) { // (AC00 > 1F200)
+            if ( c < 0xD800 ) {
+                return true; // AC00 > D800 (Hangul)
+            }
+            else if ( c < 0xFE30 ) { // (D800 > FE30)
+                if ( c >= 0xF900 && c <= 0xFAFF ) {
+                    return true; // F900 > 0xFAFF (CJK compatibility ideographs)
+                }
+            }
+            else { // (FE30 > 12F00)
+                if ( c >= 0xFF00 ) {
+                    if ( c <= 0xFFEF ) {
+                        if ( ignore_fullwidth_ascii ) {
+                            // This range includes fullwidth ASCII chars and punctuation.
+                            // Some crengine old code was explicitely excluding this range
+                            // from CJK handling code, possibly because of these ASCII chars.
+                            // So, let's exclude these subranges from CJK:
+                            // 0xFF00 > 0xFF5E includes ASCII chars and punctuations
+                            // 0xFFE0 > 0xFFEF includes currency symbols and arrows
+                            if ( c >= 0xFF5F && c < 0xFFE0 ) {
+                                return true; // FF5F > FFDF (halfwidth And fullwidth forms)
+                            }
+                        }
+                        else {
+                            return true; // FF00 > FFEF (halfwidth And fullwidth forms)
+                        }
+                    }
+                }
+                else if ( c <= 0xFE4F ) {
+                    return true; // FE30 > FE4F (CJK compatibility forms)
+                }
+            }
+        }
+    }
+    return false;
+}
+
+// Is char RTL?
+inline bool lStr_isRTL( lChar32 c ) {
+    // Looking at fribidi/lib/bidi-type.tab.i and its rules for tagging
+    // a char as RTL, only the following ranges will trigger it:
+    //   0590>08FF      Hebrew, Arabic, Syriac, Thaana, Nko, Samaritan...
+    //   200F 202B      Right-To-Left mark/embedding control chars
+    //   202E 2067      Right-To-Left override/isolate control chars
+    //   FB1D>FDFF      Hebrew and Arabic presentation forms
+    //   FE70>FEFF      Arabic presentation forms
+    //   10800>10FFF    Other rare scripts possibly RTL
+    //   1E800>1EEBB    Other rare scripts possibly RTL
+    // (There may be LTR chars in these ranges, but it is fine for the way
+    // this is used: we'll invoke fribidi, which will say there's no bidi.)
+    // Try to balance the searches:
+    if ( c >= 0x0590 ) {
+        if ( c <= 0x2067 ) {
+            if ( c <= 0x08FF ) {
+                return true;
+            }
+            else if ( c >= 0x200F ) {
+                if ( c == 0x200F || c == 0x202B || c == 0x202E || c == 0x2067 ) {
+                    return true;
+                }
+            }
+        }
+        else if ( c >= 0xFB1D ) {
+            if ( c <= 0xFDFF ) {
+                return true;
+            }
+            else if ( c <= 0xFEFF ) {
+                if ( c >= 0xFE70) {
+                    return true;
+                }
+            }
+            else if ( c <= 0x1EEBB ) {
+                if (c >= 0x1E800) {
+                    return true;
+                }
+                else if ( c <= 0x10FFF && c >= 0x10800 ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 
 // must be power of 2
 #define CONST_STRING_BUFFER_SIZE 4096

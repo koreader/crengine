@@ -3533,8 +3533,11 @@ lString8  UnicodeToTranslit( const lString32 & str )
 // CH_PROP_MODIFIER is used also only for detecting a word candidate
 // to hyphenation, and makes it get the behaviour of its preceding
 // non-modifier character.
-// CH_PROP_PUNCT and CH_PROP_DASH are used each once in some obscure places.
-// Others seem not used anywhere: CH_PROP_SIGN, CH_PROP_DIGIT, CH_PROP_SPACE
+// CH_PROP_PUNCT is used in some obscure place, and CH_PROP_SIGN,
+// CH_PROP_DIGIT, CH_PROP_SPACE are not used, except to flag a char
+// as word separator.
+// CH_PROP_AVOID_WRAP_BEFORE and CH_PROP_AVOID_WRAP_AFTER are used
+// for line breaking when not using libunibreak.
 static lUInt16 char_props[] = {
 // 0x0000:
 0,0,0,0, 0,0,0,0, CH_PROP_SPACE,CH_PROP_SPACE,CH_PROP_SPACE,0, CH_PROP_SPACE,CH_PROP_SPACE,0,0,
@@ -3542,20 +3545,20 @@ static lUInt16 char_props[] = {
 // 0x0020:
 CH_PROP_SPACE, // ' '
 CH_PROP_PUNCT | CH_PROP_AVOID_WRAP_BEFORE, // '!'
-0, // '\"'
-CH_PROP_SIGN, // '#'
+CH_PROP_PUNCT, // '\"'
+CH_PROP_SIGN, // '#' (Unicode Po, but considered as symbol)
 CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER, // '$'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '%'
-CH_PROP_SIGN, // '&'
-CH_PROP_SIGN, // '\''
-CH_PROP_AVOID_WRAP_AFTER, // '('
-CH_PROP_AVOID_WRAP_BEFORE, // ')'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER, // '*'
+CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '%' (Unicode Po, but considered as symbol)
+CH_PROP_SIGN, // '&' (Unicode Po, but considered as symbol)
+CH_PROP_PUNCT, // '\''
+CH_PROP_PUNCT_OPEN | CH_PROP_AVOID_WRAP_AFTER, // '('
+CH_PROP_PUNCT_CLOSE | CH_PROP_AVOID_WRAP_BEFORE, // ')'
+CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER, // '*' (Unicode Po, but considered as symbol)
 CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER, // '+'
 CH_PROP_PUNCT | CH_PROP_AVOID_WRAP_BEFORE, // ','
-CH_PROP_SIGN | CH_PROP_DASH | CH_PROP_AVOID_WRAP_BEFORE, // '-'
+CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '-' (Unicode Pd, but considered as symbol, for consistency with +)
 CH_PROP_PUNCT | CH_PROP_AVOID_WRAP_BEFORE, // '.'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '/'
+CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '/' (Unicode Po, but considered as symbol)
 // 0x0030:
 CH_PROP_DIGIT, // '0'
 CH_PROP_DIGIT, // '1'
@@ -3574,7 +3577,7 @@ CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER,  // '='
 CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER,  // '>'
 CH_PROP_PUNCT | CH_PROP_AVOID_WRAP_BEFORE, // '?'
 // 0x0040:
-CH_PROP_SIGN,  // '@'
+CH_PROP_SIGN,  // '@' (Unicode Po, but considered as symbol)
 CH_PROP_UPPER | CH_PROP_VOWEL,     // 'A'
 CH_PROP_UPPER | CH_PROP_CONSONANT, // 'B'
 CH_PROP_UPPER | CH_PROP_CONSONANT, // 'C'
@@ -3601,11 +3604,11 @@ CH_PROP_UPPER | CH_PROP_CONSONANT, // 'W'
 CH_PROP_UPPER | CH_PROP_CONSONANT, // 'X'
 CH_PROP_UPPER | CH_PROP_VOWEL, // 'Y'
 CH_PROP_UPPER | CH_PROP_CONSONANT, // 'Z'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_AFTER, // '['
-CH_PROP_SIGN, // '\'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // ']'
+CH_PROP_PUNCT_OPEN | CH_PROP_AVOID_WRAP_AFTER, // '['
+CH_PROP_SIGN, // '\' (Unicode Po, but considered as symbol)
+CH_PROP_PUNCT_CLOSE | CH_PROP_AVOID_WRAP_BEFORE, // ']'
 CH_PROP_MODIFIER, // 005E (Sk) CIRCUMFLEX ACCENT '^'
-CH_PROP_SIGN, // '_'
+CH_PROP_SIGN, // '_' (Unicode Pc, but considered as symbol)
 // 0x0060:
 CH_PROP_MODIFIER, // 0060 (Sk) GRAVE ACCENT '`'
 CH_PROP_LOWER | CH_PROP_VOWEL,     // 'a'
@@ -3634,11 +3637,11 @@ CH_PROP_LOWER | CH_PROP_CONSONANT, // 'w'
 CH_PROP_LOWER | CH_PROP_CONSONANT, // 'x'
 CH_PROP_LOWER | CH_PROP_VOWEL, // 'y'
 CH_PROP_LOWER | CH_PROP_CONSONANT, // 'z'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_AFTER, // '{'
+CH_PROP_PUNCT_OPEN | CH_PROP_AVOID_WRAP_AFTER, // '{'
 CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE | CH_PROP_AVOID_WRAP_AFTER, // '|'
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE, // '}'
+CH_PROP_PUNCT_CLOSE | CH_PROP_AVOID_WRAP_BEFORE, // '}'
 CH_PROP_SIGN, // '~'
-CH_PROP_SIGN, // ' '
+0,
 // 0x0080:
 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
 // 0x0090:
@@ -3646,37 +3649,37 @@ CH_PROP_SIGN, // ' '
 // 0x00A0:
 CH_PROP_SPACE, // 00A0 nbsp
 CH_PROP_PUNCT, // 00A1 inverted !
-CH_PROP_SIGN,  // 00A2
-CH_PROP_SIGN,  // 00A3
-CH_PROP_SIGN,  // 00A4
-CH_PROP_SIGN,  // 00A5
-CH_PROP_SIGN,  // 00A6
-CH_PROP_SIGN,  // 00A7
+CH_PROP_SIGN,  // 00A2 (Sc) CENT SIGN
+CH_PROP_SIGN,  // 00A3 (Sc) POUND SIGN
+CH_PROP_SIGN,  // 00A4 (Sc) CURRENCY SIGN
+CH_PROP_SIGN,  // 00A5 (Sc) YEN SIGN
+CH_PROP_SIGN,  // 00A6 (So) BROKEN BAR
+CH_PROP_SIGN,  // 00A7 (Po) SECTION SIGN (considered as symbol)
 CH_PROP_MODIFIER, // 00A8 (Sk) DIAERESIS
-CH_PROP_SIGN,  // 00A9
+CH_PROP_SIGN,  // 00A9 (So) COPYRIGHT SIGN
 CH_PROP_LOWER, // 00AA (Lo) FEMININE ORDINAL INDICATOR
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_AFTER,  // 00AB «
-CH_PROP_SIGN,  // 00AC
+CH_PROP_PUNCT_OPEN | CH_PROP_AVOID_WRAP_AFTER,  // 00AB «
+CH_PROP_SIGN,  // 00AC (Sm) NOT SIGN
 CH_PROP_HYPHEN,// 00AD soft-hyphen (UNICODE_SOFT_HYPHEN_CODE)
-CH_PROP_SIGN,  // 00AE
+CH_PROP_SIGN,  // 00AE (So) REGISTERED SIGN
 CH_PROP_MODIFIER, // 00AF (Sk) MACRON
-// 0x00A0:
-CH_PROP_SIGN,  // 00B0 degree
-CH_PROP_SIGN,  // 00B1
-CH_PROP_SIGN,  // 00B2
-CH_PROP_SIGN,  // 00B3
+// 0x00B0:
+CH_PROP_SIGN,  // 00B0 (So) DEGREE SIGN
+CH_PROP_SIGN,  // 00B1 (Sm) PLUS-MINUS SIGN
+CH_PROP_DIGIT, // 00B2 (No) SUPERSCRIPT TWO
+CH_PROP_DIGIT, // 00B3 (No) SUPERSCRIPT THREE
 CH_PROP_MODIFIER, // 00B4 (Sk) ACUTE ACCENT
 CH_PROP_LOWER, // 00B5 (Ll) MICRO SIGN
-CH_PROP_SIGN,  // 00B6
-CH_PROP_SIGN,  // 00B7
+CH_PROP_PUNCT, // 00B6 (Po) PILCROW SIGN
+CH_PROP_PUNCT, // 00B7 (Po) MIDDLE DOT
 CH_PROP_MODIFIER, // 00B8 (Sk) CEDILLA
-CH_PROP_SIGN,  // 00B9
+CH_PROP_DIGIT, // 00B9 (No) SUPERSCRIPT ONE
 CH_PROP_LOWER, // 00BA (Lo) MASCULINE ORDINAL INDICATOR
-CH_PROP_SIGN | CH_PROP_AVOID_WRAP_BEFORE,  // 00BB »
-CH_PROP_SIGN,  // 00BC
-CH_PROP_SIGN,  // 00BD
-CH_PROP_SIGN,  // 00BE
-CH_PROP_PUNCT, // 00BF
+CH_PROP_PUNCT_CLOSE | CH_PROP_AVOID_WRAP_BEFORE,  // 00BB »
+CH_PROP_LOWER, // 00BC (No) VULGAR FRACTION ONE QUARTER
+CH_PROP_LOWER, // 00BD (No) VULGAR FRACTION ONE HALF
+CH_PROP_LOWER, // 00BE (No) VULGAR FRACTION THREE QUARTERS
+CH_PROP_PUNCT, // 00BF (Po) INVERTED QUESTION MARK
 // 0x00C0:
 CH_PROP_UPPER | CH_PROP_VOWEL,  // 00C0 A`
 CH_PROP_UPPER | CH_PROP_VOWEL,  // 00C1 A'
@@ -4394,7 +4397,7 @@ CH_PROP_LOWER, // 037A (Lm) GREEK YPOGEGRAMMENI
 CH_PROP_LOWER, // 037B (Ll) GREEK SMALL REVERSED LUNATE SIGMA SYMBOL
 CH_PROP_LOWER, // 037C (Ll) GREEK SMALL DOTTED LUNATE SIGMA SYMBOL
 CH_PROP_LOWER, // 037D (Ll) GREEK SMALL REVERSED DOTTED LUNATE SIGMA SYMBOL
-0            , // 037E (Po) GREEK QUESTION MARK
+CH_PROP_PUNCT, // 037E (Po) GREEK QUESTION MARK
 CH_PROP_UPPER, // 037F (Lu) GREEK CAPITAL LETTER YOT
 // 0x0380:
 0,0,0,0,
@@ -4513,7 +4516,7 @@ CH_PROP_LOWER, // 03F2 (Ll) GREEK LUNATE SIGMA SYMBOL
 CH_PROP_LOWER, // 03F3 (Ll) GREEK LETTER YOT
 CH_PROP_UPPER, // 03F4 (Lu) GREEK CAPITAL THETA SYMBOL
 CH_PROP_LOWER, // 03F5 (Ll) GREEK LUNATE EPSILON SYMBOL
-0            , // 03F6 (Sm) GREEK REVERSED LUNATE EPSILON SYMBOL
+CH_PROP_SIGN,  // 03F6 (Sm) GREEK REVERSED LUNATE EPSILON SYMBOL
 CH_PROP_UPPER, // 03F7 (Lu) GREEK CAPITAL LETTER SHO
 CH_PROP_LOWER, // 03F8 (Ll) GREEK SMALL LETTER SHO
 CH_PROP_UPPER, // 03F9 (Lu) GREEK CAPITAL LUNATE SIGMA SYMBOL
@@ -4658,7 +4661,7 @@ CH_PROP_UPPER, // 047E (Lu) CYRILLIC CAPITAL LETTER OT
 CH_PROP_LOWER, // 047F (Ll) CYRILLIC SMALL LETTER OT
 CH_PROP_UPPER, // 0480 (Lu) CYRILLIC CAPITAL LETTER KOPPA
 CH_PROP_LOWER, // 0481 (Ll) CYRILLIC SMALL LETTER KOPPA
-0            , // 0482 (So) CYRILLIC THOUSANDS SIGN
+CH_PROP_SIGN,  // 0482 (So) CYRILLIC THOUSANDS SIGN
 CH_PROP_MODIFIER, // 0483 (Mn) COMBINING CYRILLIC TITLO
 CH_PROP_MODIFIER, // 0484 (Mn) COMBINING CYRILLIC PALATALIZATION
 CH_PROP_MODIFIER, // 0485 (Mn) COMBINING CYRILLIC DASIA PNEUMATA
@@ -4965,27 +4968,23 @@ CH_PROP_MODIFIER, // 1FFE (Sk) GREEK DASIA
 };
 
 inline lUInt16 getCharProp(lChar32 ch) {
+    // For the Ascii/Latin/Greek/Cyrillic unicode early ranges, use our hardcoded
+    // handcrafted (but mostly consistent with Unicode) char props arrays above
     static const lChar32 maxchar = sizeof(char_props) / sizeof( lUInt16 );
     if (ch<maxchar)
         return char_props[ch];
     else if ((ch>>8) == 0x1F)
         return char_props_1f00[ch & 255];
-    else if (ch>=0x2012 && ch<=0x2015)
-        return CH_PROP_DASH|CH_PROP_SIGN;
-    else if (ch==0x201C) // left double quotation mark
-        return CH_PROP_AVOID_WRAP_AFTER;
-    else if (ch==0x201D) // right double quotation mark
-        return CH_PROP_AVOID_WRAP_BEFORE;
-    else if (ch>=UNICODE_CJK_IDEOGRAPHS_BEGIN && ch<=UNICODE_CJK_IDEOGRAPHS_END&&(ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN||
-                                                                                  ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END))
-        return CH_PROP_CJK;
-    else if ((ch>=UNICODE_CJK_PUNCTUATION_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_END) ||
-             (ch>=UNICODE_GENERAL_PUNCTUATION_BEGIN && ch<=UNICODE_GENERAL_PUNCTUATION_END) ||
-             (ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END))
-        return CH_PROP_PUNCT;
+
+#if (USE_LIBUNIBREAK!=1)
+    else if (ch==0x201C) // left double quotation mark (Unicode Pi)
+        return CH_PROP_PUNCT_OPEN | CH_PROP_AVOID_WRAP_AFTER;
+    else if (ch==0x201D) // right double quotation mark (Unicode Pf)
+        return CH_PROP_PUNCT_CLOSE | CH_PROP_AVOID_WRAP_BEFORE;
+#endif
 
     // Try to guess a few other things about other chars we don't handle above
-    lUInt16 prop = 0;
+    lUInt16 prop;
 #if (USE_UTF8PROC==1)
     // For other less known ranges, fallback to detecting letters with utf8proc,
     // which is enough to be able to ensure hyphenation for Armenian and Georgian.
@@ -4993,41 +4992,93 @@ inline lUInt16 getCharProp(lChar32 ch) {
     switch (cat) {
         case UTF8PROC_CATEGORY_LU: // Uppercase Letter
         case UTF8PROC_CATEGORY_LT: // Titlecase Letter (ligatures containing uppercase followed by lowercase letters)
-            prop |= CH_PROP_UPPER;
+            prop = CH_PROP_UPPER;
             break;
         case UTF8PROC_CATEGORY_LL: // Lowercase Letter
         case UTF8PROC_CATEGORY_LM: // Modifier Letter (diacritics, consider them all as letters, assuming they follow a letter)
         case UTF8PROC_CATEGORY_LO: // Other Letter (Hebrew, Arabic, Devanagari...)
-            prop |= CH_PROP_LOWER;
+            prop = CH_PROP_LOWER;
+            break;
+        case UTF8PROC_CATEGORY_ND: // Decimal number (includes Arabic, Bengali... digits)
+        case UTF8PROC_CATEGORY_NL: // Letter number (includes roman numeral...)
+        case UTF8PROC_CATEGORY_NO: // Other number (includes superscript 2,3, fractions 1/2...)
+            prop = CH_PROP_DIGIT;
             break;
         case UTF8PROC_CATEGORY_MN: // Nonspacing mark (many combining diacritic like U+0300 "Combining grave accent" and friends)
         case UTF8PROC_CATEGORY_ME: // Enclosing mark (few symbols like enclosing combining circle)
         case UTF8PROC_CATEGORY_MC: // Spacing mark (things like "Devanagari Vowel Sign Ooe", which sounds like a letter)
         case UTF8PROC_CATEGORY_SK: // Modifier symbol (feels like non-combining, but includes some accents and breathings)
                                    // that might be considered part of a word)
-            prop |= CH_PROP_MODIFIER;
+            prop = CH_PROP_MODIFIER;
             break;
+        case UTF8PROC_CATEGORY_SC: // Symbol, currency (dollar, pound...)
+        case UTF8PROC_CATEGORY_SO: // Symbol, other (bar, degree, (c), (r)...)
+        case UTF8PROC_CATEGORY_SM: // Symbol, math (+<>=|, some arrows)
+            prop = CH_PROP_SIGN;
+            break;
+        case UTF8PROC_CATEGORY_PC: // Punctuation connectors (underscore...)
+        case UTF8PROC_CATEGORY_PD: // Punctuation dashes
+        case UTF8PROC_CATEGORY_PO: // Punctuation others (!"#.,;:/*@...)
+            prop = CH_PROP_PUNCT;
+            break;
+        case UTF8PROC_CATEGORY_PS: // Punctuation starting (left parenthesis, brackets...)
+        case UTF8PROC_CATEGORY_PI: // Punctuation initial quote (left quotation marks...)
+            prop = CH_PROP_PUNCT_OPEN;
+            break;
+        case UTF8PROC_CATEGORY_PE: // Punctuation ending (right parenthesis, brackets...)
+        case UTF8PROC_CATEGORY_PF: // Punctuation final quote (right quotation marks...)
+            prop = CH_PROP_PUNCT_CLOSE;
+            break;
+        case UTF8PROC_CATEGORY_ZS: // Separator, space (different size spaces)
+        case UTF8PROC_CATEGORY_ZL: // Separator, line (only U+2028)
+        case UTF8PROC_CATEGORY_ZP: // Separator, paragraph (only U+2029)
+            prop = CH_PROP_SPACE;
+            break;
+        case UTF8PROC_CATEGORY_CC: // Control code
+        case UTF8PROC_CATEGORY_CF: // Formatting (bidi, ZWNJ...)
+        case UTF8PROC_CATEGORY_CO: // Private use
+        case UTF8PROC_CATEGORY_CS: // Surrogate (should have been converted)
+        case UTF8PROC_CATEGORY_CN: // Not assigned
         default:
+            prop = 0;
             break;
+    }
+#else
+    // Flag known ranges of punctuations (some chars in there might not be)
+    if ( ch >= 0x2000 && ch <= 0x200B ) { // General Punctuation: spaces
+        prop = CH_PROP_SPACE;
+    }
+    else if ( ch >= 0x2010 && ch <= 0x2027 ) { // General Punctuation: punctuations
+        prop = CH_PROP_PUNCT;
+    }
+    else if ( ch >= 0x2030 && ch <= 0x206F ) { // General Punctuation: punctuations
+        prop = CH_PROP_PUNCT;
+    }
+    else if ( ch >= 0x3000 && ch <= 0x303F ) { // CJK Symbols and Punctuation
+        prop = CH_PROP_PUNCT;
+    }
+    else if ( ch >= 0xFF01 && ch <= 0xFFEE ) { // Halfwidth and Fullwidth Forms
+        prop = CH_PROP_PUNCT; // This is obviously wrong, but keeping this legacy choice
+    }
+    // Other punctuation
+    else if (ch == 0x0387 ) { // GREEK ANO TELEIA
+        prop = CH_PROP_PUNCT;
+    }
+    // Some others spaces (from https://www.cs.tut.fi/~jkorpela/chars/spaces.html)
+    else if (ch == 0x1680 ) { // OGHAM SPACE MARK
+        prop = CH_PROP_SPACE;
+    }
+    else if (ch == 0x180E ) { // MONGOLIAN VOWEL SEPARATOR
+        prop = CH_PROP_SPACE;
+    }
+    else if (ch == 0xFEFF ) { // ZERO WIDTH NO-BREAK SPACE
+        prop = CH_PROP_SPACE;
+    }
+    else {
+        // Consider all others as letters (so, not word separators)
+        prop = CH_PROP_LOWER;
     }
 #endif
-    // Detect RTL (details in lvtextfm.cpp)
-    if ( ch >= 0x0590 && ch <= 0x08FF ) // Hebrew, Arabic, Syriac, Thaana, Nko, Samaritan...
-        prop |= CH_PROP_RTL;
-    else if ( ch >= 0xFB1D ) { // Try to balance the searches
-        if ( ch <= 0xFDFF )     // FB1D>FDFF Hebrew and Arabic presentation forms
-            prop |= CH_PROP_RTL;
-        else if ( ch <= 0xFEFF ) {
-            if ( ch >= 0xFE70)   // FE70>FEFF Arabic presentation forms
-                prop |= CH_PROP_RTL;
-        }
-        else if ( ch <= 0x1EEBB ) {
-            if (ch >= 0x1E800)   // 1E800>1EEBB Other rare scripts possibly RTL
-                prop |= CH_PROP_RTL;
-            else if ( ch <= 0x10FFF && ch >= 0x10800 ) // 10800>10FFF Other rare scripts possibly RTL
-                prop |= CH_PROP_RTL;
-        }
-    }
     return prop;
 }
 
@@ -5041,37 +5092,12 @@ void lStr_getCharProps( const lChar32 * str, int sz, lUInt16 * props )
 
 bool lStr_isWordSeparator( lChar32 ch )
 {
-    // ASCII letters and digits are NOT word separators
-    if (ch >= 0x61 && ch <= 0x7A) return false; // lowercase ascii letters
-    if (ch >= 0x41 && ch <= 0x5A) return false; // uppercase ascii letters
-    if (ch >= 0x30 && ch <= 0x39) return false; // digits
-    if (ch == 0xAD ) return false; // soft-hyphen, considered now as part of word
-    // All other below 0xC0 are word separators:
-    //   < 0x30 space, !"#$%&'()*+,-./
-    //   < 0x41 :;<=>?@
-    //   < 0x61 [\]^_`
-    //   < 0xC0 {|}~ and control characters and other signs
-    if (ch < 0xC0 ) return true;
-    // 0xC0 to 0xFF, except 0xD7 and 0xF7, are latin accentuated letters.
-    // Above 0xFF are other alphabets. Let's consider all above 0xC0 unicode
-    // characters as letters, except the adequately named PUNCTUATION ranges.
-    // There may be exceptions in some alphabets, that we can individually
-    // add here :
-    if (ch == 0xD7 ) return true;  // multiplication sign
-    if (ch == 0xF7 ) return true;  // division sign
-    // this one includes em-dash & friends, and other quotation marks
-    if (ch>=UNICODE_GENERAL_PUNCTUATION_BEGIN && ch<=UNICODE_GENERAL_PUNCTUATION_END) return true;
-    // CJK puncutation
-    if (ch>=UNICODE_CJK_PUNCTUATION_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_END) return true;
-    if (ch>=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_BEGIN && ch<=UNICODE_CJK_PUNCTUATION_HALF_AND_FULL_WIDTH_END) return true;
-    // Other punctuation
-    if (ch == 0x0387 ) return true;  // GREEK ANO TELEIA
-    // Some others(from https://www.cs.tut.fi/~jkorpela/chars/spaces.html)
-    if (ch == 0x1680 ) return true;  // OGHAM SPACE MARK
-    if (ch == 0x180E ) return true;  // MONGOLIAN VOWEL SEPARATOR
-    if (ch == 0xFEFF ) return true;  // ZERO WIDTH NO-BREAK SPACE
-    // All others are considered part of a word, thus not word separators
-    return false;
+    // The meaning of "word separator" is ambiguous.
+    // For this, spaces, punctuations and signs/symbols are considered
+    // word separators (that is, they cut a sequence of alphanum into
+    // two words). This is fine for use by lStr_capitalize().
+    lUInt16 props = getCharProp(ch);
+    return !(props & (CH_PROP_ALPHA|CH_PROP_MODIFIER|CH_PROP_HYPHEN|CH_PROP_DIGIT));
 }
 
 /// find alpha sequence bounds
@@ -5106,11 +5132,13 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
     int first = cur;
     cur--;
     for (; cur>=0; cur--) {
-        lUInt16 props = getCharProp(str[cur]);
+        lChar32 ch = str[cur];
+        lUInt16 props = getCharProp(ch);
         if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) ) {
             first = cur;
-            if ( props & CH_PROP_RTL )
+            if ( !has_rtl && lStr_isRTL(ch) ) {
                 has_rtl = true;
+            }
         }
         else if ( props & CH_PROP_MODIFIER ) {
             // depends on preceeding non-modifier char: don't break
