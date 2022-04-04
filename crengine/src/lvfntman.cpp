@@ -2229,8 +2229,16 @@ public:
 
         if (_synth_weight > 0) {
             // Tweak some metrics if synthesized weight
-            if ( _slot->metrics.horiAdvance > 0 ) {
-                glyph->width = (lUInt16)( FONT_METRIC_TO_PX( myabs(_slot->metrics.horiAdvance) + _synth_weight_strength ) );
+            // We can't use _slot->metrics.horiAdvance, which may differ whether hinting or not (if hinting,
+            // it is rounded to a multiple of 64, otherwise not), and could give different values below when
+            // rounded to px after we add _synth_weight_strength, resulting in different advances and widths.
+            // Above, FT_LOAD_TARGET_LIGHT ensures that hinting does not change the rounded advance, which
+            // allows us to not need a re-rendering when switching hinting modes. We want to keep this
+            // feature also when synthetic weights are in use.
+            // So, use linearHoriAdvance, which is "The advance width of the unhinted glyph".
+            lInt32 advance = _slot->linearHoriAdvance >> 10; // expressed in 16.16 fractional pixels (/64/16)
+            if ( advance > 0 ) {
+                glyph->width = (lUInt16)( FONT_METRIC_TO_PX( myabs(advance) + _synth_weight_strength ) );
             }
             else { // probable diacritic
                 // Compensate the width added to the previous advancing char
@@ -2238,7 +2246,7 @@ public:
                 glyph->originX =   (lInt16)( FONT_METRIC_TO_PX( _slot->metrics.horiBearingX - _synth_weight_strength ) );
             }
             if (glyph->blackBoxX != 0)
-                glyph->rsb = (lInt16)(FONT_METRIC_TO_PX( (myabs(_slot->metrics.horiAdvance) + _synth_weight_strength
+                glyph->rsb = (lInt16)(FONT_METRIC_TO_PX( (myabs(advance) + _synth_weight_strength
                                             - _slot->metrics.horiBearingX - _slot->metrics.width) ) );
         }
         return true;
@@ -2992,7 +3000,10 @@ public:
             if (_synth_weight > 0 && is_embolden) {
                 // Tweak some metrics if synthesized weight
                 if ( _slot->metrics.horiAdvance > 0 ) {
-                    _slot->metrics.horiAdvance += _synth_weight_strength;
+                    // _slot->metrics.horiAdvance += _synth_weight_strength;
+                    // As in getGlyphInfo(), we need to use _slot->linearHoriAdvance to get
+                    // the same advance/width whether hinting or not
+                    _slot->metrics.horiAdvance = (_slot->linearHoriAdvance >> 10) + _synth_weight_strength;
                 }
                 else { // probable diacritic
                     // Compensate the width added to the previous advancing char
@@ -3067,7 +3078,10 @@ public:
                 if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
                     // Tweak some metrics if synthesized weight
                     if ( _slot->metrics.horiAdvance > 0 ) {
-                        _slot->metrics.horiAdvance += _synth_weight_strength;
+                        // _slot->metrics.horiAdvance += _synth_weight_strength;
+                        // As in getGlyphInfo(), we need to use _slot->linearHoriAdvance to get
+                        // the same advance/width whether hinting or not
+                        _slot->metrics.horiAdvance = (_slot->linearHoriAdvance >> 10) + _synth_weight_strength;
                         // (this won't be used with Harfbuzz, but we'll tweak glyph_pos[hg].x_advance the same way)
                     }
                     else { // probable diacritic
