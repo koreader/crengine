@@ -1092,15 +1092,15 @@ void LVDocView::drawCoverTo(LVDrawBuf * drawBuf, lvRect & rc) {
         title = "no title";
 	LFormattedText txform;
 	if (!authors.empty())
-		txform.AddSourceLine(authors.c_str(), authors.length(), 0xFFFFFFFF,
-				0xFFFFFFFF, author_fnt.get(), NULL, LTEXT_ALIGN_CENTER,
+		txform.AddSourceLine(authors.c_str(), authors.length(), LTEXT_COLOR_CURRENT,
+				LTEXT_COLOR_CURRENT, author_fnt.get(), NULL, LTEXT_ALIGN_CENTER,
 				author_fnt->getHeight() * 18 / 16);
-	txform.AddSourceLine(title.c_str(), title.length(), 0xFFFFFFFF, 0xFFFFFFFF,
+	txform.AddSourceLine(title.c_str(), title.length(), LTEXT_COLOR_CURRENT, LTEXT_COLOR_CURRENT,
 			title_fnt.get(), NULL, LTEXT_ALIGN_CENTER,
 			title_fnt->getHeight() * 18 / 16);
 	if (!series.empty())
-		txform.AddSourceLine(series.c_str(), series.length(), 0xFFFFFFFF,
-				0xFFFFFFFF, series_fnt.get(), NULL, LTEXT_ALIGN_CENTER,
+		txform.AddSourceLine(series.c_str(), series.length(), LTEXT_COLOR_CURRENT,
+				LTEXT_COLOR_CURRENT, series_fnt.get(), NULL, LTEXT_ALIGN_CENTER,
 				series_fnt->getHeight() * 18 / 16);
 	int title_w = rc.width() - rc.width() / 4;
 	int h = txform.Format((lUInt16)title_w, (lUInt16)rc.height());

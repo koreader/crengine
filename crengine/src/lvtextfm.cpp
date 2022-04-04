@@ -4827,7 +4827,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             // handled here (only looking at the style of the inline node
             // that contains the word, and not at its other inline parents),
             // some words may not get their proper bgcolor
-            lUInt32 lastWordColor = 0xFFFFFFFF;
+            lUInt32 lastWordColor = LTEXT_COLOR_CURRENT; // meaning unset, no bgcolor yet
             int lastWordStart = -1;
             int lastWordEnd = -1;
             for (j=0; j<frmline->word_count; j++)
@@ -4849,7 +4849,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     lUInt32 bgcl = srcline->bgcolor;
                     if ( lastWordColor!=bgcl || lastWordStart==-1 ) {
                         if ( lastWordStart!=-1 )
-                            if ( ((lastWordColor>>24) & 0xFF) < 128 )
+                            if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
                                 buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
                         lastWordColor=bgcl;
                         lastWordStart = x+frmline->x+word->x;
@@ -4858,7 +4858,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 }
             }
             if ( lastWordStart!=-1 )
-                if ( ((lastWordColor>>24) & 0xFF) < 128 )
+                if ( ((lastWordColor>>24) & 0xFF) != 0xFF )
                     buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
 
             // process marks
@@ -5017,13 +5017,16 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     lUInt32 oldBgColor = buf->GetBackgroundColor();
                     lUInt32 cl = srcline->color;
                     lUInt32 bgcl = srcline->bgcolor;
-                    if ( cl!=0xFFFFFFFF ) {
-                        if ( cl==0xDDFFFFFF ) // color: transparent
+                    if ( LTEXT_COLOR_IS_RESERVED(cl) ) {
+                        if ( cl == LTEXT_COLOR_TRANSPARENT ) { // color: transparent
                             continue; // Don't draw this word
-                        else
-                            buf->SetTextColor( cl );
+                        }
+                        // Otherwise, LTEXT_COLOR_CURRENT: keep current buffer color
                     }
-                    if ( bgcl!=0xFFFFFFFF )
+                    else {
+                        buf->SetTextColor( cl );
+                    }
+                    if ( !LTEXT_COLOR_IS_RESERVED(bgcl) )
                         buf->SetBackgroundColor( bgcl );
                     // Add drawing flags: text decoration (underline...)
                     lUInt32 drawFlags = srcline->flags & LTEXT_TD_MASK;
@@ -5071,9 +5074,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                             val.c_str(), val.length(), '?', NULL, false);
                     }
                     */
-                    if ( cl!=0xFFFFFFFF )
+                    if ( !LTEXT_COLOR_IS_RESERVED(cl) )
                         buf->SetTextColor( oldColor );
-                    if ( bgcl!=0xFFFFFFFF )
+                    if ( !LTEXT_COLOR_IS_RESERVED(bgcl) )
                         buf->SetBackgroundColor( oldBgColor );
                 }
                 lastWordSrcIndex = word->src_text_index;
