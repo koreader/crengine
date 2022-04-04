@@ -1943,14 +1943,14 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	if (!pageRect)
 		pageRect = &fullRect;
 	// drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES); // (is always true)
-	// setHidePartialGlyphs() was added to "fix partial glyph drawing for small interline spaces
-	// (<100%) in page mode", but it's not really clear what it is supposed to fix. Moreover,
-	// while its implementation for top of glyph is understandable (clip, if less of 1/2 original
-	// height remain, don't draw the glyph), what it does on the bottom is less (if just remove
-	// the clip and allow drawing the full glyph below the bottom clip!).
-	// It just feels best to not use it, and just have glyphs all truncated similarly along
-	// the line of the clip (instead of having a mix of glyphs cut and glyphs absent)
+	// setHidePartialGlyphs() was added to allow drawing parts of glyphs outside the
+	// clip (which can happen when small interline space), but its implementation is
+	// a bit weird (at top: if less of 1/2 original height remain, don't draw the glyph;
+	// at bottom: removethe clip and allow drawing the full glyph), and it feels this
+	// is not the right way to solve this issue. So we don't use it.
 	drawbuf->setHidePartialGlyphs(false);
+	// We'll solve this issue another way: by using an alternative larger clip when drawing
+	// line boxes fully contained into the page: draw_extra_info.content_overflow_clip below.
 
 	// Clip, for normal content drawing: we use the computed pageRect, and the page.height
 	// made from page splitting (that we have to enforce to not get painted some content
@@ -1974,14 +1974,22 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	draw_extra_info.is_left_page = false;
 	draw_extra_info.is_right_page = false;
 	draw_extra_info.draw_body_background = true;
-	draw_extra_info.body_background_clip.top  = headerHeight;
-	draw_extra_info.body_background_clip.bottom  = fullRect.bottom;
-	draw_extra_info.body_background_clip.left  = fullRect.left;
-	draw_extra_info.body_background_clip.right  = fullRect.right;
-	draw_extra_info.content_overflow_clip.top  = headerHeight;
+	draw_extra_info.body_background_clip.top = headerHeight;
+	draw_extra_info.body_background_clip.bottom = fullRect.bottom;
+	draw_extra_info.body_background_clip.left = fullRect.left;
+	draw_extra_info.body_background_clip.right = fullRect.right;
+	// The above regular "clip" will be used to decide which lines of a paragraph
+	// (possibly spanning multiple pages) will have to be drawn into this page.
+	// For such lines fully contained into the regular clip, we will extend (in lvtextfm.cpp)
+	// the clip so their tall glyphs, possibly overflowing the line box will, not get truncated.
+	// We allow such glyphs to go into the top margin, but not into the header, and
+	// allow them to go into the bottom margin, but not into any bottom footnotes area.
+	// (If header, we could add 3px to not overflow into the progress bar and chapter marks,
+	// but this would add some empty stripe that is more noticable that occasional overlaps.)
+	draw_extra_info.content_overflow_clip.top = headerHeight;
 	draw_extra_info.content_overflow_clip.bottom = fullRect.bottom; // will be reduced if footnotes
-	draw_extra_info.content_overflow_clip.left  = fullRect.left;
-	draw_extra_info.content_overflow_clip.right  = fullRect.right;
+	draw_extra_info.content_overflow_clip.left = fullRect.left;
+	draw_extra_info.content_overflow_clip.right = fullRect.right;
 
 	if (hasTwoVisiblePages) {
 		// Don't trust pageRects and their tweaked middle margin
@@ -1996,15 +2004,15 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			clip.right = middle_x;
 			draw_extra_info.is_left_page = true;
 		}
-		draw_extra_info.body_background_clip.left  = clip.left;
-		draw_extra_info.body_background_clip.right  = clip.right;
+		draw_extra_info.body_background_clip.left = clip.left;
+		draw_extra_info.body_background_clip.right = clip.right;
 		if ( !isRightPage && isLastPage ) {
 			// Left page is last page: have any background
 			// drawn also on the right blank area
-			draw_extra_info.body_background_clip.right  = fullRect.right;
+			draw_extra_info.body_background_clip.right = fullRect.right;
 		}
-		draw_extra_info.content_overflow_clip.left  = clip.left;
-		draw_extra_info.content_overflow_clip.right  = clip.right;
+		draw_extra_info.content_overflow_clip.left = clip.left;
+		draw_extra_info.content_overflow_clip.right = clip.right;
 	}
 
 	if (page.flags & RN_PAGE_TYPE_COVER)
@@ -2078,13 +2086,12 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			// If we have footnotes that we'll put at bottom of page, make sure we
 			// clip above them (tall inline-block content, even if split across pages,
 			// could have their content painted over the footnotes)
-			bool has_footnotes = false;
+			bool has_footnotes = page.footnotes.length() > 0;
 			#define FOOTNOTE_MARGIN_REM 1 // as in lvpagesplitter.cpp
 			int footnote_margin = FOOTNOTE_MARGIN_REM * m_font_size;
 			int footnotes_height = 0;
 			for (int fn = 0; fn < page.footnotes.length(); fn++) {
 				footnotes_height += page.footnotes[fn].height;
-				has_footnotes = true;
 			}
 			if ( has_footnotes) {
 				// We'll be drawing a separator at 2/3 in the footnote margin.
@@ -2112,15 +2119,19 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			// Draw footnotes at the bottom of page (put any remaining blank space above them)
 			int fny = clip.top + (page.height ? page.height + footnote_margin
 					: footnote_margin);
-			if (footnotes_height > 0) {
+			if ( has_footnotes) {
 				int h_avail = m_dy - getPageHeaderHeight()
 						   - m_pageMargins.top - m_pageMargins.bottom
 						   - height - footnote_margin;
 				fny += h_avail - footnotes_height; // put empty space before first footnote
 				draw_extra_info.draw_body_background = false;
+				// We'll be drawing a separator at 2/3 in the footnote margin.
+				// Allow over-painting up to it in this footnote margin (so any glyph head
+				// overflowing the line box get less chances to be truncated.
+				draw_extra_info.content_overflow_clip.top = fny - footnote_margin * 1/3 + 1;
+				draw_extra_info.content_overflow_clip.bottom = fullRect.bottom;
 			}
 			int fy = fny;
-			bool footnoteDrawed = false;
 			for (int fn = 0; fn < page.footnotes.length(); fn++) {
 				int fstart = page.footnotes[fn].start;
 				int fheight = page.footnotes[fn].height;
@@ -2137,10 +2148,9 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 						-fstart,  // doc_y
 						m_dy,     // page_height
 						&m_markRanges);
-				footnoteDrawed = true;
 				fy += fheight;
 			}
-			if (footnoteDrawed) { // && page.height
+			if ( has_footnotes) {
 				// Draw a small horizontal line as a separator inside
 				// the margin between text and footnotes
 				fny -= footnote_margin * 1/3;
