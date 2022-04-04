@@ -905,6 +905,9 @@ void LVGrayDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color32 )
     if (x0>=x1 || y0>=y1)
         return;
     lUInt8 color = rgbToGrayMask( color32, _bpp );
+    const lUInt8 opacity = ~color32 >> 24;
+    if (opacity == 0) // Fully transparent color
+        return;
 #if (GRAY_INVERSE==1)
     color ^= 0xFF;
 #endif
@@ -926,8 +929,15 @@ void LVGrayDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color32 )
                 line[index] = (lUInt8)((line[index] & ~mask) | (color & mask));
             }
         } else { // 3, 4, 8
-            for (int x=x0; x<x1; x++)
-                line[x] = color;
+            if ( opacity == 0xFF ) {
+                for (int x=x0; x<x1; x++)
+                    line[x] = color;
+            }
+            else {
+                const lUInt8 alpha = opacity ^ 0xFF;
+                for (int x=x0; x<x1; x++)
+                    ApplyAlphaGray8( line[x], color, alpha, opacity );
+            }
         }
         line += _rowsize;
     }
@@ -1249,9 +1259,13 @@ void LVGrayDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int he
 //            true : false;
 //#endif
 
+    // Note: support for TextColor opacity/alpha was added only in the _bpp==8 branch
     if ( _bpp==8 ) {
         lUInt8 * dstline = _data + _rowsize*y + x;
         const lUInt8 color = rgbToGrayMask(GetTextColor(), 8);
+        const lUInt8 bopacity = ~GetTextColor() >> 24;
+        if (bopacity == 0) // Fully transparent color
+            return;
         while (height--)
         {
             const lUInt8 * __restrict src = bitmap;
@@ -1259,14 +1273,17 @@ void LVGrayDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int he
             size_t px_count = width;
             while (px_count--)
             {
-                const lUInt8 opaque = (*src++);
-                if ( opaque == 0 ) {
+                lUInt8 opacity = *(src++); // glyph opacity
+                if ( opacity == 0 ) {
                     // Background pixel, NOP
-                } else if ( opaque == 0xFF ) {
+                }
+                else if (opacity == 0xFF && bopacity == 0xFF) { // fully opaque pixel and color
                     *dst = color;
-                } else {
-                    const lUInt8 alpha = opaque ^ 0xFF;
-                    ApplyAlphaGray8( *dst, color, alpha, opaque );
+                }
+                else {
+                    opacity = (opacity*bopacity)>>8;
+                    const lUInt8 alpha = opacity ^ 0xFF;
+                    ApplyAlphaGray8( *dst, color, alpha, opacity );
                 }
                 dst++;
             }
@@ -1660,6 +1677,8 @@ void LVColorDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color )
     if (x0>=x1 || y0>=y1)
         return;
     const lUInt8 alpha = (color >> 24) & 0xFF;
+    if (alpha == 0xFF) // Fully transparent color
+        return;
     if ( _bpp==16 ) {
         const lUInt16 cl16 = rgb888to565(color);
         for (int y=y0; y<y1; y++)
@@ -1910,6 +1929,9 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
 
     if ( _bpp==16 ) {
         const lUInt16 bmpcl16 = rgb888to565(bmpcl);
+        const lUInt8 bopacity = ~bmpcl >> 24; // alpha=0x00 => opacity=0xFF
+        if (bopacity == 0) // Fully transparent color
+            return;
 
         while (height--)
         {
@@ -1919,16 +1941,22 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             size_t px_count = width;
             while (px_count--)
             {
-                const lUInt8 opaque = ((*(src++))>>4)&0x0F;
-                if ( opaque==0 ) {
+                // Note: former code was considering pixel opacity >= 0xF0 as fully opaque (0xFF),
+                // not sure why (it would save on the blending computation by 5% to 15%).
+                lUInt8 opacity = *(src++); // glyph pixel opacity
+                if ( opacity == 0 ) {
                     // Background pixel, NOP
-                } else if ( opaque>=0xF ) {
+                }
+                else if (opacity == 0xFF && bopacity == 0xFF) { // fully opaque pixel and color
                     *dst = bmpcl16;
-                } else {
-                    const lUInt8 alpha = 0xF-opaque;
-                    const lUInt16 cl1 = (lUInt16)(((alpha*((*dst)&0xF81F) + opaque*(bmpcl16&0xF81F))>>4) & 0xF81F);
-                    const lUInt16 cl2 = (lUInt16)(((alpha*((*dst)&0x07E0) + opaque*(bmpcl16&0x07E0))>>4) & 0x07E0);
-                    *dst = cl1 | cl2;
+                }
+                else {
+                    opacity = (opacity*bopacity)>>8;
+                    const lUInt8 alpha = opacity ^ 0xFF;
+                    const lUInt32 r = ((((*dst) & 0xF800) * alpha + (bmpcl16 & 0xF800) * opacity) >> 8) & 0xF800;
+                    const lUInt32 g = ((((*dst) & 0x07E0) * alpha + (bmpcl16 & 0x07E0) * opacity) >> 8) & 0x07E0;
+                    const lUInt32 b = ((((*dst) & 0x001F) * alpha + (bmpcl16 & 0x001F) * opacity) >> 8) & 0x001F;
+                    *dst = (lUInt16)(r | g | b);
                 }
                 dst++;
             }
@@ -1936,7 +1964,10 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             bitmap += bmp_width;
         }
     } else {
-        const lUInt32 bmpcl32 = bmpcl;
+        const lUInt32 bmpcl32 = bmpcl & 0x00FFFFFF;
+        const lUInt8 bopacity = ~bmpcl >> 24; // alpha=0x00 => opacity=0xFF
+        if (bopacity == 0) // Fully transparent color
+            return;
 
         while (height--)
         {
@@ -1946,24 +1977,25 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             size_t px_count = width;
             while (px_count--)
             {
-                // NOTE: Not quite sure what's the rationale for the funky semi half-precision alpha-blending there...
-                const lUInt8 opaque = ((*(src++))>>1)&0x7F;
-                if ( opaque==0 ) {
+                // Note: former code was considering pixel opacity >= 0xF0 as fully opaque (0xFF),
+                // not sure why (it would save on the blending computation by 5% to 15%).
+                lUInt8 opacity = *(src++); // glyph pixel opacity
+                if ( opacity == 0 ) {
                     // Background pixel, NOP
-                } else if ( opaque>=0x78 ) {
-                    *dst = bmpcl32;
-                } else {
-                    const lUInt8 alpha = 0x7F-opaque;
-                    const lUInt32 cl1 = ((alpha*((*dst)&0xFF00FF) + opaque*(bmpcl32&0xFF00FF))>>7) & 0xFF00FF;
-                    const lUInt32 cl2 = ((alpha*((*dst)&0x00FF00) + opaque*(bmpcl32&0x00FF00))>>7) & 0x00FF00;
-                    // NOTE: We're skipping the alpha byte here, because CRe uses inverted alpha :(
-                    //       Which means that the masking shenanigans above ensure it's 0x00, fully opaque...
-                    //       (c.f., ApplyAlphaRGB, which does the same thing without the weird half-precision hack).
-                    *dst = cl1 | cl2;
                 }
+                else if (opacity == 0xFF && bopacity == 0xFF) { // fully opaque pixel and color
+                    *dst = bmpcl32;
+                }
+                else {
+                    opacity = (opacity*bopacity)>>8;
+                    const lUInt8 alpha = opacity ^ 0xFF;
+                    const lUInt32 n1 = ((((*dst) & 0xFF00FF) * alpha + (bmpcl32 & 0xFF00FF) * opacity) >> 8) & 0xFF00FF;
+                    const lUInt32 n2 = ((((*dst) & 0x00FF00) * alpha + (bmpcl32 & 0x00FF00) * opacity) >> 8) & 0x00FF00;
+                    *dst = n1 | n2;
+                }
+
                 dst++;
             }
-            /* next src line, accounting for clipping */
             bitmap += bmp_width;
         }
     }

@@ -1167,8 +1167,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
             if ( nDigits==4 ) {
                 int a = hexDigit( *str++ );
                 // cre color upper byte is inverted alpha (0x00=opaque, 0xFF=transparency)
-                // value.value |= ((a + a*16)^0xFF)<<24;
-                // Disabled for now, as support for alpha needs work
+                value.value |= ((a + a*16)^0xFF)<<24;
             }
             return true;
         } else if ( nDigits==6 || nDigits==8 ) {
@@ -1184,8 +1183,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
                 int a = hexDigit( *str++ ) * 16;
                 a += hexDigit( *str++ );
                 // cre color upper byte is inverted alpha
-                // value.value |= ((a + a*16)^0xFF)<<24;
-                // Disabled for now, as support for alpha needs work
+                value.value |= ((a + a*16)^0xFF)<<24;
             }
             return true;
         } else {
@@ -1297,8 +1295,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
                         break;
                     }
                     // cre color upper byte is inverted alpha (0x00=opaque, 0xFF=transparency)
-                    // color = ((n^0xFF)<<24) | color;
-                    // Disabled for now, as support for alpha needs work
+                    color = ((n^0xFF)<<24) | color;
                 }
                 else {
                     valid = false;
