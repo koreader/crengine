@@ -4784,6 +4784,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
     buf->GetClipRect( &clip );
     const lChar32 * str;
     int line_y = y;
+    draw_extra_info_t * draw_extra_info = (draw_extra_info_t*)buf->GetDrawExtraInfo();
 
     bool ignore_clip = false;
     if ( m_pbuffer->frmlinecount == 1 && m_pbuffer->frmlines[0]->word_count > 0 ) {
@@ -4815,6 +4816,26 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
         frmline = m_pbuffer->frmlines[i];
         if ( line_y + frmline->height > clip.top || ignore_clip )
         {
+            // This line box is or has some part in the page regular clip.
+            // If it is fully inside the regular clip, we extend the clip
+            // to the provided content_overflow_clip to allow any glyph
+            // extending outside the line box (which can happen with a small
+            // interline space) to be drawn fully in the top or bottom margins.
+            // (We can't allow this for lines only partially in the clip, at
+            // least because of the case of isEmbeddedBlockBoxingInlineBox()
+            // below (big single line box possible spanning multiple pages)
+            // whose inner content lines will have to go thru the above
+            // regular clip check if we want to avoid the same inner line
+            // to appear on both prev and next pages.)
+            bool restore_orig_clip = false;
+            lvRect origClip;
+            if ( line_y >= clip.top && line_y + frmline->height <= clip.bottom ) {
+                if ( draw_extra_info ) {
+                    restore_orig_clip = true;
+                    buf->GetClipRect( &origClip );
+                    buf->SetClipRect( &draw_extra_info->content_overflow_clip );
+                }
+            }
             // process background
 
             //lUInt32 bgcl = buf->GetBackgroundColor();
@@ -4966,7 +4987,6 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         // box, and restore it when done.
                         lvRect curclip;
                         buf->GetClipRect( &curclip ); // backup clip
-                        draw_extra_info_t * draw_extra_info = (draw_extra_info_t*)buf->GetDrawExtraInfo();
                         if ( draw_extra_info ) {
                             buf->SetClipRect( &draw_extra_info->content_overflow_clip );
                         }
@@ -5093,6 +5113,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 }
             }
 #endif
+            if ( restore_orig_clip ) {
+                buf->SetClipRect(&origClip);
+            }
         }
         line_y += frmline->height;
     }
