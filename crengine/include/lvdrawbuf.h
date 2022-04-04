@@ -598,8 +598,10 @@ public:
         if ( ignore_decorations )
             return;
         // printf("  ink FillRect %d %d %d %d\n", x0, y0, x1, y1);
-        if ( color != GetBackgroundColor() )
-            updateInkBounds(x0, y0, x1, y1);
+        // Don't do this check, as backgroundcolor may not be initialized
+        // (initializing it to white would be a random choice):
+        // if ( color != GetBackgroundColor() )
+        updateInkBounds(x0, y0, x1, y1);
     }
     virtual void FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern ) {
         if ( ignore_decorations )
@@ -672,6 +674,128 @@ public:
     virtual lUInt8 * GetScanLine( int y ) const { return 0; }
 };
 
+// This is to be used as the buffer provided to font->DrawTextString(). We based it
+// on LVInkMeasurementDrawBuf just so that we don't have to redefine all the methods,
+// even if none of them will be used (FillRect might be called when drawing underlines,
+// but we're explicitely not handling it).
+class LVHorizontalOverlapMeasurementDrawBuf : public LVInkMeasurementDrawBuf
+{
+private:
+    bool drawing_right;
+    bool by_line;
+    lUInt8  min_opacity;
+    int  buf_height;
+    int  vertical_spread;
+    int  whole_left_max_x;
+    int  whole_right_min_x;
+    int * left_max_x;
+    int * right_min_x;
+public:
+    virtual void Draw( int x0, int y0, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette ) {
+        if ( width == 0 || height == 0)
+            return;
+        int y1 = y0 + height;
+        int x1 = x0 + width;
+        if (drawing_right) {
+            for ( int y=y0; y<y1; y++ ) {
+                if ( y >= 0 && y < buf_height ) {
+                    int * const bucket = by_line ? &right_min_x[y] : &whole_right_min_x;
+                    // Drawing a right word glyph: we want to catch its left edge:
+                    // scan from the left to limit the amount of loops
+                    const lUInt8 * __restrict tmp = bitmap + (y-y0)*width;
+                    for ( int x=x0; x<x1; x++ ) {
+                        if (*tmp >= min_opacity) { // (0 = blank pixel)
+                            if ( by_line && vertical_spread > 0 ) {
+                                for (int i=1; i<=vertical_spread; i++) {
+                                    if (y+i < buf_height && right_min_x[y+i] > x)
+                                        right_min_x[y+i] = x;
+                                    if (y-i >= 0 && right_min_x[y-i] > x)
+                                        right_min_x[y-i] = x;
+                                }
+                            }
+                            if (*bucket > x) {
+                                *bucket = x;
+                                break; // No need to scan more of this line
+                            }
+                        }
+                        tmp++;
+                    }
+                }
+            }
+        }
+        else {
+            for ( int y=y0; y<y1; y++ ) {
+                if ( y >= 0 && y < buf_height ) {
+                    int * const bucket = by_line ? &left_max_x[y] : &whole_left_max_x;
+                    // Drawing a left word glyph: we want to catch its right edge:
+                    // scan from the right to limit the amount of loops
+                    const lUInt8 * __restrict tmp = bitmap + (y-y0+1)*width - 1;
+                    for ( int x=x1-1; x>=x0; x-- ) {
+                        if (*tmp >= min_opacity) {
+                            if ( by_line && vertical_spread > 0 ) {
+                                for (int i=1; i<=vertical_spread; i++) {
+                                    if (y+i < buf_height && left_max_x[y+i] < x)
+                                        left_max_x[y+i] = x;
+                                    if (y-i >= 0 && left_max_x[y-i] < x)
+                                        left_max_x[y-i] = x;
+                                }
+                            }
+                            if (*bucket < x) {
+                                *bucket = x;
+                                break; // No need to scan more of this line
+                            }
+                        }
+                        tmp--;
+                    }
+                }
+            }
+        }
+    }
+    int getDistance() {
+        int min_distance = 0x7FFFFFFF;
+        if (by_line) {
+            for (int i=0; i<buf_height; i++) {
+                // if right_min_x = left_max_x, they overlap, so this -1
+                int distance = right_min_x[i] - left_max_x[i] - 1;
+                if (min_distance > distance) {
+                    min_distance = distance;
+                }
+            }
+        }
+        else {
+            min_distance = whole_right_min_x - whole_left_max_x;
+        }
+        return min_distance;
+    }
+    void DrawingRight(bool right=true) {
+        drawing_right = right;
+    }
+    /// create own draw buffer
+    explicit LVHorizontalOverlapMeasurementDrawBuf( int h, bool byline, int vertspread=0, lUInt8 minopacity=1 )
+        : LVInkMeasurementDrawBuf(false, false), buf_height(h), by_line(byline), vertical_spread(vertspread)
+        , min_opacity(minopacity), drawing_right(false)
+        {
+            if ( by_line ) {
+                left_max_x = (int*)malloc( sizeof(int) * buf_height );
+                right_min_x = (int*)malloc( sizeof(int) * buf_height );
+                for (int i=0; i<buf_height; i++) {
+                    left_max_x[i] = - 0x0FFFFFFF; // -infinity
+                    right_min_x[i] = 0x0FFFFFFF;  // +infinity
+                }
+            }
+            else {
+                whole_left_max_x = - 0x0FFFFFFF;
+                whole_right_min_x = 0x0FFFFFFF;
+            }
+        }
+    /// destructor
+    virtual ~LVHorizontalOverlapMeasurementDrawBuf() {
+        if ( by_line ) {
+            free(left_max_x);
+            free(right_min_x);
+        }
+    }
+};
 
 #endif
 
