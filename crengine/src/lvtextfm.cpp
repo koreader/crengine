@@ -2167,6 +2167,197 @@ public:
         int usable_width = width - (frmline->x - x_offset) - rightIndent; // remove both sides indents
         int extra_width = usable_width - frmline->width;
 
+        // Try to correct glyphs overlap at text node boundaries (no need to do this for words inside a
+        // same text node, the font kerning and HarfBuzz, while measuring, are responsible for that).
+        // This should mostly do italic correction and have some effect at italic/non-italic words
+        // boundaries that could overlap each other (ie. italic "f" meeting regular "T" or regular "g"
+        // meeting italic "f"), but it can also help when both sides use a regular font (ie. regular "f"
+        // with some negative RSB meeting superscript footnote "[3]" where "f[" could overlap).
+        // We do this in 2 steps: first, see if any and how much correction is needed. And then
+        // only apply the correction if we have enough extra_width for it.
+        // (This needs to be done after line splitting and BiDi re-ordering to get words in visual order
+        // and check their overlap: so, we couldn't reserve more space for these corrections while doing
+        // line splitting; we have to compensate the space added for these corrections by reducing other
+        // spaces in the line, which will make some lines having less regular word spacing.)
+        // To get a way to see the layout without correction, we won't do any correction when
+        // kerning is KERNING_MODE_DISABLED (we will bail out below as soon as we have a font to know
+        // the current kerning mode): after all, this is some kind of kerning at text node boundaries,
+        // so don't do it when kerning is explicitely off.
+        // We use this first step to gather additional info about words and where to grab extra width.
+        int additional_extra_width = 0; // additional extra width we could get from the allowed spaces condensing
+        int over_extra_width = 0; // even more extra width we could get from even more spaces condensing
+        int correction_needed_width = 0;
+        for ( int i=0; i<(int)frmline->word_count; i++ ) {
+            formatted_word_t * word = &frmline->words[i];
+            // We will store some computations in these temporary slots (that are not used anymore)
+            word->_top_to_baseline = 0; // correction needed
+            word->_baseline_to_bottom = 0; // over extra width we can steal from this word's width-min_width
+            int dw = word->width - word->min_width;
+            if ( dw > 0 ) {
+                additional_extra_width += dw;
+                // This was computed according to min_space_condensing_percent (usually 50% to 90%),
+                // we can grab 10% or 1px more in case we need it.
+                dw = dw / 10;
+                if (dw < 1)
+                    dw = 1;
+                over_extra_width += dw;
+                word->_baseline_to_bottom = dw;
+            }
+            if (i==0) { // No previous word
+                continue;
+            }
+            formatted_word_t * prev_word = &frmline->words[i-1];
+            if ( prev_word->src_text_index == word->src_text_index ) { // same text node
+                continue;
+            }
+            if ( prev_word->distinct_glyphs <= 0 || word->distinct_glyphs <= 0 ) {
+                // Image, inline box, or cursive word on either side: don't do any correction.
+                // todo: we should check for overlap if only one word is cursive and the other not
+                // todo: we could check if a text word overlaps over an image (considering alpha in image)
+                continue;
+            }
+            src_text_fragment_t * prev_src = &m_pbuffer->srctext[prev_word->src_text_index];
+            src_text_fragment_t * src = &m_pbuffer->srctext[word->src_text_index];
+            if ( prev_src->flags & LTEXT_FLAG_PREFORMATTED && src->flags & LTEXT_FLAG_PREFORMATTED ) {
+                continue; // Don't touch anything if both are pre
+            }
+            LVFont * prev_font = (LVFont *) prev_src->t.font;
+            LVFont * font = (LVFont *) src->t.font;
+            if ( font->getKerningMode() == KERNING_MODE_DISABLED ) {
+                break; // Don't do any correction at all
+            }
+
+            // Get enough buffer height to account for any really tall glyph (possibly overflowing
+            // the font height) and combinations of big vertical-align (we could compute a smaller
+            // height based on these, but a bit too lazy...)
+            int some_height = prev_font->getHeight() + font->getHeight();
+            int y_offset = some_height + frmline->baseline;
+            int buf_height = y_offset + some_height;
+
+            // We want at least 1px of distance, and more only with very large font sizes.
+            // (With some words or contexts, we may feel we would be better with more spacing,
+            // and we tried with enforcing 1/8em (thin space) or 1/24em (hair space), but this
+            // could feel too large with some other words or contexts. It's safer, and enough
+            // to no longer notice the overlap, to go with 1px, and 2px when font size > 80,
+            // so actually 1/40em;
+            int largest_font_size = font->getSize() > prev_font->getSize() ? font->getSize() : prev_font->getSize();
+            int min_distance = largest_font_size / 40;
+            if ( min_distance < 1 )
+                min_distance = 1;
+            // LVHorizontalOverlapMeasurementDrawBuf only computes horizontal distances.
+            // We make non-blank pixels spread vertically by 1px too, to somehow ensure
+            // glyphs don't touch vertically.
+            int vertical_spread = min_distance;
+
+            // Using a min_opacity different from 0 allows avoiding some false positive/uneeded
+            // corrections (ie. between an italic word and a regular comma or plural "s").
+            // (Should this min_opacity be increased in LVHorizontalOverlapMeasurementDrawBuf when
+            // checking vertical spreading, ie. *2 or +64 as we go away from the original y ?)
+            int min_opacity = 0x40;
+
+            // For easier visual debugging and tuning (to avoid re-renderings), uncomment and tweak this:
+            // if ( font->getHintingMode() == HINTING_MODE_DISABLED ) continue;
+            // if ( font->getHintingMode() == HINTING_MODE_BYTECODE_INTERPRETOR ) vertical_spread = 0;
+
+            LVHorizontalOverlapMeasurementDrawBuf overBuf(buf_height, true, vertical_spread, min_opacity);
+            // (We keep providing flags&LTEXT_TD_MASK, which will draw any underline and such, but
+            // this is not handled by LVHorizontalOverlapMeasurementDrawBuf; it feels we don't need
+            // to account for them in the overlap, as underline continuation could overlap and
+            // cause excessive corrections.)
+            // Draw the word on the left
+            prev_font->DrawTextString(
+                &overBuf,
+                prev_word->x,
+                y_offset - prev_font->getBaseline() + prev_word->y,
+                prev_src->t.text + prev_word->t.start,
+                prev_word->t.len,
+                '?',
+                NULL,
+                false,
+                prev_src->lang_cfg,
+                (prev_src->flags & LTEXT_TD_MASK) | WORD_FLAGS_TO_FNT_FLAGS(prev_word->flags),
+                prev_src->letter_spacing + prev_word->added_letter_spacing);
+            // Draw the word on the right
+            overBuf.DrawingRight();
+            font->DrawTextString(
+                &overBuf,
+                word->x,
+                y_offset - font->getBaseline() + word->y,
+                src->t.text + word->t.start,
+                word->t.len,
+                '?',
+                NULL,
+                false,
+                src->lang_cfg,
+                (src->flags & LTEXT_TD_MASK) | WORD_FLAGS_TO_FNT_FLAGS(word->flags),
+                src->letter_spacing + word->added_letter_spacing);
+            // Get the distance
+            int distance = overBuf.getDistance();
+            if ( distance < min_distance ) {
+                word->_top_to_baseline = min_distance - distance;
+                correction_needed_width += word->_top_to_baseline;
+                // printf("  distance: %d (min %d) => +%d\n", distance, min_distance, word->_top_to_baseline);
+            }
+        }
+        if ( correction_needed_width > 0 ) {
+            // There are some corrections to do, and we can do all or part of them
+            int available_width = extra_width + additional_extra_width;
+            // If more are needed, get it from words' min_width
+            int over_extra_needed = correction_needed_width - available_width;
+            if ( over_extra_needed > 0 && over_extra_width > 0 ) {
+                if ( over_extra_needed >= over_extra_width ) {
+                    // printf("correction: using full over_extra: %d (needed: %d)\n", over_extra_width, over_extra_needed);
+                    available_width += over_extra_width;
+                    for ( int i=0; i<(int)frmline->word_count; i++ ) {
+                        formatted_word_t * word = &frmline->words[i];
+                        word->min_width -= word->_baseline_to_bottom; // use all of what we compute we could use
+                    }
+                }
+                else {
+                    available_width = correction_needed_width;
+                    // printf("correction: using some over_extra: %d (avail: %d)\n", over_extra_needed, over_extra_width);
+                    // Loop, grabbing 1px per word until enough
+                    while ( over_extra_needed > 0 ) {
+                        for ( int i=0; i<(int)frmline->word_count; i++ ) {
+                            formatted_word_t * word = &frmline->words[i];
+                            if ( word->_baseline_to_bottom > 0 ) {
+                                word->min_width--;
+                                word->_baseline_to_bottom--;
+                                over_extra_needed--;
+                            }
+                            if ( over_extra_needed == 0 )
+                                break;
+                        }
+                    }
+                }
+            }
+            // printf("correction: %d (%d = %d+%d)\n", correction_needed_width, available_width, extra_width, additional_extra_width);
+            int added_x = 0;
+            for ( int i=1; i<(int)frmline->word_count; i++ ) {
+                formatted_word_t * word = &frmline->words[i];
+                word->x += added_x; // shift all words by what's previously been added
+                int shift_x = 0;
+                if ( word->_top_to_baseline > 0 ) {
+                    if ( available_width > 0 ) {
+                        shift_x = word->_top_to_baseline <= available_width ? word->_top_to_baseline : available_width;
+                        available_width -= shift_x;
+                    }
+                }
+                if ( shift_x <= 0 ) {
+                    continue;
+                }
+                word->x += shift_x;
+                added_x += shift_x;
+                formatted_word_t * prev_word = &frmline->words[i-1];
+                prev_word->width += shift_x;
+                prev_word->min_width += shift_x;
+                // To see where correction is done, show some overline on the word (also uncomment it in LFormattedText::Draw())
+                // word->flags |= LTEXT_WORD__AVAILABLE_BIT_16__;
+            }
+            frmline->width += added_x;
+            extra_width = usable_width - frmline->width;
+        }
+
         // We might want to prevent this when LangCfg == "de" (in german,
         // letter spacing is used for emphasis)
         if ( m_pbuffer->max_added_letter_spacing_percent > 0 // only if allowed
@@ -5049,6 +5240,8 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     lUInt32 drawFlags = srcline->flags & LTEXT_TD_MASK;
                     // and chars direction, and if word begins or ends paragraph (for Harfbuzz)
                     drawFlags |= WORD_FLAGS_TO_FNT_FLAGS(word->flags);
+                    // For debugging, to visually see overlap/italic correction:
+                    // if (word->flags & LTEXT_WORD__AVAILABLE_BIT_16__ ) drawFlags |= LTEXT_TD_OVERLINE;
                     int x0, y0, w, h;
                     if ( srcline->flags & LTEXT_MATH_TRANSFORM ) {
                         ldomNode * node = (ldomNode *) srcline->object;

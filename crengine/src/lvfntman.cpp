@@ -4092,6 +4092,8 @@ public:
                 // to not be too high (should probably be computed from other metrics)
                 int liney = y + _underline_thickness;
                 buf->FillRect( x0, liney, x, liney+_underline_thickness, cl );
+                // If we want to use this flag while developping for visually marking the start of words, use this instead:
+                // buf->FillRect( x0-_baseline/4, y, x0+_baseline/4, y+1, cl );
             }
             if ( flags & LFNT_DRAW_LINE_THROUGH ) {
                 // int liney = y + _baseline - _size/4 - h/2;
