@@ -3378,7 +3378,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // processing for images (their current font is the parent font, and
         // of no use for vertical-alignement).
         css_length_t vertical_align = style->vertical_align;
-        if ( (vertical_align.type == css_val_unspecified && vertical_align.value == css_va_baseline) ||
+        if ( rm == erm_final ) {
+            // vertical-align only applies on inline elements
+            // Any vertical-align set on a DIV or P has no effect with Firefox, and
+            // don't change the line height or baseline.
+        }
+        else if ( (vertical_align.type == css_val_unspecified && vertical_align.value == css_va_baseline) ||
               vertical_align.value == 0 ) {
             // "Align the baseline of the box with the baseline of the parent box.
             //  If the box does not have a baseline, align the bottom margin edge with
