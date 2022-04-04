@@ -96,6 +96,15 @@ enum ltext_extra_t {
     LTEXT_EXTRA_CSS_WORD_BREAK,         // word-break: break-all or keep-all
 };
 
+// Text color reserved values
+// Some color keywords can be provided when drawing (possibly by frontends).
+// We will replace CSS computed values that collide with them, with 0xFFFFFFEF, which
+// shouldn't have any impact as an alpha value of 0xFF means it won't be drawn.
+#define LTEXT_COLOR_CURRENT          0xFFFFFFFF // keep/use current buffer color
+#define LTEXT_COLOR_TRANSPARENT      0xFFFFFFFE // don't draw (CSS color:transparent)
+#define LTEXT_COLOR_IS_RESERVED(c)   ( (bool)( (c & 0xFFFFFFFE) == 0xFFFFFFFE ) )
+#define LTEXT_COLOR_RESERVED_REPLACE 0xFFFFFFEF
+
 /** \brief Source text line
 */
 typedef struct
