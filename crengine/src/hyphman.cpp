@@ -74,11 +74,13 @@ class TexHyph : public HyphMethod
     TexPattern * table[PATTERN_HASH_SIZE];
     lUInt32 _hash;
     lUInt32 _pattern_count;
+    lString32 _supported_modifiers;
 public:
     int largest_overflowed_word;
     bool match( const lChar32 * str, char * mask );
     virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     void addPattern( TexPattern * pattern );
+    void checkForModifiers( lString32 str );
     TexHyph( lString32 id=HYPH_DICT_ID_DICTIONARY, int leftHyphenMin=HYPHMETHOD_DEFAULT_HYPHEN_MIN, int rightHyphenMin=HYPHMETHOD_DEFAULT_HYPHEN_MIN );
     virtual ~TexHyph();
     bool load( LVStreamRef stream );
@@ -741,6 +743,18 @@ void TexHyph::addPattern( TexPattern * pattern )
     _pattern_count++;
 }
 
+void TexHyph::checkForModifiers( lString32 str )
+{
+    int len = str.length();
+    for ( int i=0; i<len; i++ ) {
+        if ( lGetCharProps(str[i]) & CH_PROP_MODIFIER ) {
+            if ( _supported_modifiers.pos(str[i]) < 0 ) {
+                 _supported_modifiers << str[i];
+            }
+        }
+    }
+}
+
 lUInt32 TexHyph::getSize() {
     return _pattern_count * sizeof(TexPattern);
 }
@@ -843,6 +857,7 @@ bool TexHyph::load( LVStreamRef stream )
                 p += sz + sz + 1;
             }
         }
+        // Note: support for diacritics/modifiers with checkForModifiers() not implemented
 
         return patternCount>0;
     } else {
@@ -872,6 +887,9 @@ bool TexHyph::load( LVStreamRef stream )
             else {
                 addPattern( pattern );
                 patternCount++;
+                // Check for and remember diacritics found in patterns, so we don't ignore
+                // them when present in word to hyphenate
+                checkForModifiers( data[i] );
             }
         }
         return patternCount>0;
@@ -947,14 +965,27 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
     lChar32 word[WORD_LENGTH+4] = { 0 };
     char mask[WORD_LENGTH+4] = { 0 };
 
-    // Make word from str, with soft-hyphens stripped out.
+    // Make word from str, with soft-hyphens and modifiers (combining diacritics) stripped out.
     // Prepend and append a space so patterns can match word boundaries.
+    bool has_ignorables = false;
+    int ignorables_at_right = 0;
     int wlen;
     word[0] = ' ';
     int w = 1;
     for ( int i=0; i<len; i++ ) {
-        if ( str[i] != UNICODE_SOFT_HYPHEN_CODE ) {
+        if ( (lGetCharProps(str[i]) & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {
+            // Ignore combining diacritics and soft hyphens in the word we will check.
+            // (We might want to do NFC composition, but handling/restoring the shifts is complicated.)
+            has_ignorables = true;
+            ignorables_at_right++; // Keep track of how many to ensure right_hyphen_min
+            // But keep the ones present in the pattern file (assuming they are supported fully) in the word to be matched
+            if (_supported_modifiers.pos(str[i]) >= 0) {
+                word[w++] = str[i];
+            }
+        }
+        else {
             word[w++] = str[i];
+            ignorables_at_right = 0;
         }
     }
     wlen = w-1;
@@ -1011,25 +1042,37 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
 
     // Moves allowed hyphenation positions from 'mask' to the provided 'flags',
     // taking soft-hyphen shifts into account
-    int soft_hyphens_skipped = 0;
+    int ignorables_skipped = 0;
     bool res = false;
     for ( int p=0 ; p<=len-2; p++ ) {
         // printf(" char %c\n", str[p]);
-        if ( str[p] == UNICODE_SOFT_HYPHEN_CODE ) {
-            soft_hyphens_skipped++;
+        if ( has_ignorables && (lGetCharProps(str[p]) & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) && (_supported_modifiers.pos(str[p]) < 0) ) {
+            ignorables_skipped++;
             continue;
         }
-        if (p-soft_hyphens_skipped < left_hyphen_min - 1)
+        if (p - ignorables_skipped < left_hyphen_min - 1)
             continue;
-        if (p > len - right_hyphen_min - 1)
+        if (p > len - ignorables_at_right - right_hyphen_min - 1)
             continue;
         // hyphenate
         //00010030100
         int nw = widths[p]+hyphCharWidth;
-        // printf(" word %c\n", word[p+1-soft_hyphens_skipped]);
+        // printf(" word %c\n", word[p+1-ignorables_skipped]);
         // p+2 because: +1 because word has a space prepended, and +1 because
         // mask[] holds the flag for char n on slot n+1
-        if ( (mask[p+2-soft_hyphens_skipped]&1) && nw <= maxWidth ) {
+        if ( (mask[p + 2 - ignorables_skipped] & 1) && nw <= maxWidth ) {
+            if ( has_ignorables ) {
+                // Move over any diacritics (whether or not present in the patterns) so ALLOW_HYPH_WRAP_AFTER
+                // is set after all of them
+                while ( p<=len-2 && (lGetCharProps(str[p+1]) & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {
+                    if ( _supported_modifiers.pos(str[p]) < 0 ) {
+                        ignorables_skipped++;
+                    }
+                    p++;
+                    if (p > len - ignorables_at_right - right_hyphen_min - 1)
+                        return res;
+                }
+            }
             if ( flagSize == 2 ) {
                 lUInt16* flags16 = (lUInt16*) flags;
                 flags16[p] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
