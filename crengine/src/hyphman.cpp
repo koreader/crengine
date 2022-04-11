@@ -1103,83 +1103,103 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
     int left_hyphen_min = HyphMan::_LeftHyphenMin ? HyphMan::_LeftHyphenMin : _left_hyphen_min;
     int right_hyphen_min = HyphMan::_RightHyphenMin ? HyphMan::_RightHyphenMin : _right_hyphen_min;
 
+    if (len < left_hyphen_min + right_hyphen_min)
+        return false; // too small
+
     lUInt16 chprops[WORD_LENGTH];
     if ( len > WORD_LENGTH-2 )
         len = WORD_LENGTH - 2;
     lStr_getCharProps( str, len, chprops );
-    int start, end, i, j;
-    #define MIN_WORD_LEN_TO_HYPHEN 2
-    for ( start = 0; start<len; ) {
-        // find start of word
-        while (start<len && !(chprops[start] & CH_PROP_ALPHA) )
-            ++start;
-        // find end of word
-        for ( end=start+1; end<len && (chprops[start] & CH_PROP_ALPHA); ++end )
-            ;
-        // now look over word, placing hyphens
-        if ( end-start > MIN_WORD_LEN_TO_HYPHEN ) { // word must be long enough
-            for (i=start;i<end-MIN_WORD_LEN_TO_HYPHEN;++i) {
-                if (i-start < left_hyphen_min - 1)
-                    continue;
-                if (end-i < right_hyphen_min + 1)
-                    continue;
-                if ( widths[i] > maxWidth )
-                    break;
-                if ( CH_PROP_IS_VOWEL(chprops[i]) ) {
-                    for ( j=i+1; j<end; ++j ) {
-                        if ( CH_PROP_IS_VOWEL(chprops[j]) ) {
-                            int next = i+1;
-                            while ( (chprops[next] & CH_PROP_HYPHEN) && next<end-MIN_WORD_LEN_TO_HYPHEN) {
-                                // printf("next++\n");
-                                next++;
-                            }
-                            int next2 = next+1;
-                            while ( (chprops[next2] & CH_PROP_HYPHEN) && next2<end-MIN_WORD_LEN_TO_HYPHEN) {
-                                // printf("next2++\n");
-                                next2++;
-                            }
-                            if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_CONSONANT(chprops[next2]) )
-                                i = next;
-                            else if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_ALPHA_SIGN(chprops[next2]) )
-                                i = next2;
-                            if ( i-start>=1 && end-i>2 ) {
-                                // insert hyphenation mark
-                                lUInt16 nw = widths[i] + hyphCharWidth;
-                                if ( nw<maxWidth )
-                                {
-                                    bool disabled = false;
-                                    const char * dblSequences[] = {
-                                        "sh", "th", "ph", "ch", NULL
-                                    };
-                                    next = i+1;
-                                    while ( (chprops[next] & CH_PROP_HYPHEN) && next<end-MIN_WORD_LEN_TO_HYPHEN) {
-                                        // printf("next3++\n");
-                                        next++;
-                                    }
-                                    for (int k=0; dblSequences[k]; k++)
-                                        if (str[i]==dblSequences[k][0] && str[next]==dblSequences[k][1]) {
-                                            disabled = true;
-                                            break;
-                                        }
-                                    if (!disabled) {
-                                        if ( flagSize == 2 ) {
-                                            lUInt16* flags16 = (lUInt16*) flags;
-                                            flags16[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
-                                        }
-                                        else {
-                                            flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
-                                        }
-                                    }
-                                    //widths[i] = nw; // don't add hyph width
-                                }
-                            }
+    bool res = false;
+
+    int min = len+1;
+    int nb_visible = 0;
+    for (int i=0; i <len; i++) {
+        if (chprops[i] & CH_PROP_ALPHA)
+            nb_visible++;
+        if (nb_visible >= left_hyphen_min) {
+            min = i; // We can't allow-wrap-after before this car
+            break;
+        }
+    }
+    int max = -1;
+    nb_visible = 0;
+    bool vowel_seen = false;
+    for (int i=len-1; i >=0; i--) {
+        if ( chprops[i] & CH_PROP_ALPHA )
+            nb_visible++;
+        bool is_vowel = CH_PROP_IS_VOWEL(chprops[i]);
+        if ( is_vowel )
+            vowel_seen = true;
+        if ( nb_visible >= right_hyphen_min ) {
+            max = i-1; // We can't allow-wrap-after after this car
+            if ( vowel_seen ) // We wan't at least one vowel on the right part of hyphenation
+                break;
+        }
+    }
+    if ( min > max )
+        return false;
+
+    // We may walk multiple times over some parts of the word.
+    // On each walk, we skip diacritic/modifiers and soft hyphens.
+    // We stop on a vowel (this, and the above 'max' check, ensure we will have a vowel on each side of the hyphenation)
+    // If it is followed by 2 consonants, we allow hyph wran between these 2 consonants.
+    // If it is followed by 1 consonant and a russian alpha-sign, we allow hyph wran between these.
+    // Otherwise, we allow wrap after the vowel.
+    for ( int i=0; i <= max; i++) {
+        if ( widths[i] > maxWidth )
+            break;
+        if ( CH_PROP_IS_VOWEL(chprops[i]) ) { // Go see what's after
+            while ( i+1 < len && (chprops[i+1] & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {
+                i++; // position on the last of any diacritic/hyphen combining with this vowel
+            }
+            if (i > max)
+                break;
+            int next = i+1; // not a modifier/hyphen
+            int next2 = next+1; // might be a modifier/hyphen
+            while ( next2 < len && (chprops[next2] & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {
+                next2++;
+            }
+            if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_CONSONANT(chprops[next2]) )
+                i = next;
+            else if ( CH_PROP_IS_CONSONANT(chprops[next]) && CH_PROP_IS_ALPHA_SIGN(chprops[next2]) )
+                i = next2;
+            // otherwise, allow wrap after this vowel
+            if (i > max)
+                break;
+            if ( i >= min ) {
+                // insert hyphenation mark
+                lUInt16 nw = widths[i] + hyphCharWidth;
+                if ( nw<maxWidth ) {
+                    // We prevent hyphenation between these consonants
+                    // (should we check that earlier, and break after the preceding vowel
+                    // instead of not at all?)
+                    bool forbidden = false;
+                    const char * dblSequences[] = {
+                        "sh", "th", "ph", "ch", NULL
+                    };
+                    next = i+1;
+                    while ( next < len && (chprops[next] & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {
+                        next++;
+                    }
+                    for (int k=0; dblSequences[k]; k++) {
+                        if ( str[i]==dblSequences[k][0] && str[next]==dblSequences[k][1] ) {
+                            forbidden = true;
                             break;
+                        }
+                    }
+                    if ( !forbidden ) {
+                        if ( flagSize == 2 ) {
+                            lUInt16* flags16 = (lUInt16*) flags;
+                            flags16[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+                        }
+                        else {
+                            flags[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
                         }
                     }
                 }
             }
         }
-        start=end;
     }
     return true;
 }
