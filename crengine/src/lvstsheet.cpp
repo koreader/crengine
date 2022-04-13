@@ -1183,7 +1183,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
                 int a = hexDigit( *str++ ) * 16;
                 a += hexDigit( *str++ );
                 // cre color upper byte is inverted alpha
-                value.value |= ((a + a*16)^0xFF)<<24;
+                value.value |= (a^0xFF)<<24;
             }
             return true;
         } else {
