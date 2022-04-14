@@ -905,9 +905,10 @@ void LVGrayDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color32 )
     if (x0>=x1 || y0>=y1)
         return;
     lUInt8 color = rgbToGrayMask( color32, _bpp );
-    const lUInt8 opacity = ~color32 >> 24;
-    if (opacity == 0) // Fully transparent color
+    const lUInt8 alpha = (color32 >> 24) & 0xFF;
+    if (alpha == 0xFF) // Fully transparent color
         return;
+    const lUInt8 opacity = alpha ^ 0xFF;
 #if (GRAY_INVERSE==1)
     color ^= 0xFF;
 #endif
@@ -934,7 +935,6 @@ void LVGrayDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color32 )
                     line[x] = color;
             }
             else {
-                const lUInt8 alpha = opacity ^ 0xFF;
                 for (int x=x0; x<x1; x++)
                     ApplyAlphaGray8( line[x], color, alpha, opacity );
             }
@@ -1174,6 +1174,10 @@ void LVGrayDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int
     if (x0>=x1 || y0>=y1)
         return;
     lUInt8 color = rgbToGrayMask( color0, _bpp );
+    const lUInt8 alpha = (color0 >> 24) & 0xFF;
+    if (alpha == 0xFF) // Fully transparent color
+        return;
+    const lUInt8 opacity = alpha ^ 0xFF;
 #if (GRAY_INVERSE==1)
     color ^= 0xFF;
 #endif
@@ -1198,8 +1202,13 @@ void LVGrayDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, int
             for (int x=x0; x<x1; x++)
             {
                 lUInt8 * __restrict line = GetScanLine(y);
-                if (direction==0 &&x%(length1+length2)<length1)line[x] = color;
-                if (direction==1 &&y%(length1+length2)<length1)line[x] = color;
+                if ( (direction==0 &&x%(length1+length2)<length1) ||
+                     (direction==1 &&y%(length1+length2)<length1) ) {
+                    if ( opacity == 0xFF )
+                        line[x] = color;
+                    else
+                        ApplyAlphaGray8( line[x], color, alpha, opacity );
+                }
             }
         }
     }
@@ -1719,6 +1728,9 @@ void LVColorDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, in
         y1 = _clip.bottom;
     if (x0>=x1 || y0>=y1)
         return;
+    const lUInt8 alpha = (color0 >> 24) & 0xFF;
+    if (alpha == 0xFF) // Fully transparent color
+        return;
     if ( _bpp==16 ) {
         const lUInt16 cl16 = rgb888to565(color0);
         for (int y=y0; y<y1; y++)
@@ -1726,8 +1738,13 @@ void LVColorDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, in
             lUInt16 * __restrict line = (lUInt16 *)GetScanLine(y);
             for (int x=x0; x<x1; x++)
             {
-                if (direction==0 &&x%(length1+length2)<length1)line[x] = cl16;
-                if (direction==1 &&y%(length1+length2)<length1)line[x] = cl16;
+                if ( (direction==0 &&x%(length1+length2)<length1) ||
+                     (direction==1 &&y%(length1+length2)<length1) ) {
+                    if (alpha)
+                        ApplyAlphaRGB565(line[x], cl16, alpha);
+                    else
+                        line[x] = cl16;
+                }
             }
         }
     } else {
@@ -1737,8 +1754,13 @@ void LVColorDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, in
             lUInt32 * __restrict line = (lUInt32 *)GetScanLine(y);
             for (int x=x0; x<x1; x++)
             {
-                if (direction==0 &&x%(length1+length2)<length1)line[x] = cl32;
-                if (direction==1 &&y%(length1+length2)<length1)line[x] = cl32;
+                if ( (direction==0 &&x%(length1+length2)<length1) ||
+                     (direction==1 &&y%(length1+length2)<length1) ) {
+                    if (alpha)
+                        ApplyAlphaRGB(line[x], cl32, alpha);
+                    else
+                        line[x] = cl32;
+                }
             }
         }
     }

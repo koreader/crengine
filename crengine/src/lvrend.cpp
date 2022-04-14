@@ -8595,13 +8595,18 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             leftBorderwidth=lbw;
             if (style->border_color[0].type==css_val_color)
             {
-                lUInt32 r,g,b;
-                r=g=b=topBordercolor;
-                r=r>>16;
+                lUInt32 r,g,b,o;
+                r=g=b=o=topBordercolor;
+                r=r>>16&0xff;
                 g=g>>8&0xff;
                 b=b&0xff;
-                shadecolor=(r*160/255)<<16|(g*160/255)<<8|b*160/255;
+                o=o&0xFF000000;
+                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
                 lightcolor=topBordercolor;
+                if ( (topBordercolor & 0xFFFFFF) == 0 ) {
+                    shadecolor = o|0x4c4c4c; // Firefox uses these values when color is real black 0x000000 (but not if 0x010101)
+                    lightcolor = o|0xb2b2b2;
+                }
             }
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
@@ -8700,13 +8705,18 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             // leftBorderwidth=lbw; // (not used)
             if (style->border_color[1].type==css_val_color)
             {
-                lUInt32 r,g,b;
-                r=g=b=rightBordercolor;
-                r=r>>16;
+                lUInt32 r,g,b,o;
+                r=g=b=o=rightBordercolor;
+                r=r>>16&0xff;
                 g=g>>8&0xff;
                 b=b&0xff;
-                shadecolor=(r*160/255)<<16|(g*160/255)<<8|b*160/255;
+                o=o&0xFF000000;
+                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
                 lightcolor=rightBordercolor;
+                if ( (rightBordercolor & 0xFFFFFF) == 0 ) {
+                    shadecolor = o|0x4c4c4c;
+                    lightcolor = o|0xb2b2b2;
+                }
             }
             int up=1,down=1;
             up=(hastopBorder)?0:1;
@@ -8807,13 +8817,18 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             leftBorderwidth=lbw;
             if (style->border_color[2].type==css_val_color)
             {
-                lUInt32 r,g,b;
-                r=g=b=bottomBordercolor;
-                r=r>>16;
+                lUInt32 r,g,b,o;
+                r=g=b=o=bottomBordercolor;
+                r=r>>16&0xff;
                 g=g>>8&0xff;
                 b=b&0xff;
-                shadecolor=(r*160/255)<<16|(g*160/255)<<8|b*160/255;
+                o=o&0xFF000000;
+                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
                 lightcolor=bottomBordercolor;
+                if ( (bottomBordercolor & 0xFFFFFF) == 0 ) {
+                    shadecolor = o|0x4c4c4c;
+                    lightcolor = o|0xb2b2b2;
+                }
             }
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
@@ -8903,13 +8918,18 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             leftBorderwidth=lbw;
             if (style->border_color[3].type==css_val_color)
             {
-                lUInt32 r,g,b;
-                r=g=b=leftBordercolor;
-                r=r>>16;
+                lUInt32 r,g,b,o;
+                r=g=b=o=leftBordercolor;
+                r=r>>16&0xff;
                 g=g>>8&0xff;
                 b=b&0xff;
-                shadecolor=(r*160/255)<<16|(g*160/255)<<8|b*160/255;
+                o=o&0xFF000000;
+                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
                 lightcolor=leftBordercolor;
+                if ( (leftBordercolor & 0xFFFFFF) == 0 ) {
+                    shadecolor = o|0x4c4c4c;
+                    lightcolor = o|0xb2b2b2;
+                }
             }
             int up=1,down=1;
             up=(hastopBorder)?0:1;
