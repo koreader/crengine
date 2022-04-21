@@ -90,7 +90,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.67k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x002C
+#define FORMATTING_VERSION_ID 0x002D
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -8973,6 +8973,9 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 ldomNode * node = (ldomNode *)src->object;
                 if ( !node ) // ignore crengine added text (spacing, list item bullets...)
                     continue;
+                if ( tmpword->flags & LTEXT_WORD_IS_PAD ) { // ignore inline padding
+                    continue;
+                }
                 if ( !line_is_bidi ) {
                     word = tmpword;
                     if ( find_first )
@@ -9049,6 +9052,9 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 if ( !node ) // Ignore crengine added text (spacing, list item bullets...)
                     continue;
 
+                if ( word->flags & LTEXT_WORD_IS_PAD ) {
+                    continue;
+                }
                 if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                     // pt is inside this inline-block inlineBox node
                     ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -9345,6 +9351,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             else {
                                 bestBidiRect.left = word->x + rc.left + frmline->x;
                                 if (extended) {
+                                    // (No specific handling of LTEXT_WORD_IS_PAD seems needed here and below)
                                     if (word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX) && word->width > 0)
                                         bestBidiRect.right = bestBidiRect.left + word->width; // width of image
                                     else
@@ -9557,6 +9564,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                 // Generic code when visual order = logical order
                 if ( word->src_text_index>=srcIndex || lastWord ) {
                     // found word from same src line
+                    // (No specific handling of LTEXT_WORD_IS_PAD seems needed here and below)
                     if ( word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX)
                             || word->src_text_index > srcIndex
                             || (!extended && offset <= word->t.start)

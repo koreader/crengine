@@ -432,6 +432,7 @@ public:
 #define IMAGE_CHAR_INDEX      ((lUInt16)0xFFFF)
 #define FLOAT_CHAR_INDEX      ((lUInt16)0xFFFE)
 #define INLINEBOX_CHAR_INDEX  ((lUInt16)0xFFFD)
+#define PAD_CHAR_INDEX        ((lUInt16)0xFFFC)
 
     LVFormatter(formatted_text_fragment_t * pbuffer)
     : m_pbuffer(pbuffer), m_length(0), m_size(0), m_staticBufs(true), m_y(0)
@@ -1195,6 +1196,33 @@ public:
                     #else
                         m_flags[pos] |= LCHAR_ALLOW_WRAP_AFTER;
                     #endif
+                    last_non_space_pos = pos;
+                    last_non_collapsed_space_pos = -1;
+                    prev_was_space = false;
+                    is_locked_spacing = false;
+                    pos++;
+                }
+                else if ( src->o.objflags & LTEXT_OBJECT_IS_PAD ) {
+                    // In case BiDi handling is needed, have a left pad appears as '(' and
+                    // a right pad as ')': this looks like it's just enough to have the pads
+                    // properly positionnned and ordered as with Firefox.
+                    // (Tried initially with using Bidi FSI/PDI, that would also stick them
+                    // to their inner content, but with nested inline elements with different
+                    // LTR/RTL content, we don't get at all what Firefox renders...
+                    // For the parens to be balanced and not mess BiDi level detection, we
+                    // need to get both left and right parts as LTEXT_OBJECT_IS_PAD, even if
+                    // one side has zero margin/border/padding and would not need it, which
+                    // lvrend.cpp's RenderFinalBlock() ensures.
+                    m_text[pos] = (src->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT) ? ')' : '(';
+                    m_srcs[pos] = src;
+                    m_charindex[pos] = PAD_CHAR_INDEX; //0xFFFC;
+                    m_flags[pos] = LCHAR_IS_OBJECT;
+                    // We don't handle LCHAR_ALLOW_WRAP_AFTER in any m_flags[] slot here, and we
+                    // don't feed anything to libunibreak, as this pad should be transparent to the
+                    // flow of chars. We let it unset, and will forward the flag that has been
+                    // set on the last one to the first one (for left pads) and ensure no wrap
+                    // between any of them and next non-pad char (and conversely for right pads).
+                    // We will do this in measureText() taking advantage of the loop it does).
                     last_non_space_pos = pos;
                     last_non_collapsed_space_pos = -1;
                     prev_was_space = false;
@@ -2108,6 +2136,99 @@ public:
                             width, height, m_pbuffer->width, m_max_img_height, m_length>1,
                             UnicodeToLocal(ldomXPointer((ldomNode*)m_srcs[start]->object, 0).toString()).c_str());
                         */
+                    }
+                    else if ( m_charindex[start] == PAD_CHAR_INDEX ) {
+                        // measure pad
+                        src_text_fragment_t * src = m_srcs[start];
+                        bool is_right_pad = src->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT;
+                        ldomNode * node = (ldomNode *) src->object;
+                        css_style_ref_t style = node->getStyle();
+                        int base_width = m_pbuffer->width;
+                        int margin, border, padding;
+                        // is_right_pad actually means "logical right" (so, "end"). If bidi has made
+                        // it RTL, it will be shown on the "left" side of a text segment, and so should
+                        // use the left margin/border/padding values (hoping its left pad buddy will also
+                        // be RTL and will rightly use the right margin values).
+                        // (In the context of inline elements, margin/border/padding-inline-start/end
+                        // would be more natural to use than -left/right - but it's a more recent CSS
+                        // addition that we don't support.)
+                        bool is_mirrored = lastDirection < 0;
+                        if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
+                            // Use right margin/border/padding values
+                            margin = lengthToPx( node, style->margin[1], base_width );
+                            border = measureBorder(node, 1);
+                            padding = lengthToPx( node, style->padding[1], base_width );
+                        }
+                        else {
+                            // Use left margin/border/padding values
+                            margin = lengthToPx( node, style->margin[0], base_width );
+                            border = measureBorder(node, 3);
+                            padding = lengthToPx( node, style->padding[0], base_width );
+                        }
+                        // No support for any negative value
+                        if ( margin < 0 ) margin = 0;
+                        if ( border < 0 ) border = 0;
+                        if ( padding < 0 ) padding = 0;
+                        // We store these computed values in the available fields
+                        int width = margin + border + padding;
+                        m_srcs[start]->o.width = width;             // the full width taken by this pad
+                        m_srcs[start]->o.height = padding + border; // padding + border (background-color extends into this)
+                        m_srcs[start]->o.baseline = border;         // border thickness (for drawing it)
+                        lastWidth += width;
+                        m_widths[start] = lastWidth;
+                        // Update ALLOW_WRAP_AFTER flags (that we didn't do in copyText())
+                        if ( start < m_length-1 && m_charindex[start+1] != PAD_CHAR_INDEX ) {
+                            // We are the last of possibly multiple consecutive left/right pads.
+                            // All previous ones did not get any allow_wrap set or unset, only
+                            // the last one did (marking whether wrap between the char before
+                            // all consecutive pads and the char after all of them is allowed).
+                            if ( is_right_pad ) {
+                                // Let this pad carry the one it got (if allowed, we can wrap
+                                // after this right pad itself)
+                            }
+                            else { // left pad
+                                // We can't wrap after a left pad
+                                bool allow_wrap_after = m_flags[start] & LCHAR_ALLOW_WRAP_AFTER;
+                                m_flags[start] &= ~LCHAR_ALLOW_WRAP_AFTER; // remove it
+                                if ( !allow_wrap_after ) {
+                                    // Handle an edge case: a followup leading space may get allow_wrap_after,
+                                    // and it would look odd if we allowed a break after left-pad+space.
+                                    // So consider it as if the left pad had it (this might need more work
+                                    // if there are more spaces on the right, including collapsed spaces...)
+                                    // Note that Firefox, when there are spaces at boundaries of consecutive
+                                    // inline nodes with padding, just prevent any line break at the boundary.
+                                    // This doesn't feel per-specs, and looks like some implementation side effect.
+                                    if ( !(m_flags[start+1] & LCHAR_IS_OBJECT) && m_text[start+1] == ' ' ) {
+                                        allow_wrap_after = m_flags[start+1] & LCHAR_ALLOW_WRAP_AFTER;
+                                        m_flags[start+1] &= ~LCHAR_ALLOW_WRAP_AFTER; // remove it
+                                    }
+                                }
+                                // Forward it to the nearest right-pad or char on the logical left
+                                for ( int k=start-1; k >=0; k-- ) {
+                                    if ( m_charindex[k] == PAD_CHAR_INDEX && !(m_srcs[k]->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT) ) {
+                                        continue; // left-pad: look at the next on its left
+                                    }
+                                    if ( allow_wrap_after )
+                                        m_flags[k] |= LCHAR_ALLOW_WRAP_AFTER;
+                                    else
+                                        m_flags[k] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                                    break;
+                                }
+                            }
+                        }
+                        else {
+                            // We're not the last pad: ensure obvious forbidden breaks
+                            if ( is_right_pad ) {
+                                // Don't allow a break between previous char/pad and this right pad
+                                if ( start > 0 ) {
+                                    m_flags[start-1] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                                }
+                            }
+                            else {
+                                // Don't allow a break after this left pad
+                                m_flags[start] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                            }
+                        }
                     }
                     else {
                         // Should not happen
@@ -3204,6 +3325,18 @@ public:
                         top_to_baseline = word->o.height;
                         baseline_to_bottom = 0;
                     }
+                    else if ( srcline->o.objflags & LTEXT_OBJECT_IS_PAD ) {
+                        word->flags = LTEXT_WORD_IS_PAD;
+                        word->width = srcline->o.width;         // margin + padding + border (the full width taken)
+                        word->o.height = srcline->o.height;     // padding + border (background-color extends into this)
+                        word->o.baseline = srcline->o.baseline; // border thickness (for drawing it)
+                        if ( m_flags[wstart] & LCHAR_IS_RTL ) {
+                            // Depending on context, BiDi made this pad appears as RTL: a left pad will have
+                            // to be drawn as a right pad, with padding|border|margin in this order
+                            // (and conversely for a right pad)
+                            word->flags |= LTEXT_WORD_DIRECTION_IS_RTL;
+                        }
+                    }
                     else {
                         // Should not happen
                         crFatalError(130, "Unexpected object type for word");
@@ -3214,7 +3347,12 @@ public:
                     // For vertical-align: top or bottom, delay computation as we need to
                     // know the final frmline height and baseline, which might change
                     // with upcoming words.
-                    if ( vertical_align_flag == LTEXT_VALIGN_TOP ) {
+                    if ( word->flags & LTEXT_WORD_IS_PAD ) {
+                        // We don't care about y/height/baseline
+                        word->y = srcline->valign_dy;
+                        adjust_line_box = false;
+                    }
+                    else if ( vertical_align_flag == LTEXT_VALIGN_TOP ) {
                         // was (before we delayed computation):
                         // word->y = top_to_baseline - frmline->baseline;
                         adjust_line_box = false;
@@ -4964,6 +5102,41 @@ static void getAbsMarksFromMarks(ldomMarkedRangeList * marks, ldomMarkedRangeLis
     }
 }
 
+// bdidx is border index: Top=0, Right=1, Bottom=2, Left=3 ("TRouBLe")
+static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode * borderNode, int bdidx) {
+    css_style_ref_t style = borderNode->getStyle();
+    css_length_t border_color = style->border_color[bdidx];
+    if ( border_color.type == css_val_color ) {
+        int border_width = measureBorder(borderNode, bdidx);
+        css_border_style_type_t border_style;
+        switch (bdidx){
+            case 0: border_style = style->border_style_top;    break;
+            case 1: border_style = style->border_style_right;  break;
+            case 2: border_style = style->border_style_bottom; break;
+            case 3: border_style = style->border_style_left;   break;
+        }
+        int dot, interval;
+        switch (border_style){
+            case css_border_dotted: dot = interval = border_width;     break;
+            case css_border_dashed: dot = interval = 3 * border_width; break;
+            default: dot = 1; interval = 0;                            break;
+                // To keep things simple (vs the huge lvrend.cpp's DrawBorder()),
+                // we handle every other style just as solid (no real need/room
+                // to care for groove/ridge/inset/outset/double...)
+        }
+        lUInt32 bdcl = border_color.value;
+        if ( bdidx == 0 ) { // top border
+            buf->DrawLine(x0, y, x1, y + border_width, border_color.value, dot, interval, 0);
+        }
+        else if ( bdidx == 2 ) { // bottom border
+            buf->DrawLine(x0, y + h - border_width, x1, y + h, border_color.value, dot, interval, 0);
+        }
+        else { // left or right border
+            buf->DrawLine(x0, y, x1, y + h, border_color.value, dot, interval, 1);
+        }
+    }
+}
+
 void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * marks, ldomMarkedRangeList *bookmarks )
 {
     int i, j;
@@ -5027,10 +5200,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     buf->SetClipRect( &draw_extra_info->content_overflow_clip );
                 }
             }
-            // process background
 
-            //lUInt32 bgcl = buf->GetBackgroundColor();
-            //buf->FillRect( x+frmline->x, y + frmline->y, x+frmline->x + frmline->width, y + frmline->y + frmline->height, bgcl );
+            // process background (first) and borders (which may be drawn over background)
+            bool has_inline_borders = false;
 
             // draw background for each word
             // (if multiple consecutive words share the same bgcolor, this will
@@ -5039,6 +5211,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             // handled here (only looking at the style of the inline node
             // that contains the word, and not at its other inline parents),
             // some words may not get their proper bgcolor
+            // todo: this should better be handled as done for top/bottom border below,
+            // with a flag and looking at parent nodes (and no need to pass a bgcl
+            // to AddSourceLine()).
             lUInt32 lastWordColor = LTEXT_COLOR_CURRENT; // meaning unset, no bgcolor yet
             int lastWordStart = -1;
             int lastWordEnd = -1;
@@ -5048,6 +5223,9 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 srcline = &m_pbuffer->srctext[word->src_text_index];
                 if ( (srcline->flags & LTEXT_HAS_EXTRA) && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) && !buf->WantsHiddenContent() )
                     continue;
+                if ( srcline->flags & LTEXT_HAS_TOP_BOTTOM_BORDER ) {
+                    has_inline_borders = true;
+                }
                 if (word->flags & LTEXT_WORD_IS_IMAGE)
                 {
                     // no background, TODO
@@ -5055,6 +5233,51 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 else if (word->flags & LTEXT_WORD_IS_INLINE_BOX)
                 {
                     // background if any will be drawn when drawing the box below
+                }
+                else if (word->flags & LTEXT_WORD_IS_PAD)
+                {
+                    // Draw background over left/right margin + border
+                    bool is_right_pad = srcline->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT;
+                    bool is_mirrored = word->flags & LTEXT_WORD_DIRECTION_IS_RTL; // will be drawn as if on the other side
+                    ldomNode * node = (ldomNode *) srcline->object;
+                    css_style_ref_t style = node->getStyle();
+                    if ( style->background_color.type == css_val_color ) { // background color to start/continue/end
+                        lUInt32 bgcl = LTEXT_COLOR_IS_RESERVED(style->background_color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->background_color.value;
+                        if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
+                            if ( lastWordStart!=-1 && lastWordColor!=bgcl ) {
+                                // Draw the background of a different color for previous words
+                                if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
+                                    buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                lastWordStart = -1;
+                            }
+                            // Draw the background for this pad up to its padding+border, but not its margin
+                            if ( lastWordStart < 0 ) {
+                                lastWordStart = x + frmline->x + word->x;
+                            }
+                            lastWordEnd = x + frmline->x + word->x + word->o.height; // padding+border-right
+                            lastWordColor = bgcl;
+                            if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
+                                buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                            lastWordStart = -1;
+                            lastWordEnd = -1;
+                            lastWordColor = LTEXT_COLOR_CURRENT;
+                        }
+                        else { // unmirrored left pad, or mirrored right pad
+                            if ( lastWordColor!=bgcl || lastWordStart==-1 ) {
+                                // Draw the background of a different color for previous words
+                                if ( lastWordStart!=-1 )
+                                    if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
+                                        buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                // Next drawing will include this pad's padding+border-left
+                                lastWordColor=bgcl;
+                                lastWordStart = x + frmline->x + word->x + word->width - word->o.height;
+                            }
+                            lastWordEnd = x+frmline->x+word->x+word->width;
+                        }
+                    }
+                    if ( word->o.baseline ) { // We have some left/right border to draw, that we'll do below
+                        has_inline_borders = true;
+                    }
                 }
                 else
                 {
@@ -5069,9 +5292,112 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     lastWordEnd = x+frmline->x+word->x+word->width;
                 }
             }
-            if ( lastWordStart!=-1 )
+            if ( lastWordStart!=-1 ) {
                 if ( ((lastWordColor>>24) & 0xFF) != 0xFF )
                     buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+            }
+
+            // Draw borders if we noticed there could be some
+            // Top/bottom borders support is a bit limited and not per-specs: we don't handle any
+            // top/bottom padding, and we draw a single border (the one set by the closest parent,
+            // ignoring any other set by a further parent) at the line box edges.
+            // (So, increasing line-height to make the borders from 2 lines more noticable/disctinct
+            // won't work: the borders will go away from the text, but will continue to stick to each
+            // others... It would be quite a lot more complicated to handle this properly, and hopefully
+            // this implementation is good enough in practice.)
+            if ( has_inline_borders ) {
+                // Draw top border, and then bottom border (we use the same kind
+                // of logic with lastWordStart/End as for background color above)
+                for (int side=0 ; side <=2; side+=2) {
+                    ldomNode * lastBorderNode = NULL;
+                    int lastBorderWordStart = -1;
+                    int lastBorderWordEnd = -1;
+                    for (j=0; j<frmline->word_count; j++) {
+                        word = &frmline->words[j];
+                        srcline = &m_pbuffer->srctext[word->src_text_index];
+                        ldomNode * node = (ldomNode *) srcline->object;
+                        ldomNode * thisBorderNode = NULL;
+                        if ( srcline->flags & LTEXT_HAS_TOP_BOTTOM_BORDER ) {
+                            // Find out the nearest parent node that carries some border
+                            ldomNode * tmp = node;
+                            if (tmp->isText())
+                                tmp = tmp->getParentNode();
+                            while ( tmp && tmp->getRendMethod() != erm_final ) {
+                                int border = measureBorder(tmp, side);
+                                if ( border > 0 ) {
+                                    thisBorderNode = tmp;
+                                    break;
+                                }
+                                tmp = tmp->getParentNode();
+                            }
+                        }
+                        if ( thisBorderNode != lastBorderNode && lastBorderWordStart != -1 ) {
+                            // The previous border over previous words ends: draw it
+                            drawBorder(buf, lastBorderWordStart, lastBorderWordEnd,
+                                        y+frmline->y, frmline->height, lastBorderNode, side);
+                            lastBorderWordStart = -1;
+                        }
+                        lastBorderNode = thisBorderNode;
+                        if ( thisBorderNode ) {
+                            if ( word->flags & LTEXT_WORD_IS_PAD && thisBorderNode == node) {
+                                // This is a pad that is also the one providing the border: make lastBorderWordStart/End
+                                // shorter to account for outer left/right margin
+                                bool is_right_pad = srcline->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT;
+                                bool is_mirrored = word->flags & LTEXT_WORD_DIRECTION_IS_RTL; // will be drawn as if on the other side
+                                if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
+                                    if ( lastBorderWordStart < 0 )
+                                        lastBorderWordStart = x + frmline->x + word->x;
+                                    lastBorderWordEnd = x + frmline->x + word->x + word->o.height;
+                                }
+                                else { // unmirrored left pad, or mirrored right pad
+                                    lastBorderWordStart = x + frmline->x + word->x + word->width - word->o.height;
+                                    lastBorderWordEnd = x + frmline->x + word->x + word->width;
+                                }
+                            }
+                            else { // normal word: use its full width
+                                if ( lastBorderWordStart < 0 )
+                                    lastBorderWordStart = x + frmline->x + word->x;
+                                lastBorderWordEnd = x + frmline->x + word->x + word->width;
+                            }
+                        }
+                        else { // no new border
+                            lastBorderWordStart = -1;
+                            lastBorderWordEnd = -1;
+                        }
+                    }
+                    // Done with this line, any previous border ends: draw it
+                    if ( lastBorderNode && lastBorderWordStart != -1 ) {
+                        drawBorder(buf, lastBorderWordStart, lastBorderWordEnd,
+                                    y+frmline->y, frmline->height, lastBorderNode, side);
+                    }
+                }
+
+                // Draw left/right border on pads.
+                // We draw it after any top/bottom border, so it can be drawn over them
+                // and be noticable (otherwise, top/bottom drawn over left/right margin
+                // would reduce their visible height and make them shorted, possible
+                // not noticable if dotted/dashed of a different color).
+                for (j=0; j<frmline->word_count; j++) {
+                    word = &frmline->words[j];
+                    srcline = &m_pbuffer->srctext[word->src_text_index];
+                    ldomNode * node = (ldomNode *) srcline->object;
+                    if (word->flags & LTEXT_WORD_IS_PAD && word->o.baseline ) { // there is some border to draw
+                        bool is_right_pad = srcline->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT;
+                        bool is_mirrored = word->flags & LTEXT_WORD_DIRECTION_IS_RTL; // will be drawn as if on the other side
+                        ldomNode * node = (ldomNode *) srcline->object;
+                        if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
+                            int x0 = x + frmline->x + word->x + word->o.height - word->o.baseline;
+                            int x1 = x0 + word->o.baseline;
+                            drawBorder(buf, x0, x1, y+frmline->y, frmline->height, node, 1);
+                        }
+                        else { // unmirrored left pad, or mirrored right pad
+                            int x0 = x + frmline->x + word->x + word->width - word->o.height;
+                            int x1 = x0 + word->o.baseline;
+                            drawBorder(buf, x0, x1, y+frmline->y, frmline->height, node, 3);
+                        }
+                    }
+                }
+            }
 
             // process marks
 #ifndef CR_USE_INVERT_FOR_SELECTION_MARKS
@@ -5184,6 +5510,10 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         DrawDocument( *buf, node, x0, y0, dx, dy, doc_x, doc_y, page_height, absmarks, bookmarks );
                         buf->SetClipRect(&curclip); // restore original page clip
                     }
+                }
+                else if (word->flags & LTEXT_WORD_IS_PAD)
+                {
+                    // Background and border drawing has been handled above
                 }
                 else
                 {

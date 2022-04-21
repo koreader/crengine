@@ -69,7 +69,7 @@ extern "C" {
 #define LTEXT_HYPHENATE              0x00080000  // allow hyphenation
 
 #define LTEXT_SRC_IS_OBJECT          0x00100000  // Source is not a text node
-#define LTEXT__AVAILABLE_BIT_22__    0x00200000
+#define LTEXT_HAS_TOP_BOTTOM_BORDER  0x00200000  // text should have top or bottom border (possibly from upper inline container nodes)
 #define LTEXT__AVAILABLE_BIT_23__    0x00400000
 #define LTEXT__AVAILABLE_BIT_24__    0x00800000
 // "clear" handling
@@ -92,6 +92,9 @@ extern "C" {
                                                   //                              as it is also an inlineBox wrapping node)
 #define LTEXT_OBJECT_IS_FLOAT             0x0010  // float:'ing node
 #define LTEXT_OBJECT_IS_FLOAT_DONE        0x0020  // float:'ing node (already dealt with)
+
+#define LTEXT_OBJECT_IS_PAD               0x0100  // inline pad (accounting for margin/border/padding of inline element)
+#define LTEXT_OBJECT_IS_PAD_RIGHT         0x0200  // inline pad is right pad (otherwise, left pad)
 
 // Extra LTEXT properties we can request (via these values) and fetch from the node style,
 // mostly used for rare inherited CSS properties that don't need us to waste a bit for
@@ -183,7 +186,7 @@ typedef struct
 #define LTEXT_WORD_IS_LINK_START             0x0010 /// first word of link flag
 #define LTEXT_WORD_IS_IMAGE                  0x0020 /// word is an image
 #define LTEXT_WORD_IS_INLINE_BOX             0x0040 /// word is a inline-block or inline-table wrapping box
-#define LTEXT_WORD__AVAILABLE_BIT_08__       0x0080
+#define LTEXT_WORD_IS_PAD                    0x0080 /// word is just filler for node's left/right padding/margin/border
 
 #define LTEXT_WORD_DIRECTION_KNOWN           0x0100 /// word has been thru bidi: if next flag is unset, it is LTR.
 #define LTEXT_WORD_DIRECTION_IS_RTL          0x0200 /// word is RTL

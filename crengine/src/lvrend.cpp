@@ -3662,6 +3662,35 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             }
         }
 
+        bool add_right_pad = false;
+        if ( rm == erm_inline ) {
+            // Add a flag if this inline node brings some top or bottom border
+            // (flags are kept/propagated to child elements and text nodes; when drawing
+            // we will look for it in the parent chain and use the closest met).
+            if ( !(flags & LTEXT_HAS_TOP_BOTTOM_BORDER ) ) {
+                int border_top = measureBorder(enode, 0);
+                int border_bottom = measureBorder(enode,2);
+                if ( border_top > 0 || border_bottom > 0) {
+                    flags |= LTEXT_HAS_TOP_BOTTOM_BORDER;
+                }
+            }
+            // If this inline node has any left/right margin/border/padding, add a pad object.
+            // Even if it has some on a single side, we need to add a pad on both sides for
+            // any BiDi re-ordering to keep their position correctly (we'll have the pads
+            // appear to BiDi as balanced parentheses, so they are not shuffled around).
+            int margin_left = lengthToPx( enode, style->margin[0], width );
+            int border_left = measureBorder(enode, 3);
+            int padding_left = lengthToPx( enode, style->padding[0], width );
+            int margin_right = lengthToPx( enode, style->margin[1], width );
+            int border_right = measureBorder(enode, 1);
+            int padding_right = lengthToPx( enode, style->padding[1], width );
+            if ( margin_left > 0 || border_left > 0 || padding_left > 0 || margin_right > 0 || border_right > 0 || padding_right > 0 ) {
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_PAD, line_h, valign_dy, indent, enode, lang_cfg );
+                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                add_right_pad = true;
+            }
+        }
+
         if ( is_object ) { // object element, like <IMG>
             #ifdef DEBUG_DUMP_ENABLED
                 logfile << "+OBJECT ";
@@ -3939,6 +3968,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // won't be ensured (spacing may vary from one document to another).
                 */
             }
+        }
+
+        if ( add_right_pad ) {
+            txform->AddSourceObject(flags, LTEXT_OBJECT_IS_PAD|LTEXT_OBJECT_IS_PAD_RIGHT, line_h, valign_dy, indent, enode, lang_cfg );
+            flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
         }
 
         #ifdef DEBUG_DUMP_ENABLED
@@ -10788,6 +10822,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 lastSpaceWidth = 0;
                 return;
             }
+            // Account for any margin/border/padding around this inline node (no break
+            // allowed between left/right pads and their followup/preceeding content)
+            int pad_left  = lengthToPx( node, style->margin[0], 0 ) + measureBorder(node, 3) + lengthToPx( node, style->padding[0], 0 );
+            int pad_right = lengthToPx( node, style->margin[1], 0 ) + measureBorder(node, 1) + lengthToPx( node, style->padding[1], 0 );
             if ( is_img || node->isBoxingInlineBox() ) {
                 if (!nowrap) {
                     // Get done with previous word
@@ -10808,6 +10846,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     // Get the rendered width of the inlineBox
                     getRenderedWidths(node, _maxw, _minw, direction, false, rendFlags);
                 }
+                _minw += pad_left + pad_right; // these pads should be 0 on an inlineBox
+                _maxw += pad_left + pad_right;
                 curMaxWidth += _maxw;
                 if (nowrap) {
                     curWordWidth += _minw;
@@ -10818,11 +10858,17 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 }
                 return;
             }
+            // Adding there pad_left is not really correct (it may be added to previous word
+            // and not to next word as it should, if a space follows), but well...
+            curMaxWidth += pad_left;
+            curWordWidth += pad_left;
             if ( nodeElementId == el_pseudoElem ) {
                 // pseudoElem has no children: reprocess this same node
                 // with processNodeAsText=true, to process its text content.
                 getRenderedWidths(node, maxWidth, minWidth, direction, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent, nowrap_in, lang_cfg, true);
+                curMaxWidth += pad_right;
+                curWordWidth += pad_right;
                 return;
             }
             // Contains only other inline or text nodes:
@@ -10834,6 +10880,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 getRenderedWidths(child, maxWidth, minWidth, direction, false, rendFlags,
                     curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent, nowrap_in, lang_cfg);
             }
+            curMaxWidth += pad_right;
+            curWordWidth += pad_right;
             return;
         }
 
