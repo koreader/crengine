@@ -174,12 +174,12 @@ typedef struct
 
 // formatted_word_t flags
 #define LTEXT_WORD_CAN_ADD_SPACE_AFTER       0x0001 /// can add space after this word
-#define LTEXT_WORD_CAN_BREAK_LINE_AFTER      0x0002 /// can break line after this word (not used anywhere)
-#define LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER 0x0004 /// can break with hyphenation after this word
-#define LTEXT_WORD_MUST_BREAK_LINE_AFTER     0x0008 /// must break line after this word (not used anywhere)
+#define LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER 0x0002 /// can break with hyphenation after this word
+#define LTEXT_WORD__AVAILABLE_BIT_03__       0x0004
+#define LTEXT_WORD__AVAILABLE_BIT_04__       0x0008
 
 #define LTEXT_WORD_IS_LINK_START             0x0010 /// first word of link flag
-#define LTEXT_WORD_IS_OBJECT                 0x0020 /// word is an image
+#define LTEXT_WORD_IS_IMAGE                  0x0020 /// word is an image
 #define LTEXT_WORD_IS_INLINE_BOX             0x0040 /// word is a inline-block or inline-table wrapping box
 #define LTEXT_WORD__AVAILABLE_BIT_08__       0x0080
 
