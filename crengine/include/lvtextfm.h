@@ -88,8 +88,10 @@ extern "C" {
 // Object flags (used when LTEXT_SRC_IS_OBJECT is set)
 #define LTEXT_OBJECT_IS_IMAGE             0x0001  // image
 #define LTEXT_OBJECT_IS_INLINE_BOX        0x0002  // inlineBox wrapping node
-#define LTEXT_OBJECT_IS_FLOAT             0x0004  // float:'ing node
-#define LTEXT_OBJECT_IS_FLOAT_DONE        0x0008  // float:'ing node (already dealt with)
+#define LTEXT_OBJECT_IS_EMBEDDED_BLOCK    0x0004  // block element among inlines (should also have previous bit LTEXT_OBJECT_IS_INLINE_BOX
+                                                  //                              as it is also an inlineBox wrapping node)
+#define LTEXT_OBJECT_IS_FLOAT             0x0010  // float:'ing node
+#define LTEXT_OBJECT_IS_FLOAT_DONE        0x0020  // float:'ing node (already dealt with)
 
 // Extra LTEXT properties we can request (via these values) and fetch from the node style,
 // mostly used for rare inherited CSS properties that don't need us to waste a bit for

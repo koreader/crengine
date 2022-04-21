@@ -4627,26 +4627,15 @@ public:
                 // We do not need to go thru processParagraph() to handle an embedded block
                 // (bogus block element children of an inline element): we have a dedicated
                 // handler for it.
-                bool isEmbeddedBlock = false;
-                if ( i == start + 1 ) {
+                if ( i == start + 1 && m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_OBJECT
+                                    && m_pbuffer->srctext[start].o.objflags & LTEXT_OBJECT_IS_EMBEDDED_BLOCK ) {
                     // Embedded block among inlines had been surrounded by LTEXT_FLAG_NEWLINE,
                     // so we'll get one standalone here.
-                    if ( m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_OBJECT
-                                && m_pbuffer->srctext[start].o.objflags & LTEXT_OBJECT_IS_INLINE_BOX ) {
-                        // We used LTEXT_OBJECT_IS_INLINE_BOX for embedded blocks too (to not
-                        // waste a bit in the lUInt16 for LTEXT_OBJECT_IS_EMBEDDED_BLOCK that
-                        // we would only be using here), so do this check to see if it
-                        // really is an embedded block.
-                        ldomNode * node = (ldomNode *) m_pbuffer->srctext[start].object;
-                        if ( node->isEmbeddedBlockBoxingInlineBox() ) {
-                            isEmbeddedBlock = true;
-                        }
-                    }
-                }
-                if ( isEmbeddedBlock )
                     processEmbeddedBlock( start );
-                else
+                }
+                else {
                     processParagraph( start, i, isLastPara );
+                }
                 start = i;
             }
         }
@@ -5173,7 +5162,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         getAbsMarksFromMarks(marks, absmarks, node);
                         absmarks_update_needed = false;
                     }
-                    if ( node->isEmbeddedBlockBoxingInlineBox() ) {
+                    if ( srcline->o.objflags & LTEXT_OBJECT_IS_EMBEDDED_BLOCK ) {
                         // With embedded blocks, we shouldn't drop the clip (as we do next
                         // for regular inline-block boxes)
                         DrawDocument( *buf, node, x0, y0, dx, dy, doc_x, doc_y, page_height, absmarks, bookmarks );
