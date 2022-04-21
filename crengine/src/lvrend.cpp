@@ -3118,7 +3118,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // be guessed and renderBlockElement() called to render it
             // and get is height, so LFormattedText knows how to render
             // this erm_final text around it.
-            txform->AddSourceObject(baseflags|LTEXT_SRC_IS_FLOAT, line_h, valign_dy, indent, enode, lang_cfg );
+            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode, lang_cfg );
             baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             return;
         }
@@ -3684,7 +3684,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     for ( int i=0; i<lines.length(); i++ )
                         txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
                 }
-                txform->AddSourceObject(flags, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
                 title = enode->getAttributeValue(attr_subtitle);
                 if ( !title.empty() ) {
                     lString32Collection lines;
@@ -3702,7 +3702,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             } else { // inline image
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
-                txform->AddSourceObject(flags, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
@@ -3751,12 +3751,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // in this final block (except it that space is included in some
                 // other inline element (<span> </span>) in which case, it is
                 // explicitely expected to generate an empty line.
-                // We also use LTEXT_SRC_IS_INLINE_BOX (no need to waste a bit in
-                // the lUInt32 for LTEXT_SRC_IS_EMBEDDED_BLOCK).
+                // We also use LTEXT_OBJECT_IS_INLINE_BOX (no need to waste a bit in
+                // the lUInt16 for LTEXT_OBJECT_IS_EMBEDDED_BLOCK).
             }
             // We use the flags computed previously (and not baseflags) as they
             // carry vertical alignment
-            txform->AddSourceObject(flags|LTEXT_SRC_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
+            txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
             if ( is_embedded_block ) {
                 // Let flags unchanged, with their newline/alignment flag as if it
                 // hadn't been consumed, so it is reported back into baseflags below

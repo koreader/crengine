@@ -68,11 +68,10 @@ extern "C" {
 #define LTEXT_LOCKED_SPACING         0x00040000  // regular spaces should not change width with text justification
 #define LTEXT_HYPHENATE              0x00080000  // allow hyphenation
 
-// Source object type (when source is not a text node)
-#define LTEXT_SRC_IS_OBJECT          0x00100000  // object (image)
-#define LTEXT_SRC_IS_INLINE_BOX      0x00200000  // inlineBox wrapping node
-#define LTEXT_SRC_IS_FLOAT           0x00400000  // float:'ing node
-#define LTEXT_SRC_IS_FLOAT_DONE      0x00800000  // float:'ing node (already dealt with)
+#define LTEXT_SRC_IS_OBJECT          0x00100000  // Source is not a text node
+#define LTEXT__AVAILABLE_BIT_22__    0x00200000
+#define LTEXT__AVAILABLE_BIT_23__    0x00400000
+#define LTEXT__AVAILABLE_BIT_24__    0x00800000
 // "clear" handling
 #define LTEXT_SRC_IS_CLEAR_RIGHT     0x01000000  // text follows <BR style="clear: right">
 #define LTEXT_SRC_IS_CLEAR_LEFT      0x02000000  // text follows <BR style="clear: left">
@@ -86,6 +85,11 @@ extern "C" {
 #define LTEXT__AVAILABLE_BIT_31__    0x40000000
 #define LTEXT_LEGACY_RENDERING       0x80000000  // Legacy text rendering tweaks
 
+// Object flags (used when LTEXT_SRC_IS_OBJECT is set)
+#define LTEXT_OBJECT_IS_IMAGE             0x0001  // image
+#define LTEXT_OBJECT_IS_INLINE_BOX        0x0002  // inlineBox wrapping node
+#define LTEXT_OBJECT_IS_FLOAT             0x0004  // float:'ing node
+#define LTEXT_OBJECT_IS_FLOAT_DONE        0x0008  // float:'ing node (already dealt with)
 
 // Extra LTEXT properties we can request (via these values) and fetch from the node style,
 // mostly used for rare inherited CSS properties that don't need us to waste a bit for
@@ -129,6 +133,7 @@ typedef struct
         } t;
         struct {
             // (Note: width & height will be stored negative when they are in % unit)
+            lUInt16        objflags; /**< \brief object flags */
             lInt16         width;    /**< \brief width of image or inline-block-box */
             lInt16         height;   /**< \brief height of image or inline-block box */
             lUInt16        baseline; /**< \brief baseline of inline-block box */
@@ -361,6 +366,7 @@ void lvtextAddSourceObject(
    lInt16         width,
    lInt16         height,
    lUInt32         flags,     /* flags */
+   lUInt16         objflags,  /* object flags */
    lInt16          interval,  /* line height in screen pixels */
    lInt16          valign_dy, /* drift y from baseline */
    lInt16          indent,    /* first line indent (or all but first, when negative) */
@@ -421,6 +427,7 @@ public:
 
     void AddSourceObject(
                 lUInt32         flags,     /* flags */
+                lUInt16         objflags,  /* object flags */
                 lInt16          interval,  /* line height in screen pixels */
                 lInt16          valign_dy, /* drift y from baseline */
                 lInt16          indent,    /* first line indent (or all but first, when negative) */
