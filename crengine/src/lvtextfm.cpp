@@ -239,7 +239,7 @@ void lvtextAddSourceLine( formatted_text_fragment_t * pbuffer,
 //        CRLog::trace("c font = %08x  txt = %08x", (lUInt32)font, (lUInt32)text);
 //        ((LVFont*)font)->getVisualAligmentWidth();
 //    }
-//    if (font == NULL && ((flags & LTEXT_WORD_IS_OBJECT) == 0)) {
+//    if (font == NULL && ((flags & LTEXT_WORD_IS_IMAGE) == 0)) {
 //        CRLog::fatal("No font specified for text");
 //    }
     if ( !lang_cfg )
@@ -429,7 +429,7 @@ public:
 // So, when checking for these, also checks for m_flags[i] & LCHAR_IS_OBJECT.
 // Note that m_charindex, being lUInt16, assume text nodes are not longer
 // than 65535 chars. Things will get messy with longer text nodes...
-#define OBJECT_CHAR_INDEX     ((lUInt16)0xFFFF)
+#define IMAGE_CHAR_INDEX      ((lUInt16)0xFFFF)
 #define FLOAT_CHAR_INDEX      ((lUInt16)0xFFFE)
 #define INLINEBOX_CHAR_INDEX  ((lUInt16)0xFFFD)
 
@@ -1181,7 +1181,7 @@ public:
                 else if ( src->o.objflags & LTEXT_OBJECT_IS_IMAGE ) {
                     m_text[pos] = 0;
                     m_srcs[pos] = src;
-                    m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
+                    m_charindex[pos] = IMAGE_CHAR_INDEX; //0xFFFF;
                     m_flags[pos] = LCHAR_IS_OBJECT;
                     #if (USE_LIBUNIBREAK==1)
                         // Let libunibreak know there was an object
@@ -2073,7 +2073,7 @@ public:
                         lastWidth += width;
                         m_widths[start] = lastWidth;
                     }
-                    else {
+                    else if ( m_charindex[start] == IMAGE_CHAR_INDEX ) {
                         // measure image
                         // assume i==start+1
                         src_text_fragment_t * src = m_srcs[start];
@@ -2108,6 +2108,10 @@ public:
                             width, height, m_pbuffer->width, m_max_img_height, m_length>1,
                             UnicodeToLocal(ldomXPointer((ldomNode*)m_srcs[start]->object, 0).toString()).c_str());
                         */
+                    }
+                    else {
+                        // Should not happen
+                        crFatalError(129, "Attempting to measure unexpected object type");
                     }
                 }
                 else {
@@ -3187,7 +3191,7 @@ public:
                         }
                     }
                     else if ( srcline->o.objflags & LTEXT_OBJECT_IS_IMAGE ) {
-                        word->flags = LTEXT_WORD_IS_OBJECT;
+                        word->flags = LTEXT_WORD_IS_IMAGE;
                         // The image dimensions have already been resized to fit
                         // into m_pbuffer->width (and strut confining if requested.
                         // Note: it can happen when there is some text-indent than
@@ -3592,8 +3596,6 @@ public:
                         // between previous word and this one if needed
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                     }
-                    // if ( m_flags[i-1] & LCHAR_ALLOW_WRAP_AFTER )
-                    //     word->flags |= LTEXT_WORD_CAN_BREAK_LINE_AFTER; // not used anywhere
 
                     if ( lastWord && (align == LTEXT_ALIGN_RIGHT || align == LTEXT_ALIGN_WIDTH) ) {
                         // Adjust line end if needed.
@@ -5057,7 +5059,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 srcline = &m_pbuffer->srctext[word->src_text_index];
                 if ( (srcline->flags & LTEXT_HAS_EXTRA) && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) && !buf->WantsHiddenContent() )
                     continue;
-                if (word->flags & LTEXT_WORD_IS_OBJECT)
+                if (word->flags & LTEXT_WORD_IS_IMAGE)
                 {
                     // no background, TODO
                 }
@@ -5134,7 +5136,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 srcline = &m_pbuffer->srctext[word->src_text_index];
                 if ( (srcline->flags & LTEXT_HAS_EXTRA) && getLTextExtraProperty(srcline, LTEXT_EXTRA_CSS_HIDDEN) && !buf->WantsHiddenContent() )
                     continue;
-                if (word->flags & LTEXT_WORD_IS_OBJECT)
+                if (word->flags & LTEXT_WORD_IS_IMAGE)
                 {
                     ldomNode * node = (ldomNode *) srcline->object;
                     if (node) {
