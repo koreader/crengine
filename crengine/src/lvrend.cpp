@@ -3710,8 +3710,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             #ifdef DEBUG_DUMP_ENABLED
                 logfile << "+INLINEBOX ";
             #endif
-            bool is_embedded_block = enode->isEmbeddedBlockBoxingInlineBox();
-            if ( is_embedded_block ) {
+            if ( enode->isEmbeddedBlockBoxingInlineBox() ) {
                 // If embedded-block wrapper: it should not be part of the lines
                 // made by the surrounding text/elements: we should ensure a new
                 // line before and after it.
@@ -3745,25 +3744,22 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // These might have no effect, but let's explicitely drop them.
                 valign_dy = 0;
                 indent = 0;
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode, lang_cfg );
+                // Let flags unchanged, with their newline/alignment flag as if it
+                // hadn't been consumed, so it is reported back into baseflags below
+                // so that the next sibling (or upper followup inline node) starts
+                // on a new line.
                 // Note: a space just before or just after (because of a newline in
                 // the HTML source) should have been removed or included in the
                 // boxing element - so we shouldn't have any spurious empty line
                 // in this final block (except it that space is included in some
                 // other inline element (<span> </span>) in which case, it is
                 // explicitely expected to generate an empty line.
-                // We also use LTEXT_OBJECT_IS_INLINE_BOX (no need to waste a bit in
-                // the lUInt16 for LTEXT_OBJECT_IS_EMBEDDED_BLOCK).
-            }
-            // We use the flags computed previously (and not baseflags) as they
-            // carry vertical alignment
-            txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
-            if ( is_embedded_block ) {
-                // Let flags unchanged, with their newline/alignment flag as if it
-                // hadn't been consumed, so it is reported back into baseflags below
-                // so that the next sibling (or upper followup inline node) starts
-                // on a new line.
             }
             else {
+                // We use the flags computed previously (and not baseflags) as they
+                // carry vertical alignment
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
