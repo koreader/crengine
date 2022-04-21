@@ -9277,9 +9277,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
         ldomXPointerEx xp(node, offset);
         for ( int i=0; i<txtform->GetSrcCount(); i++ ) {
             const src_text_fragment_t * src = txtform->GetSrcInfo(i);
-            if ( src->flags & LTEXT_SRC_IS_FLOAT ) // skip floats
-                continue;
             bool isObject = (src->flags&LTEXT_SRC_IS_OBJECT)!=0;
+            if ( isObject && src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) // skip floats
+                continue;
             if ( src->object == node ) {
                 srcIndex = i;
                 srcLen = isObject ? 0 : src->t.len;

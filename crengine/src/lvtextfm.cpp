@@ -277,7 +277,8 @@ void lvtextAddSourceObject(
    formatted_text_fragment_t * pbuffer,
    lInt16         width,
    lInt16         height,
-   lUInt32         flags,     /* flags */
+   lUInt32         flags,     /* text context flags */
+   lUInt16         objflags,  /* object flags */
    lInt16          interval,  /* line height in screen pixels */
    lInt16          valign_dy, /* drift y from baseline */
    lInt16          indent,    /* first line indent (or all but first, when negative) */
@@ -294,11 +295,12 @@ void lvtextAddSourceObject(
     }
     src_text_fragment_t * pline = &pbuffer->srctext[ pbuffer->srctextlen++ ];
     pline->index = (lUInt16)(pbuffer->srctextlen-1);
+    pline->flags = flags | LTEXT_SRC_IS_OBJECT;
+    pline->o.objflags = objflags;
     pline->o.width = width;
     pline->o.height = height;
     pline->object = object;
     pline->indent = indent;
-    pline->flags = flags | LTEXT_SRC_IS_OBJECT;
     pline->interval = interval;
     pline->valign_dy = valign_dy;
     pline->letter_spacing = letter_spacing;
@@ -341,7 +343,8 @@ int getLTextExtraProperty( src_text_fragment_t * srcline, ltext_extra_t extra_pr
 #ifdef __cplusplus
 
 void LFormattedText::AddSourceObject(
-            lUInt32         flags,     /* flags */
+            lUInt32         flags,     /* text context flags */
+            lUInt16         objflags,  /* object flags */
             lInt16          interval,  /* line height in screen pixels */
             lInt16          valign_dy, /* drift y from baseline */
             lInt16          indent,    /* first line indent (or all but first, when negative) */
@@ -360,18 +363,18 @@ void LFormattedText::AddSourceObject(
     // 0-width/height, they will be computed later.
     // (lvtextAddSourceObject will itself add to flags: | LTEXT_SRC_IS_OBJECT)
     lvtextAddSourceObject(m_pbuffer, 0, 0,
-        flags, interval, valign_dy, indent, object, lang_cfg, letter_spacing );
+        flags, objflags, interval, valign_dy, indent, object, lang_cfg, letter_spacing );
 
     // Notes about the 3 cases:
-    // if (flags & LTEXT_SRC_IS_FLOAT):
+    // if (objflags & LTEXT_OBJECT_IS_FLOAT):
     //   Only flags & object parameter will be used, the others are not,
     //   but they matter if this float is the first node in a paragraph,
     //   as the code may grab them from the first source
-    // if (flags & LTEXT_SRC_IS_INLINE_BOX):
+    // if (objflags & LTEXT_OBJECT_IS_INLINE_BOX):
     //   We can't yet render it to get its width & neight, as they might
     //   be in % of our main width, that we don't know yet (but only
     //   when ->Format() is called).
-    // otherwise, it's an image:
+    // if (objflags & LTEXT_OBJECT_IS_IMAGE):
     //   Handling CSS width and height (and min/max-width/height) will be done
     //   in measureText(), where we know about the buffer width (its container
     //   width) and can better apply values in %
@@ -885,15 +888,9 @@ public:
         // PASS 1: calculate total length (characters + objects)
         for ( i=start; i<end; i++ ) {
             src_text_fragment_t * src = &m_pbuffer->srctext[i];
-            if ( src->flags & LTEXT_SRC_IS_FLOAT ) {
+            if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
                 pos++;
-            }
-            else if ( src->flags & LTEXT_SRC_IS_INLINE_BOX ) {
-                pos++;
-            }
-            else if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
-                pos++;
-                if (!m_has_images) {
+                if ( (src->o.objflags & LTEXT_OBJECT_IS_IMAGE) && !m_has_images) {
                     // Compute images max height only when we meet an image,
                     // and only for the first one as it's the same for all
                     // images in this paragraph
@@ -1090,7 +1087,8 @@ public:
                         handled = true;
                     }
                 }
-                if ( !handled && src->flags & (LTEXT_SRC_IS_INLINE_BOX|LTEXT_SRC_IS_OBJECT) ) {
+                if ( !handled && (src->flags & LTEXT_SRC_IS_OBJECT)
+                              && (src->o.objflags & (LTEXT_OBJECT_IS_IMAGE|LTEXT_OBJECT_IS_INLINE_BOX) ) ) {
                     // Not per-spec, but might be handy:
                     // If an image or our internal inlineBox element has been set
                     // to "white-space: nowrap", it's most probably that it has
@@ -1135,72 +1133,78 @@ public:
             }
             #endif
 
-            if ( src->flags & LTEXT_SRC_IS_FLOAT ) {
-                m_text[pos] = 0;
-                m_srcs[pos] = src;
-                m_charindex[pos] = FLOAT_CHAR_INDEX; //0xFFFE;
-                m_flags[pos] = LCHAR_IS_OBJECT;
-                    // Note: m_flags was a lUInt8, and there were already 8 LCHAR_IS_* bits/flags
-                    //   so we couldn't add our own. But using LCHAR_IS_OBJECT should not hurt,
-                    //   as we do the FLOAT tests before it is used.
-                    //   m_charindex[pos] is the one to use to detect FLOATs
-                    // m_flags has since be updated to lUint16, but no real need
-                    // to change what we did for floats to use a new flag.
-                pos++;
-                // No need to update prev_was_space or last_non_space_pos
-                // No need for libunibreak object replacement character
-            }
-            else if ( src->flags & LTEXT_SRC_IS_INLINE_BOX ) {
-                // Note: we shouldn't meet any EmbeddedBlock inlineBox here (and in
-                // processParagraph(), addLine() and alignLine()) as they are dealt
-                // with specifically in splitParagraphs() by processEmbeddedBlock().
-                m_text[pos] = 0;
-                m_srcs[pos] = src;
-                m_charindex[pos] = INLINEBOX_CHAR_INDEX; //0xFFFD;
-                m_flags[pos] = LCHAR_IS_OBJECT;
-                #if (USE_LIBUNIBREAK==1)
-                    // Let libunibreak know there was an object, for the followup text
-                    // to set LCHAR_ALLOW_WRAP_AFTER on it.
-                    // (it will allow wrap before and after an object, unless it's near
-                    // some punctuation/quote/paren, whose rules will be ensured it seems).
-                    int brk = lb_process_next_char(&lbCtx, (utf32_t)0xFFFC); // OBJECT REPLACEMENT CHARACTER
-                    if (pos > 0) {
-                        if (brk == LINEBREAK_ALLOWBREAK)
-                            m_flags[pos-1] |= LCHAR_ALLOW_WRAP_AFTER;
-                        else
-                            m_flags[pos-1] &= ~LCHAR_ALLOW_WRAP_AFTER;
-                    }
-                #else
-                    m_flags[pos] |= LCHAR_ALLOW_WRAP_AFTER;
-                #endif
-                last_non_space_pos = pos;
-                last_non_collapsed_space_pos = -1;
-                prev_was_space = false;
-                is_locked_spacing = false;
-                pos++;
-            }
-            else if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
-                m_text[pos] = 0;
-                m_srcs[pos] = src;
-                m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
-                m_flags[pos] = LCHAR_IS_OBJECT;
-                #if (USE_LIBUNIBREAK==1)
-                    // Let libunibreak know there was an object
-                    int brk = lb_process_next_char(&lbCtx, (utf32_t)0xFFFC); // OBJECT REPLACEMENT CHARACTER
-                    if (pos > 0) {
-                        if (brk == LINEBREAK_ALLOWBREAK)
-                            m_flags[pos-1] |= LCHAR_ALLOW_WRAP_AFTER;
-                        else
-                            m_flags[pos-1] &= ~LCHAR_ALLOW_WRAP_AFTER;
-                    }
-                #else
-                    m_flags[pos] |= LCHAR_ALLOW_WRAP_AFTER;
-                #endif
-                last_non_space_pos = pos;
-                last_non_collapsed_space_pos = -1;
-                prev_was_space = false;
-                is_locked_spacing = false;
-                pos++;
+            if ( src->flags & LTEXT_SRC_IS_OBJECT ) {
+                if ( src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) {
+                    m_text[pos] = 0;
+                    m_srcs[pos] = src;
+                    m_charindex[pos] = FLOAT_CHAR_INDEX; //0xFFFE;
+                    m_flags[pos] = LCHAR_IS_OBJECT;
+                        // Note: m_flags was a lUInt8, and there were already 8 LCHAR_IS_* bits/flags
+                        //   so we couldn't add our own. But using LCHAR_IS_OBJECT should not hurt,
+                        //   as we do the FLOAT tests before it is used.
+                        //   m_charindex[pos] is the one to use to detect FLOATs
+                        // m_flags has since be updated to lUint16, but no real need
+                        // to change what we did for floats to use a new flag.
+                    pos++;
+                    // No need to update prev_was_space or last_non_space_pos
+                    // No need for libunibreak object replacement character
+                }
+                else if ( src->o.objflags & LTEXT_OBJECT_IS_INLINE_BOX ) {
+                    // Note: we shouldn't meet any EmbeddedBlock inlineBox here (and in
+                    // processParagraph(), addLine() and alignLine()) as they are dealt
+                    // with specifically in splitParagraphs() by processEmbeddedBlock().
+                    m_text[pos] = 0;
+                    m_srcs[pos] = src;
+                    m_charindex[pos] = INLINEBOX_CHAR_INDEX; //0xFFFD;
+                    m_flags[pos] = LCHAR_IS_OBJECT;
+                    #if (USE_LIBUNIBREAK==1)
+                        // Let libunibreak know there was an object, for the followup text
+                        // to set LCHAR_ALLOW_WRAP_AFTER on it.
+                        // (it will allow wrap before and after an object, unless it's near
+                        // some punctuation/quote/paren, whose rules will be ensured it seems).
+                        int brk = lb_process_next_char(&lbCtx, (utf32_t)0xFFFC); // OBJECT REPLACEMENT CHARACTER
+                        if (pos > 0) {
+                            if (brk == LINEBREAK_ALLOWBREAK)
+                                m_flags[pos-1] |= LCHAR_ALLOW_WRAP_AFTER;
+                            else
+                                m_flags[pos-1] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                        }
+                    #else
+                        m_flags[pos] |= LCHAR_ALLOW_WRAP_AFTER;
+                    #endif
+                    last_non_space_pos = pos;
+                    last_non_collapsed_space_pos = -1;
+                    prev_was_space = false;
+                    is_locked_spacing = false;
+                    pos++;
+                }
+                else if ( src->o.objflags & LTEXT_OBJECT_IS_IMAGE ) {
+                    m_text[pos] = 0;
+                    m_srcs[pos] = src;
+                    m_charindex[pos] = OBJECT_CHAR_INDEX; //0xFFFF;
+                    m_flags[pos] = LCHAR_IS_OBJECT;
+                    #if (USE_LIBUNIBREAK==1)
+                        // Let libunibreak know there was an object
+                        int brk = lb_process_next_char(&lbCtx, (utf32_t)0xFFFC); // OBJECT REPLACEMENT CHARACTER
+                        if (pos > 0) {
+                            if (brk == LINEBREAK_ALLOWBREAK)
+                                m_flags[pos-1] |= LCHAR_ALLOW_WRAP_AFTER;
+                            else
+                                m_flags[pos-1] &= ~LCHAR_ALLOW_WRAP_AFTER;
+                        }
+                    #else
+                        m_flags[pos] |= LCHAR_ALLOW_WRAP_AFTER;
+                    #endif
+                    last_non_space_pos = pos;
+                    last_non_collapsed_space_pos = -1;
+                    prev_was_space = false;
+                    is_locked_spacing = false;
+                    pos++;
+                }
+                else {
+                    // Should not happen
+                    crFatalError(128, "Unexpected object type");
+                }
             }
             else {
                 #if (USE_LIBUNIBREAK==1)
@@ -2905,7 +2909,7 @@ public:
         // We can just skip FLOATs in addLine(), as they were taken
         // care of in processParagraph() to just reduce the available width
         // So skip floats at start:
-        while (lastSrc && (lastSrc->flags & LTEXT_SRC_IS_FLOAT) ) {
+        while (lastSrc && (lastSrc->flags & LTEXT_SRC_IS_OBJECT) && (lastSrc->o.objflags & LTEXT_OBJECT_IS_FLOAT) ) {
             start++;
             lastSrc = m_srcs[start];
         }
@@ -3079,7 +3083,7 @@ public:
                 while (wstart < i) {
                     if ( !(m_flags[wstart] & LCHAR_IS_COLLAPSED_SPACE) &&
                          !(m_flags[wstart] & LCHAR_IS_TO_IGNORE) &&
-                            !(m_srcs[wstart]->flags & LTEXT_SRC_IS_FLOAT) )
+                            !(m_srcs[wstart]->flags & LTEXT_SRC_IS_OBJECT && m_srcs[wstart]->o.objflags & LTEXT_OBJECT_IS_FLOAT) )
                         break;
                     // printf("_"); // to see when we remove one, before the TR() below
                     wstart++;
@@ -3161,7 +3165,7 @@ public:
                     word->width = srcline->o.width;
                     word->min_width = word->width;
                     word->o.height = srcline->o.height;
-                    if ( srcline->flags & LTEXT_SRC_IS_INLINE_BOX ) { // inline-block
+                    if ( srcline->o.objflags & LTEXT_OBJECT_IS_INLINE_BOX ) { // inline-block
                         word->flags = LTEXT_WORD_IS_INLINE_BOX;
                         // For inline-block boxes, the baseline may not be the bottom; it has
                         // been computed in measureText().
@@ -3182,7 +3186,7 @@ public:
                             }
                         }
                     }
-                    else { // image
+                    else if ( srcline->o.objflags & LTEXT_OBJECT_IS_IMAGE ) {
                         word->flags = LTEXT_WORD_IS_OBJECT;
                         // The image dimensions have already been resized to fit
                         // into m_pbuffer->width (and strut confining if requested.
@@ -3195,6 +3199,10 @@ public:
                         // Per specs, the baseline is the bottom of the image
                         top_to_baseline = word->o.height;
                         baseline_to_bottom = 0;
+                    }
+                    else {
+                        // Should not happen
+                        crFatalError(130, "Unexpected object type for word");
                     }
 
                     // srcline->valign_dy sets the baseline, except in a few specific cases
@@ -3251,7 +3259,7 @@ public:
                     // only "avoid" as it may have some purpose to stick a full-width image
                     // or inline-block to the previous or next line).
                     ldomNode * node = (ldomNode *) srcline->object;
-                    if ( node && srcline->flags & LTEXT_SRC_IS_INLINE_BOX ) {
+                    if ( node && srcline->o.objflags & LTEXT_OBJECT_IS_INLINE_BOX ) {
                         // We have not propagated page_break styles from the original
                         // inline-block to its inlineBox wrapper
                         node = node->getChildNode(0);
@@ -4085,10 +4093,10 @@ public:
                         // object, but the whole code allows for re-formatting and
                         // they should give the same result.
                         // So, use a flag to not re-add already processed floats.
-                        if ( !(src->flags & LTEXT_SRC_IS_FLOAT_DONE) ) {
+                        if ( !(src->o.objflags & LTEXT_OBJECT_IS_FLOAT_DONE) ) {
                             int currentWidth = x + m_widths[i]-w0 - spaceReduceWidth;
                             addFloat( src, currentWidth );
-                            src->flags |= LTEXT_SRC_IS_FLOAT_DONE;
+                            src->o.objflags |= LTEXT_OBJECT_IS_FLOAT_DONE;
                             maxWidth = getCurrentLineWidth();
                         }
                         // We don't set lastNormalWrap when collapsed spaces,
@@ -4621,9 +4629,10 @@ public:
                 if ( i == start + 1 ) {
                     // Embedded block among inlines had been surrounded by LTEXT_FLAG_NEWLINE,
                     // so we'll get one standalone here.
-                    if ( m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_INLINE_BOX ) {
-                        // We used LTEXT_SRC_IS_INLINE_BOX for embedded blocks too (to not
-                        // waste a bit in the lUInt32 for LTEXT_SRC_IS_EMBEDDED_BLOCK that
+                    if ( m_pbuffer->srctext[start].flags & LTEXT_SRC_IS_OBJECT
+                                && m_pbuffer->srctext[start].o.objflags & LTEXT_OBJECT_IS_INLINE_BOX ) {
+                        // We used LTEXT_OBJECT_IS_INLINE_BOX for embedded blocks too (to not
+                        // waste a bit in the lUInt16 for LTEXT_OBJECT_IS_EMBEDDED_BLOCK that
                         // we would only be using here), so do this check to see if it
                         // really is an embedded block.
                         ldomNode * node = (ldomNode *) m_pbuffer->srctext[start].object;
