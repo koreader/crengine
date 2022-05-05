@@ -2306,10 +2306,13 @@ public:
 /// PageMapItems container
 class LVPageMap
 {
-    friend class LVDocView;
+    friend class ldomDocument;
 private:
     ldomDocument *  _doc;
     int             _valid_for_visible_page_numbers;
+    int             _chars_per_synthetic_page; // non-0 means this pagemap has synthetic pages
+    bool            _is_document_provided;
+    bool            _has_document_provided;
     lString32       _source;
     LVPtrVector<LVPageMapItem> _children;
     void addPage( LVPageMapItem * item ) {
@@ -2341,12 +2344,21 @@ public:
         _valid_for_visible_page_numbers = visible_page_numbers;
     }
     void invalidatePageInfo() { _valid_for_visible_page_numbers = 0; }
+    // Whether this page map comes from the document itself
+    void setIsDocumentProvided( bool is_document_provided ) {
+        _is_document_provided = is_document_provided;
+        if ( _is_document_provided ) // If this was called once with true, the document provides some pagemap
+            _has_document_provided = true;
+    }
+    bool isDocumentProvided() const { return _is_document_provided; }
+    bool hasDocumentProvided() const { return _has_document_provided; }
+    int isSynthetic() const { return _chars_per_synthetic_page; }
     // Page source (info about the book paper version the page labels reference)
     void setSource( lString32 source ) { _source = source; }
     lString32 getSource() const { return _source; }
     // root node constructor
     LVPageMap( ldomDocument * doc )
-        : _doc(doc), _valid_for_visible_page_numbers(0) { }
+        : _doc(doc), _valid_for_visible_page_numbers(0), _chars_per_synthetic_page(0), _is_document_provided(false), _has_document_provided(false) { }
     ~LVPageMap() { clear(); }
 };
 
@@ -2513,6 +2525,8 @@ public:
 
     /// returns pointer to PageMapItems container
     LVPageMap * getPageMap() { return &m_pagemap; }
+    /// generate synthetic page map
+    void buildSyntheticPageMap( int chars_per_synthetic_page );
 
 #if BUILD_LITE!=1
     bool isTocFromCacheValid() { return _toc_from_cache_valid; }

@@ -1551,8 +1551,11 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         }
     }
 
-    if ( m_doc->getPageMap()->getChildCount() > 0 && !pageMapSource.empty() )
-        m_doc->getPageMap()->setSource(pageMapSource);
+    if ( m_doc->getPageMap()->getChildCount() > 0 ) {
+        m_doc->getPageMap()->setIsDocumentProvided(true);
+        if ( !pageMapSource.empty() )
+            m_doc->getPageMap()->setSource(pageMapSource);
+    }
 
     writer.OnTagClose(U"", U"body");
     writer.OnStop();

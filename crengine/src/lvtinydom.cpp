@@ -88,7 +88,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.67k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.68k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x002D
 
@@ -19966,6 +19966,48 @@ void ldomDocument::buildAlternativeToc()
     _toc_from_cache_valid = false; // to force update of page numbers
 }
 
+void ldomDocument::buildSyntheticPageMap( int chars_per_synthetic_page )
+{
+    m_pagemap._is_document_provided = false;
+    if ( m_pagemap._chars_per_synthetic_page == chars_per_synthetic_page ) {
+        return; // already done
+    }
+    m_pagemap.clear();
+    if ( chars_per_synthetic_page <= 0 ) {
+        m_pagemap._chars_per_synthetic_page = 0;
+        return;
+    }
+    printf("CRE: building synthetic page map (%d)\n", chars_per_synthetic_page);
+    m_pagemap._chars_per_synthetic_page = chars_per_synthetic_page;
+    ldomXPointerEx xp = ldomXPointerEx( getRootNode(), 0 );
+    int page_num = 0;
+    int count = 0; // chars needed until new page
+    // We loop thru all text nodes, whether visible or not (as visiblity can be changed
+    // with styles, and we want this to be stable)
+    while ( xp.nextText() ) {
+        // But skip text from elements which would by default be hidden (<style>, <script>,
+        // some FB2 elements...), mostly so that a huge <style> at top of document doesn't
+        // generate many synthetic pages that would end up all on the first screen page.
+        const css_elem_def_props_t * ntype = xp.getNode()->getParentNode()->getElementTypePtr();
+        if ( ntype && ntype->display == css_d_none ) {
+            continue;
+        }
+        lString32 txt = xp.getText();
+        int len = txt.length();
+        while (len > count) {
+            xp.setOffset(xp.getOffset() + count);
+            len -= count;
+            count = chars_per_synthetic_page;
+            page_num++;
+            lString32 title;
+            title.appendDecimal(page_num);
+            m_pagemap.addPage(title, ldomXPointer(xp.getNode(), xp.getOffset()), lString32::empty_str);
+        }
+        count -= len;
+    }
+    // cache file will have to be updated with the new page map
+    setCacheFileStale(true);
+}
 /// returns position pointer
 ldomXPointer LVPageMapItem::getXPointer()
 {
@@ -20037,7 +20079,9 @@ bool LVPageMapItem::deserialize( ldomDocument * doc, SerialBuf & buf )
 /// serialize to byte array (pointer will be incremented by number of bytes written)
 bool LVPageMap::serialize( SerialBuf & buf )
 {
-    buf << (lUInt32)_valid_for_visible_page_numbers << (lUInt32)_children.length() << _source;
+    buf << (lUInt32)_valid_for_visible_page_numbers << (lUInt32)_chars_per_synthetic_page
+        << (lUInt32)_is_document_provided << (lUInt32)_has_document_provided
+        << (lUInt32)_children.length() << _source;
     if ( buf.error() )
         return false;
     for ( int i=0; i<_children.length(); i++ ) {
@@ -20053,12 +20097,18 @@ bool LVPageMap::deserialize( ldomDocument * doc, SerialBuf & buf )
 {
     if ( buf.error() )
         return false;
-    lUInt32 childCount = 0;
     lUInt32 validForVisiblePageNumbers = 0;
-    buf >> validForVisiblePageNumbers >> childCount >> _source;
+    lUInt32 charsPerSyntheticPage = 0;
+    lUInt32 isDocumentProvided = 0;
+    lUInt32 hasDocumentProvided = 0;
+    lUInt32 childCount = 0;
+    buf >> validForVisiblePageNumbers >> charsPerSyntheticPage >> isDocumentProvided >> hasDocumentProvided >> childCount >> _source;
     if ( buf.error() )
         return false;
     _valid_for_visible_page_numbers = (int)validForVisiblePageNumbers;
+    _chars_per_synthetic_page = (int)charsPerSyntheticPage;
+    _is_document_provided = (bool)isDocumentProvided;
+    _has_document_provided = (bool)hasDocumentProvided;
     for ( int i=0; i<childCount; i++ ) {
         LVPageMapItem * item = new LVPageMapItem(doc);
         if ( !item->deserialize( doc, buf ) ) {
