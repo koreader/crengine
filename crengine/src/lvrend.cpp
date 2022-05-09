@@ -632,8 +632,8 @@ public:
                         if ( j != dest_idx ) {
                             rows.move(dest_idx, j); // move(indexTo, indexFrom)
                             rows_rendering_reordered = true;
-                            dest_idx++;
                         }
+                        dest_idx++;
                         group_met = true;
                     }
                     else if ( group_met ) {
