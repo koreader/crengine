@@ -36,6 +36,7 @@
 #define UNICODE_ZERO_WIDTH_SPACE 0x200b // (as written in antiword/wordconst.h)
 
 /// Unicode hyphens
+#define UNICODE_HYPHEN_MINUS     0x002D
 #define UNICODE_SOFT_HYPHEN_CODE 0x00AD
 #define UNICODE_ARMENIAN_HYPHEN  0x058A
 // All chars from U+2010 to U+2014 allow deprecated wrap after, except U+2011
