@@ -1454,10 +1454,37 @@ public:
         #endif
     }
 
+    virtual lChar32 getHyphChar() {
+        // UNICODE_SOFT_HYPHEN U+00AD was a bad choice: it's supposed to be a control code and may not
+        // have a glyph (in practice, it is there and correct in many recent fonts, but in others, it
+        // may be absent, or have a slot but a blank glyph, or it might be a too large glyph).
+        //   return UNICODE_SOFT_HYPHEN_CODE;
+        //
+        // UNICODE_HYPHEN U+2010 is what the font designer designs as a hyphen (which might be intentionally
+        // different from UNICODE_HYPHEN_MINUS U+002D). So, in a CJK font, it may be a fullwidth square glyph
+        // with a small hyphen in the middle, and in an Arabic font, it may look like an underscore to account
+        // for the Uyghur use (the only language using Arabic script that allows for hyphenation) where the
+        // hyphen sits on the baseline but disconnected from the letter before it.
+        // As we don't hyphenate fullwidth ASCII in CJK, and neither RTL words, we don't want to have this
+        // one picked from the main font if CJK/Arabic, as if we are going to draw and hyphenate English text
+        // with a fallback, we would be using this large or lower hyphenation glyph.
+        // So, don't consider it.
+        //   if ( FT_Get_Char_Index(_face, UNICODE_HYPHEN) > 0 )
+        //      return UNICODE_HYPHEN;
+        //
+        // UNICODE_HYPHEN_MINUS U+002D seems to be good and to work well for hyphenation in all fonts
+        // (except one: SimSun, a Chinese font).
+        //
+        // In most recent/classic reading fonts, these 3 glyphs looks similar.
+        // So, use U+002D:
+        return UNICODE_HYPHEN_MINUS;
+        // Note: this has not been updated in LVWin32Font.
+    }
+
     virtual int getHyphenWidth() {
         FONT_GUARD
         if ( !_hyphen_width ) {
-            _hyphen_width = getCharWidth( UNICODE_SOFT_HYPHEN_CODE );
+            _hyphen_width = getCharWidth( getHyphChar() );
         }
         return _hyphen_width;
     }
@@ -2873,7 +2900,7 @@ public:
         // find last word
         if ( allow_hyphenation ) {
             if ( !_hyphen_width )
-                _hyphen_width = getCharWidth( UNICODE_SOFT_HYPHEN_CODE );
+                _hyphen_width = getCharWidth( getHyphChar() );
             if ( lastFitChar > 3 ) {
                 int hwStart, hwEnd;
                 bool hasRtl;
@@ -3904,7 +3931,7 @@ public:
             // Comparing screenshots seems to indicate they must be added.
 
             if (addHyphen) {
-                ch = UNICODE_SOFT_HYPHEN_CODE;
+                ch = getHyphChar();
                 LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
                 if (item) {
                     w = item->advance;
@@ -3941,7 +3968,7 @@ public:
                     isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
                 }
                 else {
-                    ch = UNICODE_SOFT_HYPHEN_CODE;
+                    ch = getHyphChar();
                     isHyphen = false; // an hyphen, but not one to not draw
                 }
                 LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
@@ -4017,7 +4044,7 @@ public:
                 isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
             }
             else {
-                ch = UNICODE_SOFT_HYPHEN_CODE;
+                ch = getHyphChar();
                 isHyphen = false; // an hyphen, but not one to not draw
             }
             FT_UInt ch_glyph_index = getCharIndex( ch, def_char );
@@ -4307,7 +4334,10 @@ public:
     }
 
     /// hyphenation character
-    virtual lChar32 getHyphChar() { return UNICODE_SOFT_HYPHEN_CODE; }
+    virtual lChar32 getHyphChar() {
+        // return UNICODE_SOFT_HYPHEN_CODE;
+        return UNICODE_HYPHEN_MINUS;
+    }
 
     /// hyphen width
     virtual int getHyphenWidth() {
@@ -4598,7 +4628,7 @@ public:
                 isHyphen = (ch==UNICODE_SOFT_HYPHEN_CODE);
             }
             else {
-                ch = UNICODE_SOFT_HYPHEN_CODE;
+                ch = getHyphChar();
                 isHyphen = 0;
             }
 
