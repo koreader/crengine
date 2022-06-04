@@ -4733,6 +4733,7 @@ void LVDocView::createEmptyDocument() {
     m_doc->setMinSpaceCondensingPercent(m_props->getIntDef(PROP_FORMAT_MIN_SPACE_CONDENSING_PERCENT, DEF_MIN_SPACE_CONDENSING_PERCENT));
     m_doc->setUnusedSpaceThresholdPercent(m_props->getIntDef(PROP_FORMAT_UNUSED_SPACE_THRESHOLD_PERCENT, DEF_UNUSED_SPACE_THRESHOLD_PERCENT));
     m_doc->setMaxAddedLetterSpacingPercent(m_props->getIntDef(PROP_FORMAT_MAX_ADDED_LETTER_SPACING_PERCENT, DEF_MAX_ADDED_LETTER_SPACING_PERCENT));
+    m_doc->setCJKWidthScalePercent(m_props->getIntDef(PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT, DEF_CJK_WIDTH_SCALE_PERCENT));
     m_doc->setHangingPunctiationEnabled(m_props->getBoolDef(PROP_FLOATING_PUNCTUATION, false));
     m_doc->setRenderBlockRenderingFlags(m_props->getIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS));
     m_doc->setDOMVersionRequested(m_props->getIntDef(PROP_REQUESTED_DOM_VERSION, gDOMVersionCurrent));
@@ -6503,6 +6504,13 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
         p = 20;
     props->setInt(PROP_FORMAT_MAX_ADDED_LETTER_SPACING_PERCENT, p);
 
+    p = props->getIntDef(PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT, DEF_CJK_WIDTH_SCALE_PERCENT);
+    if (p<100)
+        p = 100;
+    if (p>150)
+        p = 150;
+    props->setInt(PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT, p);
+
     props->setIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI); // 96 dpi
     props->setIntDef(PROP_RENDER_SCALE_FONT_WITH_DPI, DEF_RENDER_SCALE_FONT_WITH_DPI); // no scale
     props->setIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
@@ -6868,6 +6876,11 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if (m_doc) // not when noDefaultDocument=true
                 if (getDocument()->setMaxAddedLetterSpacingPercent(value))
                     REQUEST_RENDER("propsApply max added letter spacing percent")
+        } else if (name == PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT) {
+            int value = props->getIntDef(PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT, DEF_CJK_WIDTH_SCALE_PERCENT);
+            if (m_doc) // not when noDefaultDocument=true
+                if (getDocument()->setCJKWidthScalePercent(value))
+                    REQUEST_RENDER("propsApply CJK width scale percent")
         } else if (name == PROP_HIGHLIGHT_COMMENT_BOOKMARKS) {
             int value = props->getIntDef(PROP_HIGHLIGHT_COMMENT_BOOKMARKS, highlight_mode_underline);
             if (m_highlightBookmarks != value) {

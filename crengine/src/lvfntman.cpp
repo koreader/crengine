@@ -3907,6 +3907,15 @@ public:
                                             item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
                                 #endif
                                 if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
+                                    int orig_width = width;
+                                    if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                                        // We want the below positionning to work inside the unscaled original glyph width
+                                        // (this feels like the most natural way to handle this, but may not look optimal
+                                        // when there are multiple consecutive opening/closing such flexible cjk chars)
+                                        int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                                        x += (w * cjk_width_scale_percent / 100 - w) / 2;
+                                        width = width * 100 / cjk_width_scale_percent;
+                                    }
                                     // We got x and have w of a fullwidth CJK char, normally some punctuation
                                     // char whose blackbox is narrow and smaller or equal to half its width.
                                     // But the position of this blackbox may depends on the opening/closing
@@ -3938,10 +3947,21 @@ public:
                                         // We want to keep it centered in the provided width.
                                         x += (width - w) / 2;
                                     }
+                                    width = orig_width; // restore it in case we tweaked it
                                     // We draw such CJK glyph one by one, so make sure the 'x += w' just below
                                     // gives x=x0+width, which is necessary to correctly draw any underline
                                     w = x0 + width - x;
                                     // Note: no thought given about what we should do if non-zero letter_spacing
+                                }
+                                else if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                                    // We need to shift x by half of what was added for scaling.
+                                    // (We could use 'width', which should usually be the glyph 'w' scaled, but we
+                                    // don't, as it may have been increased by overlap correction.)
+                                    int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                                    x += (w * cjk_width_scale_percent / 100 - w) / 2;
+                                    // We draw such CJK glyph one by one, so also make sure the 'x += w' just below
+                                    // gives x=x0+width, which is necessary to correctly draw any underline
+                                    w = x0 + width - x;
                                 }
                                 buf->Draw(x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
                                           y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
@@ -4048,6 +4068,12 @@ public:
                         if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
                             // See KERNING_MODE_HARFBUZZ section above for details and comments.
                             int w = posInfo.width;
+                            int orig_width = width;
+                            if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                                int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                                x += (w * cjk_width_scale_percent / 100 - w) / 2;
+                                width = width * 100 / cjk_width_scale_percent;
+                            }
                             if ( item->origin_x + item->bmp_width <= w/2 ) {
                                 // Glyph fully in the left half part
                             }
@@ -4066,8 +4092,15 @@ public:
                                 // Glyph overlapping the middle of the glyph
                                 x += (width - w) / 2;
                             }
+                            width = orig_width; // restore it in case we tweaked it
                             // We draw such CJK glyph one by one, so make sure the 'x += posInfo.width' just below
                             // gives x=x0+width, which is necessary to correctly draw any underline
+                            cjk_dx = x0 + width - x - posInfo.width;
+                        }
+                        else if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                            // See KERNING_MODE_HARFBUZZ section above for details and comments.
+                            int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                            x += (posInfo.width * cjk_width_scale_percent / 100 - posInfo.width) / 2;
                             cjk_dx = x0 + width - x - posInfo.width;
                         }
                         buf->Draw(x + item->origin_x + posInfo.offset,
@@ -4154,6 +4187,12 @@ public:
                     // Regular drawing of glyph at the baseline
                     if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
                         // See KERNING_MODE_HARFBUZZ section above for details and comments.
+                        int orig_width = width;
+                        if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                            int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                            x += (w * cjk_width_scale_percent / 100 - w) / 2;
+                            width = width * 100 / cjk_width_scale_percent;
+                        }
                         if ( item->origin_x + item->bmp_width <= w/2 ) {
                             // Glyph fully in the left half part
                         }
@@ -4172,8 +4211,15 @@ public:
                             // Glyph overlapping the middle of the glyph
                             x += (width - w) / 2;
                         }
+                        width = orig_width; // restore it in case we tweaked it
                         // We draw such CJK glyph one by one, so make sure the 'x += w' just below
                         // gives x=x0+width, which is necessary to correctly draw any underline
+                        w = x0 + width - x;
+                    }
+                    else if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
+                        // See KERNING_MODE_HARFBUZZ section above for details and comments.
+                        int cjk_width_scale_percent = target_w; // We've passed it via this unused param
+                        x += (w * cjk_width_scale_percent / 100 - w) / 2;
                         w = x0 + width - x;
                     }
                     buf->Draw( x + FONT_METRIC_TO_PX(kerning) + item->origin_x,

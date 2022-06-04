@@ -11474,6 +11474,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         // white-space (nowrap provided by parent with sub-call)
         bool pre = parent_style->white_space >= css_ws_pre;
         int space_width_scale_percent = pre ? 100 : parent->getDocument()->getSpaceWidthScalePercent();
+        int cjk_width_scale_percent = parent->getDocument()->getCJKWidthScalePercent();
 
         // If fit_glyphs, we'll adjust below each word width with calls to
         // getLeftSideBearing() and getRightSideBearing(). These should be
@@ -11535,8 +11536,11 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     w = w * space_width_scale_percent / 100;
                 }
                 lChar32 c = *(txt + start + i);
-                lChar32 next_c = *(txt + start + i + 1); // might be 0 at end of string
+                if ( cjk_width_scale_percent != 100 && lStr_isCJK(c) ) {
+                    w = w * cjk_width_scale_percent / 100;
+                }
                 bool is_collapsable_space = (c == ' '); // We only collapse the classic ASCII spaces in lvtextfm.cpp
+                lChar32 next_c = *(txt + start + i + 1); // might be 0 at end of string
                 if ( lang_cfg->hasLBCharSubFunc() ) {
                     next_c = lang_cfg->getLBCharSubFunc()(&lbCtx, txt+start, i+1, len-1 - (i+1));
                 }

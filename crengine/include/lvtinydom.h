@@ -113,6 +113,7 @@ extern const int gDOMVersionCurrent;
 #define DEF_MIN_SPACE_CONDENSING_PERCENT 50
 #define DEF_UNUSED_SPACE_THRESHOLD_PERCENT 5
 #define DEF_MAX_ADDED_LETTER_SPACING_PERCENT 0
+#define DEF_CJK_WIDTH_SCALE_PERCENT 100
 
 #define NODE_DISPLAY_STYLE_HASH_UNINITIALIZED 0xFFFFFFFF
 
@@ -492,6 +493,7 @@ protected:
     int  _minSpaceCondensingPercent;
     int  _unusedSpaceThresholdPercent;
     int  _maxAddedLetterSpacingPercent;
+    int  _cjkWidthScalePercent;
 
     lUInt32 _nodeStyleHash;
     lUInt32 _nodeDisplayStyleHash;
@@ -592,6 +594,17 @@ public:
         // This does not need to trigger a re-rendering, just
         // a re-formatting of the final blocks
         _renderedBlockCache.clear();
+        return true;
+    }
+
+    int getCJKWidthScalePercent() {
+        return _cjkWidthScalePercent;
+    }
+
+    bool setCJKWidthScalePercent(int cjkWidthScalePercent) {
+        if (cjkWidthScalePercent == _cjkWidthScalePercent)
+            return false;
+        _cjkWidthScalePercent = cjkWidthScalePercent;
         return true;
     }
 
