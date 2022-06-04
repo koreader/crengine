@@ -311,6 +311,8 @@ typedef struct
    lInt32                unused_space_threshold_percent; /**< % (of line width) of unused space on a line to trigger hyphenation,
                                                               or addition of letter spacing for justification  */
    lInt32                max_added_letter_spacing_percent; /**< Max allowed added letter spacing (% of font size) */
+   // CJK char width
+   lInt32                cjk_width_scale_percent; /**< scale the normal width of all CJK chars in all fonts by this percent */
 
    // Highlighting
    text_highlight_options_t highlight_options; /**< options for selection/bookmark highlighting */
@@ -420,6 +422,10 @@ public:
 
     /// set max allowed added letter spacing (0..20% of font size)
     void setMaxAddedLetterSpacingPercent(int maxAddedLetterSpacingPercent);
+
+    /// set CJK glyph width scaling percent option (100..150%)
+    // (scale the nominal width of all CJK chars in all fonts by this percent)
+    void setCJKWidthScalePercent(int cjkWidthScalePercent);
 
     /// set colors for selection and bookmarks
     void setHighlightOptions(text_highlight_options_t * options);

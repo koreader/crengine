@@ -224,6 +224,7 @@ enum kerning_mode_t {
 
 #define LFNT_HINT_TRANSFORM_STRETCH      0x0100 /// Glyph(s) are to be stretched so their bounding box fits the provided w/h
 #define LFNT_HINT_CJK_ALTERED_WIDTH      0x0200 /// CJK full width glyph is to be shifted to look correct in a non-nominal width
+#define LFNT_HINT_CJK_SCALED_WIDTH       0x0400 /// CJK full width glyph has been scaled by cjk_width_scale_percent
 
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
 #define LFNT_DRAW_UNDERLINE              0x1000 /// underlined text

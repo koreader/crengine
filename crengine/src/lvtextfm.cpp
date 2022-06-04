@@ -39,6 +39,7 @@
 #define MIN_SPACE_CONDENSING_PERCENT 50
 #define UNUSED_SPACE_THRESHOLD_PERCENT 5
 #define MAX_ADDED_LETTER_SPACING_PERCENT 0
+#define CJK_WIDTH_SCALE_PERCENT 100
 
 
 // to debug formatter
@@ -163,6 +164,7 @@ formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
     pbuffer->min_space_condensing_percent = MIN_SPACE_CONDENSING_PERCENT; // 50%
     pbuffer->unused_space_threshold_percent = UNUSED_SPACE_THRESHOLD_PERCENT; // 5%
     pbuffer->max_added_letter_spacing_percent = MAX_ADDED_LETTER_SPACING_PERCENT; // 0%
+    pbuffer->cjk_width_scale_percent = CJK_WIDTH_SCALE_PERCENT; // 100% (keep original width)
 
     return pbuffer;
 }
@@ -2001,6 +2003,11 @@ public:
                                         m_flags[start+k] |= LCHAR_IS_CJK | (m_kerning_mode != KERNING_MODE_DISABLED ? LCHAR_IS_FLEXIBLE_WIDTH_CJK : 0);
                                     }
                                 }
+                                if ( m_pbuffer->cjk_width_scale_percent != 100 && m_flags[start+k] & LCHAR_IS_CJK && char_width > 0 ) {
+                                    int added_width = char_width * m_pbuffer->cjk_width_scale_percent / 100 - char_width;
+                                    widths[k] += added_width;
+                                    cumulative_width_removed -= added_width; // (a negative cumulative_width_removed is cumulative width added)
+                                }
                             }
                         }
                         m_widths[start + k] = lastWidth + widths[k];
@@ -2537,7 +2544,8 @@ public:
             // Draw the word on the left
             lUInt32 drawFlags = (prev_src->flags & LTEXT_TD_MASK)
                               | (WORD_FLAGS_TO_FNT_FLAGS(prev_word->flags))
-                              | (prev_word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0);
+                              | (prev_word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0)
+                              | ((prev_word->flags & LTEXT_WORD_IS_CJK && m_pbuffer->cjk_width_scale_percent != 100) ? LFNT_HINT_CJK_SCALED_WIDTH : 0);
             prev_font->DrawTextString(
                 &overBuf,
                 prev_word->x,
@@ -2550,12 +2558,16 @@ public:
                 prev_src->lang_cfg,
                 drawFlags,
                 prev_src->letter_spacing + prev_word->added_letter_spacing,
-                prev_word->width);
+                prev_word->width,
+                0,
+                ((prev_word->flags & LTEXT_WORD_IS_CJK && m_pbuffer->cjk_width_scale_percent != 100) ?  m_pbuffer->cjk_width_scale_percent : -1)
+            );
             // Draw the word on the right
             overBuf.DrawingRight();
             drawFlags = (src->flags & LTEXT_TD_MASK)
                       | (WORD_FLAGS_TO_FNT_FLAGS(word->flags))
-                      | (word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0);
+                      | (word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0)
+                      | ((word->flags & LTEXT_WORD_IS_CJK && m_pbuffer->cjk_width_scale_percent != 100) ? LFNT_HINT_CJK_SCALED_WIDTH : 0);
             font->DrawTextString(
                 &overBuf,
                 word->x,
@@ -2568,7 +2580,10 @@ public:
                 src->lang_cfg,
                 drawFlags,
                 src->letter_spacing + word->added_letter_spacing,
-                word->width);
+                word->width,
+                0,
+                ((word->flags & LTEXT_WORD_IS_CJK && m_pbuffer->cjk_width_scale_percent != 100) ?  m_pbuffer->cjk_width_scale_percent : -1)
+            );
             // Get the distance
             int distance = overBuf.getDistance();
             if ( distance < min_distance ) {
@@ -5326,6 +5341,12 @@ void LFormattedText::setMaxAddedLetterSpacingPercent(int maxAddedLetterSpacingPe
         m_pbuffer->max_added_letter_spacing_percent = maxAddedLetterSpacingPercent;
 }
 
+void LFormattedText::setCJKWidthScalePercent(int cjkWidthScalePercent)
+{
+    if (cjkWidthScalePercent>=100 && cjkWidthScalePercent<=150)
+        m_pbuffer->cjk_width_scale_percent = cjkWidthScalePercent;
+}
+
 /// set colors for selection and bookmarks
 void LFormattedText::setHighlightOptions(text_highlight_options_t * v)
 {
@@ -5918,6 +5939,23 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         x0 = x + frmline->x + word->x;
                         y0 = line_y + (frmline->baseline - font->getBaseline()) + word->y;
                         w = h = 0; // unused
+                        if ( word->flags & LTEXT_WORD_IS_CJK && m_pbuffer->cjk_width_scale_percent != 100 ) {
+                            // We want the glyph drawn in the middle of the scaled width: delegate this
+                            // to font->DrawTextString() (this simplifies a lot cjk width handling, as we
+                            // don't need to consider it as spacing added on the right of glyph, and the
+                            // need to not do it for the last glyph on the line; also, we want to have any
+                            // underilne done on the scaled width, which font->DrawTextString() will do well).
+                            drawFlags |= LFNT_HINT_CJK_SCALED_WIDTH;
+                            w = m_pbuffer->cjk_width_scale_percent;
+                            // We pass cjk_width_scale_percent via the otherwise unused 'target_w' argument.
+                            // This would be not needed for non-flexible CJK chars: we don't know anymore
+                            // the original glyph width here, but font->DrawTextString() will get it from
+                            // the glyph and, from the (fixed) word->width we provide, could know it has
+                            // to shift x by half the differences.
+                            // But for flexible CJK chars, word->width may have been tweaked.
+                            // So, by passing cjk_width_scale_percent, font->DrawTextString() can
+                            // recompute the original scaled width, and get a correct x shift.
+                        }
                         if ( word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ) {
                             drawFlags |= LFNT_HINT_CJK_ALTERED_WIDTH;
                             /*

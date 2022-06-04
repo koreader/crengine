@@ -78,6 +78,8 @@
 #define PROP_FORMAT_UNUSED_SPACE_THRESHOLD_PERCENT   "crengine.style.unused.space.threshold.percent"
 // Max allowed added letter spacing (% of font size)
 #define PROP_FORMAT_MAX_ADDED_LETTER_SPACING_PERCENT "crengine.style.max.added.letter.spacing.percent"
+// CJK char width expansion (% of nominal width)
+#define PROP_FORMAT_CJK_WIDTH_SCALE_PERCENT          "crengine.style.cjk.width.scale.percent"
 
 #define PROP_FILE_PROPS_FONT_SIZE    "cr3.file.props.font.size"
 
