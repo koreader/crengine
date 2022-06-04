@@ -180,8 +180,9 @@ typedef struct
 // formatted_word_t flags
 #define LTEXT_WORD_CAN_ADD_SPACE_AFTER       0x0001 /// can add space after this word
 #define LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER 0x0002 /// can break with hyphenation after this word
-#define LTEXT_WORD__AVAILABLE_BIT_03__       0x0004
-#define LTEXT_WORD__AVAILABLE_BIT_04__       0x0008
+#define LTEXT_WORD_IS_CJK                    0x0004 /// word is a single CJK char
+#define LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK     0x0008 /// word is also a CJK char that may get its nominal width modified (CJK punctuation)
+                                                    /// (we could share 0x0002 if we need to regain a bit)
 
 #define LTEXT_WORD_IS_LINK_START             0x0010 /// first word of link flag
 #define LTEXT_WORD_IS_IMAGE                  0x0020 /// word is an image

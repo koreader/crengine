@@ -247,21 +247,11 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
 #define LCHAR_IS_COLLAPSED_SPACE     0x0200 ///< flag: this char is a space that should not be rendered
 #define LCHAR_IS_TO_IGNORE           0x0400 ///< flag: this char is to be ignored/skipped in text measurement and drawing
 #define LCHAR_IS_RTL                 0x0800 ///< flag: this char is part of a RTL segment
-
-#define LCHAR__AVAILABLE_BIT_13__    0x1000
-#define LCHAR__AVAILABLE_BIT_14__    0x2000
+#define LCHAR_IS_CJK                 0x1000 ///< flag: this char is CJK
+#define LCHAR_IS_FLEXIBLE_WIDTH_CJK  0x2000 ///< flag: this char is a CJK fullwidth char that can have its
+                                            ///        nominal width modified (mostly small punctuation)
 #define LCHAR__AVAILABLE_BIT_15__    0x4000
 #define LCHAR__AVAILABLE_BIT_16__    0x8000
-
-// Some idea, if needed:
-// #define LCHAR_IS_CJK_NOT_PUNCT       0x1000 ///< flag: this char is part a CJK char but not a punctuation
-// #define LCHAR_IS_CJK_LEFT_PUNCT      0x2000 ///< flag: this char is part a CJK left punctuation
-// #define LCHAR_IS_CJK_RIGHT_PUNCT     0x4000 ///< flag: this char is part a CJK right punctuation
-// #define LCHAR_IS_CJK_PUNCT           0x6000 ///< flag: (for checking) this char is a CJK punctuation (neutral if set)
-// #define LCHAR_IS_CJK                 0x7000 ///< flag: (for checking) this char is a CJK char
-
-// LCHAR_IS_EOL was not used by any code, and has been replaced by LCHAR_IS_CLUSTER_TAIL
-// #define LCHAR_IS_EOL              0x0010 ///< flag: this char is CR or LF
 
 
 /** \brief returns true if character is unicode space
