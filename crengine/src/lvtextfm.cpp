@@ -427,6 +427,8 @@ public:
     bool m_has_bidi; // true when Bidi (or pure RTL) detected
     bool m_para_dir_is_rtl; // boolean shortcut of m_para_bidi_type
     bool m_has_cjk; // true when some CJK met
+    int  m_cjk_prev_line_added_space_div; // Used with CJK justified lines, to
+    int  m_cjk_prev_line_added_space_mod; // apply same spacing on last line.
 
 // These are not unicode codepoints: these values are put where we
 // store text indexes in the source text node.
@@ -465,6 +467,8 @@ public:
         m_usable_right_overflow = 0;
         m_hanging_punctuation = false;
         m_has_cjk = false;
+        m_cjk_prev_line_added_space_div = 0;
+        m_cjk_prev_line_added_space_mod = 0;
         m_specified_para_dir = REND_DIRECTION_UNSET;
         #if (USE_FRIBIDI==1)
             m_bidi_ctypes = NULL;
@@ -2830,6 +2834,55 @@ public:
         }
         else if ( alignment==LTEXT_ALIGN_LEFT ) {
             // no additional alignment necessary
+            // Except may be with CJK lines (the last line of a justified paragraph being left aligned)
+            if ( m_has_cjk && ( m_cjk_prev_line_added_space_div > 0 || m_cjk_prev_line_added_space_mod > 0 ) ) {
+                // We did add spacing to the previous line to ensure text justification (see below)
+                if ( frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
+                                              && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
+                    // 2 steps: first, check if we don't exceed the available width; if not, apply changes
+                    for ( int apply=0; apply<=1; apply++ ) {
+                        if ( !apply ) {
+                            // Don't do it if addSpaceDiv is larger than 1/4 em (probably some excessive
+                            // spacing added because of long/unbreakable western word)
+                            src_text_fragment_t * src = &m_pbuffer->srctext[frmline->words[0].src_text_index];
+                            LVFont * font = (LVFont *) src->t.font;
+                            if ( m_cjk_prev_line_added_space_div > font->getSize() * 1/4 ) {
+                                break;
+                            }
+                        }
+                        int addSpaceDiv = m_cjk_prev_line_added_space_div;
+                        int addSpaceMod = m_cjk_prev_line_added_space_mod;
+                        int delta = 0;
+                        for ( int i=0; i<(int)frmline->word_count; i++ ) {
+                            if (apply)
+                                frmline->words[i].x += delta;
+                            if ( frmline->words[i].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER ) {
+                                delta += addSpaceDiv;
+                                if ( addSpaceMod>0 ) {
+                                    addSpaceMod--;
+                                    delta++;
+                                }
+                            }
+                            if ( !(frmline->words[i].flags & LTEXT_WORD_IS_CJK) ) {
+                                // No need to apply the 1px 'rest' to each word once a non-CJK has
+                                // broken the alignment: we still apply addSpaceDiv to keep some
+                                // regularity on the followup content
+                                addSpaceMod = 0;
+                            }
+                        }
+                        if ( !apply ) { // First step: check only
+                            if ( delta > extra_width ) {
+                                // Can't ensure complete and regular same spacing as previous
+                                // justified lines: don't apply any spacing tweak
+                                break;
+                            }
+                        }
+                        else {
+                            frmline->width += delta;
+                        }
+                    }
+                }
+            }
         }
         else if ( alignment==LTEXT_ALIGN_CENTER ) {
             frmline->x += extra_width / 2;
@@ -2839,6 +2892,11 @@ public:
         }
         else {
             // LTEXT_ALIGN_WIDTH
+            if ( m_has_cjk ) {
+                // Reset these if we end up not needing to add space (see below)
+                m_cjk_prev_line_added_space_div = 0;
+                m_cjk_prev_line_added_space_mod = 0;
+            }
             if ( extra_width > 0 ) {
                 // distribute additional space
                 int extraSpace = extra_width;
@@ -2851,6 +2909,22 @@ public:
                 if ( addSpacePoints>0 ) {
                     int addSpaceDiv = extraSpace / addSpacePoints;
                     int addSpaceMod = extraSpace % addSpacePoints;
+                    if ( m_has_cjk ) {
+                        // We are adding spacing to justify the text. Remember the spacing we are
+                        // adding to this line in case the next line is the last. The last line
+                        // would not be justified and wouldn't get any added spacing, which would
+                        // make it look more condensed that the justified line above it. So, we'll
+                        // add to this last line the same spacing added to the above line so CJK
+                        // chars looks vertically aligned.
+                        // We do this only if the justified line (and also above with the last left
+                        // aligned line) starts with 2 CJK chars (otherwise, the alignment is already
+                        // broken and no fix will help).
+                        if ( frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
+                                                      && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
+                            m_cjk_prev_line_added_space_div = addSpaceDiv;
+                            m_cjk_prev_line_added_space_mod = addSpaceMod;
+                        }
+                    }
                     int delta = 0;
                     for ( i=0; i<(int)frmline->word_count; i++ ) {
                         frmline->words[i].x += delta;
