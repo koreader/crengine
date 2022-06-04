@@ -3906,6 +3906,43 @@ public:
                                     printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
                                             item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
                                 #endif
+                                if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
+                                    // We got x and have w of a fullwidth CJK char, normally some punctuation
+                                    // char whose blackbox is narrow and smaller or equal to half its width.
+                                    // But the position of this blackbox may depends on the opening/closing
+                                    // punctuation status, and on the language requested (Simplified Chinese
+                                    // get punctuations left- or right-anchored in the glyph, while Traditional
+                                    // Chinese may get them centered in the glyph). We only know about the glyph
+                                    // returned by the font here, so we should try to guess how to shift the
+                                    // drawing to get this glyph to look alright in half of w at the original x.
+                                    if ( item->origin_x + item->bmp_width <= w/2 ) {
+                                        // Glyph fully in the left half part (ie. Simplified Chinese closing punctuation)
+                                        // Nothing to tweak.
+                                    }
+                                    else if ( item->origin_x >= w/2 ) {
+                                        // Glyph fully in the right half part (ie. Simplified Chinese opening punctuation)
+                                        x += width - w;
+                                    }
+                                    else if ( item->origin_x <= w*1/5 && w - item->origin_x - item->bmp_width >= w*2/5) {
+                                        // With some fonts (ie. SimSun), some left/right glyphs may leak slightly over
+                                        // the middle: do a few more checks to catch these and handle them as above.
+                                        // Glyph mostly in the left half part: nothing to tweak
+                                    }
+                                    else if ( item->origin_x >= w*2/5 && w - item->origin_x - item->bmp_width <= w*1/5) {
+                                        // Glyph mostly in the rightly half part
+                                        x += width - w;
+                                    }
+                                    else {
+                                        // Glyph overlapping the middle of the glyph (ie. Traditional Chinese opening
+                                        // or closing punctuation), so probably centered in its glyph.
+                                        // We want to keep it centered in the provided width.
+                                        x += (width - w) / 2;
+                                    }
+                                    // We draw such CJK glyph one by one, so make sure the 'x += w' just below
+                                    // gives x=x0+width, which is necessary to correctly draw any underline
+                                    w = x0 + width - x;
+                                    // Note: no thought given about what we should do if non-zero letter_spacing
+                                }
                                 buf->Draw(x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
                                           y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
                                           item->bmp,
@@ -4007,6 +4044,32 @@ public:
                     }
                     else {
                         // Regular drawing of glyph at the baseline
+                        int cjk_dx = 0;
+                        if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
+                            // See KERNING_MODE_HARFBUZZ section above for details and comments.
+                            int w = posInfo.width;
+                            if ( item->origin_x + item->bmp_width <= w/2 ) {
+                                // Glyph fully in the left half part
+                            }
+                            else if ( item->origin_x >= w/2 ) {
+                                // Glyph fully in the right half part
+                                x += width - w;
+                            }
+                            else if ( item->origin_x <= w*1/5 && w - item->origin_x - item->bmp_width >= w*2/5) {
+                                // Glyph mostly in the left half part
+                            }
+                            else if ( item->origin_x >= w*2/5 && w - item->origin_x - item->bmp_width <= w*1/5) {
+                                // Glyph mostly in the rightly half part
+                                x += width - w;
+                            }
+                            else {
+                                // Glyph overlapping the middle of the glyph
+                                x += (width - w) / 2;
+                            }
+                            // We draw such CJK glyph one by one, so make sure the 'x += posInfo.width' just below
+                            // gives x=x0+width, which is necessary to correctly draw any underline
+                            cjk_dx = x0 + width - x - posInfo.width;
+                        }
                         buf->Draw(x + item->origin_x + posInfo.offset,
                             y + _baseline - item->origin_y,
                             item->bmp,
@@ -4016,7 +4079,7 @@ public:
                         // Assume zero advance means it's a diacritic, and we should not apply
                         // any letter spacing on this char (now, and when justifying)
                         if ( posInfo.width != 0 )
-                            x += posInfo.width + letter_spacing;
+                            x += posInfo.width + letter_spacing + cjk_dx;
                     }
                 }
             }
@@ -4089,6 +4152,30 @@ public:
                 }
                 else {
                     // Regular drawing of glyph at the baseline
+                    if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
+                        // See KERNING_MODE_HARFBUZZ section above for details and comments.
+                        if ( item->origin_x + item->bmp_width <= w/2 ) {
+                            // Glyph fully in the left half part
+                        }
+                        else if ( item->origin_x >= w/2 ) {
+                            // Glyph fully in the right half part
+                            x += width - w;
+                        }
+                        else if ( item->origin_x <= w*1/5 && w - item->origin_x - item->bmp_width >= w*2/5) {
+                            // Glyph mostly in the left half part
+                        }
+                        else if ( item->origin_x >= w*2/5 && w - item->origin_x - item->bmp_width <= w*1/5) {
+                            // Glyph mostly in the rightly half part
+                            x += width - w;
+                        }
+                        else {
+                            // Glyph overlapping the middle of the glyph
+                            x += (width - w) / 2;
+                        }
+                        // We draw such CJK glyph one by one, so make sure the 'x += w' just below
+                        // gives x=x0+width, which is necessary to correctly draw any underline
+                        w = x0 + width - x;
+                    }
                     buf->Draw( x + FONT_METRIC_TO_PX(kerning) + item->origin_x,
                         y + _baseline - item->origin_y,
                         item->bmp,

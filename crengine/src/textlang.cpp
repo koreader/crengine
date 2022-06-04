@@ -784,6 +784,174 @@ lChar32 TextLangCfg::getCssLbCharSub(css_line_break_t css_linebreak, css_word_br
 }
 #endif
 
+// CJK fullwidth chars' width adjustment tables, allowing to reduce some punctuations'
+// width depending on neighbours and context, and the language typography rules.
+// We try to ensure the spirit of these specs, while doing it in much more limited
+// and simple ways:
+// https://www.w3.org/TR/clreq/
+// https://www.w3.org/TR/jlreq/
+//
+// (https://www.w3.org/TR/klreq/ Korean uses mostly western punctuation, so does
+// not need any specific handling - the default Simplified Chinese rules will be
+// used in case CJK punctuation is met)
+//
+
+// These tables Define the width adjustment possible for a char (CURRENT) depending on
+// its cjk_type_t and the one of the following char (NEXT) - except for opening_bracket
+// which depends on the type of the preceding char.
+// The unit is in 1/8em. 8 means no change to nominal width.
+// A positive value means the nominal width (8) *should* be reduced to this value.
+// A negative value means the nominal width (8) *can* be reduced to this value (made positive)
+// if needed to add more chars on a line and avoid text justification to spread out glyphs
+// too much.
+// (0 means not applicable: no chance to meet this combination.)
+// For all categories, the 2nd indice is the category of the next char, EXCEPT for opening_bracket
+// where what should be checked is the previous char.
+// Note: in the tables below, we keep 8 and 0 (width unchanged) shifted a bit away to make
+// it easier to see what combinations are tweaked from the default.
+
+// These tables assume the glyphs obtained from the font will be for the language, either
+// via OpenType locl feature, or by using a non-OpenType font for the language.
+// Larger TC glyphs (like '?') may look compressed if SC typography make them all be halfwidth.
+// However, lvfntman doing what's best from the glyph (ie. keeping TC punctuations centered)
+// may help making a mismatch bearable.
+// Users wanting another kind of typography rules (ie. while reading SC, prefering to have
+// larger spacing as provided by TC) can use a one-language font (without OpenType locl
+// features) and chose the other language for typography.
+
+// Simplified Chinese (SC), and the default for all other languages when meeting CJK.
+// Specificities:
+// - all SC glyphs in these categories are left aligned in their glyphs (except opening_bracket
+//   which are right aligned), and when cutting a glyph by half, we won't change the position of
+//   the glyph vs. the preceding character, which allows us to be quite aggressive (4 or -4).
+// - all these are allowed to be halfwidth, and should be halfwidth at start and end of line.
+// - consecutive opening punctuations should be halfwidth (except the first, that can be halfwidth)
+// - consecutive non-opening punctuations should be halfwidth (except the last, that can be halfwidth)
+// Implementation:
+// - we make non-opening punctuation followed by an opening bracket be 6. We ensure the 1/2em blank
+//   between them by making the opening bracket also be 6. First idea was to make the closing 4 and
+//   the opening 8, but it may happen that one of the bracket/quote is not fullwidth, and would then
+//   not ensure its part of the 1/2em blank: with 6, we ensure that at least 1/4em blank is there.
+// - for ambiguous quotes, which have their glyph centered, we keep them full width, but make a preceding
+//   punctuation forced halfwidth, as 1/4em space will be ensured by the fullwidth ambiguous space
+//   on both sides (as we don't know which side it opens or closes). Note that line breaking won't be
+//   allowed on any side of it, as the UAX14 algorithm also don't know which side it opens/closes.
+static const cjk_width_adjustment_table_t simplified_chinese_cjk_width_adjustment_table = {
+/* CURRENT\/  NEXT >     other start  end  ambiguous" opening[ closing] dividing? middle: fullstop. comma, fullspace */
+/* other             */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  }, // never checked
+/* start_of_line     */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* end_of_line       */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* ambiguous_quote " */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  },
+/* opening_bracket [ */ {   -4,    4,  0 ,         4,       4,       6,        6,      6,        6,     6,        -4 }, // vs. PREVIOUS
+/* closing_bracket ] */ {   -4,   0 ,   4,         4,       6,       4,        4,      4,        4,     4,        -4 },
+/* dividing_punct !? */ {   -4,   0 ,   4,         4,       6,       4,        4,      4,        4,     4,        -4 },
+/* middle_dot     :; */ {   -4,   0 ,   4,         4,       6,       4,        4,      4,        4,     4,        -4 },
+/* full_stop       . */ {   -4,   0 ,   4,         4,       6,       4,        4,      4,        4,     4,        -4 },
+/* comma           , */ {   -4,   0 ,   4,         4,       6,       4,        4,      4,        4,     4,        -4 },
+/* fullwidth_space   */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  },
+//                               n/a
+};
+
+// Traditional Chinese (TC)
+// Specificities:
+// - clreq does not say much about how different things should be from SC
+// - all TC glyphs (except opening and closing brackets/quotation marks) are centered in their glyph,
+//   and are better kept fullwidth to keep this feeling of centering (if reduced, they would still
+//   be centered, but compressed in a rectangle instead of a square)
+// Implementation:
+// - we could do the same things as SC and just be less radical with some glyphs (like ? or fullstop),
+//   but let's take a more "traditional" approach: keep all glyphs fullwidth (even consecutive opening
+//   or closing punctuations), also at start and end of line, but allow most to be -6 and a tad smaller
+//   only when required to fit more chars to allow nicer text justification.
+// - we allow -4 (a bit more reduction than -6) on left/right-aligned glyphs (closing/opening_bracket)
+//   at start or end or when followed by another punctuation (but not near "other" to keep some spacing)
+static const cjk_width_adjustment_table_t traditional_chinese_cjk_width_adjustment_table = {
+/* CURRENT\/  NEXT >     other start  end  ambiguous" opening[ closing] dividing? middle: fullstop. comma, fullspace */
+/* other             */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  }, // never checked
+/* start_of_line     */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* end_of_line       */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* ambiguous_quote " */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* opening_bracket [ */ {   -6,   -4,  0 ,        -4,      -4,      -6,       -4,     -4,       -4,    -4,        -4 }, // vs. PREVIOUS
+/* closing_bracket ] */ {   -6,   0 ,  -4,        -4,      -6,      -4,       -4,     -4,       -4,    -4,        -4 },
+/* dividing_punct !? */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* middle_dot     :; */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* full_stop       . */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* comma           , */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* fullwidth_space   */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  },
+//                               n/a
+};
+
+// Japanese
+// Specificities:
+// - jlreq has many rules (and tables more complex than ours) to define what/how things
+//   can or should be reduced - and even different and contradictory set of rules
+//   (W3C Table 3, JISX4051 Table 4, "as on books" Table 5)
+// - jlreq and its tables work with the idea that these characters are haldwidth (except ?!),
+//   and define how much space (0=solid, 1/4em, 1/2em) can be added on each side.
+//   We work (as do the fonts) with fullwidth glyphs, and should decide how much we can
+//   reduce their width. We also don't handle each side independantly: the shifting of the
+//   fullwidth glyph inside the reduced width is handled by lvfntman's DrawTextString(),
+//   and we'll get a glyph left or center or right aligned in the reduced width whether
+//   it is originally left or center or right aligned in its original glyph (for a
+//   centered glyph, we'll have the same spacing on each side, unlike the different
+//   fine tuning jlreq may advise for each side).
+//   It is *really hard* to map from these tables to our way of doing it...
+// - full stop and commas are left-aligned, but ;:?! are centered in their glyph
+// - full stop should stay fullwidth at end of line (but reduction allowed in some spec),
+//   but commas should be halfwidth (in some rules) or can be halfwidth (in some other rules)
+// - full stop and commas should be halfwidth when followed by a closing bracket
+// - ; and ; are centered aligned, but considered halfwidth with reduction allowed on both sides
+// - ? and ! are centered aligned, but consideded fullwidth (no space reduction allowed)
+// - jlreq says reduction (removing the blank at the right of left aligned punctuation) should first
+//   happen at end of line, and only then, if more is needed, in the middle of a line.
+// Implementation:
+// - fullstop stays fullwidth in the middle of line (except when followed by a closing bracket):
+//   we set it -6 to allow stealing some space if required; -4 at end of line as it is allowed
+//   to be halfwidth by some specs
+// - comma and closing brackets at end of line can either be made forced halfwidth or variable:
+//   one specs (JIS X 4051) advises always halfwidth (which feels more natural to the westerner
+//   reader), while others advise "1/2 or 0" added spacing, with explicitely no value in between.
+//   Let's go with "1/2 or 0" by using '-4'.
+//     NOTE: 'comma' and 'closing_bracket' vs. 'end' (3rd column) could be made '4' instead of '-4'
+//     if the holes it causes near the right margin really feel odd to Japanese readers (as they
+//     do to me) and it feels better to go with the JIS X 4051 rules.
+// - For these and the "1/2 or 0 but nothing in between", we can use -4 or -6: some bits of code
+//   in lvtextfm.cpp's alignLine() will ensure the "nothing in between" when reduction is needed
+//   for the line and when the last word is a flexible CJK with a min_width smaller than width.
+// - ?! stays fullwidth: we yet set them -6 to allow stealing a bit of space if needed.
+// - ;: stays fullwitdh but are allowed to be halfwidth, even at end of line. Also, their reduction
+//   has a higher priority than others, so we can go with -4.
+// - The spacing before an opening bracket is allowed to be 0 (except after fullstop), or 1/4em in
+//   the "books" spec: we set them to -6 to get a visible blank of 1/4em.
+// - The spacing after a closing bracket is allowed to be 0 (except after fullstop), or 1/4em in
+//   the "books" spec: we set them to -6 to get a visible blank of 1/4em.
+//   Except before another closing bracket, a comma or fullstop, where it is solid (4).
+// - We make fullstop and comma before opening bracket be -6, as it's possible the opening bracket
+//   is not CJK (especially with Japanese where some CJK quotation marks glyphs are not fullwidth,
+//   so the opening bracket -6 would not trigger and not add the leading 1/4em)
+static const cjk_width_adjustment_table_t japanese_cjk_width_adjustment_table = {
+/* CURRENT\/  NEXT >     other start  end  ambiguous" opening[ closing] dividing? middle: fullstop. comma, fullspace */
+/* other             */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  }, // never checked
+/* start_of_line     */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* end_of_line       */ {   0 ,   0 ,  0 ,        0 ,      0 ,      0 ,       0 ,     0 ,       0 ,    0 ,        0  }, // n/a
+/* ambiguous_quote " */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  },
+/* opening_bracket [ */ {   -6,    4,  0 ,         4,       4,       6,       -6,     -6,        4,     4,        -6 }, // vs. PREVIOUS
+/* closing_bracket ] */ {   -6,   0 ,  -4,         4,       6,       4,       -6,      4,        4,     4,        -6 },
+/* dividing_punct !? */ {   -6,   0 ,  -6,        -6,      -6,      -6,       -6,     -6,       -6,    -6,        -6 },
+/* middle_dot     :; */ {   -4,   0 ,  -4,        -4,      -4,      -4,       -4,     -4,       -4,    -4,        -4 },
+/* full_stop       . */ {   -6,   0 ,  -4,        -6,      -6,       4,       -6,      4,        4,     4,        -4 },
+/* comma           , */ {   -4,   0 ,  -4,         4,      -6,       4,       -4,      4,        4,     4,        -4 },
+/* fullwidth_space   */ {   8 ,   0 ,  8 ,        8 ,      8 ,      8 ,       8 ,     8 ,       8 ,    8 ,        8  },
+//                               n/a
+};
+
+// Note: we may not do well with cjkt_ambiguous_quote (fullwidth or non-fullwidth ' and ").
+// May be we can do better by tweaking/adding some conditions or with heuristics
+// (ie. '"' in ':"' is probably opening, while in '"。' it is closing;
+// but in ' 。" ', we wouldn't know (it might close the previous sentence,
+// or start a new quote after the full stop...)
+
+
 // Instantiate a new TextLangCfg with properties adequate to the provided lang_tag
 TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     if ( TextLangMan::_no_hyph_method == NULL ) {
@@ -837,7 +1005,50 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     _duplicate_real_hyphen_on_next_line = false;
 
     // getCssLbCharSub(), possibly called on each glyph, has some different behaviours with 'ja' and 'zh'
-    _is_ja_zh = LANG_STARTS_WITH(("ja") ("zh"));
+    _is_ja_zh = false;
+    // These may be used to tweak CJK typography. Default typography for CJK segments will be
+    // Simplified Chinese, which should be fine for embedded CJK in western text, Simplified
+    // Chinese being the variant that feels the most like western typography (condensed
+    // punctuation, including at start and end of lines).
+    _is_ja = false;
+    _is_zh_SC = false;
+    _is_zh_TC = false;
+    if ( LANG_STARTS_WITH(("ja")) ) {
+        _is_ja_zh = true;
+        _is_ja = true;
+    }
+    else if ( LANG_STARTS_WITH(("zh")) ) {
+        _is_ja_zh = true;
+        if ( lang_tag.pos("-hant") > 0 ) {
+            _is_zh_TC = true;
+        }
+        else if ( (lang_tag.pos("-hans") < 0) ) { // Not explicitely Simplified Chinse
+            if ( lang_tag.pos("-hk") > 0 ) // Hong Kong (zh-HK)
+                _is_zh_TC = true;
+            else if ( lang_tag.pos("-mo") > 0 ) // Macao (zh-MO)
+                _is_zh_TC = true;
+            else if ( lang_tag.pos("-tw") > 0 ) // Taiwan (zh-TW)
+                _is_zh_TC = true;
+        }
+        if ( !_is_zh_TC ) {
+            // (We set this even if not -Hans and it uses non-CJK scripts)
+            _is_zh_SC = true;
+        }
+    }
+    else if ( LANG_STARTS_WITH(("lzh")) ) { // Literary/Classical Chinese
+        _is_ja_zh = true;
+        _is_zh_TC = true;
+    }
+    // CJK width adjustment tables
+    if ( _is_ja ) {
+        _cjk_width_adjustment_table = &japanese_cjk_width_adjustment_table;
+    }
+    else if ( _is_zh_TC ) {
+        _cjk_width_adjustment_table = &traditional_chinese_cjk_width_adjustment_table;
+    }
+    else { // Otherwise, default to Simplified Chinese
+        _cjk_width_adjustment_table = &simplified_chinese_cjk_width_adjustment_table;
+    }
 
 #if USE_HARFBUZZ==1
     _hb_language = hb_language_from_string(UnicodeToLocal(hb_lang_tag).c_str(), -1);

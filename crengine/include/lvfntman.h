@@ -223,6 +223,7 @@ enum kerning_mode_t {
 #define LFNT_HINT_IS_FALLBACK_FONT       0x0010 /// set on recursive Harfbuzz rendering/drawing with a fallback font
 
 #define LFNT_HINT_TRANSFORM_STRETCH      0x0100 /// Glyph(s) are to be stretched so their bounding box fits the provided w/h
+#define LFNT_HINT_CJK_ALTERED_WIDTH      0x0200 /// CJK full width glyph is to be shifted to look correct in a non-nominal width
 
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
 #define LFNT_DRAW_UNDERLINE              0x1000 /// underlined text

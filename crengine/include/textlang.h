@@ -26,6 +26,144 @@
 #define TEXTLANG_DEFAULT_HYPH_FORCE_ALGORITHMIC false
 #define TEXTLANG_FALLBACK_HYPH_DICT_ID  U"English_US.pattern" // For languages without specific hyph dicts
 
+
+// The following CJK categorisation is only used by lvtextfm.cpp - but put here to get
+// the specific SC/TC/JA typography rules in textlang.cpp and get lvtextfm generic.
+
+// Fullwidth CJK chars categories, based on jlreq https://www.w3.org/TR/jlreq/#character_classes
+// (jlreq does not mention fullwidth ascii unicode codepoints, so we'll consider
+// what it mentions about ascii chars for their fullwidth Unicode equivalents)
+enum cjk_type_t {
+    cjkt_other = 0,       // Anything not specifically handled (keeps its initial width, can get space after/before)
+    cjkt_start_of_line,
+    cjkt_end_of_line,
+    cjkt_ambiguous_quote, // fullwidth quotation mark or apostrophe
+    cjkt_opening_bracket, // jlreq cl-01 (opening parenthesis, left quotation mark...)
+    cjkt_closing_bracket, // jlreq cl-02 (closing parenthesis, right quotation mark...)
+    cjkt_dividing_punct,  // jlreq cl-04 (single and double exclamation and question mark)
+    cjkt_middle_dot,      // jlreq cl-05 (colon, semicolon, middle-dot)
+    cjkt_full_stop,       // jlreq cl-06 (ideographic full stop, ascii fullstop)
+    cjkt_comma,           // jlreq cl-07 (ideographic comma, ascii comma)
+    cjkt_fullwidth_space, // jlreq cl-14 (fullwidth ideographic space)
+    CJKT_MAX
+    // Other jlreq classes have usually larger glyphs that aren't squeezable, so we don't handle them specifically.
+};
+
+// Width adjustment tables are defined in textlang.cpp
+typedef lInt8 cjk_width_adjustment_table_t[CJKT_MAX][CJKT_MAX];
+
+inline cjk_type_t getCJKCharType( lChar32 ch ) {
+    // Generic CJK fullwidth punctuation categorization, flagging chars
+    // that have their glyph blackbox width way smaller than their advance,
+    // and that could have their width reduced if needed by typography.
+    // This shouldn't depend on lang_cfg, but how they behave depending
+    // on their context and neighbours does: this is handled by the
+    // language specific cjk_width_adjustment_table_t tables used
+    // by lang_cfg->getCJKWidthAdjustment(current_cjk_type, next_cjk_type).
+    cjk_type_t cjk_type = cjkt_other;
+    if ( ch >= 0x3000 && ch <= 0x30FB ) {
+        switch (ch) {
+            case 0x3000: // IDEOGRAPHIC SPACE (Zs)
+                cjk_type = cjkt_fullwidth_space;
+                break;
+            case 0x3001: // IDEOGRAPHIC COMMA (Po)
+                cjk_type = cjkt_comma;
+                break;
+            case 0x3002: // IDEOGRAPHIC FULL STOP (Po)
+                cjk_type = cjkt_full_stop;
+                break;
+            case 0x30FB: // KATAKANA MIDDLE DOT (Po)
+                cjk_type = cjkt_middle_dot;
+                break;
+            case 0x3009: // RIGHT ANGLE BRACKET (Pe)
+            case 0x300B: // RIGHT DOUBLE ANGLE BRACKET (Pe)
+            case 0x300D: // RIGHT CORNER BRACKET (Pe)
+            case 0x300F: // RIGHT WHITE CORNER BRACKET (Pe)
+            case 0x3011: // RIGHT BLACK LENTICULAR BRACKET (Pe)
+            case 0x3015: // RIGHT TORTOISE SHELL BRACKET (Pe)
+            case 0x3017: // RIGHT WHITE LENTICULAR BRACKET (Pe)
+            case 0x3019: // RIGHT WHITE TORTOISE SHELL BRACKET (Pe)
+            case 0x301B: // RIGHT WHITE SQUARE BRACKET (Pe)
+            case 0x301E: // DOUBLE PRIME QUOTATION MARK (Pe)
+            case 0x301F: // LOW DOUBLE PRIME QUOTATION MARK (Pe)
+                cjk_type = cjkt_closing_bracket;
+                break;
+            case 0x3008: // LEFT ANGLE BRACKET (Ps)
+            case 0x300A: // LEFT DOUBLE ANGLE BRACKET (Ps)
+            case 0x300C: // LEFT CORNER BRACKET (Ps)
+            case 0x300E: // LEFT WHITE CORNER BRACKET (Ps)
+            case 0x3010: // LEFT BLACK LENTICULAR BRACKET (Ps)
+            case 0x3014: // LEFT TORTOISE SHELL BRACKET (Ps)
+            case 0x3016: // LEFT WHITE LENTICULAR BRACKET (Ps)
+            case 0x3018: // LEFT WHITE TORTOISE SHELL BRACKET (Ps)
+            case 0x301A: // LEFT WHITE SQUARE BRACKET (Ps)
+            case 0x301D: // REVERSED DOUBLE PRIME QUOTATION MARK (Ps)
+                cjk_type = cjkt_opening_bracket;
+                break;
+            default:
+                break;
+        }
+    }
+    else if ( ch >= 0xFF01 && ch <= 0xFF60 ) {
+        switch (ch) {
+            case 0xFF01: // FULLWIDTH EXCLAMATION MARK (Po)
+            case 0xFF1F: // FULLWIDTH QUESTION MARK (Po)
+                cjk_type = cjkt_dividing_punct;
+                break;
+            case 0xFF0C: // FULLWIDTH COMMA (Po)
+                cjk_type = cjkt_comma;
+                break;
+            case 0xFF0E: // FULLWIDTH FULL STOP (Po)
+                cjk_type = cjkt_full_stop;
+                break;
+            case 0xFF1A: // FULLWIDTH COLON (Po)
+            case 0xFF1B: // FULLWIDTH SEMICOLON (Po)
+                cjk_type = cjkt_middle_dot;
+                break;
+            case 0xFF09: // FULLWIDTH RIGHT PARENTHESIS (Pe)
+            case 0xFF3D: // FULLWIDTH RIGHT SQUARE BRACKET (Pe)
+            case 0xFF5D: // FULLWIDTH RIGHT CURLY BRACKET (Pe)
+            case 0xFF60: // FULLWIDTH RIGHT WHITE PARENTHESIS (Pe)
+                cjk_type = cjkt_closing_bracket;
+                break;
+            case 0xFF08: // FULLWIDTH LEFT PARENTHESIS (Ps)
+            case 0xFF3B: // FULLWIDTH LEFT SQUARE BRACKET (Ps)
+            case 0xFF5B: // FULLWIDTH LEFT CURLY BRACKET (Ps)
+            case 0xFF5F: // FULLWIDTH LEFT WHITE PARENTHESIS (Ps)
+                cjk_type = cjkt_opening_bracket;
+                break;
+            case 0xFF02: // FULLWIDTH QUOTATION MARK (Po)
+            case 0xFF07: // FULLWIDTH APOSTROPHE (Po)
+                cjk_type = cjkt_ambiguous_quote;
+                break;
+            default:
+                break;
+        }
+    }
+    else if ( ch >= 0x2018 && ch <= 0x201D ) {
+        // These are not CJK chars, but when using CJK fonts, they may get
+        // a fullwidth glyph, and we would like to handle these like the ones
+        // above. This funtion will be called when measureText() detects that
+        // the glyph might be fullwidth, and there are other CJK glyphs around.
+        // (We checked all the non-CJK punctuation ranges with various CJK
+        // fonts, and found out only these 4 ones get a fullwidth glyph.)
+        switch (ch) {
+            case 0x2019: // RIGHT SINGLE QUOTATION MARK (Pf)
+            case 0x201D: // RIGHT DOUBLE QUOTATION MARK (Pf)
+                cjk_type = cjkt_closing_bracket;
+                break;
+            case 0x2018: // LEFT SINGLE QUOTATION MARK (Pi)
+            case 0x201C: // LEFT DOUBLE QUOTATION MARK (Pi)
+                cjk_type = cjkt_opening_bracket;
+                break;
+            default:
+                break;
+        }
+    }
+    return cjk_type;
+}
+
+
 class TextLangCfg;
 
 class TextLangMan
@@ -119,7 +257,12 @@ class TextLangCfg
     #endif
 
     bool _duplicate_real_hyphen_on_next_line;
+
     bool _is_ja_zh;
+    bool _is_ja;
+    bool _is_zh_TC;
+    bool _is_zh_SC;
+    const cjk_width_adjustment_table_t * _cjk_width_adjustment_table;
 
     void resetCounters();
 
@@ -161,6 +304,13 @@ public:
     #endif
 
     bool duplicateRealHyphenOnNextLine() const { return _duplicate_real_hyphen_on_next_line; }
+
+    int getCJKWidthAdjustment( cjk_type_t current, cjk_type_t other ) const {
+        return (int)(*_cjk_width_adjustment_table)[current][other];
+    }
+    bool isJapanese() const { return _is_ja; }
+    bool isSimplifiedChinese() const { return _is_zh_SC; }
+    bool isTraditionalChinese() const { return _is_zh_TC; }
 
     TextLangCfg( lString32 lang_tag );
     ~TextLangCfg();

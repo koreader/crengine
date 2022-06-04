@@ -424,6 +424,7 @@ public:
     // just to avoid too many "#if (USE_FRIBIDI==1)"
     bool m_has_bidi; // true when Bidi (or pure RTL) detected
     bool m_para_dir_is_rtl; // boolean shortcut of m_para_bidi_type
+    bool m_has_cjk; // true when some CJK met
 
 // These are not unicode codepoints: these values are put where we
 // store text indexes in the source text node.
@@ -461,6 +462,7 @@ public:
         m_usable_left_overflow = 0;
         m_usable_right_overflow = 0;
         m_hanging_punctuation = false;
+        m_has_cjk = false;
         m_specified_para_dir = REND_DIRECTION_UNSET;
         #if (USE_FRIBIDI==1)
             m_bidi_ctypes = NULL;
@@ -1263,11 +1265,12 @@ public:
                 //
                 // https://www.w3.org/TR/css-text-3/#white-space-processing states, for
                 // non-PRE paragraphs:
-                // (a "segment break" is just a \n in the HTML source)
+                // (a "segment break" is just a \n in the HTML source - but a space ' ' is not)
                 //   (a) A sequence of segment breaks and other white space between two Chinese,
                 //       Japanese, or Yi characters collapses into nothing.
                 // (So it looks like CJY is CJK minus K - with Korean, if there is a
-                // space between K chars, it should be kept.)
+                // space between K chars, it should be kept, as indeed Korean uses
+                // an ascii space to separate words.)
                 //   (b) A zero width space before or after a white space sequence containing a
                 //       segment break causes the entire sequence of white space to collapse
                 //       into a zero width space.
@@ -1277,8 +1280,11 @@ public:
                 // (b) can't really be implemented, as we don't know at this point
                 // if there was a segment break or not, as any would have already been
                 // converted to a space.
-                // (a) is not implemented, but some notes and comments are below (may be
-                // not too much bothering for CJK users if nothing was done to fix that?)
+                // (a) can't really be implemented, as here, we can't distinguish any longer
+                // a \n from a space, as it has been converted to a space by our XML parser,
+                // and only \n should collapse, but not a space. Note that Edge/Chromium
+                // don't collapse any of \n or ' ', while Firefox does the right thing by
+                // only collapsing \n and keeping ' '.
                 //
                 // It also states:
                 //     Any space immediately following another collapsible space - even one
@@ -1376,26 +1382,28 @@ public:
                         // collapsed - except when "white-space: pre-line". So, have
                         // a space following a \n be allowed to collapse.
 
-                    /* non-optimized implementation of "(a) A sequence of segment breaks
-                     * and other white space between two Chinese, Japanese, or Yi characters
-                     * collapses into nothing", not excluding Korea chars
-                     * (to be tested/optimized by a CJK dev)
-                    if ( ch == ' ' && k>0 && k<len-1
-                            && (lStr_isCJK(m_text[pos-1]) || lStr_isCJK(m_text[pos+1])) ) {
-                        m_flags[pos] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
-                        // m_text[pos] = '_';
+                    if ( lStr_isCJK(c) ) {
+                        // We have some specific code for handling CJK typography, that we don't
+                        // need to trigger if we didn't meet any CJK char.
+                        if ( !m_has_cjk ) {
+                            m_has_cjk = true;
+                        }
+                        m_flags[pos] |= LCHAR_IS_CJK;
+                        // Some CJK fullwidth punctuation char usually have a good amount of
+                        // their glyph width blank, and we can reduce their width if needed.
+                        // We explicitely don't set this flag (which is enough to not have
+                        // any related processing done) when kerning is disabled (as this is
+                        // doing some kind of kerning) to allow comparing, and in case some
+                        // people prefer to get the legacy non-tweaked rendering.
+                        if ( m_kerning_mode != KERNING_MODE_DISABLED && getCJKCharType(c) != cjkt_other )
+                            m_flags[pos] |= LCHAR_IS_FLEXIBLE_WIDTH_CJK;
                     }
-                    */
 
                     // if ( ch == '-' || ch == 0x2010 || ch == '.' || ch == '+' || ch==UNICODE_NO_BREAK_SPACE )
                     //     m_flags[pos] |= LCHAR_DEPRECATED_WRAP_AFTER;
-
                     // Some of these (in the 2 commented lines just above) will be set
                     // in lvfntman measureText().
                     // We might want to have them all done here, for clarity.
-                    // We may also want to flags CJK chars to distinguish
-                    // left|right punctuations, and those that can have their
-                    // ideograph width expanded/collapsed if needed.
 
                     // We flag some chars as we want them to be ignored: some font
                     // would render a glyph (like "[PDI]") for some control chars
@@ -1976,6 +1984,24 @@ public:
                                 // Not a collapsed space and not a space: this will be part of first word
                                 first_word_len++;
                             }
+                            if ( m_has_cjk ) {
+                                lChar32 ch = m_text[start+k];
+                                if ( ch <= 0x201D && ch >= 0x2018 && (ch <= 0x2019 || ch >= 0x201C) ) {
+                                    // Most CJK fonts provide a fullwidth glyph for U+2018/2019/201C/201D
+                                    // LEFT/RIGHT SINGLE/DOUBLE QUOTATION MARK (we checked all the non-CJK
+                                    // punctuation ranges with various CJK fonts, and found out only these
+                                    // four get a fullwidth glyph.)
+                                    // This is also dependant on the language/locl: a same font may give
+                                    // them fullwidth for Chinese, but not for Japanese.
+                                    // Try to guess if this is the case: most "Sans" CJK fonts don't make all
+                                    // the glyphs have their width = 1em, so allow for a little less.
+                                    if ( char_width >= lastFont->getSize() * 4/5 ) {
+                                        // Consider this char as CJK, and as a flexible CJK char
+                                        // if kerning is not disabled.
+                                        m_flags[start+k] |= LCHAR_IS_CJK | (m_kerning_mode != KERNING_MODE_DISABLED ? LCHAR_IS_FLEXIBLE_WIDTH_CJK : 0);
+                                    }
+                                }
+                            }
                         }
                         m_widths[start + k] = lastWidth + widths[k];
                         #if (USE_LIBUNIBREAK==1)
@@ -2286,6 +2312,117 @@ public:
 //        TR("%s", LCSTR(buf));
     }
 
+    int getFlexibleCJKWidthAdjustment( int pos, int start, int end, bool &can_add_space_before, bool &can_add_space_after) {
+        // Note: start and end represent the context: they can be the full (0, m_text) indices
+        // when checking for start or end or paragraph, or the start and end of a line when checking
+        // how flexible the char is at its position (possibly start or end) in the line.
+        // (As in other functions, 'end' is exclusive)
+        //
+        // Reference: https://www.w3.org/TR/jlreq/#reduction_and_addition_of_intercharacter_space
+        //
+        // In https://www.w3.org/TR/jlreq/#character_sequences_which_do_not_allow_space_insertion_as_part_of_line_adjustment_processing
+        // it is mentionned that we should not alter space between some character classes, and chars
+        // we handle here are a subset of these classes. It is also said explicitely "the inseparable
+        // character rule has to be applied to the following cases: Before or after... mostly all the
+        // chars we flagged as LCHAR_IS_FLEXIBLE_WIDTH_CJK...
+        // Testing with both can_add_space_before/after set to false on these doesn't really give
+        // a satisfying result: some bits stay glued together, resulting in more space added to
+        // other segments, and even more unbalance, and a lot of small different shifts in the grid.
+        // It feels it would be better to add spaces before and after flexible chars (that will most
+        // often end up staying fullwidth) as if expansion for text justification would be done on all
+        // lines, this would ensure the "grid" is kept. But doing this in small paragraph widths (where
+        // expansion for justification may add large spaces) would uglily spread out the punctuations
+        // away from what they open/close...
+        // Let's do something in between that feels intuitively better: prevent space addition near
+        // what they open or close, and allow it on the other side (if not prevented by another
+        // punctuation). This will still generates small shifts, but it's a lot less ugly.
+
+        // This CJK char can have its nominal width modified.
+        // What we can do depends on its type, context (start or end of line) and neighbour.
+        cjk_type_t cjk_type = getCJKCharType(m_text[pos]);
+
+        // cjkt_opening_bracket, unlike all other cjk_type_t, is to be checked against
+        // the char that precedes it.
+        if ( cjk_type == cjkt_opening_bracket ) {
+            can_add_space_after = false; // keep it near what it opens
+            // Find previous char index, skipping collapsed spaces
+            cjk_type_t prev_type = cjkt_other;
+            int prev = pos - 1;
+            while ( prev >= start && m_flags[prev] & (LCHAR_IS_COLLAPSED_SPACE|LCHAR_IS_TO_IGNORE) )
+                prev--;
+            if ( prev < start ) { // no previous char
+                prev_type = cjkt_start_of_line;
+            }
+            else {
+                if ( (m_flags[prev] & LCHAR_IS_CJK) ) {
+                    if ( (m_flags[prev] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) ) {
+                        prev_type = getCJKCharType(m_text[prev]);
+                    }
+                }
+                else { // Previous char is not CJK.
+                    // It is not rare for CJK text to have mixed CJK and ASCII/Unicode punctuations
+                    // (regular comma or period, Unicode single and double quotation marks...),
+                    // so we need to check if the previous char is considered punctuation and
+                    // masquerade it as a flexible CJK of the right type for the lookup.
+                    lUInt16 prev_props = lGetCharProps(m_text[prev]);
+                    if ( CH_PROP_IS_PUNCT(prev_props) ) {
+                        if ( CH_PROP_IS_PUNCT_OPENING(prev_props) ) {
+                            prev_type = cjkt_opening_bracket;
+                        }
+                        else if ( CH_PROP_IS_PUNCT_CLOSING(prev_props) ) {
+                            prev_type = cjkt_closing_bracket;
+                        }
+                        else {
+                            // Not sure if we should do more checks to map to some more similar
+                            // catagories. For now, masquerade any other punctuation as a comma,
+                            // which usually allows for large reduction.
+                            // (This might not be welcome with Japanese when a fullstop is followed
+                            // by U+2014 --, which would ensure no spacing between them...)
+                            prev_type = cjkt_comma;
+                        }
+                    }
+                }
+            }
+            return m_srcs[pos]->lang_cfg->getCJKWidthAdjustment(cjkt_opening_bracket, prev_type);
+        }
+        else {
+            can_add_space_before = false; // keep it near what it follows
+            // Find next char index, skipping collapsed spaces
+            cjk_type_t next_type = cjkt_other;
+            int next = pos + 1;
+            while ( next < end && m_flags[next] & (LCHAR_IS_COLLAPSED_SPACE|LCHAR_IS_TO_IGNORE) )
+                next++;
+            if ( next >= end ) { // no next char ('end' is exclusive)
+                next_type = cjkt_end_of_line;
+            }
+            else {
+                if ( (m_flags[next] & LCHAR_IS_CJK) ) {
+                    if ( (m_flags[next] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) ) {
+                        next_type = getCJKCharType(m_text[next]);
+                    }
+                }
+                else { // Next char is not CJK.
+                    lUInt16 next_props = lGetCharProps(m_text[next]);
+                    if ( CH_PROP_IS_PUNCT(next_props) ) {
+                        if ( CH_PROP_IS_PUNCT_OPENING(next_props) ) {
+                            next_type = cjkt_opening_bracket;
+                        }
+                        else if ( CH_PROP_IS_PUNCT_CLOSING(next_props) ) {
+                            next_type = cjkt_closing_bracket;
+                        }
+                        else {
+                            next_type = cjkt_comma;
+                        }
+                    }
+                }
+                // In case we feel the spacing should be different whether the next
+                // char is a CJK letter or a western letter/digit, we may add another
+                // chk_type_t : cjkt_other_non_cjk and use it in the tables.
+            }
+            return m_srcs[pos]->lang_cfg->getCJKWidthAdjustment(cjk_type, next_type);
+        }
+    }
+
 #define MIN_WORD_LEN_TO_HYPHENATE 4
 #define MAX_WORD_SIZE 64
 
@@ -2398,6 +2535,9 @@ public:
             // to account for them in the overlap, as underline continuation could overlap and
             // cause excessive corrections.)
             // Draw the word on the left
+            lUInt32 drawFlags = (prev_src->flags & LTEXT_TD_MASK)
+                              | (WORD_FLAGS_TO_FNT_FLAGS(prev_word->flags))
+                              | (prev_word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0);
             prev_font->DrawTextString(
                 &overBuf,
                 prev_word->x,
@@ -2408,10 +2548,14 @@ public:
                 NULL,
                 false,
                 prev_src->lang_cfg,
-                (prev_src->flags & LTEXT_TD_MASK) | WORD_FLAGS_TO_FNT_FLAGS(prev_word->flags),
-                prev_src->letter_spacing + prev_word->added_letter_spacing);
+                drawFlags,
+                prev_src->letter_spacing + prev_word->added_letter_spacing,
+                prev_word->width);
             // Draw the word on the right
             overBuf.DrawingRight();
+            drawFlags = (src->flags & LTEXT_TD_MASK)
+                      | (WORD_FLAGS_TO_FNT_FLAGS(word->flags))
+                      | (word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ? LFNT_HINT_CJK_ALTERED_WIDTH : 0);
             font->DrawTextString(
                 &overBuf,
                 word->x,
@@ -2422,8 +2566,9 @@ public:
                 NULL,
                 false,
                 src->lang_cfg,
-                (src->flags & LTEXT_TD_MASK) | WORD_FLAGS_TO_FNT_FLAGS(word->flags),
-                src->letter_spacing + word->added_letter_spacing);
+                drawFlags,
+                src->letter_spacing + word->added_letter_spacing,
+                word->width);
             // Get the distance
             int distance = overBuf.getDistance();
             if ( distance < min_distance ) {
@@ -2514,7 +2659,12 @@ public:
             int max_font_size = 0;
             for ( int i=0; i<(int)frmline->word_count; i++ ) {
                 formatted_word_t * word = &frmline->words[i];
-                if ( word->distinct_glyphs <= 0 ) // image, inline box, cursive word
+                // Ignore images, inline boxes, cursive words and CJK words (flexible CJK words can
+                // have a min_width, but we can't steal from it as it is used for fine positionning;
+                // we will also not apply any added letter spacing to CJK glyphs, as each already
+                // got the extra space added - and if using this option with CJK, we'd rather have
+                // them get less space added, and western/numbers get the expansion).
+                if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
                 min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
@@ -2533,7 +2683,7 @@ public:
                 bool can_try_larger = false;
                 for ( int i=0; i<(int)frmline->word_count; i++ ) {
                     formatted_word_t * word = &frmline->words[i];
-                    if ( word->distinct_glyphs <= 0 ) // image, inline box, cursive word
+                    if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                         continue;
                     // Store previous value in _baseline_to_bottom (also not used anymore) in case of
                     // excess and the need to use previous value (so we don't have to recompute it)
@@ -2555,7 +2705,7 @@ public:
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
                         formatted_word_t * word = &frmline->words[i];
-                        if ( word->distinct_glyphs <= 0 ) // image, inline box, cursive word
+                        if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                             continue;
                         word->added_letter_spacing = word->_baseline_to_bottom;
                         added_spacing += word->distinct_glyphs * word->added_letter_spacing;
@@ -2574,7 +2724,7 @@ public:
                 int shift_x = 0;
                 for ( int i=0; i<(int)frmline->word_count; i++ ) {
                     formatted_word_t * word = &frmline->words[i];
-                    if ( word->distinct_glyphs > 0 ) {
+                    if ( word->distinct_glyphs > 0 && !(word->flags & LTEXT_WORD_IS_CJK) ) {
                         int added_width = word->distinct_glyphs * word->added_letter_spacing;
                         if ( i == frmline->word_count-1 ) {
                             // For the last word on a justified line, we want to not see
@@ -2596,7 +2746,7 @@ public:
                         extra_width -= added_width;
                     }
                     else {
-                        // Images, inline box, cursive words still need to be shifted
+                        // Images, inline box, cursive words and flexible CJK words still need to be shifted
                         word->x += shift_x;
                     }
                 }
@@ -2604,32 +2754,60 @@ public:
         }
         extra_width = usable_width - frmline->width;
 
+        if ( m_has_cjk && extra_width < 0 && frmline->word_count > 1
+                    && frmline->words[frmline->word_count-1].flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ) {
+            // Line too wide (some space reduction is needed) and the last word is a flexible CJK.
+            // With our typography rules for Traditional Chinese and Japanese, it can have a min_width
+            // different from its width.
+            // With Traditional Chinese, we let it have the same reduction as all others flexible words.
+            // But with Japanese, in the jlreq specs, the reduction of spacing at end of line comes
+            // first in the reduction priorities order, before reduction in the middle of the line.
+            // Moreover, a closing bracket, comma or fullstop is to be either fullwidth or halfwidth,
+            // with no value in-between allowed.
+            // So, ensure all this by making the last word have its width be its min_width.
+            formatted_word_t * word = &frmline->words[frmline->word_count-1];
+            src_text_fragment_t * src = &m_pbuffer->srctext[word->src_text_index];
+            if ( src->lang_cfg->isJapanese() ) {
+                int dw = word->width - word->min_width;
+                if (dw > 0) {
+                    word->width = word->min_width;
+                    extra_width += dw; // this might then get positive, and no reduction might be needed on other words
+                }
+            }
+        }
+
         if ( extra_width < 0 ) {
             // line is too wide
             // reduce spaces to fit line
             int extraSpace = -extra_width;
             int totalSpace = 0;
             int i;
-            for ( i=0; i<(int)frmline->word_count-1; i++ ) {
-                if ( frmline->words[i].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER ) {
-                    int dw = frmline->words[i].width - frmline->words[i].min_width;
-                    if (dw>0) {
-                        totalSpace += dw;
-                    }
+            for ( i=0; i<(int)frmline->word_count; i++ ) {
+                int dw = frmline->words[i].width - frmline->words[i].min_width;
+                if (dw>0) {
+                    totalSpace += dw;
                 }
             }
             if ( totalSpace>0 ) {
                 int delta = 0;
                 for ( i=0; i<(int)frmline->word_count; i++ ) {
                     frmline->words[i].x -= delta;
-                    if ( frmline->words[i].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER ) {
-                        int dw = frmline->words[i].width - frmline->words[i].min_width;
-                        if (dw>0 && totalSpace>0) {
-                            int n = dw * extraSpace / totalSpace;
-                            totalSpace -= dw;
-                            extraSpace -= n;
-                            delta += n;
-                            frmline->width -= n;
+                    int dw = frmline->words[i].width - frmline->words[i].min_width;
+                    if (dw>0 && totalSpace>0) {
+                        int n = dw * extraSpace / totalSpace;
+                        totalSpace -= dw;
+                        extraSpace -= n;
+                        delta += n;
+                        frmline->width -= n;
+                        if ( frmline->words[i].flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ) {
+                            // For CJK glyphs that get their visual width modified,
+                            // we need their accurate visual width to be able to
+                            // reposition correctly a right aligned opening punctuation
+                            // or a centered Traditional Chinese punctuation.
+                            frmline->words[i].width -= n;
+                            // We don't need min_width anymore: set it to 0 as a flag for
+                            // debugging and drawing in color affected flexible CJK glyphs.
+                            frmline->words[i].min_width = 0;
                         }
                     }
                 }
@@ -3190,7 +3368,8 @@ public:
                               || bidiLogicalIndicesShift
                               || scriptChanged
                               || isToIgnore
-                              || lStr_isCJK(m_text[i], false, true) // (ignore_fullwidth_ascii=true: keep them as words)
+                              || (m_flags[wstart] & LCHAR_IS_CJK) // a CJK char makes its own word
+                              || (m_flags[i] & LCHAR_IS_CJK) // a CJK char ends previous word
                              ) ) {
                 // New HTML source node, space met just before, last word, or CJK char:
                 // create and add new word with chars from wstart to i-1
@@ -3571,6 +3750,10 @@ public:
                         word->distinct_glyphs += tailing_spaces;
                     }
 
+                    if ( i - wstart == 1 && (m_flags[wstart] & LCHAR_IS_CJK) ) {
+                        word->flags |= LTEXT_WORD_IS_CJK;
+                    }
+
                     // If we're asked to fit glyphs (avoid glyphs from overflowing line edges and
                     // on neighbour text nodes), we might need to tweak words x and width
                     bool fit_glyphs = srcline->flags & LTEXT_FIT_GLYPHS;
@@ -3733,10 +3916,62 @@ public:
                         //else
                         frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
                     }
-                    else if ( !firstWord && lStr_isCJK(m_text[i]) ) {
-                        // Current word is a CJK char: we can increase the space
-                        // between previous word and this one if needed
-                        frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
+                    else if ( word->flags & LTEXT_WORD_IS_CJK ) {
+                        // We usually can add space before and after CJK chars if needed for text justification,
+                        // and we may reduce the widths of some CJK chars (those flagged as "flexible").
+                        // See comments at top of getFlexibleCJKWidthAdjustment() for more info.
+                        // These are the defaults for non-flexible CJK chars:
+                        int wa8 = 8; // Stay fullwidth (8 x 1/8em)
+                        bool can_add_space_before = true;
+                        bool can_add_space_after = true;
+                        // But if flexible, these depend on the context
+                        if ( (m_flags[wstart] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) ) {
+                            // We provide this line start and end as the start and end
+                            wa8 = getFlexibleCJKWidthAdjustment(wstart, start, end, can_add_space_before, can_add_space_after);
+                        }
+                        // Apply them
+                        if ( can_add_space_after ) {
+                            word->flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
+                        }
+                        if ( !firstWord ) {
+                            if ( can_add_space_before ) {
+                                // If previous word was a CJK, it got correctly LTEXT_WORD_CAN_ADD_SPACE_AFTER
+                                // or not. If not set, it got explicitely can_add_space_after=false, and we don't
+                                // want to change it. So don't do anything if is is CJK.
+                                if ( !(frmline->words[frmline->word_count-2].flags & LTEXT_WORD_IS_CJK) ) {
+                                    // Previous word may be digits or latin text that did not get _CAN_ADD_SPACE_AFTER
+                                    // if these was no space - but a followup CJK should allow it.
+                                    // But this previous word may also be a non-CJK opening punctuation (ie. U+201C
+                                    // with Japanese non-made fullwidth and so not considered CJK) that we don't want
+                                    // to spread from its following CJK.
+                                    // It feels we can trust ALLOW_WRAP_AFTER being not set to assume it is
+                                    // an opening punctuation or similar and that no space should be added.
+                                    if ( m_flags[wstart-1] & LCHAR_ALLOW_WRAP_AFTER ) {
+                                        frmline->words[frmline->word_count-2].flags |= LTEXT_WORD_CAN_ADD_SPACE_AFTER;
+                                    }
+                                }
+                            }
+                            else { // cancel any previously set
+                                frmline->words[frmline->word_count-2].flags &= ~LTEXT_WORD_CAN_ADD_SPACE_AFTER;
+                            }
+                        }
+                        if ( wa8 != 8 ) {
+                            // We floor the adjusted width, as we ceil'ed the width we can steal from it (so that if
+                            // the width is an odd number of pixels, we can fit 2 halfwidth'ed chars instead of none).
+                            if ( wa8 > 0 ) { // should be forced to be the adjusted width
+                                word->min_width = word->width * wa8 / 8;
+                                word->width = word->min_width;
+                                word->flags |= LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK;
+                            }
+                            else if ( wa8 < 0 ) { // can be reduced down to this adjusted width, only if needed
+                                wa8 = -wa8;
+                                word->min_width = word->width * wa8 / 8;
+                                word->flags |= LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK;
+                            }
+                            // Note: the clreq/jlreq specs mention that punctuation can or should be made halfwidth,
+                            // or stay fullwidth, and no in-between. So, no reason to use min_space_condensing_percent
+                            // to allow tuning by how much CJK punctuation can be reduced and limit it to 75% or 90%.
+                        }
                     }
 
                     if ( lastWord && (align == LTEXT_ALIGN_RIGHT || align == LTEXT_ALIGN_WIDTH) ) {
@@ -4202,6 +4437,7 @@ public:
             int lastHyphWrap = -1;
             int lastMandatoryWrap = -1;
             int spaceReduceWidth = 0; // max total line width which can be reduced by narrowing of spaces
+            int cjkReduceWidth = 0; // max total line width which can be reduced by narrowing CJK punctuations
             int firstInlineBoxPos = -1;
 
             int maxWidth = getCurrentLineWidth();
@@ -4295,6 +4531,70 @@ public:
                     // text justification)
                     if ( (flags & LCHAR_IS_SPACE) && (flags & LCHAR_ALLOW_WRAP_AFTER) ) // don't break yet
                         grabbedExceedingSpace = true;
+                    else if ( flags & LCHAR_IS_CJK && lastNormalWrap < i-1 ) {
+                        // This CJK char doesn't fit, previous char did fit but a wrap is not allowed between
+                        // them: wrapping before previous char would cause a hole at end of line of at least
+                        // one CJK glyph (which would be counteracted, if the line is to be justified, by
+                        // spreading out all glyphs on the line).
+                        // If we have seen some flexible CJK punctuations, we can steal some width from
+                        // them to possibly make both chars fit on the line.
+                        // It is also possible this char is itself flexible and would fit if reduced.
+                        int w = (m_widths[i] - (i > 0 ? m_widths[i-1] : 0));
+                        bool does_fit = false;
+                        if ( m_flags[i] & LCHAR_IS_FLEXIBLE_WIDTH_CJK ) {
+                            // Check if this flexible char can/should be reduced if at end of line
+                            bool can_add_space_before, can_add_space_after; // not used here
+                            // We provide end=i+1 ('end' is exclusive) to see how this char does when at end of line
+                            int wa8 = getFlexibleCJKWidthAdjustment(i, pos, i+1, can_add_space_before, can_add_space_after);
+                            if ( wa8 != 8 ) {
+                                // This char can/should be smaller (ie. halfwidth) if at end of line:
+                                // see if it would then fit if made that smaller.
+                                if ( wa8 < 0 )
+                                    wa8 = -wa8;
+                                w = w * wa8 / 8; // floor'ed, to get more chance to fit
+                                if ( x + m_widths[i-1]-w0 + w <= maxWidth + spaceReduceWidth ) {
+                                    does_fit = true;
+                                }
+                                // If it doesn't fit when just itself smaller, we'll do the check
+                                // just below with its reduced width.
+                            }
+                        }
+                        if ( !does_fit && w <= cjkReduceWidth ) {
+                            // It would fit if we steal space from previous "can be smaller" chars, as they
+                            // provide enough stealable space.
+                            // Transfer the required width from stolen from cjkReduceWidth into spaceReduceWidth,
+                            // so that we now fit and can go on (current char may still not have LCHAR_ALLOW_WRAP_AFTER,
+                            // and we may end up grabbing more of the upcoming chars, or just end up using
+                            // the previous lastNormalWrap if we don't meet any that allow a wrap).
+                            if ( m_flags[i] & LCHAR_IS_FLEXIBLE_WIDTH_CJK ) {
+                                // It's possible for a flexible char to get a different width whether at
+                                // end of line or in the middle, and possibly a larger one when in the
+                                // middle (ie. fullstop in Japanese). We need here to get the width it
+                                // would have later when followed, and account this width in the transfer.
+                                bool can_add_space_before, can_add_space_after; // not used here
+                                // We now provide end=m_length to state we're not at end of line
+                                int wa8 = getFlexibleCJKWidthAdjustment(i, pos, m_length, can_add_space_before, can_add_space_after);
+                                if ( wa8 != 8 ) {
+                                    if ( wa8 < 0 )
+                                        wa8 = -wa8;
+                                    w = w * wa8 / 8; // floor'ed
+                                }
+                            }
+                            spaceReduceWidth += w;
+                            cjkReduceWidth -= w;
+                            does_fit = true;
+                        }
+                        if ( !does_fit ) {
+                            break;
+                        }
+                        // Note: we steal from cjkReduceWidth only here when trying to make another CJK char
+                        // fit on the line. We could try to also steal from them when adding non-CJK chars,
+                        // which would make western longer words, and would probably fail finding a wrap
+                        // anyway (and would feel a bit agressive if a wrap is found thanks to them).
+                        // This means that some small words like small numbers (ie. "12"), that could have
+                        // fitted if we grabbed some pixels from cjkReduceWidth, will be pushed to next
+                        // line and the previous line will use expansion for justification.
+                    }
                     else
                         break;
                 }
@@ -4318,7 +4618,7 @@ public:
                 // to the next if:
                 //  || lGetCharProps(m_text[i]) == 0
                 // but this does not look right, as any other unicode char would allow wrap.
-                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || lStr_isCJK(m_text[i], false, true)) {
+                if ((flags & LCHAR_ALLOW_WRAP_AFTER) || (m_flags[i] & LCHAR_IS_CJK)) {
                     // Need to check if previous and next non-space char request a wrap on
                     // this space (or CJK char) to be avoided
                     bool avoidWrap = false;
@@ -4377,7 +4677,29 @@ public:
                     int dw = getMaxCondensedSpaceTruncation(i);
                     if ( dw>0 )
                         spaceReduceWidth += dw;
-                    // TODO do that too for CJK punctuation whose glyph might be half blank
+                }
+                else if ( m_flags[i] & LCHAR_IS_FLEXIBLE_WIDTH_CJK ) {
+                    bool can_add_space_before, can_add_space_after; // not used here
+                    // Unlike above, we don't provide end=i+1, as this char fits and we want to know how
+                    // this char does followed by its neighbour, as we're not done making the line.
+                    int wa8 = getFlexibleCJKWidthAdjustment(i, pos, m_length, can_add_space_before, can_add_space_after);
+                    if ( wa8 != 8 ) {
+                        if ( wa8 < 0 ) { // can be reduced (ie. halfwidth)
+                            // This reduction is not to be made available yet: account it in cjkReduceWidth,
+                            // that we will steal from (and transfer into spaceReduceWidth) if needed.
+                            wa8 = -wa8;
+                            int w = (m_widths[i] - (i > 0 ? m_widths[i-1] : 0));
+                            cjkReduceWidth += w - (w * wa8 / 8);
+                            // Here and below, we ceil the stealable width, so we are able
+                            // to fit a (floored) reduced-width char if there is only one other
+                            // flexible char on this line.
+                        }
+                        else if ( wa8 > 0 ) { // should be reduced (ie. halfwidth)
+                            // Account the reduction as we do for spaces, as it is usable from now on.
+                            int w = (m_widths[i] - (i > 0 ? m_widths[i-1] : 0));
+                            spaceReduceWidth += w - (w * wa8 / 8);
+                        }
+                    }
                 }
                 if (grabbedExceedingSpace)
                     break; // delayed break
@@ -5596,6 +5918,21 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         x0 = x + frmline->x + word->x;
                         y0 = line_y + (frmline->baseline - font->getBaseline()) + word->y;
                         w = h = 0; // unused
+                        if ( word->flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK ) {
+                            drawFlags |= LFNT_HINT_CJK_ALTERED_WIDTH;
+                            /*
+                            // For debugging, showing in color what's been done with CJK flexible chars:
+                            if (word->width == word->min_width) { // fully reduced: red
+                                cl = 0x00FF0000; buf->SetTextColor( cl );
+                            }
+                            else if ( word->min_width == 0 ) { // reduced, but not fully: blue
+                                cl = 0x000000FF; buf->SetTextColor( cl );
+                            }
+                            else { // allowed to be reduced, but not done as not needed: dark purple
+                                cl = 0x00A000A0; buf->SetTextColor( cl );
+                            }
+                            */
+                        }
                     }
                     font->DrawTextString(
                         buf,
