@@ -6243,6 +6243,9 @@ int initTableRendMethods( ldomNode * enode, int state )
                 printf("initTableRendMethods(%d): wrapping unproper %d>%d\n",
                             state, first_unproper, last_unproper);
             #endif
+            if ( is_last && last_unproper < 0 ) { // (may happen with old gDOMVersionRequested)
+                last_unproper = cnt-1;
+            }
             int elems_removed = last_unproper - first_unproper + 1;
             ldomNode * tbox = enode->boxWrapChildren(first_unproper, last_unproper, el_tabularBox);
             if ( tbox && !tbox->isNull() ) {
