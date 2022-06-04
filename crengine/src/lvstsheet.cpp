@@ -3089,6 +3089,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else if ( substr_icompare("non-linear", decl) )             hints |= CSS_CR_HINT_NON_LINEAR;
                         else if ( substr_icompare("non-linear-combining", decl) )   hints |= CSS_CR_HINT_NON_LINEAR_COMBINING;
                         else if ( substr_icompare("strut-confined", decl) )         hints |= CSS_CR_HINT_STRUT_CONFINED;
+                        else if ( substr_icompare("cjk-tailored", decl) )           hints |= CSS_CR_HINT_CJK_TAILORED;
                         else if ( substr_icompare("fit-glyphs", decl) )             hints |= CSS_CR_HINT_FIT_GLYPHS;
                         else if ( substr_icompare("text-selection-skip", decl) )    hints |= CSS_CR_HINT_TEXT_SELECTION_SKIP;
                         else if ( substr_icompare("text-selection-inline", decl) )  hints |= CSS_CR_HINT_TEXT_SELECTION_INLINE;
