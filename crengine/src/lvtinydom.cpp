@@ -9324,6 +9324,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
             bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
             for ( int w=0; w<(int)frmline->word_count; w++ ) {
                 const formatted_word_t * word = &frmline->words[w];
+                if (word->flags & LTEXT_WORD_IS_PAD ) {
+                    // Skip these as they are virtual and don't map to real nodes
+                    // text indices: they won't be part of any rect
+                    continue;
+                }
                 bool word_is_rtl = word->flags & LTEXT_WORD_DIRECTION_IS_RTL;
                 bool lastWord = (l == txtform->GetLineCount() - 1
                                  && w == frmline->word_count - 1);
@@ -9354,7 +9359,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             else {
                                 bestBidiRect.left = word->x + rc.left + frmline->x;
                                 if (extended) {
-                                    // (No specific handling of LTEXT_WORD_IS_PAD seems needed here and below)
                                     if (word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX) && word->width > 0)
                                         bestBidiRect.right = bestBidiRect.left + word->width; // width of image
                                     else
@@ -9567,7 +9571,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                 // Generic code when visual order = logical order
                 if ( word->src_text_index>=srcIndex || lastWord ) {
                     // found word from same src line
-                    // (No specific handling of LTEXT_WORD_IS_PAD seems needed here and below)
                     if ( word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX)
                             || word->src_text_index > srcIndex
                             || (!extended && offset <= word->t.start)
