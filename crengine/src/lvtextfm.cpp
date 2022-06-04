@@ -403,6 +403,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
+    bool m_kerning_mode;
     bool m_allow_strut_confining;
     bool m_has_multiple_scripts;
     int  m_usable_left_overflow;
@@ -1003,6 +1004,9 @@ public:
     /// copy text of current paragraph to buffers
     void copyText( int start, int end )
     {
+        // We might disable/tweak some kerning-like behaviour depending on this setting
+        m_kerning_mode = fontMan->GetKerningMode();
+
         #if (USE_LIBUNIBREAK==1)
         struct LineBreakContext lbCtx;
         // Let's init it before the first char, by adding a leading Zero-Width Joiner
@@ -1764,7 +1768,7 @@ public:
                 #if (USE_HARFBUZZ==1)
                     // Check if we are using Harfbuzz kerning with the first font met
                     if ( checkIfHarfbuzz && newFont ) {
-                        if ( newFont->getKerningMode() == KERNING_MODE_HARFBUZZ ) {
+                        if ( m_kerning_mode == KERNING_MODE_HARFBUZZ ) {
                             usingHarfbuzz = true;
                         }
                         checkIfHarfbuzz = false;
@@ -2352,7 +2356,7 @@ public:
             }
             LVFont * prev_font = (LVFont *) prev_src->t.font;
             LVFont * font = (LVFont *) src->t.font;
-            if ( font->getKerningMode() == KERNING_MODE_DISABLED ) {
+            if ( m_kerning_mode == KERNING_MODE_DISABLED ) {
                 break; // Don't do any correction at all
             }
 
@@ -3496,7 +3500,7 @@ public:
                         // If not using Harfbuzz, procede to mirror parens & al (don't
                         // do that if Harfbuzz is used, as it does that by itself, and
                         // would mirror back our mirrored chars!)
-                        if ( font->getKerningMode() != KERNING_MODE_HARFBUZZ) {
+                        if ( m_kerning_mode != KERNING_MODE_HARFBUZZ ) {
                             lChar32 * str = (lChar32*)(srcline->t.text + word->t.start);
                             FriBidiChar mirror;
                             for (int i=0; i < word->t.len; i++) {
