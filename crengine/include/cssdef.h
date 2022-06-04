@@ -394,6 +394,10 @@ enum css_generic_value_t {
 // Glyphs should not overflow line edges, and across text nodes or over images
 // (it can also be used to disable hanging punctuation on the targeted nodes).
 #define CSS_CR_HINT_FIT_GLYPHS              0x00000004 // -cr-hint: fit-glyphs (inheritable)
+// Paragraphs ("final" blocks') width and text-indent is to be ajusted to an
+// integer multiple of their font size (so text justification of lines made of
+// only squared CJK glyphs get less chance to need to spread the glyphs).
+#define CSS_CR_HINT_CJK_TAILORED            0x00000008 // -cr-hint: cjk-tailored (inheritable)
 
 // A node with these should be considered as TOC item of level N when building alternate TOC
 #define CSS_CR_HINT_TOC_LEVEL1              0x00000100 // -cr-hint: toc-level1
@@ -432,7 +436,7 @@ enum css_generic_value_t {
                                                        //                           everything else indicates it is)
 
 // A few of them are inheritable, most are not.
-#define CSS_CR_HINT_INHERITABLE_MASK        0x00000006
+#define CSS_CR_HINT_INHERITABLE_MASK        0x0000000E
 
 // Macro for easier checking
 #define STYLE_HAS_CR_HINT(s, h)     ( (bool)(s->cr_hint.value & CSS_CR_HINT_##h) )

@@ -3316,6 +3316,54 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // todo: pass indent via txform->setTextIndent() (like we do for the strut
             // below, and get rid of it in AddSourceLine())
             indent = lengthToPx(enode, style->text_indent, width);
+            if ( STYLE_HAS_CR_HINT(style, CJK_TAILORED) && indent != 0 ) {
+                // We want the text-indent to be an integer multiple of the font size,
+                // so that we may get CJK squared glyphs vertically aligned ensuring
+                // the CJK grid.
+                // (Should letter-spacing be taken into account if set on the paragraph?)
+                int unit = em;
+                int cjk_width_scale_percent = enode->getDocument()->getCJKWidthScalePercent();
+                if ( cjk_width_scale_percent != 100 ) {
+                    unit = unit * cjk_width_scale_percent / 100;
+                    // Recompute indent base on this scaled em
+                    indent = lengthToPx(enode, style->text_indent, width, unit);
+                }
+                bool is_negative = false;
+                if ( indent < 0 ) {
+                    is_negative = true;
+                    indent = -indent; // (to work with positive values)
+                }
+                int tailored_indent = (indent / unit) * unit; // floor'ed
+                if ( tailored_indent != indent ) { // it was a fractional value
+                    if ( tailored_indent == 0 ) { // it was non-zero but less than 1em
+                        tailored_indent = unit; // make it at least 1em
+                    }
+                    else {
+                        // Our epub.css text-indent is 1.2em, and is what will be used when
+                        // a publisher does not specify anything (and if he does, he will
+                        // surely use his preferred integer value).
+                        // clreq mentions: "For Chinese publications, a first-line indent usually uses
+                        // two character width spaces. Publications like magazines, with multi-column
+                        // content and less text in each column, might apply single character width
+                        // first-line indents as well.
+                        // jlreq is vague (and mixed as it talks more about vertical writting mode),
+                        // but mentions: "The amount of spacing used for the indentation is, in
+                        // principle, one em spacing"
+                        // klreq don't mention anything, but its examples use mostly 1 char width.
+                        // So it feels that Chinese would like 2em while Japanese and Korean would
+                        // prefer 1em - but let's not bother for now: go with ceiling to get 2em.
+                        // But stay on the smaller side if the paragraph width is itself small (it
+                        // might be a table cell or a float)
+                        if ( width >= 8*unit ) {
+                            tailored_indent += unit;
+                        }
+                    }
+                    indent = tailored_indent;
+                }
+                if ( is_negative ) {
+                    indent = -indent; // (restore it)
+                }
+            }
             // lvstsheet sets the lowest bit to 1 when text-indent has the "hanging" keyword:
             if ( style->text_indent.value & 0x00000001 ) {
                 // lvtextfm handles negative indent as "indent by the negated (so, then
@@ -8230,9 +8278,28 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( flow->hasActiveFloats() )
                     flow->pushVerticalMargin();
 
-                // Store these in RenderRectAccessor fields, to avoid having to
-                // compute them again when in XPointer, elementFromPoint...
                 int inner_width = width - padding_left - padding_right;
+
+                if ( STYLE_HAS_CR_HINT(style, CJK_TAILORED) ) {
+                    // We want inner_width to be an integer multiple of the font size,
+                    // so that text justification of CJK only lines doesn't need to
+                    // add space between glyphs.
+                    int unit = em;
+                    int cjk_width_scale_percent = enode->getDocument()->getCJKWidthScalePercent();
+                    if ( cjk_width_scale_percent != 100 ) {
+                        unit = unit * cjk_width_scale_percent / 100;
+                    }
+                    int tailored_inner_width = (inner_width / unit) * unit;
+                    // Put half the delta in each padding.
+                    int d_width = inner_width - tailored_inner_width;
+                    padding_left += d_width / 2;
+                    padding_right += d_width - d_width / 2;
+                    inner_width = tailored_inner_width;
+                    // Note: changes in width inside a paragraphs (because of floats)
+                    // are currently not tailored in lvtextfm.cpp (it feels quite
+                    // complicated to do right).
+                }
+
                 if (inner_width <= 0) {
                     // inner_width is the width given to LFormattedText->Format()
                     // to lay out inlines and text along this width.
@@ -8269,6 +8336,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // but it is costly and may result in adding many many pages
                     // with a narrow column of words.
                 }
+                // Store these in RenderRectAccessor fields, to avoid having to
+                // compute them again when in XPointer, elementFromPoint...
                 fmt.setInnerX( padding_left );
                 fmt.setInnerY( padding_top );
                 fmt.setInnerWidth( inner_width );
