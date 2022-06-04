@@ -4063,6 +4063,46 @@ public:
                         }
                     }
 
+                    if ( m_has_cjk && !firstWord && m_kerning_mode != KERNING_MODE_DISABLED ) {
+                        // At the boundary between a CJK segment and a segment of non-CJK chars, we want to
+                        // add a bit of spacing, 1/4em as advised by clreq and jlreq.
+                        // We explicitely don't do this if any boundary is some punctuation (CJK or not), as
+                        // a CJK punctuation might bring itself some spacing, and a non-CJK punctuation can
+                        // itself serves as spacing.
+                        // Note: in jlreq, the priority for decreasing even more this 1/4em for line adjustment
+                        // comes very late, so we don't really need to make it adjustable, and we can just
+                        // ensure this space by shifting word->x (otherwise, we would need instead to add
+                        // a dummy word flagged as WORD_IS_PAD with a width and a min_width=0).
+                        // As done in processParagraph() (see there for details), but now in visual order.
+                        if ( (m_flags[wstart] & LCHAR_IS_CJK) && !(m_flags[wstart] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) &&
+                                     !(m_flags[wstart-1] & (LCHAR_IS_CJK|LCHAR_IS_OBJECT|LCHAR_IS_SPACE)) ) {
+                            // Current char is a non-flexible CJK (so, not a CJK punctuation).
+                            // Previous char is not a CJK, object nor space.
+                            lUInt16 props = lGetCharProps(m_text[wstart-1]);
+                            if ( !CH_PROP_IS_PUNCT(props) && !(props & CH_PROP_SPACE) ) {
+                                // Previous char is not a punctuation and not some other kind of space.
+                                // Add 1/4 of the CJK char's font size
+                                int spacing = font->getSize() / 4;
+                                word->x += spacing;
+                                frmline->width += spacing;
+                            }
+
+                        }
+                        else if ( (m_flags[wstart-1] & LCHAR_IS_CJK) && !(m_flags[wstart-1] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) &&
+                                     !(m_flags[wstart] & (LCHAR_IS_CJK|LCHAR_IS_OBJECT|LCHAR_IS_SPACE)) ) {
+                            // Previous char is a non-flexible CJK (so, not a CJK punctuation).
+                            // Current char is not a CJK, object nor space.
+                            lUInt16 props = lGetCharProps(m_text[wstart]);
+                            if ( !CH_PROP_IS_PUNCT(props) && !(props & CH_PROP_SPACE) ) {
+                                // Current char is not a punctuation and not some other kind of space.
+                                // Add 1/4 of the CJK char's font size
+                                int spacing = ((LVFont *)m_srcs[wstart-1]->t.font)->getSize() / 4;
+                                word->x += spacing;
+                                frmline->width += spacing;
+                            }
+                        }
+                    }
+
                     if ( lastWord && (align == LTEXT_ALIGN_RIGHT || align == LTEXT_ALIGN_WIDTH) ) {
                         // Adjust line end if needed.
                         // If we need to adjust last word's last char, we need to put the delta
@@ -4609,6 +4649,41 @@ public:
                         int new_y = getYWithAvailableWidth(m_y, needed_width, m_pbuffer->strut_height, unused_x);
                         fillAndMoveToY( new_y );
                         maxWidth = getCurrentLineWidth();
+                    }
+                }
+                if ( m_has_cjk && i > pos && m_kerning_mode != KERNING_MODE_DISABLED ) {
+                    // At the boundary between a CJK segment and a segment of non-CJK chars, we want to
+                    // add a bit of spacing, 1/4em as advised by clreq and jlreq.
+                    // https://www.w3.org/TR/jlreq/#handling_of_western_text_in_japanese_text_using_proportional_western_fonts
+                    // If a char on either side is a space or a punctuation (CJK or not), we don't do it (to
+                    // avoid excessive spacing when it is already provided by the CJK punctuation, and around
+                    // non-CJK punctuation as we're not sure what comes after/before and on which side the
+                    // spacing should be added, and it might itself serves as spacing).
+                    // We're doing this now in the stream of char in logical order. We'll be doing it again
+                    // in addLine() with chars possibly visually re-ordered.
+                    if ( (m_flags[i] & LCHAR_IS_CJK) && !(m_flags[i] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) &&
+                                 !(m_flags[i-1] & (LCHAR_IS_CJK|LCHAR_IS_OBJECT|LCHAR_IS_SPACE)) ) {
+                        // Current char is a non-flexible CJK (so, not a CJK punctuation).
+                        // Previous char is not a CJK, object nor space.
+                        lUInt16 props = lGetCharProps(m_text[i-1]);
+                        if ( !CH_PROP_IS_PUNCT(props) && !(props & CH_PROP_SPACE) ) {
+                            // Previous char is not a punctuation and not some other kind of space.
+                            // Assume we'll have to add 1/4 of the CJK char's font size
+                            LVFont * fnt = (LVFont *)m_srcs[i]->t.font;
+                            spaceReduceWidth -= fnt->getSize() / 4;
+                        }
+
+                    }
+                    else if ( (m_flags[i-1] & LCHAR_IS_CJK) && !(m_flags[i-1] & LCHAR_IS_FLEXIBLE_WIDTH_CJK) &&
+                                 !(m_flags[i] & (LCHAR_IS_CJK|LCHAR_IS_OBJECT|LCHAR_IS_SPACE)) ) {
+                        // Previous char is a non-flexible CJK (so, not a CJK punctuation).
+                        // Current char is not a CJK, object nor space.
+                        lUInt16 props = lGetCharProps(m_text[i]);
+                        if ( !CH_PROP_IS_PUNCT(props) && !(props & CH_PROP_SPACE) ) {
+                            // Current char is not a punctuation and not some other kind of space.
+                            LVFont * fnt = (LVFont *)m_srcs[i-1]->t.font;
+                            spaceReduceWidth -= fnt->getSize() / 4;
+                        }
                     }
                 }
 
