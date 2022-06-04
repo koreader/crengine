@@ -3696,6 +3696,16 @@ public:
             }
             // Let HB guess what's not been set (script, direction, language)
             hb_buffer_guess_segment_properties(_hb_buffer);
+            // In case HB couldn't guess a script from the unicode chars we added to its buffer,
+            // (which can happen when we give it a single CJK punctuation which would be considered
+            // as script COMMON, or a sequence of digits and punctuations), make sure we have HB aware
+            // of some valid script, so that at least the 'locl' feature works and is able to provide
+            // glyphs for the requested hb_language.
+            if ( hb_buffer_get_script(_hb_buffer) == HB_SCRIPT_INVALID ) {
+                // Provide "latn", which has the best chance to be known by the font and have
+                // its OpenType features working.
+                hb_buffer_set_script(_hb_buffer, HB_SCRIPT_LATIN);
+            }
 
             // See measureText() for details
             if ( letter_spacing > 0 ) {
