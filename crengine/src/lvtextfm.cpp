@@ -405,7 +405,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
-    bool m_kerning_mode;
+    kerning_mode_t m_kerning_mode;
     bool m_allow_strut_confining;
     bool m_has_multiple_scripts;
     int  m_usable_left_overflow;
@@ -429,6 +429,8 @@ public:
     bool m_has_cjk; // true when some CJK met
     int  m_cjk_prev_line_added_space_div; // Used with CJK justified lines, to
     int  m_cjk_prev_line_added_space_mod; // apply same spacing on last line.
+    int  m_cjk_indent_unit; // Used with CJK justified lines, to
+    int  m_cjk_indent_div;  // make the indented char align with following lines.
 
 // These are not unicode codepoints: these values are put where we
 // store text indexes in the source text node.
@@ -469,6 +471,8 @@ public:
         m_has_cjk = false;
         m_cjk_prev_line_added_space_div = 0;
         m_cjk_prev_line_added_space_mod = 0;
+        m_cjk_indent_unit = 0;
+        m_cjk_indent_div = 0;
         m_specified_para_dir = REND_DIRECTION_UNSET;
         #if (USE_FRIBIDI==1)
             m_bidi_ctypes = NULL;
@@ -2596,6 +2600,31 @@ public:
                 // printf("  distance: %d (min %d) => +%d\n", distance, min_distance, word->_top_to_baseline);
             }
         }
+        
+        int cjk_indent_unit = m_cjk_indent_unit;
+        if ( cjk_indent_unit > 0 ) {
+            // We only do the indent alignment under certain circumstances.
+            if ( frmline->x == 0 ) {
+                // not-indented line
+                if (frmline->word_count < 3) {
+                    // not enough char
+                    cjk_indent_unit = 0;
+                } else {
+                    // if any of the first three chars is not cjk char, we do not do the alignment
+                    for (int i = 0; i < 3; i++ ) {
+                        if ( !(frmline->words[i].flags & LTEXT_WORD_IS_CJK) ) {
+                            cjk_indent_unit = 0;
+                            break;
+                        }
+                    }
+                }
+            } else if ( (!(frmline->words[0].flags & LTEXT_WORD_IS_CJK) || 
+                           frmline->words[0].flags & LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK )) {
+                // indented line where the first char is not cjk fullwidth char
+                cjk_indent_unit = 0;
+            } 
+        }
+
         if ( correction_needed_width > 0 ) {
             // There are some corrections to do, and we can do all or part of them
             int available_width = extra_width + additional_extra_width;
@@ -2811,6 +2840,11 @@ public:
                 int delta = 0;
                 for ( i=0; i<(int)frmline->word_count; i++ ) {
                     frmline->words[i].x -= delta;
+                    if ( i < cjk_indent_unit ) {
+                        // align indent
+                        delta -= m_cjk_indent_div;
+                        continue;
+                    }
                     int dw = frmline->words[i].width - frmline->words[i].min_width;
                     if (dw>0 && totalSpace>0) {
                         int n = dw * extraSpace / totalSpace;
@@ -2835,7 +2869,9 @@ public:
         else if ( alignment==LTEXT_ALIGN_LEFT ) {
             // no additional alignment necessary
             // Except may be with CJK lines (the last line of a justified paragraph being left aligned)
-            if ( m_has_cjk && ( m_cjk_prev_line_added_space_div > 0 || m_cjk_prev_line_added_space_mod > 0 ) ) {
+            // Or the last cjk line needs to adjust for indent
+            if ( m_has_cjk && ( m_cjk_prev_line_added_space_div > 0 || m_cjk_prev_line_added_space_mod > 0 || 
+                                ( cjk_indent_unit > 0  &&  m_cjk_indent_div > 0 ) )) {
                 // We did add spacing to the previous line to ensure text justification (see below)
                 if ( frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
                                               && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
@@ -2852,10 +2888,19 @@ public:
                         }
                         int addSpaceDiv = m_cjk_prev_line_added_space_div;
                         int addSpaceMod = m_cjk_prev_line_added_space_mod;
-                        int delta = 0;
+                        int delta = frmline->x > 0 ? cjk_indent_unit * m_cjk_indent_div : 0; // Account for the first line.
+                        if ( delta > 0 && m_pbuffer->cjk_width_scale_percent != 100 ) {
+                            // Only when the first char is a CJK fullwidth char that cjk_indent_unit is bigger
+                            // than zero. So its width can be considered width of the font.
+                            int char_width = frmline->words[0].width;
+                            delta += ( char_width * m_pbuffer->cjk_width_scale_percent / 100 - char_width ) * cjk_indent_unit;
+                        }
                         for ( int i=0; i<(int)frmline->word_count; i++ ) {
                             if (apply)
                                 frmline->words[i].x += delta;
+                            if ( i < cjk_indent_unit ) {
+                                delta += m_cjk_indent_div;
+                            } else
                             if ( frmline->words[i].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER ) {
                                 delta += addSpaceDiv;
                                 if ( addSpaceMod>0 ) {
@@ -2897,7 +2942,7 @@ public:
                 m_cjk_prev_line_added_space_div = 0;
                 m_cjk_prev_line_added_space_mod = 0;
             }
-            if ( extra_width > 0 ) {
+            if ( extra_width > 0 || ( extra_width == 0 && cjk_indent_unit > 0 )) {
                 // distribute additional space
                 int extraSpace = extra_width;
                 int addSpacePoints = 0;
@@ -2909,6 +2954,13 @@ public:
                 if ( addSpacePoints>0 ) {
                     int addSpaceDiv = extraSpace / addSpacePoints;
                     int addSpaceMod = extraSpace % addSpacePoints;
+                    if ( cjk_indent_unit > 0 ) {
+                        // For lines of CJK indented paragraph, the indent adjustments are fixed
+                        // so they are not subtracted from the extra space.
+                        if ( frmline->x == 0 && addSpacePoints > cjk_indent_unit ) addSpacePoints -= cjk_indent_unit;
+                        addSpaceDiv = ( extraSpace - cjk_indent_unit * m_cjk_indent_div ) / addSpacePoints;
+                        addSpaceMod = ( extraSpace - cjk_indent_unit * m_cjk_indent_div ) % addSpacePoints;
+                    }
                     if ( m_has_cjk ) {
                         // We are adding spacing to justify the text. Remember the spacing we are
                         // adding to this line in case the next line is the last. The last line
@@ -2925,9 +2977,21 @@ public:
                             m_cjk_prev_line_added_space_mod = addSpaceMod;
                         }
                     }
-                    int delta = 0;
+                    int delta = frmline->x == 0 ? 0 : cjk_indent_unit * m_cjk_indent_div; // Account for indented line.
+                    if ( delta > 0 && m_pbuffer->cjk_width_scale_percent != 100 ) {
+                        // Only when the first char is a CJK fullwidth char that cjk_indent_unit is bigger
+                        // than zero. So its width can be considered width of the font.
+                        int char_width = frmline->words[0].width;
+                        delta += ( char_width * m_pbuffer->cjk_width_scale_percent / 100 - char_width ) * cjk_indent_unit;
+                    }
                     for ( i=0; i<(int)frmline->word_count; i++ ) {
                         frmline->words[i].x += delta;
+                        if ( extra_width == 0 && i >= cjk_indent_unit ) {
+                            continue; 
+                        } else
+                        if ( cjk_indent_unit > 0 && frmline->x == 0 && i < cjk_indent_unit ) {
+                            delta += m_cjk_indent_div;
+                        } else
                         if ( frmline->words[i].flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER ) {
                             delta += addSpaceDiv;
                             if ( addSpaceMod>0 ) {
@@ -4547,6 +4611,40 @@ public:
         // order; the small shifts we might have on the final width vs the
         // width measured here will hopefully be compensated on the space chars.
 
+        // For CJK paragraphs, we check if indent is 2em or 1em, in which case we
+        // perform special char width adjustment on the first 2/1 chars of each
+        // line to have the first char of paragraph aligned with the lines below.
+        m_cjk_indent_unit = 0;
+        m_cjk_indent_div = 0;
+        int cjk_added_indent_width = 0;
+        if (m_has_cjk && m_kerning_mode == KERNING_MODE_HARFBUZZ && m_indent_current) {
+            int char_width = ((LVFont *)para->t.font)->getSize();
+            if (char_width == m_indent_current) {
+                m_cjk_indent_unit = 1;
+            } else if (char_width * 2 == m_indent_current) {
+                m_cjk_indent_unit = 2;
+            }
+            if ( m_cjk_indent_unit > 0 && char_width > 0 ) {
+                // As each line will have different numbers of CJK chars, punctuations,
+                // western letters etc, a best delta width applied to the indent-aligned
+                // chars is impossible to get before hand. In most cases, we can use a 
+                // good enough value that doesn't make the first 1/2 chars' spacing noticeably
+                // different than the rest.
+                int width = getCurrentLineWidth();
+                int cjk_char_count = width / char_width;
+                int extra_width = width % char_width;
+                m_cjk_indent_div = extra_width / cjk_char_count;
+                int addSpaceMod = extra_width % cjk_char_count;
+                if (addSpaceMod > 0) {
+                    m_cjk_indent_div++;
+                }
+
+                if (m_pbuffer->cjk_width_scale_percent != 100) {
+                    cjk_added_indent_width = ( char_width * m_pbuffer->cjk_width_scale_percent / 100 - char_width ) * m_cjk_indent_unit;
+                }
+            }
+        }
+
         while ( pos<m_length ) { // each loop makes a line
             // x is this line indent. We use it like a x coordinates below, but
             // we'll use it on the right in addLine() if para is RTL.
@@ -4688,7 +4786,8 @@ public:
                 }
 
                 bool grabbedExceedingSpace = false;
-                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth ) {
+                int cjkIndentAddedWidth = x==0 ? 0 : cjk_added_indent_width + m_cjk_indent_unit * m_cjk_indent_div;
+                if ( x + m_widths[i]-w0 > maxWidth + spaceReduceWidth - cjkIndentAddedWidth ) {
                     // It's possible the char at i is a space whose width exceeds maxWidth,
                     // but it should be a candidate for lastNormalWrap (otherwise, the
                     // previous word will be hyphenated and we will get spaces widen for
@@ -4716,14 +4815,14 @@ public:
                                 if ( wa8 < 0 )
                                     wa8 = -wa8;
                                 w = w * wa8 / 8; // floor'ed, to get more chance to fit
-                                if ( x + m_widths[i-1]-w0 + w <= maxWidth + spaceReduceWidth ) {
+                                if ( x + m_widths[i-1]-w0 + w <= maxWidth + spaceReduceWidth - cjkIndentAddedWidth) {
                                     does_fit = true;
                                 }
                                 // If it doesn't fit when just itself smaller, we'll do the check
                                 // just below with its reduced width.
                             }
                         }
-                        if ( !does_fit && w <= cjkReduceWidth ) {
+                        if ( !does_fit && w <= cjkReduceWidth - cjkIndentAddedWidth ) {
                             // It would fit if we steal space from previous "can be smaller" chars, as they
                             // provide enough stealable space.
                             // Transfer the required width from stolen from cjkReduceWidth into spaceReduceWidth,
