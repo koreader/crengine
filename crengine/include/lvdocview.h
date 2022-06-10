@@ -748,13 +748,13 @@ public:
     void setPageSkin( CRPageSkinRef skin );
 
     /// returns xpointer for specified window point
-    ldomXPointer getNodeByPoint( lvPoint pt, bool strictBounds=false );
+    ldomXPointer getNodeByPoint( lvPoint pt, bool strictBounds=false, bool forTextSelection=false );
     /// returns image source for specified window point, if point is inside image
     LVImageSourceRef getImageByPoint(lvPoint pt);
     /// draws scaled image into buffer, clear background according to current settings
     bool drawImage(LVDrawBuf * buf, LVImageSourceRef img, int x, int y, int dx, int dy);
     /// converts point from window to document coordinates, returns true if success
-    bool windowToDocPoint( lvPoint & pt );
+    bool windowToDocPoint( lvPoint & pt, bool pullInPageArea=false );
     /// converts point from document to window coordinates, returns true if success
     bool docToWindowPoint( lvPoint & pt, bool isRectBottom=false, bool fitToPage=false );
 

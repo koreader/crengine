@@ -2541,13 +2541,19 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
 //}
 
 /// converts point from window to document coordinates, returns true if success
-bool LVDocView::windowToDocPoint(lvPoint & pt) {
+bool LVDocView::windowToDocPoint(lvPoint & pt, bool pullInPageArea) {
     CHECK_RENDER("windowToDocPoint()")
 #if CR_INTERNAL_PAGE_ORIENTATION==1
 	pt = rotatePoint( pt, true );
 #endif
 	if (getViewMode() == DVM_SCROLL) {
 		// SCROLL mode
+		if ( pullInPageArea ) {
+			if ( pt.x < m_pageMargins.left )
+				pt.x = m_pageMargins.left;
+			if ( pt.x >= m_dx - m_pageMargins.right )
+				pt.x = m_dx - m_pageMargins.right - 1;
+		}
 		pt.y += _pos;
 		pt.x -= m_pageMargins.left;
 		return true;
@@ -2561,6 +2567,18 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 		page1.top += m_pageMargins.top + headerHeight;
 		page1.right -= m_pageMargins.right;
 		page1.bottom -= m_pageMargins.bottom;
+		if ( pullInPageArea ) {
+			if ( getVisiblePageCount() < 2 || pt.x <= m_dx / 2) {
+				if ( pt.x < page1.left )
+					pt.x = page1.left;
+				if ( pt.x >= page1.right )
+					pt.x = page1.right - 1;
+				if ( pt.y < page1.top )
+					pt.y = page1.top;
+				if ( pt.y >= page1.bottom )
+					pt.y = page1.bottom - 1;
+			}
+		}
 		lvRect page2;
 		if (page1.isPointInside(pt)) {
 			rc = &page1;
@@ -2570,6 +2588,16 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 			page2.top += m_pageMargins.top + headerHeight;
 			page2.right -= m_pageMargins.right;
 			page2.bottom -= m_pageMargins.bottom;
+			if ( pullInPageArea ) {
+				if ( pt.x < page2.left )
+					pt.x = page2.left;
+				if ( pt.x >= page2.right )
+					pt.x = page2.right - 1;
+				if ( pt.y < page2.top )
+					pt.y = page2.top;
+				if ( pt.y >= page2.bottom )
+					pt.y = page2.bottom - 1;
+			}
 			if (page2.isPointInside(pt)) {
 				rc = &page2;
 				page++;
@@ -2579,6 +2607,10 @@ bool LVDocView::windowToDocPoint(lvPoint & pt) {
 			int page_y = m_pages[page]->start;
 			pt.x -= rc->left;
 			pt.y -= rc->top;
+			if ( pullInPageArea ) {
+				if ( pt.y >= m_pages[page]->height )
+					pt.y = m_pages[page]->height - 1;
+			}
 			if (pt.y < m_pages[page]->height) {
 				//CRLog::debug(" point page offset( %d, %d )", pt.x, pt.y );
 				pt.y += page_y;
@@ -2673,12 +2705,54 @@ bool LVDocView::docToWindowPoint(lvPoint & pt, bool isRectBottom, bool fitToPage
 }
 
 /// returns xpointer for specified window point
-ldomXPointer LVDocView::getNodeByPoint(lvPoint pt, bool strictBounds) {
+ldomXPointer LVDocView::getNodeByPoint(lvPoint pt, bool strictBounds, bool forTextSelection) {
 	LVLock lock(getMutex());
     CHECK_RENDER("getNodeByPoint()")
-	if (windowToDocPoint(pt) && m_doc) {
+	if (m_doc && windowToDocPoint(pt, forTextSelection)) {
 		ldomXPointer ptr = m_doc->createXPointer(pt, PT_DIR_EXACT, strictBounds);
 		//CRLog::debug("  ptr (%d, %d) node=%08X offset=%d", pt.x, pt.y, (lUInt32)ptr.getNode(), ptr.getOffset() );
+		if ( forTextSelection ) {
+			// For text selection, we don't want to return null if pt is not exactly on text:
+			// - pt might be in the outer margins, and would then not be in the page area,
+			//   so we called windowToDocPoint(pt, pullInPageArea=true) to get pt pulled
+			//   into the page area.
+			// - pt might be in some paragraph left or right margin, and it's possible PT_DIR_EXACT
+			//   returns some text from a paragraph a few pages above that doesn't have that margin...
+			// - pt might be in some inter paragraphs collapsed top/bottom margin, that would resolve
+			//   to none of them.
+			// Consider the ptr obtained with PT_DIR_EXACT valid only if non-null and if its rect contains pt.y
+			bool valid = false;
+			lvRect rc;
+			if ( !ptr.isNull() && ptr.getRect(rc) ) {
+				if ( pt.y >= rc.top && pt.y < rc.bottom )
+					valid = true;
+			}
+			if ( !valid ) {
+				// Find the nearest valid one using scan: SCAN_FORWARD if on the left side of
+				// the page, SCAN_BACKWARD if on the right side
+				int direction = PT_DIR_SCAN_FORWARD;
+				if ( getVisiblePageCount() < 2 ) {
+					if ( pt.x > m_dx / 2 )
+						direction = PT_DIR_SCAN_BACKWARD;
+				}
+				else {
+					if ( pt.x > m_dx * 3/4 )
+						direction = PT_DIR_SCAN_BACKWARD;
+					else if ( pt.x > m_dx * 1/4 && pt.x <= m_dx / 2 )
+						direction = PT_DIR_SCAN_BACKWARD;
+				}
+				// Switch the scan direction if the page is mostly RTL
+				// (all this might still not feel perfect on RTL pages...)
+				int page = getCurPage(true);
+				if ( getVisiblePageCount() == 2 && pt.x > m_dx / 2 ) {
+					page += 1;
+				}
+				if ( page >= 0 && page < m_pages.length() && m_pages[page]->flags & RN_PAGE_MOSTLY_RTL ) {
+					direction = -direction;
+				}
+				ptr = m_doc->createXPointer(pt, direction, strictBounds);
+			}
+		}
 		return ptr;
 	}
 	return ldomXPointer();
