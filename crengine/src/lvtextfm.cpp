@@ -405,7 +405,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
-    bool m_kerning_mode;
+    kerning_mode_t m_kerning_mode;
     bool m_allow_strut_confining;
     bool m_has_multiple_scripts;
     int  m_usable_left_overflow;
