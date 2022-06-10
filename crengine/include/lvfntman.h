@@ -653,6 +653,9 @@ public:
     virtual void getFontFileNameList( lString32Collection & ) { }
     /// returns font filename and face index for font name
     virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index ) { return false; }
+    /// returns registered or instantiated document embedded font list
+    virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list ) { }
+    virtual void getInstantiatedDocumentFontList( int document_id, lString32Collection & list ) { }
 
     /// returns first found face from passed list, or return face for font found by family only
     virtual lString8 findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily);
