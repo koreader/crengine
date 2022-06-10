@@ -13587,6 +13587,19 @@ lString32 ldomXRange::getRangeText( lChar32 blockDelimiter, int maxTextLen )
     return removeSoftHyphens( callback.getText() );
 }
 
+lChar32 ldomXPointer::getChar()
+{
+    ldomNode * node = getNode();
+    if ( !node || !node->isText() )
+        return 0;
+    lString32 text = node->getText();
+    int textLen = text.length();
+    int offset = _data->getOffset();
+    if ( offset >= textLen || offset < 0 )
+        return 0;
+    return text[offset];
+}
+
 /// returns href attribute of <A> element, plus xpointer of <A> element itself
 lString32 ldomXPointer::getHRef(ldomXPointer & a_xpointer)
 {
