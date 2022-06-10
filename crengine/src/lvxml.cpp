@@ -965,7 +965,7 @@ void LVTextFileBase::SetCharset( const lChar32 * name )
         m_enc_type = ce_utf16_le;
         SetCharsetTable( NULL );
 #if GBK_ENCODING_SUPPORT == 1
-    } else if ( m_encoding_name == "gbk" || m_encoding_name == "cp936" || m_encoding_name == "cp-936") {
+    } else if ( m_encoding_name == "gbk" || m_encoding_name == "gb2312" || m_encoding_name == "cp936" || m_encoding_name == "cp-936") {
         m_enc_type = ce_gbk;
         SetCharsetTable( NULL );
 #endif

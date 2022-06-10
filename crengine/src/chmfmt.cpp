@@ -1165,7 +1165,6 @@ public:
             } else {
                 CRLog::error("Document type is not HTML for fragment %s", LCSTR(fname));
             }
-            appendedFragments++;
         }
         return appendedFragments;
     }
