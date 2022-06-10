@@ -650,6 +650,30 @@ public:
         }
         return false;
     }
+    virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list )
+    {
+        list.clear();
+        for ( int i=0; i<_registered_list.length(); i++ ) {
+            if (_registered_list[i]->getDef()->getDocumentId() != document_id)
+                continue;
+            lString32 name = Utf8ToUnicode( _registered_list[i]->getDef()->getTypeFace() );
+            if ( !list.contains(name) )
+                list.add( name );
+        }
+        list.sort();
+    }
+    virtual void getInstantiatedDocumentFontList( int document_id, lString32Collection & list )
+    {
+        list.clear();
+        for ( int i=0; i<_instance_list.length(); i++ ) {
+            if (_instance_list[i]->getDef()->getDocumentId() != document_id)
+                continue;
+            lString32 name = Utf8ToUnicode( _instance_list[i]->getDef()->getTypeFace() );
+            if ( !list.contains(name) )
+                list.add( name );
+        }
+        list.sort();
+    }
     virtual void clearFallbackFonts()
     {
         LVPtrVector< LVFontCacheItem > * fonts = getInstances();
@@ -5396,6 +5420,17 @@ public:
     {
         FONT_MAN_GUARD
         return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index);
+    }
+
+    virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list )
+    {
+        FONT_MAN_GUARD
+        _cache.getRegisteredDocumentFontList(document_id, list);
+    }
+    virtual void getInstantiatedDocumentFontList( int document_id, lString32Collection & list )
+    {
+        FONT_MAN_GUARD
+        _cache.getInstantiatedDocumentFontList(document_id, list);
     }
 
     bool SetAlias(lString8 alias,lString8 facename,int id,bool bold,bool italic)
