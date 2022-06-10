@@ -1642,6 +1642,8 @@ public:
             return lString32::empty_str;
         return node->getText( blockDelimiter );
     }
+    /// returns char (0 if node a text node, or end of text node)
+    lChar32 getChar();
     /// returns href attribute of <A> element, null string if not found
     lString32 getHRef();
     /// returns href attribute of <A> element, plus xpointer of <A> element itself
