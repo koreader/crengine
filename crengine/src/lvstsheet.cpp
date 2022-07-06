@@ -3106,6 +3106,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else if ( substr_icompare("footnote", decl) )               hints |= CSS_CR_HINT_FOOTNOTE;
                         else if ( substr_icompare("footnote-ignore", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_IGNORE;
                         //
+                        else if ( substr_icompare("late", decl) ) {
+                            // "-cr-hint: late", unlike previous ones, does not set a flag to the nodes matched
+                            // by the selector(s): it just sets a huge specifity to the selectors preceeeding
+                            // this declaration. These selectors will then be checked late, after all the other
+                            // ones that don't have this hint.
+                            // This can be used to have "* {...}" (very low specificity, so checked and applied
+                            // very early) checked after all others, to easily override styles. Using "!important"
+                            // with the properties to be overridden styles is still required.
+                            setExtraWeighted(true);
+                            nb_invalid++; // as it is not to be saved into 'buf'
+                        }
+                        //
                         else if ( parse_important(decl) ) {
                             parsed_important = IMPORTANT_DECL_SET;
                             break; // stop looking for more
@@ -4514,6 +4526,7 @@ lUInt32 LVCssDeclaration::getHash() {
 // So, apply the real CSS specificity in higher bits, allowing
 // for the following number of such rules in a single selector
 // (we're not checking for overflow thus...)
+#define WEIGHT_SPECIFICITY_EXTRA    1<<31 // extra huge weight (set by declaration when containing "-cr-hint: late")
 #define WEIGHT_SPECIFICITY_ID       1<<29 // allow for 8 #id (b in comment below)
 #define WEIGHT_SPECIFICITY_ATTRCLS  1<<24 // allow for 32 .class and [attr...] (c)
 #define WEIGHT_SPECIFICITY_ELEMENT  1<<19 // allow for 32 element names div > p span (d)
@@ -5774,8 +5787,11 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
             else
             {
                 // set decl to selectors
-                for (LVCssSelector * p = selector; p; p=p->getNext())
+                for (LVCssSelector * p = selector; p; p=p->getNext()) {
                     p->setDeclaration( decl );
+                    if ( decl->isExtraWeighted() )
+                        p->addSpecificity(WEIGHT_SPECIFICITY_EXTRA);
+                }
                 rule_count++;
             }
             break;
