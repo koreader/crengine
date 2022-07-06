@@ -2875,6 +2875,12 @@ static const char * css_cr_only_if_names[]={
         "docx-document",
         "odt-document",
         "pdb-document",
+        "inline",
+        "not-inline",
+        "inpage-footnote",
+        "not-inpage-footnote",
+        "inside-inpage-footnote",
+        "not-inside-inpage-footnote",
         NULL
 };
 enum cr_only_if_t {
@@ -2899,6 +2905,19 @@ enum cr_only_if_t {
     cr_only_if_docx_document,
     cr_only_if_odt_document,
     cr_only_if_pdb_document,
+    // The following ones are non-static: unlike previous ones which depend on the document
+    // or rendering options and so we can only ignore the CSS declaration, the next ones
+    // depend on the style of the node, and need to be saved and checked on each node (for
+    // the rest of the declaration to be applied to this node, or skipped as a whole).
+    // Note: the "not_xyz" ones are equivalent to "-xyz", and need to be just after
+    // the one they negate/invert.
+    // When mixing static and non-static -cr-only-if, put the static ones first.
+    cr_only_if_inline,
+    cr_only_if_not_inline,
+    cr_only_if_inpage_footnote,
+    cr_only_if_not_inpage_footnote,
+    cr_only_if_inside_inpage_footnote,
+    cr_only_if_not_inside_inpage_footnote,
 };
 
 bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString32 codeBase )
@@ -2971,6 +2990,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         }
                         else if ( name == cr_only_if_never ) {
                             match = invert;
+                        }
+                        else if ( name >= cr_only_if_inline ) {
+                            // Non-static ones
+                            match = true; // this one will be check on each node, and next properties need to be saved
+                            if (invert) {
+                                name++; // "-inline" is the same as "non-inline" which follows "inline"
+                            }
+                            if ( !ignoring ) {
+                                // No static -cr-only-if prevents this non-static one to be checked
+                                buf<<(lUInt32) (prop_code | importance | parsed_important | parse_important(decl));
+                                buf<<(lUInt32) name;
+                            }
                         }
                         else if ( !doc ) {
                             // Without a doc, we don't have access to any of the following properties
@@ -3085,7 +3116,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             // Forget everything parsed previously, and prevent inheritance
                             hints = CSS_CR_HINT_NONE_NO_INHERIT;
                         }
-                        else if ( substr_icompare("footnote-inpage", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_INPAGE;
+                        else if ( substr_icompare("footnote-inpage", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_INPAGE|CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE;
                         else if ( substr_icompare("non-linear", decl) )             hints |= CSS_CR_HINT_NON_LINEAR;
                         else if ( substr_icompare("non-linear-combining", decl) )   hints |= CSS_CR_HINT_NON_LINEAR_COMBINING;
                         else if ( substr_icompare("strut-confined", decl) )         hints |= CSS_CR_HINT_STRUT_CONFINED;
@@ -4486,6 +4517,50 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                 }
                 else {
                     style->ApplyAsBitmapOr( cr_hint, &style->cr_hint, imp_bit_cr_hint, is_important );
+                }
+            }
+            break;
+        case cssd_cr_only_if:
+            {
+                // This -cr-only-if depends on some style as it is set at this point.
+                // When the condition is not met, we return, skipping the whold declaration.
+                cr_only_if_t only_if = (cr_only_if_t) *p++;
+                if ( only_if == cr_only_if_inline || only_if == cr_only_if_not_inline ) {
+                    css_display_t display = style->display;
+                    if ( display == css_d_none ) {
+                        // Let's have "display:none" not matched by neither inline nor not-inline
+                        return;
+                    }
+                    if ( display <= css_d_inline || display == css_d_inline_block || display == css_d_inline_table ) {
+                        // It is inline-like
+                        if ( only_if == cr_only_if_not_inline )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                    else {
+                        // It is not inline-like
+                        if ( only_if == cr_only_if_inline )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                }
+                else if ( only_if == cr_only_if_inpage_footnote || only_if == cr_only_if_not_inpage_footnote ) {
+                    if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) ) {
+                        if ( only_if == cr_only_if_not_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                    else {
+                        if ( only_if == cr_only_if_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                }
+                else if ( only_if == cr_only_if_inside_inpage_footnote || only_if == cr_only_if_not_inside_inpage_footnote ) {
+                    if ( STYLE_HAS_CR_HINT(style, INSIDE_FOOTNOTE_INPAGE) ) {
+                        if ( only_if == cr_only_if_not_inside_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                    else {
+                        if ( only_if == cr_only_if_inside_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
                 }
             }
             break;
