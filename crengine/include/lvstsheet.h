@@ -80,6 +80,7 @@ class LVCssDeclaration {
 private:
     int * _data;
     bool _check_if_supported;
+    bool  _extra_weighted;
 public:
     void apply( css_style_rec_t * style );
     bool empty() { return _data==NULL; }
@@ -88,8 +89,10 @@ public:
         _check_if_supported = true; // will tweak parse() behaviour and meaning of return value
         return parse(decl, false, doc);
     }
+    void setExtraWeighted( bool weighted ) { _extra_weighted = weighted; }
+    int isExtraWeighted() { return _extra_weighted; }
     lUInt32 getHash();
-    LVCssDeclaration() : _data(NULL), _check_if_supported(false) { }
+    LVCssDeclaration() : _data(NULL), _check_if_supported(false), _extra_weighted(false) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
 };
 
@@ -162,7 +165,7 @@ private:
 
     lUInt16 _id;
     LVCssDeclRef _decl;
-    int _specificity;
+    lUInt32 _specificity;
     int _pseudo_elem; // from enum LVCssSelectorPseudoElement, or 0
     LVCssSelector * _next;
     LVCssSelectorRule * _rules;
@@ -171,7 +174,7 @@ private:
 public:
     LVCssSelector( LVCssSelector & v );
     LVCssSelector() : _id(0), _specificity(0), _pseudo_elem(0),  _next(NULL), _rules(NULL) { }
-    LVCssSelector(int specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
+    LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
     ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() { return _id; }
@@ -192,7 +195,8 @@ public:
         }
     }
     void setDeclaration( LVCssDeclRef decl ) { _decl = decl; }
-    int getSpecificity() { return _specificity; }
+    void addSpecificity(lUInt32 specificity) { _specificity += specificity; }
+    lUInt32 getSpecificity() { return _specificity; }
     LVCssSelector * getNext() { return _next; }
     void setNext(LVCssSelector * next) { _next = next; }
     lUInt32 getHash();
