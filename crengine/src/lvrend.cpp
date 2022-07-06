@@ -2631,17 +2631,32 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
     // We don't apply values in % when no container width or height is provided
     // which is what's suggested when they are not yet known:
     // https://drafts.csswg.org/css-sizing-3/#cyclic-percentage-contribution
-    if ( style->width.type != css_val_unspecified && (container_width >= 0 || style->width.type != css_val_percent) )
+    // Also, when gRenderDPI=0 (old crengine behaviour), lengthToPx() returns 0 for absolute
+    // CSS units (in, cm, mm, pt, pc), which is ok for margins and such, but not for images:
+    // we want non-zero w/h: so do as if no style when the unit is one of these.
+    if ( style->width.type != css_val_unspecified
+                        && (container_width >= 0 || style->width.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->width.type < css_val_in || style->width.type > css_val_pc) )
         width = lengthToPx(enode, style->width, container_width);
-    if ( style->min_width.type != css_val_unspecified && (container_width >= 0 || style->min_width.type != css_val_percent) )
+    if ( style->min_width.type != css_val_unspecified
+                        && (container_width >= 0 || style->min_width.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->min_width.type < css_val_in || style->min_width.type > css_val_pc) )
         min_width = lengthToPx(enode, style->min_width, container_width);
-    if ( style->max_width.type != css_val_unspecified && (container_width >= 0 || style->max_width.type != css_val_percent) )
+    if ( style->max_width.type != css_val_unspecified
+                        && (container_width >= 0 || style->max_width.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->max_width.type < css_val_in || style->max_width.type > css_val_pc) )
         max_width = lengthToPx(enode, style->max_width, container_width);
-    if ( style->height.type != css_val_unspecified && (container_height >= 0 || style->height.type != css_val_percent) )
+    if ( style->height.type != css_val_unspecified
+                        && (container_height >= 0 || style->height.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->height.type < css_val_in || style->height.type > css_val_pc) )
         height = lengthToPx(enode, style->height, container_height);
-    if ( style->min_height.type != css_val_unspecified && (container_height >= 0 || style->min_height.type != css_val_percent) )
+    if ( style->min_height.type != css_val_unspecified
+                        && (container_height >= 0 || style->min_height.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->min_height.type < css_val_in || style->min_height.type > css_val_pc) )
         min_height = lengthToPx(enode, style->min_height, container_height);
-    if ( style->max_height.type != css_val_unspecified && (container_height >= 0 || style->max_height.type != css_val_percent) )
+    if ( style->max_height.type != css_val_unspecified
+                        && (container_height >= 0 || style->max_height.type != css_val_percent)
+                        && (gRenderDPI > 0 || style->max_height.type < css_val_in || style->max_height.type > css_val_pc) )
         max_height = lengthToPx(enode, style->max_height, container_height);
 
     if ( enforce_page_constraints ) {
