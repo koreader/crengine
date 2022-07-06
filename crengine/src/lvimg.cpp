@@ -1038,6 +1038,14 @@ public:
     };
 };
 
+// https://www.oreilly.com/library/view/programming-web-graphics/1565924789/ch01s02.html:
+// "If a file does not have a global color table and does not have local color tables,
+// the image will be rendered using the application's default color table, with unpredictable results"
+// "The GIF specification suggests that the first two elements of a color table be black (0) and white (1),
+// but this is not necessarily always the case".
+// Let's get the same values as MuPDF's mupdf/source/fitz/load-gif.c (which does it via a hardcoded table).
+#define GIF_DEFAULT_PALETTE_COLOR_VALUE(b) ( b == 0 ? 0x000000 : ( b == 1 ? 0xFFFFFF : (b<<16|b<<8|b) ) )
+
 class LVGifFrame
 {
 protected:
@@ -1082,7 +1090,7 @@ public:
         int y = 0;
         for ( int i=0; i<h; i++ ) {
             for ( int j=0; j<w; j++ ) {
-                line[j] = pColorTable[background_color];
+                line[j] = pColorTable ? pColorTable[background_color] : GIF_DEFAULT_PALETTE_COLOR_VALUE(background_color);
             }
             if ( i >= m_top  && i < m_top+m_cy ) {
                 unsigned char * __restrict p_line = m_buffer + (i-m_top)*m_cx;
@@ -1091,7 +1099,7 @@ public:
                     if (b!=background_color) {
                         if (defined_transparent && b==transparent_color)
                             line[x + m_left] = 0xFF000000;
-                        else line[x + m_left] = pColorTable[b];
+                        else line[x + m_left] = pColorTable ? pColorTable[b] : GIF_DEFAULT_PALETTE_COLOR_VALUE(b);
                     }
                     else if (defined_transparent && b==transparent_color)  {
                         line[x + m_left] = 0xFF000000;
