@@ -417,14 +417,16 @@ enum css_generic_value_t {
                                                        //                                  if the node happens to be inline)
 #define CSS_CR_HINT_TEXT_SELECTION_SKIP     0x00040000 // -cr-hint: text-selection-skip    don't include inner text in selection
 
-// To be set on a block element: it is a footnote (must be a full footnote block container),
-// and to be displayed at the bottom of all pages that contain a link to it.
-#define CSS_CR_HINT_FOOTNOTE_INPAGE         0x00080000 // -cr-hint: footnote-inpage
-
 // To be set on a block element: this block makes a non-linear flow that can be hidden from normal flow by frontends.
 // Consecutive siblings all hinted with 'non-linear-combining' combine all into a single flow.
 #define CSS_CR_HINT_NON_LINEAR              0x00100000 // -cr-hint: non-linear
 #define CSS_CR_HINT_NON_LINEAR_COMBINING    0x00300000 // -cr-hint: non-linear-combining  (2 bits flag, includes previous one)
+
+// To be set on a block element: it is a footnote (must be a full footnote block container),
+// and to be displayed at the bottom of all pages that contain a link to it.
+#define CSS_CR_HINT_FOOTNOTE_INPAGE         0x00400000 // -cr-hint: footnote-inpage
+#define CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE  0x00800000 // (internal: set by previous one, and inherited early by children)
+
 
 // For footnote popup detection by koreader-base/cre.cpp
 #define CSS_CR_HINT_NOTEREF                 0x01000000 // -cr-hint: noteref         link is to a footnote
@@ -437,6 +439,7 @@ enum css_generic_value_t {
 
 // A few of them are inheritable, most are not.
 #define CSS_CR_HINT_INHERITABLE_MASK        0x0000000E
+#define CSS_CR_HINT_INHERITABLE_EARLY_MASK  0x00800000 // inherited before stylesheets are applied
 
 // Macro for easier checking
 #define STYLE_HAS_CR_HINT(s, h)     ( (bool)(s->cr_hint.value & CSS_CR_HINT_##h) )
