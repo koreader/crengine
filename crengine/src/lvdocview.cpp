@@ -6765,6 +6765,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if ( UnicodeToUtf8(value) != oldFaces ) {
                 REQUEST_RENDER("propsApply  fallback font faces")
             }
+        } else if (name == PROP_FALLBACK_FONT_SIZES_ADJUSTED) {
+            bool adjusted = props->getIntDef(PROP_FALLBACK_FONT_SIZES_ADJUSTED, false);
+            if (fontMan->GetFallbackFontSizesAdjusted() != adjusted) {
+                fontMan->SetFallbackFontSizesAdjusted(adjusted);
+                REQUEST_RENDER("propsApply - adjusted fallback font sizes")
+            }
         } else if (name == PROP_STATUS_FONT_FACE) {
             setStatusFontFace(UnicodeToUtf8(value));
         } else if (name == PROP_STATUS_LINE || name == PROP_SHOW_TIME
