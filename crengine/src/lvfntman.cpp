@@ -504,7 +504,15 @@ public:
     }
 
     lUInt32 getHash() {
-        return (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
+        lUInt32 h =  (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
+        // _bias is not a static property, and can be set/unset on these definitions.
+        // If a same _bias value is moved from one font to another, *adding* _bias
+        // to this hash may result in a final identical GetFontListHash() value
+        // (as GetFontListHash() does add all these hashes).
+        // We need to use it a multiplicator to be sure it changes GetFontListHash().
+        if ( _bias > 0 )
+            h *= _bias + 1;
+        return h;
     }
 
     /// returns font file name
@@ -594,7 +602,7 @@ public:
             if (doc == -1 || doc == documentId) // skip document fonts
                 hash = hash + _registered_list[i]->getDef()->getHash();
         }
-        return 0;
+        return hash;
     }
     virtual void getFaceList( lString32Collection & list )
     {
