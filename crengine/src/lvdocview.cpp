@@ -6800,6 +6800,12 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 fontSize = MAX_STATUS_FONT_SIZE;
             setStatusFontSize(fontSize);//cr_font_sizes
             value = lString32::itoa(fontSize);
+        } else if (name == PROP_FONT_MONOSPACE_SCALE) {
+            int scale = props->getIntDef(PROP_FONT_MONOSPACE_SCALE, 100);
+            if (fontMan->GetMonospaceSizeScale() != scale) {
+                fontMan->SetMonospaceSizeScale(scale);
+                REQUEST_RENDER("propsApply - font monospace size scale")
+            }
         } else if (name == PROP_HYPHENATION_DICT) {
             // hyphenation dictionary
             lString32 id = props->getStringDef(PROP_HYPHENATION_DICT,
