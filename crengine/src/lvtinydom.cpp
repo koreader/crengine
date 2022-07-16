@@ -389,6 +389,7 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     //     hash += 127365;
     hash = hash * 31 + (int)fontMan->GetKerningMode();
     hash = hash * 31 + fontMan->GetMonospaceSizeScale();
+    hash = hash * 31 + (int)fontMan->GetFallbackFontSizesAdjusted();
     hash = hash * 31 + fontMan->GetFontListHash(documentId);
     // Hinting mode change does not need to trigger a re-render, as since
     // we use FT_LOAD_TARGET_LIGHT, hinting has no effect on the x-axis

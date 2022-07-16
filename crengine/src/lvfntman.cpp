@@ -1354,6 +1354,9 @@ public:
         if ( _fallbackFontIsSet )
             return _fallbackFont.get();
         _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0);
+        if ( fontMan->GetFallbackFontSizesAdjusted() ) {
+            _fallbackFont = getVisuallyAdjustedOtherFont( _fallbackFont );
+        }
         _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
@@ -1370,8 +1373,47 @@ public:
         if ( _nextFallbackFontIsSet )
             return _nextFallbackFont.get();
         _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0, _faceName);
+        if ( fontMan->GetFallbackFontSizesAdjusted() ) {
+            _nextFallbackFont = getVisuallyAdjustedOtherFont( _nextFallbackFont );
+        }
         _nextFallbackFontIsSet = true;
         return _nextFallbackFont.get();
+    }
+
+    LVFontRef getVisuallyAdjustedOtherFont( LVFontRef other_font ) {
+        if ( other_font.isNull() )
+            return other_font;
+        // We use the x-height (the height of the lowercase 'x')
+        // as the visual cue we want to make similar.
+        int h = getXHeight();
+        int other_h = ((LVFreeTypeFace*)(other_font.get()))->getXHeight();
+        int other_adjusted_size = (_size * h + _size/2) / other_h; // round it
+        if ( other_font->getSize() == other_adjusted_size )
+            return other_font;
+        return fontMan->GetFont(other_adjusted_size, other_font->getWeight(), other_font->getItalic()!=0,
+                            other_font->getFontFamily(), other_font->getTypeFace(), other_font->getFeatures(), -1);
+    }
+
+    int getXHeight() {
+        int x_height = 0;
+        int glyph_index = getCharIndex( 'x', 0 );
+        if ( glyph_index ) {
+            int error = FT_Load_Glyph( _face, glyph_index, FT_LOAD_DEFAULT );
+            if ( !error ) {
+                x_height = _slot->metrics.horiBearingY;
+            }
+        }
+        if ( x_height <= 0 ) {
+            TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(_face, FT_SFNT_OS2);
+            if ( os2 && os2->sxHeight > 0 ) {
+                // The os2 table values are each a constant, that we need to scale
+                x_height = FT_MulFix(os2->sxHeight, _face->size->metrics.y_scale);
+            }
+        }
+        if ( x_height <= 0 ) {
+            x_height = _size*64 / 2; // 0.5em
+        }
+        return x_height;
     }
 
     virtual LVFont * getDecimalListItemFont() {
@@ -5021,6 +5063,7 @@ public:
         FONT_MAN_GUARD
         if ( _fallbackFontFaces.length() == 0 )
             return LVFontRef();
+        /* No real need to limit the number of instances (we prefer accuracy)
         // reduce number of possible distinct sizes for fallback font
         if ( size>40 )
             size &= 0xFFF8;
@@ -5028,6 +5071,7 @@ public:
             size &= 0xFFFC;
         else if ( size>16 )
             size &= 0xFFFE;
+        */
         // If forFaceName not provided, returns first font among _fallbackFontFaces.
         // If forFaceName provided, returns the one just after it, if forFaceName is
         // among _fallbackFontFaces. If it is not, return the first one.
@@ -5129,6 +5173,14 @@ public:
         // which will cause all font instances to have no references and
         // being destroyed before the re-rendering, which will instantiate
         // them again with the adjusted size.
+    }
+
+    virtual void SetFallbackFontSizesAdjusted( bool adjusted )
+    {
+        FONT_MAN_GUARD
+        _fallbackFontSizesAdjusted = adjusted;
+        _cache.clearFallbackFonts();
+        gc();
     }
 
     /// clear glyph cache
