@@ -620,7 +620,7 @@ public:
         }
         list.sort();
     }
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type )
     {
         int base_weight = bold ? 700 : 400;
         LVFontDef * best_def = NULL;
@@ -646,6 +646,7 @@ public:
         if ( best_def ) {
             filename = best_def->getName();
             index = best_def->getIndex();
+            family_type = best_def->getFamily();
             return true;
         }
         return false;
@@ -5416,10 +5417,10 @@ public:
         _cache.regularizeRegisteredFontsWeights(print_updates);
     }
 
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type )
     {
         FONT_MAN_GUARD
-        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index);
+        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index, family_type);
     }
 
     virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list )
