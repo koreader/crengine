@@ -595,6 +595,7 @@ protected:
     int _antialiasMode;
     kerning_mode_t _kerningMode;
     hinting_mode_t _hintingMode;
+    int _monospaceSizeScale;
 public:
     /// garbage collector frees unused fonts
     virtual void gc() = 0;
@@ -643,8 +644,14 @@ public:
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
 
+    /// get monospace size scale percent
+    virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }
+    /// set monospace size scale percent
+    virtual void SetMonospaceSizeScale( int scale ) { _monospaceSizeScale = scale; gc(); clearGlyphCache(); }
+
     /// constructor
-    LVFontManager() : _antialiasMode(font_aa_all), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT) { }
+    LVFontManager() : _antialiasMode(font_aa_all), _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
+                     , _monospaceSizeScale(100) { }
     /// destructor
     virtual ~LVFontManager() { }
     /// returns available typefaces

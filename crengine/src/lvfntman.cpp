@@ -1301,7 +1301,8 @@ protected:
     FT_Face       _face;
     FT_GlyphSlot  _slot;
     FT_Matrix     _matrix; // helper matrix for fake italic metrics
-    int           _size; // caracter height in pixels
+    int           _face_size; // font size in pixels (requested from face, internal)
+    int           _size; // font size (~ visual char height) in pixels (public)
     int           _height; // full line height in pixels
     int           _hyphen_width;
     int           _baseline;
@@ -1445,7 +1446,7 @@ public:
     FT_Library getLibrary() { return _library; }
 
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
-        : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL)
+        : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL), _face_size(0)
         , _size(0), _hyphen_width(0), _baseline(0), _underline_offset(0), _underline_thickness(0)
         , _weight(400), _italic(0), _features(0), _extra_metric(NULL)
         , _glyph_cache(globalCache), _drawMonochrome(false)
@@ -1788,7 +1789,7 @@ public:
 
     // Used when an embedded font (registered by RegisterDocumentFont()) is intantiated
     bool loadFromBuffer(LVByteArrayRef buf, int index, int size, css_font_family_t fontFamily,
-                                            bool monochrome, bool italicize, int weight=-1 ) {
+                                            bool monochrome, bool italicize, int weight=-1, int face_size=-1 ) {
         FONT_GUARD
         _hintingMode = fontMan->GetHintingMode();
         _drawMonochrome = monochrome;
@@ -1815,6 +1816,7 @@ public:
         //FT_Face_SetUnpatentedHinting( _face, 1 );
         _slot = _face->glyph;
         _faceName = familyName(_face);
+        _face_size = face_size > 0 ? face_size : size;
         CRLog::debug("Loaded font %s [%d]: faceName=%s, ", _fileName.c_str(), index, _faceName.c_str() );
         //if ( !FT_IS_SCALABLE( _face ) ) {
         //    Clear();
@@ -1823,7 +1825,7 @@ public:
         error = FT_Set_Pixel_Sizes(
             _face,    /* handle to face object */
             0,        /* pixel_width           */
-            size );   /* pixel_height          */
+            _face_size );   /* pixel_height          */
 
         #if USE_HARFBUZZ==1
         if (FT_Err_Ok == error) {
@@ -1901,7 +1903,7 @@ public:
 
     // Load font from file path
     bool loadFromFile( const char * fname, int index, int size, css_font_family_t fontFamily,
-                                           bool monochrome, bool italicize, int weight=-1 ) {
+                                           bool monochrome, bool italicize, int weight=-1, int face_size=-1 ) {
         FONT_GUARD
         _hintingMode = fontMan->GetHintingMode();
         _drawMonochrome = monochrome;
@@ -1932,6 +1934,7 @@ public:
         //FT_Face_SetUnpatentedHinting( _face, 1 );
         _slot = _face->glyph;
         _faceName = familyName(_face);
+        _face_size = face_size > 0 ? face_size : size;
         CRLog::debug("Loaded font %s [%d]: faceName=%s, ", _fileName.c_str(), index, _faceName.c_str() );
         //if ( !FT_IS_SCALABLE( _face ) ) {
         //    Clear();
@@ -1940,7 +1943,7 @@ public:
         error = FT_Set_Pixel_Sizes(
             _face,    /* handle to face object */
             0,        /* pixel_width           */
-            size );  /* pixel_height          */
+            _face_size );  /* pixel_height          */
 
         #if USE_HARFBUZZ==1
         if (FT_Err_Ok == error) {
@@ -4436,7 +4439,7 @@ public:
         error = FT_Set_Pixel_Sizes(
             _face,    /* handle to face object */
             0,        /* pixel_width           */
-            _size );  /* pixel_height          */
+            _face_size );  /* pixel_height          */
         return;
     }
 
@@ -5110,6 +5113,24 @@ public:
         }
     }
 
+    /// set monospace size scale percent
+    virtual void SetMonospaceSizeScale( int scale )
+    {
+        FONT_MAN_GUARD
+        _monospaceSizeScale = scale;
+        gc();
+        clearGlyphCache();
+        // We would need to loop thru each instance and somehow invalidate
+        // the monospace instances, as we need to load another face size
+        // from the font file. This seems quite tedious to implement, as
+        // nodes at this moment keep each instance's refCount alive.
+        // But, when having only a single document loaded, _monospaceSizeScale
+        // being part of the document hash, changing it will cause a rerendering,
+        // which will cause all font instances to have no references and
+        // being destroyed before the re-rendering, which will instantiate
+        // them again with the adjusted size.
+    }
+
     /// clear glyph cache
     virtual void clearGlyphCache()
     {
@@ -5661,10 +5682,14 @@ public:
 
         //printf("going to load font file %s\n", fname.c_str());
         bool loaded = false;
+        int face_size = size;
+        if ( family == css_ff_monospace && GetMonospaceSizeScale() != 100 ) {
+            face_size = size * GetMonospaceSizeScale() / 100;
+        }
         if (item->getDef()->getBuf().isNull())
-            loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight() );
+            loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         else
-            loaded = font->loadFromBuffer(item->getDef()->getBuf(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight() );
+            loaded = font->loadFromBuffer(item->getDef()->getBuf(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         if (loaded) {
             //fprintf(_log, "    : loading from file %s : %s %d\n", item->getDef()->getName().c_str(),
             //    item->getDef()->getTypeFace().c_str(), item->getDef()->getSize() );
