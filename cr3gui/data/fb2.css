@@ -83,11 +83,11 @@ th {  font-weight: bold; text-align: center; background-color: #DDD  }
 table caption { text-indent: 0px; padding: 4px; background-color: #EEE }
 table, th, td { border-width: 1px; border-style: solid; border-color: black; border-collapse: collapse; }
 
-tt, samp, kbd { font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", "Courier New", "Courier", monospace; }
+tt, samp, kbd { font-family: monospace; }
 code, pre {
    white-space: pre;
    text-align: left;
-   font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", "Courier New", "Courier", monospace;
+   font-family: monospace;
    }
 code {
    display: inline;

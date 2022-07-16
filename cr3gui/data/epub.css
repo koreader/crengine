@@ -137,7 +137,7 @@ table caption {
  * approximation than no pre */
 pre, xmp {
     white-space: pre; /* has to be set in fb2def.h to work */
-    font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace;
+    font-family: monospace;
     text-align: left;
     margin-top: 0.5em;
     margin-bottom: 0.5em;
@@ -145,7 +145,7 @@ pre, xmp {
 }
 
 /* Inline elements (all unknown elements default now to display: inline) */
-code, kbd, samp, tt     { font-family: "Droid Sans Mono", "Liberation Mono", "DeJaVu Sans Mono", monospace; }
+code, kbd, samp, tt     { font-family: monospace; }
 sup                     { font-size: 70%; vertical-align: super; }
 sub                     { font-size: 70%; vertical-align: sub; }
 small                   { font-size: 80%; }
