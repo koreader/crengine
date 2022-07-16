@@ -4845,7 +4845,7 @@ public:
                 if ( !grabbedExceedingSpace &&
                         m_pbuffer->min_space_condensing_percent != 100 &&
                         i < m_length-1 &&
-                        ( m_flags[i] & LCHAR_IS_SPACE ) &&
+                        ( m_flags[i] & LCHAR_IS_SPACE ) && !( m_flags[i] & LCHAR_LOCKED_SPACING ) &&
                         !(m_flags[i+1] & LCHAR_IS_SPACE) ) {
                     // Each space not followed by a space is candidate for space condensing
                     int dw = getMaxCondensedSpaceTruncation(i);
