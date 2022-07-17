@@ -5986,11 +5986,32 @@ bool LVHTMLParser::CheckFormat()
             if ( html_ext && (s.pos("<!--")>=0 || s.pos("ul")>=0 || s.pos("<p>")>=0) )
                 res = true;
         }
-        lString32 enc = htmlCharset( s );
-        if ( !enc.empty() )
-            SetCharset( enc.c_str() );
         //else if ( s.pos("<html xmlns=\"http://www.w3.org/1999/xhtml\"") >= 0 )
         //    res = true;
+        if ( res ) {
+            // https://www.w3.org/TR/xhtml1/#C_9
+            // "In XHTML-conforming user agents, the value of the encoding declaration of the XML declaration
+            // takes precedence" (over the one from <meta http-equiv="Content-type" .../>
+            bool charset_found = false;
+            if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
+                int encpos = s.pos("encoding=\"");
+                if ( encpos >= 0 ) {
+                    lString32 encname = s.substr( encpos+10, 20 );
+                    int endpos = s.pos("\"");
+                    if ( endpos>0 ) {
+                        encname.erase( endpos, encname.length() - endpos );
+                        SetCharset( encname.c_str() );
+                        charset_found = true;
+                    }
+                }
+            }
+            if ( !charset_found ) {
+                // Look for any charset specified in <meta> tags
+                lString32 enc = htmlCharset( s );
+                if ( !enc.empty() )
+                    SetCharset( enc.c_str() );
+            }
+        }
     }
     delete[] chbuf;
     Reset();
