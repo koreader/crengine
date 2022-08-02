@@ -34,6 +34,18 @@ extern "C" {
 
 #include <jerror.h>
 
+#if !defined(HAVE_WXJPEG_BOOLEAN)
+typedef boolean wxjpeg_boolean;
+#endif
+
+#endif
+
+#if (USE_LIBWEBP==1)
+#include <webp/decode.h>
+#include <webp/demux.h>
+#include <webp/types.h>
+#endif
+
 #if (USE_NANOSVG==1)
 // Support for SVG
 #include <math.h>
@@ -45,12 +57,6 @@ extern "C" {
 #include <nanosvg.h>
 #include <nanosvgrast.h>
 #include <stb_image_write.h> // for svg to png conversion
-#endif
-
-#if !defined(HAVE_WXJPEG_BOOLEAN)
-typedef boolean wxjpeg_boolean;
-#endif
-
 #endif
 
 static lUInt32 NEXT_CACHEABLE_OBJECT_ID = 1;
@@ -1676,6 +1682,92 @@ void LVGifFrame::Clear()
 #endif
 // ======= end of GIF support
 
+#if (USE_LIBWEBP==1)
+
+class LVWebpImageSource : public LVNodeImageSource
+{
+public:
+    LVWebpImageSource( ldomNode * node, LVStreamRef stream );
+    virtual ~LVWebpImageSource();
+    virtual void   Compact();
+    virtual bool   Decode( LVImageDecoderCallback * callback );
+    static bool CheckPattern( const lUInt8 * buf, int len );
+};
+
+LVWebpImageSource::LVWebpImageSource( ldomNode * node, LVStreamRef stream )
+        : LVNodeImageSource(node, stream)
+{
+}
+LVWebpImageSource::~LVWebpImageSource() {}
+void LVWebpImageSource::Compact() { }
+bool LVWebpImageSource::Decode( LVImageDecoderCallback * callback )
+{
+    if ( _stream.isNull() )
+        return false;
+    const lvsize_t sz = _stream->GetSize();
+    lUInt8 * __restrict buf = new lUInt8[ sz+1 ];
+    lvsize_t bytesRead = 0;
+    _stream->SetPos(0);
+    if ( _stream->Read( buf, sz, &bytesRead )!=LVERR_OK || bytesRead!=sz ) {
+        delete[] buf;
+        return false;
+    }
+    buf[sz] = 0;
+    bool ret = false;
+    if ( callback ) {
+        // Using the simpler option:
+        //   lUInt8 * img = WebPDecodeBGRA(buf, sz, &_width, &_height);
+        // would give a blank canvas with an animated webp.
+        // We need to use WebPAnimDecoder to correctly get the first frame to be shown
+        // as a static image. This works just as well with non-animated webp images.
+        WebPAnimDecoderOptions dec_options;
+        WebPAnimDecoderOptionsInit(&dec_options);
+        dec_options.color_mode = MODE_BGRA;
+        WebPData webp_data;
+        webp_data.bytes = buf;
+        webp_data.size = sz;
+        WebPAnimDecoder* dec = WebPAnimDecoderNew(&webp_data, &dec_options);
+        WebPAnimInfo anim_info;
+        WebPAnimDecoderGetInfo(dec, &anim_info);
+        _width = anim_info.canvas_width;
+        _height = anim_info.canvas_height;
+        uint8_t* img;
+        int timestamp;
+        if ( WebPAnimDecoderGetNext(dec, &img, &timestamp) ) {
+            callback->OnStartDecode(this);
+            lUInt32 * __restrict src = (lUInt32 *)img;
+            lUInt32 * __restrict row = new lUInt32 [ _width ];
+            for (int y=0; y<_height; y++) {
+                size_t px_count = _width;
+                lUInt32 * __restrict dst = row;
+                while (px_count--) {
+                    // lvimg expects BGRA with inverted alpha,
+                    *dst++ = *src++ ^ 0xFF000000;
+                }
+                callback->OnLineDecoded( this, y, row );
+            }
+            delete[] row;
+            callback->OnEndDecode(this, false);
+            ret = true;
+        }
+        WebPAnimDecoderDelete(dec);
+    }
+    else {
+        if ( WebPGetInfo(buf, sz, &_width, &_height) ) {
+            ret = true;
+        }
+    }
+    delete[] buf;
+    return ret;
+}
+
+bool LVWebpImageSource::CheckPattern( const lUInt8 * buf, int len )
+{
+    return WebPGetInfo(buf, len, NULL, NULL);
+}
+
+#endif
+
 
 #if (USE_NANOSVG==1)
 // SVG support
@@ -1914,6 +2006,11 @@ LVImageSourceRef LVCreateStreamImageSource( ldomNode * node, LVStreamRef stream 
 #if (USE_GIF==1)
     if ( LVGifImageSource::CheckPattern( hdr, (lUInt32)bytesRead ) )
         img = new LVGifImageSource( node, stream );
+    else
+#endif
+#if (USE_LIBWEBP==1)
+    if ( LVWebpImageSource::CheckPattern( hdr, (lUInt32)bytesRead ) )
+        img = new LVWebpImageSource( node, stream );
     else
 #endif
 #if (USE_NANOSVG==1)
