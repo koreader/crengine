@@ -1889,12 +1889,6 @@ double CompareDblCharStats( const dbl_char_stat_t * stat1, const dbl_char_stat_t
 
 //==========================================
 // Stats
-typedef struct {
-	const short * ch_stat;       // int[256] statistics table table
-    const dbl_char_stat_t * dbl_ch_stat;
-	char * cp_name;   // codepage name
-	char * lang_name; // lang name
-} cp_stat_t;
 // EXTERNAL DEFINE
 extern cp_stat_t cp_stat_table[];
 
