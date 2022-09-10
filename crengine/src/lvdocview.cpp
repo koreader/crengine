@@ -4755,8 +4755,10 @@ const lChar32 * getDocFormatName(doc_format_t fmt) {
 		return U"DOC";
 	case doc_format_docx:
 		return U"DOCX";
-    case doc_format_odt:
-        return U"OpenDocument (ODT)";
+	case doc_format_odt:
+		return U"OpenDocument (ODT)";
+	case doc_format_svg:
+		return U"SVG";
 	default:
 		return U"Unknown format";
 	}
@@ -4936,6 +4938,16 @@ bool LVDocView::ParseDocument() {
                 parser = NULL;
             }
 
+            /// SVG format
+            if (parser == NULL) {
+                setDocFormat( doc_format_svg);
+                parser = new LVXMLParser(m_stream, &writer, false, false, true);
+                if (!parser->CheckFormat()) {
+                    delete parser;
+                    parser = NULL;
+                }
+            }
+
             /// RTF format
             if (parser == NULL) {
                 setDocFormat( doc_format_rtf);
@@ -5050,6 +5062,24 @@ bool LVDocView::ParseDocument() {
 			// would have gather not much info from HTML. So build a new TOC from classic
 			// HTML headings.
 			m_doc->buildTocFromHeadings();
+		}
+
+		if (m_doc_format == doc_format_svg) {
+			// A SVG file is its own cover
+			m_doc_props->setString(DOC_PROP_COVER_FILE, m_doc_props->getStringDef(DOC_PROP_FILE_NAME, ""));
+			// Use any <svg><title> as the document title
+			// initNodeRendMethod() will have wrapped the <svg> inside a <autoBoxing>
+			static lUInt16 path[] = { el_autoBoxing, el_svg, el_title, 0 };
+			ldomNode * el = NULL;
+			ldomNode * rootNode = m_doc->getRootNode();
+			if (rootNode)
+				el = rootNode->findChildElement(path);
+			if (el != NULL) {
+				lString32 s = el->getText(U' ', 1024);
+				if (!s.empty()) {
+					m_doc_props->setString(DOC_PROP_TITLE, s);
+				}
+			}
 		}
 
 		//        lString32 docstyle = m_doc->createXPointer(U"/FictionBook/stylesheet").getText();
