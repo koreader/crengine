@@ -93,6 +93,7 @@ public:
 #define TXTFLG_ENCODING_SHIFT               8
 #define TXTFLG_CONVERT_8BIT_ENTITY_ENCODING 0x10000
 #define TXTFLG_PROCESS_ATTRIBUTE            0x20000
+#define TXTFLG_CASE_SENSITIVE_TAGS_ATTRS    0x40000
 
 /// converts XML text: decode character entities, convert space chars
 void PreProcessXmlString( lString32 & s, lUInt32 flags, const lChar32 * enc_table=NULL );

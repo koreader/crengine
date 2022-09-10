@@ -2680,6 +2680,7 @@ class ldomElementWriter
     bool _isBlock;
     bool _isSection;
     bool _stripLeadingNewlineChar;
+    bool _insideSVG;
 #if MATHML_SUPPORT==1
     bool _insideMathML;
 #endif
@@ -2778,6 +2779,8 @@ public:
 
     /// returns current element node id
     virtual lUInt16 getCurrentNodeId() { return _currNode ? _currNode->_element->getNodeId() : 0; }
+    /// returns if currently inside <svg>
+    virtual bool isInsideSVG() { return _currNode ? _currNode->_insideSVG : false; }
 
     /// constructor
     ldomDocumentWriter(ldomDocument * document, bool headerOnly=false );
