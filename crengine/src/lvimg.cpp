@@ -1003,6 +1003,7 @@ protected:
     unsigned char m_transparent_color; // index
     unsigned char m_background_color;
     lUInt32 * m_global_color_table;
+    int m_global_color_table_color_count;
     bool defined_transparent_color;
 public:
     LVGifImageSource( ldomNode * node, LVStreamRef stream )
@@ -1036,6 +1037,12 @@ public:
     LVGifImageSource();
     virtual ~LVGifImageSource();
     void Clear();
+    const int GetColorTableColorCount() {
+        if (m_flg_gtc)
+            return m_global_color_table_color_count;
+        else
+            return 0;
+    };
     const lUInt32 * __restrict GetColorTable() {
         if (m_flg_gtc)
             return m_global_color_table;
@@ -1065,6 +1072,7 @@ protected:
 
     LVGifImageSource * m_pImage;
     lUInt32 *    m_local_color_table;
+    int m_local_color_table_color_count;
 
     unsigned char * m_buffer;
 public:
@@ -1072,6 +1080,12 @@ public:
     LVGifFrame(LVGifImageSource * pImage);
     ~LVGifFrame();
     void Clear();
+    const int GetColorTableColorCount() {
+        if (m_flg_ltc)
+            return m_local_color_table_color_count;
+        else
+            return  m_pImage->GetColorTableColorCount();
+    };
     const lUInt32 * __restrict GetColorTable() {
         if (m_flg_ltc)
             return m_local_color_table;
@@ -1089,6 +1103,7 @@ public:
         const int background_color = m_pImage->m_background_color;
         const int transparent_color = m_pImage->m_transparent_color;
         const bool defined_transparent = m_pImage->defined_transparent_color;
+        const int colorTableColorCount = GetColorTableColorCount();
         const lUInt32 * __restrict pColorTable = GetColorTable();
         int interlacePos = 0;
         const int interlaceTable[] = {8, 0, 8, 4, 4, 2, 2, 1, 1, 1}; // pairs: step, offset
@@ -1096,7 +1111,7 @@ public:
         int y = 0;
         for ( int i=0; i<h; i++ ) {
             for ( int j=0; j<w; j++ ) {
-                line[j] = pColorTable ? pColorTable[background_color] : GIF_DEFAULT_PALETTE_COLOR_VALUE(background_color);
+                line[j] = (pColorTable && background_color < colorTableColorCount) ? pColorTable[background_color] : GIF_DEFAULT_PALETTE_COLOR_VALUE(background_color);
             }
             if ( i >= m_top  && i < m_top+m_cy ) {
                 unsigned char * __restrict p_line = m_buffer + (i-m_top)*m_cx;
@@ -1105,7 +1120,7 @@ public:
                     if (b!=background_color) {
                         if (defined_transparent && b==transparent_color)
                             line[x + m_left] = 0xFF000000;
-                        else line[x + m_left] = pColorTable ? pColorTable[b] : GIF_DEFAULT_PALETTE_COLOR_VALUE(b);
+                        else line[x + m_left] = (pColorTable && b < colorTableColorCount) ? pColorTable[b] : GIF_DEFAULT_PALETTE_COLOR_VALUE(b);
                     }
                     else if (defined_transparent && b==transparent_color)  {
                         line[x + m_left] = 0xFF000000;
@@ -1197,6 +1212,7 @@ int LVGifImageSource::DecodeFromBuffer(const unsigned char *buf, int buf_size, L
         if (m_color_count*3 + (p-buf) >= buf_size)
             return 0; // error
 
+        m_global_color_table_color_count = m_color_count;
         m_global_color_table = new lUInt32[m_color_count];
         for (int i=0; i<m_color_count; i++) {
             m_global_color_table[i] = lRGB(p[i*3],p[i*3+1],p[i*3+2]);
@@ -1578,6 +1594,7 @@ int LVGifFrame::DecodeFromBuffer( const unsigned char * buf, int buf_size, int &
         if (m_color_count*3 + (p-buf) >= buf_size)
             return 0; // error
 
+        m_local_color_table_color_count = m_color_count;
         m_local_color_table = new lUInt32[m_color_count];
         for (int i=0; i<m_color_count; i++) {
             m_local_color_table[i] = lRGB(p[i*3],p[i*3+1],p[i*3+2]);
