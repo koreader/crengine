@@ -374,6 +374,7 @@ enum glyph_extra_metric_t
 };
 
 class LVDrawBuf;
+class SVGGlyphsCollector;
 
 /** \brief base class for fonts
 
@@ -411,6 +412,10 @@ public:
         \return true if glyh was found
     */
     virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false ) = 0;
+
+    /** \brief add glyph SVG path to SVGGlyphsCollector
+    */
+    virtual bool collectGlyphSVGPath(SVGGlyphsCollector * svg_collector, lUInt32 code, bool code_is_glyph_index=false, bool is_fallback=false) { return false; }
 
     /** \brief get extra glyph metric
     */
@@ -490,7 +495,7 @@ public:
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
                        int text_decoration_back_gap=0,
-                       int target_w=-1, int target_h=-1 ) = 0;
+                       int target_w=-1, int target_h=-1, SVGGlyphsCollector * svg_collector=NULL ) = 0;
     /// constructor
     LVFont() : _visual_alignment_width(-1), _hash(0) { }
 
@@ -711,7 +716,7 @@ public:
                        lChar32 def_char, lUInt32 * palette, bool addHyphen,
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
-                       int text_decoration_back_gap=0, int target_w=-1, int target_h=-1 );
+                       int text_decoration_back_gap=0, int target_w=-1, int target_h=-1, SVGGlyphsCollector * svg_collector=NULL );
 };
 
 #if (USE_FREETYPE!=1) && (USE_BITMAP_FONTS==1)
@@ -924,7 +929,7 @@ public:
                        TextLangCfg * lang_cfg=NULL,
                        lUInt32 flags=0, int letter_spacing=0, int width=-1,
                        int text_decoration_back_gap=0,
-                       int target_w=-1, int target_h=-1 );
+                       int target_w=-1, int target_h=-1, SVGGlyphsCollector * svg_collector=NULL );
 
     /** \brief get glyph image in 1 byte per pixel format
         \param code is unicode character
@@ -1133,5 +1138,45 @@ LVFontRef LoadFontFromFile( const char * fname );
 
 /// to compare two fonts
 bool operator == (const LVFont & r1, const LVFont & r2);
+
+class SVGGlyphsCollector
+{
+public:
+    double _orig_scale;  // provided scale factor
+    double _scale;       // scale factor to work with
+    double _offset_x;
+    double _offset_y;
+    double _advance_x;
+    double _advance_y;
+        // With these fields, SVGGlyphsCollector can be used directly as the "draw_data" Harfbuzz funcs forward internally
+
+    lUInt32  _base_char; // char this glyph is for (with Harfbuzz: char at start of cluster)
+    bool _can_adjust_from_previous; // false if diacritic/cluster/cursive
+    lString8 _path_d;
+    void addPathDfragment(const char * fragment) { _path_d << fragment; }
+
+    explicit SVGGlyphsCollector(double scale=1) : _scale(scale), _orig_scale(scale)
+    {}
+    ~SVGGlyphsCollector()
+    {}
+    void collectGlyph(LVFont * font, lUInt32 code, bool code_is_glyph_index, lUInt32 base_char,
+                                        double offset_x=0, double offset_y=0,
+                                        double advance_x=0, double advance_y=0,
+                                        bool can_adjust_from_previous=true)
+    {
+        _offset_x = offset_x;
+        _offset_y = offset_y;
+        _advance_x = advance_x;
+        _advance_y = advance_y;
+        _path_d.clear();
+        _base_char = base_char;
+        _can_adjust_from_previous = can_adjust_from_previous;
+        font->collectGlyphSVGPath(this, code, code_is_glyph_index);
+    }
+
+    // To be overridden by subclass to do something useful with path_d (the value for <path d=""> to be used in the final SVG)
+    virtual void addGlyph() = 0;
+};
+
 
 #endif //__LV_FNT_MAN_H_INCLUDED__
