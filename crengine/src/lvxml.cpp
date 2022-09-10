@@ -3017,7 +3017,7 @@ bool LVXMLParser::Parse()
                     }
                     break;
                 }
-                if ( m_citags ) {
+                if ( m_citags && !(m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS) ) {
                     tagns.lowercase();
                     tagname.lowercase();
                 }
@@ -3130,7 +3130,7 @@ bool LVXMLParser::Parse()
                             break;
                     }
                 }
-                if ( m_citags ) {
+                if ( m_citags && !(m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS) ) {
                     attrns.lowercase();
                     attrname.lowercase();
                 }

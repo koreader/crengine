@@ -84,7 +84,7 @@ XS_TAG1T( body )
                 // the way, and closing any <P>
 // Block elements
 XS_TAG1T( hr )
-XS_TAG1T( svg )
+XS_TAG1OBJ( svg )
 XS_TAG1T( form )
 XS_TAG1D( pre, true, css_d_block, css_ws_pre )
 XS_TAG1T( blockquote )
@@ -303,6 +303,14 @@ XS_TAG2T( src_lang, "src-lang" )
 XS_TAG2T( src_ocr, "src-ocr" )
 XS_TAG2T( src_url, "src-url" )
 XS_TAG2T( text_author, "text-author" )
+
+// SVG elements (<svg> defined above), only those we need to reference
+// in the code to allow text inside
+XS_TAG1I( text )
+XS_TAG1I( textPath )
+XS_TAG1I( tspan )
+XS_TAG1I( desc )
+XS_TAG1I( metadata )
 
 #if MATHML_SUPPORT==1
 // MathML presentation elements, all inline by default, but might be modified by mathml_css_h.css
@@ -528,6 +536,8 @@ XS_NS( xmlns )
 XS_NS( xlink )
 XS_NS( xs )
 XS_NS( epub )
+XS_NS( xml )
+XS_NS( svg )
 
 XS_END_NS
 

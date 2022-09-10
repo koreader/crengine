@@ -88,7 +88,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.69k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.70k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x002F
 
@@ -4049,6 +4049,245 @@ static void writeNode( LVStream * stream, ldomNode * node, bool treeLayout )
     }
 }
 
+// Similar to previous one (with more tweaks), to serialize back <svg> to string
+static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_style=true, bool is_top_node=true )
+{
+    if ( node->isText() ) {
+        // When parsing <svg>, as with xml and html, we have decoded html entities.
+        // We need to re-encode "&<>" to get proper SVG XML.
+        lString32 txt = node->getText();
+        // Use a temporary char we're not likely to find in the DOM
+        // (see https://en.wikipedia.org/wiki/Specials_(Unicode_block) )
+        // for 2-steps '&' replacement (to avoid infinite loop or the
+        // need for more complicated code)
+        while ( txt.replace( cs32("&"), cs32(U"\xFFFF") ) ) ;
+        while ( txt.replace( cs32(U"\xFFFF"), cs32("&amp;") ) ) ;
+        while ( txt.replace( cs32("<"), cs32("&lt;") ) ) ;
+        while ( txt.replace( cs32(">"), cs32("&gt;") ) ) ;
+        *stream << UnicodeToUtf8(txt);
+    }
+    else if (  node->isElement() ) {
+        // When parsing <svg>, we made sure to NOT lowercase elements and attributes names:
+        // we will serialize them back as is (ie. <clipPath>, viewBox=...)
+        lString8 elemName = UnicodeToUtf8(node->getNodeName());
+        if (!elemName.empty()) {
+            *stream << "<" << elemName;
+        }
+        if ( forward_node_style ) {
+            // This <svg> node has some style set in the HTML context (ie. via inheritance
+            // or via stylesheets, which can target <svg> and its children), and some of
+            // these styles are to be inherited and ensured when rendering the <svg> (if
+            // not overridden by styles set inside <svg>).
+            // We also want to forward any interesting style for inner SVG nodes, which
+            // may have been targetted by stylesheets (ie. color, display:none).
+            // We only add it if the style is different from its parent, as most of these
+            // should be inherited. But if the style has been set with !important, it has
+            // not just been inherited, but has been specifically targeted, so forward it
+            // even if identical to its parent, so we can override any style set in SVG
+            // with style tweaks.
+            //
+            // The way the LunaSVG parser works (parsing all attributes left to right,
+            // handling duplicated attribute names without issue), we can just prepend
+            // as a first attribute a style="" carrying our styles! Ours will be overriden
+            // by any next real attributes and style= when they carry these properties.
+            //
+            // Of interest, because we have them and LunaSVG handles them:
+            // - font-family, font-size, font-style, font-weight
+            //   (and font-variant, but we don't have the original value anymore)
+            // - color: used as the reference for "fill/stroke: currentColor"; note that
+            //   it does not set the initial color for fill or stroke, which stay black.
+            // - white_space: normal/pre
+            // - display: none (anything other than "none" means inline for LunaSVG)
+            // - visibility: visible/hidden (anything other than "visible" means hidden for LunaSVG)
+            //
+            // Normally forwarded, but not handle by LunaSVG: text-transform.
+            // Not forwarded by Firefox: text-decoration, text-indent, vertical-align.
+            // Not tested: overflow
+            lString8 svalue;
+            css_style_ref_t style = node->getStyle();
+            css_style_ref_t pstyle = node->getParentNode()->getStyle();
+            // font-size
+            if ( is_top_node || !(style->font_size == pstyle->font_size) || style->isImportant(imp_bit_font_size) ) {
+                lString8 s;
+                if ( style->font_size.type == css_val_em || style->font_size.type == css_val_ex ||
+                        style->font_size.type == css_val_ch || style->font_size.type == css_val_percent ) {
+                    // font_size.type can't be em/ex/ch/%, it should have been converted to px or screen_px while in setNodeStyle()
+                }
+                else {
+                    // We set the font size in screen pixels, unitless as SVG is fine with
+                    s << fmt::decimal( lengthToPx(node, style->font_size, 0, 0) );
+                }
+                if ( !s.empty() ) {
+                    svalue << "font-size: " << s;
+                    if ( style->isImportant(imp_bit_font_size) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // font-family
+            // A font has already been found and set for the node, so use this font name and not the style
+            if ( is_top_node || ( node->getFont()->getTypeFace() != node->getParentNode()->getFont()->getTypeFace() )
+                             || style->isImportant(imp_bit_font_name) || style->isImportant(imp_bit_font_family) ) {
+                lString8 s;
+                svalue << "font-family: " << node->getFont()->getTypeFace();
+                if ( style->isImportant(imp_bit_font_name) || style->isImportant(imp_bit_font_family) )
+                    svalue << " !important";
+                svalue << ";";
+            }
+            // font-style
+            if ( is_top_node || !(style->font_style == pstyle->font_style) || style->isImportant(imp_bit_font_style) ) {
+                lString8 s;
+                if ( style->font_style >= css_fs_italic )
+                    s << "italic";
+                else if ( !is_top_node || style->isImportant(imp_bit_font_style) )
+                    s << "normal"; // not needed on the top <svg> unless !important
+                if ( !s.empty() ) {
+                    svalue << "font-style: " << s;
+                    if ( style->isImportant(imp_bit_font_style) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // font-weight
+            if ( is_top_node || !(style->font_weight == pstyle->font_weight) || style->isImportant(imp_bit_font_weight) ) {
+                lString8 s;
+                if ( style->font_weight != css_fw_normal ) {
+                    switch ( style->font_weight ) {
+                        case css_fw_bold:      s << "bold";    break;
+                        case css_fw_bolder:    s << "bolder";  break;
+                        case css_fw_lighter:   s << "lighter"; break;
+                        case css_fw_100:       s << "100";     break;
+                        case css_fw_200:       s << "200";     break;
+                        case css_fw_300:       s << "300";     break;
+                        case css_fw_400:       s << "400";     break;
+                        case css_fw_500:       s << "500";     break;
+                        case css_fw_600:       s << "600";     break;
+                        case css_fw_700:       s << "700";     break;
+                        case css_fw_800:       s << "800";     break;
+                        case css_fw_900:       s << "900";     break;
+                        default:               s << "normal";  break;
+                    }
+                }
+                else if ( !is_top_node || style->isImportant(imp_bit_font_weight) )
+                    s << "normal";
+                if ( !s.empty() ) {
+                    svalue << "font-weight: " << s;
+                    if ( style->isImportant(imp_bit_font_weight) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // color
+            if ( is_top_node || !(style->color == pstyle->color) || style->isImportant(imp_bit_color) ) {
+                lString8 s;
+                if ( style->color.type == css_val_unspecified ) {
+                    if ( style->color.value == css_generic_transparent )
+                        s = "none";
+                    // ignore other css_val_unspecified values
+                }
+                else if ( style->color.type == css_val_color ) {
+                    // LunaSVG doesn't handle 4-components colors
+                    lUInt32 color = style->color.value & 0x00FFFFFF;
+                    s << "#";
+                    for ( int i=5; i>=0; i-- ) {
+                        s << toHexDigit((color >> (4*i) ) & 0x0f);
+                    }
+                }
+                if ( !s.empty() ) {
+                    svalue << "color: " << s;
+                    bool is_color_important = style->isImportant(imp_bit_color);
+                    if ( is_color_important )
+                        svalue << " !important";
+                    svalue << ";";
+                    if ( is_color_important && (node->getNodeId() == el_text || node->getNodeId() == el_tspan
+                                                                             || node->getNodeId() == el_textPath) ) {
+                        // "color:" has no real effect in SVG, so if this color was set
+                        // with !important, also have it used for "fill:" (but not "stroke:"
+                        // which would make text shapes bolder - stroke default is "none")
+                        // on <text> and <tspan>.
+                        svalue << " fill: currentColor !important;";
+                    }
+                }
+            }
+            // white-space
+            if ( is_top_node || !(style->white_space == pstyle->white_space) || style->isImportant(imp_bit_white_space) ) {
+                lString8 s;
+                if ( style->white_space >= css_ws_pre )
+                    s << "pre";
+                else if ( !is_top_node || style->isImportant(imp_bit_white_space) )
+                    s << "normal";
+                if ( !s.empty() ) {
+                    svalue << "white-space: " << s;
+                    if ( style->isImportant(imp_bit_white_space) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // display
+            if ( is_top_node || !(style->display == pstyle->display) || style->isImportant(imp_bit_display) ) {
+                if ( style->display == css_d_none ) {
+                    svalue << "display: none";
+                    if ( style->isImportant(imp_bit_display) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // visibility
+            if ( is_top_node || !(style->visibility == pstyle->visibility) || style->isImportant(imp_bit_visibility) ) {
+                lString8 s;
+                if ( style->visibility >= css_v_hidden )
+                    s << "hidden";
+                else if ( !is_top_node || style->isImportant(imp_bit_visibility) )
+                    s << "visible";
+                if ( !s.empty() ) {
+                    svalue << "visibility: " << s;
+                    if ( style->isImportant(imp_bit_visibility) )
+                        svalue << " !important";
+                    svalue << ";";
+                }
+            }
+            // done
+            if ( !svalue.empty() ) {
+                *stream << " ";
+                *stream << "style=\"" << svalue << "\"";
+            }
+            // Also forward inherited lang= for the top node
+            if ( is_top_node ) {
+                TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg( node );
+                *stream << " lang=\"" << UnicodeToUtf8(lang_cfg->getLangTag()) << "\"";
+            }
+        }
+        for (int i=0; i<(int)node->getAttrCount(); i++) {
+            const lxmlAttribute * attr = node->getAttribute(i);
+            if (attr) {
+                lString8 attrName( UnicodeToUtf8(node->getDocument()->getAttrName(attr->id)) );
+                lString8 attrValue( UnicodeToUtf8(node->getDocument()->getAttrValue(attr->index)) );
+                *stream << " ";
+                if ( attrName == "space" && node->getDocument()->getNsName(attr->nsid) == U"xml" )
+                    *stream << "xml:"; // explicitely only expected as xml:space=
+                *stream << attrName << "=\"" << attrValue << "\"";
+            }
+        }
+        if ( node->getChildCount() == 0 ) {
+            if (!elemName.empty()) {
+                if ( elemName[0] == '?' )
+                    *stream << "?>";
+                else
+                    *stream << "/>";
+            }
+        } else {
+            if (!elemName.empty())
+                *stream << ">";
+            for (int i=0; i<(int)node->getChildCount(); i++) {
+                writeSVGNode( stream, node->getChildNode(i), forward_node_style, false);
+            }
+            if (!elemName.empty())
+                *stream << "</" << elemName << ">";
+        }
+    }
+}
+
+
 // Extended version of previous function for displaying selection HTML, with tunable output
 #define WRITENODEEX_TEXT_HYPHENATE               0x0001 ///< add soft-hyphens where hyphenation is allowed
 #define WRITENODEEX_TEXT_MARK_NODE_BOUNDARIES    0x0002 ///< mark start and end of text nodes (useful when indented)
@@ -5376,6 +5615,28 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     //   https://html.spec.whatwg.org/multipage/syntax.html#element-restrictions
     _stripLeadingNewlineChar = id==el_pre || id==el_textarea;
 
+    // We can have SVG embedded in HTML. We can't just parse it as text until meeting </svg>
+    // as <svg> can be nested: we need to properly parse them here to be sure we don't mess
+    // their content. We'll then be able to serialize it back with writeSVGNode().
+    // There are a few pecularities though, that we need to handle.
+    _insideSVG = (_parent && _parent->_insideSVG) || (id==el_svg);
+    if ( _insideSVG ) {
+        // Some SVG tags are camelCase, and LunaSVG expect them as that. We want
+        // to get them pristine when serializing back with writeSVGNode().
+        _flags |= TXTFLG_CASE_SENSITIVE_TAGS_ATTRS;
+        // SVG's only meaningful text is inside these elements (title, desc and metadata
+        // won't be displayed, but keeping them may allow searching in them)
+        _allowText = id == el_style || id == el_text || id == el_tspan || id == el_textPath ||
+                     id == el_title || id == el_desc || id == el_metadata;
+        // Moreover, we will parse their content as PRE to not strip anything and
+        // to be able to serialize the source text as is: LunaSVG text support
+        // will then do some trimming if needed. We will also re-ensure that
+        // in onBodyEnter().
+        if ( _insideSVG && _allowText ) {
+            _flags |= TXTFLG_PRE;
+        }
+    }
+
     // Re-introduce bugs for older DOM versions
     if (_document->getDOMVersionRequested() < 20210904) { // revert what was changed 20210904
         _stripLeadingNewlineChar = false; // wasn't handled
@@ -5565,6 +5826,9 @@ void ldomElementWriter::onBodyEnter()
         }
         else {
             _flags &= ~TXTFLG_PRE;
+        }
+        if ( _insideSVG && _allowText ) { // Re-force PRE if inside SVG
+            _flags |= TXTFLG_PRE;
         }
     } else {
     }
@@ -6432,6 +6696,27 @@ void ldomNode::initNodeRendMethod()
 
     int d = getStyle()->display;
     lUInt32 rend_flags = getDocument()->getRenderBlockRenderingFlags();
+
+    if ( getNodeId()==el_svg ) {
+        // Be sure all elements inside <svg> are considered inline (if because
+        // of publisher styles they got boxed, these added internal elements
+        // shouldn't bother LunaSVG which will just ignore them).
+        recurseElements( resetRendMethodToInline );
+        if ( getParentNode()->isRoot() ) {
+            // SVG image handled as a document: make it horizontally centered
+            // (we could have it also vertically centered by setting a style
+            // to the <svg style="width: 100vw; height: 100vh">, but this
+            // would "hide" its original size (would it really matter ?)
+            setRendMethod(erm_inline);
+            int pos = getNodeIndex();
+            ldomNode * abox = getParentNode()->insertChildElement( pos, LXML_NS_NONE, el_autoBoxing );
+            getParentNode()->moveItemsTo( abox, pos+1, pos+1 );
+            abox->setAttributeValue(LXML_NS_NONE, attr_style, U"text-align: center");
+            abox->initNodeStyle();
+            abox->setRendMethod( erm_final );
+            return;
+        }
+    }
 
     if ( hasInvisibleParent(this) ) { // (should be named isInvisibleOrHasInvisibleParent())
         // Note: we could avoid that up-to-root-node walk for each node
@@ -13813,10 +14098,21 @@ void ldomDocumentFragmentWriter::setCodeBase( lString32 fileName )
 void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue )
 {
     if ( insideTag ) {
-        if ( !lStr_cmp(attrname, "href") || !lStr_cmp(attrname, "src") ) {
-            parent->OnAttribute(nsname, attrname, convertHref(lString32(attrvalue)).c_str() );
+        // If inside <svg>, don't convert id="foo" (and so, neither href="#foo"): they
+        // refer to elements inside the currently parsed <svg>, and the id= may be
+        // referenced by some other SVG constructs like clip-path="url(#foo)".
+        if ( !lStr_cmp(attrname, "href") ) {
+            if ( ((ldomDocumentWriter*)parent)->isInsideSVG() && attrvalue[0] == U'#' )
+                parent->OnAttribute(nsname, attrname, attrvalue);
+            else
+                parent->OnAttribute(nsname, attrname, convertHref(lString32(attrvalue)).c_str() );
         } else if ( !lStr_cmp(attrname, "id") ) {
-            parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
+            if ( ((ldomDocumentWriter*)parent)->isInsideSVG() )
+                parent->OnAttribute(nsname, attrname, attrvalue);
+            else
+                parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
+        } else if ( !lStr_cmp(attrname, "src") ) {
+            parent->OnAttribute(nsname, attrname, convertHref(lString32(attrvalue)).c_str() );
         } else if ( !lStr_cmp(attrname, "name") ) {
             //CRLog::trace("name attribute = %s", LCSTR(lString32(attrvalue)));
             parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
@@ -15199,6 +15495,10 @@ void ldomDocumentWriterFilter::OnText( const lChar32 * text, int len, lUInt32 fl
                         insert_before_last_child = true;
                     }
                 }
+            }
+            if ( _currNode->_insideSVG && !_currNode->_allowText ) {
+                // Ensure the specifically unset _allowText when inside SVG
+                return;
             }
         }
         else {
@@ -19259,6 +19559,12 @@ public:
     }
 
     LVImageSourceRef _GetImageSource(bool assume_valid) {
+        if ( _node->getNodeId() == el_svg ) {
+            LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+            writeSVGNode( stream.get(), _node);
+            stream->Seek(0, LVSEEK_SET, NULL);
+            return LVCreateStreamImageSource(stream, _node?_node->getDocument():NULL, _node, assume_valid );
+        }
         return _node->getDocument()->getObjectImageSource(_refName, _node, assume_valid);
     }
     virtual LVImageSourceRef GetImageSource() {
@@ -19300,6 +19606,10 @@ bool ldomNode::isImage() const
         case el_object:
         case el_embed:
             return true;
+        case el_svg:
+            // Let <svg> be handled as text when in legacy rendering mode
+            // (this can allow fulltext search in SVG text content)
+            return BLOCK_RENDERING_N(this, ENHANCED);
         default:
             return false;
     }
@@ -19349,6 +19659,12 @@ lString32 ldomNode::getObjectImageRefName(bool percentDecode)
 /// returns object image stream
 LVStreamRef ldomNode::getObjectImageStream()
 {
+    if ( getNodeId() == el_svg ) {
+        LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+        writeSVGNode( stream.get(), this);
+        stream->Seek(0, LVSEEK_SET, NULL);
+        return stream;
+    }
     lString32 refName = getObjectImageRefName();
     if ( refName.empty() )
         return LVStreamRef();
@@ -19360,6 +19676,36 @@ LVStreamRef ldomNode::getObjectImageStream()
 LVImageSourceRef ldomNode::getObjectImageSource()
 {
     LVImageSourceRef ref;
+    if ( getNodeId() == el_svg ) {
+        lString32 refName = ldomXPointer(this, 0).toStringV2(); // dummy unique refname
+        ref = getDocument()->_urlImageMap.get(refName);
+        if (!ref.isNull()) {
+            if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
+                return LVImageSourceRef();
+            return ref;
+        }
+        LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+        writeSVGNode( stream.get(), this);
+        /* To see the resulting serialized <svg>:
+            int size = stream->GetSize(); LVArray<char> buf( size+1, '\0' );
+            stream->Seek(0, LVSEEK_SET, NULL); stream->Read( buf.get(), size, NULL );
+            buf[size] = 0; lString8 svg = lString8( buf.get() );
+            printf("svg: %s\n", svg.c_str());
+        */
+        stream->Seek(0, LVSEEK_SET, NULL);
+        ref = LVCreateStreamImageSource( stream, getDocument(), this );
+        int dx = 0;
+        int dy = 0;
+        if (!ref.isNull()) {
+            dx = ref->GetWidth();
+            dy = ref->GetHeight();
+        }
+        ref = LVImageSourceRef( new NodeImageProxy(this, refName, dx, dy, ref.isNull(), ref.isNull()?false:ref->IsScalable()) );
+        getDocument()->_urlImageMap.set( refName, ref );
+        if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
+            return LVImageSourceRef();
+        return ref;
+    }
     lString32 refName = getObjectImageRefName(true);
     if ( refName.empty() )
         return ref;
