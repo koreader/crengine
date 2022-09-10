@@ -60,6 +60,7 @@ public:
     virtual void OnStartDecode( LVImageSource * obj ) = 0;
     virtual bool OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data ) = 0;
     virtual void OnEndDecode( LVImageSource * obj, bool errors ) = 0;
+    virtual bool GetTargetSize(int & width, int & height) const { return false; };
 };
 
 struct CR9PatchInfo {
@@ -85,6 +86,11 @@ public:
     virtual void   Compact() = 0;
     virtual int    GetWidth() const = 0;
     virtual int    GetHeight() const = 0;
+    virtual bool   IsScalable() const { return false; }
+    virtual lUInt8 * Render(int &width, int &height, lUInt32 fillcolor=0x00000000, bool unpremultiply=false) {
+        // Currently implemented only for subclasses with IsScalable() = true.
+        return NULL;
+    }
     virtual LVImageSourceRef GetImageSource() { return LVImageSourceRef(this); }
     virtual bool   Decode( LVImageDecoderCallback * callback ) = 0;
     LVImageSource() : _ninePatch(NULL) {}
