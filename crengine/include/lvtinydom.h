@@ -2515,7 +2515,7 @@ public:
     /// returns object image stream
     LVStreamRef getObjectImageStream( lString32 refName );
     /// returns object image source
-    LVImageSourceRef getObjectImageSource( lString32 refName );
+    LVImageSourceRef getObjectImageSource( lString32 refName, ldomNode * node=NULL, bool assume_valid=false );
 
     bool isDefStyleSet()
     {

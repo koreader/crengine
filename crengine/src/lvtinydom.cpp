@@ -19239,28 +19239,47 @@ class NodeImageProxy : public LVImageSource
     lString32 _refName;
     int _dx;
     int _dy;
+    bool _is_invalid;
 public:
-    NodeImageProxy( ldomNode * node, lString32 refName, int dx, int dy )
-        : _node(node), _refName(refName), _dx(dx), _dy(dy)
+    NodeImageProxy( ldomNode * node, lString32 refName, int dx, int dy, bool is_invalid=false )
+        : _node(node), _refName(refName), _dx(dx), _dy(dy), _is_invalid(is_invalid)
     {
 
     }
 
+    virtual ldomDocument * GetSourceDocument()
+    {
+        return _node ? _node->getDocument() : NULL;
+    }
     virtual ldomNode * GetSourceNode()
     {
-        return NULL;
+        return _node;
     }
     virtual LVStream * GetSourceStream()
     {
         return NULL;
     }
 
+    LVImageSourceRef _GetImageSource(bool assume_valid) {
+        return _node->getDocument()->getObjectImageSource(_refName, _node, assume_valid);
+    }
+    virtual LVImageSourceRef GetImageSource() {
+        if ( _is_invalid )
+            return LVImageSourceRef();
+        // We use assume_valid=false, so LVCreateStreamImageSource() will decode
+        // it (without giving a callback) and get its width/height ready to use
+        return _GetImageSource(false);
+    }
+
+    bool   IsInvalid() const { return _is_invalid; }
     virtual void   Compact() { }
     virtual int    GetWidth() const { return _dx; }
     virtual int    GetHeight() const { return _dy; }
     virtual bool   Decode( LVImageDecoderCallback * callback )
     {
-        LVImageSourceRef img = _node->getDocument()->getObjectImageSource(_refName);
+        if ( _is_invalid )
+            return false;
+        LVImageSourceRef img = _GetImageSource(true); // no need for a first decode
         if ( img.isNull() )
             return false;
         return img->Decode(callback);
@@ -19324,27 +19343,45 @@ LVStreamRef ldomNode::getObjectImageStream()
 /// returns object image source
 LVImageSourceRef ldomNode::getObjectImageSource()
 {
-    lString32 refName = getObjectImageRefName(true);
     LVImageSourceRef ref;
+    lString32 refName = getObjectImageRefName(true);
     if ( refName.empty() )
         return ref;
-    ref = getDocument()->getObjectImageSource( refName );
-    if (ref.isNull()) {
-        // try again without percent decoding (for fb3)
-        refName = getObjectImageRefName(false);
-        if ( refName.empty() )
+    ref = getDocument()->_urlImageMap.get(refName);
+    if (!ref.isNull()) {
+        if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
+            return LVImageSourceRef();
+        return ref;
+    }
+    // we should also try without percent decoding (for fb3, but may happen with bad other documents)
+    lString32 altrefName = getObjectImageRefName(false);
+    if ( altrefName.empty() )
+        return ref;
+    if ( altrefName != refName ) {
+        ref = getDocument()->_urlImageMap.get(altrefName);
+        if (!ref.isNull()) {
+            if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
+                return LVImageSourceRef();
             return ref;
-        ref = getDocument()->getObjectImageSource( refName );
+        }
     }
-    if ( !ref.isNull() ) {
-        int dx = ref->GetWidth();
-        int dy = ref->GetHeight();
-        ref = LVImageSourceRef( new NodeImageProxy(this, refName, dx, dy) );
-    } else {
-        CRLog::error("ObjectImageSource cannot be opened by name %s", LCSTR(refName));
+    ref = getDocument()->getObjectImageSource( refName, this );
+    if (ref.isNull() && altrefName != refName ) {
+        ref = getDocument()->getObjectImageSource( altrefName, this );
+        if (!ref.isNull()) {
+            refName = altrefName;
+        }
     }
-
+    int dx = 0;
+    int dy = 0;
+    if (!ref.isNull()) {
+        dx = ref->GetWidth();
+        dy = ref->GetHeight();
+    }
+    ref = LVImageSourceRef( new NodeImageProxy(this, refName, dx, dy, ref.isNull()) );
     getDocument()->_urlImageMap.set( refName, ref );
+    if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
+        return LVImageSourceRef();
     return ref;
 }
 
@@ -19469,12 +19506,12 @@ LVStreamRef ldomDocument::getObjectImageStream( lString32 refName )
 }
 
 /// returns object image source
-LVImageSourceRef ldomDocument::getObjectImageSource( lString32 refName )
+LVImageSourceRef ldomDocument::getObjectImageSource( lString32 refName, ldomNode * node, bool assume_valid )
 {
     LVStreamRef stream = getObjectImageStream( refName );
     if (stream.isNull())
          return LVImageSourceRef();
-    return LVCreateStreamImageSource( stream );
+    return LVCreateStreamImageSource( stream, this, node, assume_valid );
 }
 
 void ldomDocument::resetNodeNumberingProps()
