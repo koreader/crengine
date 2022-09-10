@@ -5659,7 +5659,7 @@ SerialBuf & SerialBuf::operator << ( const lString32 & s )
 	if ( check(2) )
 		return *this;
 	lString8 s8 = UnicodeToUtf8(s);
-	lUInt16 len = (lUInt16)s8.length();
+	lUInt32 len = (lUInt32)s8.length();
 	(*this) << len;
 	for ( int i=0; i<len; i++ ) {
 		if ( check(1) )
@@ -5672,7 +5672,7 @@ SerialBuf & SerialBuf::operator << ( const lString8 & s8 )
 {
 	if ( check(2) )
 		return *this;
-	lUInt16 len = (lUInt16)s8.length();
+	lUInt32 len = (lUInt32)s8.length();
 	(*this) << len;
 	for ( int i=0; i<len; i++ ) {
 		if ( check(1) )
@@ -5750,7 +5750,7 @@ SerialBuf & SerialBuf::operator >> ( lString8 & s8 )
 {
 	if ( check(2) )
 		return *this;
-    lUInt16 len = 0;
+	lUInt32 len = 0;
 	(*this) >> len;
 	s8.clear();
 	s8.reserve(len);
