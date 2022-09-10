@@ -16277,7 +16277,7 @@ ContinuousOperationResult ldomDocument::updateMap(CRTimerUtil & maxTime, LVDocVi
 
 #endif
 
-static const char * doccache_magic = "CoolReader3 Document Cache Directory Index\nV1.00\n";
+static const char * doccache_magic = "CoolReader3 Document Cache Directory Index\nV1.01\n";
 
 /// document cache
 class ldomDocCacheImpl : public ldomDocCache
