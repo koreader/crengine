@@ -46,8 +46,15 @@ typedef boolean wxjpeg_boolean;
 #include <webp/types.h>
 #endif
 
+#if (USE_LUNASVG==1)
+// Enhanced support for SVG
+#undef USE_NANOSVG
+#define USE_NANOSVG 0
+#include <lunasvg.h>
+#endif
+
 #if (USE_NANOSVG==1)
-// Support for SVG
+// Simpler support for SVG
 #include <math.h>
 #define NANOSVG_ALL_COLOR_KEYWORDS
 #define NANOSVG_IMPLEMENTATION
@@ -1990,8 +1997,280 @@ unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size
     return png;
 }
 
-// ======= end of SVG support
+// ======= end of SVG support (with NanoSVG)
 #endif
+
+#if (USE_LUNASVG==1)
+// SVG support, using LunaSVG, extended to support text
+// and embedded images with the following helpers
+
+class LunaSVGGlyphsCollector : public SVGGlyphsCollector {
+private:
+    lunasvg::tspan_path_callback_t glyph_callback;
+public:
+    LunaSVGGlyphsCollector(double scale, lunasvg::tspan_path_callback_t callback)
+    : SVGGlyphsCollector(scale), glyph_callback(callback)
+    {}
+    virtual void addGlyph() {
+        glyph_callback(_path_d.c_str(), _advance_x, _advance_y, _can_adjust_from_previous, _base_char);
+    }
+};
+
+static void lunasvgTextToPathsHelper(lunasvg::external_context_t * xcontext, const char * text, lunasvg::external_font_spec_t * font_spec, lunasvg::tspan_path_callback_t callback)
+{
+    // Provide the docId of the document this image comes from to GetFont(),
+    // so embedded fonts referenced in the SVG can be picked
+    int docId = -1;
+    ldomDocument * doc = ((LVNodeImageSource *)xcontext->external_object)->GetSourceDocument();
+    if ( doc )
+       docId = doc->getFontContextDocIndex();
+
+    // Append the name of the current font of the node to font_spec->family,
+    // so it is picked instead of the default font if the node is using another
+    // (so small inline text SVG is drawn with the same font as its neighbours).
+    lString8 font_family = lString8(font_spec->family);
+    ldomNode * node = ((LVNodeImageSource *)xcontext->external_object)->GetSourceNode();
+    if ( node ) {
+        if ( !font_family.empty() )
+            font_family << ", ";
+        font_family << node->getFont()->getTypeFace().c_str();
+    }
+
+    // We may get very small or very large font size from SVG, so work with a normal font
+    // size that crengine will accept, and scale the coordinates we'll get.
+    int font_size = 64;
+    double scale = font_spec->size / 64.0;
+    LunaSVGGlyphsCollector collector(scale, callback);
+
+    LVFontRef font = fontMan->GetFont(font_size, font_spec->weight, font_spec->italic, css_ff_sans_serif,
+                                        font_family, font_spec->features, docId, true);
+
+    TextLangCfg * lang_cfg = NULL;
+    if ( font_spec->lang )
+        lang_cfg = TextLangMan::getTextLangCfg( Utf8ToUnicode(font_spec->lang) );
+
+    lString32 text32 = Utf8ToUnicode(text);
+
+    // We need a dummy buffer (so we don't need to tweak DrawTextString() too much)
+    LVInkMeasurementDrawBuf buf;
+
+    // text-decoration and letter-spacing (that DrawTextString() could do) is left to LunaSVG
+    font->DrawTextString(
+        &buf,
+        0,
+        0,
+        text32.c_str(),
+        text32.length(),
+        '?',
+        NULL,
+        false,
+        lang_cfg,
+        0, 0, -1, 0, -1, -1, &collector);
+}
+
+static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const char * url, const unsigned char * bitmap, int width, int height, double & original_aspect_ratio)
+{
+    if ( !bitmap || width <= 0 || height <= 0 )
+        return false;
+
+    ldomDocument * doc = ((LVNodeImageSource *)xcontext->external_object)->GetSourceDocument();
+    if ( !doc )
+        return false;
+    ldomNode * node = ((LVNodeImageSource *)xcontext->external_object)->GetSourceNode();
+    LVImageSourceRef img = doc->getObjectImageSource(Utf8ToUnicode(url), node);
+    if ( img.isNull() )
+        return false;
+
+    original_aspect_ratio = (double)img->GetWidth() / (double)img->GetHeight();
+
+    // The canvas we get from LunaSVG expects 0xAARRGGBB with pre-multiplied alpha.
+    // ColorDrawBuf works with 0xaaRRGGBB (inverted straight alpha).
+    LVColorDrawBuf buf(width, height, (lUInt8*)bitmap, 32 );
+    buf.Clear(0xFFFFFFFF); // fill with transparent
+    buf.setSmoothScalingImages(true); // get smooth images (to keep scalable SVG smooth)
+    buf.Draw(img, 0, 0, width, height, false);
+
+    // Invert and pre-multiply alpha
+    lUInt32 * bmp = (lUInt32*)bitmap;
+    size_t px_count = width * height;
+    while (px_count--) {
+        const lUInt8 alpha = (*bmp >> 24) ^ 0xFF;
+        if ( alpha == 0 ) {
+            *bmp = 0;
+        }
+        else {
+            const lUInt32 cl = *bmp & 0x00FFFFFF;
+            const lUInt32 n1 = (((cl & 0xFF00FF) * alpha) >> 8) & 0x00FF00FF;
+            const lUInt32 n2 = (((cl & 0x00FF00) * alpha) >> 8) & 0x0000FF00;
+            *bmp = n1 | n2 | (alpha<<24);
+        }
+        bmp++;
+    }
+    return true;
+}
+
+class LVSvgImageSource : public LVNodeImageSource
+{
+private:
+    lunasvg::external_context_t lunasvg_xcontext;
+    // These are made by LunaSVG, and will be properly cleaned up when
+    // this LVSvgImageSource is destroyed:
+    std::unique_ptr<lunasvg::Document> lunasvg_doc = nullptr;
+    lunasvg::Bitmap current_bitmap;
+public:
+    LVSvgImageSource( ldomNode * node, LVStreamRef stream );
+    virtual ~LVSvgImageSource();
+    virtual bool   IsScalable() const { return true; }
+    virtual void   Compact();
+    static bool CheckPattern( const lUInt8 * buf, int len );
+    virtual bool   Decode( LVImageDecoderCallback * callback );
+    virtual lUInt8 * Render(int &width, int &height, lUInt32 fillcolor=0x00000000, bool unpremultiply=false);
+    bool LoadSVGDocument();
+    void ResetSVGDocument() { lunasvg_doc = nullptr; }
+};
+
+LVSvgImageSource::LVSvgImageSource( ldomNode * node, LVStreamRef stream )
+        : LVNodeImageSource(node, stream)
+{
+    lunasvg_xcontext.external_object = this;
+    lunasvg_xcontext.text_to_paths_helper = &lunasvgTextToPathsHelper;
+    lunasvg_xcontext.draw_image_helper = &lunasvgDrawImageHelper;
+}
+LVSvgImageSource::~LVSvgImageSource() {}
+
+void LVSvgImageSource::Compact() { }
+
+bool LVSvgImageSource::CheckPattern( const lUInt8 * buf, int len)
+{
+    // check for <?xml or <svg
+    if (len > 5 && buf[0]=='<' && buf[1]=='?' &&
+            (buf[2]=='x' || buf[2] == 'X') &&
+            (buf[3]=='m' || buf[3] == 'M') &&
+            (buf[4]=='l' || buf[4] == 'L'))
+        return true;
+    if (len > 4 && buf[0]=='<' &&
+            (buf[1]=='s' || buf[1] == 'S') &&
+            (buf[2]=='v' || buf[2] == 'V') &&
+            (buf[3]=='g' || buf[3] == 'G'))
+        return true;
+    return false;
+}
+
+bool LVSvgImageSource::LoadSVGDocument() {
+    if ( _stream.isNull() ) // Nothing to load
+        return false;
+    if ( lunasvg_doc == nullptr ) {
+        const lvsize_t sz = _stream->GetSize();
+        lUInt8 * __restrict buf = new lUInt8[ sz+1 ];
+        lvsize_t bytesRead = 0;
+        _stream->SetPos(0);
+        if ( _stream->Read( buf, sz, &bytesRead )!=LVERR_OK || bytesRead!=sz ) {
+            _stream = LVStreamRef(); // don't try again
+        }
+        else {
+            buf[sz] = 0;
+            lunasvg_doc = lunasvg::Document::loadFromData((const char *)buf, sz, &lunasvg_xcontext);
+            if (lunasvg_doc == nullptr) {
+                _stream = LVStreamRef(); // don't try again
+            }
+            else {
+                _width = (int)lunasvg_doc->width();
+                _height = (int)lunasvg_doc->height();
+            }
+        }
+        delete[] buf;
+    }
+    return lunasvg_doc != nullptr;
+}
+
+lUInt8 * LVSvgImageSource::Render(int &width, int &height, lUInt32 fillcolor, bool unpremultiply) {
+    // Default fillcolor=0x00000000 to get fully transparent black
+    // Provide fillcolor=0xFFFFFFFF to get fully opaque white
+    // It is the upper code's job to compute requested width/height to ensure
+    // aspect ratio if wanted.
+
+    if ( ! LoadSVGDocument() )
+        return NULL;
+
+    // We keep the LunaSVG rendered bitmap as a member of this object, which
+    // will keep the last bitmap alive as long as this LVSvgImageSource is
+    // alive. LunaSVG handles its replacement and cleanup.
+    current_bitmap = lunasvg_doc->renderToBitmap(width, height, fillcolor);
+    if ( !current_bitmap.valid() )
+        return NULL;
+    current_bitmap.convert(0, 1, 2, 3, unpremultiply); // to RGBA
+    // Update provided w/h with the final size
+    width = current_bitmap.width();
+    height = current_bitmap.height();
+    return current_bitmap.data();
+}
+
+bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback ) {
+    if ( callback ) { // We're going to draw
+        // We can't just use doc->renderToBitmap(final_width, final_height) below
+        // as lunasvg would just scale it to the final size. We need to tell it
+        // this final size early, so it can ensure preserveAspectRatio in it.
+        int w, h;
+        if ( callback->GetTargetSize(w, h) ) {
+            lunasvg_xcontext.target_width = w;
+            lunasvg_xcontext.target_height = h;
+            // When drawing with Decode(callback), we're coming from NodeImageProxy()
+            // which has created us with assume_valid=false, and the next LoadSVGDocument()
+            // will be the first load, which will use these target_width/height.
+            // When created from lunasvgDrawImageHelper() (an external SVG inside a SVG),
+            // we'll be instantiated to get the native size, and then be drawn with
+            // the target size, which may cause issues.
+            // So, be safe by always reloading the SVG:
+            ResetSVGDocument();
+        }
+        // We felt we would need to pass color: currentColor, but Firefox
+        // does not have it used for <img src=file.svg>, only for <svg>,
+        // which we handle via writeSNGNode().
+    }
+    if ( ! LoadSVGDocument() )
+        return false;
+    if ( ! callback ) // If no callback provided, only size is wanted
+        return true;
+
+    lunasvg::Bitmap bitmap = lunasvg_doc->renderToBitmap(_width, _height, 0x00000000);
+    if ( ! bitmap.valid() )
+        return false;
+
+    callback->OnStartDecode(this);
+    lUInt32 * __restrict src = (lUInt32 *)bitmap.data();
+    lUInt32 * __restrict row = new lUInt32 [ _width ];
+    for (int y=0; y<_height; y++) {
+        size_t px_count = _width;
+        lUInt32 * __restrict dst = row;
+        while (px_count--) {
+            // LunaSVG outputs BGRA with premultiplied alpha, crengine wants BGRa (inverted alpha)
+            // with straight alpha.
+            // (We could use: bitmap.convert(2, 1, 0, 3, true) to unpremultiply alpha,
+            // which seems needed to avoid some kind of border around shapes, noticable
+            // with red text - but let's do that our usual way.)
+            const lUInt8 alpha = (*src>>24);
+            if (alpha == 0) {
+                *dst++ = *src ^ 0xFF000000;
+            }
+            else {
+                // Un-premultiply
+                lUInt8 r = (((*src)>>16 & 0xFF)*255) / alpha;
+                lUInt8 g = (((*src)>>8  & 0xFF)*255) / alpha;
+                lUInt8 b = (((*src)     & 0xFF)*255) / alpha;
+                *dst++ = ((alpha^0xFF)<<24) | (r<<16) | (g<<8) | b;
+            }
+            *src++;
+        }
+        callback->OnLineDecoded( this, y, row );
+    }
+    delete[] row;
+    callback->OnEndDecode(this, false);
+    return true;
+}
+
+// ======= end of SVG support (with LunaSVG)
+#endif
+
 
 
 LVImageDecoderCallback::~LVImageDecoderCallback()
@@ -2039,6 +2318,11 @@ LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream, ldomDocument * d
     else
 #endif
 #if (USE_NANOSVG==1)
+    if ( LVSvgImageSource::CheckPattern( hdr, (lUInt32)bytesRead ) )
+        img = new LVSvgImageSource( node, stream );
+    else
+#endif
+#if (USE_LUNASVG==1)
     if ( LVSvgImageSource::CheckPattern( hdr, (lUInt32)bytesRead ) )
         img = new LVSvgImageSource( node, stream );
     else

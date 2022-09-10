@@ -19240,9 +19240,10 @@ class NodeImageProxy : public LVImageSource
     int _dx;
     int _dy;
     bool _is_invalid;
+    bool _is_scalable;
 public:
-    NodeImageProxy( ldomNode * node, lString32 refName, int dx, int dy, bool is_invalid=false )
-        : _node(node), _refName(refName), _dx(dx), _dy(dy), _is_invalid(is_invalid)
+    NodeImageProxy( ldomNode * node, lString32 refName, int dx, int dy, bool is_invalid=false, bool is_scalable=false )
+        : _node(node), _refName(refName), _dx(dx), _dy(dy), _is_invalid(is_invalid), _is_scalable(is_scalable)
     {
 
     }
@@ -19268,10 +19269,12 @@ public:
             return LVImageSourceRef();
         // We use assume_valid=false, so LVCreateStreamImageSource() will decode
         // it (without giving a callback) and get its width/height ready to use
+        // (as this is mostly only called by users of Render()).
         return _GetImageSource(false);
     }
 
     bool   IsInvalid() const { return _is_invalid; }
+    virtual bool   IsScalable() const { return _is_scalable; }
     virtual void   Compact() { }
     virtual int    GetWidth() const { return _dx; }
     virtual int    GetHeight() const { return _dy; }
@@ -19378,7 +19381,7 @@ LVImageSourceRef ldomNode::getObjectImageSource()
         dx = ref->GetWidth();
         dy = ref->GetHeight();
     }
-    ref = LVImageSourceRef( new NodeImageProxy(this, refName, dx, dy, ref.isNull()) );
+    ref = LVImageSourceRef( new NodeImageProxy(this, refName, dx, dy, ref.isNull(), ref.isNull()?false:ref->IsScalable()) );
     getDocument()->_urlImageMap.set( refName, ref );
     if ( ((NodeImageProxy*)ref.get())->IsInvalid() )
         return LVImageSourceRef();

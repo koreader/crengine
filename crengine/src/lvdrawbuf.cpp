@@ -466,6 +466,12 @@ public:
     {
         src_dx = img->GetWidth();
         src_dy = img->GetHeight();
+        if ( img->IsScalable() ) {
+            // The image can scale itself to arbitrary sizes: we don't need to scale it here.
+            // It will call our GetTargetSize() to draw itself to the requested size.
+            src_dx = dst_dx;
+            src_dy = dst_dy;
+        }
         const CR9PatchInfo * __restrict np = img->GetNinePatchInfo();
         isNinePatch = false;
         lvRect ninePatch;
@@ -495,6 +501,11 @@ public:
             // Byte-sized buffer, we're 32bpp, so, 4 bytes per pixel.
             decoded = new lUInt8[src_dy * (src_dx * 4)];
         }
+    }
+    virtual bool GetTargetSize(int & width, int & height) const {
+        width = dst_dx;
+        height = dst_dy;
+        return true;
     }
     virtual ~LVImageScaledDrawCallback()
     {
