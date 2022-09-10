@@ -5180,15 +5180,16 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
 {
     int pos = 0;
     skip_spaces( str );
-    if (*str=='\"')
+    if (*str=='\"' || *str=='\'')
     {
+        char quote_ch = *str;
         str++;
-        for ( ; str[pos] && str[pos]!='\"'; pos++)
+        for ( ; str[pos] && str[pos]!=quote_ch; pos++)
         {
             if (pos>=64)
                 return false;
         }
-        if (str[pos]!='\"')
+        if (str[pos]!=quote_ch)
             return false;
         for (int i=0; i<pos; i++)
             buf[i] = str[i];
