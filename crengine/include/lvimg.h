@@ -49,6 +49,7 @@ public:
 
 class LVImageSource;
 struct ldomNode;
+class ldomDocument;
 class LVColorDrawBuf;
 
 /// image decoding callback interface
@@ -70,6 +71,7 @@ struct CR9PatchInfo {
 	void applyPadding(lvRect & dstPadding) const;
 };
 
+typedef LVRef< LVImageSource > LVImageSourceRef;
 
 class LVImageSource : public CacheableObject
 {
@@ -77,17 +79,17 @@ class LVImageSource : public CacheableObject
 public:
 	virtual const CR9PatchInfo * GetNinePatchInfo() { return _ninePatch; }
 	virtual CR9PatchInfo *  DetectNinePatch();
+    virtual ldomDocument * GetSourceDocument() = 0;
     virtual ldomNode * GetSourceNode() = 0;
     virtual LVStream * GetSourceStream() = 0;
     virtual void   Compact() = 0;
     virtual int    GetWidth() const = 0;
     virtual int    GetHeight() const = 0;
+    virtual LVImageSourceRef GetImageSource() { return LVImageSourceRef(this); }
     virtual bool   Decode( LVImageDecoderCallback * callback ) = 0;
     LVImageSource() : _ninePatch(NULL) {}
     virtual ~LVImageSource();
 };
-
-typedef LVRef< LVImageSource > LVImageSourceRef;
 
 /// type of image transform
 enum ImageTransform {
@@ -108,7 +110,7 @@ LVImageSourceRef LVCreateXPMImageSource( const char * data[] );
 LVImageSourceRef LVCreateNodeImageSource( ldomNode * node );
 LVImageSourceRef LVCreateDummyImageSource( ldomNode * node, int width, int height );
 /// creates image source from stream
-LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream );
+LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream, ldomDocument * doc=NULL, ldomNode * node=NULL, bool assume_valid=false );
 /// creates image source as memory copy of file contents
 LVImageSourceRef LVCreateFileCopyImageSource( lString32 fname );
 /// creates image source as memory copy of stream contents

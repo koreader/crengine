@@ -237,17 +237,21 @@ LVImageSource::~LVImageSource() {
 class LVNodeImageSource : public LVImageSource
 {
 protected:
+    ldomDocument *  _doc;
     ldomNode *  _node;
     LVStreamRef _stream;
     int _width;
     int _height;
 public:
     LVNodeImageSource( ldomNode * node, LVStreamRef stream )
-        : _node(node), _stream(stream), _width(0), _height(0)
+        : _doc(NULL), _node(node), _stream(stream), _width(0), _height(0)
     {
-
+        if ( _node )
+            _doc = _node->getDocument();
     }
 
+    void SetSourceDocument(ldomDocument * doc) { _doc = doc; }
+    ldomDocument * GetSourceDocument() { return _doc; }
     ldomNode * GetSourceNode() { return _node; }
     virtual LVStream * GetSourceStream() { return _stream.get(); }
     virtual void   Compact() { }
@@ -560,9 +564,12 @@ public:
     LVDummyImageSource( ldomNode * node, int width, int height )
         : _node(node), _width(width), _height(height)
     {
-
     }
 
+    ldomDocument * GetSourceDocument()
+    {
+        return _node ? _node->getDocument() : NULL;
+    }
     ldomNode * GetSourceNode() { return _node; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
@@ -668,6 +675,7 @@ public:
             delete[] _palette;
     }
 
+    ldomDocument * GetSourceDocument() { return NULL; }
     ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
@@ -1997,7 +2005,7 @@ LVImageSourceRef LVCreateDummyImageSource( ldomNode * node, int width, int heigh
     return LVImageSourceRef( new LVDummyImageSource( node, width, height ) );
 }
 
-LVImageSourceRef LVCreateStreamImageSource( ldomNode * node, LVStreamRef stream )
+LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream, ldomDocument * doc, ldomNode * node, bool assume_valid )
 {
     LVImageSourceRef ref;
     if ( stream.isNull() )
@@ -2035,21 +2043,16 @@ LVImageSourceRef LVCreateStreamImageSource( ldomNode * node, LVStreamRef stream 
         img = new LVSvgImageSource( node, stream );
     else
 #endif
-        img = new LVDummyImageSource( node, 50, 50 );
+        return LVImageSourceRef( new LVDummyImageSource( node, 50, 50 ) );
 
     if ( !img )
         return ref;
-    ref = LVImageSourceRef( img );
-    if ( !img->Decode( NULL ) )
+    if ( !assume_valid && !img->Decode( NULL ) )
     {
-        return LVImageSourceRef();
+        return ref;
     }
-    return ref;
-}
-
-LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream )
-{
-    return LVCreateStreamImageSource( NULL, stream );
+    ((LVNodeImageSource*)img)->SetSourceDocument(doc);
+    return LVImageSourceRef( img );
 }
 
 /// create image from node source
@@ -2131,7 +2134,8 @@ public:
 		_line.clear();
         _callback->OnEndDecode(this, res);
     }
-	virtual ldomNode * GetSourceNode() { return NULL; }
+	virtual ldomDocument * GetSourceDocument() { return _src.isNull() ? NULL : _src->GetSourceDocument(); }
+	virtual ldomNode * GetSourceNode() { return _src.isNull() ? NULL : _src->GetSourceNode(); }
 	virtual LVStream * GetSourceStream() { return NULL; }
 	virtual void   Compact() { }
 	virtual int    GetWidth() const { return _dst_dx; }
@@ -2349,7 +2353,8 @@ public:
         _drawbuf = NULL;
         _callback->OnEndDecode(this, res);
     }
-    virtual ldomNode * GetSourceNode() { return NULL; }
+    virtual ldomDocument * GetSourceDocument() { return _src.isNull() ? NULL : _src->GetSourceDocument(); }
+    virtual ldomNode * GetSourceNode() { return _src.isNull() ? NULL : _src->GetSourceNode(); }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
     virtual int    GetWidth() const { return _src->GetWidth(); }
@@ -2405,7 +2410,8 @@ public:
         CR_UNUSED(obj);
         _callback->OnEndDecode(this, res);
     }
-    virtual ldomNode * GetSourceNode() { return NULL; }
+    virtual ldomDocument * GetSourceDocument() { return _src.isNull() ? NULL : _src->GetSourceDocument(); }
+    virtual ldomNode * GetSourceNode() { return _src.isNull() ? NULL : _src->GetSourceNode(); }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
     virtual int    GetWidth() const { return _src->GetWidth(); }
@@ -2497,6 +2503,7 @@ public:
     {
         //CRLog::trace( "LVUnpackedImgSource::OnEndDecode" );
     }
+    virtual ldomDocument * GetSourceDocument() { return NULL; }
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
@@ -2565,6 +2572,7 @@ public:
         , _dy( buf->GetHeight() )
     {
     }
+    virtual ldomDocument * GetSourceDocument() { return NULL; }
     virtual ldomNode * GetSourceNode() { return NULL; }
     virtual LVStream * GetSourceStream() { return NULL; }
     virtual void   Compact() { }
