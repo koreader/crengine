@@ -1149,6 +1149,9 @@ public:
     /// is node any of our internal boxing element (or, optionally, our pseudoElem)
     bool isBoxingNode( bool orPseudoElem=false, lUInt16 exceptBoxingNodeId=0 ) const;
 
+    /// is node an image
+    bool isImage() const;
+
     /// return real (as in the original HTML) parent/siblings by skipping any internal
     /// boxing element up or down (returns NULL when no more sibling)
     ldomNode * getUnboxedParent( lUInt16 exceptBoxingNodeId=0 ) const;
@@ -2772,6 +2775,9 @@ public:
     }
     /// set document property
     virtual void OnDocProperty(const char * name, lString8 value) { _document->getProps()->setString(name, value); }
+
+    /// returns current element node id
+    virtual lUInt16 getCurrentNodeId() { return _currNode ? _currNode->_element->getNodeId() : 0; }
 
     /// constructor
     ldomDocumentWriter(ldomDocument * document, bool headerOnly=false );

@@ -177,7 +177,7 @@ XS_TAG1T( button )
 // them close a P too, just so that we'll never have nested Ps.
 XS_TAG1T( marquee )
 XS_TAG1( applet )
-XS_TAG1( object )
+XS_TAG1OBJ( object )
                 // HTML5: end of special tags, closing all
                 // the way, and closing any <P>
 // Other HTML elements with usually no content or no usable content
@@ -186,7 +186,7 @@ XS_TAG1I( option )   // shown as inline
 XS_TAG1T( map )
 XS_TAG1( area )
 XS_TAG1( track )
-XS_TAG1( embed )
+XS_TAG1OBJ( embed )
 XS_TAG1( input )
 XS_TAG1( keygen )
 XS_TAG1( param )
@@ -438,6 +438,7 @@ XS_ATTR( cellspacing )
 XS_ATTR( clear )
 XS_ATTR( color )
 XS_ATTR( cols )
+XS_ATTR( data ) // used with <object data="url" type="image/svg+xml">
 XS_ATTR( disabled )
 XS_ATTR( face )
 XS_ATTR( hidden )

@@ -5886,8 +5886,7 @@ bool ldomNode::hasNonEmptyInlineContent( bool ignoreFloats )
     if (getNodeId() == el_br) {
         return true;
     }
-    const css_elem_def_props_t * ntype = getElementTypePtr();
-    if (ntype && ntype->is_object) { // standalone image
+    if ( isImage() ) { // standalone image
         return true;
     }
     for ( int i=0; i<(int)getChildCount(); i++ ) {
@@ -6647,8 +6646,7 @@ void ldomNode::initNodeRendMethod()
         bool handleFloating = BLOCK_RENDERING(rend_flags, PREPARE_FLOATBOXES);
 
         detectChildTypes( this, hasBlockItems, hasInline, hasInternalTableItems, hasFloating, handleFloating );
-        const css_elem_def_props_t * ntype = getElementTypePtr();
-        if (ntype && ntype->is_object) { // image
+        if ( isImage() ) {
             // No reason to erm_invisible an image !
             // And it has to be erm_final to be drawn (or set to erm_inline
             // by some upper node).
@@ -13822,6 +13820,8 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lCha
         } else if ( !lStr_cmp(attrname, "name") ) {
             //CRLog::trace("name attribute = %s", LCSTR(lString32(attrvalue)));
             parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
+        } else if ( !lStr_cmp(attrname, "data") && ((ldomDocumentWriter*)parent)->getCurrentNodeId() == el_object ) {
+            parent->OnAttribute(nsname, attrname, convertHref(lString32(attrvalue)).c_str() );
         } else {
             parent->OnAttribute(nsname, attrname, attrvalue);
         }
@@ -14410,6 +14410,7 @@ bool ldomDocumentWriterFilter::AutoOpenClosePop( int step, lUInt16 tag_id )
         case el_col:
         case el_embed:
         case el_hr:
+        case el_image:
         case el_img:
         case el_input:
         case el_link:
@@ -14783,8 +14784,6 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar32 * nsname, const lC
     bool tag_accepted = true;
     bool insert_before_last_child = false;
     if (_document->getDOMVersionRequested() >= 20200824) { // A little bit more HTML5 conformance
-        if ( id == el_image )
-            id = el_img;
         if ( tagname && tagname[0] == '?' ) {
             // The XML parser feeds us XML processing instructions like '<?xml ... ?>'
             // Firefox wraps them in a comment <!--?xml ... ?-->.
@@ -15118,8 +15117,6 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar32 * /*nsname*/, const lCh
             _curNodeIsSelfClosing = false;
         }
         else {
-            if ( id == el_image )
-                id = el_img;
             AutoOpenClosePop( self_closing_tag ? PARSER_STEP_TAG_SELF_CLOSING : PARSER_STEP_TAG_CLOSING, id );
         }
     }
@@ -19293,14 +19290,28 @@ public:
     }
 };
 
+bool ldomNode::isImage() const
+{
+    // Our list of element ids that are considered is_object is stable,
+    // so no need to use getElementTypePtr()->is_object
+    switch (getNodeId()) {
+        case el_img:
+        case el_image:
+        case el_object:
+        case el_embed:
+            return true;
+        default:
+            return false;
+    }
+}
+
 /// returns object image ref name
 lString32 ldomNode::getObjectImageRefName(bool percentDecode)
 {
     if (!isElement())
         return lString32::empty_str;
     //printf("ldomElement::getObjectImageSource() ... ");
-    const css_elem_def_props_t * et = getDocument()->getElementTypePtr(getNodeId());
-    if (!et || !et->is_object)
+    if (!isImage())
         return lString32::empty_str;
 
     lString32 refName = getAttributeValue( ns_xlink, attr_href );
@@ -19309,7 +19320,9 @@ lString32 ldomNode::getObjectImageRefName(bool percentDecode)
     if ( refName.empty() )
         refName = getAttributeValue( LXML_NS_ANY, attr_href ); //LXML_NS_NONE
     if ( refName.empty() )
-        refName = getAttributeValue( LXML_NS_ANY, attr_src ); //LXML_NS_NONE
+        refName = getAttributeValue( LXML_NS_ANY, attr_src ); // <image src="ref"/>, <embed src="ref" type="image/svg+xml"/>
+    if ( refName.empty() )
+        refName = getAttributeValue( LXML_NS_ANY, attr_data ); // <object data="ref" type="image/svg+xml">
     if (refName.empty()) {
         lString32 recindex = getAttributeValue( LXML_NS_ANY, attr_recindex );
         if (!recindex.empty()) {
@@ -19558,7 +19571,7 @@ int ldomNode::getSurroundingAddedHeight(bool account_height_below_strut_baseline
             h += measureBorder(n, 0); // top border
             h += measureBorder(n, 2); // bottom border
             if ( account_height_below_strut_baseline && rm == erm_final ) {
-                if ( n == this && (getNodeId() == el_img || getNodeId() == el_image) ) {
+                if ( n == this && isImage() ) {
                     // We're usually called on an image by lvtextfm.cpp, where lvrend.cpp,
                     // for erm_final images, provides a strut of (0,0): so, ignore
                     // any computation from the font associated to this image.
