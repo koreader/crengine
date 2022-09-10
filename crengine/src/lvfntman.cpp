@@ -70,6 +70,118 @@
 
 #endif
 
+#if USE_FREETYPE==1
+// These svg path helpers are for use by LVFreeTypeFace->collectGlyphSVGPath()
+
+#if USE_HARFBUZZ!=1
+// So we can use the next functions in collectGlyphSVGPath() when not using Harfbuzz but FreeType only
+typedef void hb_draw_funcs_t;
+typedef void hb_draw_state_t;
+#endif
+
+// Note: y are inverted as the glyphs shapes are in a mirrored coordinates system
+static void SVGGlyphsCollector_svg_move_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[64];
+    snprintf(svg_path_step, 64, "M%g,%g",
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+
+static void SVGGlyphsCollector_svg_line_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[64];
+    snprintf(svg_path_step, 64, "L%g,%g",
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+
+static void SVGGlyphsCollector_svg_quadratic_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float control_x, float control_y, float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[128];
+    snprintf(svg_path_step, 128, "Q%g,%g,%g,%g",
+                     offset_x + scale * control_x,
+                     offset_y - scale * control_y,
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+
+static void SVGGlyphsCollector_svg_cubic_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float control1_x, float control1_y, float control2_x, float control2_y,
+                                        float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[192];
+    snprintf(svg_path_step, 192, "C%g,%g,%g,%g,%g,%g",
+                     offset_x + scale * control1_x,
+                     offset_y - scale * control1_y,
+                     offset_x + scale * control2_x,
+                     offset_y - scale * control2_y,
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+
+static void SVGGlyphsCollector_svg_close_path(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *, void *) {
+    collector->addPathDfragment("Z");
+}
+
+// These two are not for use with hb_draw_funcs_t, but used by collectGlyphSVGPath() with FreeType only,
+// so we get the same kind of signatures as the ones above (used with Harfbuzz and FreeType).
+static void SVGGlyphsCollector_svg_continue_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[64];
+    snprintf(svg_path_step, 64, " %g,%g",
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+static void SVGGlyphsCollector_svg_continue_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
+                                        float control_x, float control_y, float to_x, float to_y, void *) {
+    double scale = collector->_scale;
+    double offset_x = collector->_offset_x;
+    double offset_y = collector->_offset_y;
+    char svg_path_step[128];
+    snprintf(svg_path_step, 128, " %g,%g,%g,%g",
+                     offset_x + scale * control_x,
+                     offset_y - scale * control_y,
+                     offset_x + scale * to_x,
+                     offset_y - scale * to_y);
+    collector->addPathDfragment(svg_path_step);
+}
+
+#if USE_HARFBUZZ==1
+// For use with hb_font_get_glyph_shape()
+static hb_draw_funcs_t *SVGGlyphsCollector_svg_funcs = NULL;
+void setup_SVGGlyphsCollector_svg_funcs() {
+    SVGGlyphsCollector_svg_funcs = hb_draw_funcs_create();
+    hb_draw_funcs_set_move_to_func(      SVGGlyphsCollector_svg_funcs, (hb_draw_move_to_func_t)      SVGGlyphsCollector_svg_move_to, nullptr, nullptr);
+    hb_draw_funcs_set_line_to_func(      SVGGlyphsCollector_svg_funcs, (hb_draw_line_to_func_t)      SVGGlyphsCollector_svg_line_to, nullptr, nullptr);
+    hb_draw_funcs_set_quadratic_to_func( SVGGlyphsCollector_svg_funcs, (hb_draw_quadratic_to_func_t) SVGGlyphsCollector_svg_quadratic_to, nullptr, nullptr);
+    hb_draw_funcs_set_cubic_to_func(     SVGGlyphsCollector_svg_funcs, (hb_draw_cubic_to_func_t)     SVGGlyphsCollector_svg_cubic_to, nullptr, nullptr);
+    hb_draw_funcs_set_close_path_func(   SVGGlyphsCollector_svg_funcs, (hb_draw_close_path_func_t)   SVGGlyphsCollector_svg_close_path, nullptr, nullptr);
+    hb_draw_funcs_make_immutable(SVGGlyphsCollector_svg_funcs);
+}
+#endif
+
+#endif // USE_FREETYPE==1
+
 // Helpers with font metrics (units are 1/64 px)
 // #define FONT_METRIC_FLOOR(x)    ((x) & -64)
 // #define FONT_METRIC_CEIL(x)     (((x)+63) & -64)
@@ -2376,6 +2488,187 @@ public:
     }
 #endif
 
+    virtual bool collectGlyphSVGPath(SVGGlyphsCollector * svg_collector, lUInt32 code, bool code_is_glyph_index=false, bool is_fallback=false) {
+
+        // All the points/distances/metrics we get with Harfbuzz and Freetype here are in *64 units,
+        // so update our scale and current values fed into svg_collector
+        double scale = svg_collector->_orig_scale / 64.0;
+        svg_collector->_scale = scale;
+        svg_collector->_offset_x = svg_collector->_offset_x * scale;
+        svg_collector->_offset_y = svg_collector->_offset_y * scale;
+        svg_collector->_advance_x = svg_collector->_advance_x * scale;
+        svg_collector->_advance_y = svg_collector->_advance_y * scale;
+
+        #if USE_HARFBUZZ==1
+            if (_kerningMode == KERNING_MODE_HARFBUZZ && code_is_glyph_index ) {
+                // With kerning mode harfbuzz, we get called with the fallback font and the glyph
+                // index in that font. No need to check if it is present or iterate fallback fonts.
+                // We can use hb_font_get_glyph_shape() which will make a smoother shape than
+                // what we can get with FreeType outline contours below.
+                // But Harfbuzz doesn't know about any fake italic or synth weight, and has
+                // no way to do itself these transforms.
+                // So fallback to the Freetype method in that case.
+                if ( _synth_weight == 0 && _italic != 2 ) {
+                    // No synthetic weight or italic: the font is used as-is.
+                    if ( SVGGlyphsCollector_svg_funcs == NULL ) {
+                        setup_SVGGlyphsCollector_svg_funcs();
+                    }
+                    hb_font_get_glyph_shape(_hb_font, code, SVGGlyphsCollector_svg_funcs, svg_collector);
+                    return true;
+                }
+            }
+        #endif
+
+        FT_UInt glyph_index;
+        if ( code_is_glyph_index ) {
+            // Accept 0 and give info about the notdef/tofu char
+            glyph_index = code;
+        }
+        else {
+            glyph_index = getCharIndex( code, 0 );
+            if ( glyph_index==0 ) {
+                LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
+                if ( !fallback ) {
+                    // No fallback
+                    glyph_index = getCharIndex( code, '?' );
+                    if ( glyph_index==0 )
+                        return false;
+                }
+                else {
+                    // Fallback
+                    return fallback->collectGlyphSVGPath(svg_collector, code, false, true);
+                }
+            }
+        }
+
+        int flags = FT_LOAD_DEFAULT;
+        flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
+        flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+        flags &= ~FT_LOAD_RENDER;
+        int error = FT_Load_Glyph(
+            _face,          /* handle to face object */
+            glyph_index,   /* glyph index           */
+            flags );  /* load flags, see below */
+        if ( error == FT_Err_Execution_Too_Long && _hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR ) {
+            // Native hinting bytecode may fail with some bad fonts: try again with no hinting
+            flags |= FT_LOAD_NO_HINTING;
+            error = FT_Load_Glyph( _face, glyph_index, flags );
+        }
+        if ( error )
+            return false;
+
+        // We do the same transformations as in getGlyphInfo() (see it for more comments)
+        // Fortunately, these transformations will affect the outline and the paths we will get
+        if (_synth_weight > 0) {
+            if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+            }
+        }
+        if (_italic == 2) {
+            FT_GlyphSlot_Oblique(_slot);
+        }
+
+        // Not super sure about this, but doing it as in getGlyphInfo() above seems to work in all cases
+        svg_collector->_advance_x = _slot->metrics.horiAdvance * scale;
+        if (_synth_weight > 0) {
+            lInt32 advance = _slot->linearHoriAdvance >> 10; // expressed in 16.16 fractional pixels (/64/16)
+            if ( advance > 0 ) {
+                advance += _synth_weight_strength;
+            }
+            svg_collector->_advance_x = advance * scale;
+        }
+
+        // From https://github.com/donbright/font_to_svg/blob/master/font_to_svg2.hpp , adapted
+        // to use our SVGGlyphsCollector_svg_move_to... funcs so that scaling and offsets
+        // are applied to the paths.
+        // (We tried the more complex https://github.com/donbright/font_to_svg/blob/master/font_to_svg.hpp,
+        // but got visually the same results.)
+        if (_slot->outline.n_points!=0 && _slot->outline.n_contours!=0) {
+            /* tag bit 1 indicates whether its a control point on a bez curve
+             or not. two consecutive control points imply another point halfway
+             between them */
+            // Step 1. move to starting point (M x-coord y-coord )
+            // Step 2. decide whether to draw a line or a bezier curve or to move
+            // Step 3. for bezier: Q control-point-x control-point-y, destination-x, destination-y
+            //         for line:   L x-coord, y-coord
+            //         for move:   M x-coord, y-coord
+            FT_Outline outline = _slot->outline;
+            FT_Vector* points = outline.points;
+            char* tags = outline.tags;
+            short* contours = outline.contours;
+            int contour_starti = 0;
+            for (int i = 0 ; i < outline.n_contours ; i++ ) {
+                int contour_endi = contours[i];
+                int offset = contour_starti;
+                int npts = contour_endi - contour_starti + 1;
+                SVGGlyphsCollector_svg_move_to(NULL, svg_collector, NULL, points[contour_starti].x, points[contour_starti].y, NULL);
+                char mode='M';
+                for ( int j = 0; j < npts; j++ ) {
+                    int a = j%npts + offset;
+                    int nexti = (j+1)%npts + offset;
+                    int nextnexti = (j+2)%npts + offset;
+                    long x =   points[a].x;
+                    long y =   points[a].y;
+                    long nx =  points[nexti].x;
+                    long ny =  points[nexti].y;
+                    bool this_tagbit1 = (tags[a] & 1);
+                    bool next_tagbit1 = (tags[nexti] & 1);
+                    bool nextnext_tagbit1 = (tags[ nextnexti ] & 1);
+                    bool this_isctl = !this_tagbit1;
+                    bool next_isctl = !next_tagbit1;
+                    bool nextnext_isctl = !nextnext_tagbit1;
+                    if (this_isctl && next_isctl) {
+                        // two adjacent ctl pts. adding point halfway between;
+                        // reseting x and y ";
+                        x = (x + nx) / 2;
+                        y = (y + ny) / 2;
+                        this_isctl = false;
+                        //  Check if first pt in contour was a ctrl pt. moving to non-ctrl pt
+                        if (j==0) {
+                            if (mode!='M')
+                                SVGGlyphsCollector_svg_move_to(NULL, svg_collector, NULL, x, y, NULL);
+                            else
+                                SVGGlyphsCollector_svg_continue_to(NULL, svg_collector, NULL, x, y, NULL);
+                            mode='M';
+                        }
+                    }
+                    if (!this_isctl && next_isctl) {
+                        long nnx = points[nextnexti].x;
+                        long nny = points[nextnexti].y;
+                        if (nextnext_isctl) {
+                            // two ctl pts coming. adding point halfway between
+                            // reseting nnx and nny to halfway pt
+                            nnx = (nx + nnx) / 2;
+                            nny = (ny + nny) / 2;
+                        }
+                        // produce bezier path
+                        if (mode!='Q')
+                            SVGGlyphsCollector_svg_quadratic_to(NULL, svg_collector, NULL, nx, ny, nnx, nny, NULL);
+                        else
+                            SVGGlyphsCollector_svg_continue_to(NULL, svg_collector, NULL, nx, ny, nnx, nny, NULL);
+                        mode='Q';
+                    }
+                    else if (!this_isctl && !next_isctl) {
+                        // line to new point
+                        if (mode!='L')
+                            SVGGlyphsCollector_svg_line_to(NULL, svg_collector, NULL, nx, ny, NULL);
+                        else
+                            SVGGlyphsCollector_svg_continue_to(NULL, svg_collector, NULL, nx, ny, NULL);
+                        mode='L';
+                    }
+                    else if (this_isctl && !next_isctl) {
+                        // this is ctrl pt. skipping to
+                    }
+                }
+                contour_starti = contour_endi+1;
+                SVGGlyphsCollector_svg_close_path(NULL, svg_collector, NULL, NULL);
+                mode='Z';
+            }
+        }
+        return true;
+    }
+
     virtual bool getGlyphExtraMetric( glyph_extra_metric_t metric, lUInt32 code, int & value, bool scaled_to_px, lChar32 def_char=0, bool is_fallback=false ) {
         int glyph_index = getCharIndex( code, 0 );
         if ( glyph_index==0 ) {
@@ -3700,7 +3993,8 @@ public:
                        TextLangCfg * lang_cfg,
                        lUInt32 flags, int letter_spacing, int width,
                        int text_decoration_back_gap,
-                       int target_w=-1, int target_h=-1 )
+                       int target_w=-1, int target_h=-1,
+                       SVGGlyphsCollector * svg_collector=NULL)
     {
         FONT_GUARD
         if ( len <= 0 || _face==NULL )
@@ -3951,7 +4245,7 @@ public:
                     int fb_advance = fallback->DrawTextString( buf, x, fb_y,
                        fb_text, fb_len,
                        def_char, palette, fb_addHyphen, lang_cfg, fb_flags, letter_spacing,
-                       width, text_decoration_back_gap, target_w, target_h );
+                       width, text_decoration_back_gap, target_w, target_h, svg_collector );
                     x += fb_advance;
                     #ifdef DEBUG_DRAW_TEXT
                         printf("DTHB ### drawn past notdef > X+= %d\n[...]", fb_advance);
@@ -3964,6 +4258,15 @@ public:
                     // Draw glyphs of this same cluster
                     int prev_x = x;
                     for (i = hg; i < hg2; i++) {
+                        if ( svg_collector ) {
+                            bool can_adjust_from_previous = (i == hg) && !isHBScriptCursive(hb_buffer_get_script(_hb_buffer));
+                            svg_collector->collectGlyph(this, glyph_info[i].codepoint, true, text[glyph_info[i].cluster],
+                                                        glyph_pos[i].x_offset,  -glyph_pos[i].y_offset,
+                                                        glyph_pos[i].x_advance, -glyph_pos[i].y_advance,
+                                                        can_adjust_from_previous);
+                            svg_collector->addGlyph();
+                            continue;
+                        }
                         LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
                         if (item) {
                             if ( transform_stretch ) {
@@ -4116,6 +4419,23 @@ public:
                     ch = getHyphChar();
                     isHyphen = false; // an hyphen, but not one to not draw
                 }
+                if ( svg_collector ) {
+                    triplet.prevChar = triplet.Char;
+                    triplet.Char = ch;
+                    if (i < (unsigned int)(len - 1))
+                        triplet.nextChar = is_rtl ? text[len-1-i-1] : text[i + 1];
+                    else
+                        triplet.nextChar = 0;
+                    if (!hbCalcCharWidth(&posInfo, triplet, def_char)) {
+                        posInfo.offset = 0;
+                        posInfo.width = 0;
+                    }
+                    svg_collector->collectGlyph(this, ch, false, ch, posInfo.offset*64, 0, posInfo.width*64, 0, posInfo.width!=0);
+                    // Reset the advance with the one gotten from hbCalcCharWidth()
+                    svg_collector->_advance_x = posInfo.width*64 * svg_collector->_scale;
+                    svg_collector->addGlyph();
+                    continue;
+                }
                 LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
                 if ( !item )
                     continue;
@@ -4245,6 +4565,15 @@ public:
                     kerning = delta.x;
             }
             #endif
+            if ( svg_collector ) {
+                svg_collector->collectGlyph(this, ch, false, ch, kerning, 0, 0, 0);
+                svg_collector->_advance_x += kerning * svg_collector->_scale;
+                if ( svg_collector->_advance_x == 0 ) // Assume it's a diacritic
+                    svg_collector->_can_adjust_from_previous = false;
+                svg_collector->addGlyph();
+                previous = ch_glyph_index;
+                continue;
+            }
             LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
             if ( !item )
                 continue;
@@ -4816,7 +5145,8 @@ public:
                        TextLangCfg * lang_cfg,
                        lUInt32 flags, int letter_spacing, int width,
                        int text_decoration_back_gap,
-                       int target_w, int target_h)
+                       int target_w, int target_h,
+                       SVGGlyphsCollector * svg_collector)
     {
         if ( len <= 0 )
             return 0;
@@ -6729,7 +7059,8 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
 /// draws text string (returns x advance)
 int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    const lChar32 * text, int len,
-                   lChar32 def_char, lUInt32 * palette, bool addHyphen, TextLangCfg * lang_cfg, lUInt32 , int , int, int, int, int )
+                   lChar32 def_char, lUInt32 * palette, bool addHyphen, TextLangCfg * lang_cfg, lUInt32 , int , int, int, int, int,
+                   SVGGlyphsCollector *)
 {
     //static lUInt8 glyph_buf[16384];
     //LVFont::glyph_info_t info;
@@ -7359,7 +7690,7 @@ int LVWin32DrawFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                    lChar32 def_char, lUInt32 * palette, bool addHyphen,
                    TextLangCfg * lang_cfg,
                    lUInt32 flags, int letter_spacing, int width,
-                   int text_decoration_back_gap, int, int )
+                   int text_decoration_back_gap, int, int, SVGGlyphsCollector * )
 {
     if (_hfont==NULL)
         return 0;
