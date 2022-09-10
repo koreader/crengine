@@ -710,8 +710,8 @@ public:
 //                                 _italic ? "yes" : "no", LCSTR(_url));
                     if (islocal.length()==5 && _basePath.length()!=0)
                         _url = _url.substr((_basePath.length()+1), (_url.length()-_basePath.length()));
-                    if (_fontList.findByUrl(_url))
-                        _url=_url.append(lString32(" ")); //avoid add() replaces existing local name
+                    while (_fontList.findByUrl(_url))
+                        _url.append(lString32(" ")); //avoid add() replaces existing local name
                     _fontList.add(_url, _face, _bold, _italic);
                 }
             }
@@ -720,8 +720,10 @@ public:
         case ',':
             if (_state == 2) {
                 if (!_url.empty()) {
-                      if (islocal.length() == 5 && _basePath.length()!=0) _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
-                        if (_fontList.findByUrl(_url)) _url=_url.append(lString32(" "));
+                    if (islocal.length() == 5 && _basePath.length()!=0)
+                        _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
+                    while (_fontList.findByUrl(_url))
+                        _url.append(lString32(" "));
                     _fontList.add(_url, _face, _bold, _italic);
                 }
                 _state = 11;

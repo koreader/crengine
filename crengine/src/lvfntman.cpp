@@ -5859,6 +5859,7 @@ public:
         if (_cache.findDocumentFontDuplicate(documentId, name8)) {
             return false;
         }
+        name.trim(); // Remove any " " appended to avoid url override with duplicates
         LVStreamRef stream = container->OpenStream(name.c_str(), LVOM_READ);
         if (stream.isNull())
             return false;
