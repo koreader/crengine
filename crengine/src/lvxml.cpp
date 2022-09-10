@@ -2846,7 +2846,7 @@ void LVXMLParser::Reset()
     m_in_html_script_tag = false;
 }
 
-LVXMLParser::LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bool allowHtml, bool fb2Only )
+LVXMLParser::LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bool allowHtml, bool fb2Only, bool svgOnly )
     : LVTextFileBase(stream)
     , m_callback(callback)
     , m_trimspaces(true)
@@ -2856,6 +2856,7 @@ LVXMLParser::LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bo
     , m_citags(false)
     , m_allowHtml(allowHtml)
     , m_fb2Only(fb2Only)
+    , m_svgOnly(svgOnly)
 
 {
     m_firstPageTextCounter = 2000;
@@ -2889,8 +2890,12 @@ bool LVXMLParser::CheckFormat()
     if ( charsDecoded > 30 ) {
         lString32 s( chbuf, charsDecoded );
         res = s.pos("<FictionBook") >= 0;
+        if ( m_svgOnly ) {
+            res = s.pos("<svg") >= 0 && s.pos("<html") < 0;
+        }
         if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
-            res = res || !m_fb2Only;
+            if ( !m_fb2Only && !m_svgOnly )
+                res = true;
             int encpos;
             if ( res && (encpos=s.pos("encoding=\"")) >= 0 ) {
                 lString32 encname = s.substr( encpos+10, 20 );
@@ -2902,7 +2907,7 @@ bool LVXMLParser::CheckFormat()
             }
         } else if ( !res && s.pos("<html xmlns=\"http://www.w3.org/1999/xhtml\"") >= 0) {
             res = m_allowHtml;
-        } else if (!res && !m_fb2Only) {
+        } else if (!res && !m_fb2Only && !m_svgOnly) {
             // not XML or XML without declaration;
             int lt_pos = s.pos("<");
             if ( lt_pos >= 0 && s.pos("xmlns") > lt_pos ) {

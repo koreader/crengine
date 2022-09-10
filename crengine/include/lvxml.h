@@ -405,6 +405,7 @@ protected:
     bool m_citags;
     bool m_allowHtml;
     bool m_fb2Only;
+    bool m_svgOnly;
 public:
     /// returns true if format is recognized by parser
     virtual bool CheckFormat();
@@ -415,7 +416,7 @@ public:
     /// resets parsing, moves to beginning of stream
     virtual void Reset();
     /// constructor
-    LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bool allowHtml=true, bool fb2Only=false );
+    LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bool allowHtml=true, bool fb2Only=false, bool svgOnly=false );
     /// changes space mode
     virtual void SetSpaceMode( bool flgTrimSpaces );
     /// returns space mode
