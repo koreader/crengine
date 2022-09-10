@@ -19420,12 +19420,16 @@ LVStreamRef ldomDocument::getObjectImageStream( lString32 refName )
             ref = LVStreamRef(new LVBase64Stream(b64data));
             return ref;
         }
-        // Non-standard plain string data (can be used to provide SVG)
-        pos = data.pos(U";-cr-plain,");
-        if ( pos > 0 ) {
-            lString8 plaindata = UnicodeToUtf8(refName.substr(pos+11));
-            ref = LVCreateStringStream(plaindata);
-            return ref;
+        // <img src="data:image/svg+xml,%3Csvg width...>
+        // <img src="data:image/svg+xml;utf8,<svg...>
+        if ( data.startsWith(lString32("data:image/svg+xml")) ) {
+            int pos = data.pos(U',');
+            if ( pos > 0 ) {
+                // The attribute value has already been url-decoded at parsing time
+                lString8 plaindata = UnicodeToUtf8(refName.substr(pos+1));
+                ref = LVCreateStringStream(plaindata);
+                return ref;
+            }
         }
     }
     if ( refName[0]!='#' ) {

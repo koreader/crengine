@@ -1158,7 +1158,7 @@ lString8 getRadicalSymbolSVGImageString( int font_size, int border_thickness,
     // Keep stroke width as border thickness, we'll add a .25 below to make it a bit bolder
     int stroke_width = border_thickness;
     lString8 img;
-    img << "data:image/svg;-cr-plain,";
+    img << "data:image/svg+xml,";
     img << "<svg version='1.1'";
     img << " width='" << fmt::decimal(svg_w) << "'";
     img << " height='" << fmt::decimal(svg_h) << "'";
