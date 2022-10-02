@@ -6717,6 +6717,13 @@ void ldomNode::initNodeRendMethod()
             return;
         }
     }
+    if ( isImage() ) {
+        // <object> can have inner content (others shouldn't, but we may get bad wild
+        // content): be sure to make it invisible (otherwise, their rendering methods set
+        // up to now could influence the rendering method of this element, possibly making
+        // it not erm_final nor erm_inline and so not shown)
+        recurseElements( resetRendMethodToInvisible );
+    }
 
     if ( hasInvisibleParent(this) ) { // (should be named isInvisibleOrHasInvisibleParent())
         // Note: we could avoid that up-to-root-node walk for each node
@@ -19603,8 +19610,22 @@ bool ldomNode::isImage() const
     switch (getNodeId()) {
         case el_img:
         case el_image:
-        case el_object:
         case el_embed:
+            return true;
+        case el_object:
+            // <object> can have some inner content, that should be shown when not
+            // supported, ie. <object data="..."><p>unsupported video</p></object>.
+            // (Using getObjectImageSource() to check if valid would return
+            // a LVDummyImageSource if not, which would not help here.)
+            if ( getAttributeValueLC(attr_type).startsWithNoCase(U"image/") )
+                return true;
+            // Otherwise, if it has children, don't consider it as an image so its
+            // inner content can be displayed (we can't use hasNonEmptyInline() as
+            // it may call isImage())
+            if ( getChildCount() > 0 )
+                return false;
+            // If no inner content, have it displayed as a LVDummyImageSource
+            // so we can see there is something there
             return true;
         case el_svg:
             // Let <svg> be handled as text when in legacy rendering mode
