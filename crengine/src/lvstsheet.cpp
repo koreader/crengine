@@ -386,18 +386,36 @@ static bool skip_spaces( const char * & str )
     return *str != 0;
 }
 
-static bool parse_ident( const char * &str, char * ident, size_t maxsize )
+static bool parse_ident( const char * &str, char * ident, size_t maxsize, bool skip_namespace=false )
 {
     // Note: skipping any space before or after should be ensured by caller if needed
     *ident = 0;
-    if ( !css_is_alpha( *str ) )
-        return false;
+    if ( !css_is_alpha( *str ) ) {
+        if ( !skip_namespace )
+            return false;
+        // By checking for the char after to be alpha, we avoid considering the '|'
+        // in cssrt_attrstarts_word ([attr|=foo]) as a namespace separator.
+        if ( str[0] == '|' && css_is_alpha(str[1]) )
+            str++;
+        else if ( str[0] == '*' && str[1] == '|' && css_is_alpha(str[2]) )
+            str+=2;
+        else
+            return false;
+    }
     int i;
     int max_i = maxsize - 1;
     for (i=0; css_is_alnum(str[i]); i++) {
         if ( i < max_i )
             ident[i] = str[i];
         // Keep parsing/skipping even if not accumulated in ident
+    }
+    if ( skip_namespace && str[i] == '|' && css_is_alpha(str[i+1]) ) {
+        str += i+1;
+        *ident = 0;
+        for (i=0; css_is_alnum(str[i]); i++) {
+            if ( i < max_i )
+                ident[i] = str[i];
+        }
     }
     ident[i < max_i ? i : max_i] = 0;
     str += i;
@@ -5322,7 +5340,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     str++;
     // We may find and skip spaces inside [...]
     skip_spaces( str );
-    if (!parse_ident( str, attrname, 512 ))
+    if (!parse_ident( str, attrname, 512, true ))
         return NULL;
     skip_spaces( str );
     attrvalue[0] = 0;
@@ -5469,7 +5487,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             // ident
             char ident[64];
-            if (!parse_ident( str, ident, 64 ))
+            if (!parse_ident( str, ident, 64, true ))
                 return false;
             // All element names have been lowercased by HTMLParser (except
             // a few ones that are added explicitely by crengine): we need
