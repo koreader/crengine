@@ -566,6 +566,8 @@ private:
     LVByteArrayRef    _buf;
     int               _bias;
     bool _real_weight;
+    // Store some info we can know about a font at registration time
+    bool _has_ot_math;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
@@ -581,6 +583,7 @@ public:
         , _buf(buf)
         , _bias(0)
         , _real_weight(true)
+        , _has_ot_math(false)
         {
         }
     LVFontDef(const LVFontDef & def)
@@ -596,6 +599,7 @@ public:
         , _buf(def._buf)
         , _bias(def._bias)
         , _real_weight(def._real_weight)
+        , _has_ot_math(def._has_ot_math)
         {
         }
 
@@ -646,6 +650,8 @@ public:
     void setTypeFace(lString8 tf) { _typeface = tf; }
     int getFeatures() const { return _features; }
     void setFeatures( int features ) { _features = features; }
+    bool hasOTMath() const { return _has_ot_math; }
+    void setHasOTMath(bool has_ot_math) { _has_ot_math = has_ot_math; }
     int getDocumentId() { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() { return _buf; }
@@ -740,7 +746,7 @@ public:
         }
         list.sort();
     }
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math )
     {
         int base_weight = bold ? 700 : 400;
         LVFontDef * best_def = NULL;
@@ -767,6 +773,7 @@ public:
             filename = best_def->getName();
             index = best_def->getIndex();
             family_type = best_def->getFamily();
+            has_ot_math = best_def->hasOTMath();
             return true;
         }
         return false;
@@ -5828,10 +5835,10 @@ public:
         _cache.regularizeRegisteredFontsWeights(print_updates);
     }
 
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math )
     {
         FONT_MAN_GUARD
-        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index, family_type);
+        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index, family_type, has_ot_math);
     }
 
     virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list )
@@ -5917,6 +5924,13 @@ public:
                     index,
                     id
             );
+
+            #if USE_HARFBUZZ==1
+                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
+                if ( hb_ot_math_has_data(hb_face) )
+                    def2.setHasOTMath(true);
+                hb_face_destroy(hb_face);
+            #endif
 
             if ( face ) {
                 FT_Done_Face( face );
@@ -6256,6 +6270,12 @@ public:
                 documentId,
                 buf
             );
+            #if USE_HARFBUZZ==1
+                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
+                if ( hb_ot_math_has_data(hb_face) )
+                    def.setHasOTMath(true);
+                hb_face_destroy(hb_face);
+            #endif
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -6358,6 +6378,12 @@ public:
                 index,
                 documentId
             );
+            #if USE_HARFBUZZ==1
+                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
+                if ( hb_ot_math_has_data(hb_face) )
+                    def.setHasOTMath(true);
+                hb_face_destroy(hb_face);
+            #endif
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -6449,6 +6475,7 @@ public:
             if ( face->face_flags & FT_FACE_FLAG_FIXED_WIDTH )
                 fontFamily = css_ff_monospace;
             lString8 familyName( ::familyName(face) );
+
             /*
             if ( familyName=="Times" || familyName=="Times New Roman" )
                 fontFamily = css_ff_serif;
@@ -6464,6 +6491,12 @@ public:
                 familyName,
                 index
             );
+            #if USE_HARFBUZZ==1
+                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
+                if ( hb_ot_math_has_data(hb_face) )
+                    def.setHasOTMath(true);
+                hb_face_destroy(hb_face);
+            #endif
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
