@@ -2478,6 +2478,8 @@ private:
 
     LVEmbeddedFontList _fontList;
 
+    lString8Collection _fontFamilyFonts;
+
 
 #if BUILD_LITE!=1
     /// load document cache file content
@@ -2579,6 +2581,25 @@ public:
     void clear();
     lString32 getDocStylesheetFileName() { return _docStylesheetFileName; }
     void setDocStylesheetFileName(lString32 fileName) { _docStylesheetFileName = fileName; }
+
+    // font-family to font name mapping
+    void setFontFamilyFonts(lString8 fontNames) {
+        _fontFamilyFonts = lString8Collection(fontNames, lString8("|"));
+    }
+    lUInt32 getFontFamilyFontsHash() {
+        lUInt32 hash = 0;
+        for ( int i=_fontFamilyFonts.length()-1; i>=0; i-- )
+            hash = hash * 31 + _fontFamilyFonts[i].getHash() + i*15324;
+        return hash;
+    }
+    lString8 getFontForFamily(css_font_family_t family, bool & ignore_font_names) {
+        int idx = (int)family;
+        if ( idx > 0 && idx < _fontFamilyFonts.length() ) {
+            ignore_font_names = !_fontFamilyFonts[0].empty(); // [0] holds this boolean option (false if empty, true if not)
+            return _fontFamilyFonts[idx];
+        }
+        return lString8::empty_str;
+    }
 
     ldomDocument();
     /// creates empty document which is ready to be copy target of doc partial contents

@@ -17037,7 +17037,7 @@ void ldomDocument::updateRenderContext()
     int dy = _page_height;
     _nodeStyleHash = 0; // force recalculation by calcStyleHash()
     lUInt32 styleHash = calcStyleHash(_rendered);
-    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
+    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
     _hdr.render_style_hash = styleHash;
     _hdr.stylesheet_hash = stylesheetHash;
@@ -17072,7 +17072,7 @@ bool ldomDocument::checkRenderContext()
     int dx = _page_width;
     int dy = _page_height;
     lUInt32 styleHash = calcStyleHash(_rendered);
-    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
+    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
     if ( styleHash != _hdr.render_style_hash ) {
         CRLog::info("checkRenderContext: Style hash doesn't match %x!=%x", styleHash, _hdr.render_style_hash);

@@ -4818,6 +4818,7 @@ void LVDocView::createEmptyDocument() {
     else
         m_doc->setInterlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE * m_def_interline_space / 100);
     m_doc->setScreenSize(m_dx, m_dy); // only used for CSS @media queries
+    m_doc->setFontFamilyFonts(UnicodeToUtf8(m_props->getStringDef(PROP_FONT_FAMILY_FACES, "")));
 
     m_doc->setContainer(m_container);
     // This sets the element names default style (display, whitespace)
@@ -6801,6 +6802,10 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 fontMan->SetFallbackFontSizesAdjusted(adjusted);
                 REQUEST_RENDER("propsApply - adjusted fallback font sizes")
             }
+        } else if (name == PROP_FONT_FAMILY_FACES) {
+            if (m_doc) // not when noDefaultDocument=true
+                getDocument()->setFontFamilyFonts(UnicodeToUtf8(value));
+            REQUEST_RENDER("propsApply font family faces")
         } else if (name == PROP_STATUS_FONT_FACE) {
             setStatusFontFace(UnicodeToUtf8(value));
         } else if (name == PROP_STATUS_LINE || name == PROP_SHOW_TIME

@@ -188,7 +188,10 @@ enum css_font_family_t {
     css_ff_sans_serif,
     css_ff_cursive,
     css_ff_fantasy,
-    css_ff_monospace
+    css_ff_monospace,
+    css_ff_math,
+    css_ff_emoji,
+    css_ff_fangsong
 };
 
 /// page split property values
