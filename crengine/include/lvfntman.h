@@ -670,7 +670,7 @@ public:
     /// returns available font files
     virtual void getFontFileNameList( lString32Collection & ) { }
     /// returns font filename and face index for font name
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math ) { return false; }
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math, bool & has_emojis ) { return false; }
     /// returns registered or instantiated document embedded font list
     virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list ) { }
     virtual void getInstantiatedDocumentFontList( int document_id, lString32Collection & list ) { }
