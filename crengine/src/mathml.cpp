@@ -1281,13 +1281,43 @@ void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style ) {
         // At this point, normal User-Agent and publisher stylesheets have been applied,
         // as well as our _MathML_stylesheet, but font inheritance has not yet been done
         // (it's handled by lvrend.cpp setNodeStyle() after we return).
-        if ( style->font_family == css_ff_inherit ) {
-            // No font set by any stylesheet
-            // See if the font we would inherit has OT Math support
-            if ( !parentNode->getFont()->hasOTMathSupport() ) {
-                // It has not: use our default Math font list
-                style->font_family = css_ff_sans_serif;
-                style->font_name = MATHML_DEFAULT_FONTS;
+        // We don't use "font-family: math" in our _MathML_stylesheet, but publishers
+        // may use it in their own stylesheets, and we would have substituted it with
+        // any user set font for "math" _fontFamilyFonts.
+        // If the use has requested font names to be ignored when font-family set,
+        // force his math font to be used for <math>.
+        // If no stylesheet has set anything, we should be here with css_ff_inherit.
+        bool ignore_font_names;
+        lString8 math_font = node->getDocument()->getFontForFamily(css_ff_math, ignore_font_names);
+        if ( ignore_font_names && !math_font.empty() ) {
+            style->font_name = math_font;
+            style->font_family = css_ff_math; // prevent inheritance
+        }
+        else if ( style->font_family == css_ff_inherit ) {
+            if ( !math_font.empty() ) {
+                // Use the one set by the user
+                style->font_name = math_font;
+                style->font_family = css_ff_math; // prevent inheritance
+            }
+            else {
+                // See if the font we would inherit has OT Math support
+                if ( !parentNode->getFont()->hasOTMathSupport() ) {
+                    // It has not: use our default Math font list
+                    style->font_name = MATHML_DEFAULT_FONTS;
+                    style->font_family = css_ff_math; // prevent inheritance
+                }
+            }
+        }
+        else {
+            // Some font name was set (or some other family name), but the font
+            // might not be found: append our/ours.
+            if ( !style->font_name.empty() )
+                style->font_name << ", ";
+            if ( !math_font.empty() ) {
+                style->font_name << '"' << math_font << '"';
+            }
+            else {
+                style->font_name << MATHML_DEFAULT_FONTS;
             }
         }
     }

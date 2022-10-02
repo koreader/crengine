@@ -5,9 +5,13 @@ R"===( /* " */
  * syntax highlight still work in various text editors */
 
 math {
-    /* font-family: is set by the code to a hardcoded list of known fonts with
-     * good OpenType Math support, when no font (Math or not) has been specified
-     * by previous stylesheets, and if the inherited font has no OT Math support */
+    /* We don't specify "font-family: math", as it would be substituted now with
+     * the font set in _fontFamilyFonts for "math", and we want this stylesheet
+     * to be stable/constant even when this "math" _fontFamilyFonts changes.
+     * Font name(s) will be set by setMathMLElementNodeStyle(), to either this
+     * "math" _fontFamilyFonts if set, or to a hardcoded list of known fonts with
+     * good OpenType Math support when no font (Math or not) has been specified
+     * by any stylesheet or if the inherited font has no OT Math support. */
     font-style: normal;
     font-weight: normal;
     letter-spacing: normal;

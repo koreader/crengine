@@ -2673,6 +2673,9 @@ static const char * css_ff_names[] =
     "cursive",
     "fantasy",
     "monospace",
+    "math",
+    "emoji",
+    "fangsong",
     NULL
 };
 
@@ -3309,6 +3312,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     decl += processed;
                     n = -1;
                     bool check_for_important = true;
+                    bool ignore_font_names = false;
                     if ( list.length() ) {
                         for (int i=list.length()-1; i>=0; i--) {
                             const char * name = list[i].c_str();
@@ -3374,8 +3378,32 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                     // the generic family name with the left most one
                                     n = nn;
                                 }
-                                // remove generic family name from font list
-                                list.erase( i, 1 );
+                                // Remove generic family name from the font list, or replace it with
+                                // the font name associated to this family if any.
+                                // (Note: this could be handled another way, by doing the replacement
+                                // in lvrend.cpp's getFont(), but it would need another css_ff_unset
+                                // and more tweaks elsewhere. Doing it here also avoid possibly messing
+                                // other platforms that use a font infrastructure better than FreeType
+                                // at categorizing font families.)
+                                lString8 family_font;
+                                bool ignore_font_names_if_family_set = false;
+                                if ( doc && nn != css_ff_inherit ) {
+                                    family_font = ((ldomDocument*)doc)->getFontForFamily((css_font_family_t)nn, ignore_font_names_if_family_set);
+                                }
+                                if ( !family_font.empty() ) {
+                                    list[i] = family_font;
+                                    if ( ignore_font_names_if_family_set )
+                                        ignore_font_names = true; // ignore next font names (we are parsing from right to left)
+                                }
+                                else {
+                                    list.erase( i, 1 );
+                                }
+                            }
+                            else { // Not a generic family name
+                                if ( ignore_font_names ) {
+                                    // We have seen and replaced a generic family name, and requested to ignore font names
+                                    list.erase( i, 1 );
+                                }
                             }
                         }
                         strValue = joinPropertyValueList( list );
