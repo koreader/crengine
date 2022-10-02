@@ -568,6 +568,7 @@ private:
     bool _real_weight;
     // Store some info we can know about a font at registration time
     bool _has_ot_math;
+    bool _has_emojis;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
@@ -584,6 +585,7 @@ public:
         , _bias(0)
         , _real_weight(true)
         , _has_ot_math(false)
+        , _has_emojis(false)
         {
         }
     LVFontDef(const LVFontDef & def)
@@ -600,6 +602,7 @@ public:
         , _bias(def._bias)
         , _real_weight(def._real_weight)
         , _has_ot_math(def._has_ot_math)
+        , _has_emojis(def._has_emojis)
         {
         }
 
@@ -652,6 +655,8 @@ public:
     void setFeatures( int features ) { _features = features; }
     bool hasOTMath() const { return _has_ot_math; }
     void setHasOTMath(bool has_ot_math) { _has_ot_math = has_ot_math; }
+    bool hasEmojis() const { return _has_emojis; }
+    void setHasEmojis(bool has_emojis) { _has_emojis = has_emojis; }
     int getDocumentId() { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() { return _buf; }
@@ -746,7 +751,7 @@ public:
         }
         list.sort();
     }
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math, bool & has_emojis )
     {
         int base_weight = bold ? 700 : 400;
         LVFontDef * best_def = NULL;
@@ -774,6 +779,7 @@ public:
             index = best_def->getIndex();
             family_type = best_def->getFamily();
             has_ot_math = best_def->hasOTMath();
+            has_emojis = best_def->hasEmojis();
             return true;
         }
         return false;
@@ -5835,10 +5841,10 @@ public:
         _cache.regularizeRegisteredFontsWeights(print_updates);
     }
 
-    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math )
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math, bool & has_emojis )
     {
         FONT_MAN_GUARD
-        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index, family_type, has_ot_math);
+        return _cache.getFontFileNameAndFaceIndex(name, bold, italic, filename, index, family_type, has_ot_math, has_emojis);
     }
 
     virtual void getRegisteredDocumentFontList( int document_id, lString32Collection & list )
@@ -5925,6 +5931,7 @@ public:
                     id
             );
 
+            def2.setHasEmojis( checkForEmojis(face) );
             #if USE_HARFBUZZ==1
                 hb_face_t * hb_face = hb_ft_face_create(face, NULL);
                 if ( hb_ot_math_has_data(hb_face) )
@@ -6158,6 +6165,22 @@ public:
         return true;
     }
 
+    bool checkForEmojis( FT_Face face )
+    {
+        if (face==NULL)
+            return false; // invalid face
+        // We check for "early" emojis (some fonts may not have all emojis added later)
+        lString32 sample_emojis = U"\x1F600\x1F60A"; // Smiling faces
+        for ( int i=0; i<sample_emojis.length(); i++ ) {
+            lChar32 ch = sample_emojis[i];
+            FT_UInt ch_glyph_index = FT_Get_Char_Index( face, ch );
+            if ( ch_glyph_index==0 ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /*
     bool isMonoSpaced( FT_Face face )
     {
@@ -6270,6 +6293,7 @@ public:
                 documentId,
                 buf
             );
+            def.setHasEmojis( checkForEmojis(face) );
             #if USE_HARFBUZZ==1
                 hb_face_t * hb_face = hb_ft_face_create(face, NULL);
                 if ( hb_ot_math_has_data(hb_face) )
@@ -6378,6 +6402,7 @@ public:
                 index,
                 documentId
             );
+            def.setHasEmojis( checkForEmojis(face) );
             #if USE_HARFBUZZ==1
                 hb_face_t * hb_face = hb_ft_face_create(face, NULL);
                 if ( hb_ot_math_has_data(hb_face) )
@@ -6491,6 +6516,7 @@ public:
                 familyName,
                 index
             );
+            def.setHasEmojis( checkForEmojis(face) );
             #if USE_HARFBUZZ==1
                 hb_face_t * hb_face = hb_ft_face_create(face, NULL);
                 if ( hb_ot_math_has_data(hb_face) )
