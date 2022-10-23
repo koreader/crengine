@@ -4472,58 +4472,12 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
             *stream << suffix;
         }
         else if ( WNEFLAG(TEXT_HYPHENATE) && HyphMan::isEnabled() && txt.length() >= HYPH_MIN_WORD_LEN_TO_HYPHENATE ) {
-            // Add soft-hyphens where HyphMan (with the user or language current hyphenation
-            // settings) says hyphenation is allowed.
-            // We do that here while we output the text to avoid the need
-            // for temporary storage of a string with soft-hyphens added.
-            const lChar32 * text32 = txt.c_str();
-            int txtlen = txt.length();
-            lUInt8 * flags = (lUInt8*)calloc(txtlen, sizeof(*flags));
-            lUInt16 widths[HYPH_MAX_WORD_SIZE] = { 0 }; // array needed by hyphenate()
-            // Lookup words starting from the end, just because lStr_findWordBounds()
-            // will ensure the iteration that way.
-            int wordpos = txtlen;
-            while ( wordpos > 0 ) {
-                // lStr_findWordBounds() will find the word contained at wordpos
-                // (or the previous word if wordpos happens to be a space or some
-                // punctuation) by looking only for alpha chars in m_text.
-                int start, end;
-                bool has_rtl;
-                lStr_findWordBounds( text32, txtlen, wordpos, start, end, has_rtl );
-                if ( end <= HYPH_MIN_WORD_LEN_TO_HYPHENATE ) {
-                    // Too short word at start, we're done
-                    break;
-                }
-                int len = end - start;
-                if ( len < HYPH_MIN_WORD_LEN_TO_HYPHENATE || has_rtl ) {
-                    // Too short word found, or word containing RTL: skip it
-                    wordpos = start - 1;
-                    continue;
-                }
-                if ( start >= wordpos ) {
-                    // Shouldn't happen, but let's be sure we don't get stuck
-                    wordpos = wordpos - HYPH_MIN_WORD_LEN_TO_HYPHENATE;
-                    continue;
-                }
-                // We have a valid word to look for hyphenation
-                if ( len > HYPH_MAX_WORD_SIZE ) // hyphenate() stops/truncates at 64 chars
-                    len = HYPH_MAX_WORD_SIZE;
-                // Have hyphenate() set flags inside 'flags'
-                // (Fetching the lang_cfg for each text node is not really cheap, but
-                // it's easier than having to pass it to each writeNodeEx())
-                TextLangMan::getTextLangCfg(node)->getHyphMethod()->hyphenate(text32+start, len, widths, flags+start, 0, 0xFFFF, 1);
-                // Continue with previous word
-                wordpos = start - 1;
-            }
-            // Output text, and add a soft-hyphen where there are flags
-            *stream << prefix;
-            for ( int i=0; i<txt.length(); i++ ) {
-                *stream << UnicodeToUtf8(txt.substr(i, 1));
-                if ( flags[i] & LCHAR_ALLOW_HYPH_WRAP_AFTER )
-                    *stream << "­";
-            }
-            *stream << suffix;
-            free(flags);
+            // Add soft-hyphens where TextLangMan/HyphMan (with the user or language current
+            // hyphenation settings) say hyphenation is allowed.
+            // (Fetching the lang_cfg for each text node is not really cheap, but
+            // it's easier than having to pass it to each writeNodeEx())
+            lString32 hyphenated_text = TextLangMan::getTextLangCfg(node)->softHyphenateText(txt, false);
+            *stream << prefix << UnicodeToUtf8(hyphenated_text) << suffix;
         }
         else {
             *stream << prefix << UnicodeToUtf8(txt) << suffix;

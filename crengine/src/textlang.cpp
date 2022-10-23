@@ -1446,3 +1446,57 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool rtl_line, bool & ch
     }
     return ratio;
 }
+
+lString32 TextLangCfg::softHyphenateText( lString32 & text, bool use_default_hyph_method ) {
+    #define HYPH_MIN_WORD_LEN_TO_HYPHENATE 4
+    #define HYPH_MAX_WORD_SIZE 64
+    const lChar32 * text32 = text.c_str();
+    int txtlen = text.length();
+    lUInt8 * flags = (lUInt8*)calloc(txtlen, sizeof(*flags));
+    lUInt16 widths[HYPH_MAX_WORD_SIZE] = { 0 }; // array needed by hyphenate()
+    // Lookup words starting from the end, just because lStr_findWordBounds()
+    // will ensure the iteration that way.
+    int wordpos = txtlen;
+    while ( wordpos > 0 ) {
+        // lStr_findWordBounds() will find the word contained at wordpos
+        // (or the previous word if wordpos happens to be a space or some
+        // punctuation) by looking only for alpha chars in m_text.
+        int start, end;
+        bool has_rtl;
+        lStr_findWordBounds( text32, txtlen, wordpos, start, end, has_rtl );
+        if ( end <= HYPH_MIN_WORD_LEN_TO_HYPHENATE ) {
+            // Too short word at start, we're done
+            break;
+        }
+        int len = end - start;
+        if ( len < HYPH_MIN_WORD_LEN_TO_HYPHENATE || has_rtl ) {
+            // Too short word found, or word containing RTL: skip it
+            wordpos = start - 1;
+            continue;
+        }
+        if ( start >= wordpos ) {
+            // Shouldn't happen, but let's be sure we don't get stuck
+            wordpos = wordpos - HYPH_MIN_WORD_LEN_TO_HYPHENATE;
+            continue;
+        }
+        // We have a valid word to look for hyphenation
+        if ( len > HYPH_MAX_WORD_SIZE ) // hyphenate() stops/truncates at 64 chars
+            len = HYPH_MAX_WORD_SIZE;
+        // Have hyphenate() set flags inside 'flags'
+        if ( use_default_hyph_method )
+            getDefaultHyphMethod()->hyphenate(text32+start, len, widths, flags+start, 0, 0xFFFF, 1);
+        else
+            getHyphMethod()->hyphenate(text32+start, len, widths, flags+start, 0, 0xFFFF, 1);
+        // Continue with previous word
+        wordpos = start - 1;
+    }
+    // Return text, adding a soft-hyphen where there are flags
+    lString32 res;
+    for ( int i=0; i<txtlen; i++ ) {
+        res << text.substr(i, 1);
+        if ( flags[i] & LCHAR_ALLOW_HYPH_WRAP_AFTER )
+            res << U'\x00AD';
+    }
+    free(flags);
+    return res;
+}
