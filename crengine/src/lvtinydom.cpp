@@ -4928,6 +4928,14 @@ public:
         if ( cssFile.empty() )
             return ret;
 
+        StyleSheetCache &cache = _document->getStyleSheetCache();
+        LVStyleSheet *cached = cache.get(cssFile);
+        if (cached) {
+            _document->getStyleSheet()->merge(*cached);
+            return true;
+        }
+
+        auto *styleSheet = new LVStyleSheet(_document);
         lString32 codeBase = cssFile;
         LVExtractLastPathElement(codeBase);
         LVContainerRef container = _document->getContainer();
@@ -4937,14 +4945,17 @@ public:
                 lString32 css;
                 css << LVReadTextFile(cssStream);
                 int offset = _inProgress.add(cssFile);
-                ret = Parse(codeBase, css) || ret;
+                ret = Parse(codeBase, css, *styleSheet) || ret;
                 _inProgress.erase(offset, 1);
             }
         }
+
+        _document->getStyleSheet()->merge(*styleSheet);
+        cache.set(cssFile, styleSheet);
         return ret;
     }
 
-    bool Parse(lString32 codeBase, lString32 css)
+    bool Parse(lString32 codeBase, lString32 css, LVStyleSheet &styleSheet)
     {
         bool ret = false;
         if ( css.empty() )
@@ -4966,7 +4977,7 @@ public:
             }
         }
         _nestingLevel -= 1;
-        return (_document->getStyleSheet()->parse(s, false, codeBase) || ret);
+        return (styleSheet.parse(s, false, codeBase) || ret);
     }
 private:
     ldomDocument  *_document;
@@ -5151,7 +5162,7 @@ void ldomDocument::applyDocumentStyleSheet()
 bool ldomDocument::parseStyleSheet(lString32 codeBase, lString32 css)
 {
     LVImportStylesheetParser parser(this);
-    return parser.Parse(codeBase, css);
+    return parser.Parse(codeBase, css, _stylesheet);
 }
 
 bool ldomDocument::parseStyleSheet(lString32 cssFile)
@@ -5232,6 +5243,7 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         CRLog::trace("Init node styles...");
         applyDocumentStyleSheet();
         getRootNode()->initNodeStyleRecursive( callback );
+        _styleSheetCache.clear();
         CRLog::trace("Restoring stylesheet...");
         _stylesheet.pop();
 
