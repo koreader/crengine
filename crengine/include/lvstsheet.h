@@ -286,6 +286,7 @@ public:
     void apply( const ldomNode * node, css_style_rec_t * style );
     /// calculate hash
     lUInt32 getHash();
+    void merge(const LVStyleSheet &other);
 };
 
 /// parse number/length value like "120px" or "90%"

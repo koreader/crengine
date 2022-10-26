@@ -5861,6 +5861,25 @@ lUInt32 LVStyleSheet::getHash()
     return hash;
 }
 
+// insert with specificity sorting
+static void insert_into_selectors(LVCssSelector *item, LVPtrVector<LVCssSelector> &selectors) {
+    auto id = item->getElementNameId();
+    if (!selectors[id] || selectors[id]->getSpecificity() > item->getSpecificity()) {
+        // insert as first item
+        item->setNext(selectors[id]);
+        selectors[id] = item;
+    } else {
+        // insert as internal item
+        for (auto *p = selectors[id]; p; p = p->getNext()) {
+            if (!p->getNext() || p->getNext()->getSpecificity() > item->getSpecificity()) {
+                item->setNext(p->getNext());
+                p->setNext(item);
+                break;
+            }
+        }
+    }
+}
+
 bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, lString32 codeBase )
 {
     if ( !_doc ) {
@@ -5948,32 +5967,26 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
                 lUInt16 id = item->getElementNameId();
                 if (_selectors.length()<=id)
                     _selectors.set(id, NULL);
-                // insert with specificity sorting
-                if ( _selectors[id] == NULL 
-                    || _selectors[id]->getSpecificity() > item->getSpecificity() )
-                {
-                    // insert as first item
-                    item->setNext( _selectors[id] );
-                    _selectors[id] = item;
-                }
-                else
-                {
-                    // insert as internal item
-                    for (LVCssSelector * p = _selectors[id]; p; p = p->getNext() )
-                    {
-                        if ( p->getNext() == NULL
-                            || p->getNext()->getSpecificity() > item->getSpecificity() )
-                        {
-                            item->setNext( p->getNext() );
-                            p->setNext( item );
-                            break;
-                        }
-                    }
-                }
+
+                insert_into_selectors(item, _selectors);
             }
         }
     }
     return _selectors.length() > 0;
+}
+
+void LVStyleSheet::merge(const LVStyleSheet &other) {
+    _selectors.reserve(other._selectors.length());
+    for (auto i = 0; i < other._selectors.length(); ++i) {
+        LVCssSelector *next;
+        for (auto *p = other._selectors[i]; p; p = next) {
+            next = p->getNext();
+            auto *item = new LVCssSelector(*p);
+            p->addSpecificity(_selector_count);
+            insert_into_selectors(item, _selectors);
+        }
+    }
+    _selector_count += other._selector_count;
 }
 
 /// extract @import filename from beginning of CSS
