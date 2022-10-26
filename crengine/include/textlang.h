@@ -312,6 +312,8 @@ public:
     bool isSimplifiedChinese() const { return _is_zh_SC; }
     bool isTraditionalChinese() const { return _is_zh_TC; }
 
+    lString32 softHyphenateText( lString32 & text, bool use_default_hyph_method=false );
+
     TextLangCfg( lString32 lang_tag );
     ~TextLangCfg();
 };
