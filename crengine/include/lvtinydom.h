@@ -2446,6 +2446,35 @@ public:
 };
 typedef LVRef<ListNumberingProps> ListNumberingPropsRef;
 
+class StyleSheetCache {
+    LVHashTable<lString32, LVStyleSheet *> files;
+
+public:
+    StyleSheetCache() : files(LVHashTable<lString32, LVStyleSheet *>(8)) {}
+
+    ~StyleSheetCache() {
+        clear();
+    }
+
+    void clear() {
+        auto it = files.forwardIterator();
+        for (auto *pair = it.next(); pair; pair = it.next()) {
+            delete pair->value;
+        }
+        files.clear();
+    }
+
+    LVStyleSheet * get(lString32 file) {
+        LVStyleSheet *cached = nullptr;
+        files.get(file, cached);
+        return cached;
+    }
+
+    void set(lString32 file, LVStyleSheet *styleSheet) {
+        files.set(file, styleSheet);
+    }
+};
+
 class ldomDocument : public lxmlDocBase
 {
     friend class ldomDocumentWriter;
@@ -2480,6 +2509,7 @@ private:
 
     lString8Collection _fontFamilyFonts;
 
+    StyleSheetCache _styleSheetCache;
 
 #if BUILD_LITE!=1
     /// load document cache file content
@@ -2637,6 +2667,10 @@ public:
 
     inline bool parseStyleSheet(lString32 codeBase, lString32 css);
     inline bool parseStyleSheet(lString32 cssFile);
+
+    StyleSheetCache & getStyleSheetCache() {
+        return _styleSheetCache;
+    }
 #endif
     /// destructor
     virtual ~ldomDocument();

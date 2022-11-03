@@ -4876,12 +4876,20 @@ public:
         _inProgress.clear();
     }
 
-    bool Parse(lString32 cssFile)
+    bool Parse(lString32 cssFile, LVStyleSheet &dest)
     {
         bool ret = false;
         if ( cssFile.empty() )
             return ret;
 
+        StyleSheetCache &cache = _document->getStyleSheetCache();
+        LVStyleSheet *cached = cache.get(cssFile);
+        if (cached) {
+            dest.merge(*cached);
+            return true;
+        }
+
+        LVStyleSheet *styleSheet = new LVStyleSheet(_document);
         lString32 codeBase = cssFile;
         LVExtractLastPathElement(codeBase);
         LVContainerRef container = _document->getContainer();
@@ -4891,14 +4899,17 @@ public:
                 lString32 css;
                 css << LVReadTextFile(cssStream);
                 int offset = _inProgress.add(cssFile);
-                ret = Parse(codeBase, css) || ret;
+                ret = Parse(codeBase, css, *styleSheet) || ret;
                 _inProgress.erase(offset, 1);
             }
         }
+
+        dest.merge(*styleSheet);
+        cache.set(cssFile, styleSheet);
         return ret;
     }
 
-    bool Parse(lString32 codeBase, lString32 css)
+    bool Parse(lString32 codeBase, lString32 css, LVStyleSheet &dest)
     {
         bool ret = false;
         if ( css.empty() )
@@ -4913,14 +4924,14 @@ public:
             if ( LVProcessStyleSheetImport( s, import_file, _document ) ) {
                 lString32 importFilename = LVCombinePaths( codeBase, Utf8ToUnicode(import_file) );
                 if ( !importFilename.empty() && !_inProgress.contains(importFilename) ) {
-                    ret = Parse(importFilename) || ret;
+                    ret = Parse(importFilename, dest) || ret;
                 }
             } else {
                 break;
             }
         }
         _nestingLevel -= 1;
-        return (_document->getStyleSheet()->parse(s, false, codeBase) || ret);
+        return (dest.parse(s, false, codeBase) || ret);
     }
 private:
     ldomDocument  *_document;
@@ -5105,13 +5116,13 @@ void ldomDocument::applyDocumentStyleSheet()
 bool ldomDocument::parseStyleSheet(lString32 codeBase, lString32 css)
 {
     LVImportStylesheetParser parser(this);
-    return parser.Parse(codeBase, css);
+    return parser.Parse(codeBase, css, _stylesheet);
 }
 
 bool ldomDocument::parseStyleSheet(lString32 cssFile)
 {
     LVImportStylesheetParser parser(this);
-    return parser.Parse(cssFile);
+    return parser.Parse(cssFile, _stylesheet);
 }
 
 bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, int width, int dy,
@@ -5186,6 +5197,7 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         CRLog::trace("Init node styles...");
         applyDocumentStyleSheet();
         getRootNode()->initNodeStyleRecursive( callback );
+        _styleSheetCache.clear();
         CRLog::trace("Restoring stylesheet...");
         _stylesheet.pop();
 
