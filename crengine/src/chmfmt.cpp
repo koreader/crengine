@@ -198,16 +198,6 @@ public:
     {
         return NULL;
     }
-    virtual const LVContainerItemInfo * GetObjectInfo(int index)
-    {
-        if (index>=0 && index<m_list.length())
-            return m_list[index];
-        return NULL;
-    }
-    virtual int GetObjectCount() const
-    {
-        return m_list.length();
-    }
     virtual lverror_t GetSize( lvsize_t * pSize )
     {
         if (m_fname.empty())

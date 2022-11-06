@@ -33,6 +33,7 @@
 #include "lvstring.h"
 #include "lvarray.h"
 #include "lvptrvec.h"
+#include "lvhashtable.h"
 
 #if LVLONG_FILE_SUPPORT == 1
 typedef   lUInt64   lvsize_t;    ///< file size type
@@ -519,6 +520,7 @@ public:
     //virtual const LVContainerItemInfo * GetObjectInfo(const char32_t * pname);
     virtual const LVContainerItemInfo * GetObjectInfo(int index) = 0;
     virtual const LVContainerItemInfo * operator [] (int index) { return GetObjectInfo(index); }
+    virtual const LVContainerItemInfo * GetObjectInfo(lString32 name) = 0;
     virtual int GetObjectCount() const = 0;
     virtual LVStreamRef OpenStream( const lChar32 * fname, lvopen_mode_t mode ) = 0;
     LVContainer() {}
@@ -579,6 +581,7 @@ protected:
     lString32 m_path;
     lChar32 m_path_separator;
     LVPtrVector<LVCommonContainerItemInfo> m_list;
+    LVHashTable<lString32, int> m_name2index;
 public:
     virtual bool IsContainer()
     {
@@ -614,7 +617,7 @@ public:
             m_path = m_fname.substr(0, pos);
         m_filename = m_fname.substr(pos, m_fname.length() - pos);
     }
-    LVNamedContainer() : m_path_separator(
+    LVNamedContainer() : m_name2index(16), m_path_separator(
 #ifdef _LINUX
         '/'
 #else
@@ -625,14 +628,38 @@ public:
     }
     virtual ~LVNamedContainer()
     {
+        Clear();
     }
     void Add( LVCommonContainerItemInfo * item )
     {
         m_list.add( item );
+        // Don't index a duplicated name, so we get the first as if we were iterating m_list
+        lString32 name = lString32(item->GetName());
+        int index;
+        if ( ! m_name2index.get(name, index) )
+            m_name2index.set(name, m_list.length()-1);
     }
     void Clear()
     {
         m_list.clear();
+        m_name2index.clear();
+    }
+    virtual const LVContainerItemInfo * GetObjectInfo(int index)
+    {
+        if (index>=0 && index<m_list.length())
+            return m_list[index];
+        return NULL;
+    }
+    virtual const LVContainerItemInfo * GetObjectInfo(lString32 name)
+    {
+        int index;
+        if ( m_name2index.get(name, index) )
+            return m_list[index];
+        return NULL;
+    }
+    virtual int GetObjectCount() const
+    {
+        return m_list.length();
     }
 };
 
@@ -650,23 +677,6 @@ public:
     {
         return (LVContainer*)m_parent;
     }
-    virtual const LVContainerItemInfo * GetObjectInfo(int index)
-    {
-        if (index>=0 && index<m_list.length())
-            return m_list[index];
-        return NULL;
-    }
-    virtual const LVContainerItemInfo * GetObjectInfo(lString32 name)
-    {
-        for ( int i=0; i<m_list.length(); i++ )
-            if (m_list[i]->GetName()==name )
-                return m_list[i];
-        return NULL;
-    }
-    virtual int GetObjectCount() const
-    {
-        return m_list.length();
-    }
     virtual lverror_t GetSize( lvsize_t * pSize )
     {
         if (m_fname.empty())
@@ -680,7 +690,6 @@ public:
     virtual ~LVArcContainerBase()
     {
         SetName(NULL);
-        Clear();
     }
     virtual int ReadContents() = 0;
 

@@ -1543,16 +1543,10 @@ protected:
 public:
     virtual LVStreamRef OpenStream( const char32_t * fname, lvopen_mode_t mode )
     {
-        int found_index = -1;
-        for (int i=0; i<m_list.length(); i++) {
-            if ( !lStr_cmp( fname, m_list[i]->GetName() ) ) {
-                if ( m_list[i]->IsContainer() ) {
-                    // found directory with same name!!!
-                    return LVStreamRef();
-                }
-                found_index = i;
-                break;
-            }
+        LVDirectoryContainerItemInfo * item = (LVDirectoryContainerItemInfo*)GetObjectInfo(fname);
+        if ( item && item->IsContainer() ) {
+            // found directory with same name!!!
+            return LVStreamRef();
         }
         // make filename
         lString32 fn = m_fname;
@@ -1564,9 +1558,9 @@ public:
             return stream;
         }
         //stream->m_parent = this;
-        if (found_index<0) {
+        if (!item) {
             // add new info
-            LVDirectoryContainerItemInfo * item = new LVDirectoryContainerItemInfo;
+            item = new LVDirectoryContainerItemInfo;
             item->m_name = fname;
             stream->GetSize(&item->m_size);
             Add(item);
@@ -1576,16 +1570,6 @@ public:
     virtual LVContainer * GetParentContainer()
     {
         return (LVContainer*)m_parent;
-    }
-    virtual const LVContainerItemInfo * GetObjectInfo(int index)
-    {
-        if (index>=0 && index<m_list.length())
-            return m_list[index];
-        return NULL;
-    }
-    virtual int GetObjectCount() const
-    {
-        return m_list.length();
     }
     virtual lverror_t GetSize( lvsize_t * pSize )
     {
@@ -2665,34 +2649,23 @@ public:
     {
         if ( fname[0]=='/' )
             fname++;
-        int found_index = -1;
-        for (int i=0; i<m_list.length(); i++) {
-            if ( m_list[i]->GetName() != NULL && !lStr_cmp( fname, m_list[i]->GetName() ) ) {
-                if ( m_list[i]->IsContainer() ) {
-                    // found directory with same name!!!
-                    return LVStreamRef();
-                }
-                found_index = i;
-                break;
-            }
-        }
-        if (found_index<0)
+        LVCommonContainerItemInfo * item = (LVCommonContainerItemInfo*)GetObjectInfo(fname);
+        if ( !item )
             return LVStreamRef(); // not found
         // make filename
         lString32 fn = fname;
         LVStreamRef strm = m_stream; // fix strange arm-linux-g++ bug
         LVStreamRef stream(
-		LVZipDecodeStream::Create(
-			strm,
-			m_list[found_index]->GetSrcPos(),
-            fn,
-            m_list[found_index]->GetSrcSize(),
-            m_list[found_index]->GetSize() )
+            LVZipDecodeStream::Create(
+                strm,
+                item->GetSrcPos(),
+                fn,
+                item->GetSrcSize(),
+                item->GetSize() )
         );
         if (!stream.isNull()) {
-            stream->SetName(m_list[found_index]->GetName());
+            stream->SetName(item->GetName());
             // Use buffering?
-            //return stream;
             return stream;
             //return LVCreateBufferedStream( stream, ZIP_STREAM_BUFFER_SIZE );
         }
@@ -2710,7 +2683,7 @@ public:
         //bool arcComment = false;
         bool truncated = false;
 
-        m_list.clear();
+        Clear();
         if (!m_stream || m_stream->Seek(0, LVSEEK_SET, NULL) != LVERR_OK)
             return -1;
 
@@ -3005,7 +2978,7 @@ public:
             item->SetItemInfo(fName.c_str(), ZipHeader.UnpSize, (ZipHeader.getAttr() & 0x3f));
             item->SetSrc(ZipHeader.getOffset(), ZipHeader.PackSize, ZipHeader.Method);
 #endif
-            m_list.add(item);
+            Add(item);
 
 //#define DUMP_ZIP_HEADERS
 #ifdef DUMP_ZIP_HEADERS

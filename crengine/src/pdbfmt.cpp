@@ -343,6 +343,7 @@ public:
             return _list[index];
 		return NULL;
     }
+    virtual const LVContainerItemInfo * GetObjectInfo(lString32 name) { return NULL; }
     virtual int GetObjectCount() const { return _list.length(); }
     /// returns object size (file size or directory entry count)
     virtual lverror_t GetSize( lvsize_t * pSize ) {
