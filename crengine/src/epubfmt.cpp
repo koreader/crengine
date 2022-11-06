@@ -454,6 +454,7 @@ public:
     virtual LVContainer * GetParentContainer() { return _container->GetParentContainer(); }
     //virtual const LVContainerItemInfo * GetObjectInfo(const lChar32 * pname);
     virtual const LVContainerItemInfo * GetObjectInfo(int index) { return _container->GetObjectInfo(index); }
+    virtual const LVContainerItemInfo * GetObjectInfo(lString32 name) { return _container->GetObjectInfo(name); }
     virtual int GetObjectCount() const { return _container->GetObjectCount(); }
     /// returns object size (file size or directory entry count)
     virtual lverror_t GetSize( lvsize_t * pSize ) { return _container->GetSize(pSize); }
