@@ -348,11 +348,115 @@ lString32 EpubGetRootFilePath(LVContainerRef m_arc)
     return rootfilePath;
 }
 
-/// encrypted font demangling proxy: XORs first 1024 bytes of source stream with key
-class FontDemanglingStream : public StreamProxy {
+// From https://github.com/CTrabant/teeny-sha1 , slightly shortened - MIT Licensed. Copyright (c) 2017 CTrabant
+// Needed to demangle EPUB items (ie. fonts) obfuscated with the IDPF algorithm (http://www.idpf.org/2008/embedding)
+static int sha1digest(uint8_t *digest, const uint8_t *data, size_t databytes) {
+    #define SHA1ROTATELEFT(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
+    uint32_t W[80];
+    uint32_t H[] = {0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0};
+    uint32_t a, b, c, d, e;
+    uint32_t f, k = 0;
+    uint32_t idx, lidx, widx;
+    uint32_t didx = 0;
+    int32_t wcount;
+    uint32_t temp;
+    uint64_t databits = ((uint64_t)databytes) * 8;
+    uint32_t loopcount = (databytes + 8) / 64 + 1;
+    uint32_t tailbytes = 64 * loopcount - databytes;
+    uint8_t datatail[128] = {0};
+    if (!digest || !data)
+        return -1;
+    /* Pre-processing of data tail (includes padding to fill out 512-bit chunk):
+         Add bit '1' to end of message (big-endian)
+         Add 64-bit message length in bits at very end (big-endian) */
+    datatail[0] = 0x80;
+    datatail[tailbytes - 8] = (uint8_t) (databits >> 56 & 0xFF);
+    datatail[tailbytes - 7] = (uint8_t) (databits >> 48 & 0xFF);
+    datatail[tailbytes - 6] = (uint8_t) (databits >> 40 & 0xFF);
+    datatail[tailbytes - 5] = (uint8_t) (databits >> 32 & 0xFF);
+    datatail[tailbytes - 4] = (uint8_t) (databits >> 24 & 0xFF);
+    datatail[tailbytes - 3] = (uint8_t) (databits >> 16 & 0xFF);
+    datatail[tailbytes - 2] = (uint8_t) (databits >> 8 & 0xFF);
+    datatail[tailbytes - 1] = (uint8_t) (databits >> 0 & 0xFF);
+    /* Process each 512-bit chunk */
+    for (lidx = 0; lidx < loopcount; lidx++) {
+        /* Compute all elements in W */
+        memset (W, 0, 80 * sizeof (uint32_t));
+        /* Break 512-bit chunk into sixteen 32-bit, big endian words */
+        for (widx = 0; widx <= 15; widx++) {
+            wcount = 24;
+            /* Copy byte-per byte from specified buffer */
+            while (didx < databytes && wcount >= 0) {
+                W[widx] += (((uint32_t)data[didx]) << wcount);
+                didx++;
+                wcount -= 8;
+            }
+            /* Fill out W with padding as needed */
+            while (wcount >= 0) {
+                W[widx] += (((uint32_t)datatail[didx - databytes]) << wcount);
+                didx++;
+                wcount -= 8;
+            }
+        }
+        /* Extend the sixteen 32-bit words into eighty 32-bit words, with potential optimization from:
+             "Improving the Performance of the Secure Hash Algorithm (SHA-1)" by Max Locktyukhin */
+        for (widx = 16; widx <= 31; widx++) {
+            W[widx] = SHA1ROTATELEFT ((W[widx - 3] ^ W[widx - 8] ^ W[widx - 14] ^ W[widx - 16]), 1);
+        }
+        for (widx = 32; widx <= 79; widx++) {
+            W[widx] = SHA1ROTATELEFT ((W[widx - 6] ^ W[widx - 16] ^ W[widx - 28] ^ W[widx - 32]), 2);
+        }
+        /* Main loop */
+        a = H[0];
+        b = H[1];
+        c = H[2];
+        d = H[3];
+        e = H[4];
+        for (idx = 0; idx <= 79; idx++) {
+            if (idx <= 19) {
+                f = (b & c) | ((~b) & d);
+                k = 0x5A827999;
+            }
+            else if (idx >= 20 && idx <= 39) {
+                f = b ^ c ^ d;
+                k = 0x6ED9EBA1;
+            }
+            else if (idx >= 40 && idx <= 59) {
+                f = (b & c) | (b & d) | (c & d);
+                k = 0x8F1BBCDC;
+            }
+            else if (idx >= 60 && idx <= 79) {
+                f = b ^ c ^ d;
+                k = 0xCA62C1D6;
+            }
+            temp = SHA1ROTATELEFT (a, 5) + f + e + k + W[idx];
+            e = d;
+            d = c;
+            c = SHA1ROTATELEFT (b, 30);
+            b = a;
+            a = temp;
+        }
+        H[0] += a;
+        H[1] += b;
+        H[2] += c;
+        H[3] += d;
+        H[4] += e;
+    }
+    /* Store binary digest in supplied buffer */
+    for (idx = 0; idx < 5; idx++) {
+        digest[idx * 4 + 0] = (uint8_t) (H[idx] >> 24);
+        digest[idx * 4 + 1] = (uint8_t) (H[idx] >> 16);
+        digest[idx * 4 + 2] = (uint8_t) (H[idx] >> 8);
+        digest[idx * 4 + 3] = (uint8_t) (H[idx]);
+    }
+    return 0;
+}
+
+// Adobe obfuscated item demangling proxy: XORs first 1024 bytes of source stream with key
+class AdobeDemanglingStream : public StreamProxy {
     LVArray<lUInt8> & _key;
 public:
-    FontDemanglingStream(LVStreamRef baseStream, LVArray<lUInt8> & key) : StreamProxy(baseStream), _key(key) {
+    AdobeDemanglingStream(LVStreamRef baseStream, LVArray<lUInt8> & key) : StreamProxy(baseStream), _key(key) {
     }
 
     virtual lverror_t Read( void * buf, lvsize_t count, lvsize_t * nBytesRead ) {
@@ -369,21 +473,34 @@ public:
 
 };
 
-class EncryptedItem {
+// IDPF obfuscated item demangling proxy: XORs first 1040 bytes of source stream with key
+// https://idpf.org/epub/20/spec/FontManglingSpec.html
+// https://www.w3.org/publishing/epub3/epub-ocf.html#obfus-algorithm
+class IdpfDemanglingStream : public StreamProxy {
+    LVArray<lUInt8> & _key;
 public:
-    lString32 _uri;
-    lString32 _method;
-    EncryptedItem(lString32 uri, lString32 method) : _uri(uri), _method(method) {
-
+    IdpfDemanglingStream(LVStreamRef baseStream, LVArray<lUInt8> & key) : StreamProxy(baseStream), _key(key) {
     }
+
+    virtual lverror_t Read( void * buf, lvsize_t count, lvsize_t * nBytesRead ) {
+        lvpos_t pos = _base->GetPos();
+        lverror_t res = _base->Read(buf, count, nBytesRead);
+        if (pos < 1040 && _key.length() == 20) {
+            for (int i=0; i + pos < 1040; i++) {
+                int keyPos = (i + pos) % 20;
+                ((lUInt8*)buf)[i+pos] ^= _key[keyPos];
+            }
+        }
+        return res;
+    }
+
 };
 
 class EncryptedItemCallback {
 public:
-    virtual void addEncryptedItem(EncryptedItem * item) = 0;
+    virtual void addEncryptedItem(lString32 uri, lString32 algorithm) = 0;
     virtual ~EncryptedItemCallback() {}
 };
-
 
 class EncCallback : public LVXMLParserCallback {
     bool insideEncryption;
@@ -414,7 +531,7 @@ public:
             insideEncryption = false;
         else if (!lStr_cmp(tagname, "EncryptedData") && insideEncryptedData) {
             if (!algorithm.empty() && !uri.empty()) {
-                _container->addEncryptedItem(new EncryptedItem(uri, algorithm));
+                _container->addEncryptedItem(uri, algorithm);
             }
             insideEncryptedData = false;
         } else if (!lStr_cmp(tagname, "EncryptionMethod"))
@@ -427,10 +544,12 @@ public:
     /// called on element attribute
     virtual void OnAttribute( const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue ) {
         CR_UNUSED2(nsname, attrvalue);
-        if (!lStr_cmp(attrname, "URI") && insideCipherReference)
-            insideEncryption = false;
-        else if (!lStr_cmp(attrname, "Algorithm") && insideEncryptionMethod)
-            insideEncryptedData = false;
+        if (!lStr_cmp(attrname, "URI") && insideCipherReference) {
+            uri = attrvalue;
+        }
+        else if (!lStr_cmp(attrname, "Algorithm") && insideEncryptionMethod) {
+            algorithm = attrvalue;
+        }
     }
     /// called on text
     virtual void OnText( const lChar32 * text, int len, lUInt32 flags ) {
@@ -460,13 +579,24 @@ public:
     virtual ~EncCallback() {}
 };
 
+enum encryption_method_t {
+    NOT_ENCRYPTED = 0,
+    ADOBE_OBFUSCATION,
+    IDPF_OBFUSCATION,
+    UNSUPPORTED_ENCRYPTION
+};
+
 class EncryptedDataContainer : public LVContainer, public EncryptedItemCallback {
     LVContainerRef _container;
-    LVPtrVector<EncryptedItem> _list;
+    LVHashTable<lString32, encryption_method_t> _encrypted_items;
+    bool _has_unsupported_encrypted_items;
+    bool _has_adobe_obfuscated_items;
+    bool _has_idpf_obfuscated_items;
+    LVArray<lUInt8> _adobeManglingKey;
+    LVArray<lUInt8> _idpfFontManglingKey;
 public:
-    EncryptedDataContainer(LVContainerRef baseContainer) : _container(baseContainer) {
-
-    }
+    EncryptedDataContainer(LVContainerRef baseContainer) : _container(baseContainer), _encrypted_items(16),
+            _has_adobe_obfuscated_items(false), _has_idpf_obfuscated_items(false), _has_unsupported_encrypted_items(false) { }
 
     virtual LVContainer * GetParentContainer() { return _container->GetParentContainer(); }
     //virtual const LVContainerItemInfo * GetObjectInfo(const lChar32 * pname);
@@ -476,14 +606,19 @@ public:
     /// returns object size (file size or directory entry count)
     virtual lverror_t GetSize( lvsize_t * pSize ) { return _container->GetSize(pSize); }
 
-
     virtual LVStreamRef OpenStream( const lChar32 * fname, lvopen_mode_t mode ) {
-
         LVStreamRef res = _container->OpenStream(fname, mode);
         if (res.isNull())
             return res;
-        if (isEncryptedItem(fname))
-            return LVStreamRef(new FontDemanglingStream(res, _fontManglingKey));
+        encryption_method_t encryption_method;
+        if ( _encrypted_items.get(fname, encryption_method) ) {
+            if ( encryption_method == ADOBE_OBFUSCATION )
+                return LVStreamRef(new AdobeDemanglingStream(res, _adobeManglingKey));
+            if ( encryption_method == IDPF_OBFUSCATION )
+                return LVStreamRef(new IdpfDemanglingStream(res, _idpfFontManglingKey));
+            // If unsupported, return stream as is, not decrypted (its reading may
+            // fail, or not if encryption.xml was lying)
+        }
         return res;
     }
 
@@ -498,37 +633,35 @@ public:
         _container->SetName(name);
     }
 
-
-    virtual void addEncryptedItem(EncryptedItem * item) {
-        _list.add(item);
-    }
-
-    EncryptedItem * findEncryptedItem(const lChar32 * name) {
-        lString32 n;
-        if (name[0] != '/' && name[0] != '\\')
-            n << "/";
-        n << name;
-        for (int i=0; i<_list.length(); i++) {
-            lString32 s = _list[i]->_uri;
-            if (s[0]!='/' && s[i]!='\\')
-                s = "/" + s;
-            if (_list[i]->_uri == s)
-                return _list[i];
+    virtual void addEncryptedItem(lString32 uri, lString32 algorithm) {
+        encryption_method_t encryption_method;
+        if (algorithm == U"http://ns.adobe.com/pdf/enc#RC") {
+            encryption_method = ADOBE_OBFUSCATION;
+            _has_adobe_obfuscated_items = true;
         }
-        return NULL;
+        else if (algorithm == U"http://www.idpf.org/2008/embedding") {
+            encryption_method = IDPF_OBFUSCATION;
+            _has_idpf_obfuscated_items = true;
+        }
+        else {
+            _has_unsupported_encrypted_items = true;
+            encryption_method = UNSUPPORTED_ENCRYPTION;
+            printf("CRE: encrypted (DRM) EPUB item: %s\n", UnicodeToUtf8(uri).c_str());
+        }
+        // Add the uri with and without a leading /, so we don't have to
+        // add/remove one when looking up a uri
+        _encrypted_items.set(uri, encryption_method);
+        if (uri[0] == U'/')
+            _encrypted_items.set(uri.substr(1), encryption_method);
+        else
+            _encrypted_items.set("/"+uri, encryption_method);
     }
 
-    bool isEncryptedItem(const lChar32 * name) {
-        return findEncryptedItem(name) != NULL;
-    }
-
-    LVArray<lUInt8> _fontManglingKey;
-
-    bool setManglingKey(lString32 key) {
+    bool setAdobeManglingKey(lString32 key) {
         if (key.startsWith("urn:uuid:"))
             key = key.substr(9);
-        _fontManglingKey.clear();
-        _fontManglingKey.reserve(16);
+        _adobeManglingKey.clear();
+        _adobeManglingKey.reserve(16);
         lUInt8 b = 0;
         int n = 0;
         for (int i=0; i<key.length(); i++) {
@@ -536,24 +669,36 @@ public:
             if (d>=0) {
                 b = (b << 4) | d;
                 if (++n > 1) {
-                    _fontManglingKey.add(b);
+                    _adobeManglingKey.add(b);
                     n = 0;
                     b = 0;
                 }
             }
         }
-        return _fontManglingKey.length() == 16;
+        return _adobeManglingKey.length() == 16;
     }
 
-    bool hasUnsupportedEncryption() {
-        for (int i=0; i<_list.length(); i++) {
-            lString32 method = _list[i]->_method;
-            if (method != "http://ns.adobe.com/pdf/enc#RC") {
-                CRLog::debug("unsupported encryption method: %s", LCSTR(method));
-                return true;
-            }
+    void setIdpfManglingKey(lString32 key) {
+        _idpfFontManglingKey.clear();
+        _idpfFontManglingKey.reserve(20);
+        lString8 utf = UnicodeToUtf8(key);
+        lUInt8 result[20];
+        sha1digest(result, (lUInt8*)(utf.c_str()), utf.length());
+        for ( int i=0; i < 20; i++ ) {
+            _idpfFontManglingKey.add(result[i]);
         }
-        return false;
+    }
+
+    bool hasAdobeObfuscatedItems() {
+        return _has_adobe_obfuscated_items;
+    }
+
+    bool hasIdpfObfuscatedItems() {
+        return _has_idpf_obfuscated_items;
+    }
+
+    bool hasUnsupportedEncryptedItems() {
+        return _has_unsupported_encrypted_items;
     }
 
     bool open() {
@@ -564,7 +709,7 @@ public:
         LVXMLParser parser(stream, &enccallback, false, false);
         if (!parser.Parse())
             return false;
-        if (_list.length())
+        if (_encrypted_items.length())
             return true;
         return false;
     }
@@ -587,12 +732,12 @@ void createEncryptedEpubWarningDocument(ldomDocument * m_doc) {
     writer.OnTagClose(NULL, U"p");
 
     writer.OnTagOpenNoAttr(NULL, U"p");
-    lString32 txt2("Cool Reader doesn't support reading of DRM protected books.");
+    lString32 txt2("Reading of DRM protected books is unsupported.");
     writer.OnText(txt2.c_str(), txt2.length(), 0);
     writer.OnTagClose(NULL, U"p");
 
     writer.OnTagOpenNoAttr(NULL, U"p");
-    lString32 txt3("To read this book, please use software recommended by book seller.");
+    lString32 txt3("To read this book, please use the software recommended by the book seller.");
     writer.OnText(txt3.c_str(), txt3.length(), 0);
     writer.OnTagClose(NULL, U"p");
 
@@ -942,10 +1087,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     // Make our archive container a proxy to the real container,
     // that can deobfuscate resources on-the-fly
     LVContainerRef m_arc = LVContainerRef(decryptor);
-    if (decryptor->hasUnsupportedEncryption()) {
-        // DRM!!!
-        createEncryptedEpubWarningDocument(m_doc);
-        return true;
+    if (decryptor->hasUnsupportedEncryptedItems()) {
+        printf("CRE WARNING: EPUB contains unsupported encrypted items (DRM)\n");
+        // Don't fail yet, it's possible only some fonts are obfuscated with
+        // an unsupported algorithm, and the HTML text is readable.
     }
     m_doc->setContainer(m_arc);
 
@@ -980,11 +1125,14 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         if ( !doc )
             return false;
 
+        lString32 idpfUniqueIdentifier;
         ldomNode * package = doc->nodeFromXPath(lString32("package"));
         if ( package ) {
             epubVersion = package->getAttributeValue("version");
             if ( !epubVersion.empty() && epubVersion[0] >= '3' )
                 isEpub3 = true;
+            if ( decryptor->hasIdpfObfuscatedItems() )
+                idpfUniqueIdentifier = package->getAttributeValue("unique-identifier");
         }
 
         // We will gather interesting things from <package><metadata> and <package><manifest>
@@ -993,19 +1141,34 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         ldomNode * manifest = doc->nodeFromXPath(lString32("package/manifest"));
         int nb_manifest_items = (manifest && manifest->isElement()) ? manifest->getChildCount() : 0;
 
-        // There may be multiple <dc:identifier> tags, one of which (urn:uuid:...) being used
-        // to make the key needed to deobfuscate obfuscated fonts. We need to parse it even
-        // if we're going to load the book (and all its other metadata) from cache.
-        // Iterate all package/metadata/identifier
-        lUInt16 identifier_id = doc->getElementNameIndex(U"identifier");
-        for (size_t i=0; i<nb_metadata_items; i++) {
-            ldomNode * item = metadata->getChildNode(i);
-            if ( item->getNodeId() != identifier_id )
-                continue;
-            lString32 key = item->getText().trim();
-            if (decryptor->setManglingKey(key)) {
-                CRLog::debug("Using font mangling key %s", LCSTR(key));
-                break;
+        if ( decryptor->hasAdobeObfuscatedItems() ) {
+            // There may be multiple <dc:identifier> tags, one of which (urn:uuid:...) being used
+            // to make the key needed to deobfuscate obfuscated fonts. We need to parse it even
+            // if we're going to load the book (and all its other metadata) from cache.
+            // Iterate all package/metadata/identifier
+            lUInt16 identifier_id = doc->getElementNameIndex(U"identifier");
+            for (size_t i=0; i<nb_metadata_items; i++) {
+                ldomNode * item = metadata->getChildNode(i);
+                if ( item->getNodeId() != identifier_id )
+                    continue;
+                lString32 key = item->getText().trim();
+                if (decryptor->setAdobeManglingKey(key)) {
+                    CRLog::debug("Using font mangling key %s", LCSTR(key));
+                    break;
+                }
+            }
+        }
+        if ( decryptor->hasIdpfObfuscatedItems() && !idpfUniqueIdentifier.empty() ) {
+            lUInt16 identifier_id = doc->getElementNameIndex(U"identifier");
+            for (size_t i=0; i<nb_metadata_items; i++) {
+                ldomNode * item = metadata->getChildNode(i);
+                if ( item->getNodeId() != identifier_id )
+                    continue;
+                if ( item->getAttributeValue("id") == idpfUniqueIdentifier ) {
+                    lString32 key = item->getText().trim();
+                    decryptor->setIdpfManglingKey(key);
+                    break;
+                }
             }
         }
 
@@ -1409,7 +1572,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     LVHTMLParser parser(stream, &appender);
                     appender.setNonLinearFlag(spineItems[i]->nonlinear);
                     if ( parser.CheckFormat() && parser.Parse() ) {
-                        // valid
+                        // Note: this test is not perfect (the two bytes "ul" in some encrypted stream
+                        // will get CheckFormat() to succeed, and Parse() won't complain (but nothing
+                        // will be added to the DOM if no "<body" met)
                         fragmentCount++;
                         // We may also meet @font-face in the html <head><style>
                         lString8 headCss = appender.getHeadStyleText();
@@ -1613,8 +1778,16 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // (but being here is quite rare - and having embedded font disabled even more)
     }
 
-    if ( fragmentCount==0 )
+    // fragmentCount is not fool proof, best to check if we really made
+    // some DocFragments children of <RootNode><body>
+    if ( fragmentCount == 0 || m_doc->getRootNode()->getChildNode(0)->getChildCount() == 0 ) {
+        if (decryptor->hasUnsupportedEncryptedItems()) {
+            // No non-encrypted text: show the unsupported DRM page
+            createEncryptedEpubWarningDocument(m_doc);
+            return true;
+        }
         return false;
+    }
 
 #if 0
     // set stylesheet
