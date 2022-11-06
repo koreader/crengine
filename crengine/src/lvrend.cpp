@@ -2345,7 +2345,7 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
-        style->font_style==css_fs_italic,
+        style->font_style >= css_fs_italic,
         style->font_family,
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
