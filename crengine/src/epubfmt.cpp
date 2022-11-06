@@ -941,6 +941,8 @@ public:
         } else if (_state == 9) {
             if (t == "italic")
                 _italic = true;
+            else if (t == "oblique" || t.startsWith("oblique ") ) // oblique may be followed by angle values
+                _italic = true;
             _state = 2;
         } else if (_state == 11) {
             if (t == "url") {
