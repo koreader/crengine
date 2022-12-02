@@ -212,7 +212,8 @@ public:
     }
 
     static TextLangCfg * getTextLangCfg(); // get LangCfg for _main_lang
-    static TextLangCfg * getTextLangCfg( lString32 lang_tag );
+    static TextLangCfg * getTextLangCfg( lString32 lang_tag, bool force=false );
+        // (frontends can provide force=true to ignore _embedded_langs_enabled=false)
     static TextLangCfg * getTextLangCfg( ldomNode * node );
     static int getLangNodeIndex( ldomNode * node );
 

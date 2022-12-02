@@ -205,8 +205,8 @@ HyphMethod * TextLangMan::getHyphMethodForLang( lString32 lang_tag ) {
 }
 
 // Return the (single and cached) TextLangCfg for the provided lang_tag
-TextLangCfg * TextLangMan::getTextLangCfg( lString32 lang_tag ) {
-    if ( !_embedded_langs_enabled ) {
+TextLangCfg * TextLangMan::getTextLangCfg( lString32 lang_tag, bool force ) {
+    if ( !_embedded_langs_enabled && !force ) {
         // Drop provided lang_tag: always return main lang TextLangCfg
         lang_tag = _main_lang;
     }
