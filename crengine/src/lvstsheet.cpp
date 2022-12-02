@@ -4303,27 +4303,35 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_white_space:
             style->Apply( (css_white_space_t) *p++, &style->white_space, imp_bit_white_space, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_align:
             style->Apply( (css_text_align_t) *p++, &style->text_align, imp_bit_text_align, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_align_last:
             style->Apply( (css_text_align_t) *p++, &style->text_align_last, imp_bit_text_align_last, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_decoration:
             style->Apply( (css_text_decoration_t) *p++, &style->text_decoration, imp_bit_text_decoration, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_transform:
             style->Apply( (css_text_transform_t) *p++, &style->text_transform, imp_bit_text_transform, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_hyphenate:
             style->Apply( (css_hyphenate_t) *p++, &style->hyphenate, imp_bit_hyphenate, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_list_style_type:
             style->Apply( (css_list_style_type_t) *p++, &style->list_style_type, imp_bit_list_style_type, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_list_style_position:
             style->Apply( (css_list_style_position_t) *p++, &style->list_style_position, imp_bit_list_style_position, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_page_break_before:
             style->Apply( (css_page_break_t) *p++, &style->page_break_before, imp_bit_page_break_before, is_important );
@@ -4339,6 +4347,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_font_family:
             style->Apply( (css_font_family_t) *p++, &style->font_family, imp_bit_font_family, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_names:
             {
@@ -4349,16 +4358,20 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                     names << (lChar8)(*p++);
                 names.pack();
                 style->Apply( names, &style->font_name, imp_bit_font_name, is_important );
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             }
             break;
         case cssd_font_style:
             style->Apply( (css_font_style_t) *p++, &style->font_style, imp_bit_font_style, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_weight:
             style->Apply( (css_font_weight_t) *p++, &style->font_weight, imp_bit_font_weight, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_size:
             style->Apply( read_length(p), &style->font_size, imp_bit_font_size, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_features:
             // We want to 'OR' the bitmap from any declaration that is to be applied to this node
@@ -4372,19 +4385,24 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                 else {
                     style->ApplyAsBitmapOr( font_features, &style->font_features, imp_bit_font_features, is_important );
                 }
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             }
             break;
         case cssd_text_indent:
             style->Apply( read_length(p), &style->text_indent, imp_bit_text_indent, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_line_height:
             style->Apply( read_length(p), &style->line_height, imp_bit_line_height, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_letter_spacing:
             style->Apply( read_length(p), &style->letter_spacing, imp_bit_letter_spacing, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_color:
             style->Apply( read_length(p), &style->color, imp_bit_color, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_background_color:
             style->Apply( read_length(p), &style->background_color, imp_bit_background_color, is_important );
@@ -4527,9 +4545,11 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_orphans:
             style->Apply( (css_orphans_widows_value_t) *p++, &style->orphans, imp_bit_orphans, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_widows:
             style->Apply( (css_orphans_widows_value_t) *p++, &style->widows, imp_bit_widows, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_float:
             style->Apply( (css_float_t) *p++, &style->float_, imp_bit_float, is_important );
@@ -4539,15 +4559,19 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_direction:
             style->Apply( (css_direction_t) *p++, &style->direction, imp_bit_direction, is_important );
+            // inherited in CSS specs, but not needed for us as we handle it at rendering time
             break;
         case cssd_visibility:
             style->Apply( (css_visibility_t) *p++, &style->visibility, imp_bit_visibility, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_line_break:
             style->Apply( (css_line_break_t) *p++, &style->line_break, imp_bit_line_break, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_word_break:
             style->Apply( (css_word_break_t) *p++, &style->word_break, imp_bit_word_break, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_box_sizing:
             style->Apply( (css_box_sizing_t) *p++, &style->box_sizing, imp_bit_box_sizing, is_important );
@@ -4560,9 +4584,13 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
                 css_length_t cr_hint = read_length(p);
                 if ( cr_hint.value & CSS_CR_HINT_NONE_NO_INHERIT ) {
                     style->Apply( cr_hint, &style->cr_hint, imp_bit_cr_hint, is_important );
+                    style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED; // this cancels inheritance, this cancelling is then inherited
                 }
                 else {
                     style->ApplyAsBitmapOr( cr_hint, &style->cr_hint, imp_bit_cr_hint, is_important );
+                    if ( cr_hint.value & (CSS_CR_HINT_INHERITABLE_MASK|CSS_CR_HINT_INHERITABLE_EARLY_MASK) ) {
+                        style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+                    }
                 }
             }
             break;
@@ -4735,7 +4763,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     // so if one is specified, we should not skip it with getUnboxed*().
     // We expect to find only a single kind of them per selector though.
     lUInt16 exceptBoxingNodeId = 0;
-    if ( _id >= EL_BOXING_START && _id <= EL_BOXING_END ) { // _id from rule
+    if ( _id <= EL_BOXING_END && _id >= EL_BOXING_START ) { // _id from rule
         exceptBoxingNodeId = _id;
     }
     else {
@@ -4743,7 +4771,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
         // rule, it's because the previous rule was checking for this
         // boxing element name
         lUInt16 curNodeId = node->getNodeId();
-        if ( curNodeId >= EL_BOXING_START && curNodeId <= EL_BOXING_END )
+        if ( curNodeId <= EL_BOXING_END && curNodeId >= EL_BOXING_START )
             exceptBoxingNodeId = curNodeId;
     }
     switch (_type)
@@ -5189,7 +5217,7 @@ bool LVCssSelector::check( const ldomNode * node ) const
             // Start checking the rules starting from the real parent
             // (except if this selector target a boxing element: we should
             // stop unboxing at that boxing element).
-            if ( _id >= EL_BOXING_START && _id <= EL_BOXING_END )
+            if ( _id <= EL_BOXING_END && _id >= EL_BOXING_START )
                 node = node->getUnboxedParent(_id);
             else
                 node = node->getUnboxedParent();
@@ -5355,7 +5383,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         if ( n >= csspc_last_child ) {
             // Pseudoclasses after csspc_last_child can't be accurately checked
             // in the initial loading phase: a re-render will be needed.
-            doc->setNodeStylesInvalidIfLoading();
+            doc->setNodeStylesInvalidIfLoading(NODE_STYLES_INVALID_PECULIAR_CSS_PSEUDOCLASSES);
             // There might still be some issues if CSS would set some display: property
             // as, when re-rendering, a cache might be present and prevent modifying
             // the DOM for some needed autoBoxing - or the invalid styles set now

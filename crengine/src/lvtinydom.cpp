@@ -2376,7 +2376,7 @@ tinyNodeCollection::tinyNodeCollection()
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNINITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNINITIALIZED)
-, _nodeStylesInvalidIfLoading(false)
+, _nodeStylesInvalidIfLoadingReasons(0)
 , _boxingWishedButPreventedByCache(false)
 #endif
 , _textStorage(this, 't', (lUInt32)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
@@ -2421,7 +2421,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _nodeStyleHash(0)
 , _nodeDisplayStyleHash(NODE_DISPLAY_STYLE_HASH_UNINITIALIZED)
 , _nodeDisplayStyleHashInitial(NODE_DISPLAY_STYLE_HASH_UNINITIALIZED)
-, _nodeStylesInvalidIfLoading(false)
+, _nodeStylesInvalidIfLoadingReasons(0)
 , _boxingWishedButPreventedByCache(false)
 #endif
 , _textStorage(this, 't', (lUInt32)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
@@ -8437,11 +8437,19 @@ ldomDocumentWriter::~ldomDocumentWriter()
         //    CRLog::error("*** document style validation failed!!!");
         _document->updateRenderContext();
         _document->dumpStatistics();
-        if ( _document->_nodeStylesInvalidIfLoading ) {
-            // Some pseudoclass like :last-child has been met which has set this flag
-            // (or, with the HTML parser, foster parenting of invalid element in tables)
-            printf("CRE: document loaded, but styles re-init needed (cause: peculiar CSS pseudoclasses met)\n");
-            _document->_nodeStylesInvalidIfLoading = false; // show this message only once
+        if ( _document->_nodeStylesInvalidIfLoadingReasons ) {
+            if ( _document->_nodeStylesInvalidIfLoadingReasons & NODE_STYLES_INVALID_PECULIAR_CSS_PSEUDOCLASSES ) {
+                // Some pseudoclass like :last-child has been met which has set this flag
+                printf("CRE: document loaded, but styles re-init needed (cause: peculiar CSS pseudoclasses met)\n");
+            }
+            if ( _document->_nodeStylesInvalidIfLoadingReasons & NODE_STYLES_INVALID_FOSTER_PARENTING_OF_INVALID_TABLE_ELEMENT ) {
+                // With the HTML parser, foster parenting of invalid element in tables
+                printf("CRE: document loaded, but styles re-init needed (cause: foster parenting of invalid element in tables)\n");
+            }
+            if ( _document->_nodeStylesInvalidIfLoadingReasons & NODE_STYLES_INVALID_INHERITED_PROPERTY_SET_ON_BOXING_ELEMENT ) {
+                printf("CRE: document loaded, but styles re-init needed (cause: inheritable styles set on boxing elements)\n");
+            }
+            _document->_nodeStylesInvalidIfLoadingReasons = 0; // show this message only once
             _document->forceReinitStyles();
         }
         if ( _document->hasRenderData() ) {
@@ -15073,7 +15081,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar32 * nsname, const lC
             // We don't check if we actually had such selectors as that
             // is complicated from here: we just set styles to be invalid
             // so they are re-computed once the DOM is fully built.
-            _document->setNodeStylesInvalidIfLoading();
+            _document->setNodeStylesInvalidIfLoading(NODE_STYLES_INVALID_FOSTER_PARENTING_OF_INVALID_TABLE_ELEMENT);
         }
         else {
             tag_accepted = AutoOpenClosePop( PARSER_STEP_TAG_OPENING, id );
@@ -18767,7 +18775,7 @@ bool ldomNode::isBoxingNode( bool orPseudoElem, lUInt16 exceptBoxingNodeId ) con
 {
     if( isElement() ) {
         lUInt16 id = getNodeId();
-        if( id >= EL_BOXING_START && id <= EL_BOXING_END && id != exceptBoxingNodeId ) {
+        if( id <= EL_BOXING_END && id >= EL_BOXING_START && id != exceptBoxingNodeId ) {
             return true;
         }
         if ( orPseudoElem && id == el_pseudoElem ) {

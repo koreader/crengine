@@ -2618,7 +2618,7 @@ static void ensureMathMLInnerMOsHorizontalStretchRecursive( ldomNode * node, ldo
         if ( !child || !child->isElement() )
             continue;
         lUInt16 childElementId = child->getNodeId();
-        if ( childElementId >= EL_BOXING_START && childElementId <= EL_BOXING_END ) {
+        if ( childElementId <= EL_BOXING_END && childElementId >= EL_BOXING_START ) {
             if ( width == -1 && childElementId == el_mathBox ) {
                 // Grab the width of the first mathBox we meet: we know a mathBox
                 // child of munder/mover has been set table-cell and has the width
