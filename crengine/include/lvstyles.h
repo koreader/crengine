@@ -105,9 +105,16 @@ enum css_style_rec_important_bit {
 #endif
 
 // Style handling flags
-#define STYLE_REC_FLAG_MATCHED  0x01 // This style has had some stylesheet declaration matched and applied.
-                                     // Currently only used for a pseudo element style,
-                                     // see LVCssSelector::apply() if more generic usage needed.
+
+// This style has had some stylesheet declaration matched and applied.
+// Currently only used for a pseudo element style, see LVCssSelector::apply() if more generic usage needed.
+#define STYLE_REC_FLAG_MATCHED              0x01
+
+// This style has had applied some stylesheet declaration with inheritable CSS properties.
+// Used in the load phase for boxing elements created after their children already had
+// their style set: a re-rendering is needed for these children to inherit properly,
+// so they get the same consistent style they would get after a re-rendering.
+#define STYLE_REC_FLAG_INHERITABLE_APPLIED  0x02
 
 /**
     \brief Element style record.

@@ -137,6 +137,10 @@ extern const int gDOMVersionCurrent;
 #define PT_DIR_SCAN_FORWARD_LOGICAL_FIRST    2
 #define PT_DIR_SCAN_FORWARD_LOGICAL_LAST     3
 
+// Flags for setNodeStylesInvalidIfLoading(int reason_flag)
+#define NODE_STYLES_INVALID_PECULIAR_CSS_PSEUDOCLASSES                 0x01
+#define NODE_STYLES_INVALID_FOSTER_PARENTING_OF_INVALID_TABLE_ELEMENT  0x02
+#define NODE_STYLES_INVALID_INHERITED_PROPERTY_SET_ON_BOXING_ELEMENT   0x04
 
 //#if BUILD_LITE!=1
 /// final block cache
@@ -498,7 +502,7 @@ protected:
     lUInt32 _nodeStyleHash;
     lUInt32 _nodeDisplayStyleHash;
     lUInt32 _nodeDisplayStyleHashInitial;
-    bool _nodeStylesInvalidIfLoading;
+    int  _nodeStylesInvalidIfLoadingReasons;
     bool _boxingWishedButPreventedByCache;
 
     int calcFinalBlocks();
@@ -693,8 +697,8 @@ public:
         return _nodeDisplayStyleHashInitial != NODE_DISPLAY_STYLE_HASH_UNINITIALIZED &&
                 _nodeDisplayStyleHash != _nodeDisplayStyleHashInitial;
     }
-    void setNodeStylesInvalidIfLoading() {
-        _nodeStylesInvalidIfLoading = true;
+    void setNodeStylesInvalidIfLoading(int reason_flag) {
+        _nodeStylesInvalidIfLoadingReasons |= reason_flag;
     }
     void setBoxingWishedButPreventedByCache() {
         _boxingWishedButPreventedByCache = true;

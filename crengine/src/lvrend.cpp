@@ -7186,7 +7186,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // We may trust width set on our own boxing elements, even if a table
     // element wheree it is usually ignored
-    bool is_boxing_elem = nodeElementId >= EL_BOXING_START && nodeElementId <= EL_BOXING_END;
+    bool is_boxing_elem = nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START;
     // <HR> gets its style width, height and margin:auto no matter flags
     bool is_hr = nodeElementId == el_hr;
     // <EMPTY-LINE> block element with height added for empty lines in txt document
@@ -10270,7 +10270,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         if ( nodeElementId >= EL_MATHML_START && nodeElementId <= EL_MATHML_END ) {
             setMathMLElementNodeStyle( enode, pstyle );
         }
-        else if (   (nodeElementId >= EL_BOXING_START && nodeElementId <= EL_BOXING_END)
+        else if (   (nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START)
                   || nodeElementId == el_pseudoElem
                   || nodeElementId == el_annotation ) { // <annotation> is also a FB2 element, so we have to check its parent
             ldomNode * unboxedParent = enode->getUnboxedParent();
@@ -10823,6 +10823,10 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         update_style_content_property(pstyle, enode);
     }
 
+    if ( nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START && (pstyle->flags & STYLE_REC_FLAG_INHERITABLE_APPLIED) ) {
+        doc->setNodeStylesInvalidIfLoading(NODE_STYLES_INVALID_INHERITED_PROPERTY_SET_ON_BOXING_ELEMENT);
+    }
+
     pstyle->flags = 0; // cleanup, before setStyle() adds it to cache
 
     // set calculated style
@@ -11054,7 +11058,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int _maxWidth = 0;
         int _minWidth = 0;
 
-        bool is_boxing_elem = nodeElementId >= EL_BOXING_START && nodeElementId <= EL_BOXING_END;
+        bool is_boxing_elem = nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START;
         bool use_style_width = false;
         css_length_t style_width = style->width;
         if ( BLOCK_RENDERING(rendFlags, ENSURE_STYLE_WIDTH) ) {
