@@ -2006,9 +2006,6 @@ bool detectXmlHtmlEncoding(const unsigned char * buf, int buf_len, char * html_e
 
 int AutodetectCodePage(const unsigned char * buf, int buf_size, char * cp_name, char * lang_name, bool skipHtml)
 {
-    int res = AutodetectCodePageUtf( buf, buf_size, cp_name, lang_name );
-    if ( res )
-        return res;
     // use character statistics
    short char_stat[256];
    dbl_char_stat_t dbl_char_stat[DBL_CHAR_STAT_SIZE];

@@ -42,6 +42,7 @@ typedef unsigned int ucs4_t;
 #define BUF_SIZE_INCREMENT 4096
 #define MIN_BUF_DATA_SIZE 4096
 #define CP_AUTODETECT_BUF_SIZE 0x20000
+#define AUTODETECT_UTF_BUF_SIZE 4096
 
 
 
@@ -788,27 +789,38 @@ bool LVTextFileBase::AutodetectEncoding( bool utfOnly )
     char enc_name[32];
     char lang_name[32];
     lvpos_t oldpos = m_stream->GetPos();
-    unsigned sz = CP_AUTODETECT_BUF_SIZE;
+    unsigned sz = AUTODETECT_UTF_BUF_SIZE;
     m_stream->SetPos( 0 );
     if ( sz>m_stream->GetSize() )
         sz = m_stream->GetSize();
     if ( sz < 16 )
         return false;
-    unsigned char * buf = new unsigned char[ sz ];
+    unsigned char * buf = (unsigned char *) malloc(sz);
     lvsize_t bytesRead = 0;
     if ( m_stream->Read( buf, sz, &bytesRead )!=LVERR_OK ) {
-        delete[] buf;
+        free(buf);
         m_stream->SetPos( oldpos );
         return false;
     }
 
-    int res = 0;
-    bool hasTags = hasXmlTags(buf, sz);
-    if ( utfOnly )
-        res = AutodetectCodePageUtf(buf, sz, enc_name, lang_name);
-    else
+    int res = AutodetectCodePageUtf(buf, sz, enc_name, lang_name);
+    if (!res && !utfOnly) {
+        if (sz < m_stream->GetSize()) {
+            sz = m_stream->GetSize();
+            if (sz > CP_AUTODETECT_BUF_SIZE)
+                sz = CP_AUTODETECT_BUF_SIZE;
+            buf = (unsigned char *) realloc(buf, sz);
+            if (m_stream->Read(buf + AUTODETECT_UTF_BUF_SIZE,
+                    sz - AUTODETECT_UTF_BUF_SIZE, &bytesRead) != LVERR_OK) {
+                free(buf);
+                m_stream->SetPos(oldpos);
+                return false;
+            }
+        }
+        bool hasTags = hasXmlTags(buf, sz);
         res = AutodetectCodePage(buf, sz, enc_name, lang_name, hasTags);
-    delete[] buf;
+    }
+    free(buf);
     m_stream->SetPos( oldpos );
     if ( res) {
         //CRLog::debug("Code page decoding results: encoding=%s, lang=%s", enc_name, lang_name);
