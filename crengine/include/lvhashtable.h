@@ -80,17 +80,10 @@ public:
 		}
 		pair * next()
 		{
-			if ( index>=_tbl._size )
-				return NULL;
 			if ( ptr )
 				ptr = ptr->next;
-			if ( !ptr ) {
-				for ( ; index < _tbl._size; ) {
-					ptr = _tbl._table[ index++ ];
-					if ( ptr )
-						return ptr;
-				}
-			}
+			while ( !ptr && index < _tbl._size )
+				ptr = _tbl._table[ index++ ];
 			return ptr;
 		}
 	};
