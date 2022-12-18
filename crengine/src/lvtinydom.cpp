@@ -5427,16 +5427,7 @@ void lxmlDocBase::serializeMaps( SerialBuf & buf )
 
     int start = buf.pos();
     buf.putMagic( node_by_id_map_magic );
-    lUInt32 cnt = 0;
-    {
-        LVHashTable<lUInt32,lInt32>::iterator ii = _idNodeMap.forwardIterator();
-        for ( LVHashTable<lUInt32,lInt32>::pair * p = ii.next(); p!=NULL; p = ii.next() ) {
-            cnt++;
-        }
-    }
-    // TODO: investigate why length() doesn't work as count
-    if ( (int)cnt!=_idNodeMap.length() )
-        CRLog::error("_idNodeMap.length=%d doesn't match real item count %d", _idNodeMap.length(), cnt);
+    lUInt32 cnt = _idNodeMap.length();
     buf << cnt;
     if (cnt > 0)
     {
