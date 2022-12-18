@@ -6417,6 +6417,9 @@ public:
                     );
                 }
             #endif
+
+            FT_Done_Face( face );
+
             if ( _cache.findDuplicate( &def ) ) {
                 CRLog::trace("font definition is duplicate");
                 return false;
@@ -6430,10 +6433,6 @@ public:
             }
             res = true;
 
-            if ( face ) {
-                FT_Done_Face( face );
-                face = NULL;
-            }
             if ( index>=num_faces-1 )
                 break;
         }
