@@ -206,7 +206,7 @@ void lvtextFreeFormatter( formatted_text_fragment_t * pbuffer )
         while ( (pair = it.next()) ) {
             delete pair->value;
         }
-        free( pbuffer->inlineboxes_links );
+        delete pbuffer->inlineboxes_links;
     }
     free(pbuffer);
 }
