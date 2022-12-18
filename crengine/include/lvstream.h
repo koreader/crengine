@@ -707,31 +707,59 @@ public:
         : m_stream(stream), m_start(start), m_size(size), m_pos(0)
     {
     }
+    virtual lvopen_mode_t GetMode() {
+        lvopen_mode_t mode = m_stream->GetMode();
+        switch (m_mode) {
+        case LVOM_ERROR:
+        case LVOM_CLOSED:
+        case LVOM_READ:
+            return mode;
+        case LVOM_READWRITE:
+            return LVOM_READ;
+        case LVOM_WRITE:
+        case LVOM_APPEND:
+        default:
+            return LVOM_ERROR;
+        }
+    }
     virtual bool Eof()
     {
         return m_pos >= m_size;
     }
-    virtual lvsize_t  GetSize()
+    virtual lvsize_t GetSize()
     {
         return m_size;
     }
-
-    virtual lverror_t Seek(lvoffset_t pos, lvseek_origin_t origin, lvpos_t* newPos)
+    virtual lverror_t Seek(lvoffset_t offset, lvseek_origin_t origin, lvpos_t* newPos)
     {
-        if ( origin==LVSEEK_SET )
-            pos += m_start;
-        else if ( origin==LVSEEK_END ) {
-            origin = LVSEEK_SET;
-            pos = m_start + m_size;
+        lvpos_t npos;
+        switch (origin) {
+        case LVSEEK_SET:
+            npos = offset;
+            break;
+        case LVSEEK_CUR:
+            npos = m_pos + offset;
+            break;
+        case LVSEEK_END:
+            npos = m_size + offset;
+            break;
+        default:
+            return LVERR_FAIL;
         }
-        lverror_t res = m_stream->Seek( pos, origin, &m_pos );
-        if (res == LVERR_OK)
-            m_pos -= m_start;
-        if (newPos)
-        {
-            *newPos =  m_pos;
-        }
-        return res;
+        if ( npos > m_size )
+            return LVERR_FAIL;
+        lverror_t res = m_stream->Seek( npos + m_start, LVSEEK_SET, NULL );
+        if ( res != LVERR_OK )
+            return res;
+        m_pos = npos;
+        if ( newPos )
+            *newPos = npos;
+        return LVERR_OK;
+    }
+    virtual lverror_t Tell( lvpos_t * pPos ) {
+        if ( pPos )
+            *pPos = m_pos;
+        return LVERR_OK;
     }
     virtual lverror_t Write(const void*, lvsize_t, lvsize_t*)
     {
@@ -739,17 +767,17 @@ public:
     }
     virtual lverror_t Read(void* buf, lvsize_t size, lvsize_t* pBytesRead)
     {
-        lvsize_t bytesRead = 0;
-        lvpos_t p;
-        lverror_t res = m_stream->Seek( m_pos+m_start, LVSEEK_SET, &p );
-        if ( res!=LVERR_OK )
+        lverror_t res = m_stream->Seek( m_pos + m_start, LVSEEK_SET, NULL );
+        if ( res != LVERR_OK )
             return res;
-        res = m_stream->Read( buf, size, &bytesRead );
-        if (res == LVERR_OK)
-            m_pos += bytesRead;
-        if (pBytesRead)
+        lvsize_t bytesRead = 0;
+        res = m_stream->Read( buf, size + m_pos > m_size ? m_size - m_pos : size, &bytesRead );
+        if ( res != LVERR_OK )
+            return res;
+        m_pos += bytesRead;
+        if ( pBytesRead )
             *pBytesRead = bytesRead;
-        return res;
+        return LVERR_OK;
     }
     virtual lverror_t SetSize(lvsize_t)
     {
