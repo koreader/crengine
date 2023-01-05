@@ -671,7 +671,7 @@ protected:
 public:
     HyphPatternReader(lString32Collection & result) : insidePatternTag(false), data(result)
     {
-        result.clear();
+        result.clear(); // NOLINT: 1 uninitialized field at the end of the constructor call (?!)
     }
     /// called on parsing end
     virtual void OnStop() { }
@@ -1339,6 +1339,12 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
             ++words_in_file;
     }
 
+    if (words_in_file == 0) {
+        free(buf);
+        release();
+        return USER_HYPH_DICT_RELOAD;
+    }
+
     // do fast thourogh check if requested dictionary matches the loaded one
     if ( _filename.compare(filename)==0 && _filesize == filesize && _hash_value == hash_value ) {
         free(buf);
@@ -1424,7 +1430,7 @@ bool UserHyphDict::getMask(lChar32 *word, char *mask)
 
     size_t left = 0;
     size_t right = words_in_memory-1;
-    size_t mid = right;
+    size_t mid;
     while ( left <= right )
     {
         mid = left + (right-left)/2;
