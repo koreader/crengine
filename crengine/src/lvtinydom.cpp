@@ -3061,6 +3061,7 @@ bool ldomDataStorageManager::load()
     if (n > 10000)
         return false; // invalid
     _recentChunk = NULL;
+    _activeChunk = NULL;
     _chunks.clear();
     lUInt32 compsize = 0;
     lUInt32 uncompsize = 0;
@@ -16769,7 +16770,7 @@ public:
     bool clear()
     {
         for ( int i=0; i<_files.length(); i++ )
-            LVDeleteFile( _files[i]->filename );
+            LVDeleteFile( _cacheDir + _files[i]->filename );
         _files.clear();
         return writeIndex();
     }
