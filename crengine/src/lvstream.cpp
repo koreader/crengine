@@ -2075,7 +2075,7 @@ public:
 
 #pragma pack(push, 1)
 
-typedef struct {
+typedef struct ZipLocalFileHdr {
     lUInt32  Mark;      // 0
     lUInt8   UnpVer;    // 4
     lUInt8   UnpOS;     // 5
@@ -2696,7 +2696,7 @@ public:
         char ReadBuf[1024];
         lUInt32 NextPosition;
         lvoffset_t NextOffset;
-        lvpos_t CurPos;
+        lvoffset_t CurPos;
         lvsize_t ReadSize;
         bool found = false;
         bool found64 = false;
@@ -2705,9 +2705,9 @@ public:
         lUInt64 NextPosition64 = 0;
         NextPosition = 0;
         if (fileSize < sizeof(ReadBuf) - 18)
-            CurPos = -(lvpos_t)fileSize;
+            CurPos = (lvoffset_t)(-fileSize);
         else
-            CurPos = -(lvpos_t)sizeof(ReadBuf) + 18;
+            CurPos = (lvoffset_t)(-sizeof(ReadBuf) + 18);
         // Find End of central directory record (EOCD)
         for (int bufNo = 0; bufNo < 64; bufNo++) {
             if (m_stream->Seek(CurPos, LVSEEK_END, NULL) != LVERR_OK)
@@ -2744,12 +2744,12 @@ public:
                     break;
                 }
             }
-            if (CurPos <= -fileSize)
-                break;
             if (fileSize < sizeof(ReadBuf) - 4)
-                CurPos = -fileSize;
+                CurPos = (lvoffset_t)(-fileSize);
             else
-                CurPos -= (lvpos_t)sizeof(ReadBuf) - 4;
+                CurPos -= (lvoffset_t)sizeof(ReadBuf) - 4;
+            if (CurPos <= (lvoffset_t)(-fileSize))
+                break;
         }
         zip64 = found64 || require64;
 
@@ -3458,8 +3458,9 @@ lvsize_t LVPumpStream( LVStreamRef out, LVStreamRef in )
 lvsize_t LVPumpStream( LVStream * out, LVStream * in )
 {
     char buf[5000];
-    lvsize_t totalBytesRead = 0;
+    lvsize_t totalBytesWrite = 0;
     lvsize_t bytesRead = 0;
+    lvsize_t bytesWrite = 0;
     in->SetPos(0);
     lvsize_t bytesToRead = in->GetSize();
     while ( bytesToRead>0 )
@@ -3472,11 +3473,15 @@ lvsize_t LVPumpStream( LVStream * out, LVStream * in )
             break;
         if ( !bytesRead )
             break;
-        out->Write( buf, bytesRead, NULL );
-        totalBytesRead += bytesRead;
+        bytesWrite = 0;
+        if (out->Write(buf, bytesRead, &bytesWrite) != LVERR_OK)
+            break;
         bytesToRead -= bytesRead;
+        totalBytesWrite += bytesWrite;
+        if (bytesWrite != bytesRead)
+            break;
     }
-    return totalBytesRead;
+    return totalBytesWrite;
 }
 
 bool LVDirectoryIsEmpty(const lString8& path) {
@@ -4313,7 +4318,7 @@ bool LVDeleteDirectory( lString32 filename ) {
 #ifdef _WIN32
     return RemoveDirectoryW( filename.c_str() ) ? true : false;
 #else
-    if ( unlink( UnicodeToUtf8( filename ).c_str() ) )
+    if ( rmdir( UnicodeToUtf8( filename ).c_str() ) )
         return false;
     return true;
 #endif
