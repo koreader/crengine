@@ -4590,7 +4590,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                             doIndentOneLevelLessAfterNewLineAfterEndTag = true;
                         // But if previous sibling node is a floating or boxing inline node
                         // that have done what we just did, cancel some of what we did
-                        if ( node->getNodeIndex() > 0 ) {
+                        if ( parent && node->getNodeIndex() > 0 ) {
                             ldomNode * prevsibling = parent->getChildNode(node->getNodeIndex()-1);
                             if ( prevsibling->isFloatingBox() || prevsibling->isBoxingInlineBox() ) {
                                 doNewlineBeforeIndentBeforeStartTag = false;
@@ -4611,7 +4611,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                         doIndentOneLevelLessAfterNewLineAfterEndTag = true;
                     else if ( containsEnd )
                         doIndentOneLevelLessAfterNewLineAfterEndTag = true;
-                    if ( node->getNodeIndex() > 0 ) {
+                    if ( parent && node->getNodeIndex() > 0 ) {
                         ldomNode * prevsibling = parent->getChildNode(node->getNodeIndex()-1);
                         if ( prevsibling->isFloatingBox() || prevsibling->isBoxingInlineBox() ) {
                             doNewlineBeforeIndentBeforeStartTag = false;
@@ -8268,6 +8268,9 @@ void ldomDocumentWriter::OnStop()
 // But in this, we do some specifics for tags that ARE a <BODY> tag.
 void ldomDocumentWriter::OnTagBody()
 {
+    if ( !_currNode )
+        return;
+
     // Specific if we meet the <BODY> tag and we have styles to apply and
     // store in the DOM
     // (This can't happen with EPUBs: the ldomDocumentFragmentWriter that
@@ -8276,7 +8279,7 @@ void ldomDocumentWriter::OnTagBody()
     // _headStyleText and _stylesheetLinks are then empty. Styles for EPUB
     // are handled in :OnTagOpen() when being a DocFragment and meeting
     // the BODY.)
-    if ( _currNode && _currNode->getElement() && _currNode->getElement()->getNodeId() == el_body &&
+    if ( _currNode->getElement() && _currNode->getElement()->getNodeId() == el_body &&
             ( !_headStyleText.empty() || _stylesheetLinks.length() > 0 ) ) {
         // If we're BODY, and we have meet styles in the previous HEAD
         // (links to css files or <STYLE> content), we need to save them
@@ -8334,7 +8337,7 @@ void ldomDocumentWriter::OnTagBody()
         OnTagClose(U"", U"stylesheet");
         CRLog::trace("added BODY>stylesheet child element with HEAD>STYLE&LINKS content");
     }
-    else if ( _currNode ) { // for all other tags (including BODY when no style)
+    else { // for all other tags (including BODY when no style)
         #if MATHML_SUPPORT==1
             if ( _currNode->_insideMathML ) {
                 // All attributes are set, this may add other attributes depending

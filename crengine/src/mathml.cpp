@@ -829,9 +829,9 @@ bool MathMLHelper::handleMathMLtag( ldomDocumentWriter * writer, int step, lUInt
         // property math-shift:normal, and unset it for math-shift:compact. The
         // only effect of MS is using OpenType Math superscriptShiftUp when normal,
         // and superscriptShiftUpCramped when compact.
-        bool is_MD; // math-style
-        bool is_MS; // math-shift
-        int add_MN = 0; // math-depth: number to add to nearest upper
+        bool is_MD = false; // math-style
+        bool is_MS = false; // math-shift
+        int add_MN = 0;     // math-depth: number to add to nearest upper
         if ( curNodeId == el_math ) {
             lString32 at_display = curNode->getAttributeValueLC( attr_display );
             is_MD = at_display == U"block"; // defaults to false if absent
@@ -843,7 +843,7 @@ bool MathMLHelper::handleMathMLtag( ldomDocumentWriter * writer, int step, lUInt
                 is_MD = true;
             else if ( at_displaystyle == U"false" )
                 is_MD = false;
-            else if ( parentNode->hasAttribute(attr_MD) ) { // Otherwise, just inherit MD
+            else if ( parentNode && parentNode->hasAttribute(attr_MD) ) { // Otherwise, just inherit MD
                 is_MD = true;
                 // Except for some elements, that resets some of their child to displaystyle=false
                 if ( parentNodeId == el_mfrac )
@@ -856,7 +856,7 @@ bool MathMLHelper::handleMathMLtag( ldomDocumentWriter * writer, int step, lUInt
                     is_MD = false; // only on the 2nd child
             }
             // Inherit MS / math-shift
-            is_MS = parentNode->hasAttribute(attr_MS);
+            is_MS = parentNode && parentNode->hasAttribute(attr_MS);
             // Except for some elements, that resets it to math-shift: compact
             if ( curNodeId == el_msqrt || curNodeId == el_mroot )
                 is_MS = false; // become compact
@@ -1272,6 +1272,9 @@ void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style ) {
     lUInt16    parentNodeId = parentNode ? parentNode->getNodeId() : el_NULL;
     ldomNode * gParentNode = parentNode ? parentNode->getParentNode() : NULL;
     lUInt16    gParentNodeId = gParentNode ? gParentNode->getNodeId() : el_NULL;
+
+    if ( !parentNode ) // (should not happen)
+        return;
 
     // Our CSS stylesheet does not enforce a font-family, as we don't want to
     // override a font set by the publisher or the user.
@@ -2520,6 +2523,8 @@ void ensureMathMLVerticalStretch( ldomNode * node, lUInt32 line_y, lUInt16 line_
             ldomNode * finalNode = tmp;
             while (finalNode && finalNode->getRendMethod() != erm_final)
                 finalNode = finalNode->getParentNode();
+            if ( !finalNode )
+                break;
             RenderRectAccessor finalfmt( finalNode );
 
             // erm_final are tricky: content is laid out from getInnerY() (which
