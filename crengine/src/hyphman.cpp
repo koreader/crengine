@@ -1175,8 +1175,8 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
                     // (should we check that earlier, and break after the preceding vowel
                     // instead of not at all?)
                     bool forbidden = false;
-                    const char * dblSequences[] = {
-                        "sh", "th", "ph", "ch", NULL
+                    const lChar32 * dblSequences[] = {
+                        U"sh", U"th", U"ph", U"ch", NULL
                     };
                     next = i+1;
                     while ( next < len && (chprops[next] & (CH_PROP_MODIFIER|CH_PROP_HYPHEN)) ) {

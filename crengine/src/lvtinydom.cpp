@@ -11863,7 +11863,6 @@ bool ldomXRange::getRectEx( lvRect & rect, bool & isSingleLine )
 void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
 {
     bool go_on = true;
-    int lcount = 1;
     lvRect lineStartRect = lvRect();
     lvRect nodeStartRect = lvRect();
     lvRect curCharRect = lvRect();
@@ -20532,7 +20531,7 @@ bool LVPageMap::deserialize( ldomDocument * doc, SerialBuf & buf )
     _chars_per_synthetic_page = (int)charsPerSyntheticPage;
     _is_document_provided = (bool)isDocumentProvided;
     _has_document_provided = (bool)hasDocumentProvided;
-    for ( int i=0; i<childCount; i++ ) {
+    for ( lUInt32 i=0; i<childCount; i++ ) {
         LVPageMapItem * item = new LVPageMapItem(doc);
         if ( !item->deserialize( doc, buf ) ) {
             delete item;

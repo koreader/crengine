@@ -235,12 +235,12 @@ public:
             ((w&0x00FF)<<8) );
     }
     /// make 64 bit word least-significant-first byte order (Intel)
-    lUInt32 lsf( lUInt64 w )
+    lUInt64 lsf( lUInt64 w )
     {
         return ( _lsf ) ? w : rev(w);
     }
     /// make 64 bit word most-significant-first byte order (PPC)
-    lUInt32 msf( lUInt64 w )
+    lUInt64 msf( lUInt64 w )
     {
         return ( !_lsf ) ? w : rev(w);
     }
