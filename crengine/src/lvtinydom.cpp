@@ -4897,6 +4897,8 @@ public:
         LVContainerRef container = _document->getContainer();
         if (!container.isNull()) {
             LVStreamRef cssStream = container->OpenStream(cssFile.c_str(), LVOM_READ);
+            if (cssStream.isNull())
+                cssStream = container->OpenStream(DecodeHTMLUrlString(cssFile).c_str(), LVOM_READ);
             if (!cssStream.isNull()) {
                 lString32 css;
                 css << LVReadTextFile(cssStream);
