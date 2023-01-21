@@ -322,13 +322,13 @@ public:
     /// sets cache file
     void setCache( CacheFile * cache );
     /// checks buffer sizes, compacts most unused chunks
-    void compact( int reservedSpace, const ldomTextStorageChunk *excludedChunk = NULL );
+    void compact( lUInt32 reservedSpace, const ldomTextStorageChunk* excludedChunk = NULL );
     lUInt32 getUncompressedSize() { return _uncompressedSize; }
 #if BUILD_LITE!=1
     /// allocates new text node, return its address inside storage
     lUInt32 allocText( lUInt32 dataIndex, lUInt32 parentIndex, const lString8 & text );
     /// allocates storage for new element, returns address address inside storage
-    lUInt32 allocElem( lUInt32 dataIndex, lUInt32 parentIndex, int childCount, int attrCount );
+    lUInt32 allocElem( lUInt32 dataIndex, lUInt32 parentIndex, lUInt32 childCount, lUInt32 attrCount );
     /// get text by address
     lString8 getText( lUInt32 address );
     /// get pointer to text data
@@ -402,7 +402,7 @@ public:
     /// adds new text item to buffer, returns offset inside chunk of stored data
     int addText( lUInt32 dataIndex, lUInt32 parentIndex, const lString8 & text );
     /// adds new element item to buffer, returns offset inside chunk of stored data
-    int addElem( lUInt32 dataIndex, lUInt32 parentIndex, int childCount, int attrCount );
+    int addElem( lUInt32 dataIndex, lUInt32 parentIndex, lUInt32 childCount, lUInt32 attrCount );
     /// get text item from buffer by offset
     lString8 getText( int offset );
     /// get node parent by offset

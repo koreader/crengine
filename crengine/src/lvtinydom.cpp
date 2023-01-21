@@ -88,7 +88,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.70k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.71k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x002F
 
@@ -528,9 +528,9 @@ struct CacheFileHeader : public SimpleCacheFileHeader
     , _padding(0)
     {
         if ( indexRec ) {
-            memcpy( &_indexBlock, indexRec, sizeof(CacheFileItem));
+            memcpy((void*)&_indexBlock, indexRec, sizeof(CacheFileItem));
         } else
-            memset( &_indexBlock, 0, sizeof(CacheFileItem));
+            memset((void*)&_indexBlock, 0, sizeof(CacheFileItem));
         _fsize = fsize;
     }
 };
@@ -3214,7 +3214,7 @@ lUInt32 ldomDataStorageManager::allocText( lUInt32 dataIndex, lUInt32 parentInde
     return offset | (_activeChunk->getIndex()<<16);
 }
 
-lUInt32 ldomDataStorageManager::allocElem( lUInt32 dataIndex, lUInt32 parentIndex, int childCount, int attrCount )
+lUInt32 ldomDataStorageManager::allocElem( lUInt32 dataIndex, lUInt32 parentIndex, lUInt32 childCount, lUInt32 attrCount )
 {
     if ( !_activeChunk ) {
         _activeChunk = new ldomTextStorageChunk(this, _chunks.length());
@@ -3280,7 +3280,7 @@ lUInt32 ldomDataStorageManager::getParent( lUInt32 addr )
 }
 #endif
 
-void ldomDataStorageManager::compact( int reservedSpace, const ldomTextStorageChunk* excludedChunk )
+void ldomDataStorageManager::compact( lUInt32 reservedSpace, const ldomTextStorageChunk* excludedChunk )
 {
 #if BUILD_LITE!=1
     if ( _uncompressedSize + reservedSpace > _maxUncompressedSize + _maxUncompressedSize/10 ) { // allow +10% overflow
@@ -3295,9 +3295,9 @@ void ldomDataStorageManager::compact( int reservedSpace, const ldomTextStorageCh
         }
         _owner->setCacheFileStale(true); // we may write: consider cache file stale
         // do compacting
-        int sumsize = reservedSpace;
+        lUInt32 sumsize = reservedSpace;
         for ( ldomTextStorageChunk * p = _recentChunk; p; p = p->_nextRecent ) {
-			if ( ((int)p->_bufsize + sumsize < _maxUncompressedSize)
+			if ( (p->_bufsize + sumsize < _maxUncompressedSize)
 					|| (p == _activeChunk && reservedSpace < 0xFFFFFFF)
 					|| (p == excludedChunk) ) {
 				// fits
@@ -3473,7 +3473,7 @@ int ldomTextStorageChunk::space()
 /// returns free space in buffer
 int ldomTextStorageChunk::addText( lUInt32 dataIndex, lUInt32 parentIndex, const lString8 & text )
 {
-    int itemsize = (sizeof(TextDataStorageItem)+text.length()-2 + 15) & 0xFFFFFFF0;
+    lUInt32 itemsize = (sizeof(TextDataStorageItem)+text.length()-2 + 15) & 0xFFFFFFF0;
     if ( !_buf ) {
         // create new buffer, if necessary
         _bufsize = _manager->_chunkSize > itemsize ? _manager->_chunkSize : itemsize;
@@ -3481,7 +3481,7 @@ int ldomTextStorageChunk::addText( lUInt32 dataIndex, lUInt32 parentIndex, const
         _bufpos = 0;
         _manager->_uncompressedSize += _bufsize;
     }
-    if ( (int)_bufsize - (int)_bufpos < itemsize )
+    if ( _bufsize - _bufpos < itemsize )
         return -1;
     TextDataStorageItem * p = (TextDataStorageItem*)(_buf + _bufpos);
     p->sizeDiv16 = (lUInt16)(itemsize >> 4);
@@ -3496,9 +3496,9 @@ int ldomTextStorageChunk::addText( lUInt32 dataIndex, lUInt32 parentIndex, const
 }
 
 /// adds new element item to buffer, returns offset inside chunk of stored data
-int ldomTextStorageChunk::addElem(lUInt32 dataIndex, lUInt32 parentIndex, int childCount, int attrCount)
+int ldomTextStorageChunk::addElem(lUInt32 dataIndex, lUInt32 parentIndex, lUInt32 childCount, lUInt32 attrCount)
 {
-    int itemsize = (sizeof(ElementDataStorageItem) + attrCount*(sizeof(lUInt16)*2 + sizeof(lUInt32)) + childCount*sizeof(lUInt32) - sizeof(lUInt32) + 15) & 0xFFFFFFF0;
+    lUInt32 itemsize = (sizeof(ElementDataStorageItem) + attrCount*(sizeof(lUInt16)*2 + sizeof(lUInt32)) + childCount*sizeof(lUInt32) - sizeof(lUInt32) + 15) & 0xFFFFFFF0;
     if ( !_buf ) {
         // create new buffer, if necessary
         _bufsize = _manager->_chunkSize > itemsize ? _manager->_chunkSize : itemsize;
@@ -3506,7 +3506,7 @@ int ldomTextStorageChunk::addElem(lUInt32 dataIndex, lUInt32 parentIndex, int ch
         _bufpos = 0;
         _manager->_uncompressedSize += _bufsize;
     }
-    if ( _bufsize - _bufpos < (unsigned)itemsize )
+    if ( _bufsize - _bufpos < itemsize )
         return -1;
     ElementDataStorageItem *item = (ElementDataStorageItem *)(_buf + _bufpos);
     if ( item ) {
