@@ -236,6 +236,7 @@ enum CacheFileBlockType {
 #define XXH_INLINE_ALL
 #include <xxhash.h>
 #include <lvtextfm.h>
+#include "../include/lvdocviewprops.h"
 
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
@@ -4958,9 +4959,9 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_transform = css_tt_none;
     s->hyphenate = css_hyph_auto;
     s->color.type = css_val_unspecified;
-    s->color.value = 0x000000;
+    s->color.value = props->getColorDef(PROP_FONT_COLOR, 0x000000);
     s->background_color.type = css_val_unspecified;
-    s->background_color.value = 0xFFFFFF;
+    s->background_color.value = props->getColorDef(PROP_BACKGROUND_COLOR, 0xFFFFFF);
     //_def_style->background_color.type = color;
     //_def_style->background_color.value = 0xFFFFFF;
     s->page_break_before = css_pb_auto;
