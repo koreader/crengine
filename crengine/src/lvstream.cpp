@@ -2072,6 +2072,8 @@ public:
     }
 };
 
+#define ZIPHDR_MAX_NM 4096 // maximum length of the name entry
+#define ZIPHDR_MAX_XT 1024 // maximum length of the extra data
 
 #pragma pack(push, 1)
 
@@ -2563,21 +2565,28 @@ public:
             extraLastPos += 8;
         }
         bool zip64 = extraLastPos > 0;
+        // Skip name entry
         if ( stream->Seek(hdr.getNameLen(), LVSEEK_CUR, NULL) != LVERR_OK) {
             return NULL;
         }
         // read extra data
-        const lvsize_t max_EXTRA = 128;
-        if (hdr.getAddLen() > max_EXTRA) {
-            CRLog::error("ZIP entry extra length is too big: %d", (int)hdr.getAddLen());
-            return NULL;
+        if (hdr.getAddLen() > ZIPHDR_MAX_XT) {
+            CRLog::error("ZIP entry extra data is too long: %u, trunc to %u",
+                         (unsigned int)hdr.getAddLen(), (unsigned int)ZIPHDR_MAX_XT);
         }
-        lvsize_t extraSizeToRead = (hdr.getAddLen() < max_EXTRA) ? hdr.getAddLen() : max_EXTRA;
-        lUInt8 extra[max_EXTRA];
+        lvsize_t extraSizeToRead = (hdr.getAddLen() < ZIPHDR_MAX_XT) ? hdr.getAddLen() : ZIPHDR_MAX_XT;
+        lvoffset_t XT_skipped_sz = (hdr.getAddLen() > ZIPHDR_MAX_XT) ? (lvoffset_t)(hdr.getAddLen() - ZIPHDR_MAX_XT) : 0;
+        lUInt8 extra[ZIPHDR_MAX_XT];
         lverror_t err = stream->Read(extra, extraSizeToRead, &ReadSize);
         if (err != LVERR_OK || ReadSize != extraSizeToRead) {
             CRLog::error("error while reading zip header extra data");
             return NULL;
+        }
+        if (XT_skipped_sz > 0) {
+            if (stream->Seek(XT_skipped_sz, LVSEEK_CUR, NULL) != LVERR_OK) {
+                CRLog::error("error while skipping the long zip entry extra data");
+                return NULL;
+            }
         }
         // Find Zip64 extension if required
         lvsize_t offs = 0;
@@ -2871,15 +2880,13 @@ public:
                 zip64 = true;
 #endif
 
-            //const lvsize_t NM = 513;
-            const lvsize_t max_NM = 4096;
-            if (ZipHeader.NameLen > max_NM) {
-                CRLog::error("ZIP entry name length is too big: %d, trunc to %d",
-                             (int)ZipHeader.NameLen, (int)max_NM);
+            if (ZipHeader.NameLen > ZIPHDR_MAX_NM) {
+                CRLog::error("ZIP entry name is too long: %u, trunc to %u",
+                             (unsigned int)ZipHeader.NameLen, (unsigned int)ZIPHDR_MAX_NM);
             }
-            lvsize_t fnameSizeToRead = (ZipHeader.NameLen < max_NM) ? ZipHeader.NameLen : max_NM;
-            lvoffset_t NM_skipped_sz = (ZipHeader.NameLen > max_NM) ? (lvoffset_t)(ZipHeader.NameLen - max_NM) : 0;
-            char fnbuf[max_NM + 1];
+            lvsize_t fnameSizeToRead = (ZipHeader.NameLen < ZIPHDR_MAX_NM) ? ZipHeader.NameLen : ZIPHDR_MAX_NM;
+            lvoffset_t NM_skipped_sz = (ZipHeader.NameLen > ZIPHDR_MAX_NM) ? (lvoffset_t)(ZipHeader.NameLen - ZIPHDR_MAX_NM) : 0;
+            char fnbuf[ZIPHDR_MAX_NM + 1];
             err = m_stream->Read(fnbuf, fnameSizeToRead, &ReadSize);
             if (err != LVERR_OK || ReadSize != fnameSizeToRead) {
                 CRLog::error("error while reading zip entry name");
@@ -2894,17 +2901,23 @@ public:
             }
 
             // read extra data
-            const lvsize_t max_EXTRA = 512;
-            if (ZipHeader.AddLen > max_EXTRA) {
-                CRLog::error("ZIP entry extra length is too big: %d", (int)ZipHeader.AddLen);
-                return 0;
+            if (ZipHeader.AddLen > ZIPHDR_MAX_XT) {
+                CRLog::error("ZIP entry extra data is too long: %u, trunc to %u",
+                             (unsigned int)ZipHeader.AddLen, (unsigned int)ZIPHDR_MAX_XT);
             }
-            lvsize_t extraSizeToRead = (ZipHeader.AddLen < max_EXTRA) ? ZipHeader.AddLen : max_EXTRA;
-            lUInt8 extra[max_EXTRA];
+            lvsize_t extraSizeToRead = (ZipHeader.AddLen < ZIPHDR_MAX_XT) ? ZipHeader.AddLen : ZIPHDR_MAX_XT;
+            lvoffset_t XT_skipped_sz = (ZipHeader.AddLen > ZIPHDR_MAX_XT) ? (lvoffset_t)(ZipHeader.AddLen - ZIPHDR_MAX_XT) : 0;
+            lUInt8 extra[ZIPHDR_MAX_XT];
             err = m_stream->Read(extra, extraSizeToRead, &ReadSize);
             if (err != LVERR_OK || ReadSize != extraSizeToRead) {
                 CRLog::error("error while reading zip entry extra data");
                 return 0;
+            }
+            if (XT_skipped_sz > 0) {
+                if (m_stream->Seek(XT_skipped_sz, LVSEEK_CUR, NULL) != LVERR_OK) {
+                    CRLog::error("error while skipping the long zip entry extra data");
+                    return 0;
+                }
             }
 #if LVLONG_FILE_SUPPORT == 1
             // Find Zip64 extension if required
@@ -2989,7 +3002,7 @@ public:
 #endif
             //, addL=%d, commL=%d, dn=%d
             //, (int)ZipHeader.AddLen, (int)ZipHeader.CommLen, (int)ZipHeader.DiskNum
-#define EXTRA_DEC_MAX   (1536+1)
+#define EXTRA_DEC_MAX (ZIPHDR_MAX_XT * 3 + 1)
             if (extraSizeToRead > 0) {
                 char extra_buff[EXTRA_DEC_MAX];
                 memset(extra_buff, 0, EXTRA_DEC_MAX);
