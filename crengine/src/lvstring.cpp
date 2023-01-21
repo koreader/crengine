@@ -1274,7 +1274,7 @@ bool lString32::atod( double &d, char dp ) const {
             s++;
         }
     }
-    if (res && *s == dp) {
+    if (res && *s == (value_type)dp) {
         // decimal point found
         s++;
         res = false;
@@ -2441,7 +2441,7 @@ int lString32::pos(const lChar8 * subStr) const
     {
         int flg = 1;
         for (int j=0; j<l; j++)
-            if (pchunk->buf32[i+j] != subStr[j])
+            if (pchunk->buf32[i+j] != (value_type)subStr[j])
             {
                 flg = 0;
                 break;
@@ -2465,7 +2465,7 @@ int lString32::pos(const lChar8 * subStr, int start) const
     {
         int flg = 1;
         for (int j=0; j<l; j++)
-            if (pchunk->buf32[i+j] != subStr[j])
+            if (pchunk->buf32[i+j] != (value_type)subStr[j])
             {
                 flg = 0;
                 break;
@@ -5502,7 +5502,7 @@ bool lString32::startsWith(const lChar8 * substring) const
     const lChar32 * s1 = c_str();
     const lChar8 * s2 = substring;
     for ( int i=0; i<len; i++ )
-        if (s1[i] != s2[i])
+        if (s1[i] != (lChar32)s2[i])
             return false;
     return true;
 }
