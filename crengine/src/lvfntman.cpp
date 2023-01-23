@@ -7021,7 +7021,16 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     int typeface_match = (_typeface == def._typeface) ? 256 : 0;
 
     // bias
-    int bias = useBias ? _bias : 0;
+    // If the typeface matches the requested one, we don't add the bias:
+    // - not using the bias will avoid the bias'ed font to be wrongly chosen
+    //   when handling 'font-family: ExistingFont1, BiasedFont2'
+    // - the typeface_match score is so much larger than our usual bias,
+    //   that a biased font will win anyway if requested by name
+    // - but if no font matches the typeface, the bias will be used and
+    //   the biased font will win (which is the main purpose of this bias)
+    // - the bias is the same for all instances of this typeface, so
+    //   not using it won't affect scoring among these instances
+    int bias = (useBias && !typeface_match) ? _bias : 0;
 
     // Special handling for synthesized fonts:
     // The way this function is called:
