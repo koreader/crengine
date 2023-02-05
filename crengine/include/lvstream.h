@@ -535,6 +535,7 @@ protected:
     lvsize_t     m_size;
     lString32    m_name;
     lUInt32      m_flags;
+    lUInt32      m_crc;
     bool         m_is_container;
     lvpos_t      m_srcpos;
     lvsize_t     m_srcsize;
@@ -544,6 +545,7 @@ public:
     virtual const lChar32 * GetName() const { return m_name.empty()?NULL:m_name.c_str(); }
     virtual lUInt32         GetFlags() const { return m_flags; }
     virtual bool            IsContainer() const { return m_is_container; }
+    lUInt32 GetCRC() const { return m_crc; }
     lvpos_t GetSrcPos() const { return m_srcpos; }
     lvsize_t GetSrcSize() const { return m_srcsize; }
     lUInt32 GetSrcFlags() const { return m_srcflags; }
@@ -557,15 +559,16 @@ public:
     {
         m_name = name;
     }
-    void SetItemInfo( lString32 fname, lvsize_t size, lUInt32 flags, bool isContainer = false )
+    void SetItemInfo( lString32 fname, lvsize_t size, lUInt32 flags, lUInt32 crc = 0, bool isContainer = false )
     {
         m_name = fname;
         m_size = size;
         m_flags = flags;
+        m_crc = crc;
         m_is_container = isContainer;
     }
     LVCommonContainerItemInfo() : m_size(0), m_flags(0), m_is_container(false),
-        m_srcpos(0), m_srcsize(0), m_srcflags(0)
+        m_srcpos(0), m_srcsize(0), m_srcflags(0), m_crc(0)
     {
     }
     virtual ~LVCommonContainerItemInfo ()
