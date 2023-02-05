@@ -219,7 +219,7 @@ public:
     void addFileItem( const char * filename, LONGUINT64 len )
     {
         LVCommonContainerItemInfo * item = new LVCommonContainerItemInfo();
-        item->SetItemInfo( lString32(filename), (lvsize_t)len, 0, false );
+        item->SetItemInfo( lString32(filename), (lvsize_t)len, 0 );
         //CRLog::trace("CHM file item: %s [%d]", filename, (int)len);
         Add(item);
     }
