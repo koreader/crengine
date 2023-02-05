@@ -2741,7 +2741,7 @@ bool tinyNodeCollection::saveNodeData( lUInt16 type, ldomNode ** list, int nodec
         ldomNode buf[sz];
         memcpy(buf, list[i], sizeof(buf));
         for (int j = 0; j < sz; j++) {
-            buf[j].setDocumentIndex(_docIndex);
+            buf[j].setDocumentIndex(0);
             // On 64bits builds, this serialized ldomNode may have some
             // random data at the end, for being:
             //   union { [...] tinyElement * _elem_ptr; [...] lUInt32 _ptext_addr; [...] lUInt32 _nextFreeIndex }
