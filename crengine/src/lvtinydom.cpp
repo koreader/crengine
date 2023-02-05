@@ -2738,8 +2738,8 @@ bool tinyNodeCollection::saveNodeData( lUInt16 type, ldomNode ** list, int nodec
         if (offs + sz > nodecount) {
             sz = nodecount - offs;
         }
-        ldomNode buf[TNC_PART_LEN];
-        memcpy(buf, list[i], sizeof(ldomNode) * sz);
+        ldomNode buf[sz];
+        memcpy(buf, list[i], sizeof(buf));
         for (int j = 0; j < sz; j++) {
             buf[j].setDocumentIndex(_docIndex);
             // On 64bits builds, this serialized ldomNode may have some
@@ -2747,13 +2747,13 @@ bool tinyNodeCollection::saveNodeData( lUInt16 type, ldomNode ** list, int nodec
             //   union { [...] tinyElement * _elem_ptr; [...] lUInt32 _ptext_addr; [...] lUInt32 _nextFreeIndex }
             // To get "reproducible" cache files with a same file checksum, we'd
             // rather have the remains of the _elem_ptr sets to 0
-            if (__SIZEOF_POINTER__ == 8) { // 64bits
-                lUInt32 tmp = buf[j]._data._nextFreeIndex; // save 32bits part
-                buf[j]._data._elem_ptr = 0;                // clear 64bits area
-                buf[j]._data._nextFreeIndex = tmp;         // restore 32bits part
-            }
+#if __SIZEOF_POINTER__ == 8 // 64-bit
+            lUInt32 tmp = buf[j]._data._nextFreeIndex; // save 32bits part
+            buf[j]._data._elem_ptr = 0;                // clear 64bits area
+            buf[j]._data._nextFreeIndex = tmp;         // restore 32bits part
+#endif
         }
-        if (!_cacheFile->write(type, i, (lUInt8*)buf, sizeof(ldomNode) * sz, COMPRESS_NODE_DATA))
+        if (!_cacheFile->write(type, i, (lUInt8*)buf, sizeof(buf), COMPRESS_NODE_DATA))
             crFatalError(-1, "Cannot write node data");
     }
     return true;
