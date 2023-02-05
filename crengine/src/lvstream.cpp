@@ -2216,10 +2216,8 @@ struct Zip64ExtInfo
 
 #pragma pack(pop)
 
-//#define ARC_INBUF_SIZE  4096
-//#define ARC_OUTBUF_SIZE 16384
-#define ARC_INBUF_SIZE  5000
-#define ARC_OUTBUF_SIZE 10000
+#define ARC_INBUF_SIZE  (8 * 1024)
+#define ARC_OUTBUF_SIZE (16 * 1024)
 
 #if (USE_ZLIB==1)
 
@@ -2227,37 +2225,28 @@ class LVZipDecodeStream : public LVNamedStream
 {
 private:
     LVStreamRef m_stream;
-    lvsize_t    m_start;
     lvsize_t    m_packsize;
     lvsize_t    m_unpacksize;
-    z_stream_s  m_zstream;
-    lvpos_t     m_inbytesleft; // bytes left
-    lvpos_t     m_outbytesleft;
     bool        m_zInitialized;
-    int         m_decodedpos;
-    lUInt8 *    m_inbuf;
-    lUInt8 *    m_outbuf;
     lUInt32     m_CRC;
     lUInt32     m_originalCRC;
+    lvpos_t     m_pos;
+    lvpos_t     m_inpos;
+    lvpos_t     m_outpos;
+    z_stream_s  m_zstream;
+    lUInt8      m_inbuf[ARC_INBUF_SIZE];
+    lUInt8      m_outbuf[ARC_OUTBUF_SIZE];
 
-
-    LVZipDecodeStream( LVStreamRef stream, lvsize_t start, lvsize_t packsize, lvsize_t unpacksize, lUInt32 crc )
-        : m_stream(stream), m_start(start), m_packsize(packsize), m_unpacksize(unpacksize),
-        m_inbytesleft(0), m_outbytesleft(0), m_zInitialized(false), m_decodedpos(0),
-        m_inbuf(NULL), m_outbuf(NULL), m_CRC(0), m_originalCRC(crc)
+    LVZipDecodeStream( LVStreamRef stream, lvsize_t packsize, lvsize_t unpacksize, lUInt32 crc )
+        : m_stream(stream), m_packsize(packsize), m_unpacksize(unpacksize), m_originalCRC(crc),
+        m_CRC(0), m_pos(0), m_zInitialized(false), m_inpos(0), m_outpos(0)
     {
-        m_inbuf = new lUInt8[ARC_INBUF_SIZE];
-        m_outbuf = new lUInt8[ARC_OUTBUF_SIZE];
         rewind();
     }
 
     ~LVZipDecodeStream()
     {
         zUninit();
-        if (m_inbuf)
-            delete[] m_inbuf;
-        if (m_outbuf)
-            delete[] m_outbuf;
     }
 
     /// Get stream open mode
@@ -2275,70 +2264,38 @@ private:
         m_zInitialized = false;
     }
 
-    /// Fill input buffer: returns -1 if fails.
-    int fillInBuf()
+    /// Fill input buffer: returns false on failure.
+    bool fillInBuf()
     {
-        if (m_zstream.avail_in < ARC_INBUF_SIZE / 4 && m_inbytesleft > 0)
-        {
-            int inpos = (int)(m_zstream.next_in ? (m_zstream.next_in - m_inbuf) : 0);
-            if ( inpos > ARC_INBUF_SIZE/2 )
-            {
-                // move rest of data to beginning of buffer
-                for ( int i=0; i<(int)m_zstream.avail_in; i++)
-                    m_inbuf[i] = m_inbuf[ i+inpos ];
-                m_zstream.next_in = m_inbuf;
-                inpos = 0;
-            }
-            int tailpos = inpos + m_zstream.avail_in;
-            lvsize_t bytes_to_read = ARC_INBUF_SIZE - tailpos;
-            if ( bytes_to_read > (lvsize_t)m_inbytesleft )
-                bytes_to_read = (lvsize_t)m_inbytesleft;
-            if (bytes_to_read > 0)
-            {
-                lvsize_t bytesRead = 0;
-                if ( m_stream->Read( m_inbuf + tailpos, bytes_to_read, &bytesRead ) != LVERR_OK )
-                {
-                    // read error
-                    m_zstream.avail_in = 0;
-                    return -1;
-                }
-                m_CRC = lStr_crc32( m_CRC, m_inbuf + tailpos, (int)(bytesRead) );
-                m_zstream.avail_in += (int)bytesRead;
-                m_inbytesleft -= bytesRead;
-            }
-            else
-            {
-                //check CRC
-                if ( m_CRC != m_originalCRC ) {
-                    CRLog::error("ZIP stream '%s': CRC doesn't match", LCSTR(lString32(GetName())) );
-                    return -1; // CRC error
-                }
-            }
-        }
-        return m_zstream.avail_in;
+        assert(m_inpos <= m_packsize);
+        assert(m_zstream.avail_in <= ARC_INBUF_SIZE);
+        if (m_inpos >= m_packsize || m_zstream.avail_in >= (ARC_INBUF_SIZE / 2))
+            return true;
+        if (m_zstream.avail_in)
+            memcpy(m_inbuf, m_zstream.next_in, m_zstream.avail_in);
+        m_zstream.next_in = m_inbuf;
+        lvsize_t count = ARC_INBUF_SIZE - m_zstream.avail_in;
+        if (m_stream->Read(m_inbuf + m_zstream.avail_in, count, &count) != LVERR_OK)
+            return false;
+        m_inpos += count;
+        m_zstream.avail_in += count;
+        return m_zstream.avail_in > 0;
     }
 
     bool rewind()
     {
         zUninit();
-        // stream
-        m_stream->SetPos( 0 );
-
-        m_CRC = 0;
-        memset( &m_zstream, 0, sizeof(m_zstream) );
-        // inbuf
-        m_inbytesleft = m_packsize;
+        if (m_stream->Seek(0, LVSEEK_SET, NULL) != LVERR_OK)
+            return false;
+        m_CRC = m_outpos = m_inpos = 0;
+        memset(&m_zstream, 0, sizeof (m_zstream));
         m_zstream.next_in = m_inbuf;
         m_zstream.avail_in = 0;
-        fillInBuf();
-        // outbuf
         m_zstream.next_out = m_outbuf;
         m_zstream.avail_out = ARC_OUTBUF_SIZE;
-        m_decodedpos = 0;
-        m_outbytesleft = m_unpacksize;
-        // Z
-        if ( inflateInit2( &m_zstream, -15 ) != Z_OK )
-        {
+        int res = inflateInit2(&m_zstream, -15);
+        if (res != Z_OK) {
+            CRLog::error("ZIP stream: init error (%d)", res);
             return false;
         }
         m_zInitialized = true;
@@ -2347,113 +2304,48 @@ private:
     // returns count of available decoded bytes in buffer
     inline int getAvailBytes()
     {
-        return (int)(m_zstream.next_out - m_outbuf - m_decodedpos);
+        return m_zstream.next_out - m_outbuf;
     }
-    /// decode next portion of data, returns number of decoded bytes available, -1 if error
-    int decodeNext()
+    /// decode next portion of data, return false on failure
+    bool decodeNext()
     {
-        int avail = getAvailBytes();
-        if (avail>0)
-            return avail;
-        // fill in buffer
-        int in_bytes = fillInBuf();
-        if (in_bytes<0)
-            return -1;
-        // reserve space for output
-        if (m_decodedpos > ARC_OUTBUF_SIZE/2 || (m_zstream.avail_out < ARC_OUTBUF_SIZE / 4 && m_outbytesleft > 0) )
-        {
+        if (!fillInBuf())
+            return false;
 
-            int outpos = (int)(m_zstream.next_out - m_outbuf);
-            if ( m_decodedpos > ARC_OUTBUF_SIZE/2 || outpos > ARC_OUTBUF_SIZE*2/4 || m_zstream.avail_out==0 || m_inbytesleft==0 )
-            {
-                // move rest of data to beginning of buffer
-                for ( int i=(int)m_decodedpos; i<outpos; i++)
-                    m_outbuf[i - m_decodedpos] = m_outbuf[ i ];
-                //m_inbuf[i - m_decodedpos] = m_inbuf[ i ];
-                m_zstream.next_out -= m_decodedpos;
-                outpos -= m_decodedpos;
-                m_decodedpos = 0;
-                m_zstream.avail_out = ARC_OUTBUF_SIZE - outpos;
-            }
+        m_outpos = m_zstream.total_out;
+        m_zstream.next_out = m_outbuf;
+        m_zstream.avail_out = ARC_OUTBUF_SIZE;
+
+        int res = inflate(&m_zstream, m_inpos < m_packsize ? Z_NO_FLUSH : Z_FINISH);
+        switch (res) {
+        case Z_BUF_ERROR:
+        case Z_STREAM_END:
+        case Z_OK:
+            break;
+        default:
+            CRLog::error("ZIP stream: decoding error (%d)", res);
+            return false;
         }
-        // int decoded = m_zstream.avail_out;
-        int res = inflate( &m_zstream, m_inbytesleft > 0 ? Z_NO_FLUSH : Z_FINISH ); //m_inbytesleft | m_zstream.avail_in
-        // decoded -= m_zstream.avail_out;
-        if (res == Z_STREAM_ERROR)
-        {
-            return -1;
+
+        m_CRC = lStr_crc32(m_CRC, m_outbuf, getAvailBytes());
+        if (res == Z_STREAM_END && m_CRC != m_originalCRC) {
+            CRLog::error("ZIP stream '%s': CRC doesn't match", LCSTR(lString32(GetName())));
+            return false;
         }
-        if (res == Z_BUF_ERROR)
-        {
-            //return -1;
-            //res = 0; // DEBUG
-        }
-        avail = getAvailBytes();
-        return avail;
+
+        return true;
     }
     /// skip bytes from out stream
     bool skip( int bytesToSkip )
     {
-        while (bytesToSkip > 0)
-        {
-            int avail = decodeNext();
-
-            if (avail < 0)
-            {
-                return false; // error
-            }
-            else if (avail==0)
-            {
-                return true;
-            }
-
+        for ( ; ; ) {
+            int avail = getAvailBytes();
             if (avail >= bytesToSkip)
-                avail = bytesToSkip;
-
-            m_decodedpos += avail;
-            m_outbytesleft -= avail;
+                return true;
             bytesToSkip -= avail;
+            if (!decodeNext())
+                return false;
         }
-        if (bytesToSkip == 0)
-            return true;
-        return false;
-    }
-    /// decode bytes
-    int read( lUInt8 * buf, int bytesToRead )
-    {
-        int bytesRead = 0;
-        //
-        while (bytesToRead > 0)
-        {
-            int avail = decodeNext();
-
-            if (avail < 0)
-            {
-                return -1; // error
-            }
-            else if (avail==0)
-            {
-                avail = decodeNext();
-                (void)avail; // never read
-                return bytesRead;
-            }
-
-            int delta = avail;
-            if (delta > bytesToRead)
-                delta = bytesToRead;
-
-
-            // copy data
-            lUInt8 * src = m_outbuf + m_decodedpos;
-            for (int i=delta; i>0; --i)
-                *buf++ = *src++;
-
-            m_decodedpos += delta;
-            m_outbytesleft -= delta;
-            bytesRead += delta;
-            bytesToRead -= delta;
-        }
-        return bytesRead;
     }
 public:
 
@@ -2466,53 +2358,57 @@ public:
 
     virtual bool Eof()
     {
-        return m_outbytesleft==0; //m_pos >= m_size;
+        return m_pos == m_unpacksize;
     }
-    virtual lvsize_t  GetSize()
+    virtual lvsize_t GetSize()
     {
         return m_unpacksize;
     }
     virtual lvpos_t GetPos()
     {
-        return m_unpacksize - m_outbytesleft;
+        return m_pos;
     }
     virtual lverror_t GetPos( lvpos_t * pos )
     {
         if (pos)
-            *pos = m_unpacksize - m_outbytesleft;
+            *pos = m_pos;
         return LVERR_OK;
     }
     virtual lverror_t Seek(lvoffset_t offset, lvseek_origin_t origin, lvpos_t* newPos)
     {
-        lvpos_t npos = 0;
-        lvpos_t currpos = GetPos();
+        if (!m_zInitialized)
+            return LVERR_FAIL;
+
+        lvpos_t abspos;
         switch (origin) {
         case LVSEEK_SET:
-            npos = offset;
+            abspos = offset;
             break;
         case LVSEEK_CUR:
-            npos = currpos + offset;
+            abspos = m_pos + offset;
             break;
         case LVSEEK_END:
-            npos = m_unpacksize + offset;
+            abspos = m_unpacksize + offset;
             break;
-        }
-        if (npos > m_unpacksize)
+        default:
             return LVERR_FAIL;
-        if ( npos != currpos )
-        {
-            if (npos < currpos)
-            {
-                if ( !rewind() || !skip((int)npos) )
-                    return LVERR_FAIL;
-            }
-            else
-            {
-                skip( (int)(npos - currpos) );
-            }
         }
+        if (abspos > m_unpacksize)
+            return LVERR_FAIL;
+
+        if (abspos > m_zstream.total_out) {
+            if (!skip(abspos - m_zstream.total_out))
+                return LVERR_FAIL;
+        }
+        else if (abspos < m_outpos) {
+            if (!rewind() || !skip(abspos))
+                return LVERR_FAIL;
+        }
+
+        m_pos = abspos;
         if (newPos)
-            *newPos = npos;
+            *newPos = abspos;
+
         return LVERR_OK;
     }
     virtual lverror_t Write(const void*, lvsize_t, lvsize_t*)
@@ -2521,22 +2417,39 @@ public:
     }
     virtual lverror_t Read(void* buf, lvsize_t count, lvsize_t* bytesRead)
     {
-        int readBytes = read( (lUInt8 *)buf, (int)count );
-        if ( readBytes<0 )
+        if (!m_zInitialized)
             return LVERR_FAIL;
-        if ( readBytes!=(int)count ) {
-            CRLog::trace("ZIP stream: %d bytes read instead of %d", (int)readBytes, (int)count);
+
+        if ((m_pos + count) > m_unpacksize)
+            count = m_unpacksize - m_pos;
+
+        lUInt8 * ptr = (lUInt8 *)buf;
+        lUInt8 * end = ptr + count;
+
+        for ( ; ; ) {
+            int offset = m_pos - m_outpos;
+            int avail = getAvailBytes() - offset;
+            if ((ptr + avail) > end)
+                avail = end - ptr;
+            memcpy(ptr, m_outbuf + offset, avail);
+            m_pos += avail;
+            ptr += avail;
+            if (ptr >= end)
+                break;
+            if (!decodeNext())
+                break;
         }
+
         if (bytesRead)
-            *bytesRead = (lvsize_t)readBytes;
-        //CRLog::trace("%d bytes requested, %d bytes read, %d bytes left", count, readBytes, m_outbytesleft);
-        return LVERR_OK;
+            *bytesRead = ptr - (lUInt8 *)buf;
+
+        return ptr != end ? LVERR_FAIL : LVERR_OK;
     }
     virtual lverror_t SetSize(lvsize_t)
     {
         return LVERR_NOTIMPL;
     }
-    static LVStream * Create( LVStreamRef stream, lvpos_t pos, lString32 name, lvsize_t srcPackSize, lvsize_t srcUnpSize )
+    static LVStream * Create( LVStreamRef stream, lvpos_t pos, lString32 name, lvsize_t srcPackSize, lvsize_t srcUnpSize, lUInt32 srcCRC )
     {
         ZipLocalFileHdr hdr;
         unsigned hdr_size = 0x1E; //sizeof(hdr);
@@ -2547,101 +2460,29 @@ public:
             return NULL;
         hdr.byteOrderConv();
 
-        lvsize_t packSize = (lvsize_t)hdr.getPackSize();
-        lvsize_t unpSize = (lvsize_t)hdr.getUnpSize();
-
-#if LVLONG_FILE_SUPPORT == 1
-        // ZIP64: read extra data and use related fields
-        int extraPosUnpSize = -1;
-        int extraPosPackSize = -1;
-        int extraLastPos = 0;
-        Zip64ExtInfo* zip64ExtInfo = NULL;
-        if (0xFFFFFFFF == hdr.getUnpSize()) {
-            extraPosUnpSize = extraLastPos;
-            extraLastPos += 8;
-        }
-        if (0xFFFFFFFF == hdr.getPackSize()) {
-            extraPosPackSize = extraLastPos;
-            extraLastPos += 8;
-        }
-        bool zip64 = extraLastPos > 0;
-        // Skip name entry
-        if ( stream->Seek(hdr.getNameLen(), LVSEEK_CUR, NULL) != LVERR_OK) {
+        pos += hdr_size + hdr.getNameLen() + hdr.getAddLen();
+        if ((lvpos_t)(pos + srcPackSize) > (lvpos_t)stream->GetSize())
             return NULL;
-        }
-        // read extra data
-        if (hdr.getAddLen() > ZIPHDR_MAX_XT) {
-            CRLog::error("ZIP entry extra data is too long: %u, trunc to %u",
-                         (unsigned int)hdr.getAddLen(), (unsigned int)ZIPHDR_MAX_XT);
-        }
-        lvsize_t extraSizeToRead = (hdr.getAddLen() < ZIPHDR_MAX_XT) ? hdr.getAddLen() : ZIPHDR_MAX_XT;
-        lvoffset_t XT_skipped_sz = (hdr.getAddLen() > ZIPHDR_MAX_XT) ? (lvoffset_t)(hdr.getAddLen() - ZIPHDR_MAX_XT) : 0;
-        lUInt8 extra[ZIPHDR_MAX_XT];
-        lverror_t err = stream->Read(extra, extraSizeToRead, &ReadSize);
-        if (err != LVERR_OK || ReadSize != extraSizeToRead) {
-            CRLog::error("error while reading zip header extra data");
-            return NULL;
-        }
-        if (XT_skipped_sz > 0) {
-            if (stream->Seek(XT_skipped_sz, LVSEEK_CUR, NULL) != LVERR_OK) {
-                CRLog::error("error while skipping the long zip entry extra data");
-                return NULL;
-            }
-        }
-        // Find Zip64 extension if required
-        lvsize_t offs = 0;
-        Zip64ExtInfo* ext;
-        if (zip64) {
-            while (offs + 4 < extraSizeToRead) {
-                ext = (Zip64ExtInfo*)&extra[offs];
-                ext->byteOrderConv();
-                if ( 0x0001 == ext->Tag ) {
-                    zip64ExtInfo = ext;
-                    break;
-                } else {
-                    offs += 4 + ext->Size;
-                }
-            }
-        }
-        if (zip64ExtInfo != NULL) {
-            if (extraPosUnpSize >= 0)
-                unpSize = zip64ExtInfo->getField64(extraPosUnpSize);
-            if (extraPosPackSize >= 0)
-                packSize = zip64ExtInfo->getField64(extraPosPackSize);
-        }
-#endif
 
-        pos += 0x1e + hdr.getNameLen() + hdr.getAddLen();
-#if LVLONG_FILE_SUPPORT != 1
-        if ( stream->Seek( pos, LVSEEK_SET, NULL )!=LVERR_OK )
-            return NULL;
-#endif
-
-        // When local header does not carry these sizes, use the ones
-        // that come from zip central directory
-        if ( packSize==0 ) packSize = srcPackSize;
-        if ( unpSize==0 ) unpSize = srcUnpSize;
-
-        if ((lvpos_t)(pos + packSize) > (lvpos_t)stream->GetSize())
-            return NULL;
-        if (hdr.getMethod() == 0) {
+        switch (hdr.getMethod()) {
+        case 0:
             // store method, copy as is
-            if ( packSize != unpSize )
+            if (srcPackSize != srcUnpSize)
                 return NULL;
-            LVStreamFragment * fragment = new LVStreamFragment( stream, pos, packSize);
-            fragment->SetName( name.c_str() );
-            return fragment;
-        } else if (hdr.getMethod() == 8) {
+            break;
+        case 8:
             // deflate
-            LVStreamRef srcStream( new LVStreamFragment( stream, pos, packSize) );
-            LVZipDecodeStream * res = new LVZipDecodeStream( srcStream, pos,
-                packSize, unpSize, hdr.getCRC() );
-            res->SetName( name.c_str() );
-            return res;
-        } else {
+            break;
+        default:
             CRLog::error("Unimplemented compression method: 0x%02X", hdr.getMethod());
             return NULL;
         }
+
+        LVNamedStream * res = new LVStreamFragment(stream, pos, srcPackSize);
+        if (hdr.getMethod())
+            res = new LVZipDecodeStream(LVStreamRef(res), srcPackSize, srcUnpSize, srcCRC);
+        res->SetName(name.c_str());
+        return res;
     }
 };
 
@@ -2670,7 +2511,8 @@ public:
                 item->GetSrcPos(),
                 fn,
                 item->GetSrcSize(),
-                item->GetSize() )
+                item->GetSize(),
+                item->GetCRC())
         );
         if (!stream.isNull()) {
             stream->SetName(item->GetName());
@@ -2829,6 +2671,7 @@ public:
                 ZipHeader.UnpOS = ZipHd1.UnpOS;
                 ZipHeader.Flags = ZipHd1.Flags;
                 ZipHeader.ftime = ZipHd1.getftime();
+                ZipHeader.CRC = ZipHd1.getCRC();
                 ZipHeader.PackSize = ZipHd1.getPackSize();
                 ZipHeader.UnpSize = ZipHd1.getUnpSize();
                 ZipHeader.NameLen = ZipHd1.getNameLen();
@@ -2985,10 +2828,10 @@ public:
                 if (extraPosOffset >= 0)
                     fileOffset = zip64ExtInfo->getField64(extraPosOffset);
             }
-            item->SetItemInfo(fName.c_str(), fileUnpSize, (ZipHeader.getAttr() & 0x3f));
+            item->SetItemInfo(fName.c_str(), fileUnpSize, ZipHeader.getAttr() & 0x3f, ZipHeader.CRC);
             item->SetSrc(fileOffset, filePackSize, ZipHeader.Method);
 #else
-            item->SetItemInfo(fName.c_str(), ZipHeader.UnpSize, (ZipHeader.getAttr() & 0x3f));
+            item->SetItemInfo(fName.c_str(), ZipHeader.UnpSize, ZipHeader.getAttr() & 0x3f, ZipHeader.CRC);
             item->SetSrc(ZipHeader.getOffset(), ZipHeader.PackSize, ZipHeader.Method);
 #endif
             Add(item);
