@@ -2327,11 +2327,13 @@ private:
             return false;
         }
 
+#if 0
         m_CRC = lStr_crc32(m_CRC, m_outbuf, getAvailBytes());
         if (res == Z_STREAM_END && m_CRC != m_originalCRC) {
             CRLog::error("ZIP stream '%s': CRC doesn't match", LCSTR(lString32(GetName())));
             return false;
         }
+#endif
 
         return true;
     }
