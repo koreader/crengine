@@ -54,8 +54,8 @@
 
 #define RN_LINE_IS_RTL 0x1000
 
-#define RN_GET_SPLIT_BEFORE(flags) (flags & 0x7)
-#define RN_GET_SPLIT_AFTER(flags) (flags >> 3)
+#define RN_GET_SPLIT_BEFORE(flags) ((flags >> RN_SPLIT_BEFORE) & 0x7)
+#define RN_GET_SPLIT_AFTER(flags)  ((flags >> RN_SPLIT_AFTER)  & 0x7)
 
 #define RN_PAGE_TYPE_NORMAL           0x01
 #define RN_PAGE_TYPE_COVER            0x02
