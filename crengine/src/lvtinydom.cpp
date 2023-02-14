@@ -1225,10 +1225,12 @@ bool CacheFile::open( LVStreamRef stream )
 
     if ( !readIndex() ) {
         CRLog::error("CacheFile::open : cannot read index from file");
+        printf("CRE: failed reading index from cache file\n");
         return false;
     }
     if (_enableCacheFileContentsValidation && !validateContents() ) {
         CRLog::error("CacheFile::open : file contents validation failed");
+        printf("CRE: failed validating cache file contents\n");
         return false;
     }
     return true;
@@ -3904,6 +3906,12 @@ ldomDocument::ldomDocument()
 , _toc_from_cache_valid(false)
 , _warnings_seen_bitmap(0)
 , _doc_rendering_hash(0)
+, _partial_rerendering_enabled(false)
+, _partial_rerenderings_count(0)
+, _partial_rerendering_fake_node_style_hash(0)
+, _rerendering_delayed(false)
+, _rendered_fragments(16)
+, _doc_pages(NULL)
 #endif
 , lists(100)
 {
@@ -3949,6 +3957,12 @@ ldomDocument::ldomDocument( ldomDocument & doc )
 , _page_width(doc._page_width)
 , _screen_height(doc._screen_height)
 , _screen_width(doc._screen_width)
+, _partial_rerendering_enabled(false)
+, _partial_rerenderings_count(0)
+, _partial_rerendering_fake_node_style_hash(0)
+, _rerendering_delayed(false)
+, _rendered_fragments(16)
+, _doc_pages(NULL)
 #endif
 , _container(doc._container)
 , lists(100)
@@ -5129,6 +5143,218 @@ bool ldomDocument::parseStyleSheet(lString32 cssFile)
     return parser.Parse(cssFile, _stylesheet);
 }
 
+// Support for partial rerendering
+bool ldomDocument::canBePartiallyRerendered() {
+    // We only support documents with DocFragments (epub, chm), as we need a single set of concatenated
+    // siblings to be able to do individual partial rerenderings without too much complexity.
+    // FB2 unfortunately have 1 main <body> (containing <section>, that would each be interesting
+    // to render partially) and up to 2 other <body> for footnotes (where each <section> contains
+    // a single footnote). This DOM layout doesn't allow for easy rerendering.
+    // For other formats like HTML, we wouldn't know what elements to use as fragments.
+    if ( !hasCacheFile() ) {
+        // If no cache file, we won't be able to render in background
+        // and reload from the cache file quickly.
+        return false;
+    }
+    ldomNode * node = getRootNode()->getChildNode(0);
+    if ( node ) {
+        // We need at least 2 <DocFragment> for partial rerenderings to have some benefit
+        if ( node->getChildCount() >= 2 && node->getChildNode(0)->getNodeId() == el_DocFragment ) {
+            return true;
+            // Note: it may happen that the first DocFragment holds only a cover image, and
+            // a second the full book content, which makes partial rerendering quite useless,
+            // but this and similar ugly cases are hard to detect...
+        }
+    }
+    return false;
+}
+
+bool ldomDocument::enablePartialRerendering( bool enable ) {
+    if ( enable && !_partial_rerendering_enabled && canBePartiallyRerendered() && _rendered ) {
+        // This needs to be called after the document has been fully rendered once.
+        _partial_rerendering_enabled = true;
+        // Remember _nodeStyleHash as it was before enabling partial rendering, and keep using it.
+        // If no rendering setting has changed (no partial rerendering needed), ldomDocument::render()
+        // won't have done setCacheFileStale(false) and we can still save a valid cache with the DOM
+        // and the initial full rendering infos.
+        _partial_rerendering_fake_node_style_hash = _nodeStyleHash;
+        // Assume a full rendering has been done and no rerendering is needed at this point: update
+        // hashes and compute our reference _doc_rendering_hash for things already rendered:
+        updateRenderContext();
+        // Set all _rendered_fragments hash to be our current full rendering hash
+        ldomNode * node = getRootNode()->getChildNode(0);
+        int nb_docfragments = node->getChildCount();
+        for (int idx = 0; idx < nb_docfragments; idx++) {
+            ldomNode * docfragment = node->getChildNode(idx);
+            _rendered_fragments.set(docfragment->getDataIndex(), _doc_rendering_hash);
+                // (We use the node DataIndex and not idx, in case we later are able
+                // to use other kind of fragments, possibly not siblings.)
+        }
+    }
+    else if ( !enable && _partial_rerendering_enabled ) {
+        bool did_some_partial_rerenderings = _partial_rerenderings_count > 0;
+        _partial_rerendering_enabled = false;
+        _partial_rerendering_fake_node_style_hash = 0;
+        _partial_rerenderings_count = 0;
+        _rerendering_delayed = false;
+        _rendered_fragments.clear();
+        _nodeStyleHash = 0; // have it recomputed
+        if ( did_some_partial_rerenderings ) {
+            // Some partial rerenderings did happen: the rendering info
+            // are inconsistent, a full rerendering is needed.
+            // Be sure the next checkRenderContext() fails, so a full rererendering is done:
+            _hdr.render_style_hash = 0;
+            // Disabling can't fail, so the return value would always be false, stating
+            // it is disabled, which is a bit useless.
+            // Have a returned value of true means a full rerendering is needed,
+            // so frontends can provoke it.
+            return true;
+        }
+    }
+    return _partial_rerendering_enabled;
+}
+
+bool ldomDocument::partialRender( ldomNode * node ) {
+    // printf("partialRender %x? %x != %x)\n", node->getDataIndex(), _rendered_fragments.get(node->getDataIndex()), _doc_rendering_hash);
+    if ( _rendered_fragments.get(node->getDataIndex()) == _doc_rendering_hash ) {
+        // Already partially rendered for the current _doc_rendering_hash
+        return false;
+    }
+    _rendered_fragments.set(node->getDataIndex(), _doc_rendering_hash);
+
+    // As the reference absolute y (start of the height section what we'll be replacing),
+    // we use the previous DocFragment bottom. DocFragments can be separated by some
+    // vertical space, which are the collapsed margins made from the previous DocFragment's
+    // last child and this DocFragment's first child. We can't compute that accurately
+    // when partially rendering, not knowing how much the previous DocFragment (that
+    // we are not rerendering) contributed to it.
+    // Assume that all the spacing was contributed by the collapsed top margins
+    // of the DocFragment we are rerendering (which should be sane if a page
+    // break happened between these 2 DocFragment, as the collapsed bottom margin
+    // would be ignored).
+    int base_y;     // reference absolute y
+    int base_rel_y; // Docfragment y relative to its container (rootnode>body) top
+    lvRect orig_rc;
+    node->getAbsRect(orig_rc); // Original absolute rectangle this DocFragment occupies
+
+    if ( node->getNodeIndex() > 0 ) { // Not the first DocFragment
+        ldomNode * parent = node->getParentNode();
+        ldomNode * prev_sibling = parent->getChildNode(node->getNodeIndex() - 1);
+        lvRect prev_rc;
+        prev_sibling->getAbsRect(prev_rc);
+        base_y = prev_rc.bottom;
+        RenderRectAccessor psfmt( prev_sibling );
+        base_rel_y = psfmt.getY() + psfmt.getHeight();
+    }
+    else { // First DocFragment
+        base_y = 0;
+        if ( orig_rc.top > 0 ) {
+            // orig_rc.top can only be positive (due to some collapsed margin that
+            // has been ensured by shifting this DocFragment's parent's top down)
+            // the first time we fully rendered the document.
+            // At the end of this first partial rerendering, we will have put the
+            // top margin inside the DocFrament, and orig_rc.top will become 0
+            // by having a negative relative y so it is positionned a bit outside
+            // of its parent (we don't want to touch the parent's top, as all
+            // other DocFragments are positionned relative to it).
+            base_rel_y = -orig_rc.top;
+        }
+        else {
+            // top is 0, either because there were originally no top margin, or
+            // because we already did some partial rerendering and we had to put
+            // the top margin inside it: just fetch back what we previously set
+            // it to (which will be 0 if originally no top margin).
+            RenderRectAccessor fmt( node );
+            base_rel_y = fmt.getY();
+        }
+    }
+
+    // Init styles and rendering methods of this DocFragment and its content
+    // (as done in ldomDocument::render())
+    _renderedBlockCache.clear();
+    _stylesheet.push();
+    // applyDocumentStyleSheet(); // not needed (should only do something on FB2)
+    node->initNodeStyleRecursive(NULL); // (no callback)
+    _styleSheetCache.clear();
+    _stylesheet.pop();
+    node->initNodeRendMethodRecursive();
+
+    // Render this DocFragment, and build a new pages list (as if this DocFrament was a standalone document)
+    _renderedBlockCache.reduceSize(1); // Reduce size to save some checking and trashing time
+    LVRendPageList newpages;
+    LVRendPageContext context( &newpages, _page_height, _def_font->getSize() );
+    renderBlockElement( context, node, 0, base_y, _page_width, _partial_rerendering_usable_left_overflow, _partial_rerendering_usable_right_overflow);
+    _renderedBlockCache.restoreSize(); // Restore original cache size
+    context.Finalize(); // build the new pages
+        // As-is, newpages may contain in-page footnotes, but only those found in this same
+        // DocFragment. Those in a later DocFragment won't be found, and so won't be shown.
+        // We would have liked to include them: for each href= met when rendering this DocFragment
+        // (they are available as the keys of the private context.footNotes), we would need to
+        // find out the DocFragment nodes that contain these targets, and partially render each
+        // of them, to pick out their footnotes and somehow forward them into our 'context' here
+        // so they are included when making the pages of this DocFragment by context.Finalize().
+        // This feels complicated (mostly, the part of adjusting the y/h of all the fragments
+        // we may met, before or after this one (and if before, re-adjusting this one), and we
+        // would need to update all the footnotes lines y/h of all the fragment we have already
+        // partially rerendered (or discard them if simpler).
+        // Moreover, we can't know if a href= will really link to a footnote before rendering
+        // its target DocFragment: it could be a link to another chapter, and we would partially
+        // render this whole chapter (and if on an in-book ToC, linking to all the chapters, we
+        // would be partially rerender the whole book!)
+        // So, sadly, but to be safe and quick, we won't do this complicated work: we will miss
+        // some in-page footnotes when doing partial rerenderings (but we'll meet them back on
+        // the next full rerendering).
+
+    // Reset this DocFragment relative y to our expected value
+    {
+        RenderRectAccessor fmt( node );
+        fmt.setY( base_rel_y );
+        fmt.push();
+    }
+    // Compute the delta of height changed, which next fragments should be shifted by
+    lvRect new_rc;
+    node->getAbsRect(new_rc);
+    int orig_h = orig_rc.bottom - base_y;
+    int new_h = new_rc.bottom - base_y;
+    int next_fragments_shift_y = new_rc.bottom - orig_rc.bottom;
+    // printf("fixing fragment %d (%d ~ %d => %d , +%d => +%d)\n", node->getNodeIndex(), base_y, orig_rc.top, new_rc.top, orig_h, new_h);
+
+    // Update all next DocFragments' relative y
+    ldomNode * parent = node->getParentNode();
+    int nb_siblings = parent->getChildCount();
+    for (int idx = node->getNodeIndex()+1; idx < nb_siblings; idx++) {
+        ldomNode * sibling = parent->getChildNode(idx);
+        RenderRectAccessor sfmt( sibling );
+        // printf("fixing sibling %d (%d => %d +%d)\n", idx, sfmt.getY(), sfmt.getY() + next_fragments_shift_y, sfmt.getHeight());
+        sfmt.setY(sfmt.getY() + next_fragments_shift_y);
+        sfmt.push();
+    }
+    while ( parent ) {
+        // Update parents' heights
+        RenderRectAccessor pfmt( parent );
+        pfmt.setHeight(pfmt.getHeight() + next_fragments_shift_y);
+        pfmt.push();
+        parent = parent->getParentNode();
+    }
+
+    // Replace the original pages this DocFragment previously rendered to,
+    // with the one we just build.
+    if ( _doc_pages ) {
+        _doc_pages->replacePages(base_y, orig_h, &newpages, next_fragments_shift_y);
+    }
+    _pagesData.setPos(0); // so a next render() won't go deserializing them from _pageData
+
+    _partial_rerenderings_count++;
+    return true;
+    // We don't do anything more: this should allow most of crengine features like
+    // turning pages and jumping to xpointers to work, but some cached stuff like
+    // the ToC may not be up to date. We'd rather not spend additional time
+    // rebuilding them and get quicker drawing.
+    // KOReader, which has even more caching on its frontend side, will stay in
+    // a degraded state, and will ensure a full rerendering in the background and
+    // a cache save, and will soon reload the document from that new cache.
+}
+
 bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback, int width, int dy,
                            bool showCover, int y0, font_ref_t def_font, int def_interline_space,
                            CRPropRef props, int usable_left_overflow, int usable_right_overflow )
@@ -5155,6 +5381,50 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
 
     bool was_just_rendered_from_cache = _just_rendered_from_cache; // cleared by checkRenderContext()
     if ( !checkRenderContext() ) {
+        // Remember these, in case we later do partial rerenderings
+        _partial_rerendering_usable_left_overflow = usable_left_overflow;
+        _partial_rerendering_usable_right_overflow = usable_right_overflow;
+
+        // If partial rerendering enabled, we won't do more than this. The work will happen at drawing time.
+        if ( _rendered && _partial_rerendering_enabled && !was_just_rendered_from_cache ) {
+            // We need the document to be once fully renderered to be able to do partial rerenderings
+            // of fragments. (Not if was_just_rendered_from_cache, as if checkRenderContext() detected
+            // this cache is invalid, we want to have a full rerendering.)
+
+            // Be careful with the existing cache
+            if (_cacheFile) {
+                // Flush any pending write, mostly caused by updateHeader(), which doesn't Flush(),
+                // that may have been called on a newly created cache file: otherwise, we may have
+                // what it has written and yet not flushed, written over (at document close time)
+                // by any cache file we may have rebuild in the background, even if we don't write
+                // anything anymore thanks to setCacheFileStale(false) we set next below.
+                CRTimerUtil infinite;
+                _cacheFile->flush(false, infinite);
+            }
+            // Be sure we don't save a cache with partial rendering stuff: any previous cache (even
+            // the one we opened from) will be fine if we are going to reload from it: the DOM will
+            // be available, and if the rendering hash doesn't match, a full rerendering will be made.
+            setCacheFileStale(false);
+
+            // We need to init the styles of the root node and the parent node of the DocFragments,
+            // so each DocFragment we will partially render can inherit updated styles from it.
+            getRootNode()->initNodeStyle();
+            getRootNode()->getChildNode(0)->initNodeStyle();
+            // Resets list items info (ie. padding, which may depend on the font size). This affects
+            // the whole document, but they will be recomputed when needed.
+            resetNodeNumberingProps();
+
+            // Save rendering settings and hash, so a next checkRenderContext() can notice any new change
+            updateRenderContext();
+            // Let frontend know some partial rerenderings is needed, so it can trigger drawing
+            // of the current page and get the current DocFragment partially rerendered.
+            _rerendering_delayed = true;
+            // A partial rerendering will update LVDocView's m_pages in-place: keep it reachable.
+            _doc_pages = pages;
+            // Pretend to LVDocView::Render() that no rerendering was done, to avoid some of its work
+            return false;
+        }
+
         if ( _nodeDisplayStyleHashInitial == NODE_DISPLAY_STYLE_HASH_UNINITIALIZED ) { // happen when just loaded
             // For knowing/debugging cases when node styles set up during loading
             // is invalid (should happen now only when EPUB has embedded fonts
@@ -16260,8 +16530,13 @@ bool tinyNodeCollection::loadStylesData()
     return !stylebuf.error();
 }
 
-lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered)
+lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered, lUInt32 force_node_style_hash)
 {
+    if ( force_node_style_hash ) {
+        // When partially rerendered/rerendering, as some nodes subtress can change style, we use
+        // this static value, resetting any 0 that may have been set when styles did change
+        _nodeStyleHash = force_node_style_hash;
+    }
     CRLog::debug("calcStyleHash start");
 //    int maxlog = 20;
     lUInt32 res = 0; //_elemCount;
@@ -17008,7 +17283,7 @@ void ldomDocument::updateRenderContext()
     int dx = _page_width;
     int dy = _page_height;
     _nodeStyleHash = 0; // force recalculation by calcStyleHash()
-    lUInt32 styleHash = calcStyleHash(_rendered);
+    lUInt32 styleHash = calcStyleHash(_rendered, _partial_rerendering_fake_node_style_hash);
     lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
     _hdr.render_style_hash = styleHash;
@@ -17037,9 +17312,14 @@ bool ldomDocument::checkRenderContext()
     }
     int dx = _page_width;
     int dy = _page_height;
-    lUInt32 styleHash = calcStyleHash(_rendered);
+    // printf("checkRenderContext: _nodeStyleHash before %x\n", _nodeStyleHash);
+    lUInt32 styleHash = calcStyleHash(_rendered, _partial_rerendering_fake_node_style_hash);
     lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
+    // printf("checkRenderContext: _nodeStyleHash after  %x\n", _nodeStyleHash);
+    // printf("checkRenderContext: Style hash %x!=%x\n", styleHash, _hdr.render_style_hash);
+    // printf("checkRenderContext: doc rend hash %x!=%x\n", _doc_rendering_hash, _hdr.getRenderingHash());
+    // printf("checkRenderContext: Width %d!=%d\n", dx, (int)_hdr.render_dx);
     if ( styleHash != _hdr.render_style_hash ) {
         CRLog::info("checkRenderContext: Style hash doesn't match %x!=%x", styleHash, _hdr.render_style_hash);
         res = false;
