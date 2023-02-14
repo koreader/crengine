@@ -3078,14 +3078,16 @@ void LVDocView::Render(int dx, int dy, LVRendPageList * pages) {
 /// A changed hash let frontends know their cached values of some document
 /// properties (full height, TOC pages...) may have changed and that they
 /// need to fetch them again
-lUInt32 LVDocView::getDocumentRenderingHash() {
+lUInt32 LVDocView::getDocumentRenderingHash(bool extended) {
     if (m_doc) {
-        // Also account for the number of pages, as toggling m_twoVisiblePagesAsOnePageNumber
-        // does not change the document rendering hash, but it does change page numbers
-        // Also account for the document height, just to be sure
-        return ((( (lUInt32)m_doc->getDocumentRenderingHash()) * 31
-                 + (lUInt32)m_doc->getFullHeight()) * 31
-                 + (lUInt32)getPageCount());
+        lUInt32 hash = (lUInt32)m_doc->getDocumentRenderingHash();
+        if (extended) {
+            // Also account for the number of pages, as toggling m_twoVisiblePagesAsOnePageNumber
+            // does not change the document rendering hash, but it does change page numbers
+            // Also account for the document height, just to be sure
+            hash = (hash*31 + (lUInt32)m_doc->getFullHeight())*31 + (lUInt32)getPageCount();
+        }
+        return hash;
     }
     return 0;
 }
