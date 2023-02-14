@@ -15733,6 +15733,7 @@ bool ldomDocument::openFromCache( CacheLoadingCallback * formatCallback, LVDocVi
     _rendered = true;
     _just_rendered_from_cache = true;
     _toc_from_cache_valid = true;
+    _doc_rendering_hash = _hdr.getRenderingHash();
     // Use cached node_displaystyle_hash as _nodeDisplayStyleHashInitial, as it
     // should be in sync with the DOM stored in the cache
     _nodeDisplayStyleHashInitial = _hdr.node_displaystyle_hash;
@@ -17018,13 +17019,7 @@ void ldomDocument::updateRenderContext()
     _hdr.node_displaystyle_hash = _nodeDisplayStyleHashInitial; // we keep using the initial one
     CRLog::info("Updating render properties: styleHash=%x, stylesheetHash=%x, docflags=%x, width=%x, height=%x, nodeDisplayStyleHash=%x",
                 _hdr.render_style_hash, _hdr.stylesheet_hash, _hdr.render_docflags, _hdr.render_dx, _hdr.render_dy, _hdr.node_displaystyle_hash);
-    _doc_rendering_hash = ((((((
-         + (lUInt32)dx) * 31
-         + (lUInt32)dy) * 31
-         + (lUInt32)_docFlags) * 31
-         + (lUInt32)_nodeDisplayStyleHashInitial) * 31
-         + (lUInt32)stylesheetHash) * 31
-         + (lUInt32)styleHash);
+    _doc_rendering_hash = _hdr.getRenderingHash();
 }
 
 /// check document formatting parameters before render - whether we need to reformat; returns false if render is necessary
