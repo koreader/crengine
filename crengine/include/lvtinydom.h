@@ -689,6 +689,8 @@ public:
     void setProps( CRPropRef props ) { _docProps = props; }
 
 #if BUILD_LITE!=1
+    /// is cache file stale
+    bool isCacheFileStale() { return _cacheFileStale; }
     /// set cache file stale flag
     void setCacheFileStale( bool stale ) { _cacheFileStale = stale; }
 

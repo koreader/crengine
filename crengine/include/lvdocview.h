@@ -949,7 +949,8 @@ public:
     /// A changed hash let frontends know their cached values of some document
     /// properties (full height, TOC pages...) may have changed and that they
     /// need to fetch them again
-    lUInt32 getDocumentRenderingHash();
+    /// With extended=true, accounts for a few more view-related state.
+    lUInt32 getDocumentRenderingHash(bool extended=false);
 
     /// Constructor
     LVDocView( int bitsPerPixel=-1, bool noDefaultDocument=false );
