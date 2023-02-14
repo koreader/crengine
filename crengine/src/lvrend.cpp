@@ -9625,6 +9625,18 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
             }
         }
 
+        if ( enode->getNodeId()==el_DocFragment && enode->getDocument()->isPartialRerenderingEnabled() ) {
+            // Check if rerendering needed, and do it if it is
+            if ( enode->getDocument()->partialRender(enode) ) {
+                // Re-rendered, recheck if it is part of the viewport
+                fmt = RenderRectAccessor( enode );
+                height = fmt.getHeight();
+                if ( (doc_y + height + bottom_overflow <= 0 || doc_y - top_overflow >= 0 + dy) ) {
+                    return; // out of range
+                }
+            }
+        }
+
         int direction = RENDER_RECT_GET_DIRECTION(fmt);
         bool is_rtl = direction == REND_DIRECTION_RTL; // shortcut for followup tests
 

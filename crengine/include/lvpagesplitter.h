@@ -240,6 +240,7 @@ public:
     bool hasNonLinearFlows() { return has_nonlinear_flows; }
     bool serialize( SerialBuf & buf );
     bool deserialize( SerialBuf & buf );
+    void replacePages( int old_y, int old_h, LVRendPageList * pages, int next_pages_shift_y );
 };
 
 class LVFootNote;

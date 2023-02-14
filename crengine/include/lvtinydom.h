@@ -537,7 +537,7 @@ protected:
     bool saveStylesData();
     bool loadStylesData();
     bool updateLoadedStyles( bool enabled );
-    lUInt32 calcStyleHash(bool already_rendered);
+    lUInt32 calcStyleHash(bool already_rendered, lUInt32 force_node_style_hash=0);
     bool saveNodeData();
     bool saveNodeData( lUInt16 type, ldomNode ** list, int nodecount );
     bool loadNodeData();
@@ -2512,6 +2512,17 @@ private:
     lUInt32 _warnings_seen_bitmap;
     ldomXRangeList _selections;
     lUInt32 _doc_rendering_hash;
+
+    // Support for partial rerendering
+    bool _rerendering_delayed; // when render props changed, but no rerendering yet (can be reset by frontend once dealt with)
+    bool _partial_rerendering_enabled; // toggable by frontend
+    int  _partial_rerendering_usable_left_overflow;
+    int  _partial_rerendering_usable_right_overflow;
+    lUInt32 _partial_rerenderings_count;
+    lUInt32 _partial_rerendering_fake_node_style_hash;
+    // mapping of DocFragment node dataIndex to the _doc_rendering_hash that this docFragment is currently rendered for
+    LVHashTable<lUInt32, lUInt32> _rendered_fragments;
+    LVRendPageList * _doc_pages; // pointer to LVDocView's m_pages
 #endif
 
     lString32 _docStylesheetFileName;
@@ -2699,6 +2710,24 @@ public:
     /// set global rendering properties
     virtual bool setRenderProps( int width, int dy, bool showCover, int y0, font_ref_t def_font,
                                  int def_interline_space, CRPropRef props );
+
+    // Support for partial rerendering
+    bool canBePartiallyRerendered();
+    bool enablePartialRerendering( bool enable );
+    bool isPartialRerenderingEnabled() {
+        return _partial_rerendering_enabled;
+    }
+    lUInt32 getPartialRerenderingsCount() {
+        return _partial_rerenderings_count;
+    }
+    bool isRerenderingDelayed( bool reset=false ) {
+        bool rerendering_delayed = _rerendering_delayed;
+        if ( _rerendering_delayed && reset ) {
+            _rerendering_delayed = false;
+        }
+        return rerendering_delayed;
+    }
+    bool partialRender( ldomNode * node );
 #endif
     /// create xpointer from pointer string
     ldomXPointer createXPointer( const lString32 & xPointerStr );
