@@ -1396,6 +1396,15 @@ protected:
         lUInt32 node_displaystyle_hash;
         bool serialize( SerialBuf & buf );
         bool deserialize( SerialBuf & buf );
+        lUInt32 getRenderingHash() {
+            return ((((((
+                 + (lUInt32)render_dx) * 31
+                 + (lUInt32)render_dy) * 31
+                 + (lUInt32)render_docflags) * 31
+                 + (lUInt32)node_displaystyle_hash) * 31
+                 + (lUInt32)stylesheet_hash) * 31
+                 + (lUInt32)render_style_hash);
+        };
         DocFileHeader()
             : render_dx(0), render_dy(0), render_docflags(0), render_style_hash(0), stylesheet_hash(0),
                 node_displaystyle_hash(NODE_DISPLAY_STYLE_HASH_UNINITIALIZED)
