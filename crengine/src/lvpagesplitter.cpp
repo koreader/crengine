@@ -149,7 +149,8 @@ void LVRendPageContext::newFlow( bool nonlinear )
     if (nonlinear) {
        max_flow++;
        current_flow = max_flow;
-       page_list->setHasNonLinearFlows();
+       if ( page_list )
+           page_list->setHasNonLinearFlows();
     } else {
        current_flow = 0;
     }
@@ -1383,3 +1384,60 @@ bool LVRendPageInfo::deserialize( SerialBuf & buf )
     return !buf.error();
 }
 
+void LVRendPageList::replacePages(int old_y, int old_h, LVRendPageList * pages, int next_pages_shift_y)
+{
+    int i = 0;
+    int remove_idx = -1;
+    int remove_count = 0;
+    int insert_idx = -1;
+    int added_count = pages->length();
+    int new_page_index_shift = 0;
+    for  ( int i=0; i < length(); i++ ) {
+        LVRendPageInfo * pi = ((*this)[i]);
+        if ( pi->start + pi->height <= old_y ) {
+            // printf("%d (%d +%d) left as is\n", pi->index, pi->start, pi->height);
+            continue; // page fully before
+        }
+        if ( pi->start < old_y ) {
+            // part of this page before: truncate it
+            pi->height = old_y - pi->start;
+            insert_idx = i + 1;
+            // printf("%d (%d +%d) truncated\n", pi->index, pi->start, pi->height);
+            continue;
+        }
+        if ( pi->start >= old_y + old_h ) {
+            // page fully after
+            pi->start += next_pages_shift_y;
+            pi->index += added_count - remove_count;
+            // printf("%d (%d +%d) after, fixed\n", pi->index, pi->start, pi->height);
+        }
+        else if ( pi->start + pi->height > old_y + old_h ) {
+            // part of this page after: truncate it
+            pi->start = old_y + old_h;
+            pi->height = pi->start + pi->height - pi->start;
+            pi->index += added_count - remove_count;
+            // printf("%d (%d +%d) truncated\n", pi->index, pi->start, pi->height);
+        }
+        else {
+            // Page fully in old_y > old_h
+            if ( remove_idx < 0 )
+                remove_idx = i;
+            remove_count++;
+            // printf("%d (%d +%d) will be removed\n", pi->index, pi->start, pi->height);
+        }
+        if ( insert_idx < 0 )
+            insert_idx = i;
+    }
+    // printf("LVRendPageList::replacePages at %d (h=%d +%d): %d/%d -%d+%d\n", old_y, old_h, next_pages_shift_y, remove_idx, insert_idx, remove_count, pages->length());
+    if ( remove_idx >= 0 )
+        erase( remove_idx, remove_count );
+    if ( insert_idx < 0 )
+        insert_idx = length();
+    while ( pages->length() ) {
+        LVRendPageInfo * pi = pages->popHead();
+        pi->index = insert_idx;;
+        insert( insert_idx, pi );
+        // printf("%d (%d +%d) inserted\n", pi->index, pi->start, pi->height);
+        insert_idx++;
+    }
+}

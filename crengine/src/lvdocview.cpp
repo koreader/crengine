@@ -729,7 +729,20 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, bool autoResize) {
 	}
 	//CRLog::trace("Draw() : calling Draw(buf(%d x %d), %d, %d, false)",
 	//		drawbuf.GetWidth(), drawbuf.GetHeight(), offset, p);
+	lUInt32 prev_partial_rerenderings_count = m_doc->getPartialRerenderingsCount();
 	Draw(drawbuf, offset, p, false, autoResize);
+	while ( m_doc->getPartialRerenderingsCount() != prev_partial_rerenderings_count ) {
+		// If the document was partially rerendered, reposition on the new y of
+		// the xpointer of original top of page (as it may have changed after
+		// rerendering the fragment), and redraw.
+		// (While doing this, we may rerender other fragments. So, do this as many
+		// times as needed, hopefully not infinitely!)
+		prev_partial_rerenderings_count = m_doc->getPartialRerenderingsCount();
+		lvPoint pt = _posBookmark.toPoint();
+		SetPos(pt.y, false);
+		Draw(drawbuf, _pos, -1, false, autoResize);
+			// this will find out the correct page from our page list
+	}
 }
 
 #if CR_ENABLE_PAGE_IMAGE_CACHE==1
@@ -2083,6 +2096,7 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 			//CRLog::trace("Entering drawCoverTo()");
 			drawCoverTo(drawbuf, rc);
 		} else {
+			lUInt32 prev_partial_rerenderings_count = m_doc->getPartialRerenderingsCount();
 			// If we have footnotes that we'll put at bottom of page, make sure we
 			// clip above them (tall inline-block content, even if split across pages,
 			// could have their content painted over the footnotes)
@@ -2115,6 +2129,9 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 						m_dy,    // page_height
 						&m_markRanges, &m_bmkRanges);
 			//CRLog::trace("Done DrawDocument() for main text");
+			if ( m_doc->getPartialRerenderingsCount() != prev_partial_rerenderings_count ) {
+				return; // this page may have been deleted/replaced, and footnotes would be invalid
+			}
 
 			// Draw footnotes at the bottom of page (put any remaining blank space above them)
 			int fny = clip.top + (page.height ? page.height + footnote_margin
