@@ -5126,8 +5126,15 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                             elem = elem->getUnboxedPrevSibling(true, exceptBoxingNodeId); // skip text nodes
                             if (!elem)
                                 break;
-                            if (_attrid == csspc_nth_child || elem->getNodeId() == nodeId)
+                            if (_attrid == csspc_nth_child || elem->getNodeId() == nodeId) {
+                                int nprev;
+                                if ( get_cached_node_checked_property(elem, _attrid, nprev) ) {
+                                    // Computed and cached on a previous sibling: stop counting
+                                    n += nprev;
+                                    break;
+                                }
                                 n++;
+                            }
                         }
                         cache_node_checked_property(node, _attrid, n);
                     }
@@ -5147,10 +5154,29 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                             elem = elem->getUnboxedNextSibling(true, exceptBoxingNodeId); // skip text nodes
                             if (!elem)
                                 break;
-                            if (_attrid == csspc_nth_last_child || elem->getNodeId() == nodeId)
+                            if (_attrid == csspc_nth_last_child || elem->getNodeId() == nodeId) {
                                 n++;
+                                // Unlike csspc_nth_child/csspc_nth_of_type just above, there's
+                                // little luck for next sibling nodes to have their value cached
+                                // if this node did not have it cached (as we apply styles from
+                                // first to last), so, no need to check for it.
+                            }
                         }
                         cache_node_checked_property(node, _attrid, n);
+                        // As this may be expensive if checked again on all next siblings, and
+                        // as we just computed the value for this node, we can update the cache
+                        // for all next siblings.
+                        elem = node;
+                        int nnext = n - 1;
+                        for (;;) {
+                            elem = elem->getUnboxedNextSibling(true, exceptBoxingNodeId); // skip text nodes
+                            if (!elem)
+                                break;
+                            if (_attrid == csspc_nth_last_child || elem->getNodeId() == nodeId) {
+                                cache_node_checked_property(elem, _attrid, nnext);
+                                nnext--;
+                            }
+                        }
                     }
                     return match_nth_value(_value, n);
                 }
