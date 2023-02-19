@@ -6033,10 +6033,23 @@ void LVStyleSheet::merge(const LVStyleSheet &other) {
     if (length > _selectors.length())
         _selectors.set(length - 1, nullptr);
     for (int i = 0; i < length; ++i) {
+        if (!other._selectors[i])
+            continue;
+        LVCssSelector *prev = NULL;
+        LVCssSelector *next = _selectors[i];
         for (LVCssSelector *p = other._selectors[i]; p; p = p->getNext()) {
             LVCssSelector *item = p->getCopy();
             item->addSpecificity(_selector_count);
-            insert_into_selectors(item, _selectors);
+            while (next && next->getSpecificity() <= item->getSpecificity()) {
+                prev = next;
+                next = next->getNext();
+            }
+            item->setNext(next);
+            if (prev)
+                prev->setNext(item);
+            else
+                _selectors[i] = item;
+            prev = item;
         }
     }
     _selector_count += other._selector_count;
