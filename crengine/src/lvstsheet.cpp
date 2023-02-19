@@ -5918,20 +5918,25 @@ lUInt32 LVStyleSheet::getHash()
 // insert with specificity sorting
 static void insert_into_selectors(LVCssSelector *item, LVPtrVector<LVCssSelector> &selectors) {
     lUInt16 id = item->getElementNameId();
-    if (!selectors[id] || selectors[id]->getSpecificity() > item->getSpecificity()) {
-        // insert as first item
-        item->setNext(selectors[id]);
-        selectors[id] = item;
-    } else {
-        // insert as internal item
-        for (LVCssSelector *p = selectors[id]; p; p = p->getNext()) {
-            if (!p->getNext() || p->getNext()->getSpecificity() > item->getSpecificity()) {
-                item->setNext(p->getNext());
-                p->setNext(item);
-                break;
-            }
-        }
+    if (id >= selectors.length() || !selectors[id]) {
+        item->setNext(NULL);
+        selectors.set(id, item);
+        return;
     }
+    LVCssSelector *prev = NULL;
+    LVCssSelector *next = selectors[id];
+    lUInt32 specificity = item->getSpecificity();
+    while (specificity >= next->getSpecificity()) {
+        prev = next;
+        next = next->getNext();
+        if (!next)
+            break;
+    }
+    item->setNext(next);
+    if (prev)
+        prev->setNext(item);
+    else
+        selectors[id] = item;
 }
 
 bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, lString32 codeBase )
@@ -6014,14 +6019,9 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
         {
             // Ok:
             // place rules to sheet
-            for (LVCssSelector * p = selector; p;  )
-            {
-                LVCssSelector * item = p;
-                p=p->getNext();
-                lUInt16 id = item->getElementNameId();
-                if (_selectors.length()<=id)
-                    _selectors.set(id, NULL);
-                insert_into_selectors(item, _selectors);
+            for (LVCssSelector * next, * p = selector; p; p = next) {
+                next = p->getNext();
+                insert_into_selectors(p, _selectors);
             }
         }
     }
