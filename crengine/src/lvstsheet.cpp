@@ -5885,7 +5885,7 @@ lUInt32 LVCssSelectorRule::getHash()
     return hash;
 }
 
-lUInt32 LVCssSelector::getHash()
+lUInt32 LVCssSelector::getHash() const
 {
     lUInt32 hash = 0;
     lUInt32 nextHash = 0;

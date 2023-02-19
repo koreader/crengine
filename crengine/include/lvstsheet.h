@@ -177,7 +177,7 @@ public:
     LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
     ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
-    lUInt16 getElementNameId() { return _id; }
+    lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node ) const;
     void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
     void apply( const ldomNode * node, css_style_rec_t * style ) const
@@ -196,11 +196,11 @@ public:
     }
     void setDeclaration( LVCssDeclRef decl ) { _decl = decl; }
     void addSpecificity(lUInt32 specificity) { _specificity += specificity; }
-    lUInt32 getSpecificity() { return _specificity; }
-    LVCssSelector * getNext() { return _next; }
+    lUInt32 getSpecificity() const { return _specificity; }
+    LVCssSelector * getNext() const { return _next; }
     void setNext(LVCssSelector * next) { _next = next; }
-    lUInt32 getHash();
-    LVCssSelector * getCopy() {
+    lUInt32 getHash() const;
+    LVCssSelector * getCopy() const {
         // Return a copy (with everything except _next) that can
         // be delete()'d without impacting this LVCssSelector
         LVCssSelector *s = new LVCssSelector();
