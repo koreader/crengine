@@ -1791,6 +1791,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
             drawbuf->FillRect(x, gpos - 2 - sz/2, x + szx, gpos - 2 + sz/2 + 1, cl);
 	}
 
+	TextLangCfg * lang_cfg = TextLangMan::getTextLangCfg( getLanguage() );
 	lString32 text;
 	//int iy = info.top; // + (info.height() - m_infoFont->getHeight()) * 2 / 3;
         int iy = info.top + /*m_infoFont->getHeight() +*/ (info.height() - m_infoFont->getHeight()) / 2 - HEADER_MARGIN/2;
@@ -1884,7 +1885,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		if (!pageinfo.empty()) {
 			piw = m_infoFont->getTextWidth(pageinfo.c_str(), pageinfo.length());
 			m_infoFont->DrawTextString(drawbuf, info.right - piw, iy,
-					pageinfo.c_str(), pageinfo.length(), U' ', NULL, false);
+					pageinfo.c_str(), pageinfo.length(), U' ', NULL, false, lang_cfg);
 			info.right -= piw + info.height() / 2;
 		}
 		if (phi & PGHDR_CLOCK) {
@@ -1936,7 +1937,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	text = fitTextWidthWithEllipsis(text, m_infoFont, newcr.width());
 	if (!text.empty()) {
 		m_infoFont->DrawTextString(drawbuf, info.left, iy, text.c_str(),
-				text.length(), U' ', NULL, false);
+				text.length(), U' ', NULL, false, lang_cfg);
 	}
 	drawbuf->SetClipRect(&oldcr);
 	//--------------
