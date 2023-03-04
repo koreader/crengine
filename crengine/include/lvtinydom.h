@@ -1676,9 +1676,11 @@ public:
     /// returns true if current node is element
     inline bool isText() const { return !isNull() && getNode()->isText(); }
     /// returns HTML (serialized from the DOM, may be different from the source HTML)
-    lString8 getHtml( lString32Collection & cssFiles, int wflags=0 );
+    lString8 getHtml( lString32Collection & cssFiles, lString8 & extra, int wflags=0 );
     lString8 getHtml( int wflags=0 ) {
-        lString32Collection cssFiles; return getHtml(cssFiles, wflags);
+        lString32Collection cssFiles;
+        lString8 extra;
+        return getHtml(cssFiles, extra, wflags);
     }
 };
 
@@ -2041,9 +2043,11 @@ public:
     /// returns nearest common element for start and end points
     ldomNode * getNearestCommonParent();
     /// returns HTML (serialized from the DOM, may be different from the source HTML)
-    lString8 getHtml( lString32Collection & cssFiles, int wflags=0, bool fromRootNode=false );
+    lString8 getHtml( lString32Collection & cssFiles, lString8 & extra, int wflags=0, bool fromRootNode=false );
     lString8 getHtml( int wflags=0, bool fromRootNode=false ) {
-        lString32Collection cssFiles; return getHtml(cssFiles, wflags, fromRootNode);
+        lString32Collection cssFiles;
+        lString8 extra;
+        return getHtml(cssFiles, extra, wflags, fromRootNode);
     };
 
     /// searches for specified text inside range

@@ -4323,12 +4323,12 @@ static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_
                                                         ///  in &cssFiles (needed when not starting from root node)
 #define WRITENODEEX_INCLUDE_STYLESHEET_ELEMENT   0x4000 ///< includes crengine <stylesheet> element in HTML
                                                         ///  (not done if outside of sub-tree)
-#define WRITENODEEX_COMPUTED_STYLES_AS_ATTR      0x8000 ///< set style='' from computed styles (not implemented)
+#define WRITENODEEX_EXTRA_OFFSETS_SELECTORS      0x8000 ///< fill extra_stream with offset in stream / CSS selectors for met elements
 
 
 #define WNEFLAG(x) ( wflags & WRITENODEEX_##x )
 
-static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection & cssFiles, int wflags=0,
+static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection & cssFiles, LVStream * extra_stream, int wflags=0,
     ldomXPointerEx startXP=ldomXPointerEx(), ldomXPointerEx endXP=ldomXPointerEx(), int indentBaseLevel=-1)
 {
     bool isStartNode = false;
@@ -4665,6 +4665,12 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
         }
         if ( !elemNsName.empty() )
             elemName = elemNsName + ":" + elemName;
+        if ( WNEFLAG(EXTRA_OFFSETS_SELECTORS) ) {
+            *extra_stream << lString8().appendDecimal(stream->GetPos());
+            *extra_stream << "\t" << lString8().appendDecimal(level);
+            *extra_stream << "\t" << lString8().appendDecimal(node->getDataIndex());
+            *extra_stream << "\t" << elemName;
+        }
         *stream << "<" << elemName;
         if ( isInitialNode ) {
             // Add any dir="rtl" and lang="ar_AA" attributes grabbed from some parent node
@@ -4707,6 +4713,26 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                     if (!cssFiles.contains(cssFile))
                         cssFiles.add(cssFile);
                 }
+                if ( WNEFLAG(EXTRA_OFFSETS_SELECTORS) ) {
+                    if ( attrName == "class" ) {
+                        if ( attrValue[attrValue.length()-1] == ' ' ) {
+                            // we have appended a space when there was some inner space, meaning
+                            // this class attribute contains multiple class names.
+                            lString8Collection classes(attrValue, cs8(" "));
+                            for (int i=0; i < classes.length(); i++) {
+                                if ( !classes[i].empty() )
+                                    *extra_stream << "\t." << classes[i];
+                            }
+                        }
+                        else {
+                            *extra_stream << "\t." << attrValue;
+                        }
+                    }
+                    else {
+                        // Ignoring an attribute or its value is left to frontend
+                        *extra_stream << "\t[" << attrName << "=" << attrValue << "]";
+                    }
+                }
             }
         }
         if ( WNEFLAG(SHOW_REND_METHOD) ) {
@@ -4727,6 +4753,9 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                 default:                     *stream << "?";     break;
             }
         }
+        if ( WNEFLAG(EXTRA_OFFSETS_SELECTORS) ) {
+            *extra_stream << "\n";
+        }
         if ( node->getChildCount() == 0 ) {
             if ( elemName[0] == '?' )
                 *stream << "?>";
@@ -4739,7 +4768,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                 *stream << "\n";
             if ( ! isStylesheetTag ) {
                 for ( int i=0; i<(int)node->getChildCount(); i++ ) {
-                    writeNodeEx( stream, node->getChildNode(i), cssFiles, wflags, startXP, endXP, indentBaseLevel );
+                    writeNodeEx( stream, node->getChildNode(i), cssFiles, extra_stream, wflags, startXP, endXP, indentBaseLevel );
                 }
             }
             else {
@@ -4783,6 +4812,11 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                     *stream << " ";
                 }
             }
+        }
+        if ( WNEFLAG(EXTRA_OFFSETS_SELECTORS) ) {
+            *extra_stream << lString8().appendDecimal(stream->GetPos());
+            *extra_stream << "\t" << lString8().appendDecimal(level);
+            *extra_stream << "\n";
         }
         if (doNewLineAfterEndTag)
             *stream << "\n";
@@ -12477,25 +12511,35 @@ ldomNode * ldomXRange::getNearestCommonParent()
 
 /// returns HTML (serialized from the DOM, may be different from the source HTML)
 /// puts the paths of the linked css files met into the provided lString32Collection cssFiles
-lString8 ldomXPointer::getHtml(lString32Collection & cssFiles, int wflags)
+lString8 ldomXPointer::getHtml(lString32Collection & cssFiles, lString8 & extra, int wflags)
 {
     if ( isNull() )
         return lString8::empty_str;
     ldomNode * startNode = getNode();
     LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
-    writeNodeEx( stream.get(), startNode, cssFiles, wflags );
+    LVStreamRef extra_stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+    writeNodeEx( stream.get(), startNode, cssFiles, extra_stream.get(), wflags );
     int size = stream->GetSize();
     LVArray<char> buf( size+1, '\0' );
     stream->Seek(0, LVSEEK_SET, NULL);
     stream->Read( buf.get(), size, NULL );
     buf[size] = 0;
     lString8 html = lString8( buf.get() );
+
+    size = extra_stream->GetSize();
+    if ( size > 0 ) {
+        LVArray<char> exbuf( size+1, '\0' );
+        extra_stream->Seek(0, LVSEEK_SET, NULL);
+        extra_stream->Read( exbuf.get(), size, NULL );
+        exbuf[size] = 0;
+        extra = lString8( exbuf.get() );
+    }
     return html;
 }
 
 /// returns HTML (serialized from the DOM, may be different from the source HTML)
 /// puts the paths of the linked css files met into the provided lString32Collection cssFiles
-lString8 ldomXRange::getHtml(lString32Collection & cssFiles, int wflags, bool fromRootNode)
+lString8 ldomXRange::getHtml(lString32Collection & cssFiles, lString8 & extra, int wflags, bool fromRootNode)
 {
     if ( isNull() )
         return lString8::empty_str;
@@ -12511,13 +12555,23 @@ lString8 ldomXRange::getHtml(lString32Collection & cssFiles, int wflags, bool fr
         startNode = getNearestCommonParent();
     }
     LVStreamRef stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
-    writeNodeEx( stream.get(), startNode, cssFiles, wflags, getStart(), getEnd() );
+    LVStreamRef extra_stream = LVCreateMemoryStream(NULL, 0, false, LVOM_WRITE);
+    writeNodeEx( stream.get(), startNode, cssFiles, extra_stream.get(), wflags, getStart(), getEnd() );
     int size = stream->GetSize();
     LVArray<char> buf( size+1, '\0' );
     stream->Seek(0, LVSEEK_SET, NULL);
     stream->Read( buf.get(), size, NULL );
     buf[size] = 0;
     lString8 html = lString8( buf.get() );
+
+    size = extra_stream->GetSize();
+    if ( size > 0 ) {
+        LVArray<char> exbuf( size+1, '\0' );
+        extra_stream->Seek(0, LVSEEK_SET, NULL);
+        extra_stream->Read( exbuf.get(), size, NULL );
+        exbuf[size] = 0;
+        extra = lString8( exbuf.get() );
+    }
     return html;
 }
 
