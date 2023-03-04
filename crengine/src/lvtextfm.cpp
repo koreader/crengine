@@ -4595,6 +4595,22 @@ public:
                 maxWidth = getCurrentLineWidth();
             }
 
+            if ( m_flags[pos] & LCHAR_IS_CLUSTER_TAIL ) {
+                // This line starts with a cluster tail, probably because hyphenation was
+                // allowed inside this cluster. The first char(s) would get a width of 0,
+                // which may allow more text to be brought into this line: later, in AddLine(),
+                // we may have to handle the excess of text by reducing all spaces' widths
+                // and possibly making them all 0 or negative if needed.
+                // So, account for the whole cluster width into this line (by considering it as a
+                // negative spaceReduceWidth): it might be too much and we could do with a fraction
+                // of it (but which value?), but better too much spacing than not enough.
+                int bpos = pos - 1;
+                while ( bpos > 0 && m_flags[bpos] & LCHAR_IS_CLUSTER_TAIL )
+                    bpos--;
+                int cluster_width = (m_widths[bpos] - (bpos > 0 ? m_widths[bpos-1] : 0));
+                spaceReduceWidth -= cluster_width;
+            }
+
             // Find candidates where end of line is possible
             bool seen_non_collapsed_space = false;
             bool seen_first_rendered_char = false;
