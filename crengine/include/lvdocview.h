@@ -850,6 +850,8 @@ public:
 
     /// set document stylesheet text
     void setStyleSheet( lString8 css_text, bool use_macros=true );
+    /// gather snippets from all stylesheets involved that the provided node would match
+    void gatherStylesheetsMatchingRulesets( lUInt32 nodeDataIndex, lString8Collection & matches );
 
     /// set default interline space, percent (100..200)
     void setDefaultInterlineSpace( int percent );

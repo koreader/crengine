@@ -530,6 +530,16 @@ void LVDocView::updateDocStyleSheet() {
     m_stylesheetNeedsUpdate = false;
 }
 
+void LVDocView::gatherStylesheetsMatchingRulesets( lUInt32 nodeDataIndex, lString8Collection & matches ) {
+    matches.clear();
+    matches.add(cs8("/* --- in main stylesheet and tweaks: --- */"));
+    ldomNode * node = m_doc->getTinyNode( nodeDataIndex );
+    if ( node && node->isElement() ) {
+        // Provide our useragent stylesheet, that we have (here only) as plain text
+        node->gatherStylesheetMatchingRulesets(m_stylesheet, true, matches);
+    }
+}
+
 void LVDocView::Clear() {
 	{
 		LVLock lock(getMutex());

@@ -4985,6 +4985,54 @@ public:
         _nestingLevel -= 1;
         return (dest.parse(s, false, codeBase) || ret);
     }
+
+    // Logic similar to the above ones
+    void gatherNodeMatchingRulesets(lString32 cssFile, ldomNode * node, lString8Collection & matches) {
+        if ( cssFile.empty() )
+            return;
+        lString32 codeBase = cssFile;
+        LVExtractLastPathElement(codeBase);
+        LVContainerRef container = _document->getContainer();
+        if (!container.isNull()) {
+            LVStreamRef cssStream = container->OpenStream(cssFile.c_str(), LVOM_READ);
+            if (cssStream.isNull())
+                cssStream = container->OpenStream(DecodeHTMLUrlString(cssFile).c_str(), LVOM_READ);
+            if (!cssStream.isNull()) {
+                lString32 css;
+                css << LVReadTextFile(cssStream);
+                int offset = _inProgress.add(cssFile);
+                gatherNodeMatchingRulesets(codeBase, css, UnicodeToUtf8(cssFile), node, matches);
+                _inProgress.erase(offset, 1);
+            }
+        }
+    }
+    void gatherNodeMatchingRulesets(lString32 codeBase, lString32 css, lString8 sourceInfo, ldomNode * node, lString8Collection & matches) {
+        if ( css.empty() )
+            return;
+        lString8 css8 = UnicodeToUtf8(css);
+        const char * s = css8.c_str();
+        _nestingLevel += 1;
+        while (_nestingLevel < 11) { //arbitrary limit
+            lString8 import_file;
+            if ( LVProcessStyleSheetImport( s, import_file, _document ) ) {
+                lString32 importFilename = LVCombinePaths( codeBase, Utf8ToUnicode(import_file) );
+                if ( !importFilename.empty() && !_inProgress.contains(importFilename) ) {
+                    gatherNodeMatchingRulesets(importFilename, node, matches);
+                }
+            } else {
+                break;
+            }
+        }
+        _nestingLevel -= 1;
+        // Add the source filename as a CSS comment, even if there will be no match,
+        // so we know we looked into it.
+        lString8 source_info;
+        source_info << "/* --- in " << sourceInfo << ": --- */";
+        matches.add(source_info);
+        LVStyleSheet styleSheet(_document);
+        styleSheet.gatherNodeMatchingRulesets(node, s, matches);
+    }
+
 private:
     ldomDocument  *_document;
     lString32Collection _inProgress;
@@ -8469,6 +8517,32 @@ bool ldomNode::applyNodeStylesheet()
 #endif
     return false;
 }
+
+void ldomNode::gatherStylesheetMatchingRulesets(lString8 css, bool include_document_stylesheets, lString8Collection & matches) {
+    LVStyleSheet styleSheet(getDocument());
+    styleSheet.gatherNodeMatchingRulesets(this, css.c_str(), matches);
+    if ( include_document_stylesheets ) {
+        // Find the nodes and stylesheets as in ldomNode::applyNodeStylesheet() above.
+        // (This also handles FB2's <FictionBook><stylesheet> as in ldomDocument::applyDocumentStyleSheet().)
+        for ( ldomNode * tmp = this; tmp && !tmp->isNull() && !tmp->isRoot(); tmp = tmp->getParentNode() ) {
+            lUInt16 nodeId = tmp->getNodeId();
+            if ( nodeId == el_DocFragment && tmp->hasAttribute(attr_StyleSheet) ) {
+                LVImportStylesheetParser parser(getDocument());
+                parser.gatherNodeMatchingRulesets(tmp->getAttributeValue(attr_StyleSheet), this, matches);
+            }
+            if ( nodeId == el_DocFragment || nodeId == el_body || nodeId == el_FictionBook) {
+                if ( tmp->getChildCount() > 0 ) {
+                    ldomNode *styleNode = tmp->getChildNode(0);
+                    if ( styleNode && styleNode->getNodeId()==el_stylesheet ) {
+                        LVImportStylesheetParser parser(getDocument());
+                        parser.gatherNodeMatchingRulesets(styleNode->getAttributeValue(attr_href), styleNode->getText(), cs8("head styles"), this, matches);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #endif
 
 void ldomElementWriter::addAttribute( lUInt16 nsid, lUInt16 id, const lChar32 * value )

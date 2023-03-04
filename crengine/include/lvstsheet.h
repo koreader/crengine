@@ -299,6 +299,8 @@ public:
     /// calculate hash
     lUInt32 getHash();
     void merge(const LVStyleSheet &other);
+    /// gather snippets in the provided CSS that the provided node would match
+    bool gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches);
 };
 
 /// parse number/length value like "120px" or "90%"

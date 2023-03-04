@@ -923,6 +923,9 @@ public:
     void initNodeRendMethodRecursive();
     /// init render method for the whole subtree
     void initNodeStyleRecursive( LVDocViewCallback * progressCallback );
+
+    /// gather snippets from all stylesheets involved that this node would match
+    void gatherStylesheetMatchingRulesets(lString8 css, bool include_document_stylesheets, lString8Collection & matches);
 #endif
 
 

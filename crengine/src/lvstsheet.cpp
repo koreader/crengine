@@ -6028,6 +6028,79 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
     return _selectors.length() > 0;
 }
 
+/// Gather snippets in the provided CSS that the provided node would match
+bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) {
+    // Parsing as in parseAndAdvance() but simplified as we don't need to build anything
+    bool ret = false;
+    if ( !_doc ) {
+        return ret;
+    }
+    lUInt16 id = node->getNodeId();
+    if ( id == el_body && node->getParentNode()->isRoot() ) {
+        return ret;
+    }
+    if ( id == el_pseudoElem ) { // get the id chain from the parent element
+        id = node->getUnboxedParent(el_mathBox)->getNodeId();
+    }
+    for (;*str;) {
+        // new section
+        bool match = false;
+        const char * start;
+        const char * end;
+        bool err = false;
+        for (;*str;) {
+            if ( !match ) {
+                // We will truncate the start of the snippet to the first matching selector
+                start = str;
+            }
+            LVCssSelector selector;
+            if ( !selector.parse(str, _doc) ) {
+                err = true;
+                break;
+            }
+            else {
+                if ( !match ) {
+                    lUInt16 selector_id = selector.getElementNameId();
+                    if ( selector_id == 0 || selector_id == id ) {
+                        if ( selector.check(node) ) {
+                            match = true;
+                        }
+                    }
+                }
+                if ( *str == ',' ) {
+                    str++;
+                    continue; // next selector
+                }
+            }
+            // parse declaration
+            LVCssDeclaration decl;
+            if ( !decl.parse( str, false, _doc) ) {
+                err = true;
+            }
+            end = str;
+            break;
+        }
+        if (err) {
+            // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly
+            if ( *str == '@' ) {
+                parse_or_skip_at_rule(str, _doc);
+            }
+            else {
+                // ignore current rule: skip to block closing '}'
+                skip_until_end_of_rule( str );
+            }
+        }
+        else {
+            if ( match ) {
+                skip_spaces(start); // cleanup up \n and spaces at start (end should already be clean)
+                matches.add(lString8(start, end-start).trim());
+                ret = true;
+            }
+        }
+    }
+    return ret;
+}
+
 void LVStyleSheet::merge(const LVStyleSheet &other) {
     int length = other._selectors.length();
     if (length > _selectors.length())
