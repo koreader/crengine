@@ -988,6 +988,10 @@ LVStreamRef LVDocView::getDocumentFileStream( lString32 filePath ) {
         if ( cont.isNull() ) // no real container
             cont = m_container; // consider document directory as the container
         LVStreamRef stream = cont->OpenStream(filePath.c_str(), LVOM_READ);
+        if (stream.isNull()) {
+            // Try again in case filePath is provided %-encoded
+            stream = cont->OpenStream(DecodeHTMLUrlString(filePath).c_str(), LVOM_READ);
+        }
         // if failure, a NULL stream is returned
         return stream;
     }
