@@ -2752,10 +2752,16 @@ ldomXPointer LVDocView::getNodeByPoint(lvPoint pt, bool strictBounds, bool forTe
 			//   returns some text from a paragraph a few pages above that doesn't have that margin...
 			// - pt might be in some inter paragraphs collapsed top/bottom margin, that would resolve
 			//   to none of them.
-			// Consider the ptr obtained with PT_DIR_EXACT valid only if non-null and if its rect contains pt.y
+			// Consider the ptr obtained with PT_DIR_EXACT valid only if non-null and if its rect contains pt.y,
+			// We also want to be sure that it's a xpointer to some text (which it should usually be - when it's
+			// not it may be because we did not find any text because of some left/right margin, and we may have
+			// reached an upper container that contains pt (ie. a DocFragment), and the way createXPointer()
+			// handles this case by returning the first or last child (ie. for a DocFragment, returning
+			// either <styleSheet> or <body>, the former being invalid, the latter being valid) could
+			// lead to inconsistent results when we cross the half of this block element's height...
 			bool valid = false;
 			lvRect rc;
-			if ( !ptr.isNull() && ptr.getRect(rc) ) {
+			if ( !ptr.isNull() && ptr.isText() && ptr.getRect(rc) ) {
 				if ( pt.y >= rc.top && pt.y < rc.bottom )
 					valid = true;
 			}
