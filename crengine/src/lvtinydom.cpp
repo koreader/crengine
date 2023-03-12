@@ -20350,6 +20350,10 @@ int ldomNode::getSurroundingAddedHeight(bool account_height_below_strut_baseline
                     if (line_h < 0) { // shouldn't happen
                         line_h = n->getFont()->getHeight(); // line-height: normal
                     }
+                    int interline_scale_factor = getDocument()->getInterlineScaleFactor();
+                    if ( style->line_height.type != css_val_screen_px && interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE ) {
+                        line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+                    }
                     int f_half_leading = (line_h - fh) / 2;
                     int baseline_to_bottom = line_h - fb - f_half_leading;
                     // Account the height below the strut baseline (but not
