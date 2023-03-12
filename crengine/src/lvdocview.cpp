@@ -5384,12 +5384,51 @@ ldomXPointer LVDocView::getBookmark( bool precise ) {
 }
 
 /// returns bookmark for specified page
-ldomXPointer LVDocView::getPageBookmark(int page) {
+ldomXPointer LVDocView::getPageBookmark(int page_num, bool precise, bool internal) {
 	LVLock lock(getMutex());
-    CHECK_RENDER("getPageBookmark()")
-	if (page < 0 || page >= m_pages.length())
+	CHECK_RENDER("getPageBookmark()")
+	if (!internal)
+		page_num = getInternalPageNumber(page_num);
+	if (page_num < 0 || page_num >= m_pages.length())
 		return ldomXPointer();
-	ldomXPointer ptr = m_doc->createXPointer(lvPoint(0, m_pages[page]->start));
+	// As done in getBookmark(() above
+	LVRendPageInfo * page = m_pages[page_num];
+	bool found = false;
+	ldomXPointer ptr;
+	ldomXPointer fallback_ptr;
+	if (precise) {
+		for (int y = page->start; y < page->start + page->height; y++) {
+			ptr = m_doc->createXPointer(lvPoint(0, y), PT_DIR_SCAN_FORWARD_LOGICAL_FIRST);
+			lvPoint pt = ptr.toPoint();
+			if (pt.y >= page->start) {
+				if (!fallback_ptr)
+					fallback_ptr = ptr;
+				if (pt.y < page->start + page->height) {
+					found = true;
+					break;
+				}
+			}
+		}
+	} else {
+		ptr = m_doc->createXPointer(lvPoint(0, page->start));
+		found = true;
+	}
+	if (!found) {
+		ptr = m_doc->createXPointer(lvPoint(0, page->start), PT_DIR_SCAN_BACKWARD_LOGICAL_FIRST);
+		lvPoint pt = ptr.toPoint();
+		if (pt.y >= page->start && pt.y < page->start + page->height ) {
+			found = true;
+		}
+	}
+	if (!found) {
+		if (!fallback_ptr.isNull()) {
+			ptr = fallback_ptr;
+		}
+		else {
+			// fallback to the one for page->start, even if not good
+			ptr = m_doc->createXPointer(lvPoint(0, page->start), PT_DIR_SCAN_BACKWARD_LOGICAL_FIRST);
+		}
+	}
 	return ptr;
 }
 
