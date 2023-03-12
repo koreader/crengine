@@ -824,7 +824,7 @@ public:
     /// returns bookmark
     ldomXPointer getBookmark( bool precise = true );
     /// returns bookmark for specified page
-    ldomXPointer getPageBookmark( int page );
+    ldomXPointer getPageBookmark( int page_num, bool precise=true, bool internal=false );
     /// sets current bookmark
     void setBookmark( ldomXPointer bm );
     /// moves position to bookmark
