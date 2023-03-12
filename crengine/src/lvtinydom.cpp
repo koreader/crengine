@@ -5461,6 +5461,10 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
 //        CRLog::trace("reusing existing format data...");
 //    }
 
+    if ( !_rendered ) {
+        // We have loaded the document and applied styles: drop this cache
+        _styleSheetCache.clear();
+    }
     bool was_just_rendered_from_cache = _just_rendered_from_cache; // cleared by checkRenderContext()
     if ( !checkRenderContext() ) {
         // Remember these, in case we later do partial rerenderings
