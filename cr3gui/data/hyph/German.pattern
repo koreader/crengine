@@ -36,20 +36,20 @@ original Author: Nikolay Pultsin (geometer@fbreader.org)
 ###############################################################################
 
 preamble from pat-gen by Martin.Zwicknagl@kirchbichl.net
-pattern file used: de-1996_righthyphenmin3-2023-03-01.pat
+pattern file used: de-1996_righthyphenmin3-2023-03-12.pat
 
 % title: German Hyphenation Patterns (Reformed Orthography, 2006)
 %
 % notice: TeX-Trennmuster für die reformierte (2006) deutsche Rechtschreibung
 %
-% version: 2023-03-01
+% version: 2023-03-12
 %
 % authors:
 %   -
 %     name:    Deutschsprachige Trennmustermannschaft
 %     contact: trennmuster@dante.de
 %
-% copyright: Copyright (c) 2013-2022
+% copyright: Copyright (c) 2013-2023
 %            Stephan Hennig, Werner Lemberg, Günter Milde,
 %            Sander van Geloven, Georg Pfeiffer, Gisbert W. Selke,
 %            Tobias Wendorf, Keno Wehr
@@ -79,7 +79,7 @@ pattern file used: de-1996_righthyphenmin3-2023-03-01.pat
 %           FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 %           OTHER DEALINGS IN THE SOFTWARE.
 %
-% source: https://repo.or.cz/w/wortliste.git?a=commit;h=2b914d240a2647665a225ced7006813f19c4f29a
+% source: https://repo.or.cz/w/wortliste.git?a=commit;h=e67ef612db4f5a8bda541c66ec1e79790134baaf
 %
 % language:
 %     name: German, reformed spelling
@@ -95,7 +95,7 @@ pattern file used: de-1996_righthyphenmin3-2023-03-01.pat
 %
 % ===========================================================================
 
-\message{German Hyphenation Patterns (Reformed Orthography, 2006) `dehyphn-x' 2023-03-01 (WL)}
+\message{German Hyphenation Patterns (Reformed Orthography, 2006) `dehyphn-x' 2023-03-12 (WL)}
 
 %
 % The used patgen parameters are
