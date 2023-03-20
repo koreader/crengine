@@ -219,8 +219,11 @@ lChar32 LVTextFileBase::ReadRtfChar( int, const lChar32 * conv_table )
     return ' ';
 }
 
-void LVTextFileBase::checkEof(lvsize_t bytes_needed)
+void LVTextFileBase::checkEof(int bytes_needed)
 {
+    int bytes_remaining = m_buf_len - m_buf_pos;
+    bytes_needed -= bytes_remaining;
+
     // If we would need bytes_needed more bytes to correctly complete a multibyte
     // char, and we would meet EOF before getting that many, this multibyte char
     // is truncated and invalid: do as if EOF was reached.
