@@ -227,7 +227,7 @@ void LVTextFileBase::checkEof(int bytes_needed)
     // If we would need bytes_needed more bytes to correctly complete a multibyte
     // char, and we would meet EOF before getting that many, this multibyte char
     // is truncated and invalid: do as if EOF was reached.
-    if ( m_buf_fpos+m_buf_len >= this->m_stream_size - bytes_needed)
+    if ( m_buf_fpos + m_buf_len + bytes_needed > this->m_stream_size )
         m_buf_pos = m_buf_len = m_stream_size - m_buf_fpos; //force eof
         //m_buf_pos = m_buf_len = m_stream_size - (m_buf_fpos+m_buf_len);
 }
