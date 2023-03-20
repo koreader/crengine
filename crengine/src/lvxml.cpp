@@ -408,9 +408,36 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             Utf8ToUnicode(m_buf + m_buf_pos, srclen, buf, dstlen);
             m_buf_pos += srclen;
             if (dstlen == 0) {
-                // we don't really know how much more are needed:
-                // we'd need to inspect the coming up chars we can reach
-                checkEof(4);
+                // We didn't decode anything: we might be on a multibyte char
+                // at end of buffer, that will be either filled when reading
+                // from file, or not if already at end of file.
+                if (m_buf_pos >= m_buf_len) {
+                    checkEof(1);
+                }
+                else {
+                    // Looking at Utf8ToUnicode(), it feels like if we are here with
+                    // bytes left in the buffer not yet consummed, it's always because
+                    // there are enough of them to not look yet invalid (they would
+                    // have been consumed and outputed as '?'), but not enough of them
+                    // to have the full sequence valid.
+                    lUInt16 ch = m_buf[m_buf_pos];
+                    if ( (ch & 0x80) == 0 ) { // Should be a 1-byte wide char
+                        // Should not happen, it should have been consumed
+                        checkEof(4); // be sure we don't get stuck
+                    }
+                    else if ( (ch & 0xE0) == 0xC0 ) { // Should be a 2-bytes wide char
+                        checkEof(2);
+                    }
+                    else if ( (ch & 0xF0) == 0xE0 ) { // Should be a 3-bytes wide char
+                        checkEof(3);
+                    }
+                    else if ( (ch & 0xF8) == 0xF0 ) { // Should be a 4-bytes wide char
+                        checkEof(4);
+                    }
+                    else { // Should not happen?
+                        checkEof(4); // be sure we don't get stuck
+                    }
+                }
             }
             return dstlen;
         }
