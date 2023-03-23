@@ -219,9 +219,15 @@ lChar32 LVTextFileBase::ReadRtfChar( int, const lChar32 * conv_table )
     return ' ';
 }
 
-void LVTextFileBase::checkEof()
+void LVTextFileBase::checkEof(int bytes_needed)
 {
-    if ( m_buf_fpos+m_buf_len >= this->m_stream_size-4 )
+    int bytes_remaining = m_buf_len - m_buf_pos;
+    bytes_needed -= bytes_remaining;
+
+    // If we would need bytes_needed more bytes to correctly complete a multibyte
+    // char, and we would meet EOF before getting that many, this multibyte char
+    // is truncated and invalid: do as if EOF was reached.
+    if ( m_buf_fpos + m_buf_len + bytes_needed > this->m_stream_size )
         m_buf_pos = m_buf_len = m_stream_size - m_buf_fpos; //force eof
         //m_buf_pos = m_buf_len = m_stream_size - (m_buf_fpos+m_buf_len);
 }
@@ -402,7 +408,36 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             Utf8ToUnicode(m_buf + m_buf_pos, srclen, buf, dstlen);
             m_buf_pos += srclen;
             if (dstlen == 0) {
-                checkEof();
+                // We didn't decode anything: we might be on a multibyte char
+                // at end of buffer, that will be either filled when reading
+                // from file, or not if already at end of file.
+                if (m_buf_pos >= m_buf_len) {
+                    checkEof(1);
+                }
+                else {
+                    // Looking at Utf8ToUnicode(), it feels like if we are here with
+                    // bytes left in the buffer not yet consummed, it's always because
+                    // there are enough of them to not look yet invalid (they would
+                    // have been consumed and outputed as '?'), but not enough of them
+                    // to have the full sequence valid.
+                    lUInt16 ch = m_buf[m_buf_pos];
+                    if ( (ch & 0x80) == 0 ) { // Should be a 1-byte wide char
+                        // Should not happen, it should have been consumed
+                        checkEof(4); // be sure we don't get stuck
+                    }
+                    else if ( (ch & 0xE0) == 0xC0 ) { // Should be a 2-bytes wide char
+                        checkEof(2);
+                    }
+                    else if ( (ch & 0xF0) == 0xE0 ) { // Should be a 3-bytes wide char
+                        checkEof(3);
+                    }
+                    else if ( (ch & 0xF8) == 0xF0 ) { // Should be a 4-bytes wide char
+                        checkEof(4);
+                    }
+                    else { // Should not happen?
+                        checkEof(4); // be sure we don't get stuck
+                    }
+                }
             }
             return dstlen;
         }
@@ -410,7 +445,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         {
             for ( ; count<maxsize; count++ ) {
                 if ( m_buf_pos+1>=m_buf_len ) {
-                    checkEof();
+                    checkEof(2);
                     return count;
                 }
                 lUInt16 ch = m_buf[m_buf_pos++];
@@ -426,13 +461,14 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         // based on ICONV code, gbk.h
         for ( ; count<maxsize; count++ ) {
             if (m_buf_pos >= m_buf_len) {
-                checkEof();
+                checkEof(1);
                 return count;
             }
             lUInt16 ch = m_buf[m_buf_pos++];
             int twoBytes = ch >= 0x81 && ch < 0xFF ? 1 : 0;
-            if ( m_buf_pos + twoBytes>=m_buf_len ) {
-                checkEof();
+            if (twoBytes && m_buf_pos >= m_buf_len) {
+                m_buf_pos--; // 2nd byte not yet in buffer: rewind, process them on next call
+                checkEof(2);
                 return count;
             }
             lUInt16 ch2 = 0;
@@ -479,7 +515,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         // based on ICONV code, gbk.h
         for ( ; count < maxsize - 1; count++ ) {
             if (m_buf_pos >= m_buf_len) {
-                checkEof();
+                checkEof(1);
                 return count;
             }
             lUInt16 ch = m_buf[m_buf_pos++];
@@ -497,8 +533,9 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             } else {
                 if ((ch >= 0x81 && ch <= 0x9f) || (ch >= 0xe0 && ch <= 0xfc)) {
                     /* Two byte character. */
-                    if (m_buf_pos + 1 >= m_buf_len) {
-                        checkEof();
+                    if (m_buf_pos >= m_buf_len) {
+                        m_buf_pos--; // 2nd byte not yet in buffer: rewind, process them on next call
+                        checkEof(2);
                         return count;
                     }
                     lUInt16 ch2 = 0;
@@ -554,6 +591,10 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
     {
         // based on ICONV code, gbk.h
         for ( ; count < maxsize-1; count++ ) {
+            if (m_buf_pos >= m_buf_len) {
+                checkEof(1);
+                return count;
+            }
             lUInt16 ch = m_buf[m_buf_pos++];
             lUInt16 res = 0;
             if (ch < 0x80) {
@@ -562,13 +603,15 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             } else {
                 if ((ch >= 0xa1 && ch <= 0xfe) || ch == 0x8e || ch == 0x8f) {
                     /* Two byte character. */
-                    if (m_buf_pos + 1 >= m_buf_len) {
-                        checkEof();
+                    if (m_buf_pos >= m_buf_len) {
+                        m_buf_pos--; // 2nd byte not yet in buffer: rewind, process them on next call
+                        checkEof(2);
                         return count;
                     }
                     lUInt16 ch2 = m_buf[m_buf_pos++];
-                    if (ch2 >= 0xa1 && ch2 <= 0xfe && ch == 0x8f && m_buf_pos + 2 >= m_buf_len) {
-                        checkEof();
+                    if (ch2 >= 0xa1 && ch2 <= 0xfe && ch == 0x8f && m_buf_pos >= m_buf_len) {
+                        m_buf_pos -= 2; // 3rd byte not yet in buffer: rewind, process them on next call
+                        checkEof(3);
                         return count;
                     }
 
@@ -618,7 +661,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         // based on ICONV code, gbk.h
         for ( ; count < maxsize - 1; count++ ) {
             if (m_buf_pos >= m_buf_len) {
-                checkEof();
+                checkEof(1);
                 return count;
             }
             lUInt16 ch = m_buf[m_buf_pos++];
@@ -629,8 +672,9 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             } else if (ch >= 0x81 && ch < 0xff) {
                 /* Code set 1 (BIG5 extended) */
                 {
-                    if (m_buf_pos + 1 >= m_buf_len) {
-                        checkEof();
+                    if (m_buf_pos >= m_buf_len) {
+                        m_buf_pos--; // 2nd byte not yet in buffer: rewind, process them on next call
+                        checkEof(2);
                         return count;
                     }
                     lUInt16 ch2 = m_buf[m_buf_pos++];
@@ -703,7 +747,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         // based on ICONV code, gbk.h
         for ( ; count < maxsize - 1; count++ ) {
             if (m_buf_pos >= m_buf_len) {
-                checkEof();
+                checkEof(1);
                 return count;
             }
             lUInt16 ch = m_buf[m_buf_pos++];
@@ -713,8 +757,9 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
             if (ch < 0x80)
                 res = ch;
             else if (ch >= 0xa1 && ch < 0xff) {
-                if (m_buf_pos + 1 >= m_buf_len) {
-                    checkEof();
+                if (m_buf_pos >= m_buf_len) {
+                    m_buf_pos--; // 2nd byte not yet in buffer: rewind, process them on next call
+                    checkEof(2);
                     return count;
                 }
                 /* Code set 1 (KS C 5601-1992, now KS X 1001:2002) */
@@ -736,7 +781,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         {
             for ( ; count<maxsize; count++ ) {
                 if ( m_buf_pos+1>=m_buf_len ) {
-                    checkEof();
+                    checkEof(2);
                     return count;
                 }
                 lUInt16 ch = m_buf[m_buf_pos++];
@@ -750,7 +795,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         {
             for ( ; count<maxsize; count++ ) {
                 if ( m_buf_pos+3>=m_buf_len ) {
-                    checkEof();
+                    checkEof(4);
                     return count;
                 }
                 m_buf_pos++; //lUInt16 ch = m_buf[m_buf_pos++];
@@ -766,7 +811,7 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
         {
             for ( ; count<maxsize; count++ ) {
                 if ( m_buf_pos+3>=m_buf_len ) {
-                    checkEof();
+                    checkEof(4);
                     return count;
                 }
                 lUInt16 ch = m_buf[m_buf_pos++];
