@@ -1598,8 +1598,40 @@ public:
             // Compute bidi levels
             fribidi_get_bidi_types( (const FriBidiChar*)m_text, m_length, m_bidi_ctypes);
             fribidi_get_bracket_types( (const FriBidiChar*)m_text, m_length, m_bidi_ctypes, m_bidi_btypes);
-            int max_level = fribidi_get_par_embedding_levels_ex(m_bidi_ctypes, m_bidi_btypes,
-                                m_length, (FriBidiParType*)&m_para_bidi_type, m_bidi_levels);
+
+            // We would have simply done:
+            //   int max_level = fribidi_get_par_embedding_levels_ex(m_bidi_ctypes, m_bidi_btypes,
+            //                     m_length, (FriBidiParType*)&m_para_bidi_type, m_bidi_levels);
+            // But unfortunately, fribidi_get_par_embedding_levels_ex() only works on a single
+            // paragraph, and will set bogus levels for the text following the first \n (or other
+            // Unicode Block Separators, BS), which may happen if this text is white-space:pre.
+            // FriBiDi expects us to work only on individual paragraphs. But we
+            // still want to process the whole text here so that we're done with it.
+            // So, split on BS and call fribidi_get_par_embedding_levels_ex() on
+            // each segment - hoping doing it that way is OK...
+            // Note that if we added Unicode BiDi control chars to ensure dir='rtl' carried
+            // by inner inline elements encompassing text nodes containing '\n', we will
+            // lose their state/balancing and get wrong results...
+            int max_level = 0;
+            int s_start = 0;
+            int i = 0;
+            while ( i <= m_length ) {
+                if ( i == m_length || m_bidi_ctypes[i] == FRIBIDI_TYPE_BS ) {
+                    int s_length = i - s_start;
+                    if (i < m_length)
+                        s_length += 1; // include BS at i in segment
+                    FriBidiCharType *    bidi_ctypes = (FriBidiCharType *)   (m_bidi_ctypes + s_start);
+                    FriBidiBracketType * bidi_btypes = (FriBidiBracketType *)(m_bidi_btypes + s_start);
+                    FriBidiLevel *       bidi_levels = (FriBidiLevel *)      (m_bidi_levels + s_start);
+                    int this_max_level = fribidi_get_par_embedding_levels_ex(bidi_ctypes, bidi_btypes,
+                                                                s_length, &m_para_bidi_type, bidi_levels);
+                    if ( this_max_level > max_level )
+                        max_level = this_max_level;
+                    s_start = i+1;
+                }
+                i++;
+            }
+
             // If computed max level == 1, we are in plain and only LTR, so no need for
             // more bidi work later.
             if ( max_level > 1 ) {
