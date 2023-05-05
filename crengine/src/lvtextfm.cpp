@@ -1321,11 +1321,50 @@ public:
                 for ( int k=0; k<len; k++ ) {
                     lChar32 c = m_text[pos];
 
+                    // We flag some chars as we want them to be ignored: some font
+                    // would render a glyph (like "[PDI]") for some control chars
+                    // that shouldn't be rendered (Harfbuzz would skip them by itself,
+                    // but we also want to skip them when using FreeType directly).
+                    // We don't skip them when filling these buffer, as some of them
+                    // can give valuable information to the bidi algorithm.
+                    // Ignore the unicode direction hints (that we may have added ourselves
+                    // in lvrend.cpp when processing <bdi>, <bdo> and the dir= attribute).
+                    // Try to balance the searches:
+                    bool is_to_ignore = false;
+                    if ( c >= 0x202A ) {
+                        if ( c <= 0x2069 ) {
+                            if ( c <= 0x202E ) is_to_ignore = true;      // 202A>202E
+                            else if ( c >= 0x2066 ) is_to_ignore = true; // 2066>2069
+                        }
+                    }
+                    else if ( c <= 0x009F ) {
+                        // Also ignore some ASCII and Unicode control chars
+                        // in the ranges 00>1F and 7F>9F, except a few.
+                        // (Some of these can be found in old documents or
+                        // badly converted ones)
+                        if ( c <= 0x001F ) {
+                            // Let \t \n \r be (they might have already been
+                            // expanded to spaces, converted or skipped)
+                            if ( c != 0x000A && c!= 0x000D && c!= 0x0009 )
+                                is_to_ignore = true; // 0000>001F except those above
+                        }
+                        else if ( c >= 0x007F ) {
+                            is_to_ignore = true;     // 007F>009F
+                        }
+                    }
+                    // We might want to add some others when we happen to meet them.
+                    // todo: see harfbuzz hb-unicode.hh is_default_ignorable() for how
+                    // to do this kind of check fast
+
                     // If not on a 'pre' text node, we should strip trailing
                     // spaces and collapse consecutive spaces (other spaces
                     // like UNICODE_NO_BREAK_SPACE should not collapse).
                     bool is_space = (c == ' ');
-                    if ( is_space && !preformatted ) {
+                    if ( is_to_ignore ) {
+                        m_flags[pos] = LCHAR_IS_TO_IGNORE;
+                        // Don't update any space related state when meeting an ignorable
+                    }
+                    else if ( is_space && !preformatted ) {
                         if ( prev_was_space ) {
                             // On non-pre text nodes, flag spaces following a space
                             // so we can discard them later.
@@ -1366,6 +1405,7 @@ public:
                                 }
                             }
                         }
+                        prev_was_space = true;
                     }
                     else {
                         // don't strip traling spaces if pre
@@ -1382,11 +1422,11 @@ public:
                             // of a space don't trigger
                             m_flags[pos] |= LCHAR_LOCKED_SPACING;
                         }
+                        prev_was_space = is_space || (c == '\n');
+                            // We might meet '\n' in PRE text, which shouldn't make any space
+                            // collapsed - except when "white-space: pre-line". So, have
+                            // a space following a \n be allowed to collapse.
                     }
-                    prev_was_space = is_space || (c == '\n');
-                        // We might meet '\n' in PRE text, which shouldn't make any space
-                        // collapsed - except when "white-space: pre-line". So, have
-                        // a space following a \n be allowed to collapse.
 
                     if ( lStr_isCJK(c) ) {
                         // We have some specific code for handling CJK typography, that we don't
@@ -1410,40 +1450,6 @@ public:
                     // Some of these (in the 2 commented lines just above) will be set
                     // in lvfntman measureText().
                     // We might want to have them all done here, for clarity.
-
-                    // We flag some chars as we want them to be ignored: some font
-                    // would render a glyph (like "[PDI]") for some control chars
-                    // that shouldn't be rendered (Harfbuzz would skip them by itself,
-                    // but we also want to skip them when using FreeType directly).
-                    // We don't skip them when filling these buffer, as some of them
-                    // can give valuable information to the bidi algorithm.
-                    // Ignore the unicode direction hints (that we may have added ourselves
-                    // in lvrend.cpp when processing <bdi>, <bdo> and the dir= attribute).
-                    // Try to balance the searches:
-                    if ( c >= 0x202A ) {
-                        if ( c <= 0x2069 ) {
-                            if ( c <= 0x202E ) m_flags[pos] = LCHAR_IS_TO_IGNORE;      // 202A>202E
-                            else if ( c >= 0x2066 ) m_flags[pos] = LCHAR_IS_TO_IGNORE; // 2066>2069
-                        }
-                    }
-                    else if ( c <= 0x009F ) {
-                        // Also ignore some ASCII and Unicode control chars
-                        // in the ranges 00>1F and 7F>9F, except a few.
-                        // (Some of these can be found in old documents or
-                        // badly converted ones)
-                        if ( c <= 0x001F ) {
-                            // Let \t \n \r be (they might have already been
-                            // expanded to spaces, converted or skipped)
-                            if ( c != 0x000A && c!= 0x000D && c!= 0x0009 )
-                                m_flags[pos] = LCHAR_IS_TO_IGNORE; // 0000>001F except those above
-                        }
-                        else if ( c >= 0x007F ) {
-                            m_flags[pos] = LCHAR_IS_TO_IGNORE;     // 007F>009F
-                        }
-                    }
-                    // We might want to add some others when we happen to meet them.
-                    // todo: see harfbuzz hb-unicode.hh is_default_ignorable() for how
-                    // to do this kind of check fast
 
                     // Note: the overhead of using one of the following is quite minimal, so do if needed
                     /*
@@ -1560,6 +1566,8 @@ public:
             for ( int k=last_non_space_pos+1; k<=pos; k++ ) {
                 if (m_flags[k] == LCHAR_IS_OBJECT)
                     continue; // don't unflag floats
+                if (m_flags[k] & LCHAR_IS_TO_IGNORE)
+                    continue;
                 m_flags[k] = LCHAR_IS_COLLAPSED_SPACE | LCHAR_ALLOW_WRAP_AFTER;
                 // m_text[k] = '='; // uncomment when debugging
             }
@@ -3181,7 +3189,27 @@ public:
                 // Anyway, we handle collapsed spaces and their widths
                 // as we would expect them to be with LTR text just out
                 // of copyText().
-                bool prev_was_space = true; // start as true to make leading spaces collapsed
+
+                // Starting with prev_was_space=true like in copyText() may kill some
+                // legitimate spaces at start of line (with some specific BiDi LTR test
+                // cases, compared to Firefox that keeps some spaces).
+                // But starting with prev_was_space=false keeps a space at left
+                // on the first line of pure Hebrew/Arabic document paragraphs, killing
+                // text justification.
+                // I think I've read that the BiDi would by itself push any irrelevant spaces
+                // at the end of the visual reordering, and any space still at the (visual)
+                // start is relevant, and should not collapsed to nothing.
+                // Given that, it feels we can go with this:
+                bool prev_was_space = m_para_dir_is_rtl;
+                // - in a RTL paragraph, irrelevant spaces will be on the left, and we will
+                //   be collpasing/dropping them.
+                // - in a LTR paragraph, only BiDi-releavant spaces should be on the left,
+                //   and we will keep them.
+                // If this leads to bad results, we could go with prev_was_space=true, as in
+                // our context where we may favor text justification, it is preferable to avoid
+                // leading and trailing spaces, rather than getting spurious ones (even if the
+                // BiDi algo thinks there should be kept).
+
                 int prev_non_collapsed_space = -1;
                 int w = start > 0 ? m_widths[start-1] : 0;
                 for (int i=start; i<end; i++) {
@@ -3200,6 +3228,7 @@ public:
                         if ( m_text[i] == ' ' ) {
                             if (prev_was_space) {
                                 m_flags[i] |= LCHAR_IS_COLLAPSED_SPACE;
+                                m_flags[i] &= ~LCHAR_IS_SPACE;
                                 // Put this (now collapsed, but possibly previously non-collapsed)
                                 // space width on the preceeding now non-collapsed space
                                 int w_orig = bidi_tmp_widths[bidx];
@@ -3211,14 +3240,15 @@ public:
                             }
                             else {
                                 m_flags[i] &= ~LCHAR_IS_COLLAPSED_SPACE;
+                                m_flags[i] |= LCHAR_IS_SPACE;
                                 prev_was_space = true;
                                 prev_non_collapsed_space = i;
                             }
                         }
-                        else {
+                        else if ( !(m_flags[i] & LCHAR_IS_TO_IGNORE) ) {
+                            // (Don't update any space related state when meeting an ignorable)
                             prev_was_space = false;
                             prev_non_collapsed_space = -1;
-                            m_flags[i] &= ~LCHAR_IS_COLLAPSED_SPACE;
                         }
                     }
                     w += bidi_tmp_widths[bidx];
@@ -3226,10 +3256,13 @@ public:
                     // printf("%x:f%x,w%d ", m_text[i], m_flags[i], m_widths[i]);
                 }
                 // Also flag as collapsed the trailing spaces on the reordered line
-                if (prev_non_collapsed_space >= 0) {
+                // (but not if the paragraph is RTL as these are not at the visual
+                // end, so not trailing, and may be relevant).
+                if ( !m_para_dir_is_rtl && prev_non_collapsed_space >= 0) {
                     int prev_width = prev_non_collapsed_space > 0 ? m_widths[prev_non_collapsed_space-1] :0 ;
                     for (int i=prev_non_collapsed_space; i<end; i++) {
-                        m_flags[i] |= LCHAR_IS_COLLAPSED_SPACE;
+                        if ( !(m_flags[i] & LCHAR_IS_TO_IGNORE) )
+                            m_flags[i] |= LCHAR_IS_COLLAPSED_SPACE;
                         m_widths[i] = prev_width;
                     }
                 }
