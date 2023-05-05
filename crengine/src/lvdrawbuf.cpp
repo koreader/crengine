@@ -2970,6 +2970,8 @@ void LVGrayDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y,
         }
     }
 	CHECK_GUARD_BYTE;
+	_drawnImagesCount += ((LVBaseDrawBuf*)src)->getDrawnImagesCount();
+	_drawnImagesSurface += dx*dy;
 }
 
 
@@ -3025,6 +3027,8 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
 			}
 		}
 	}
+	_drawnImagesCount += ((LVBaseDrawBuf*)src)->getDrawnImagesCount();
+	_drawnImagesSurface += dx*dy;
 }
 
 /// returns scanline pointer
