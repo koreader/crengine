@@ -3160,7 +3160,9 @@ bool renderAsListStylePositionInside( const css_style_ref_t style, bool is_rtl=f
 // as is to the inline children elements: it is only used to get the width of
 // the container, which is only needed to compute indent (text-indent) values in %,
 // and to get paragraph direction (LTR/RTL/UNSET).
-void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, lUInt32 & baseflags, int indent, int line_h, TextLangCfg * lang_cfg, int valign_dy, bool * is_link_start )
+void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAccessor * fmt, lUInt32 & baseflags,
+                       int indent, int line_h, TextLangCfg * lang_cfg, int valign_dy, bool * is_link_start,
+                       lString32 running_bidi_ctrlchars )
 {
     bool legacy_rendering = !BLOCK_RENDERING_N(enode, ENHANCED);
     if ( enode->isElement() ) {
@@ -3923,7 +3925,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                                        nodeElementId == el_pseudoElem;
             bool closeWithPDI = false;
             bool closeWithPDF = false;
-            bool closeWithPDFPDI = false;
+            // bool closeWithPDFPDI = false; // not used
+            int runningBidiCtrlCharsToPop = 0;
             if ( addGeneratedContent ) {
                 // Note: we need to explicitely clear newline flag after
                 // any txform->AddSourceLine(). If we delay that and add another
@@ -3956,6 +3959,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         // txform->AddSourceLine( U"\x2068\x202E", 1, cl, bgcl, font, lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         // closeWithPDFPDI = true;
                         txform->AddSourceLine( U"\x202E", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                        running_bidi_ctrlchars << U"\x202E";
+                        runningBidiCtrlCharsToPop = 1;
                         closeWithPDF = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
@@ -3963,6 +3968,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         // txform->AddSourceLine( U"\x2068\x202D", 1, cl, bgcl, font, lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
                         // closeWithPDFPDI = true;
                         txform->AddSourceLine( U"\x202D", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                        running_bidi_ctrlchars << U"\x202D";
+                        runningBidiCtrlCharsToPop = 1;
                         closeWithPDF = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
@@ -3976,16 +3983,22 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     //  leaving  => PDI     U+2069  POP DIRECTIONAL ISOLATE
                     if ( dir == "rtl" ) {
                         txform->AddSourceLine( U"\x2067", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                        running_bidi_ctrlchars << U"\x2067";
+                        runningBidiCtrlCharsToPop = 1;
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
                     else if ( dir == "ltr" ) {
                         txform->AddSourceLine( U"\x2066", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                        running_bidi_ctrlchars << U"\x2066";
+                        runningBidiCtrlCharsToPop = 1;
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
                     else if ( nodeElementId == el_bdi || dir == "auto" ) {
                         txform->AddSourceLine( U"\x2068", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                        running_bidi_ctrlchars << U"\x2069";
+                        runningBidiCtrlCharsToPop = 1;
                         closeWithPDI = true;
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
@@ -3994,6 +4007,19 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     //  dir=rtl  => RLE     U+202B  RIGHT-TO-LEFT EMBEDDING
                     //  leaving  => PDF     U+202C  POP DIRECTIONAL FORMATTING
                 }
+                // Note: in case we meet a <br/>, we need to report the bidi chars still
+                // active at the start of the new "paragraph": lvtextfm.cpp's processParagraph()
+                // and fribidi only work on a single run of text, and not across newlines. So,
+                // in case of <p><span dir="rtl">text<br/>text<br/>text</span></p>, all the
+                // lines should get started with U+2067 for a correct rendering, thus our
+                // running_bidi_ctrlchars we keep updated with all those meet and still open,
+                // that we push after each newline.
+                // We need to only do that here when handling the above HTML tags and attributes:
+                // if these unicode chars are themselves present in the HTML text nodes content
+                // (ie. <p>&#x2067;text<br/>text<br/>text</p>), Firefox would not ensure them
+                // on the next lines, so we don't need to handle that case (that we would have
+                // to handle in lvtextfm.cpp).
+                //
                 // Note: in lvtextfm, we have to explicitely ignore these (added by us,
                 // or already present in the HTML), in measurement and drawing, as
                 // FreeType could draw some real glyphes for these, when the font
@@ -4031,7 +4057,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             for (int i=0; i<cnt; i++)
             {
                 ldomNode * child = enode->getChildNode( i );
-                renderFinalBlock( child, txform, fmt, flags, indent, line_h, lang_cfg, valign_dy, is_link_start_p );
+                renderFinalBlock( child, txform, fmt, flags, indent, line_h, lang_cfg, valign_dy, is_link_start_p, running_bidi_ctrlchars );
             }
 
             if ( addGeneratedContent ) {
@@ -4041,16 +4067,24 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // See comment above: these are the closing counterpart
                 if ( closeWithPDI ) {
                     txform->AddSourceLine( U"\x2069", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
-                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
-                }
-                else if ( closeWithPDFPDI ) {
-                    txform->AddSourceLine( U"\x202C\x2069", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                    if ( runningBidiCtrlCharsToPop )
+                        running_bidi_ctrlchars.limit( running_bidi_ctrlchars.length() - runningBidiCtrlCharsToPop);
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                 }
                 else if ( closeWithPDF ) {
                     txform->AddSourceLine( U"\x202C", 1, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                    if ( runningBidiCtrlCharsToPop )
+                        running_bidi_ctrlchars.limit( running_bidi_ctrlchars.length() - runningBidiCtrlCharsToPop);
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                 }
+                /* not used
+                else if ( closeWithPDFPDI ) {
+                    txform->AddSourceLine( U"\x202C\x2069", 2, cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode);
+                    if ( runningBidiCtrlCharsToPop )
+                        running_bidi_ctrlchars.limit( running_bidi_ctrlchars.length() - runningBidiCtrlCharsToPop);
+                    flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                }
+                */
             }
 
             if ( isRunIn ) {
@@ -4168,6 +4202,17 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 break;
             default:
                 break;
+            }
+            // If we have some bidi control chars to forward, do it now (if this is the last <BR>
+            // and there is no content after, these chars, being ignorable, will be prevented from
+            // generating an empty line - no need to do this in the many places we AddSourceLine())
+            if ( !running_bidi_ctrlchars.empty() && (baseflags & LTEXT_FLAG_NEWLINE)) {
+                LVFontRef font = enode->getFont();
+                lUInt32 cl = getForegroundColor(style);
+                lUInt32 bgcl = rm == erm_final ? LTEXT_COLOR_CURRENT : getBackgroundColor(style);
+                txform->AddSourceLine( running_bidi_ctrlchars.c_str(), running_bidi_ctrlchars.length(), cl, bgcl, font.get(), lang_cfg, baseflags | LTEXT_FLAG_OWNTEXT,
+                    line_h, valign_dy, 0, enode );
+                baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
         if ( rm == erm_final && (baseflags & LTEXT_SRC_IS_CLEAR_BOTH) ) {
