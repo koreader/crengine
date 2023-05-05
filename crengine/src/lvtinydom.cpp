@@ -4328,6 +4328,8 @@ static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_
 
 #define WNEFLAG(x) ( wflags & WRITENODEEX_##x )
 
+static void addAtImportCssFiles(ldomDocument * document, lString32 cssFile, lString32Collection & cssFiles); // defined just below writeNodeEx()
+
 static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection & cssFiles, LVStream * extra_stream, int wflags=0,
     ldomXPointerEx startXP=ldomXPointerEx(), ldomXPointerEx endXP=ldomXPointerEx(), int indentBaseLevel=-1)
 {
@@ -4710,8 +4712,10 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                     *stream << "=\"" << attrValue << "\"";
                 if ( attrName == "StyleSheet" ) { // gather linked css files
                     lString32 cssFile = node->getDocument()->getAttrValue(attr->index);
-                    if (!cssFiles.contains(cssFile))
+                    if (!cssFiles.contains(cssFile)) {
                         cssFiles.add(cssFile);
+                        addAtImportCssFiles(node->getDocument(), cssFile, cssFiles);
+                    }
                 }
                 if ( WNEFLAG(EXTRA_OFFSETS_SELECTORS) ) {
                     if ( attrName == "class" ) {
@@ -4793,6 +4797,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                     lString32 cssFile = LVCombinePaths( node->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
                     if ( !cssFile.empty() && !cssFiles.contains(cssFile) ) {
                         cssFiles.add(cssFile);
+                        addAtImportCssFiles(node->getDocument(), cssFile, cssFiles);
                     }
                 }
             }
@@ -4850,8 +4855,10 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                     // crengine, so add it first to cssFiles
                     if (pnode->hasAttribute(attr_StyleSheet) ) {
                         lString32 cssFile = pnode->getAttributeValue(attr_StyleSheet);
-                        if (!cssFiles.contains(cssFile))
+                        if (!cssFiles.contains(cssFile)) {
                             cssFiles.add(cssFile);
+                            addAtImportCssFiles(node->getDocument(), cssFile, cssFiles);
+                        }
                     }
                     // And then the CSS files in @import in the <stylesheet> element
                     if ( pnode->getChildCount() > 0 ) {
@@ -4868,6 +4875,7 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                                 lString32 cssFile = LVCombinePaths( pnode->getAttributeValue(attr_href), Utf8ToUnicode(import_file) );
                                 if ( !cssFile.empty() && !cssFiles.contains(cssFile) ) {
                                     cssFiles.add(cssFile);
+                                    addAtImportCssFiles(node->getDocument(), cssFile, cssFiles);
                                 }
                             }
                         }
@@ -4876,6 +4884,44 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
             }
         }
     }
+}
+
+static void addAtImportCssFiles(ldomDocument * document, lString32 cssFile, lString32Collection & cssFiles) {
+    lString32 codeBase = cssFile;
+    LVExtractLastPathElement(codeBase);
+    LVContainerRef container = document->getContainer();
+    if ( container.isNull() )
+        return;
+    LVStreamRef stream = container->OpenStream(cssFile.c_str(), LVOM_READ);
+    if ( stream.isNull() )
+        stream = container->OpenStream(DecodeHTMLUrlString(cssFile).c_str(), LVOM_READ);
+    if ( stream.isNull() )
+        return;
+    lvsize_t size = stream->GetSize();
+    if ( size == 0 )
+        return;
+    lUInt8 * buf = (lUInt8 *)malloc(size+1);
+    if ( !buf )
+        return;
+    lvsize_t bytesRead = 0;
+    stream->Read(buf, size, &bytesRead );
+    if ( bytesRead!=size ) {
+        free(buf);
+        return;
+    }
+    buf[size] = 0;
+    const char * s = (const char *)buf;
+    while (true) {
+        lString8 import_file;
+        if ( !LVProcessStyleSheetImport( s, import_file, document ) ) {
+            break;
+        }
+        cssFile = LVCombinePaths( codeBase, Utf8ToUnicode(import_file) );
+        if ( !cssFile.empty() && !cssFiles.contains(cssFile) ) {
+            cssFiles.add(cssFile);
+        }
+    }
+    free(buf);
 }
 
 bool ldomDocument::saveToStream( LVStreamRef stream, const char *, bool treeLayout )
