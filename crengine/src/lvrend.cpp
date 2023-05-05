@@ -7181,6 +7181,13 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     bool margin_left_auto = css_margin_left.type == css_val_unspecified && css_margin_left.value == css_generic_auto;
     bool margin_right_auto = css_margin_right.type == css_val_unspecified && css_margin_right.value == css_generic_auto;
 
+    if ( style->display == css_d_table_cell ) {
+        // https://www.w3.org/TR/CSS2/tables.html#table-layout:
+        // "Internal table elements do not have margins."
+        margin_left = margin_right = margin_top = margin_bottom = 0;
+        margin_left_auto = margin_right_auto = false;
+    }
+
     // Adjust box size and position
 
     // We may trust width set on our own boxing elements, even if a table
