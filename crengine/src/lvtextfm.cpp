@@ -3298,6 +3298,12 @@ public:
             }
             m_y += frmline->height;
             m_pbuffer->height = m_y;
+            checkOngoingFloat();
+            positionDelayedFloats();
+            #if (USE_FRIBIDI==1)
+            if ( restore_last_width ) // bidi: restore last width to not mess with next line
+                m_widths[end-1] = last_width_to_restore;
+            #endif
             return;
         }
 
@@ -3310,8 +3316,19 @@ public:
             lastSrc = m_srcs[start];
         }
         if (!lastSrc) { // nothing but floats
-            // A line has already been added: just make it zero-height.
-            frmline->height = 0;
+            if (isLastPara) {
+                // If this is a standalone or the last "paragraph" (floats standalone, or
+                // alone after the last <br/>), make the already added line zero-height.
+                frmline->height = 0;
+            }
+            m_y += frmline->height;
+            m_pbuffer->height = m_y;
+            checkOngoingFloat();
+            positionDelayedFloats();
+            #if (USE_FRIBIDI==1)
+            if ( restore_last_width ) // bidi: restore last width to not mess with next line
+                m_widths[end-1] = last_width_to_restore;
+            #endif
             return;
         }
         // Ignore space at start of line (this rarely happens, as line
@@ -3511,11 +3528,6 @@ public:
                                 // But not if what's on this line is a float (the code below don't expect floats)
                                 // Keep the empty line with the strut height.
                                 continue;
-                                // Note: this check and "continue" could be moved around there, with different
-                                // results. Didn't manage to get resulsts as Firefox in edgy constructs with
-                                // only <br/> and floats (Firefox may have a blank line, while we may give the
-                                // block a 0-height). A bit non-obvious how this should be handled (and possibly
-                                // also above when "nothing but floats")...
                             }
                         }
                         else { // Last or single para with no word
