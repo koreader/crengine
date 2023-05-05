@@ -1611,7 +1611,11 @@ public:
             // each segment - hoping doing it that way is OK...
             // Note that if we added Unicode BiDi control chars to ensure dir='rtl' carried
             // by inner inline elements encompassing text nodes containing '\n', we will
-            // lose their state/balancing and get wrong results...
+            // lose their state/balancing and get wrong results... We anyway try to remember
+            // and forward the latest active one met (enough or not? better than nothing...).
+            FriBidiCharType active_ctrl_char = 0;
+            int restore_bs_idx = -1;
+            src_text_fragment_t * cur_src = NULL;
             int max_level = 0;
             int s_start = 0;
             int i = 0;
@@ -1627,7 +1631,53 @@ public:
                                                                 s_length, &m_para_bidi_type, bidi_levels);
                     if ( this_max_level > max_level )
                         max_level = this_max_level;
-                    s_start = i+1;
+                    if ( restore_bs_idx >= 0 ) {
+                        // Be polite and restore the original bidi type (not certain it is
+                        // really needed, but we reuse these array again in AddLine().)
+                        m_bidi_ctypes[restore_bs_idx] = FRIBIDI_TYPE_BS;
+                        restore_bs_idx = -1;
+                    }
+                    if ( i == m_length )
+                        break;
+                    if ( active_ctrl_char ) {
+                        // We can override this \n bidi type, by the one still active,
+                        // and include this masqueraded char in the next segment handling
+                        s_start = i;
+                        m_bidi_ctypes[i] = active_ctrl_char;
+                        restore_bs_idx = i;
+                    }
+                    else {
+                        // Otherwise, skip this \n, and handle next segment
+                        s_start = i+1;
+                    }
+                }
+                if ( m_srcs[i] != cur_src ) { // (Only waste time checking this when we're crossing sources)
+                    cur_src = m_srcs[i];
+                    if ( cur_src->flags & LTEXT_FLAG_OWNTEXT && cur_src->t.len == 1 && cur_src->object && ((ldomNode *)cur_src->object)->isElement() ) {
+                        // This char is from a 1-char text fragment, and not from a regular text node: it is
+                        // text we have explicitely added in renderFinalBlock(), and it may be one of our
+                        // BiDi control char we added when handling dir='rtl'.
+                        // (This is ok because we ended up using only single-char such BiDi control
+                        // chars, and not the 2-chars combinations.)
+                        switch ( m_bidi_ctypes[i] ) {
+                            case FRIBIDI_TYPE_LRI:
+                                active_ctrl_char = FRIBIDI_TYPE_LRI;
+                                break;
+                            case FRIBIDI_TYPE_RLI:
+                                active_ctrl_char = FRIBIDI_TYPE_RLI;
+                                break;
+                            case FRIBIDI_TYPE_FSI:
+                                // Possibly wrong to forward this one, as it's about the first strong
+                                // isolate following it - not the first on we will meet on the next
+                                // segment... But this might be better than nothing.
+                                active_ctrl_char = FRIBIDI_TYPE_FSI;
+                                break;
+                            case FRIBIDI_TYPE_PDI:
+                                // pop (no stack, so we won't restore a previous one)
+                                active_ctrl_char = 0;
+                                break;
+                        }
+                    }
                 }
                 i++;
             }
