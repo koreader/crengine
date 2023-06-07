@@ -9835,6 +9835,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             }
         }
     }
+    if ( !strictBounds ) {
+        // We had a final node, but didn't find any xpointer in its content. This might be
+        // because the final node has no text nor image, ie. with just <p><span></span></p>.
+        // So, return the final node itself.
+        return ldomXPointer( finalNode, 0 );
+    }
     return ptr;
 }
 
