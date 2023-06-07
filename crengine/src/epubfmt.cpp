@@ -137,8 +137,22 @@ void ReadEpubNcxToc( ldomDocument * doc, ldomNode * mapRoot, LVTocItem * baseToc
         if ( href.empty() || href[0]!='#' )
             continue;
         ldomNode * target = doc->getNodeById(doc->getAttrValueIndex(href.substr(1).c_str()));
-        if ( !target )
-            continue;
+        if ( !target ) {
+            // Let's not ignore entries with an invalid target, they may have children.
+            // Also, if the anchor (ie. #top) is invalid, point to the docfragment itself.
+            href = content->getAttributeValue("src");
+            href = DecodeHTMLUrlString(href);
+            int pos = href.pos(U'#');
+            if ( pos > 0 ) {
+                href = href.substr(0, pos);
+                href = appender.convertHref(href);
+                target = doc->getNodeById(doc->getAttrValueIndex(href.substr(1).c_str()));
+            }
+            // If still not found, let target be null (and lead us to page 0...), but allow
+            // it to have children
+            // (We might want to do as ReadEpubNavToc(), and report valid children target
+            // to their parents or siblings that has none.)
+        }
         ldomXPointer ptr(target, 0);
         LVTocItem * tocItem = baseToc->addChild(title, ptr, lString32::empty_str);
         ReadEpubNcxToc( doc, navPoint, tocItem, appender );
