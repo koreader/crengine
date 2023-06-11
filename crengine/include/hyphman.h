@@ -134,7 +134,7 @@ class HyphMan
     // static HyphMethod * _method;
     // static HyphDictionary * _selectedDictionary;
     static HyphDictionaryList * _dictList; // available hyph dict files (+ none/algo/softhyphens)
-    static LVHashTable<lString32, HyphMethod*> _loaded_hyph_methods; // methods with loaded dictionaries
+    static LVHashTable<lString32, HyphMethod*, true> _loaded_hyph_methods; // methods with loaded dictionaries
     static HyphDataLoader* _dataLoader;
     static int _LeftHyphenMin;
     static int _RightHyphenMin;
