@@ -47,7 +47,7 @@ inline lUInt32 getHash(void * n )
 /**
     Implements hash table map
 */
-template <typename keyT, typename valueT> class LVHashTable
+template <typename keyT, typename valueT, bool own_values = false> class LVHashTable
 {
 	friend class iterator;
 public:
@@ -114,6 +114,8 @@ public:
             pair * p = _table[i];
             while ( p ) {
                 pair * tmp = p;
+                if constexpr (own_values)
+                    delete p->value;
                 p = p->next;
                 delete tmp;
             }
@@ -177,6 +179,8 @@ public:
         {
             if ( (*p)->key == key )
             {
+                if constexpr (own_values)
+                    delete p->value;
                 pair * tmp = *p;
                 *p = (*p)->next;
                 delete tmp;
