@@ -54,7 +54,7 @@
 int HyphMan::_LeftHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
 int HyphMan::_RightHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
 int HyphMan::_TrustSoftHyphens = HYPH_DEFAULT_TRUST_SOFT_HYPHENS;
-LVHashTable<lString32, HyphMethod*> HyphMan::_loaded_hyph_methods(16);
+LVHashTable<lString32, HyphMethod*, true> HyphMan::_loaded_hyph_methods(16);
 HyphDataLoader* HyphMan::_dataLoader = NULL;
 
 
@@ -170,13 +170,6 @@ void HyphMan::uninit()
 {
     // Avoid existing frontend code to have to call it:
     TextLangMan::uninit();
-    // Clean up _loaded_hyph_methods
-    LVHashTable<lString32, HyphMethod*>::iterator it = _loaded_hyph_methods.forwardIterator();
-    LVHashTable<lString32, HyphMethod*>::pair* pair;
-    while ((pair = it.next())) {
-        delete pair->value;
-    }
-    _loaded_hyph_methods.clear();
     if ( _dictList )
             delete _dictList;
     _dictList = NULL;
