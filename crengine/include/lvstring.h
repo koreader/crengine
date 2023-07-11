@@ -338,46 +338,29 @@ inline bool lStr_isRTL( lChar32 c ) {
 #define CONST_STRING_BUFFER_MASK (CONST_STRING_BUFFER_SIZE - 1)
 #define CONST_STRING_BUFFER_HASH_MULT 31
 
-
-struct lstring8_chunk_t {
+struct lstring_chunk_t {
     friend class lString8;
     friend class lString32;
     friend struct lstring_chunk_slice_t;
 public:
-    lstring8_chunk_t(lChar8 * _buf8) : buf8(_buf8), size(1), len(0), nref(1) {}
+    lstring_chunk_t(lChar8 * _buf8) : buf8(_buf8), size(1), len(0), nref(1) {}
     const lChar8 * data8() const { return buf8; }
-private:
-    lChar8  * buf8; // z-string
-    lInt32 size;   // 0 for free chunk
-    lInt32 len;    // count of chars in string
-    int nref;      // reference counter
-
-    lstring8_chunk_t() {}
-
-    // chunk allocation functions
-    static lstring8_chunk_t * alloc();
-    static void free( lstring8_chunk_t * pChunk );
-
-};
-
-struct lstring32_chunk_t {
-    friend class lString8;
-    friend class lString32;
-    friend struct lstring_chunk_slice_t;
-public:
-    lstring32_chunk_t(lChar32 * _buf32) : buf32(_buf32), size(1), len(0), nref(1) {}
+    lstring_chunk_t(lChar32 * _buf32) : buf32(_buf32), size(1), len(0), nref(1) {}
     const lChar32 * data32() const { return buf32; }
 private:
-    lChar32 * buf32; // z-string
+    union {
+        lChar8  * buf8;  // z-string
+        lChar32 * buf32; // z-string
+    };
     lInt32 size;   // 0 for free chunk
     lInt32 len;    // count of chars in string
     int nref;      // reference counter
 
-    lstring32_chunk_t() {}
+    lstring_chunk_t() {}
 
     // chunk allocation functions
-    static lstring32_chunk_t * alloc();
-    static void free( lstring32_chunk_t * pChunk );
+    static lstring_chunk_t * alloc();
+    static void free( lstring_chunk_t * pChunk );
 };
 
 
@@ -417,8 +400,6 @@ public:
     typedef value_type &        reference;       ///< reference to char type
     typedef const value_type *  const_pointer;   ///< pointer to const char type
     typedef const value_type &  const_reference; ///< reference to const char type
-
-    typedef lstring8_chunk_t    lstring_chunk_t; ///< data container
 
     class decimal {
         lInt64 value;
@@ -672,8 +653,6 @@ public:
     typedef value_type &        reference;
     typedef const value_type *  const_pointer;
     typedef const value_type &  const_reference;
-
-    typedef lstring32_chunk_t    lstring_chunk_t; ///< data container
 
 private:
     lstring_chunk_t * pchunk;
@@ -949,7 +928,7 @@ const lString32 & cs32(const lChar32 * str);
 class lString32Collection
 {
 private:
-    lstring32_chunk_t * * chunks;
+    lstring_chunk_t * * chunks;
     int count;
     int size;
 public:
@@ -1006,7 +985,7 @@ public:
 class lString8Collection
 {
 private:
-    lstring8_chunk_t * * chunks;
+    lstring_chunk_t * * chunks;
     int count;
     int size;
 public:
