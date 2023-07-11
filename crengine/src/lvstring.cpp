@@ -47,12 +47,12 @@ extern "C" {
 
 
 static lChar8 empty_str_8[] = {0};
-static lstring8_chunk_t empty_chunk_8(empty_str_8);
-lstring8_chunk_t * lString8::EMPTY_STR_8 = &empty_chunk_8;
+static lstring_chunk_t empty_chunk_8(empty_str_8);
+lstring_chunk_t * lString8::EMPTY_STR_8 = &empty_chunk_8;
 
 static lChar32 empty_str_32[] = {0};
-static lstring32_chunk_t empty_chunk_32(empty_str_32);
-lstring32_chunk_t * lString32::EMPTY_STR_32 = &empty_chunk_32;
+static lstring_chunk_t empty_chunk_32(empty_str_32);
+lstring_chunk_t * lString32::EMPTY_STR_32 = &empty_chunk_32;
 
 //================================================================================
 // atomic string storages for string literals
@@ -147,16 +147,16 @@ const lString32 & cs32(const lChar32 * str) {
 // memory allocation slice
 //================================================================================
 struct lstring_chunk_slice_t {
-    lstring8_chunk_t * pChunks; // first chunk
-    lstring8_chunk_t * pEnd;    // first free byte after last chunk
-    lstring8_chunk_t * pFree;   // first free chunk
+    lstring_chunk_t * pChunks; // first chunk
+    lstring_chunk_t * pEnd;    // first free byte after last chunk
+    lstring_chunk_t * pFree;   // first free chunk
     int used;
     lstring_chunk_slice_t( int size )
     {
-        pChunks = (lstring8_chunk_t *) malloc(sizeof(lstring8_chunk_t) * size);
+        pChunks = (lstring_chunk_t *) malloc(sizeof(lstring_chunk_t) * size);
         pEnd = pChunks + size;
         pFree = pChunks;
-        for (lstring8_chunk_t * p = pChunks; p<pEnd; ++p)
+        for (lstring_chunk_t * p = pChunks; p<pEnd; ++p)
         {
             p->buf8 = (char*)(p+1);
             p->size = 0;
@@ -167,19 +167,13 @@ struct lstring_chunk_slice_t {
     {
         free( pChunks );
     }
-    inline lstring8_chunk_t * alloc_chunk()
+    inline lstring_chunk_t * alloc_chunk()
     {
-        lstring8_chunk_t * res = pFree;
-        pFree = (lstring8_chunk_t *)res->buf8;
+        lstring_chunk_t * res = pFree;
+        pFree = (lstring_chunk_t *)res->buf8;
         return res;
     }
-    inline lstring32_chunk_t * alloc_chunk32()
-    {
-        lstring32_chunk_t * res = (lstring32_chunk_t *)pFree;
-        pFree = (lstring8_chunk_t *)res->buf32;
-        return res;
-    }
-    inline bool free_chunk( lstring8_chunk_t * pChunk )
+    inline bool free_chunk( lstring_chunk_t * pChunk )
     {
         if (pChunk < pChunks || pChunk >= pEnd)
             return false; // chunk does not belong to this slice
@@ -194,23 +188,6 @@ struct lstring_chunk_slice_t {
 */
         pChunk->buf8 = (char *)pFree;
         pFree = pChunk;
-        return true;
-    }
-    inline bool free_chunk32(lstring32_chunk_t * pChunk)
-    {
-        if ((lstring8_chunk_t *)pChunk < pChunks || (lstring8_chunk_t *)pChunk >= pEnd)
-            return false; // chunk does not belong to this slice
-/*
-#ifdef LS_DEBUG_CHECK
-        if (!pChunk->size)
-        {
-            crFatalError(); // already freed!!!
-        }
-        pChunk->size = 0;
-#endif
-*/
-        pChunk->buf32 = (lChar32 *)pFree;
-        pFree = (lstring8_chunk_t *)pChunk;
         return true;
     }
 };
@@ -243,7 +220,7 @@ void free_ls_storage()
     slices_initialized = false;
 }
 
-lstring8_chunk_t * lstring8_chunk_t::alloc()
+lstring_chunk_t * lstring_chunk_t::alloc()
 {
     if (!slices_initialized)
         init_ls_storage();
@@ -261,39 +238,11 @@ lstring8_chunk_t * lstring8_chunk_t::alloc()
     return slices[slices_count-1]->alloc_chunk();
 }
 
-void lstring8_chunk_t::free( lstring8_chunk_t * pChunk )
+void lstring_chunk_t::free( lstring_chunk_t * pChunk )
 {
     for (int i=slices_count-1; i>=0; --i)
     {
         if (slices[i]->free_chunk(pChunk))
-            return;
-    }
-    crFatalError(); // wrong pointer!!!
-}
-
-lstring32_chunk_t * lstring32_chunk_t::alloc()
-{
-    if (!slices_initialized)
-        init_ls_storage();
-    // search for existing slice
-    for (int i=slices_count-1; i>=0; --i)
-    {
-        if (slices[i]->pFree != NULL)
-            return slices[i]->alloc_chunk32();
-    }
-    // alloc new slice
-    if (slices_count >= MAX_SLICE_COUNT)
-        crFatalError();
-    lstring_chunk_slice_t * new_slice = new lstring_chunk_slice_t( FIRST_SLICE_SIZE << (slices_count+1) );
-    slices[slices_count++] = new_slice;
-    return slices[slices_count-1]->alloc_chunk32();
-}
-
-void lstring32_chunk_t::free( lstring32_chunk_t * pChunk )
-{
-    for (int i=slices_count-1; i>=0; --i)
-    {
-        if (slices[i]->free_chunk32(pChunk))
             return;
     }
     crFatalError(); // wrong pointer!!!
@@ -570,7 +519,7 @@ void lString32::free()
 #if (LDOM_USE_OWN_MEM_MAN == 1)
     for (int i=slices_count-1; i>=0; --i)
     {
-        if (slices[i]->free_chunk32(pchunk))
+        if (slices[i]->free_chunk(pchunk))
             return;
     }
     crFatalError(); // wrong pointer!!!
@@ -1346,28 +1295,28 @@ void lString32Collection::reserve(int space)
 
 static int (str32_comparator)(const void * n1, const void * n2)
 {
-    lstring32_chunk_t ** s1 = (lstring32_chunk_t **)n1;
-    lstring32_chunk_t ** s2 = (lstring32_chunk_t **)n2;
+    lstring_chunk_t ** s1 = (lstring_chunk_t **)n1;
+    lstring_chunk_t ** s2 = (lstring_chunk_t **)n2;
     return lStr_cmp( (*s1)->data32(), (*s2)->data32() );
 }
 
 static int(*custom_lstr32_comparator_ptr)(lString32 & s1, lString32 & s2);
 static int (str32_custom_comparator)(const void * n1, const void * n2)
 {
-    lString32 s1(*((lstring32_chunk_t **)n1));
-    lString32 s2(*((lstring32_chunk_t **)n2));
+    lString32 s1(*((lstring_chunk_t **)n1));
+    lString32 s2(*((lstring_chunk_t **)n2));
     return custom_lstr32_comparator_ptr(s1, s2);
 }
 
 void lString32Collection::sort(int(comparator)(lString32 & s1, lString32 & s2))
 {
     custom_lstr32_comparator_ptr = comparator;
-    qsort(chunks,count,sizeof(lstring32_chunk_t*), str32_custom_comparator);
+    qsort(chunks,count,sizeof(lstring_chunk_t*), str32_custom_comparator);
 }
 
 void lString32Collection::sort()
 {
-    qsort(chunks,count,sizeof(lstring32_chunk_t*), str32_comparator);
+    qsort(chunks,count,sizeof(lstring_chunk_t*), str32_comparator);
 }
 
 int lString32Collection::add( const lString32 & str )
