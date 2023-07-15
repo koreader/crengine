@@ -422,6 +422,33 @@ static bool parse_ident( const char * &str, char * ident, size_t maxsize, bool s
     return true;
 }
 
+// Used to parse id (#foo) and class names (.bar), which are user provided values
+// and allowed to contain Unicode codepoints (when parsing their values in
+// attributes in the (X)HTML, we do handle and store them as lChar32).
+// cf. https://www.w3.org/TR/CSS21/syndata.html#characters
+// As we are provided with UTF-8 bytes, we go the easy way and allow any char >= 0x80
+// (which are part of a multibyte char). This simplification allows the forbidden
+// range U+0080-U+009F - but these being control chars, should hardly ever been met.
+// No support (yet) for backslash-escapes (ie. '\&' or '\26 ')
+static bool parse_uident( const char * &str, char * ident, size_t maxsize )
+{
+    // Note: skipping any space before or after should be ensured by caller if needed
+    *ident = 0;
+    if ( !css_is_alpha( *str ) && !(*str & 0x80) ) {
+        return false;
+    }
+    int i;
+    int max_i = maxsize - 1;
+    for (i=0; css_is_alnum(str[i]) || (str[i] & 0x80); i++) {
+        if ( i < max_i )
+            ident[i] = str[i];
+        // Keep parsing/skipping even if not accumulated in ident
+    }
+    ident[i < max_i ? i : max_i] = 0;
+    str += i;
+    return true;
+}
+
 static css_decl_code parse_property_name( const char * & res )
 {
     const char * str = res;
@@ -431,7 +458,8 @@ static css_decl_code parse_property_name( const char * & res )
         {
             // found!
             skip_spaces(str);
-            if ( substr_compare( ":", str )) {
+            if ( *str == ':' ) {
+                str++;
 #ifdef DUMP_CSS_PARSING
                 CRLog::trace("property name: %s", lString8(res, str-res).c_str() );
 #endif
@@ -5356,7 +5384,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     if (*str=='.') {
         // E.class
         str++;
-        if (!parse_ident( str, attrvalue, 512 ))
+        if (!parse_uident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_class);
         const lString32 s( attrvalue );
@@ -5366,7 +5394,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     } else if ( *str=='#' ) {
         // E#id
         str++;
-        if (!parse_ident( str, attrvalue, 512 ))
+        if (!parse_uident( str, attrvalue, 512 ))
             return NULL;
         LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_id);
         const lString32 s( attrvalue );
