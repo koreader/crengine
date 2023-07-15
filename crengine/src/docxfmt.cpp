@@ -10,6 +10,7 @@
 #define DOCX_LAST_ITEM { -1, NULL }
 
 static const lChar32* const docx_DocumentContentType   = U"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
+static const lChar32* const docm_DocumentContentType   = U"application/vnd.ms-word.document.macroEnabled.main+xml";
 static const lChar32* const docx_NumberingContentType  = U"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml";
 static const lChar32* const docx_StylesContentType     = U"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml";
 static const lChar32* const docx_ImageRelationship     = U"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
@@ -279,7 +280,8 @@ bool DetectDocXFormat( LVStreamRef stream )
 
     OpcPackage package(m_arc);
 
-    return package.partExist(package.getContentPartName(docx_DocumentContentType));
+    return (   package.partExist(package.getContentPartName(docx_DocumentContentType))
+            || package.partExist(package.getContentPartName(docm_DocumentContentType)) );
 }
 
 class docxImportContext;
@@ -1569,8 +1571,11 @@ bool ImportDocXDocument( LVStreamRef stream, ldomDocument * doc, LVDocViewCallba
         return false;
 
     LVStreamRef m_stream = importContext.openContentPart(docx_DocumentContentType);
-    if ( m_stream.isNull() )
-        return false;
+    if ( m_stream.isNull() ) {
+        m_stream = importContext.openContentPart(docm_DocumentContentType);
+        if ( m_stream.isNull() )
+            return false;
+    }
 
     ldomDocumentWriter writer(doc);
     docXMLreader docReader(&writer);
