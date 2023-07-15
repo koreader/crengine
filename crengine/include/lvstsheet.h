@@ -79,6 +79,7 @@ struct ldomNode;
 class LVCssDeclaration {
 private:
     int * _data;
+    lUInt32 _datalen;
     bool _check_if_supported;
     bool  _extra_weighted;
 public:
@@ -92,7 +93,7 @@ public:
     void setExtraWeighted( bool weighted ) { _extra_weighted = weighted; }
     int isExtraWeighted() { return _extra_weighted; }
     lUInt32 getHash();
-    LVCssDeclaration() : _data(NULL), _check_if_supported(false), _extra_weighted(false) { }
+    LVCssDeclaration() : _data(NULL), _datalen(0), _check_if_supported(false), _extra_weighted(false) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
 };
 

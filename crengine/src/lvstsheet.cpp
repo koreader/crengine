@@ -4258,8 +4258,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
     // store parsed result
     if (buf.pos()) {
         buf<<(lUInt32) cssd_stop; // add end marker
-        int sz = buf.pos()/4;
-        _data = new int[sz];
+        _datalen = buf.pos()/4;
+        _data = new int[_datalen];
         // Could that cause problem with different endianess?
         buf.copyTo( (lUInt8*)_data, buf.pos() );
         // Alternative:
@@ -4661,7 +4661,7 @@ lUInt32 LVCssDeclaration::getHash() {
         return 0;
     int * p = _data;
     lUInt32 hash = 0;
-    for (;*p != cssd_stop;p++)
+    for (lUInt32 i=0; i<_datalen; i++, p++)
         hash = hash * 31 + *p;
     return hash;
 }
