@@ -167,7 +167,7 @@ static void SVGGlyphsCollector_svg_continue_to(hb_draw_funcs_t *, SVGGlyphsColle
 }
 
 #if USE_HARFBUZZ==1
-// For use with hb_font_get_glyph_shape()
+// For use with hb_font_draw_glyph()
 static hb_draw_funcs_t *SVGGlyphsCollector_svg_funcs = NULL;
 void setup_SVGGlyphsCollector_svg_funcs() {
     SVGGlyphsCollector_svg_funcs = hb_draw_funcs_create();
@@ -2516,7 +2516,7 @@ public:
             if (_kerningMode == KERNING_MODE_HARFBUZZ && code_is_glyph_index ) {
                 // With kerning mode harfbuzz, we get called with the fallback font and the glyph
                 // index in that font. No need to check if it is present or iterate fallback fonts.
-                // We can use hb_font_get_glyph_shape() which will make a smoother shape than
+                // We can use hb_font_draw_glyph() which will make a smoother shape than
                 // what we can get with FreeType outline contours below.
                 // But Harfbuzz doesn't know about any fake italic or synth weight, and has
                 // no way to do itself these transforms.
@@ -2526,7 +2526,7 @@ public:
                     if ( SVGGlyphsCollector_svg_funcs == NULL ) {
                         setup_SVGGlyphsCollector_svg_funcs();
                     }
-                    hb_font_get_glyph_shape(_hb_font, code, SVGGlyphsCollector_svg_funcs, svg_collector);
+                    hb_font_draw_glyph(_hb_font, code, SVGGlyphsCollector_svg_funcs, svg_collector);
                     return true;
                 }
             }
