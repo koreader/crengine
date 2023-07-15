@@ -2259,7 +2259,7 @@ bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback ) {
                 lUInt8 b = (((*src)     & 0xFF)*255) / alpha;
                 *dst++ = ((alpha^0xFF)<<24) | (r<<16) | (g<<8) | b;
             }
-            *src++;
+            src++;
         }
         callback->OnLineDecoded( this, y, row );
     }
