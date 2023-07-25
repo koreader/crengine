@@ -317,6 +317,7 @@ public:
     ldomNode * caption;
     int caption_h;
     int caption_direction;
+    bool caption_at_bottom;
     LVPtrVector<CCRTableRow> rows;
     LVPtrVector<CCRTableCol> cols;
     LVPtrVector<CCRTableRowGroup> rowgroups;
@@ -469,6 +470,7 @@ public:
                     if ( style->display == css_d_table_caption ) {
                         caption = item;
                         caption_direction = item_direction;
+                        caption_at_bottom = style->caption_side == css_cs_bottom;
                     }
                     else { // <th> or <td> inside <tr>
                         // Table cells became either erm_block or erm_final depending on their content
@@ -1523,6 +1525,7 @@ public:
 
         // render caption
         if ( caption ) {
+            // We render it now, but if caption_at_bottom, we'll update it later.
             int w = table_width - table_border_left - table_border_right;
             // (When border-collapse, these table_border_* will be 0)
             // Note: table padding does not apply to caption, and table padding-top
@@ -1539,7 +1542,7 @@ public:
             LFormattedTextRef txform;
             RenderRectAccessor fmt( caption );
             fmt.setX( table_border_left );
-            fmt.setY( table_h );
+            fmt.setY( table_h ); // will be updated if caption_at_bottom
             fmt.setWidth( w ); // fmt.width must be set before 'caption->renderFinalBlock'
                                // to have text-indent in % not mess up at render time
             css_style_ref_t caption_style = caption->getStyle();
@@ -1564,7 +1567,8 @@ public:
             fmt = RenderRectAccessor( caption );
             fmt.setHeight( caption_h );
             fmt.push();
-            table_h += caption_h;
+            if ( !caption_at_bottom )
+                table_h += caption_h;
         }
         table_h += table_padding_top; // padding top applies after caption
         if (nb_rows > 0) {
@@ -2096,7 +2100,16 @@ public:
             // above with the row.
             table_h += borderspacing_v_top;
         }
-        table_h += table_padding_bottom + table_border_bottom;
+        table_h += table_padding_bottom;
+        if ( caption_at_bottom ) {
+            // Update y of the already rendered caption
+            RenderRectAccessor fmt( caption );
+            fmt.setY( table_h );
+            table_h += fmt.getHeight();
+            fmt.push();
+        }
+        table_h += table_border_bottom;
+
         if ( context.wantsLines() ) {
             // Any table->style->page-break-after AVOID or ALWAYS will be taken
             // care of by renderBlockElement(), so we can use AVOID here.
@@ -2246,6 +2259,7 @@ public:
         caption = NULL;
         caption_h = 0;
         caption_direction = REND_DIRECTION_UNSET;
+        caption_at_bottom = false;
         elem = tbl_elem;
         table_width = tbl_width;
         shrink_to_fit = tbl_shrink_to_fit;
@@ -2262,6 +2276,22 @@ public:
         #endif
         LookupElem( tbl_elem, direction, 0 );
         FixRowGroupsOrder();
+        if (caption) {
+            // Check if this caption will be rendered in logical order.
+            // If not, set the flag to help text selection to not get confused
+            if ( caption_at_bottom ) {
+                if ( caption->getParentNode() != elem || caption->getNodeIndex() < elem->getChildCount()-1 ) {
+                    // At bottom, but not the last child of the table (or not a direct child of the table!)
+                    rows_rendering_reordered = true;
+                }
+            }
+            else {
+                if ( caption->getParentNode() != elem || caption->getNodeIndex() > 0 ) {
+                    // At top, but not the first child of the table (or not a direct child of the table!)
+                    rows_rendering_reordered = true;
+                }
+            }
+        }
         #if MATHML_SUPPORT==1
             mathml_tweaked_element_name_id = 0;
             MathML_checkAndTweakTableElement();
@@ -2278,7 +2308,7 @@ public:
             RenderRectAccessor fmt( elem );
             RENDER_RECT_SET_FLAG(fmt, CHILDREN_RENDERING_REORDERED);
             if ( !is_ruby_table ) { // don't show this warning as it's expected with ruby
-                elem->getDocument()->printWarning("table rows/thead/tfoot re-ordered", 2);
+                elem->getDocument()->printWarning("table rows/thead/tfoot/caption re-ordered", 2);
             }
         }
     }
@@ -4466,6 +4496,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->line_break = source->line_break;
     dest->word_break = source->word_break;
     dest->box_sizing = source->box_sizing;
+    dest->caption_side = source->caption_side;
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
@@ -10633,6 +10664,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( visibility, css_v_inherit );
     UPDATE_STYLE_FIELD( line_break, css_lb_inherit );
     UPDATE_STYLE_FIELD( word_break, css_wb_inherit );
+    UPDATE_STYLE_FIELD( caption_side, css_cs_inherit );
 
     // Note: we don't inherit "direction" (which should be inherited per specs);
     // We'll handle inheritance of direction in renderBlockEnhanced, because

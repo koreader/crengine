@@ -134,6 +134,7 @@ enum css_decl_code {
     cssd_line_break3,
     cssd_word_break,
     cssd_box_sizing,
+    cssd_caption_side,
     cssd_content,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
@@ -242,6 +243,7 @@ static const char * css_decl_name[] = {
     "-webkit-line-break",
     "word-break",
     "box-sizing",
+    "caption-side",
     "content",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
@@ -2902,6 +2904,15 @@ static const char * css_bs_names[] =
     NULL
 };
 
+// caption-side value names
+static const char * css_cs_names[] =
+{
+    "inherit",
+    "top",
+    "bottom",
+    NULL
+};
+
 static const char * css_cr_only_if_names[]={
         "any",
         "always",
@@ -4215,6 +4226,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_box_sizing:
                 n = parse_name( decl, css_bs_names, -1 );
                 break;
+            case cssd_caption_side:
+                n = parse_name( decl, css_cs_names, -1 );
+                break;
             case cssd_content:
                 {
                     lString32 parsed_content;
@@ -4603,6 +4617,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
             break;
         case cssd_box_sizing:
             style->Apply( (css_box_sizing_t) *p++, &style->box_sizing, imp_bit_box_sizing, is_important );
+            break;
+        case cssd_caption_side:
+            style->Apply( (css_caption_side_t) *p++, &style->caption_side, imp_bit_caption_side, is_important );
             break;
         case cssd_cr_hint:
             {
