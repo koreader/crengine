@@ -899,8 +899,10 @@ static bool match_nth_value( const lString32 value, int n)
 // Note that we can't cache the value 0: a field with value 0 means
 // it has not yet been cached (we could tweak it before caching if
 // storing 0 is needed).
-static void cache_node_checked_property( const ldomNode * node, int property, int value )
+static void cache_node_checked_property( const ldomNode * node, int property, int value, bool allow_cache )
 {
+    if ( !allow_cache) // (check put in here to keep calling code simpler)
+        return;
     RenderRectAccessor fmt( (ldomNode*)node );
     if ( !RENDER_RECT_HAS_FLAG(fmt, TEMP_USED_AS_CSS_CHECK_CACHE) ) {
         // Clear it from past rendering stuff: we're processing stylesheets,
@@ -947,8 +949,10 @@ static void cache_node_checked_property( const ldomNode * node, int property, in
     }
 }
 
-static bool get_cached_node_checked_property( const ldomNode * node, int property, int & value )
+static bool get_cached_node_checked_property( const ldomNode * node, int property, int & value, bool allow_cache )
 {
+    if ( !allow_cache) // (check put in here to keep calling code simpler)
+        return false;
     RenderRectAccessor fmt( (ldomNode*)node );
     if ( !RENDER_RECT_HAS_FLAG(fmt, TEMP_USED_AS_CSS_CHECK_CACHE) )
         return false; // nothing cached yet
@@ -4791,7 +4795,7 @@ lUInt32 LVCssSelectorRule::getWeight() {
     return 0;
 }
 
-bool LVCssSelectorRule::check( const ldomNode * & node )
+bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
 {
     if (!node || node->isNull() || node->isRoot())
         return false;
@@ -4862,7 +4866,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                     // No element name to match against, or this element name
                     // matches: check next rules starting from there.
                     const ldomNode * n = node;
-                    if (checkNextRules(n))
+                    if (checkNextRules(n, allow_cache))
                         // We match all next rules (possibly including other
                         // cssrt_ancessor)
                         return true;
@@ -4895,7 +4899,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                     // Same as what is done in cssrt_ancessor above: we may have
                     // to check next rules on all preceeding matching siblings.
                     const ldomNode * n = node;
-                    if (checkNextRules(n))
+                    if (checkNextRules(n, allow_cache))
                         // We match all next rules (possibly including other
                         // cssrt_ancessor or cssrt_predsibling)
                         return true;
@@ -5114,7 +5118,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 case csspc_first_of_type:
                 {
                     int n; // 1 = false, 2 = true (should not be 0 for caching)
-                    if ( !get_cached_node_checked_property(node, _attrid, n) ) {
+                    if ( !get_cached_node_checked_property(node, _attrid, n, allow_cache) ) {
                         n = 2; // true
                         if ( _attrid == csspc_first_of_type )
                             nodeId = node->getNodeId();
@@ -5129,7 +5133,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 break;
                             }
                         }
-                        cache_node_checked_property(node, _attrid, n);
+                        cache_node_checked_property(node, _attrid, n, allow_cache);
                     }
                     return n == 2;
                 }
@@ -5138,7 +5142,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 case csspc_last_of_type:
                 {
                     int n; // 1 = false, 2 = true (should not be 0 for caching)
-                    if ( !get_cached_node_checked_property(node, _attrid, n) ) {
+                    if ( !get_cached_node_checked_property(node, _attrid, n, allow_cache) ) {
                         n = 2; // true
                         if ( _attrid == csspc_last_of_type )
                             nodeId = node->getNodeId();
@@ -5153,7 +5157,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 break;
                             }
                         }
-                        cache_node_checked_property(node, _attrid, n);
+                        cache_node_checked_property(node, _attrid, n, allow_cache);
                     }
                     return n == 2;
                 }
@@ -5162,7 +5166,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 case csspc_nth_of_type:
                 {
                     int n;
-                    if ( !get_cached_node_checked_property(node, _attrid, n) ) {
+                    if ( !get_cached_node_checked_property(node, _attrid, n, allow_cache) ) {
                         if ( _attrid == csspc_nth_of_type )
                             nodeId = node->getNodeId();
                         const ldomNode * elem = node;
@@ -5173,7 +5177,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 break;
                             if (_attrid == csspc_nth_child || elem->getNodeId() == nodeId) {
                                 int nprev;
-                                if ( get_cached_node_checked_property(elem, _attrid, nprev) ) {
+                                if ( get_cached_node_checked_property(elem, _attrid, nprev, allow_cache) ) {
                                     // Computed and cached on a previous sibling: stop counting
                                     n += nprev;
                                     break;
@@ -5181,7 +5185,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 n++;
                             }
                         }
-                        cache_node_checked_property(node, _attrid, n);
+                        cache_node_checked_property(node, _attrid, n, allow_cache);
                     }
                     return match_nth_value(_value, n);
                 }
@@ -5190,7 +5194,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 case csspc_nth_last_of_type:
                 {
                     int n;
-                    if ( !get_cached_node_checked_property(node, _attrid, n) ) {
+                    if ( !get_cached_node_checked_property(node, _attrid, n, allow_cache) ) {
                         if ( _attrid == csspc_nth_last_of_type )
                             nodeId = node->getNodeId();
                         const ldomNode * elem = node;
@@ -5207,7 +5211,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                                 // first to last), so, no need to check for it.
                             }
                         }
-                        cache_node_checked_property(node, _attrid, n);
+                        cache_node_checked_property(node, _attrid, n, allow_cache);
                         // As this may be expensive if checked again on all next siblings, and
                         // as we just computed the value for this node, we can update the cache
                         // for all next siblings.
@@ -5218,7 +5222,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                             if (!elem)
                                 break;
                             if (_attrid == csspc_nth_last_child || elem->getNodeId() == nodeId) {
-                                cache_node_checked_property(elem, _attrid, nnext);
+                                cache_node_checked_property(elem, _attrid, nnext, allow_cache);
                                 nnext--;
                             }
                         }
@@ -5230,7 +5234,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                 case csspc_only_of_type:
                 {
                     int n; // 1 = false, 2 = true (should not be 0 for caching)
-                    if ( !get_cached_node_checked_property(node, _attrid, n) ) {
+                    if ( !get_cached_node_checked_property(node, _attrid, n, allow_cache) ) {
                         n = 2; // true
                         if ( _attrid == csspc_only_of_type )
                             nodeId = node->getNodeId();
@@ -5244,7 +5248,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
                             }
                             elem = elem->getUnboxedNextSibling(true, exceptBoxingNodeId);
                         }
-                        cache_node_checked_property(node, _attrid, n);
+                        cache_node_checked_property(node, _attrid, n, allow_cache);
                     }
                     return n == 2;
                 }
@@ -5256,7 +5260,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node )
     return true;
 }
 
-bool LVCssSelectorRule::checkNextRules( const ldomNode * node )
+bool LVCssSelectorRule::checkNextRules( const ldomNode * node, bool allow_cache )
 {
     // Similar to LVCssSelector::check() just below, but
     // invoked from a rule
@@ -5265,7 +5269,7 @@ bool LVCssSelectorRule::checkNextRules( const ldomNode * node )
         return true;
     const ldomNode * n = node;
     do {
-        if ( !rule->check(n) )
+        if ( !rule->check(n, allow_cache) )
             return false;
         if ( rule->isFullChecking() )
             return true;
@@ -5274,7 +5278,7 @@ bool LVCssSelectorRule::checkNextRules( const ldomNode * node )
     return true;
 }
 
-bool LVCssSelector::check( const ldomNode * node ) const
+bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
 {
     lUInt16 nodeId = node->getNodeId();
     if ( nodeId == el_pseudoElem ) {
@@ -5309,7 +5313,7 @@ bool LVCssSelector::check( const ldomNode * node ) const
     const ldomNode * n = node;
     LVCssSelectorRule * rule = _rules;
     do {
-        if ( !rule->check(n) )
+        if ( !rule->check(n, allow_cache) )
             return false;
         // cssrt_ancessor or cssrt_predsibling rules will have checked next
         // rules on each parent or sibling. If it didn't return false, it
@@ -6107,7 +6111,9 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
                 if ( !match ) {
                     lUInt16 selector_id = selector.getElementNameId();
                     if ( selector_id == 0 || selector_id == id ) {
-                        if ( selector.check(node) ) {
+                        // Don't allow caching in RenderRectAccessor() as the document
+                        // is rendered and we don't want to mess with its cache!
+                        if ( selector.check(node, false) ) {
                             match = true;
                         }
                     }

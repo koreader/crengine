@@ -143,9 +143,9 @@ public:
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
     /// check condition for node
-    bool check( const ldomNode * & node );
+    bool check( const ldomNode * & node, bool allow_cache=true );
     /// check next rules for node
-    bool checkNextRules( const ldomNode * node );
+    bool checkNextRules( const ldomNode * node, bool allow_cache=true );
     /// Some selector rule types do the full rules chain check themselves
     bool isFullChecking() { return _type == cssrt_ancessor || _type == cssrt_predsibling; }
     lUInt32 getHash();
@@ -179,7 +179,7 @@ public:
     ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() const { return _id; }
-    bool check( const ldomNode * node ) const;
+    bool check( const ldomNode * node, bool allow_cache=true ) const;
     void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
     void apply( const ldomNode * node, css_style_rec_t * style ) const
     {
