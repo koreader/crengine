@@ -1341,6 +1341,22 @@ public:
                 printf("TABLE WIDTHS step5 (fit): reducing table_width %d -%d -%d > %d\n",
                     table_width+restw+correction, restw, correction, table_width);
             #endif
+            if ( caption ) {
+                // Per-specs, a caption should not be involved in the computation of the table
+                // width, so we did not measure it above. Except for its min width, as to
+                // avoid breaking words. So measure it now.
+                int rend_flags = caption->getDocument()->getRenderBlockRenderingFlags();
+                int caption_max_content_width = 0;
+                int caption_min_content_width = 0;
+                getRenderedWidths(caption, caption_max_content_width, caption_min_content_width, caption_direction, true, rend_flags);
+                // Re-use and update table_min_width if the caption would require more min width
+                caption_min_content_width += table_outer_borders_width;
+                if ( table_min_width < caption_min_content_width )
+                    table_min_width = caption_min_content_width;
+                // Note: Firefox would indeed increase the table width to fit the caption min_width,
+                // but it would not increase and update the table column widths to fit in that (which
+                // looks quite ugly, so let's not do that, to keep things simple and nice).
+            }
             if ( table_min_width > table_width && table_min_width <= prev_table_width ) {
                 // The table has a CSS min-width specified that is larger
                 // than the shrinked-to-fit width, and that we can ensure
@@ -11441,8 +11457,12 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             // _maxWidth is the max of columns_max_width and caption_max_width (and cumulative_max_width previously)
             if ( _maxWidth < columns_max_width )
                  _maxWidth = columns_max_width;
+            /* But not really: by specs, a caption max_width does not contribute to the size of its table,
+               it should not increase the width of the table from what it would be if no caption (only
+               its min_width should be ensured to avoid word breaking).
             if ( _maxWidth < caption_max_width )
                  _maxWidth = caption_max_width;
+            */
             /* This feels like no longer needed, so let's not use them
             if ( _maxWidth < cumulative_max_width )
                  _maxWidth = cumulative_max_width;
