@@ -530,13 +530,15 @@ void LVDocView::updateDocStyleSheet() {
     m_stylesheetNeedsUpdate = false;
 }
 
-void LVDocView::gatherStylesheetsMatchingRulesets( lUInt32 nodeDataIndex, lString8Collection & matches ) {
+void LVDocView::gatherStylesheetsMatchingRulesets( lUInt32 nodeDataIndex, lString8Collection & matches, bool with_m_stylesheet ) {
     matches.clear();
-    matches.add(cs8("/* --- in main stylesheet and tweaks: --- */"));
+    if ( with_m_stylesheet )
+        matches.add(cs8("/* --- in main stylesheet and tweaks: --- */"));
     ldomNode * node = m_doc->getTinyNode( nodeDataIndex );
     if ( node && node->isElement() ) {
         // Provide our useragent stylesheet, that we have (here only) as plain text
-        node->gatherStylesheetMatchingRulesets(m_stylesheet, true, matches);
+        lString8 css = with_m_stylesheet ? m_stylesheet : lString8();
+        node->gatherStylesheetMatchingRulesets(css, true, matches);
     }
 }
 
