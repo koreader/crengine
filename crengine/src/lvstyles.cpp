@@ -44,7 +44,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
          + (lUInt32)rec.important[2]) * 31
@@ -115,6 +115,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.line_break) * 31
          + (lUInt32)rec.word_break) * 31
          + (lUInt32)rec.box_sizing) * 31
+         + (lUInt32)rec.caption_side) * 31
          + (lUInt32)rec.cr_hint.pack()) * 31
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash()
@@ -195,6 +196,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.line_break == r2.line_break&&
            r1.word_break == r2.word_break&&
            r1.box_sizing == r2.box_sizing&&
+           r1.caption_side == r2.caption_side&&
            r1.content == r2.content&&
            r1.cr_hint==r2.cr_hint;
 }
@@ -396,6 +398,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(line_break);
     ST_PUT_ENUM(word_break);
     ST_PUT_ENUM(box_sizing);
+    ST_PUT_ENUM(caption_side);
     buf << content;
     ST_PUT_LEN(cr_hint);
     lUInt32 hash = calcHash(*this);
@@ -469,6 +472,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_line_break_t, line_break);
     ST_GET_ENUM(css_word_break_t, word_break);
     ST_GET_ENUM(css_box_sizing_t, box_sizing);
+    ST_GET_ENUM(css_caption_side_t, caption_side);
     buf>>content;
     ST_GET_LEN(cr_hint);
     lUInt32 hash = 0;
