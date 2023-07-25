@@ -2073,11 +2073,40 @@ static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const
     if ( !bitmap || width <= 0 || height <= 0 )
         return false;
 
+    LVImageSourceRef img;
     ldomDocument * doc = ((LVNodeImageSource *)xcontext->external_object)->GetSourceDocument();
-    if ( !doc )
-        return false;
-    ldomNode * node = ((LVNodeImageSource *)xcontext->external_object)->GetSourceNode();
-    LVImageSourceRef img = doc->getObjectImageSource(Utf8ToUnicode(url), node);
+    if ( doc ) {
+        ldomNode * node = ((LVNodeImageSource *)xcontext->external_object)->GetSourceNode();
+        img = doc->getObjectImageSource(Utf8ToUnicode(url), node);
+    }
+    else {
+        // We may be used by frontends without a ldomDocument to render SVG, and
+        // we'd like to support embedded base64 encoded images.
+        // Let's do here the bits done for this case in ldomDocument::getObjectImageStream(refName)
+        lString32 refName = Utf8ToUnicode(url);
+        if ( refName.length() > 10 && refName[4] == ':' && refName.startsWith(lString32("data:image/")) ) {
+            LVStreamRef ref;
+            // <img src="data:image/png;base64,iVBORw0KG...>
+            lString32 data = refName.substr(0, 50);
+            int pos = data.pos(U";base64,");
+            if ( pos > 0 ) {
+                lString8 b64data = UnicodeToUtf8(refName.substr(pos+8));
+                ref = LVStreamRef(new LVBase64Stream(b64data));
+            }
+            // <img src="data:image/svg+xml,%3Csvg width...>
+            // <img src="data:image/svg+xml;utf8,<svg...>
+            if ( data.startsWith(lString32("data:image/svg+xml")) ) {
+                int pos = data.pos(U',');
+                if ( pos > 0 ) {
+                    // The attribute value has already been url-decoded at parsing time
+                    lString8 plaindata = UnicodeToUtf8(refName.substr(pos+1));
+                    ref = LVCreateStringStream(plaindata);
+                }
+            }
+            if ( !ref.isNull() )
+                img = LVCreateStreamImageSource( ref );
+        }
+    }
     if ( img.isNull() )
         return false;
 
