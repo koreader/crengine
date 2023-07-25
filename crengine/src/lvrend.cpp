@@ -130,8 +130,6 @@ int CssPageBreak2Flags( css_page_break_t prop );
 // Uncomment for debugging table rendering:
 // #define DEBUG_TABLE_RENDERING
 
-#define TABLE_BORDER_WIDTH 1
-
 class CCRTableCol;
 class CCRTableRow;
 
@@ -1305,6 +1303,13 @@ public:
             else if (cols[x]->width_auto && cols[x]->min_width > 0) {
                 dist_nb_cols += 1;      // candidate to get more width
             }
+            else {
+                // Otherwise, not a candidate to get more width:
+                // be sure we don't distribute to it.
+                if ( cols[x]->min_width != 0 ) {
+                    cols[x]->min_width = -1;
+                }
+            }
         }
         #ifdef DEBUG_TABLE_RENDERING
             for (int x=0; x<cols.length(); x++)
@@ -1372,6 +1377,8 @@ public:
                         dist_nb_cols += 1;
                     }
                 }
+                // (Not sure what to do if still dist_nb_cols==0 (all empty cols),
+                // should we distribute to all cols, or let them be, or does it matter?
                 #ifdef DEBUG_TABLE_RENDERING
                     printf("TABLE WIDTHS step5: %d to distribute to all %d non empty cols\n",
                         restw, dist_nb_cols);
