@@ -8569,7 +8569,7 @@ bool ldomNode::applyNodeStylesheet()
     return false;
 }
 
-void ldomNode::gatherStylesheetMatchingRulesets(lString8 css, bool include_document_stylesheets, lString8Collection & matches) {
+void ldomNode::gatherStylesheetMatchingRulesets(const lString8 & css, bool include_document_stylesheets, lString8Collection & matches) {
     LVStyleSheet styleSheet(getDocument());
     styleSheet.gatherNodeMatchingRulesets(this, css.c_str(), matches);
     if ( include_document_stylesheets ) {
