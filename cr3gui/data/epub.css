@@ -201,6 +201,10 @@ table[align=right i] { float: right; }
  * page number is in a title= attribute.) */
 span[type=pagebreak] { display: none; }
 
+/* EPUB3: also hide any <nav hidden=""> made available in the book content,
+ * which could be a huge list of reference page numbers */
+nav[hidden] { display: none; }
+
 /* Old element or className based selectors involving display: that
  * we need to support for older gDOMVersionRequested
  * DO NOT MODIFY BELOW to not break past highlights */
