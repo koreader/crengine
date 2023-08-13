@@ -322,7 +322,7 @@ static int substr_compare( const char * sub, const char * & str )
     int j;
     for ( j=0; sub[j] == str[j] && sub[j] && str[j]; j++)
         ;
-    if (!sub[j])
+    if (j && !sub[j])
     {
         //bool last_alpha = css_is_alpha( sub[j-1] );
         //bool next_alnum = css_is_alnum( str[j] );
@@ -351,7 +351,7 @@ static int substr_icompare( const char * sub, const char * & str )
     // for ( j=0; toLower(sub[j]) == toLower(str[j]) && sub[j] && str[j]; j++)
     for ( j=0; sub[j] == toLower(str[j]) && sub[j] && str[j]; j++)
         ;
-    if (!sub[j])
+    if (j && !sub[j])
     {
         //bool last_alpha = css_is_alpha( sub[j-1] );
         //bool next_alnum = css_is_alnum( str[j] );
@@ -607,11 +607,6 @@ bool parse_number_value( const char * & str, css_length_t & value,
     value.type = css_val_unspecified;
     skip_spaces( str );
     // Here and below: named values and unit case should not matter
-    if ( substr_icompare( "inherit", str ) ) {
-        value.type = css_val_inherited;
-        value.value = 0;
-        return true;
-    }
     if ( accept_auto && substr_icompare( "auto", str ) ) {
         value.type = css_val_unspecified;
         value.value = css_generic_auto;
@@ -1192,18 +1187,15 @@ bool parse_color_value( const char * & str, css_length_t & value )
         value.value = css_generic_currentcolor;
         return true;
     }
-    if ( substr_icompare( "inherit", str ) )
-    {
-        value.type = css_val_inherited;
-        value.value = 0;
-        return true;
-    }
+    /* "none" is not a valid color name (unless it was in use
+     * in the old days in HTML attributes like bgcolor="none"?)
     if ( substr_icompare( "none", str ) )
     {
         value.type = css_val_unspecified;
         value.value = 0;
         return true;
     }
+    */
     if (*str=='#') {
         // #rgb or #rrggbb colors
         str++;
@@ -2525,11 +2517,26 @@ static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc )
     return true;
 }
 
+// Global keyword that apply to all properties
+enum css_global_keyword {
+    css_g_inherit,
+    css_g_initial,
+    css_g_unset,
+};
 
-// The order of items in following tables should match the order in the enums in include/cssdef.h
-static const char * css_d_names[] = 
+static const char * css_global_keyword_names[] =
 {
     "inherit",
+    "initial",
+    "unset",
+    NULL
+};
+
+// The order of items in following tables should match the order in the enums in include/cssdef.h
+// (We skip parsing "inherit" and the css_xyz_inherit enum value, as "inherit" is parsed beforehand.)
+static const char * css_d_names[] = 
+{
+    "", // css_d_inherit
     "ruby",
     "run-in",
     "inline",
@@ -2553,7 +2560,7 @@ static const char * css_d_names[] =
 
 static const char * css_ws_names[] = 
 {
-    "inherit",
+    "", // css_ws_inherit
     "normal",
     "nowrap",
     "pre-line",
@@ -2565,7 +2572,7 @@ static const char * css_ws_names[] =
 
 static const char * css_ta_names[] = 
 {
-    "inherit",
+    "", // css_ta_inherit
     "left",
     "right",
     "center",
@@ -2584,7 +2591,7 @@ static const char * css_ta_names[] =
 
 static const char * css_td_names[] = 
 {
-    "inherit",
+    "", // css_td_inherit
     "none",
     "underline",
     "overline",
@@ -2595,7 +2602,7 @@ static const char * css_td_names[] =
 
 static const char * css_tt_names[] =
 {
-    "inherit",
+    "", // css_tt_inherit
     "none",
     "uppercase",
     "lowercase",
@@ -2616,7 +2623,7 @@ static const char * css_tt_names[] =
 // method from what it is set to SoftHyphensHyph locally)
 static const char * css_hyph_names[] = 
 {
-    "inherit",
+    "", // css_hyph_inherit
     "none",
     "auto",
     NULL
@@ -2624,7 +2631,7 @@ static const char * css_hyph_names[] =
 // For "adobe-text-layout:" (for documents made for Adobe RMSDK)
 static const char * css_hyph_names2[] =
 {
-    "inherit",
+    "", // css_hyph_inherit
     "optimizespeed",
     "optimizequality",
     NULL
@@ -2632,7 +2639,7 @@ static const char * css_hyph_names2[] =
 // For "adobe-hyphenate:"
 static const char * css_hyph_names3[] =
 {
-    "inherit",
+    "", // css_hyph_inherit
     "none",
     "explicit", // this may wrong, as it's supposed to be like "hyphens: manual"
     NULL
@@ -2640,7 +2647,7 @@ static const char * css_hyph_names3[] =
 
 static const char * css_pb_names[] =
 {
-    "inherit",
+    "", // css_pb_inherit
     "auto",
     "avoid", // those after this one are not supported by page-break-inside
     "always",
@@ -2654,7 +2661,7 @@ static const char * css_pb_names[] =
 
 static const char * css_fs_names[] = 
 {
-    "inherit",
+    "", // css_fs_inherit
     "normal",
     "italic",
     "oblique",
@@ -2663,7 +2670,7 @@ static const char * css_fs_names[] =
 
 static const char * css_fw_names[] = 
 {
-    "inherit",
+    "", // css_fw_inherit
     "normal",
     "bold",
     "bolder",
@@ -2681,7 +2688,7 @@ static const char * css_fw_names[] =
 };
 static const char * css_va_names[] = 
 {
-    "inherit",
+    "", // css_va_inherit
     "baseline", 
     "sub",
     "super",
@@ -2701,7 +2708,7 @@ static const char * css_ti_attribute_names[] =
 
 static const char * css_ff_names[] =
 {
-    "inherit",
+    "inherit", // css_ff_inherit (we keep parsing this one, but will ignore it as not standalone)
     "serif",
     "sans-serif",
     "cursive",
@@ -2715,7 +2722,7 @@ static const char * css_ff_names[] =
 
 static const char * css_lst_names[] =
 {
-    "inherit",
+    "", // css_lst_inherit
     "disc",
     "circle",
     "square",
@@ -2730,7 +2737,7 @@ static const char * css_lst_names[] =
 
 static const char * css_lsp_names[] =
 {
-    "inherit",
+    "", // css_lsp_inherit
     "inside",
     "outside",
     "-cr-outside",
@@ -2738,6 +2745,8 @@ static const char * css_lsp_names[] =
 };
 ///border style names
 static const char * css_bst_names[]={
+  "", // css_border_inherit
+  "none",
   "solid",
   "dotted",
   "dashed",
@@ -2746,36 +2755,14 @@ static const char * css_bst_names[]={
   "ridge",
   "inset",
   "outset",
-  "none",
   NULL
 };
-///border width value names
-static const char * css_bw_names[]={
-        "thin",
-        "medium",
-        "thick",
-        "initial",
-        "inherit",
-        NULL
-};
-
 //background repeat names
 static const char * css_bg_repeat_names[]={
         "repeat",
         "repeat-x",
         "repeat-y",
         "no-repeat",
-        "initial",
-        "inherit",
-        NULL
-};
-//background attachment names
-static const char * css_bg_attachment_names[]={
-        "scroll",
-        "fixed",
-        "local",
-        "initial",
-        "inherit",
         NULL
 };
 //background position names
@@ -2802,18 +2789,15 @@ static const char * css_bg_position_names[]={
         "left",
         "right",
         "top",
-        "bottom",
-        "initial", // 23
-        "inherit", // 24
+        "bottom", // 22
         NULL
 };
 
 //border-collpase names
 static const char * css_bc_names[]={
+        "", // css_border_c_inherit
         "separate",
         "collapse",
-        "initial",
-        "inherit",
         NULL
 };
 
@@ -2821,7 +2805,7 @@ static const char * css_bc_names[]={
 // https://drafts.csswg.org/css-break-3/#widows-orphans
 //   "Negative values and zero are invalid and must cause the declaration to be ignored."
 static const char * css_orphans_widows_names[]={
-        "inherit",
+        "", // css_orphans_widows_inherit
         "1",
         "2",
         "3",
@@ -2837,7 +2821,7 @@ static const char * css_orphans_widows_names[]={
 // float value names
 static const char * css_f_names[] =
 {
-    "inherit",
+    "", // css_f_inherit
     "none",
     "left",
     "right",
@@ -2847,7 +2831,7 @@ static const char * css_f_names[] =
 // clear value names
 static const char * css_c_names[] =
 {
-    "inherit",
+    "", // css_c_inherit
     "none",
     "left",
     "right",
@@ -2858,7 +2842,7 @@ static const char * css_c_names[] =
 // direction value names
 static const char * css_dir_names[] =
 {
-    "inherit",
+    "", // css_dir_inherit
     "unset",
     "ltr",
     "rtl",
@@ -2868,7 +2852,7 @@ static const char * css_dir_names[] =
 // visibility value names
 static const char * css_v_names[] =
 {
-    "inherit",
+    "", // css_v_inherit
     "visible",
     "hidden",
     "collapse",
@@ -2878,7 +2862,7 @@ static const char * css_v_names[] =
 // line-break value names
 static const char * css_lb_names[] =
 {
-    "inherit",
+    "", // css_lb_inherit
     "auto",
     "normal",
     "loose",
@@ -2891,7 +2875,7 @@ static const char * css_lb_names[] =
 // word-break value names
 static const char * css_wb_names[] =
 {
-    "inherit",
+    "", // css_wb_inherit
     "normal",
     "break-word",
     "break-all",
@@ -2902,7 +2886,7 @@ static const char * css_wb_names[] =
 // box-sizing value names
 static const char * css_bs_names[] =
 {
-    "inherit",
+    "", // css_bs_inherit
     "content-box",
     "border-box",
     NULL
@@ -2911,11 +2895,41 @@ static const char * css_bs_names[] =
 // caption-side value names
 static const char * css_cs_names[] =
 {
-    "inherit",
+    "", // css_cs_inherit
     "top",
     "bottom",
     NULL
 };
+
+///border width value names
+static const char * css_bw_names[]={
+    "thin",
+    "medium",
+    "thick",
+    NULL
+};
+static bool parse_named_border_width( const char * & str, css_length_t & width ) {
+    skip_spaces(str);
+    int num = parse_name( str, css_bw_names, -1 );
+    if ( num == -1 )
+        return false;
+    width.type = css_val_px;
+    switch (num){
+        case 0: // thin
+            width.value = 1*256;
+            break;
+        case 1: // medium
+            width.value = 3*256;
+            break;
+        case 2: // thick
+            width.value = 5*256;
+            break;
+        default:
+            return false;
+            break;
+    }
+    return true;
+}
 
 static const char * css_cr_only_if_names[]={
         "any",
@@ -2984,6 +2998,57 @@ enum cr_only_if_t {
     cr_only_if_not_inside_inpage_footnote,
 };
 
+// Handle inherit/initial/unset, as "#define..." to keep LVCssDeclaration::parse() lean.
+#define IF_g_SET_n_AND_break(default_inherited, inherit_val, initial_val) \
+    if (g >= 0) { \
+        if (default_inherited) { \
+            n = (g != css_g_initial ? inherit_val : initial_val); \
+        } \
+        else { \
+            n = (g == css_g_inherit ? inherit_val : initial_val); \
+        } \
+        break; \
+    }
+#define IF_g_PUSH_VALUE_AND_break(nb, default_inherited, inherit_val, initial_val) \
+    if (g >= 0) { \
+        buf<<(lUInt32) (prop_code | importance | parse_important(decl)); \
+        if (default_inherited) { \
+            for (int i = 0; i < nb; i++) { \
+                buf<<(lUInt32) (g != css_g_initial ? inherit_val : initial_val); \
+            } \
+        } \
+        else { \
+            for (int i = 0; i < nb; i++) { \
+                buf<<(lUInt32) (g == css_g_inherit ? inherit_val : initial_val); \
+            } \
+        } \
+        break; \
+    }
+// Hardcoded length (css_val_inherited,0) when "inherit":
+#define IF_g_PUSH_LENGTH_AND_break(nb, default_inherited, initial_len_type, initial_len_value) \
+    if (g >= 0) { \
+        buf<<(lUInt32) (prop_code | importance | parse_important(decl)); \
+        if (default_inherited && g != css_g_initial) { \
+            for (int i = 0; i < nb; i++) { \
+                buf<<(lUInt32) css_val_inherited; \
+                buf<<(lUInt32) 0; \
+            } \
+        } \
+        else if (!default_inherited && g == css_g_inherit) { \
+            for (int i = 0; i < nb; i++) { \
+                buf<<(lUInt32) css_val_inherited; \
+                buf<<(lUInt32) 0; \
+            } \
+        } \
+        else { \
+            for (int i = 0; i < nb; i++) { \
+                buf<<(lUInt32) initial_len_type; \
+                buf<<(lUInt32) (initial_len_value); \
+            } \
+        } \
+        break; \
+    }
+
 bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDocBase * doc, lString32 codeBase )
 {
     if ( !decl )
@@ -3011,6 +3076,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             next_property( decl );
             continue;
         }
+        // Parse inherit/initial/unset early, as it applies to all properties
+        int g = parse_name( decl, css_global_keyword_names, -1 );
         skip_spaces( decl );
         lString8 strValue;
         lUInt32 importance = higher_importance ? IMPORTANT_DECL_HIGHER : 0;
@@ -3063,7 +3130,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             }
                             if ( !ignoring ) {
                                 // No static -cr-only-if prevents this non-static one to be checked
-                                buf<<(lUInt32) (prop_code | importance | parsed_important | parse_important(decl));
+                                buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                                 buf<<(lUInt32) name;
                             }
                         }
@@ -3169,6 +3236,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 break;
             // non standard property for providing hints via style tweaks
             case cssd_cr_hint:
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_unspecified, CSS_CR_HINT_NONE_NO_INHERIT);
                 {
                     // All values are mapped into a single style->cr_hint 31 bits bitmap
                     int hints = 0; // "none" = no hint
@@ -3235,15 +3303,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_display:
+                IF_g_SET_n_AND_break(false, css_d_inherit, css_d_inline);
                 n = parse_name( decl, css_d_names, -1 );
                 if (n == css_d_list_item_block && doc && doc->getDOMVersionRequested() < 20180524) {
                     n = css_d_list_item_legacy; // legacy rendering of list-item
                 }
                 break;
             case cssd_white_space:
+                IF_g_SET_n_AND_break(true, css_ws_inherit, css_ws_normal)
                 n = parse_name( decl, css_ws_names, -1 );
                 break;
             case cssd_text_align:
+                IF_g_SET_n_AND_break(true, css_ta_inherit, css_ta_start)
                 n = parse_name( decl, css_ta_names, -1 );
                 if ( n >= css_ta_auto ) // only accepted with text-align-last
                     n = -1;
@@ -3251,14 +3322,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_text_align_last:
             case cssd_text_align_last2:
                 prop_code = cssd_text_align_last;
+                IF_g_SET_n_AND_break(true, css_ta_inherit, css_ta_auto)
                 n = parse_name( decl, css_ta_names, -1 );
                 break;
             case cssd_text_decoration:
             case cssd_text_decoration2:
                 prop_code = cssd_text_decoration;
+                // (Not default-inherited per specs, but inherited by our implementation)
+                IF_g_SET_n_AND_break(true, css_td_inherit, css_td_none)
                 n = parse_name( decl, css_td_names, -1 );
                 break;
             case cssd_text_transform:
+                IF_g_SET_n_AND_break(true, css_tt_inherit, css_tt_none)
                 n = parse_name( decl, css_tt_names, -1 );
                 break;
             case cssd_hyphenate:
@@ -3268,6 +3343,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_hyphenate5:
             case cssd_hyphenate6:
                 prop_code = cssd_hyphenate;
+                IF_g_SET_n_AND_break(true, css_hyph_inherit, css_hyph_auto)
                 n = parse_name( decl, css_hyph_names, -1 );
                 if ( n==-1 )
                     n = parse_name( decl, css_hyph_names2, -1 );
@@ -3277,11 +3353,13 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_page_break_before:
             case cssd_break_before:
                 prop_code = cssd_page_break_before;
+                IF_g_SET_n_AND_break(false, css_pb_inherit, css_pb_auto);
                 n = parse_name( decl, css_pb_names, -1 );
                 break;
             case cssd_page_break_inside:
             case cssd_break_inside:
                 prop_code = cssd_page_break_inside;
+                IF_g_SET_n_AND_break(false, css_pb_inherit, css_pb_auto);
                 n = parse_name( decl, css_pb_names, -1 );
                 // Only a subset of css_pb_names are accepted
                 if (n > css_pb_avoid)
@@ -3290,16 +3368,27 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_page_break_after:
             case cssd_break_after:
                 prop_code = cssd_page_break_after;
+                IF_g_SET_n_AND_break(false, css_pb_inherit, css_pb_auto);
                 n = parse_name( decl, css_pb_names, -1 );
                 break;
             case cssd_list_style_type:
+                IF_g_SET_n_AND_break(true, css_lst_inherit, css_lst_disc)
                 n = parse_name( decl, css_lst_names, -1 );
                 break;
             case cssd_list_style_position:
+                IF_g_SET_n_AND_break(true, css_lsp_inherit, css_lsp_outside)
                 n = parse_name( decl, css_lsp_names, -1 );
                 break;
             case cssd_list_style:
                 {
+                    if ( g >= 0 ) {
+                        parsed_important = parse_important(decl);
+                        buf<<(lUInt32) (cssd_list_style_type | importance | parsed_important);
+                        buf<<(lUInt32) (g != css_g_initial ? css_lst_inherit : css_lst_disc );
+                        buf<<(lUInt32) (cssd_list_style_position | importance | parsed_important);
+                        buf<<(lUInt32) (g != css_g_initial ? css_lsp_inherit : css_lsp_outside );
+                        break;
+                    }
                     // The list-style property is specified as one, two, or three keywords in any order,
                     // the keywords being those of list-style-type, list-style-position and list-style-image.
                     // We don't support (and will fail parsing the declaration) a list-style-image url(...)
@@ -3328,6 +3417,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_vertical_align:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_va_baseline);
                 {
                     css_length_t len;
                     int n1 = parse_name( decl, css_va_names, -1 );
@@ -3349,6 +3439,17 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 break;
             case cssd_font_family:
                 {
+                    if ( g >= 0 ) {
+                        if ( g == css_g_initial ) {
+                            n = css_ff_sans_serif; // lvfntman's default
+                            if ( doc ) { strValue = doc->getRootNode()->getStyle()->font_name; }
+                        }
+                        else { // inherit/unset
+                            n = css_ff_inherit;
+                            strValue = "";
+                        }
+                        break;
+                    }
                     lString8Collection list;
                     int processed = splitPropertyValueList( decl, list );
                     // printf("font-family: %s\n", lString8(decl, processed).c_str());
@@ -3410,11 +3511,6 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                     // and Calibre 5.x would consider the whole declaration invalid.
                                     // So, best to just ignore any non-standalone "inherit", and
                                     // keep parsing the font names.
-                                    if ( i == 0 && list.length() == 1) {
-                                        // At start and single (we have removed "!important" from the list
-                                        // above, as well as any other generic name that was after)
-                                        n = css_ff_inherit;
-                                    }
                                 }
                                 else {
                                     // As we browse list from the right, keep replacing
@@ -3460,9 +3556,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_font_style:
+                IF_g_SET_n_AND_break(true, css_fs_inherit, css_fs_normal)
                 n = parse_name( decl, css_fs_names, -1 );
                 break;
             case cssd_font_weight:
+                IF_g_SET_n_AND_break(true, css_fw_inherit, css_fw_400)
                 n = parse_name( decl, css_fw_names, -1 );
                 break;
             case cssd_font_features: // font-feature-settings
@@ -3488,6 +3586,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_font_variant_numeric:
             case cssd_font_variant_east_asian:
             case cssd_font_variant_alternates:
+                // 'initial', like 'normal' and 'none', when used on the specific properties,
+                // will unfortunately reset all the others.
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_unspecified, 0);
                 {
                     // https://drafts.csswg.org/css-fonts-3/#propdef-font-variant
                     // https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant
@@ -3572,6 +3673,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_text_indent:
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_screen_px, 0);
                 {
                     // read length
                     css_length_t len;
@@ -3612,50 +3714,35 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
 
             // Next ones accept 1 length value (with possibly named values for borders
             // that we map to a length)
+            // Any IF_g_PUSH... not matching will fall through.
             case cssd_border_bottom_width:
             case cssd_border_top_width:
             case cssd_border_left_width:
             case cssd_border_right_width:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_px, 3*256);
                 {
-                    int n1 = parse_name( decl, css_bw_names, -1 );
-                    if (n1 != -1) {
+                    css_length_t width;
+                    if (parse_named_border_width( decl, width )) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        switch (n1) {
-                            case 0: // thin
-                                buf<<(lUInt32) css_val_px;
-                                buf<<(lUInt32) (1*256);
-                                break;
-                            case 1: // medium
-                                buf<<(lUInt32) css_val_px;
-                                buf<<(lUInt32) (3*256);
-                                break;
-                            case 2: // thick
-                                buf<<(lUInt32) css_val_px;
-                                buf<<(lUInt32) (5*256);
-                                break;
-                            case 3: // initial
-                                buf<<(lUInt32) css_val_px;
-                                buf<<(lUInt32) (3*256);
-                                break;
-                            case 4: // inherit
-                            default:
-                                buf<<(lUInt32) css_val_inherited;
-                                buf<<(lUInt32) 0;
-                                break;
-                        }
+                        buf<<(lUInt32) width.type;
+                        buf<<(lUInt32) width.value;
                         break; // We found a named border-width, we're done
                     }
                 }
                 // no named value found, don't break: continue checking if value is a number
             case cssd_line_height:
             case cssd_letter_spacing:
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_unspecified, css_generic_normal);
             case cssd_font_size:
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_rem, 256);
             case cssd_width:
             case cssd_height:
             case cssd_min_width:
             case cssd_min_height:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_auto);
             case cssd_max_width:
             case cssd_max_height:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_none);
             case cssd_margin_left:
             case cssd_margin_right:
             case cssd_margin_top:
@@ -3664,6 +3751,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_padding_right:
             case cssd_padding_top:
             case cssd_padding_bottom:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_screen_px, 0);
                 {
                     // borders don't accept length in %
                     bool accept_percent = true;
@@ -3715,49 +3803,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             // Next ones accept 1 to 4 length values (with possibly named values for borders
             // that we map to a length)
             case cssd_border_width:
-                {
-                    int n1 = parse_name( decl, css_bw_names, -1 );
-                    if (n1!=-1) {
-                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
-                        switch (n1) {
-                            case 0: // thin
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) css_val_px;
-                                    buf<<(lUInt32) (1*256);
-                                }
-                                break;
-                            case 1: // medium
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) css_val_px;
-                                    buf<<(lUInt32) (3*256);
-                                }
-                                break;
-                            case 2: // thick
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) css_val_px;
-                                    buf<<(lUInt32) (5*256);
-                                }
-                                break;
-                            case 3: // initial
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) css_val_px;
-                                    buf<<(lUInt32) (3*256);
-                                }
-                                break;
-                            case 4: // inherit
-                            default:
-                                for (int i = 0; i < 4; i++) {
-                                    buf<<(lUInt32) css_val_inherited;
-                                    buf<<(lUInt32) 0;
-                                }
-                                break;
-                        }
-                        break; // We found a named border-width, we're done
-                    }
-                }
-                // no named value found, don't break: continue checking if value is a number
+                IF_g_PUSH_LENGTH_AND_break(4, false, css_val_px, 3*256);
             case cssd_margin:
             case cssd_padding:
+                IF_g_PUSH_LENGTH_AND_break(4, false, css_val_screen_px, 0);
                 {
                     bool accept_percent = true;
                     if ( prop_code==cssd_border_width )
@@ -3771,9 +3820,17 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     css_length_t len[4];
                     int i;
                     for (i = 0; i < 4; i++) {
-                        if (!parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto ))
-                            break;
+                        if (parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto )) {
+                            continue;
+                        }
+                        if (prop_code == cssd_border_width && parse_named_border_width( decl, len[i] )) {
+                            continue;
+                        }
+                        break;
                     }
+                    // Note: we're not checking what's after when failing parsing... This mean we will accept
+                    // an invalid "border-width: thin 9px foo 42" and handle it as "thin 9px thin 9px", or
+                    // an invalid "border-width: inherit 9px thick 0" as "inherit"...
                     if (i) {
                         // If we found 1, it applies to 4 edges
                         // If we found 2, 1st one apply to top and bottom, 2nd to right and left
@@ -3794,11 +3851,14 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             // Done with those that accept 1 to 4 length values.
 
             case cssd_color:
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_color, (doc ? doc->getRootNode()->getStyle()->color.value : 0x000000));
             case cssd_background_color:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_transparent);
             case cssd_border_top_color:
             case cssd_border_right_color:
             case cssd_border_bottom_color:
             case cssd_border_left_color:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_currentcolor);
                 {
                     css_length_t len;
                     if ( parse_color_value( decl, len ) ) {
@@ -3809,6 +3869,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_border_color:
+                IF_g_PUSH_LENGTH_AND_break(4, false, css_val_unspecified, css_generic_currentcolor);
                 {
                     // Accepts 1 to 4 color values
                     css_length_t len[4];
@@ -3834,9 +3895,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_border_right_style:
             case cssd_border_bottom_style:
             case cssd_border_left_style:
+                IF_g_SET_n_AND_break(false, css_border_inherit, css_border_none)
                 n = parse_name( decl, css_bst_names, -1 );
                 break;
             case cssd_border_style:
+                IF_g_PUSH_VALUE_AND_break(4, false, css_border_inherit, css_border_none)
                 {
                     // Accepts 1 to 4 named values
                     int name[4];
@@ -3873,6 +3936,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_border_right:
             case cssd_border_bottom:
             case cssd_border_left:
+                // We don't handle (g>=0) here, to not duplicate the whole logic: we handle it
+                // in the loop below, as if we parsed each inherit or initial values
                 {
                     bool found_style = false;
                     bool found_width = false;
@@ -3890,39 +3955,27 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     for (int i=0; i<3; i++) {
                         skip_spaces(decl);
                         if ( !found_width ) {
+                            if ( g >= 0 ) { // inherit, or initial/unset=medium
+                                width = (g == css_g_inherit ? css_length_t(css_val_inherited, 0)
+                                                            : css_length_t(css_val_px, 3*256));
+                                found_width = true;
+                                continue;
+                            }
                             if ( parse_number_value( decl, width, false ) ) { // accept_percent=false
                                 found_width = true;
                                 continue;
                             }
-                            else {
-                                int num = parse_name( decl, css_bw_names, -1 );
-                                if ( num != -1 ) {
-                                    width.type = css_val_px;
-                                    switch (num){
-                                        case 0: // thin
-                                            width.value = 1*256;
-                                            break;
-                                        case 1: // medium
-                                            width.value = 3*256;
-                                            break;
-                                        case 2: // thick
-                                            width.value = 5*256;
-                                            break;
-                                        case 3: // initial
-                                            width.value = 3*256;
-                                            break;
-                                        case 4: // inherit
-                                        default:
-                                            width.type = css_val_inherited;
-                                            width.value = 0;
-                                            break;
-                                    }
-                                    found_width = true;
-                                    continue;
-                                }
+                            if (parse_named_border_width( decl, width )) {
+                                found_width = true;
+                                continue;
                             }
                         }
                         if ( !found_style ) {
+                            if ( g >= 0 ) { // inherit, or initial/unset=none
+                                style_val = (g == css_g_inherit ? css_border_inherit : css_border_none);
+                                found_style = true;
+                                continue;
+                            }
                             style_val = parse_name( decl, css_bst_names, -1 );
                             if ( style_val != -1 ) {
                                 found_style = true;
@@ -3930,6 +3983,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             }
                         }
                         if ( !found_color ) {
+                            if ( g >= 0 ) { // inherit, or initial/unset=currentcolor
+                                color = (g == css_g_inherit ? css_length_t(css_val_inherited, 0)
+                                                            : css_length_t(css_val_unspecified, css_generic_currentcolor));
+                                found_color = true;
+                                continue;
+                            }
                             if( parse_color_value( decl, color ) ){
                                 found_color = true;
                                 continue;
@@ -4014,6 +4073,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
 
             case cssd_background_image:
                 {
+                    if ( g >= 0 ) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        if ( g == css_g_inherit ) {
+                            // Have "\x01" means "inherit"
+                            buf<<(lUInt32) 1; // one char
+                            buf<<(lUInt32) '\x01';
+                        }
+                        else { // initial/unset defaults to 'none'
+                            buf<<(lUInt32) 0; // empty string
+                        }
+                        break;
+                    }
                     lString8 str;
                     const char *tmp = decl;
                     int len=0;
@@ -4041,9 +4112,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_background_repeat:
+                IF_g_SET_n_AND_break(false, css_background_r_inherit, css_background_repeat);
                 n = parse_name( decl, css_bg_repeat_names, -1 );
                 break;
             case cssd_background_position:
+                IF_g_SET_n_AND_break(false, css_background_p_inherit, css_background_left_top);
                 n = parse_name( decl, css_bg_position_names, -1 );
                 // Only values between 0 and 8 will be checked by the background drawing code
                 if ( n>8 ) {
@@ -4053,12 +4126,37 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     else if ( n==20 ) n=4;   // "right" = "right center"
                     else if ( n==21 ) n=6;   // "top" = "center top"
                     else if ( n==22 ) n=8;   // "bottom" = "center bottom"
-                    else if ( n==23 ) n=0;   // "initial" = "left top"
-                    else if ( n==24 ) n=0;   // "inherit" = "left top"
+                    else n=0;                // should not happen, but be "left top"
                 }
                 break;
             case cssd_background:
                 {
+                    if ( g >= 0 ) {
+                        parsed_important = parse_important(decl);
+                        // See standalone properties above for details
+                        buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
+                        if ( g == css_g_inherit ) {
+                            buf<<(lUInt32) 1;
+                            buf<<(lUInt32) '\x01';
+                        }
+                        else {
+                            buf<<(lUInt32) 0;
+                        }
+                        buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
+                        buf<<(lUInt32) (g == css_g_inherit ? css_background_r_inherit : css_background_repeat);
+                        buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
+                        buf<<(lUInt32) (g == css_g_inherit ? css_background_p_inherit : css_background_left_top);
+                        buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
+                        if ( g == css_g_inherit ) {
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
+                        }
+                        else {
+                            buf<<(lUInt32) css_val_unspecified;
+                            buf<<(lUInt32) css_generic_transparent;
+                        }
+                        break;
+                    }
                     // Limited parsing of this possibly complex property
                     // We only support a single layer in these orders:
                     //   - color
@@ -4114,8 +4212,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                 else if ( position==20 ) position=4; // "right" = "right center"
                                 else if ( position==21 ) position=6; // "top" = "center top"
                                 else if ( position==22 ) position=8; // "bottom" = "center bottom"
-                                else if ( position==23 ) position=0; // "initial" = "left top"
-                                else if ( position==24 ) position=0; // "inherit" = "left top"
+                                else position = 0; // should not happen, but be "left top"
                             }
                         }
                         if( repeat == -1 ) { // Try parsing repeat after position
@@ -4151,10 +4248,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_background_size2:
                 {
                     prop_code = cssd_background_size;
+                    IF_g_PUSH_LENGTH_AND_break(2, false, css_val_unspecified, css_generic_auto);
                     // https://developer.mozilla.org/en-US/docs/Web/CSS/background-size
                     css_length_t len[2];
                     int i;
                     for (i = 0; i < 2; i++) {
+                        // accept percent, auto and contain/cover
                         if ( !parse_number_value( decl, len[i], true, false, true, false, false, false, true ) )
                             break;
                     }
@@ -4178,6 +4277,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_border_spacing:
+                IF_g_PUSH_LENGTH_AND_break(2, true, css_val_screen_px, 0);
                 {
                     css_length_t len[2];
                     int i;
@@ -4198,43 +4298,62 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 }
                 break;
             case cssd_border_collapse:
+                IF_g_SET_n_AND_break(true, css_border_c_inherit, css_border_c_separate);
                 n = parse_name( decl, css_bc_names, -1 );
                 break;
             case cssd_orphans:
+                IF_g_SET_n_AND_break(true, css_orphans_widows_inherit, css_orphans_widows_1);
                 n = parse_name( decl, css_orphans_widows_names, -1 );
                 break;
             case cssd_widows:
+                IF_g_SET_n_AND_break(true, css_orphans_widows_inherit, css_orphans_widows_1);
                 n = parse_name( decl, css_orphans_widows_names, -1 );
                 break;
             case cssd_float:
+                IF_g_SET_n_AND_break(false, css_f_inherit, css_f_none);
                 n = parse_name( decl, css_f_names, -1 );
                 break;
             case cssd_clear:
+                IF_g_SET_n_AND_break(false, css_c_inherit, css_c_none);
                 n = parse_name( decl, css_c_names, -1 );
                 break;
             case cssd_direction:
+                IF_g_SET_n_AND_break(true, css_dir_inherit, css_dir_ltr);
                 n = parse_name( decl, css_dir_names, -1 );
                 break;
             case cssd_visibility:
+                IF_g_SET_n_AND_break(true, css_v_inherit, css_v_visible);
                 n = parse_name( decl, css_v_names, -1 );
                 break;
             case cssd_line_break:
             case cssd_line_break2:
             case cssd_line_break3:
                 prop_code = cssd_line_break;
+                IF_g_SET_n_AND_break(true, css_lb_inherit, css_lb_auto);
                 n = parse_name( decl, css_lb_names, -1 );
                 break;
             case cssd_word_break:
+                IF_g_SET_n_AND_break(true, css_wb_inherit, css_wb_normal);
                 n = parse_name( decl, css_wb_names, -1 );
                 break;
             case cssd_box_sizing:
+                IF_g_SET_n_AND_break(false, css_bs_inherit, css_bs_content_box);
                 n = parse_name( decl, css_bs_names, -1 );
                 break;
             case cssd_caption_side:
+                IF_g_SET_n_AND_break(true, css_cs_inherit, css_cs_top);
                 n = parse_name( decl, css_cs_names, -1 );
                 break;
             case cssd_content:
                 {
+                    if ( g >= 0 ) {
+                        // Inheritance to a pseudo element would compute to none.
+                        // so we can store "X" for any of inherit/initial/unset.
+                        buf<<(lUInt32) (cssd_content | importance | parse_important(decl));
+                        buf<<(lUInt32) 1;
+                        buf<<(lUInt32) U'X';
+                        break;
+                    }
                     lString32 parsed_content;
                     bool has_unsupported = false;
                     if ( parse_content_property( decl, parsed_content, has_unsupported, stop_char ) ) {
@@ -4243,7 +4362,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             // the whole content unsupported - so don't add to buf if any unsupported
                         }
                         else {
-                            buf<<(lUInt32) (cssd_content | importance | parsed_important | parse_important(decl));
+                            buf<<(lUInt32) (cssd_content | importance | parse_important(decl));
                             buf<<(lUInt32) parsed_content.length();
                             for (int i=0; i < parsed_content.length(); i++) {
                                 buf<<(lUInt32) parsed_content[i];

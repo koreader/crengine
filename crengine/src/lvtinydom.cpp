@@ -5094,7 +5094,14 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     // render props don't change.
     //   _renderedBlockCache.clear();
     changed = _imgScalingOptions.update(props, def_font->getSize()) || changed;
+
+    // We define here the style of the root node.
     css_style_ref_t s( new css_style_rec_t );
+    // We have now all the default initial values of the properties for any style.
+    // Tweak some (mostly all those inherited by default) for the root node, so
+    // these values will be inherited by all children node styles if not specified
+    // in a stylesheet.
+    // All those not updated here keep their default initial value (from lvstyles.h).
     s->display = css_d_block;
     s->white_space = css_ws_normal;
     s->text_align = css_ta_start;
@@ -5102,45 +5109,31 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_decoration = css_td_none;
     s->text_transform = css_tt_none;
     s->hyphenate = css_hyph_auto;
-    s->color.type = css_val_unspecified;
-    s->color.value = props->getColorDef(PROP_FONT_COLOR, 0x000000);
-    s->background_color.type = css_val_unspecified;
-    s->background_color.value = props->getColorDef(PROP_BACKGROUND_COLOR, 0xFFFFFF);
-    //_def_style->background_color.type = color;
-    //_def_style->background_color.value = 0xFFFFFF;
-    s->page_break_before = css_pb_auto;
-    s->page_break_after = css_pb_auto;
-    s->page_break_inside = css_pb_auto;
+    s->color = css_length_t(css_val_unspecified, props->getColorDef(PROP_FONT_COLOR, 0x000000));
+    s->background_color = css_length_t(css_val_unspecified, props->getColorDef(PROP_BACKGROUND_COLOR, 0xFFFFFF));
     s->list_style_type = css_lst_disc;
     s->list_style_position = css_lsp_outside;
-    s->vertical_align.type = css_val_unspecified;
-    s->vertical_align.value = css_va_baseline;
     s->font_family = def_font->getFontFamily();
-    s->font_size.type = css_val_screen_px; // we use this type, as we got the real font size from FontManager
-    s->font_size.value = def_font->getSize();
+    s->font_size = css_length_t(css_val_screen_px, def_font->getSize()); // we use screen_px, as we got the real font size from FontManager
     s->font_name = def_font->getTypeFace();
     s->font_weight = css_fw_400;
     s->font_style = css_fs_normal;
-    s->font_features.type = css_val_unspecified;
-    s->font_features.value = 0;
-    s->text_indent.type = css_val_px;
-    s->text_indent.value = 0;
-    // s->line_height.type = css_val_percent;
-    // s->line_height.value = def_interline_space << 8;
-    s->line_height.type = css_val_unspecified;
-    s->line_height.value = css_generic_normal; // line-height: normal
-    s->orphans = css_orphans_widows_1; // default to allow orphans and widows
+    s->font_features = css_length_t(css_val_unspecified, 0);
+    s->text_indent = css_length_t(css_val_screen_px, 0);
+    s->line_height = css_length_t(css_val_unspecified, css_generic_normal); // line-height: normal
+    s->letter_spacing = css_length_t(css_val_unspecified, css_generic_normal); // letter-spacing: normal
+    s->border_collapse = css_border_c_separate;
+    s->border_spacing[0] = css_length_t(css_val_screen_px, 0);
+    s->border_spacing[1] = css_length_t(css_val_screen_px, 0);
+    s->orphans = css_orphans_widows_1; // default to allow orphans and widows (CSS per-specs defaults to 2)
     s->widows = css_orphans_widows_1;
-    s->float_ = css_f_none;
-    s->clear = css_c_none;
-    s->direction = css_dir_inherit;
+    s->direction = css_dir_inherit; // dir= attributes have precedence: we don't set any via styles
     s->visibility = css_v_visible;
     s->line_break = css_lb_auto;
     s->word_break = css_wb_normal;
     s->caption_side = css_cs_top;
-    s->box_sizing = css_bs_content_box;
-    s->cr_hint.type = css_val_unspecified;
-    s->cr_hint.value = CSS_CR_HINT_NONE;
+    s->cr_hint = css_length_t(css_val_unspecified, CSS_CR_HINT_NONE);
+
     //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
     if ( _last_docflags != getDocFlags() ) {

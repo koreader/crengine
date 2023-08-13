@@ -113,6 +113,8 @@ dd:dir(rtl) {
 table {
     font-size: 80%;
     margin: 3px 0;
+    border-collapse: separate;
+    border-spacing: 1px; /* needed for separate border to not look uneven */
 }
 table table { /* stop imbricated tables from getting smaller */
     font-size: 100%;
