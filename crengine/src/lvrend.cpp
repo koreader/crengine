@@ -10309,13 +10309,23 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     // Handle <epub:switch> <epub:case required-namespace="..."> <epub:default>
     if ( nodeElementId == el_case ) {
-        // We only support MathML (but not inline SVG).
+        // We only support MathML and SVG.
         ldomNode * parent = enode->getParentNode();
         if ( parent && parent->getNodeId() == el_switch ) {
             lString32 required_namespace = enode->getAttributeValue(attr_required_namespace);
-            if ( required_namespace == U"http://www.w3.org/1998/Math/MathML" ) {
+            if ( false ) {
+                // dummy if
+            }
+            #if MATHML_SUPPORT==1
+            else if ( required_namespace == U"http://www.w3.org/1998/Math/MathML" ) {
                 // Supported
             }
+            #endif
+            #if USE_LUNASVG==1
+            else if ( required_namespace == U"http://www.w3.org/2000/svg" ) {
+                // Supported
+            }
+            #endif
             else {
                 // Unsupported namespace: hide this <epub:case>.
                 // We can't here check parent's other children for the presence of one
@@ -10335,10 +10345,18 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                 ldomNode * child = parent->getChildNode(i);
                 if ( child->isElement() && child->getNodeId() == el_case ) {
                     lString32 required_namespace = child->getAttributeValue(attr_required_namespace);
+                    #if MATHML_SUPPORT==1
                     if ( required_namespace == U"http://www.w3.org/1998/Math/MathML" ) {
                         has_supported_namespace = true;
                         break;
                     }
+                    #endif
+                    #if USE_LUNASVG==1
+                    if ( required_namespace == U"http://www.w3.org/2000/svg" ) {
+                        has_supported_namespace = true;
+                        break;
+                    }
+                    #endif
                 }
             }
             if ( has_supported_namespace ) {
