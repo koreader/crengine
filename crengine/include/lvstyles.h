@@ -217,7 +217,7 @@ struct css_style_rec_tag {
     , max_width(css_val_unspecified, css_generic_none)
     , max_height(css_val_unspecified, css_generic_none)
     , color(css_val_inherited, 0)
-    , background_color(css_val_unspecified, 0)
+    , background_color(css_val_color, CSS_COLOR_TRANSPARENT)
     , letter_spacing(css_val_inherited, 0)
     , page_break_before(css_pb_auto)
     , page_break_after(css_pb_auto)
