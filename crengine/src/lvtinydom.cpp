@@ -90,7 +90,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.71k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0030
+#define FORMATTING_VERSION_ID 0x0031
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -4195,21 +4195,19 @@ static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_
             }
             // color
             if ( is_top_node || !(style->color == pstyle->color) || style->isImportant(imp_bit_color) ) {
-                lString8 s;
-                if ( style->color.type == css_val_unspecified ) {
-                    if ( style->color.value == css_generic_transparent )
+                if ( style->color.type == css_val_color ) {
+                    lString8 s;
+                    if ( ((lUInt32)style->color.value) >> 24 == 0xFF ) { // fully transparent
                         s = "none";
-                    // ignore other css_val_unspecified values
-                }
-                else if ( style->color.type == css_val_color ) {
-                    // LunaSVG doesn't handle 4-components colors
-                    lUInt32 color = style->color.value & 0x00FFFFFF;
-                    s << "#";
-                    for ( int i=5; i>=0; i-- ) {
-                        s << toHexDigit((color >> (4*i) ) & 0x0f);
                     }
-                }
-                if ( !s.empty() ) {
+                    else {
+                        // LunaSVG doesn't handle 4-components colors
+                        lUInt32 color = style->color.value & 0x00FFFFFF;
+                        s << "#";
+                        for ( int i=5; i>=0; i-- ) {
+                            s << toHexDigit((color >> (4*i) ) & 0x0f);
+                        }
+                    }
                     svalue << "color: " << s;
                     bool is_color_important = style->isImportant(imp_bit_color);
                     if ( is_color_important )
@@ -5109,8 +5107,10 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->text_decoration = css_td_none;
     s->text_transform = css_tt_none;
     s->hyphenate = css_hyph_auto;
-    s->color = css_length_t(css_val_unspecified, props->getColorDef(PROP_FONT_COLOR, 0x000000));
-    s->background_color = css_length_t(css_val_unspecified, props->getColorDef(PROP_BACKGROUND_COLOR, 0xFFFFFF));
+    s->color = css_length_t(css_val_color, props->getColorDef(PROP_FONT_COLOR, 0x000000));
+    // The initial background color drawing is ensured by our DrawBuf - so the root node can get,
+    // as per specs, the default value of (css_val_color, CSS_COLOR_TRANSPARENT)
+    // s->background_color = css_length_t(css_val_unspecified, props->getColorDef(PROP_BACKGROUND_COLOR, 0xFFFFFF));
     s->list_style_type = css_lst_disc;
     s->list_style_position = css_lsp_outside;
     s->font_family = def_font->getFontFamily();

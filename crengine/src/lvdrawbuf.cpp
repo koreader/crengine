@@ -132,6 +132,40 @@ static inline void ApplyAlphaGray8( lUInt8 &dst, lUInt8 src, lUInt8 alpha, lUInt
     }
 }
 
+// Combine two colors
+// (Shortcuts if foreColor or backColor are fully transparent or fully opaque could be taken,
+// see lvrend.cpp's setNodeStyle() and background_color; but keeping this function pure so
+// we can check it gives the same result as these shortcuts.)
+lUInt32 combineColors( lUInt32 foreColor, lUInt32 backColor ) {
+    // Thanks to https://ciechanow.ski/alpha-compositing/ to make all that clearer,
+    // especially sections "Combining Alphas" and "Combining Colors", from which
+    // we take some wording for the following comments.
+    lUInt8 falpha =  foreColor >> 24; // wrongly named "alpha" all around crengine, it's actually the transparency
+    lUInt8 fopacity = falpha ^ 0xFF;
+    lUInt8 balpha = backColor >> 24;
+    lUInt8 bopacity = balpha ^ 0xFF;
+    // The resulting transparency of two objects combined is equal to their product
+    lUInt8 ralpha = DIV255(falpha*balpha);
+    lUInt8 ropacity = ralpha ^ 0xFF;
+    lUInt32 rcolor;
+    if (ropacity == 0 ) {
+        rcolor = 0xFF000000; // fully transparent
+    }
+    else {
+        // foreColor's light contribution to the final color is its value * its opacity
+        // backColor's light contribution to the final color is its value * its opacity, but some
+        // of that light is blocked by the foremost object opacity (so the '* falpha')
+        // The total light contribution is the sum of these "pre-multiplied-alpha" values.
+        // But as these final values will be '* opacity' when later blended, we need
+        // to un-pre-multiply them to get straigth-alpha (so the '/ ropacity').
+        lUInt8 r = ( ((foreColor & 0xFF0000)>>16) * fopacity + DIV255( ((backColor & 0xFF0000)>>16) * bopacity * falpha ) ) / ropacity;
+        lUInt8 g = ( ((foreColor & 0x00FF00)>>8 ) * fopacity + DIV255( ((backColor & 0x00FF00)>>8 ) * bopacity * falpha ) ) / ropacity;
+        lUInt8 b = ( ((foreColor & 0x0000FF)    ) * fopacity + DIV255( ((backColor & 0x0000FF)    ) * bopacity * falpha ) ) / ropacity;
+        rcolor = (ralpha<<24) | (r<<16) | (g<<8) | b;
+    }
+    return rcolor;
+}
+
 //static const short dither_2bpp_4x4[] = {
 //    5, 13,  8,  16,
 //    9,  1,  12,  4,

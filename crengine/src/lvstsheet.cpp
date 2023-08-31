@@ -1176,10 +1176,14 @@ bool parse_color_value( const char * & str, css_length_t & value )
     value.type = css_val_unspecified;
     skip_spaces( str );
     if ( substr_icompare( "transparent", str ) ) {
-        // Make it an invalid color, but a valid parsing so it
-        // can be inherited or flagged with !important
-        value.type = css_val_unspecified;
-        value.value = css_generic_transparent;
+        // https://developer.mozilla.org/en-US/docs/Web/CSS/named-color#transparent
+        // says it should technically behave as rgba(0,0,0,0).
+        // We used to handle it as (css_val_unspecified, css_generic_transparent),
+        // but it simplifies many things if we have it be a real css_val_color.
+        // There's also no reason to have us handle rgba(12,34,56,0) or #88888800
+        // differently than 'transparent'.
+        value.type = css_val_color;
+        value.value = CSS_COLOR_TRANSPARENT; // transparent black, as per specs
         return true;
     }
     if ( substr_icompare( "currentcolor", str ) ) {
@@ -3853,7 +3857,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_color:
                 IF_g_PUSH_LENGTH_AND_break(1, true, css_val_color, (doc ? doc->getRootNode()->getStyle()->color.value : 0x000000));
             case cssd_background_color:
-                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_transparent);
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_color, CSS_COLOR_TRANSPARENT);
             case cssd_border_top_color:
             case cssd_border_right_color:
             case cssd_border_bottom_color:
@@ -4152,8 +4156,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             buf<<(lUInt32) 0;
                         }
                         else {
-                            buf<<(lUInt32) css_val_unspecified;
-                            buf<<(lUInt32) css_generic_transparent;
+                            buf<<(lUInt32) css_val_color;
+                            buf<<(lUInt32) CSS_COLOR_TRANSPARENT;
                         }
                         break;
                     }

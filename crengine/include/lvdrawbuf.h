@@ -427,6 +427,9 @@ inline lUInt16 rgb888to565( lUInt32 cl ) {
     return (lUInt16)(((cl>>8)& 0xF800) | ((cl>>5 )& 0x07E0) | ((cl>>3 )& 0x001F));
 }
 
+// Combine two colors
+lUInt32 combineColors( lUInt32 foreColor, lUInt32 backColor );
+
 #define DIV255(V)                                                                                        \
 ({                                                                                                       \
 	auto _v = (V) + 128;                                                                             \

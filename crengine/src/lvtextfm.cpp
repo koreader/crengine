@@ -5777,7 +5777,9 @@ static void getAbsMarksFromMarks(ldomMarkedRangeList * marks, ldomMarkedRangeLis
 static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode * borderNode, int bdidx) {
     css_style_ref_t style = borderNode->getStyle();
     css_length_t border_color = style->border_color[bdidx];
-    if ( border_color.type == css_val_color ) {
+    lUInt32 bdcl = border_color.type == css_val_color ? // "currentcolor" if not
+                        border_color.value : style->color.value;
+    if ( !IS_COLOR_FULLY_TRANSPARENT(bdcl) ) {
         int border_width = measureBorder(borderNode, bdidx);
         css_border_style_type_t border_style;
         switch (bdidx){
@@ -5795,15 +5797,14 @@ static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode *
                 // we handle every other style just as solid (no real need/room
                 // to care for groove/ridge/inset/outset/double...)
         }
-        lUInt32 bdcl = border_color.value;
         if ( bdidx == 0 ) { // top border
-            buf->DrawLine(x0, y, x1, y + border_width, border_color.value, dot, interval, 0);
+            buf->DrawLine(x0, y, x1, y + border_width, bdcl, dot, interval, 0);
         }
         else if ( bdidx == 2 ) { // bottom border
-            buf->DrawLine(x0, y + h - border_width, x1, y + h, border_color.value, dot, interval, 0);
+            buf->DrawLine(x0, y + h - border_width, x1, y + h, bdcl, dot, interval, 0);
         }
         else { // left or right border
-            buf->DrawLine(x0, y, x1, y + h, border_color.value, dot, interval, 1);
+            buf->DrawLine(x0, y, x1, y + h, bdcl, dot, interval, 1);
         }
     }
 }
@@ -5912,8 +5913,10 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     bool is_mirrored = word->flags & LTEXT_WORD_DIRECTION_IS_RTL; // will be drawn as if on the other side
                     ldomNode * node = (ldomNode *) srcline->object;
                     css_style_ref_t style = node->getStyle();
-                    if ( style->background_color.type == css_val_color ) { // background color to start/continue/end
-                        lUInt32 bgcl = LTEXT_COLOR_IS_RESERVED(style->background_color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->background_color.value;
+                    lUInt32 bgcl = style->background_color.type == css_val_color ? // "currentcolor" if not
+                                            style->background_color.value : style->color.value;
+                    if ( !IS_COLOR_FULLY_TRANSPARENT(bgcl) ) { // background color to start/continue/end
+                        bgcl = LTEXT_COLOR_IS_RESERVED(bgcl) ? LTEXT_COLOR_RESERVED_REPLACE : bgcl;
                         if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
                             if ( lastWordStart!=-1 && lastWordColor!=bgcl ) {
                                 // Draw the background of a different color for previous words
