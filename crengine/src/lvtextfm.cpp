@@ -2044,6 +2044,16 @@ public:
                             widths[k] -= cumulative_width_removed;
                             if ( first_word_len >= 0 ) { // This is the space (or nbsp) after first word
                                 bool keep_checking = false;
+                                if ( first_word_len == 0 ) { // No word yet on the left
+                                    // Leading space(s), probably no-break-space, which might be used
+                                    // as indentation (ie. with poetry): don't allow their width to
+                                    // be changed by text justification to keep similar lines aligned.
+                                    // (Note: in RTL paragraphs, this would seem to not be needed, may
+                                    // be because trailing spaces are part of the last word and won't
+                                    // be expanded in alignLine().)
+                                    flags[k] |= LCHAR_LOCKED_SPACING;
+                                    keep_checking = true;
+                                }
                                 if ( first_word_len == 1 ) { // Previous word is a single char
                                     if ( k > 0 && isLeftPunctuation(m_text[k-1]) ) {
                                         // This space follows one of the common opening quotation marks or
@@ -2149,6 +2159,8 @@ public:
                         // Embedded floats can have a zero width in this process of
                         // text measurement. They'll be measured when positioned.
                         m_widths[start] = lastWidth;
+                        // Don't touch first_word_len: we might want to ensure locked
+                        // spacing on what's after.
                     }
                     else if ( m_charindex[start] == INLINEBOX_CHAR_INDEX ) {
                         // Render this inlineBox to get its width, similarly to how we
@@ -2231,6 +2243,11 @@ public:
                         m_srcs[start]->o.baseline = baseline;
                         lastWidth += width;
                         m_widths[start] = lastWidth;
+                        // This object could be a small bullet, and we might want to ensure locked
+                        // spacing on the following space - but it could also be a bigger image or
+                        // a verbose inline box. Not really knowing that and what comes after,
+                        // give up on ensuring locked spacing.
+                        first_word_len = -1;
                     }
                     else if ( m_charindex[start] == IMAGE_CHAR_INDEX ) {
                         // measure image
@@ -2267,6 +2284,7 @@ public:
                             width, height, m_pbuffer->width, m_max_img_height, m_length>1,
                             UnicodeToLocal(ldomXPointer((ldomNode*)m_srcs[start]->object, 0).toString()).c_str());
                         */
+                        first_word_len = -1; // As for INLINEBOX_CHAR_INDEX
                     }
                     else if ( m_charindex[start] == PAD_CHAR_INDEX ) {
                         // measure pad
@@ -2289,12 +2307,16 @@ public:
                             margin = lengthToPx( node, style->margin[1], base_width );
                             border = measureBorder(node, 1);
                             padding = lengthToPx( node, style->padding[1], base_width );
+                            // Give up on locked spacing if it is a right pad
+                            first_word_len = -1;
                         }
                         else {
                             // Use left margin/border/padding values
                             margin = lengthToPx( node, style->margin[0], base_width );
                             border = measureBorder(node, 3);
                             padding = lengthToPx( node, style->padding[0], base_width );
+                            // Don't touch first_word_len: we might want to ensure locked
+                            // spacing on the first space(s) following a left pad.
                         }
                         // No support for any negative value
                         if ( margin < 0 ) margin = 0;
