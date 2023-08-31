@@ -2412,18 +2412,30 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
 inline lUInt32 getBackgroundColor(const css_style_ref_t style)
 {
         if ( style->background_color.type == css_val_color ) {
+            if ( IS_COLOR_FULLY_TRANSPARENT(style->background_color.value) ) {
+                return LTEXT_COLOR_CURRENT; // keep using current background color
+            }
             return LTEXT_COLOR_IS_RESERVED(style->background_color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->background_color.value;
+        }
+        // Othewise, it is (css_val_unspecified, css_generic_currentcolor), and we must use the font color.
+        if ( style->color.type == css_val_color ) { // should always be true
+            if ( IS_COLOR_FULLY_TRANSPARENT(style->color.value) ) {
+                return LTEXT_COLOR_CURRENT; // keep using current background color
+            }
+            return LTEXT_COLOR_IS_RESERVED(style->color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->color.value;
         }
         return LTEXT_COLOR_CURRENT;
 }
 
 inline lUInt32 getForegroundColor(const css_style_ref_t style)
 {
-        if ( style->color.type == css_val_color )
+        if ( style->color.type == css_val_color ) {
+            if ( IS_COLOR_FULLY_TRANSPARENT(style->color.value) ) {
+                return LTEXT_COLOR_TRANSPARENT; // Handled by LFormattedText::Draw(), which will skip drawing this fragment
+            }
             return LTEXT_COLOR_IS_RESERVED(style->color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->color.value;
-        if ( style->color.value == css_generic_transparent && style->color.type == css_val_unspecified )
-            return LTEXT_COLOR_TRANSPARENT; // Handled by LFormattedText::Draw(), which will skip drawing this fragment
-        return LTEXT_COLOR_CURRENT;
+        }
+        return LTEXT_COLOR_CURRENT; // should not happen
 }
 
 lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt32 oldflags, int direction )
@@ -8108,7 +8120,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // has some background or borders, to be given below to 'flow'.
                 int usable_overflow_reset_left = -1;
                 int usable_overflow_reset_right = -1;
-                if ( style->background_color.type == css_val_color || !style->background_image.empty() ) {
+                lUInt32 background_color = style->background_color.type == css_val_color ? // "currentcolor" if not
+                                                    style->background_color.value : style->color.value;
+                if ( !IS_COLOR_FULLY_TRANSPARENT(background_color) || !style->background_image.empty() ) {
                     // New (or same) background color specified (we assume there is
                     // a color change): avoid glyphs/hanging punctuation from leaking
                     // over the background change.
@@ -8522,7 +8536,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // Usable overflow for glyphs and hanging punctuation
                 int usable_overflow_left = flow->getUsableLeftOverflow() + margin_left;
                 int usable_overflow_right = flow->getUsableRightOverflow() + margin_right;
-                if ( style->background_color.type == css_val_color || !style->background_image.empty() ) {
+                lUInt32 background_color = style->background_color.type == css_val_color ? // "currentcolor" if not
+                                                    style->background_color.value : style->color.value;
+                if ( !IS_COLOR_FULLY_TRANSPARENT(background_color) || !style->background_image.empty() ) {
                     // New (or same) background color specified (we assume there is
                     // a color change): avoid glyphs/hanging punctuation from leaking
                     // over the background change.
@@ -8838,16 +8854,16 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
     bw = style->border_width[3];
     hasleftBorder = hasleftBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
 
-    // Check for explicit 'border-color: transparent' which means no border to draw
-    css_length_t bc;
-    bc = style->border_color[0];
-    hastopBorder = hastopBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = style->border_color[1];
-    hasrightBorder = hasrightBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = style->border_color[2];
-    hasbottomBorder = hasbottomBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
-    bc = style->border_color[3];
-    hasleftBorder = hasleftBorder & !(bc.type == css_val_unspecified && bc.value == css_generic_transparent);
+    // We have css_val_unspecified only when css_generic_currentcolor, and we should use the current text color.
+    // If it is transparent, we have nothing to draw.
+    lUInt32 topBordercolor = style->border_color[0].type != css_val_unspecified ? style->border_color[0].value : style->color.value;
+    hastopBorder = hastopBorder & !IS_COLOR_FULLY_TRANSPARENT(topBordercolor);
+    lUInt32 rightBordercolor = style->border_color[1].type != css_val_unspecified ? style->border_color[1].value : style->color.value;
+    hasrightBorder = hasrightBorder & !IS_COLOR_FULLY_TRANSPARENT(rightBordercolor);
+    lUInt32 bottomBordercolor = style->border_color[2].type != css_val_unspecified ? style->border_color[2].value : style->color.value;
+    hasbottomBorder = hasbottomBorder & !IS_COLOR_FULLY_TRANSPARENT(bottomBordercolor);
+    lUInt32 leftBordercolor = style->border_color[3].type != css_val_unspecified ? style->border_color[3].value : style->color.value;
+    hasleftBorder = hasleftBorder & !IS_COLOR_FULLY_TRANSPARENT(leftBordercolor);
 
     if (hasbottomBorder || hasleftBorder || hasrightBorder || hastopBorder) {
         lUInt32 shadecolor=0x555555;
@@ -8864,12 +8880,10 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         int tbw=topBorderwidth,rbw=rightBorderwidth,bbw=bottomBorderwidth,lbw=leftBorderwidth;
         if (hastopBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 topBordercolor = style->border_color[0].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             // bottomBorderwidth=bbw; // (not used)
             leftBorderwidth=lbw;
-            if (style->border_color[0].type==css_val_color)
             {
                 lUInt32 r,g,b,o;
                 r=g=b=o=topBordercolor;
@@ -8974,12 +8988,10 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //right
         if (hasrightBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 rightBordercolor = style->border_color[1].value;
             topBorderwidth=tbw;
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             // leftBorderwidth=lbw; // (not used)
-            if (style->border_color[1].type==css_val_color)
             {
                 lUInt32 r,g,b,o;
                 r=g=b=o=rightBordercolor;
@@ -9086,12 +9098,10 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //bottom
         if (hasbottomBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 bottomBordercolor = style->border_color[2].value;
             // topBorderwidth=tbw; // (not used)
             rightBorderwidth=rbw;
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (style->border_color[2].type==css_val_color)
             {
                 lUInt32 r,g,b,o;
                 r=g=b=o=bottomBordercolor;
@@ -9187,12 +9197,10 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         //left
         if (hasleftBorder) {
             int dot=1,interval=0;//default style
-            lUInt32 leftBordercolor = style->border_color[3].value;
             topBorderwidth=tbw;
             // rightBorderwidth=rbw; // (not used)
             bottomBorderwidth=bbw;
             leftBorderwidth=lbw;
-            if (style->border_color[3].type==css_val_color)
             {
                 lUInt32 r,g,b,o;
                 r=g=b=o=leftBordercolor;
@@ -9646,7 +9654,9 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
     }
 
     if ( draw_bg_color ) {
-        int bg_color = enode->getStyle()->background_color.value;
+        css_style_ref_t style = enode->getStyle();
+        // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
+        lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
         drawbuf.FillRect(bg_left, bg_top, bg_right, bg_bottom, bg_color);
     }
     if ( draw_bg_image ) {
@@ -9709,6 +9719,10 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
     //   floats (with their background)
     // There may still be some issue when main content, some block floats, and some
     // embedded floats are mixed and some/all of them have backgrounds...
+    // Note: web browsers would draw all backgrounds first, and then all the text - so an inner background
+    // does not paint over the text of an upper node. We don't, as it's a bit more expensive to navigate
+    // the DOM tree twice - and books usually don't have overlapping content. See the other Note below,
+    // where we could do a simple tweak to behave as web browsers.
     if ( enode->isElement() )
     {
         RenderRectAccessor fmt( enode );
@@ -9768,7 +9782,8 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
 
         // Check and draw background
         bool restoreBackgroundColor = false;
-        css_length_t bg = style->background_color;
+        // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
+        lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
         lUInt32 oldColor = 0;
 
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
@@ -9778,13 +9793,13 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         // cells have it).
         if ( !isTableRowLike && !isHidden ) {
             bool draw_bg_color = false;
-            if ( bg.type == css_val_color ) {
+            if ( !IS_COLOR_FULLY_TRANSPARENT(bg_color) ) {
                 draw_bg_color = draw_background;
                 // Even if we don't draw/fill background here (done earlier if in
                 // 2-steps drawing), we may need to drawbuf.SetBackgroundColor()
                 // for the text to be correctly drawn over this background color.
                 oldColor = drawbuf.GetBackgroundColor();
-                drawbuf.SetBackgroundColor( bg.value );
+                drawbuf.SetBackgroundColor( bg_color );
                 restoreBackgroundColor = true;
             }
             bool draw_bg_image = draw_background && !style->background_image.empty();
@@ -9804,7 +9819,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 else {
                     // Regular element: draw bgcolor or image inside its border box
                     if ( draw_bg_color )
-                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg.value );
+                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
                     if ( draw_bg_image )
                         DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Commented identical calls below as they seem redundant with what was just done here)
@@ -9975,6 +9990,8 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         DrawDocument( drawbuf, child, x0, y0, dx, dy, doc_x, doc_y, page_height, marks, bookmarks, true, true );
                         continue;
                     }
+                    // Note: if we wanted to really behave as web browsers with all background drawn before any text, it looks like
+                    // just commenting out the above test & branch is all we'd need to do. But it might be expensive, so let's not.
 
                     // This child has content that overflows: we need to 2-steps draw
                     // it and its siblings up until all overflow is passed.
@@ -11025,49 +11042,76 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             inheritLength( pstyle->border_width[3], parent_style->border_width[3], parent_font_size );
     }
 
+    // About color properties:
+    // https://stackoverflow.com/questions/29274035/understanding-css-inherited-currentcolor
+    // In CSS3, the computed value of currentcolor (ie. the resolved current color) was inherited.
+    // In CSS4, the keyword currentcolor is inherited.
+    // https://www.w3.org/TR/css-color-4/#resolving-other-colors
+    // For 'color', we need to resolve it to a real color so background-color and border-color
+    // can resolve 'currentcolor' with it when used.
+    // That is, 'color' will always be a css_val_color.
+    // For the other 'background_color' and 'border_color[]', the only value possible
+    // with css_val_unspecified is css_generic_currentcolor.
+
     // color
-    // inherited by default, and we should also propagate it when (css_val_unspecified, css_generic_currentcolor)
-    if ( pstyle->color.type == css_val_inherited ||
-            (pstyle->color.type == css_val_unspecified && pstyle->color.value == css_generic_currentcolor) )
+    // Inherited by default. Must always be a css_val_color: so 'inherit' or 'currentcolor'
+    // is resolved to the parent's color (which will be our root node's color if no other
+    // parent node got its color set).
+    if ( pstyle->color.type == css_val_inherited || pstyle->color.type == css_val_unspecified ) {
         pstyle->color = parent_style->color;
+    }
 
     // border-color
-    // Not inherited by default, defaults to "currentcolor": the just computed pstyle->color
+    // Not inherited by default, defaults to "currentcolor", which should be kept as-is
+    // so it can be inherited as-is ("currentcolor" should be resolved at use-time).
     for ( int i=0; i < 4; i++ ) {
-        if ( pstyle->border_color[i].type == css_val_unspecified && pstyle->border_color[i].value == css_generic_currentcolor )
-            pstyle->border_color[i] = pstyle->color;
-        else if ( pstyle->border_color[i].type == css_val_inherited )
+        if ( pstyle->border_color[i].type == css_val_inherited )
             pstyle->border_color[i] = parent_style->border_color[i];
     }
 
     // background-color
-    // Should not be inherited: elements start with unspecified.
+    // Not inherited by default: elements start with CSS_COLOR_TRANSPARENT.
     // The code will fill the rect of a parent element, and will
     // simply draw its children over the already filled rect.
-    bool spread_background_color = false;
-    // But for some elements, it should be propagated to children,
-    // and we explicitely don't have the parent fill the rect with
-    // its background-color:
-    // - a TD or TH with unspecified background-color does inherit
-    //   it from its parent TR. We don't draw bgcolor for TR.
-    if ( pstyle->display == css_d_table_cell )
-        spread_background_color = true;
-    // - a TR with unspecified background-color may inherit it from
-    //   its THEAD/TBODY/TFOOT parent (but not from its parent TABLE).
-    //   It may then again be propagated to the TD by the previous rule.
-    //   We don't draw bgcolor for THEAD/TBODY/TFOOT.
-    if ( pstyle->display == css_d_table_row &&
-            ( parent_style->display == css_d_table_row_group ||
-              parent_style->display == css_d_table_header_group ||
-              parent_style->display == css_d_table_footer_group ) )
-        spread_background_color = true;
-    if ( spread_background_color ) {
-        if ( pstyle->background_color.type == css_val_inherited || pstyle->background_color.type == css_val_unspecified )
-            pstyle->background_color = parent_style->background_color;
+    if ( pstyle->background_color.type == css_val_inherited ) {
+        pstyle->background_color = parent_style->background_color;
     }
-    // Except for the mostly useless case css_generic_currentcolor
-    if ( pstyle->background_color.type == css_val_unspecified && pstyle->background_color.value == css_generic_currentcolor )
-        pstyle->background_color = pstyle->color;
+    else if (    pstyle->display >= css_d_table_row_group
+              && pstyle->display <= css_d_table_cell
+              && pstyle->display != css_d_table_column_group
+              && pstyle->display != css_d_table_column ) {
+        // Otherwise, let it be - except for most table elements, where
+        // it should be propagated to children, as we explicitely don't
+        // have the parent fill the rect with its background-color:
+        // - as we don't draw a TR bgcolor (as it does not apply in the
+        //   spacing between cells), a TD or TH with non-fully-opaque
+        //   background-color should draw it.
+        // - same for THEAD/TBODY/TFOOT's bgcolor: a TR with non-fully-opaque
+        //   background-color should handle it - but as a TR don't draw it,
+        //   it will be propagated to the TD/TH under.
+        // - (but not for TABLE, which draws itself its background.)
+        lUInt32 fcolor = pstyle->background_color.type == css_val_color ? // "currentcolor" if not
+                                    pstyle->background_color.value : pstyle->color.value;
+        lUInt32 pcolor = parent_style->background_color.type == css_val_color ? // "currentcolor" if not
+                                    parent_style->background_color.value : parent_style->color.value;
+        // If this node bgcolor is not opaque, we may need to blend it
+        // into its parent bgcolor to get the color to draw.
+        // Avoid some uneeded computations in these common and obvious cases
+        if ( IS_COLOR_FULLY_TRANSPARENT(fcolor) ) {
+            // Fully transparent: just use parent bgcolor.
+            pstyle->background_color = parent_style->background_color;
+        }
+        else if ( IS_COLOR_FULLY_OPAQUE(fcolor) ) {
+            // Fully opaque: no blending needed, just let it be.
+        }
+        else if ( IS_COLOR_FULLY_TRANSPARENT(pcolor) ) {
+            // Parent fully transparent: just let this node color be.
+        }
+        else {
+            pstyle->background_color.value = combineColors(fcolor, pcolor);
+            pstyle->background_color.type = css_val_color; // in case it was unspecified/currentcolor
+        }
+    }
 
     // background-image
     // We have put "\x01" when meeting "background-image: inherit"
