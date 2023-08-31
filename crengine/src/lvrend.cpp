@@ -6020,7 +6020,8 @@ public:
             // then breaking here is not allowed"
             // As it is the target node that will get the margin, if avoid_pb_inside
             // was set for that node, we should avoid a split in that margin.
-            if ( vm_target_avoid_pb_inside )
+            // But any 'always" seen and not yet emited wins.
+            if ( vm_target_avoid_pb_inside && vm_active_pb_flag != RN_SPLIT_ALWAYS )
                 vm_active_pb_flag = RN_SPLIT_AVOID;
         }
 
