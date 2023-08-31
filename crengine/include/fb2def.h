@@ -65,7 +65,7 @@ XS_TAG2( xml_stylesheet, "?xml-stylesheet" )
 XS_TAG1( html )
 XS_TAG1( head )
 XS_TAG1D( title, true, css_d_block, css_ws_inherit )
-XS_TAG1D( style, true, css_d_none, css_ws_inherit )
+XS_TAG1D( style, true, css_d_none, css_ws_pre ) // pre needed to preserve content:'s content
 XS_TAG1D( script, true, css_d_none, css_ws_inherit )
 XS_TAG1D( base, false, css_d_none, css_ws_inherit ) // among crengine autoclose elements
 XS_TAG1D( basefont, false, css_d_none, css_ws_inherit )
