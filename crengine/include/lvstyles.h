@@ -210,12 +210,12 @@ struct css_style_rec_tag {
     , font_features(css_val_inherited, 0)
     , text_indent(css_val_inherited, 0)
     , line_height(css_val_inherited, 0)
-    , width(css_val_unspecified, 0)
-    , height(css_val_unspecified, 0)
-    , min_width(css_val_unspecified, 0)
-    , min_height(css_val_unspecified, 0)
-    , max_width(css_val_unspecified, 0)
-    , max_height(css_val_unspecified, 0)
+    , width(css_val_unspecified, css_generic_auto)
+    , height(css_val_unspecified, css_generic_auto)
+    , min_width(css_val_unspecified, css_generic_auto)
+    , min_height(css_val_unspecified, css_generic_auto)
+    , max_width(css_val_unspecified, css_generic_none)
+    , max_height(css_val_unspecified, css_generic_none)
     , color(css_val_inherited, 0)
     , background_color(css_val_unspecified, 0)
     , letter_spacing(css_val_inherited, 0)
@@ -229,9 +229,9 @@ struct css_style_rec_tag {
     , border_style_bottom(css_border_none)
     , border_style_right(css_border_none)
     , border_style_left(css_border_none)
-    , background_repeat(css_background_r_none)
-    , background_position(css_background_p_none)
-    , border_collapse(css_border_seperate)
+    , background_repeat(css_background_repeat)
+    , background_position(css_background_left_top)
+    , border_collapse(css_border_c_inherit)
     , orphans(css_orphans_widows_inherit)
     , widows(css_orphans_widows_inherit)
     , float_(css_f_none)
@@ -249,19 +249,29 @@ struct css_style_rec_tag {
     {
         // css_length_t fields are initialized by css_length_tag()
         // to (css_val_screen_px, 0)
-        // These should not: a not specified border width will
-        // use DEFAULT_BORDER_WIDTH (=2)
-        border_width[0] = css_length_t(css_val_unspecified, 0);
-        border_width[1] = css_length_t(css_val_unspecified, 0);
-        border_width[2] = css_length_t(css_val_unspecified, 0);
-        border_width[3] = css_length_t(css_val_unspecified, 0);
-        background_size[0] = css_length_t(css_val_unspecified, 0);
-        background_size[1] = css_length_t(css_val_unspecified, 0);
+        // The following ones  should not.
+        // Previously, a not specified border width would use DEFAULT_BORDER_WIDTH (=2)
+        // border_width[0] = css_length_t(css_val_unspecified, 0);
+        // border_width[1] = css_length_t(css_val_unspecified, 0);
+        // border_width[2] = css_length_t(css_val_unspecified, 0);
+        // border_width[3] = css_length_t(css_val_unspecified, 0);
+        // But we now use the real CSS initial value of "medium", which
+        // we have set (in lvstsheet.cpp) to 3px.
+        border_width[0] = css_length_t(css_val_px, 3*256);
+        border_width[1] = css_length_t(css_val_px, 3*256);
+        border_width[2] = css_length_t(css_val_px, 3*256);
+        border_width[3] = css_length_t(css_val_px, 3*256);
         // Also initialize border colors
         border_color[0] = css_length_t(css_val_unspecified, css_generic_currentcolor);
         border_color[1] = css_length_t(css_val_unspecified, css_generic_currentcolor);
         border_color[2] = css_length_t(css_val_unspecified, css_generic_currentcolor);
         border_color[3] = css_length_t(css_val_unspecified, css_generic_currentcolor);
+        // border-spacing are inherited
+        border_spacing[0] = css_length_t(css_val_inherited, 0);
+        border_spacing[1] = css_length_t(css_val_inherited, 0);
+        // background-size defaults to "auto auto"
+        background_size[0] = css_length_t(css_val_unspecified, css_generic_auto);
+        background_size[1] = css_length_t(css_val_unspecified, css_generic_auto);
     }
     void AddRef() { refCount++; }
     int Release() { return --refCount; }

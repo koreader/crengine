@@ -12,13 +12,18 @@ math {
      * "math" _fontFamilyFonts if set, or to a hardcoded list of known fonts with
      * good OpenType Math support when no font (Math or not) has been specified
      * by any stylesheet or if the inherited font has no OT Math support. */
+    /* We reset a few inherited properties (but not all, some seem to be kept
+     * inherited by Firefox: text-transform, visibility, white-space). */
     font-style: normal;
     font-weight: normal;
     letter-spacing: normal;
     line-height: normal;
+    text-decoration: none;
     text-indent: 0;
     direction: ltr;
     hyphens: none;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 math[display="block"] {
     display: block;
@@ -85,6 +90,7 @@ msup,
 msubsup,
 mmultiscripts {
     display: inline-table; /* the code will wrap each child in a mathBox */
+    border-collapse: separate;
 }
 msub > mathBox,
 msup > mathBox,
@@ -117,6 +123,7 @@ munder,
 mover,
 munderover {
     display: inline-table; /* the code will wrap each child in a mathBox */
+    border-collapse: separate;
 }
 munder > mathBox,
 mover > mathBox,
@@ -145,6 +152,7 @@ munderover[Msubsup] > mathBox + mathBox {
 msqrt,
 mroot {
     display: inline-table; /* the code will wrap each child in a mathBox */
+    border-collapse: separate;
 }
 msqrt > mathBox,
 mroot > mathBox {
@@ -339,6 +347,7 @@ annotation-xml {
 mstack,
 mlongdiv {
     display: inline-table;
+    border-collapse: separate;
     font-family: monospace;
 }
 mstack {
