@@ -257,6 +257,8 @@ enum css_value_type_t {
 
 /// css border style values
 enum css_border_style_type_t {
+    css_border_inherit,
+    css_border_none,
     css_border_solid,
     css_border_dotted,
     css_border_dashed,
@@ -264,8 +266,7 @@ enum css_border_style_type_t {
     css_border_groove,
     css_border_ridge,
     css_border_inset,
-    css_border_outset,
-    css_border_none
+    css_border_outset
 };
 /// css background property values
 enum css_background_repeat_value_t {
@@ -273,12 +274,10 @@ enum css_background_repeat_value_t {
     css_background_repeat_x,
     css_background_repeat_y,
     css_background_no_repeat,
-    css_background_r_initial,
-    css_background_r_inherit,
-    css_background_r_none
+    css_background_r_inherit
 };
 enum css_background_position_value_t {
-    css_background_left_top,
+    css_background_left_top = 0,
     css_background_left_center,
     css_background_left_bottom,
     css_background_right_top,
@@ -286,18 +285,14 @@ enum css_background_position_value_t {
     css_background_right_bottom,
     css_background_center_top,
     css_background_center_center,
-    css_background_center_bottom,
-    css_background_p_initial,
-    css_background_p_inherit,
-    css_background_p_none
+    css_background_center_bottom = 8,
+    css_background_p_inherit = 9
 };
 
 enum css_border_collapse_value_t {
-    css_border_seperate,
-    css_border_collapse,
-    css_border_c_initial,
     css_border_c_inherit,
-    css_border_c_none
+    css_border_c_separate,
+    css_border_c_collapse
 };
 
 enum css_orphans_widows_value_t { // supported only if in range 1-9

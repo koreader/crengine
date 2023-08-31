@@ -860,7 +860,7 @@ public:
         css_style_ref_t table_style = elem->getStyle();
         // border-spacing does not accept values in % unit
         int borderspacing_h = lengthToPx(elem, table_style->border_spacing[0], 0 );
-        bool border_collapse = (table_style->border_collapse == css_border_collapse);
+        bool border_collapse = (table_style->border_collapse == css_border_c_collapse);
 
         if (border_collapse) {
             borderspacing_h = 0; // no border spacing when table collapse
@@ -868,6 +868,8 @@ public:
             for (i=0; i<rows.length(); i++) {
                 for (j=0; j<rows[i]->cells.length(); j++) {
                     CCRTableCell * cell = (rows[i]->cells[j]);
+                    if ( !cell->elem ) // might be an empty cell added by MathML tweaks
+                        continue;
                     css_style_ref_t style = cell->elem->getStyle();
                     // (Note: we should not modify styles directly, as the change
                     // in style cache will affect other nodes with the same style,
@@ -1491,7 +1493,7 @@ public:
         int table_padding_top = lengthToPx(elem, table_style->padding[2], table_width);
         int table_padding_bottom = lengthToPx(elem, table_style->padding[3], table_width);
         int borderspacing_v = lengthToPx(elem, table_style->border_spacing[1], 0);
-        bool border_collapse = (table_style->border_collapse==css_border_collapse);
+        bool border_collapse = (table_style->border_collapse==css_border_c_collapse);
         if (border_collapse) {
             table_padding_top = 0;
             table_padding_bottom = 0;
@@ -4613,7 +4615,15 @@ void getPageBreakStyle( ldomNode * el, css_page_break_t &before, css_page_break_
 }
 
 // Default border width in screen px when border requested but no width specified
-#define DEFAULT_BORDER_WIDTH 2
+// #define DEFAULT_BORDER_WIDTH 2
+// Note: the default style for border_width used to be (css_val_unspecified, 0),
+// and this was used when this value was met.
+// We since updated that default style to (css_val_px, 3) (3px, "medium), so this
+// would now only be used if lengthToPx() would round to 0 a non-zero value (which
+// it currently ensures to not have this happen...).
+// Let's keep the logic below, and set this to 1 as an added security, so we get
+// non-zero border always shown with a width of at least 1 screen px.
+#define DEFAULT_BORDER_WIDTH 1
 
 //measure border width, 0 for top,1 for right,2 for bottom,3 for left
 int measureBorder(ldomNode *enode,int border) {
@@ -4628,8 +4638,7 @@ int measureBorder(ldomNode *enode,int border) {
         // as these were positioned with a border=0.)
         css_style_ref_t style = enode->getStyle();
         if (border==0){
-                bool hastopBorder = (style->border_style_top >= css_border_solid &&
-                                     style->border_style_top <= css_border_outset);
+                bool hastopBorder = (style->border_style_top >= css_border_solid);
                 if (!hastopBorder) return 0;
                 css_length_t bw = style->border_width[0];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0; // explicit value of 0: no border
@@ -4637,8 +4646,7 @@ int measureBorder(ldomNode *enode,int border) {
                 topBorderwidth = topBorderwidth != 0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
                 return topBorderwidth;}
         else if (border==1){
-                bool hasrightBorder = (style->border_style_right >= css_border_solid &&
-                                       style->border_style_right <= css_border_outset);
+                bool hasrightBorder = (style->border_style_right >= css_border_solid);
                 if (!hasrightBorder) return 0;
                 css_length_t bw = style->border_width[1];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
@@ -4646,8 +4654,7 @@ int measureBorder(ldomNode *enode,int border) {
                 rightBorderwidth = rightBorderwidth != 0 ? rightBorderwidth : DEFAULT_BORDER_WIDTH;
                 return rightBorderwidth;}
         else if (border ==2){
-                bool hasbottomBorder = (style->border_style_bottom >= css_border_solid &&
-                                        style->border_style_bottom <= css_border_outset);
+                bool hasbottomBorder = (style->border_style_bottom >= css_border_solid);
                 if (!hasbottomBorder) return 0;
                 css_length_t bw = style->border_width[2];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
@@ -4655,8 +4662,7 @@ int measureBorder(ldomNode *enode,int border) {
                 bottomBorderwidth = bottomBorderwidth != 0 ? bottomBorderwidth : DEFAULT_BORDER_WIDTH;
                 return bottomBorderwidth;}
         else if (border==3){
-                bool hasleftBorder = (style->border_style_left >= css_border_solid &&
-                                      style->border_style_left <= css_border_outset);
+                bool hasleftBorder = (style->border_style_left >= css_border_solid);
                 if (!hasleftBorder) return 0;
                 css_length_t bw = style->border_width[3];
                 if (bw.value == 0 && bw.type > css_val_unspecified) return 0;
@@ -7452,13 +7458,13 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             newstyle->height.type = css_val_screen_px;
             newstyle->height.value = img_height;
             newstyle->min_width.type = css_val_unspecified;
-            newstyle->min_width.value = 0;
+            newstyle->min_width.value = css_generic_auto;
             newstyle->min_height.type = css_val_unspecified;
-            newstyle->min_height.value = 0;
+            newstyle->min_height.value = css_generic_auto;
             newstyle->max_width.type = css_val_unspecified;
-            newstyle->max_width.value = 0;
+            newstyle->max_width.value = css_generic_none;
             newstyle->max_height.type = css_val_unspecified;
-            newstyle->max_height.value = 0;
+            newstyle->max_height.value = css_generic_none;
         }
         else {
             if ( child_style->width.type == css_val_percent ) {
@@ -8816,10 +8822,10 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
     css_style_ref_t style = enode->getStyle();
-    bool hastopBorder = (style->border_style_top >=css_border_solid&&style->border_style_top<=css_border_outset);
-    bool hasrightBorder = (style->border_style_right >=css_border_solid&&style->border_style_right<=css_border_outset);
-    bool hasbottomBorder = (style->border_style_bottom >=css_border_solid&&style->border_style_bottom<=css_border_outset);
-    bool hasleftBorder = (style->border_style_left >=css_border_solid&&style->border_style_left<=css_border_outset);
+    bool hastopBorder = (style->border_style_top >=css_border_solid);
+    bool hasrightBorder = (style->border_style_right >=css_border_solid);
+    bool hasbottomBorder = (style->border_style_bottom >=css_border_solid);
+    bool hasleftBorder = (style->border_style_left >=css_border_solid);
 
     // Check for explicit 'border-width: 0' which means no border.
     css_length_t bw;
@@ -9305,9 +9311,11 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             int img_h =img->GetHeight();
 
             // See if background-size specified and we need to adjust image native size
+            // (if both auto, use image native size)
             css_length_t bg_w = style->background_size[0];
             css_length_t bg_h = style->background_size[1];
-            if ( bg_w.type != css_val_unspecified || bg_w.value != 0 || bg_h.type != css_val_unspecified || bg_h.value != 0 ) {
+            if ( bg_w.type != css_val_unspecified || bg_w.value != css_generic_auto ||
+                 bg_h.type != css_val_unspecified || bg_h.value != css_generic_auto ) {
                 int new_w = 0;
                 int new_h = 0;
                 RenderRectAccessor fmt( enode );
@@ -9345,7 +9353,7 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                     }
                 }
                 if ( check_lengths ) {
-                    // These will compute to 0 if (css_val_unspecified, 0) when really not specified
+                    // These will compute to 0 if (css_val_unspecified, css_generic_auto) when really not specified
                     new_w = lengthToPx(enode, style->background_size[0], container_w);
                     new_h = lengthToPx(enode, style->background_size[1], container_h);
                     if ( new_w == 0 ) {
@@ -10210,10 +10218,45 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
     }
 }
 
-inline void spreadParent( css_length_t & val, css_length_t & parent_val, bool unspecified_is_inherited=true )
+// See below in setNodeStyle() ("handle inheritance") for more comments
+inline bool inheritLength( css_length_t & val, css_length_t & parent_val, int parent_font_size, int percent_base_size=-1 )
 {
-    if ( val.type == css_val_inherited || (val.type == css_val_unspecified && unspecified_is_inherited) )
-        val = parent_val;
+    if ( val.type != css_val_inherited )
+        return false;
+    switch( parent_val.type ) {
+        // If the property in the parent is relative to its font size, we need to
+        // compute it now as screen pixels and inherit that.
+        case css_val_em: // value = em*256 ; 256 = 1em = x1
+            val.value = parent_font_size * parent_val.value / 256;
+            val.type = css_val_screen_px;
+            break;
+        case css_val_ex: // value = ex*256 ; 512 = 2ex = 1em = x1
+        case css_val_ch: // value = ch*256 ; 512 = 2ch = 1em = x1
+            val.value = parent_font_size * parent_val.value / 512;
+            val.type = css_val_screen_px;
+            break;
+        case css_val_percent: // value = percent number ; 100 = 100% => x1
+            if ( percent_base_size >= 0 ) {
+                // % of the provided percent_base_size (which can be the same as parent_font_size)
+                val.value = percent_base_size * parent_val.value / 100 / 256;
+                val.type = css_val_screen_px;
+            }
+            else {
+                // Let this % value be (probably a % of the container width, and as it is not
+                // known at this time, the specs have it inherited as-is).
+                val = parent_val; // inherit as-is
+            }
+            break;
+        // For all others, we can inherit as-is:
+        // - they are either already in absolute units
+        // - or they are relative to something stable (rem, vh...), and will be computed when used
+        // - or they are css_val_unspecified and represent a keyword value (normal, auto, none...)
+        //   and it looks like they are all inherited "as specified".
+        default:
+            val = parent_val; // inherit as-is
+            break;
+    }
+    return true;
 }
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
@@ -10422,6 +10465,10 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     #endif
 
+    //////////////////////////////////////////////////////
+    // sanity checks
+    //////////////////////////////////////////////////////
+
     // As per-specs (and to avoid checking edge cases in initNodeRendMethod()):
     // https://www.w3.org/TR/css-tables-3/#table-structure
     //  "Authors should not assign a display type from the previous
@@ -10627,53 +10674,54 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
-    // update inherited style attributes
-/*
-  #define UPDATE_STYLE_FIELD(fld,inherit_value) \
-  if (pstyle->fld == inherit_value) \
-      pstyle->fld = parent_style->fld
-*/
+
+    //////////////////////////////////////////////////////
+    // handle inheritance
+    //////////////////////////////////////////////////////
+    // We must consider specific rules per CSS-property when handling its inheritance:
+    // We have to set on the child the "computed value" of the parent.
+    // https://developer.mozilla.org/en-US/docs/Web/CSS/computed_value
+    // https://www.w3.org/TR/CSS22/cascade.html#computed-value
+    //   "The computed value of a property is determined as specified by the Computed Value line in the definition of the property."
+
+    // For most keyword values, the "computed value" is the keyword ("as specified").
     #define UPDATE_STYLE_FIELD(fld,inherit_value) \
         if (pstyle->fld == inherit_value) \
             pstyle->fld = parent_style->fld
-    #define UPDATE_LEN_FIELD(fld) \
-        switch( pstyle->fld.type ) \
-        { \
-        case css_val_inherited: \
-            pstyle->fld = parent_style->fld; \
-            break; \
-        /* relative values to parent style */\
-        case css_val_percent: \
-            pstyle->fld.type = parent_style->fld.type; \
-            pstyle->fld.value = parent_style->fld.value * pstyle->fld.value / 100 / 256; \
-            break; \
-        case css_val_em: \
-            pstyle->fld.type = parent_style->fld.type; \
-            pstyle->fld.value = parent_style->font_size.value * pstyle->fld.value / 256; \
-            break; \
-        case css_val_ex: \
-        case css_val_ch: \
-            pstyle->fld.type = parent_style->fld.type; \
-            pstyle->fld.value = parent_style->font_size.value * pstyle->fld.value / 512; \
-            break; \
-        default: \
-            /* absolute values, no need to relate to parent style */\
-            break; \
-        }
 
-    //if ( (pstyle->display == css_d_inline) && (pstyle->text_align==css_ta_inherit))
-    //{
-        //if (parent_style->text_align==css_ta_inherit)
-        //parent_style->text_align = css_ta_center;
-    //}
+    // But for length values, rules differ:
+    // inherited by default:
+    //   font_size                  as specified, but with relative lengths converted into absolute lengths
+    //   text_indent                the percentage as specified or the absolute length, plus any keywords as specified
+    //   line_height                for percentage and length values, the absolute length, otherwise as specified
+    //   letter_spacing             an optimum value consisting of either an absolute length or the keyword normal
+    //   border_spacing[2] [HV]     two absolute lengths
+    // only inherited if specified with 'inherit':
+    //   vertical_align             for percentage and length values, the absolute length, otherwise the keyword as specified
+    //   width                      a percentage or auto or the absolute length
+    //   height                     a percentage or auto or the absolute length
+    //   margin[4]  [LRTB]          the percentage as specified or the absolute length
+    //   padding[4] [LRTB]          the percentage as specified or the absolute length
+    //   min_width                  the percentage as specified or the absolute length
+    //   min_height                 the percentage as specified or the absolute length
+    //   max_width                  the percentage as specified or the absolute length or none
+    //   max_height                 the percentage as specified or the absolute length or none
+    //   border_width[4] [TRBL]     the absolute length or 0 if border-style is none or hidden
+    //   background_size[2] [WH]    as specified, but with relative lengths converted into absolute lengths
+    // So, it looks like when the specs decided to mention "the percentage as specified", it's usually
+    // because, for that property, the % is a % of the container width, which is not known at the time
+    // of style processing (it will only be known at render time).
+    // When they say a percentage is to be computed as an absolute length, it is because
+    // the value is a % of the font size or line height.
+    // inheritLength(), defined just above this function, implements this logic.
+    int parent_font_size = parent_font->getSize();
 
-    if (domVersionRequested < 20180524) { // display should not be inherited
-        UPDATE_STYLE_FIELD( display, css_d_inherit );
-    }
+    /// Keywords properties
+    // These have "inherit" as their initial value (others, less straightforward, are handled below)
+    UPDATE_STYLE_FIELD( font_style, css_fs_inherit );
     UPDATE_STYLE_FIELD( white_space, css_ws_inherit );
     UPDATE_STYLE_FIELD( text_align, css_ta_inherit );
     UPDATE_STYLE_FIELD( text_align_last, css_ta_inherit );
-    UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
     UPDATE_STYLE_FIELD( text_transform, css_tt_inherit );
     UPDATE_STYLE_FIELD( hyphenate, css_hyph_inherit );
     UPDATE_STYLE_FIELD( orphans, css_orphans_widows_inherit );
@@ -10684,41 +10732,48 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( line_break, css_lb_inherit );
     UPDATE_STYLE_FIELD( word_break, css_wb_inherit );
     UPDATE_STYLE_FIELD( caption_side, css_cs_inherit );
+    UPDATE_STYLE_FIELD( border_collapse, css_border_c_inherit );
+
+    // text-decoration should not be inherited per CSS specs, but our quite
+    // limited support for it requires us to have its initial value be
+    // inherit, and to get it inherited by children.
+    UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
 
     // Note: we don't inherit "direction" (which should be inherited per specs);
     // We'll handle inheritance of direction in renderBlockEnhanced, because
     // it is also specified, with higher priority, by dir= attributes.
 
-    // page_break_* should not be inherited per CSS specs, and as we set
-    // each node to start with css_pb_auto, they shouldn't get a chance
-    // to be inherited, except if a publisher really uses 'inherit'.
-    // We usually don't ensure inheritance of styles that are not inherited
-    // by default, but as these were originally in the code, let's keep them.
+    // These don't have "inherit" as their initial value, but publishers may use it,
+    // so ensure their inheritance if requested.
     UPDATE_STYLE_FIELD( page_break_before, css_pb_inherit );
     UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );
     UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit );
+    UPDATE_STYLE_FIELD( background_repeat, css_background_r_inherit );
+    UPDATE_STYLE_FIELD( background_position, css_background_p_inherit );
+    UPDATE_STYLE_FIELD( float_, css_f_inherit );
+    UPDATE_STYLE_FIELD( clear, css_c_inherit );
+    UPDATE_STYLE_FIELD( box_sizing, css_bs_inherit );
+    UPDATE_STYLE_FIELD( border_style_top, css_border_inherit );
+    UPDATE_STYLE_FIELD( border_style_right, css_border_inherit );
+    UPDATE_STYLE_FIELD( border_style_bottom, css_border_inherit );
+    UPDATE_STYLE_FIELD( border_style_left, css_border_inherit );
 
-    // vertical_align
-    // Should not be inherited per CSS specs: we fixed its propagation
-    // to children with the use of 'valign_dy'.
-    // But our default value for each node is not "inherit" but "baseline",
-    // so we should be fine allowing an explicite "inherit" to get its parent
-    // value. This is actually required with html5.css where TR,TD,TH are
-    // explicitely set to "vertical-align: inherit", so they can inherit
-    // from "thead, tbody, tfoot, table > tr { vertical-align: middle}"
-    if ( pstyle->vertical_align.type == css_val_unspecified && pstyle->vertical_align.value == css_va_inherit)
-        pstyle->vertical_align = parent_style->vertical_align;
+    // We did fix and change on 20180524 the initial value of display from "inherit" to "inline".
+    // We would not have needed preventing its inheritance, as it would then never be seen
+    // by default - but publishers may specify it and expect it to be inherited.
+    // So, handle "inherit" also for later DOM versions where 'display:' changes don't cause a mess.
+    if ( domVersionRequested >= DOM_VERSION_WITH_NORMALIZED_XPOINTERS || domVersionRequested < 20180524 ) {
+        UPDATE_STYLE_FIELD( display, css_d_inherit );
+        // (No risk to override all the 'display' fixups done above, as they never leave it as 'inherit')
+    }
 
-    UPDATE_STYLE_FIELD( font_style, css_fs_inherit );
-    UPDATE_STYLE_FIELD( font_weight, css_fw_inherit );
+    // font-family (and our internal font-name)
     if ( pstyle->font_family == css_ff_inherit ) {
-        //UPDATE_STYLE_FIELD( font_name, "" );
-        // Just set the name of the font already resolved (via enode->initNodeFont)
+        pstyle->font_family = parent_style->font_family;
+        // Also set the name of the font already resolved (via enode->initNodeFont)
         // for the parent node
         pstyle->font_name = parent_font.get()->getTypeFace();
     }
-    UPDATE_STYLE_FIELD( font_family, css_ff_inherit );
-    //UPDATE_LEN_FIELD( font_size ); // this is done below
 
     // font_features (font-variant/font-feature-settings)
     // The specs say a font-variant resets the ones that would be
@@ -10756,8 +10811,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->cr_hint.type = css_val_unspecified;
     }
 
-    //UPDATE_LEN_FIELD( text_indent );
-    spreadParent( pstyle->text_indent, parent_style->text_indent );
+    // font-weight
     // acording to https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#meaning_of_relative_weights
     // With some liberty at ends if 100 is really too thin
     switch( pstyle->font_weight )
@@ -10798,9 +10852,15 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     case css_fw_900:
         break;
     }
+
+    // font-size
     switch( pstyle->font_size.type )
     { // ordered here as most likely to be met
     case css_val_inherited:
+        // Computed value: "as specified, but with relative lengths converted into absolute lengths"
+        // Below, we don't let font size relative length be: we apply their factor to the parent
+        // value, which can still be a non-font-size relative length; they will be converted when used.
+        // So, we can inherit the parent length as is.
         pstyle->font_size = parent_style->font_size;
         break;
     case css_val_screen_px:
@@ -10842,7 +10902,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         break;
     }
 
-    // line_height
+    // line_height: computed value: "for percentage and length values, the absolute length, otherwise as specified"
     if (pstyle->line_height.type == css_val_inherited) {
         // We didn't have yet the parent font when dealing with the parent style
         // (or we could have computed an absolute size line-height that we could
@@ -10881,25 +10941,106 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
-    // We can't use spreadParent() with letter_spacing, as there is
-    // (css_val_unspecified, css_generic_normal) which should not be overriden
-    // by inheritance, while all other bogus (css_val_unspecified, number) should
-    if ( pstyle->letter_spacing.type == css_val_inherited ||
-            (pstyle->letter_spacing.type == css_val_unspecified &&
-             pstyle->letter_spacing.value != css_generic_normal) )
-        pstyle->letter_spacing = parent_style->letter_spacing;
+    // vertical_align: computed value: "for percentage and length values, the absolute length, otherwise the keyword as specified"
+    // Not inherited by default (html5.css has TR,TD,TH explicitely set to "vertical-align: inherit",
+    // so they can inherit from "thead, tbody, tfoot, table > tr { vertical-align: middle}").
+    // (For text, we handle its propagation to children with the use of 'valign_dy'.)
+    // The CSS specs say that the inherited computed value for percentage should be an absolute length,
+    // so, for vertical-align "the value being a percentage of the line-height property" of the parent.
+    // But it looks like inheriting the % value as-is (and not its computed line-height) gives us the
+    // same results as Firefox and Edge. Moreover, Firefox shows the computed value of a node with
+    // "vertical-align: inherit" and its parent with "vertical-align:90%" as... "90%".
+    // So, let's inherit % value as-is (and fix it when we meet a case when this gives the not expected result).
+    if ( pstyle->vertical_align.type == css_val_unspecified && pstyle->vertical_align.value == css_va_inherit) {
+        // Switch from the enum css_va_inherit to the length type css_val_inherited
+        // to please inheritLength(), which will replace it anyway.
+        pstyle->vertical_align.type = css_val_inherited;
+    }
+    inheritLength( pstyle->vertical_align, parent_style->vertical_align, parent_font_size);
 
-    // Don't inherit when (css_val_unspecified, css_generic_transparent) used with "color: transparent"
-    if ( pstyle->color.type != css_val_unspecified || pstyle->color.value != css_generic_transparent )
-        spreadParent( pstyle->color, parent_style->color );
+    // letter-spacing: computed value: "an optimum value consisting of either an absolute length or the keyword normal"
+    // (% is not supported for letter_spacing by Firefox, but crengine did and does support it, by relating it to font size)
+    inheritLength( pstyle->letter_spacing, parent_style->letter_spacing, parent_font_size, parent_font_size );
 
-    // Border colors are not inherited, and default to "currentcolor": the just computed pstyle->color
+    // text-indent: computed value: "the percentage as specified or the absolute length, plus any keywords as specified"
+    if ( inheritLength( pstyle->text_indent, parent_style->text_indent, parent_font_size ) ) {
+        if ( parent_style->text_indent.value & 0x00000001 ) { // "hanging" keyword: inherit it too
+            pstyle->text_indent.value |= 0x00000001;
+        }
+    }
+
+    // border-spacing: computed value: "two absolute lengths"
+    // per-specs, values in % are not accepted
+    inheritLength( pstyle->border_spacing[0], parent_style->border_spacing[0], parent_font_size );
+    inheritLength( pstyle->border_spacing[1], parent_style->border_spacing[1], parent_font_size );
+
+    // These don't have "inherit" as their initial value, but publishers may use it,
+    // so ensure their inheritance if requested.
+    // width, height: computed value: "a percentage or auto or the absolute length"
+    // min_width, min_height: computed value: "the percentage as specified or the absolute length"
+    // max_width, max_height: computed value: "the percentage as specified or the absolute length or none"
+    inheritLength( pstyle->width,      parent_style->width,      parent_font_size );
+    inheritLength( pstyle->height,     parent_style->height,     parent_font_size );
+    inheritLength( pstyle->min_width,  parent_style->min_width,  parent_font_size );
+    inheritLength( pstyle->min_height, parent_style->min_height, parent_font_size );
+    inheritLength( pstyle->max_width,  parent_style->max_width,  parent_font_size );
+    inheritLength( pstyle->max_height, parent_style->max_height, parent_font_size );
+    // margin[4]  [LRTB]: computed value: "the percentage as specified or the absolute length"
+    inheritLength( pstyle->margin[0],  parent_style->margin[0],  parent_font_size );
+    inheritLength( pstyle->margin[1],  parent_style->margin[1],  parent_font_size );
+    inheritLength( pstyle->margin[2],  parent_style->margin[2],  parent_font_size );
+    inheritLength( pstyle->margin[3],  parent_style->margin[3],  parent_font_size );
+    // padding[4] [LRTB]: computed value: "the percentage as specified or the absolute length"
+    inheritLength( pstyle->padding[0], parent_style->padding[0], parent_font_size );
+    inheritLength( pstyle->padding[1], parent_style->padding[1], parent_font_size );
+    inheritLength( pstyle->padding[2], parent_style->padding[2], parent_font_size );
+    inheritLength( pstyle->padding[3], parent_style->padding[3], parent_font_size );
+    // background_size[2] [WH]: computed value: "as specified, but with relative lengths converted into absolute lengths"
+    inheritLength( pstyle->background_size[0], parent_style->background_size[0], parent_font_size );
+    inheritLength( pstyle->background_size[1], parent_style->background_size[1], parent_font_size );
+
+    // border_width[4] [TRBL]: computed value: "the absolute length or 0 if border-style is none or hidden"
+    if ( pstyle->border_width[0].type == css_val_inherited ) {
+        if ( parent_style->border_style_top == css_border_none )
+            pstyle->border_width[0] = css_length_t(css_val_screen_px, 0);
+        else
+            inheritLength( pstyle->border_width[0], parent_style->border_width[0], parent_font_size );
+    }
+    if ( pstyle->border_width[1].type == css_val_inherited ) {
+        if ( parent_style->border_style_right == css_border_none )
+            pstyle->border_width[1] = css_length_t(css_val_screen_px, 0);
+        else
+            inheritLength( pstyle->border_width[1], parent_style->border_width[1], parent_font_size );
+    }
+    if ( pstyle->border_width[2].type == css_val_inherited ) {
+        if ( parent_style->border_style_bottom == css_border_none )
+            pstyle->border_width[2] = css_length_t(css_val_screen_px, 0);
+        else
+            inheritLength( pstyle->border_width[2], parent_style->border_width[2], parent_font_size );
+    }
+    if ( pstyle->border_width[3].type == css_val_inherited ) {
+        if ( parent_style->border_style_left == css_border_none )
+            pstyle->border_width[3] = css_length_t(css_val_screen_px, 0);
+        else
+            inheritLength( pstyle->border_width[3], parent_style->border_width[3], parent_font_size );
+    }
+
+    // color
+    // inherited by default, and we should also propagate it when (css_val_unspecified, css_generic_currentcolor)
+    if ( pstyle->color.type == css_val_inherited ||
+            (pstyle->color.type == css_val_unspecified && pstyle->color.value == css_generic_currentcolor) )
+        pstyle->color = parent_style->color;
+
+    // border-color
+    // Not inherited by default, defaults to "currentcolor": the just computed pstyle->color
     for ( int i=0; i < 4; i++ ) {
         if ( pstyle->border_color[i].type == css_val_unspecified && pstyle->border_color[i].value == css_generic_currentcolor )
             pstyle->border_color[i] = pstyle->color;
+        else if ( pstyle->border_color[i].type == css_val_inherited )
+            pstyle->border_color[i] = parent_style->border_color[i];
     }
 
-    // background_color
+    // background-color
     // Should not be inherited: elements start with unspecified.
     // The code will fill the rect of a parent element, and will
     // simply draw its children over the already filled rect.
@@ -10920,11 +11061,23 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
               parent_style->display == css_d_table_header_group ||
               parent_style->display == css_d_table_footer_group ) )
         spread_background_color = true;
-    if ( spread_background_color )
-        spreadParent( pstyle->background_color, parent_style->background_color, true );
+    if ( spread_background_color ) {
+        if ( pstyle->background_color.type == css_val_inherited || pstyle->background_color.type == css_val_unspecified )
+            pstyle->background_color = parent_style->background_color;
+    }
     // Except for the mostly useless case css_generic_currentcolor
     if ( pstyle->background_color.type == css_val_unspecified && pstyle->background_color.value == css_generic_currentcolor )
         pstyle->background_color = pstyle->color;
+
+    // background-image
+    // We have put "\x01" when meeting "background-image: inherit"
+    if ( pstyle->background_image.length() == 1 && pstyle->background_image[0] == '\x01' )
+        pstyle->background_image = parent_style->background_image;
+
+
+    //////////////////////////////////////////////////////
+    // pseudo elements handling
+    //////////////////////////////////////////////////////
 
     // See if applying styles requires pseudo element before/after
     bool requires_pseudo_element_before = false;
@@ -11519,7 +11672,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                  _maxWidth = cumulative_max_width;
             */
             // add horizontal border_spacing if "border-collapse: separate"
-            if ( style->border_collapse != css_border_collapse ) {
+            if ( style->border_collapse != css_border_c_collapse ) {
                 int final_nb_cols = nb_columns;
                 if ( last_cell_start_column_idx < nb_columns-1 )
                     final_nb_cols = last_cell_start_column_idx + 1;
