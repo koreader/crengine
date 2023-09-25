@@ -5437,7 +5437,7 @@ bool ldomDocument::partialRender( ldomNode * node ) {
     lvRect new_rc;
     node->getAbsRect(new_rc);
     int orig_h = orig_rc.bottom - base_y;
-    int new_h = new_rc.bottom - base_y;
+    // int new_h = new_rc.bottom - base_y;
     int next_fragments_shift_y = new_rc.bottom - orig_rc.bottom;
     // printf("fixing fragment %d (%d ~ %d => %d , +%d => +%d)\n", node->getNodeIndex(), base_y, orig_rc.top, new_rc.top, orig_h, new_h);
 

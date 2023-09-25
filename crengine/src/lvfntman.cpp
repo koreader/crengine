@@ -2880,9 +2880,13 @@ public:
             hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), (unsigned int)_hb_features.length());
 
             // Harfbuzz has guessed and set a direction even if we did not provide one.
+            #ifdef DEBUG_MEASURE_TEXT
             bool is_rtl = false;
+            #endif
             if ( hb_buffer_get_direction(_hb_buffer) == HB_DIRECTION_RTL ) {
+                #ifdef DEBUG_MEASURE_TEXT
                 is_rtl = true;
+                #endif
                 // "For buffers in the right-to-left (RTL) or bottom-to-top (BTT) text
                 // flow direction, the directionality of the buffer itself is reversed
                 // for final output as a matter of design. Therefore, HarfBuzz inverts
@@ -2947,7 +2951,6 @@ public:
             int cur_cluster = 0;
             int hg = 0;  // index in glyph_info/glyph_pos
             int hcl = 0; // cluster glyph at hg
-            bool is_cluster_tail = false;
             int t_notdef_start = -1;
             int t_notdef_end = -1;
             for (int t = 0; t < len; t++) {
@@ -3132,9 +3135,6 @@ public:
         } // _kerningMode == KERNING_MODE_HARFBUZZ
 
         else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
-            unsigned int glyph_count;
-            hb_glyph_info_t* glyph_info = 0;
-            hb_glyph_position_t* glyph_pos = 0;
             struct LVCharTriplet triplet;
             struct LVCharPosInfo posInfo;
             triplet.Char = 0;
@@ -3625,10 +3625,9 @@ public:
             int value = 0;
             // Tables we might look at
             TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(_face, FT_SFNT_OS2);
-            bool has_ot_math_data = false;
 #if MATHML_SUPPORT==1
             #if USE_HARFBUZZ==1
-                has_ot_math_data = hb_ot_math_has_data(hb_font_get_face(_hb_font));
+                bool has_ot_math_data = hb_ot_math_has_data(hb_font_get_face(_hb_font));
                 #define VALUE_FROM_OT_MATH_CONSTANT(x) if ( has_ot_math_data ) { \
                         value = hb_ot_math_get_constant(_hb_font, HB_OT_MATH_CONSTANT_##x); \
                         value_set = true; }
@@ -4409,11 +4408,6 @@ public:
 
         } // _kerningMode == KERNING_MODE_HARFBUZZ
         else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
-            hb_glyph_info_t *glyph_info = 0;
-            hb_glyph_position_t *glyph_pos = 0;
-            unsigned int glyph_count;
-            int w;
-            unsigned int len_new = 0;
             struct LVCharTriplet triplet;
             struct LVCharPosInfo posInfo;
             triplet.Char = 0;

@@ -1386,12 +1386,10 @@ bool LVRendPageInfo::deserialize( SerialBuf & buf )
 
 void LVRendPageList::replacePages(int old_y, int old_h, LVRendPageList * pages, int next_pages_shift_y)
 {
-    int i = 0;
     int remove_idx = -1;
     int remove_count = 0;
     int insert_idx = -1;
     int added_count = pages->length();
-    int new_page_index_shift = 0;
     for  ( int i=0; i < length(); i++ ) {
         LVRendPageInfo * pi = ((*this)[i]);
         if ( pi->start + pi->height <= old_y ) {

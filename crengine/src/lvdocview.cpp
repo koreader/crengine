@@ -136,7 +136,9 @@ static css_font_family_t DEFAULT_FONT_FAMILY = css_ff_sans_serif;
 /// minimum EM width of page (prevents show two pages for windows that not enougn wide)
 #define MIN_EM_PER_PAGE     20
 
+#if USE_LIMITED_FONT_SIZES_SET
 static int def_font_sizes[] = { 18, 20, 22, 24, 29, 33, 39, 44 };
+#endif
 
 LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 	m_bitsPerPixel(bitsPerPixel), m_dx(400), m_dy(200), _pos(0), _page(0),
