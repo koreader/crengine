@@ -1103,7 +1103,6 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8
     if ( len > WORD_LENGTH-2 )
         len = WORD_LENGTH - 2;
     lStr_getCharProps( str, len, chprops );
-    bool res = false;
 
     int min = len+1;
     int nb_visible = 0;
