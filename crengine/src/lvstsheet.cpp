@@ -22,12 +22,6 @@
 // define to dump all tokens
 //#define DUMP_CSS_PARSING
 
-// Helper to debug string parsing, showing current position and context
-static void dbg_str_pos(const char * prefix, const char * str) {
-    printf("/----------|---------- %s\n", prefix);
-    printf("\\%.*s\n", 20, str - 10);
-}
-
 #define IMPORTANT_DECL_HIGHER   ((lUInt32)0x80000000U) // | to prop_code
 #define IMPORTANT_DECL_SET      ((lUInt32)0x40000000U) // | to prop_code
 #define IMPORTANT_DECL_REMOVE   ((lUInt32)0x3FFFFFFFU) // & to prop_code
@@ -315,24 +309,6 @@ inline bool css_is_alpha( char ch )
 inline bool css_is_alnum( char ch )
 {
     return ( css_is_alpha(ch) || ( ch>='0' && ch<='9' ) );
-}
-
-static int substr_compare( const char * sub, const char * & str )
-{
-    int j;
-    for ( j=0; sub[j] == str[j] && sub[j] && str[j]; j++)
-        ;
-    if (j && !sub[j])
-    {
-        //bool last_alpha = css_is_alpha( sub[j-1] );
-        //bool next_alnum = css_is_alnum( str[j] );
-        if ( !css_is_alpha( sub[j-1] ) || !css_is_alnum( str[j] ) )
-        {
-            str+=j;
-            return j;
-        }
-    }
-    return 0;
 }
 
 inline char toLower( char c )

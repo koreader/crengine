@@ -6054,7 +6054,6 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 for (j=0; j<frmline->word_count; j++) {
                     word = &frmline->words[j];
                     srcline = &m_pbuffer->srctext[word->src_text_index];
-                    ldomNode * node = (ldomNode *) srcline->object;
                     if (word->flags & LTEXT_WORD_IS_PAD && word->o.baseline ) { // there is some border to draw
                         bool is_right_pad = srcline->o.objflags & LTEXT_OBJECT_IS_PAD_RIGHT;
                         bool is_mirrored = word->flags & LTEXT_WORD_DIRECTION_IS_RTL; // will be drawn as if on the other side
