@@ -1614,13 +1614,14 @@ public:
 
     LVFreeTypeFace( LVMutex &mutex, FT_Library  library, LVFontGlobalGlyphCache * globalCache )
         : _mutex(mutex), _fontFamily(css_ff_sans_serif), _library(library), _face(NULL), _face_size(0)
-        , _size(0), _hyphen_width(0), _baseline(0), _underline_offset(0), _underline_thickness(0)
-        , _weight(400), _italic(0), _features(0), _extra_metric(NULL)
+        , _size(0), _hyphen_width(0), _baseline(0), _weight(400), _italic(0)
+        , _underline_offset(0), _underline_thickness(0), _extra_metric(NULL)
         , _glyph_cache(globalCache), _drawMonochrome(false)
-        , _kerningMode(KERNING_MODE_DISABLED), _hintingMode(HINTING_MODE_AUTOHINT)
+        , _hintingMode(HINTING_MODE_AUTOHINT), _kerningMode(KERNING_MODE_DISABLED)
         , _fallbackFontIsSet(false), _nextFallbackFontIsSet(false)
         , _DecimalListItemFontIsSet(false), _BulletListItemFontIsSet(false)
         , _synth_weight(0), _synth_weight_strength(0), _synth_weight_half_strength(0)
+        , _features(0)
         #if USE_HARFBUZZ==1
         , _glyph_cache2(globalCache)
         , _width_cache2(1024)

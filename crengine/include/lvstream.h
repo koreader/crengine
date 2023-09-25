@@ -567,8 +567,8 @@ public:
         m_crc = crc;
         m_is_container = isContainer;
     }
-    LVCommonContainerItemInfo() : m_size(0), m_flags(0), m_is_container(false),
-        m_srcpos(0), m_srcsize(0), m_srcflags(0), m_crc(0)
+    LVCommonContainerItemInfo() : m_size(0), m_flags(0), m_crc(0), m_is_container(false),
+        m_srcpos(0), m_srcsize(0), m_srcflags(0)
     {
     }
     virtual ~LVCommonContainerItemInfo ()
@@ -620,13 +620,13 @@ public:
             m_path = m_fname.substr(0, pos);
         m_filename = m_fname.substr(pos, m_fname.length() - pos);
     }
-    LVNamedContainer() : m_name2index(16), m_path_separator(
+    LVNamedContainer() : m_path_separator(
 #ifdef _LINUX
         '/'
 #else
         '\\'
 #endif
-    )
+    ), m_name2index(16)
     {
     }
     virtual ~LVNamedContainer()

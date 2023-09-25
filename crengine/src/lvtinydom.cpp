@@ -525,8 +525,7 @@ struct CacheFileHeader : public SimpleCacheFileHeader
         return true;
     }
     CacheFileHeader( CacheFileItem * indexRec, int fsize, lUInt32 dirtyFlag, lUInt32 domVersion )
-    : SimpleCacheFileHeader(dirtyFlag, domVersion), _indexBlock(0,0)
-    , _padding(0)
+    : SimpleCacheFileHeader(dirtyFlag, domVersion), _padding(0), _indexBlock(0,0)
     {
         if ( indexRec ) {
             memcpy((void*)&_indexBlock, indexRec, sizeof(CacheFileItem));
@@ -656,7 +655,7 @@ public:
 
 // create uninitialized cache file, call open or create to initialize
 CacheFile::CacheFile(lUInt32 domVersion)
-: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _domVersion(domVersion), _map(1024), _cachePath(lString32::empty_str)
+: _sectorSize( CACHE_FILE_SECTOR_SIZE ), _size(0), _indexChanged(false), _dirty(true), _domVersion(domVersion), _cachePath(lString32::empty_str), _map(1024)
 #if (USE_ZSTD == 1)
     , _comp_ress(nullptr), _decomp_ress(nullptr)
 #endif
@@ -2382,6 +2381,10 @@ tinyNodeCollection::tinyNodeCollection()
 , _nodeStylesInvalidIfLoadingReasons(0)
 , _boxingWishedButPreventedByCache(false)
 #endif
+, _hangingPunctuationEnabled(false)
+, _renderBlockRenderingFlags(DEF_RENDER_BLOCK_RENDERING_FLAGS)
+, _DOMVersionRequested(DOM_VERSION_CURRENT)
+, _interlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE)
 , _textStorage(this, 't', (lUInt32)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (lUInt32)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
 , _rectStorage(this, 'r', (lUInt32)(RECT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), RECT_CACHE_CHUNK_SIZE ) // element render rect storage
@@ -2389,10 +2392,7 @@ tinyNodeCollection::tinyNodeCollection()
 ,_docProps(LVCreatePropsContainer())
 ,_docFlags(DOC_FLAG_DEFAULTS)
 ,_fontMap(113)
-,_hangingPunctuationEnabled(false)
-,_renderBlockRenderingFlags(DEF_RENDER_BLOCK_RENDERING_FLAGS)
-,_DOMVersionRequested(DOM_VERSION_CURRENT)
-,_interlineScaleFactor(INTERLINE_SCALE_FACTOR_NO_SCALE)
+
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
@@ -2427,6 +2427,10 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _nodeStylesInvalidIfLoadingReasons(0)
 , _boxingWishedButPreventedByCache(false)
 #endif
+, _hangingPunctuationEnabled(v._hangingPunctuationEnabled)
+, _renderBlockRenderingFlags(v._renderBlockRenderingFlags)
+, _DOMVersionRequested(v._DOMVersionRequested)
+, _interlineScaleFactor(v._interlineScaleFactor)
 , _textStorage(this, 't', (lUInt32)(TEXT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), TEXT_CACHE_CHUNK_SIZE ) // persistent text node data storage
 , _elemStorage(this, 'e', (lUInt32)(ELEM_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), ELEM_CACHE_CHUNK_SIZE ) // persistent element data storage
 , _rectStorage(this, 'r', (lUInt32)(RECT_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), RECT_CACHE_CHUNK_SIZE ) // element render rect storage
@@ -2435,10 +2439,6 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 ,_docFlags(v._docFlags)
 ,_stylesheet(v._stylesheet)
 ,_fontMap(113)
-,_hangingPunctuationEnabled(v._hangingPunctuationEnabled)
-,_renderBlockRenderingFlags(v._renderBlockRenderingFlags)
-,_DOMVersionRequested(v._DOMVersionRequested)
-,_interlineScaleFactor(v._interlineScaleFactor)
 {
     memset( _textList, 0, sizeof(_textList) );
     memset( _elemList, 0, sizeof(_elemList) );
@@ -3906,10 +3906,10 @@ ldomDocument::ldomDocument()
 , _toc_from_cache_valid(false)
 , _warnings_seen_bitmap(0)
 , _doc_rendering_hash(0)
+, _rerendering_delayed(false)
 , _partial_rerendering_enabled(false)
 , _partial_rerenderings_count(0)
 , _partial_rerendering_fake_node_style_hash(0)
-, _rerendering_delayed(false)
 , _rendered_fragments(16)
 , _doc_pages(NULL)
 #endif
@@ -3957,10 +3957,10 @@ ldomDocument::ldomDocument( ldomDocument & doc )
 , _page_width(doc._page_width)
 , _screen_height(doc._screen_height)
 , _screen_width(doc._screen_width)
+, _rerendering_delayed(false)
 , _partial_rerendering_enabled(false)
 , _partial_rerenderings_count(0)
 , _partial_rerendering_fake_node_style_hash(0)
-, _rerendering_delayed(false)
 , _rendered_fragments(16)
 , _doc_pages(NULL)
 #endif

@@ -419,13 +419,14 @@ protected:
 
 public:
     lvdomElementFormatRec()
-    : _x(0), _width(0), _y(0), _height(0)
+    : _y(0), _height(0), _x(0), _width(0)
     , _inner_width(0), _inner_x(0), _inner_y(0), _baseline(0)
     , _usable_left_overflow(0), _usable_right_overflow(0)
     , _top_overflow(0), _bottom_overflow(0)
-    , _lang_node_idx(0) , _listprop_node_idx(0)
+    , _lang_node_idx(0)
     , _flags(0), _extra0(0)
     , _extra1(0), _extra2(0), _extra3(0), _extra4(0), _extra5(0)
+    , _listprop_node_idx(0)
     {
     }
     ~lvdomElementFormatRec()

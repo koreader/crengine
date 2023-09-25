@@ -297,7 +297,7 @@ public:
     /// Get surface of images drawn on buffer
     int getDrawnImagesSurface() const { return _drawnImagesSurface; }
 
-    LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _hidePartialGlyphs(true), _drawExtraInfo(NULL),
+    LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _drawExtraInfo(NULL), _hidePartialGlyphs(true),
                         _invertImages(false), _ditherImages(false), _smoothImages(false),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
@@ -775,8 +775,8 @@ public:
     }
     /// create own draw buffer
     explicit LVHorizontalOverlapMeasurementDrawBuf( int h, bool byline, int vertspread=0, lUInt8 minopacity=1 )
-        : LVInkMeasurementDrawBuf(false, false), buf_height(h), by_line(byline), vertical_spread(vertspread)
-        , min_opacity(minopacity), drawing_right(false)
+        : LVInkMeasurementDrawBuf(false, false), drawing_right(false), by_line(byline)
+        , min_opacity(minopacity), buf_height(h), vertical_spread(vertspread)
         {
             if ( by_line ) {
                 left_max_x = (int*)malloc( sizeof(int) * buf_height );

@@ -5443,11 +5443,11 @@ private:
                         // float should not be moved when pushing vertical margins.
         BlockFloat( int x0, int y0, int x1, int y1, bool r, int l, bool f, ldomNode * n=NULL, lString32Collection * linkids=NULL) :
                 lvRect(x0,y0,x1,y1),
+                node(n),
                 level(l),
                 inward_margin(0),
                 is_right(r),
-                final_pos(f),
-                node(n)
+                final_pos(f)
                 {
                     if (n && n->getChildCount() > 0) {
                         // The margins were used to position the original
@@ -5544,13 +5544,13 @@ public:
         in_combining_non_linear_sequence(false),
         vm_has_some(false),
         vm_disabled(false),
+        vm_target_avoid_pb_inside(false),
         vm_target_node(NULL),
         vm_target_level(0),
+        vm_active_pb_flag(RN_SPLIT_AUTO),
         vm_max_positive_margin(0),
         vm_max_negative_margin(0),
-        vm_back_usable_as_margin(0),
-        vm_target_avoid_pb_inside(false),
-        vm_active_pb_flag(RN_SPLIT_AUTO)
+        vm_back_usable_as_margin(0)
         {
             is_main_flow = context.getPageList() != NULL;
             if ( context.wantsLines() ) {
