@@ -7428,7 +7428,6 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // we should compute our width from the child style, and possibly
         // from its rendered content width.
         ldomNode * child = enode->getChildNode(0);
-        lUInt16 childElementId = child->getNodeId();
         css_style_ref_t child_style = child->getStyle();
 
         // We may tweak child styles
