@@ -5428,143 +5428,145 @@ int codeconvert(int code)
     }
 }
 
-/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
-int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
-{
-    int state = 0;
+static inline int collapsable(int ch) {
+    return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t';
+}
+
+static void decode_character(const lChar32 *end, const lChar32 *enc_table,
+        const lChar32 *&src, lChar32 *&dst) {
+    int state = 1, ch;
     lChar32 nch = 0;
-    lChar32 lch = 0;
-    lChar32 nsp = 0;
-    bool cdata = (flags & TXTFLG_CDATA) != 0;
-    bool pre = (flags & TXTFLG_PRE) != 0;
-    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
-    if ( pre_para_splitting )
-        pre = false;
-    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
-    //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
-    int j = 0;
-    for (int i=0; i<len; ++i ) {
-        if (j >= len)
-            break;
-        lChar32 ch = str[i];
-        if (pre) {
-            if (ch == '\r') {
-                if ((i==0 || lch!='\n') && (i==len-1 || str[i+1]!='\n')) {
-                    str[j++] = '\n';
-                    lch = '\n';
-                }
-                continue;
-            } else if (ch == '\n') {
-                str[j++] = '\n';
-                lch = ch;
-                continue;
+    for (; src < end; ++src) {
+        ch = *src;
+        if (state == 2 && ch == 'x')
+            state = 22;
+        else if (state == 22 && hexDigit(ch) >= 0)
+            nch = (lChar32) ((nch << 4) | hexDigit(ch));
+        else if (state == 2 && ch >= '0' && ch <= '9')
+            nch = (lChar32) (nch * 10 + (ch - '0'));
+        else if (ch == '#' && state == 1)
+            state = 2;
+        else if (state == 1 && ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'))) {
+            int k;
+            lChar32 entname[32];
+            for (k = 0; k < 32; k++) {
+                entname[k] = src[k];
+                if (!entname[k] || entname[k] == ';' || entname[k] == ' ')
+                    break;
             }
-        } else if ( !attribute ) {
-            if (ch=='\r' || ch=='\n' || ch=='\t')
-                ch = ' ';
-        }
-        if (ch == '&' && !cdata) {
-            state = 1;
-            nch = 0;
-        } else if (state == 0) {
-            if (ch == ' ') {
-                if ( pre || attribute || !nsp )
-                    str[j++] = ch;
-                nsp++;
-            } else {
-                str[j++] = ch;
-                nsp = 0;
-            }
-        } else {
-            if (state == 2 && ch=='x')
-                state = 22;
-            else if (state == 22 && hexDigit(ch)>=0)
-                nch = (lChar32)((nch << 4) | hexDigit(ch));
-            else if (state == 2 && ch>='0' && ch<='9')
-                nch = (lChar32)(nch * 10 + (ch - '0'));
-            else if (ch=='#' && state==1)
-                state = 2;
-            else if (state==1 && ((ch>='a' && ch<='z') || (ch>='A' && ch<='Z')) ) {
-                int k;
-                lChar32 entname[32];
-                for ( k = 0; k < 32; k++ ) {
-                    entname[k] = str[k + i];
-                    if (!entname[k] || entname[k]==';' || entname[k]==' ')
-                        break;
-                }
-                if (32 == k)
-                    k--;
-                entname[k] = 0;
-                lChar32 code = 0;
-                lChar32 code2 = 0;
-                if ( str[i+k]==';' || str[i+k]==' ' ) {
-                    // Nb of iterations for some classic named entities:
-                    //   nbsp: 5 - amp: 7 - lt: 8 - quot: 9
-                    //   apos gt shy eacute   10
-                    // Let's have some early straight comparisons for the ones we
-                    // have a chance to find in huge quantities in some documents.
-                    if ( !lStr_cmp( entname, U"nbsp" ) )
-                        code = 160;
-                    else if ( !lStr_cmp( entname, U"shy" ) )
-                        code = 173;
-                    else {
-                        // Binary search (usually takes 5 to 12 iterations)
-                        int left = 0;
-                        int right = sizeof(def_entity_table) / sizeof((def_entity_table)[0]) - 1; // ignore last NULL
-                        int middle;
-                        int iters = 0;
-                        while ( left < right ) {
-                            iters++;
-                            middle = (left + right) / 2;
-                            int res = lStr_cmp( entname, def_entity_table[middle].name );
-                            if ( res == 0 ) {
-                                code = def_entity_table[middle].code;
-                                code2 = def_entity_table[middle].code2;
-                                break;
-                            }
-                            else if ( res < 0 ) {
-                                right = middle;
-                            }
-                            else {
-                                left = middle + 1;
-                            }
+            if (32 == k)
+                k--;
+            entname[k] = 0;
+            lChar32 code = 0;
+            lChar32 code2 = 0;
+            if (src[k] == ';' || src[k] == ' ') {
+                // Nb of iterations for some classic named entities:
+                //   nbsp: 5 - amp: 7 - lt: 8 - quot: 9
+                //   apos gt shy eacute   10
+                // Let's have some early straight comparisons for the ones we
+                // have a chance to find in huge quantities in some documents.
+                if (!lStr_cmp(entname, U"nbsp"))
+                    code = 160;
+                else if (!lStr_cmp(entname, U"shy"))
+                    code = 173;
+                else {
+                    // Binary search (usually takes 5 to 12 iterations)
+                    int left = 0;
+                    int right = sizeof(def_entity_table) / sizeof((def_entity_table)[0]) - 1; // ignore last NULL
+                    int middle;
+                    int iters = 0;
+                    while (left < right) {
+                        iters++;
+                        middle = (left + right) / 2;
+                        int res = lStr_cmp(entname, def_entity_table[middle].name);
+                        if (res == 0) {
+                            code = def_entity_table[middle].code;
+                            code2 = def_entity_table[middle].code2;
+                            break;
+                        } else if (res < 0) {
+                            right = middle;
+                        } else {
+                            left = middle + 1;
                         }
                     }
                 }
-                if ( code ) {
-                    i+=k;
-                    state = 0;
-                    if ( enc_table && code<256 && code>=128 )
-                        code = enc_table[code - 128];
-                    str[j++] = code;
-                    if ( code2 ) {
-                        if ( enc_table && code2<256 && code2>=128 )
-                            code2 = enc_table[code2 - 128];
-                        str[j++] = code2;
-                    }
-                    nsp = 0;
-                } else {
-                    // include & and rest of entity into output string
-                    if (j < len - 1) {
-                        str[j++] = '&';
-                        str[j++] = str[i];
-                    }
-                    state = 0;
+            }
+            if (code) {
+                src += k - 1;
+                state = 0;
+                if (enc_table && code < 256 && code >= 128)
+                    code = enc_table[code - 128];
+                *dst++ = code;
+                if (code2) {
+                    if (enc_table && code2 < 256 && code2 >= 128)
+                        code2 = enc_table[code2 - 128];
+                    *dst++ = code2;
                 }
-
-            } else if (ch == ';') {
-                if (nch)
-                    str[j++] = codeconvert(nch);
-                state = 0;
-                nsp = 0;
             } else {
-                // error: return to normal mode
-                state = 0;
+                // include & and rest of entity into output string
+                if (dst < end - 1) {
+                    *dst++ = '&';
+                    *dst++ = *src;
+                }
+                break;
+            }
+        } else if (ch == ';') {
+            if (nch)
+                *dst++ = codeconvert(nch);
+            break;
+        } else {
+            break;
+        }
+    }
+}
+
+/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
+int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table) {
+    bool cdata = (flags & TXTFLG_CDATA) != 0;
+    bool pre = (flags & TXTFLG_PRE) != 0;
+    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING) != 0;
+    if (pre_para_splitting)
+        pre = false;
+    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
+
+    const lChar32 *end = str + len;
+    lChar32 *dst = str;
+    for (const lChar32 *src = str; src < end; ++src) {
+        lChar32 ch = *src;
+        if (ch <= '&') [[unlikely]] {
+            if (ch == '&') {
+                if (src < end - 1) {
+                    decode_character(end, enc_table, ++src, dst);
+                    continue;
+                }
+            } else {
+                if (pre) {
+                    // replace "\r\n" with "\n", otherwise remove it
+                    if (ch == '\r') {
+                        if (src < end - 1 && src[1] == '\n') {
+                            *dst++ = '\n';
+                            ++src;
+                        }
+                        continue;
+                    }
+                } else if (!attribute) {
+                    // collapse whitespaces
+                    if (collapsable(ch)) {
+                        const lChar32 *ptr = src;
+                        for (ptr = src + 1; ptr < end; ++ptr) {
+                            if (!collapsable(*ptr))
+                                break;
+                        }
+                        *dst++ = ' ';
+                        src = ptr - 1;
+                        continue;
+                    }
+                }
             }
         }
-        lch = ch;
+        *dst++ = ch;
     }
-    return j;
+    return dst - str;
 }
 
 int CalcTabCount(const lChar32 * str, int nlen) {
