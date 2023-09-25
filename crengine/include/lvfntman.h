@@ -1155,7 +1155,7 @@ public:
     lString8 _path_d;
     void addPathDfragment(const char * fragment) { _path_d << fragment; }
 
-    explicit SVGGlyphsCollector(double scale=1) : _scale(scale), _orig_scale(scale)
+    explicit SVGGlyphsCollector(double scale=1) : _orig_scale(scale), _scale(scale)
     {}
     ~SVGGlyphsCollector()
     {}

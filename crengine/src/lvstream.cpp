@@ -2238,8 +2238,8 @@ private:
     lUInt8      m_outbuf[ARC_OUTBUF_SIZE];
 
     LVZipDecodeStream( LVStreamRef stream, lvsize_t packsize, lvsize_t unpacksize, lUInt32 crc )
-        : m_stream(stream), m_packsize(packsize), m_unpacksize(unpacksize), m_originalCRC(crc),
-        m_CRC(0), m_pos(0), m_zInitialized(false), m_inpos(0), m_outpos(0)
+        : m_stream(stream), m_packsize(packsize), m_unpacksize(unpacksize), m_zInitialized(false)
+        , m_CRC(0), m_originalCRC(crc), m_pos(0), m_inpos(0), m_outpos(0)
     {
         rewind();
     }

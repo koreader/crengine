@@ -109,10 +109,10 @@ public:
     int getTopShiftX(int final_width, bool get_right_shift=false);
 
     BlockFloatFootprint( FlowState * fl=NULL, int dleft=0, int dtop=0, bool noclearownfloats=false ) :
-        flow(fl), d_left(dleft), d_top(dtop), no_clear_own_floats(noclearownfloats),
-        used_min_y(0), used_max_y(0),
+        flow(fl), d_left(dleft), d_top(dtop), used_min_y(0), used_max_y(0),
+        no_clear_own_floats(noclearownfloats), use_floatIds(false),
         left_w(0), left_h(0), right_w(0), right_h(0), left_min_y(0), right_min_y(0),
-        use_floatIds(false), nb_floatIds(0), floats_cnt(0)
+        nb_floatIds(0), floats_cnt(0)
         { }
 };
 

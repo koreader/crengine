@@ -51,8 +51,8 @@ static LVRendPageContext * main_context = NULL;
 LVRendPageContext::LVRendPageContext(LVRendPageList * pageList, int pageHeight, int docFontSize, bool gatherLines)
     : callback(NULL), totalFinalBlocks(0)
     , renderedFinalBlocks(0), lastPercent(-1), page_list(pageList), page_h(pageHeight)
-    , doc_font_size(docFontSize), gather_lines(gatherLines), footNotes(64), curr_note(NULL)
-    , current_flow(0), max_flow(0)
+    , doc_font_size(docFontSize), gather_lines(gatherLines), current_flow(0), max_flow(0)
+    , footNotes(64), curr_note(NULL)
 {
     if ( callback ) {
         callback->OnFormatStart();

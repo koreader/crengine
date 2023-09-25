@@ -610,7 +610,7 @@ class EncryptedDataContainer : public LVContainer, public EncryptedItemCallback 
     LVArray<lUInt8> _idpfFontManglingKey;
 public:
     EncryptedDataContainer(LVContainerRef baseContainer) : _container(baseContainer), _encrypted_items(16),
-            _has_adobe_obfuscated_items(false), _has_idpf_obfuscated_items(false), _has_unsupported_encrypted_items(false) { }
+            _has_unsupported_encrypted_items(false), _has_adobe_obfuscated_items(false), _has_idpf_obfuscated_items(false) { }
 
     virtual LVContainer * GetParentContainer() { return _container->GetParentContainer(); }
     //virtual const LVContainerItemInfo * GetObjectInfo(const lChar32 * pname);
