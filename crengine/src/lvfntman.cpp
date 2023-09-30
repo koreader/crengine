@@ -1270,6 +1270,7 @@ void LVFontGlobalGlyphCache::remove( LVFontGlyphCacheItem * item )
 
 void LVFontGlobalGlyphCache::removeNoLock( LVFontGlyphCacheItem * item )
 {
+    size -= item->getSize();
     if ( item==head )
         head = item->next_global;
     if ( item==tail )
@@ -1282,7 +1283,6 @@ void LVFontGlobalGlyphCache::removeNoLock( LVFontGlyphCacheItem * item )
         item->next_global->prev_global = item->prev_global;
     item->next_global = NULL;
     item->prev_global = NULL;
-    size -= item->getSize();
 }
 
 void LVFontGlobalGlyphCache::clear()
