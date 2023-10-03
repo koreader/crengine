@@ -5141,7 +5141,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
         break;
     case cssrt_id:            // E#id
         {
-            const lString32 val = node->getAttributeValue(attr_id);
+            const lString32 &val = node->getAttributeValue(attr_id);
             if ( val.empty() )
                 return false;
             // With EPUBs and CHMs, using ldomDocumentFragmentWriter,
@@ -5165,7 +5165,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
         break;
     case cssrt_class:         // E.class
         {
-            const lString32 val = node->getAttributeValue(attr_class);
+            const lString32 &val = node->getAttributeValue(attr_class);
             if ( val.empty() )
                 return false;
             // val.lowercase(); // className should be case sensitive
@@ -5173,12 +5173,13 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
             // this class attribute contains multiple class names, which needs
             // more complex checks
             if ( val[val.length()-1] == ' ' ) {
-                lString32 value_w_space_after = _value + " ";
-                if (val.pos(value_w_space_after) == 0)
-                    return true; // at start
-                lString32 value_w_spaces_before_after = " " + _value + " ";
-                if (val.pos(value_w_spaces_before_after) != -1)
-                    return true; // in between or at end
+                int start = 0;
+                int pos;
+                while ((pos = val.pos(_value, start)) >= 0) {
+                    if ((pos == 0 || val[pos - 1] == ' ') && val[pos + _value.length()] == ' ')
+                        return true;
+                    start += _value.length();
+                }
                 return false;
             }
             return val == _value;
