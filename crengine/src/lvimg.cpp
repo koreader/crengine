@@ -2362,6 +2362,7 @@ LVImageSourceRef LVCreateStreamImageSource( LVStreamRef stream, ldomDocument * d
         return ref;
     if ( !assume_valid && !img->Decode( NULL ) )
     {
+        delete img;
         return ref;
     }
     ((LVNodeImageSource*)img)->SetSourceDocument(doc);
