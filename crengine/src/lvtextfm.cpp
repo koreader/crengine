@@ -4744,7 +4744,7 @@ public:
                 maxWidth = getCurrentLineWidth();
             }
 
-            if ( m_flags[pos] & LCHAR_IS_CLUSTER_TAIL ) {
+            if ( m_flags[pos] & LCHAR_IS_CLUSTER_TAIL && pos > 0 ) {
                 // This line starts with a cluster tail, probably because hyphenation was
                 // allowed inside this cluster. The first char(s) would get a width of 0,
                 // which may allow more text to be brought into this line: later, in AddLine(),
