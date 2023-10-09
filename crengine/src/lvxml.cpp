@@ -5442,20 +5442,20 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
         pre = false;
     bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
     //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
-    int j = 0;
-    for (int i=0; i<len; ++i ) {
-        if (j >= len)
-            break;
-        lChar32 ch = str[i];
+
+    const lChar32 *end = str + len;
+    lChar32 *dst = str;
+    for (const lChar32 *src = str; src < end; ++src) {
+        lChar32 ch = *src;
         if (pre) {
             if (ch == '\r') {
-                if ((i==0 || lch!='\n') && (i==len-1 || str[i+1]!='\n')) {
-                    str[j++] = '\n';
+                if ((src == str || lch!='\n') && (src == end - 1 || src[1]!='\n')) {
+                    *dst++ = '\n';
                     lch = '\n';
                 }
                 continue;
             } else if (ch == '\n') {
-                str[j++] = '\n';
+                *dst++ = '\n';
                 lch = ch;
                 continue;
             }
@@ -5469,10 +5469,10 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
         } else if (state == 0) {
             if (ch == ' ') {
                 if ( pre || attribute || !nsp )
-                    str[j++] = ch;
+                    *dst++ = ch;
                 nsp++;
             } else {
-                str[j++] = ch;
+                *dst++ = ch;
                 nsp = 0;
             }
         } else {
@@ -5488,7 +5488,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                 int k;
                 lChar32 entname[32];
                 for ( k = 0; k < 32; k++ ) {
-                    entname[k] = str[k + i];
+                    entname[k] = src[k];
                     if (!entname[k] || entname[k]==';' || entname[k]==' ')
                         break;
                 }
@@ -5497,7 +5497,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                 entname[k] = 0;
                 lChar32 code = 0;
                 lChar32 code2 = 0;
-                if ( str[i+k]==';' || str[i+k]==' ' ) {
+                if ( src[k]==';' || src[k]==' ' ) {
                     // Nb of iterations for some classic named entities:
                     //   nbsp: 5 - amp: 7 - lt: 8 - quot: 9
                     //   apos gt shy eacute   10
@@ -5532,29 +5532,29 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                     }
                 }
                 if ( code ) {
-                    i+=k;
+                    src += k;
                     state = 0;
                     if ( enc_table && code<256 && code>=128 )
                         code = enc_table[code - 128];
-                    str[j++] = code;
+                    *dst++ = code;
                     if ( code2 ) {
                         if ( enc_table && code2<256 && code2>=128 )
                             code2 = enc_table[code2 - 128];
-                        str[j++] = code2;
+                        *dst++ = code2;
                     }
                     nsp = 0;
                 } else {
                     // include & and rest of entity into output string
-                    if (j < len - 1) {
-                        str[j++] = '&';
-                        str[j++] = str[i];
+                    if (dst < end - 1) {
+                        *dst++ = '&';
+                        *dst++ = *src;
                     }
                     state = 0;
                 }
 
             } else if (ch == ';') {
                 if (nch)
-                    str[j++] = codeconvert(nch);
+                    *dst++ = codeconvert(nch);
                 state = 0;
                 nsp = 0;
             } else {
@@ -5564,7 +5564,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
         }
         lch = ch;
     }
-    return j;
+    return dst - str;
 }
 
 int CalcTabCount(const lChar32 * str, int nlen) {
