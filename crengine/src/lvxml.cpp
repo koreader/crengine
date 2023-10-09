@@ -5447,26 +5447,29 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
     lChar32 *dst = str;
     for (const lChar32 *src = str; src < end; ++src) {
         lChar32 ch = *src;
-        if (pre) {
-            if (ch == '\r') {
-                if ((src == str || lch!='\n') && (src == end - 1 || src[1]!='\n')) {
+        if (ch <= '&') [[unlikely]] {
+            if (pre) {
+                if (ch == '\r') {
+                    if ((src == str || lch!='\n') && (src == end - 1 || src[1]!='\n')) {
+                        *dst++ = '\n';
+                        lch = '\n';
+                    }
+                    continue;
+                } else if (ch == '\n') {
                     *dst++ = '\n';
-                    lch = '\n';
+                    goto next;
                 }
-                continue;
-            } else if (ch == '\n') {
-                *dst++ = '\n';
-                lch = ch;
-                continue;
+            } else if ( !attribute ) {
+                if (ch=='\r' || ch=='\n' || ch=='\t')
+                    ch = ' ';
             }
-        } else if ( !attribute ) {
-            if (ch=='\r' || ch=='\n' || ch=='\t')
-                ch = ' ';
+            if (ch == '&' && !cdata) {
+                state = 1;
+                nch = 0;
+                goto next;
+            }
         }
-        if (ch == '&' && !cdata) {
-            state = 1;
-            nch = 0;
-        } else if (state == 0) {
+        if (state == 0) {
             if (ch == ' ') {
                 if ( pre || attribute || !nsp )
                     *dst++ = ch;
@@ -5562,6 +5565,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                 state = 0;
             }
         }
+next:
         lch = ch;
     }
     return dst - str;
