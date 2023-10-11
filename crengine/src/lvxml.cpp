@@ -5428,24 +5428,10 @@ int codeconvert(int code)
     }
 }
 
-/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
-int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
-{
-    int state = 0;
-    lChar32 nch = 0;
-    lChar32 lch = 0;
-    lChar32 nsp = 0;
-    bool cdata = (flags & TXTFLG_CDATA) != 0;
-    bool pre = (flags & TXTFLG_PRE) != 0;
-    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
-    if ( pre_para_splitting )
-        pre = false;
-    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
-    //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
-
-    const lChar32 *end = str + len;
-    lChar32 *dst = str;
-    for (const lChar32 *src = str; src < end; ++src) {
+static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lChar32 *enc_table,
+                           const lChar32 *&src, lChar32 *&dst, bool pre, bool attribute, bool cdata,
+                           int &nsp, lChar32 &lch, lChar32 &nch, int &state) {
+    for (; src < end; ++src) {
         lChar32 ch = *src;
         if (ch <= '&') [[unlikely]] {
             if (pre) {
@@ -5568,6 +5554,27 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
 next:
         lch = ch;
     }
+}
+
+/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
+int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
+{
+    int state = 0;
+    lChar32 nch = 0;
+    lChar32 lch = 0;
+    int nsp = 0;
+    bool cdata = (flags & TXTFLG_CDATA) != 0;
+    bool pre = (flags & TXTFLG_PRE) != 0;
+    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
+    if ( pre_para_splitting )
+        pre = false;
+    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
+    //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
+
+    const lChar32 *src = str;
+    const lChar32 *end = str + len;
+    lChar32 *dst = str;
+    PreProcessXmlString(str, end, enc_table, src, dst, pre, attribute, cdata, nsp, lch, nch, state);
     return dst - str;
 }
 
