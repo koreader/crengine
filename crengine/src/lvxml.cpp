@@ -5455,16 +5455,18 @@ static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                 nch = 0;
                 goto next;
             }
+            if (state == 0) {
+                if (ch == ' ') {
+                    if ( pre || attribute || !nsp )
+                        *dst++ = ch;
+                    nsp++;
+                    goto next;
+                }
+            }
         }
         if (state == 0) {
-            if (ch == ' ') {
-                if ( pre || attribute || !nsp )
-                    *dst++ = ch;
-                nsp++;
-            } else {
-                *dst++ = ch;
-                nsp = 0;
-            }
+            *dst++ = ch;
+            nsp = 0;
         } else {
             if (state == 2 && ch=='x')
                 state = 22;
