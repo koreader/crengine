@@ -1443,13 +1443,9 @@ protected:
     bool           _drawMonochrome;
     hinting_mode_t _hintingMode;
     kerning_mode_t _kerningMode;
-    bool           _fallbackFontIsSet;
     LVFontRef      _fallbackFont;
-    bool           _nextFallbackFontIsSet;
     LVFontRef      _nextFallbackFont;
-    bool           _DecimalListItemFontIsSet;
     LVFontRef      _DecimalListItemFont;
-    bool           _BulletListItemFontIsSet;
     LVFontRef      _BulletListItemFont;
     int            _synth_weight; // fake/synthesized weight
     FT_Pos         _synth_weight_strength; // for emboldening with FT_Outline_Embolden()
@@ -1470,38 +1466,34 @@ public:
     /// set fallback font for this font
     virtual void setFallbackFont( LVFontRef font ) {
         _fallbackFont = font;
-        _fallbackFontIsSet = !font.isNull();
         clearCache();
     }
 
     /// get fallback font for this font (when it is used as the main font)
     LVFont * getFallbackFont() {
-        if ( _fallbackFontIsSet )
+        if ( !_fallbackFont.isNull() )
             return _fallbackFont.get();
         _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0);
         if ( fontMan->GetFallbackFontSizesAdjusted() ) {
             _fallbackFont = getVisuallyAdjustedOtherFont( _fallbackFont );
         }
-        _fallbackFontIsSet = true;
         return _fallbackFont.get();
     }
 
     /// set next fallback font for this font (for when used as a fallback font)
     virtual void setNextFallbackFont( LVFontRef font ) {
         _nextFallbackFont = font;
-        _nextFallbackFontIsSet = !font.isNull();
         clearCache();
     }
 
     /// get next fallback font for this font (when it is already used as a fallback font)
     LVFont * getNextFallbackFont() {
-        if ( _nextFallbackFontIsSet )
+        if ( !_nextFallbackFont.isNull() )
             return _nextFallbackFont.get();
         _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0, _faceName);
         if ( fontMan->GetFallbackFontSizesAdjusted() ) {
             _nextFallbackFont = getVisuallyAdjustedOtherFont( _nextFallbackFont );
         }
-        _nextFallbackFontIsSet = true;
         return _nextFallbackFont.get();
     }
 
@@ -1542,7 +1534,7 @@ public:
     }
 
     virtual LVFont * getDecimalListItemFont() {
-        if ( _DecimalListItemFontIsSet )
+        if ( !_DecimalListItemFont.isNull() )
             return _DecimalListItemFont.get();
         if ( _kerningMode == KERNING_MODE_HARFBUZZ && !(getFeatures() & LFNT_OT_FEATURES_P_TNUM) ) {
             // We can request the same font with OpenType feature "tabular nums", for fixed width
@@ -1564,12 +1556,11 @@ public:
             // LFNT_OT_FEATURES_P_TNUM won't be used with other kerning modes, so use this same font
             _DecimalListItemFont = LVFontRef(this);
         }
-        _DecimalListItemFontIsSet = true;
         return _DecimalListItemFont.get();
     }
 
     virtual LVFont * getBulletListItemFont() {
-        if ( _BulletListItemFontIsSet )
+        if ( !_BulletListItemFont.isNull() )
             return _BulletListItemFont.get();
         lString8 preferred_bullet_fonts(PREFERRED_BULLET_FONTS);
         _BulletListItemFont = fontMan->GetFont(
@@ -1597,7 +1588,6 @@ public:
             if ( !found ) // None found: use this same font
                 _BulletListItemFont = LVFontRef(this);
         }
-        _BulletListItemFontIsSet = true;
         return _BulletListItemFont.get();
     }
 
@@ -1618,8 +1608,6 @@ public:
         , _underline_offset(0), _underline_thickness(0), _extra_metric(NULL)
         , _glyph_cache(globalCache), _drawMonochrome(false)
         , _hintingMode(HINTING_MODE_AUTOHINT), _kerningMode(KERNING_MODE_DISABLED)
-        , _fallbackFontIsSet(false), _nextFallbackFontIsSet(false)
-        , _DecimalListItemFontIsSet(false), _BulletListItemFontIsSet(false)
         , _synth_weight(0), _synth_weight_strength(0), _synth_weight_half_strength(0)
         , _features(0)
         #if USE_HARFBUZZ==1
@@ -1840,7 +1828,7 @@ public:
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
-        _DecimalListItemFontIsSet = false; // depends on kerning mode
+        _DecimalListItemFont.Clear(); // depends on kerning mode
         _hash = 0; // Force lvstyles.cpp calcHash(font_ref_t) to recompute the hash
         #if USE_HARFBUZZ==1
         setupHBFeatures();
