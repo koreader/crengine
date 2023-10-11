@@ -140,7 +140,7 @@ struct LVFontGlyphCacheItem
     //       We just use 16 everywhere, as this turned out to be mildly helpful on armv7 (c.f., https://github.com/koreader/crengine/pull/441).
     alignas(16) lUInt8 bmp[1];
     //=======================================================================
-    int getSize()
+    int getSize() const
     {
         // NOTE: Again, we stash the data *in place of* the bmp array, so, the effective size of our object is:
         //       LVFontGlyphCacheItem-up-to-bmp + the glyph storage size.
