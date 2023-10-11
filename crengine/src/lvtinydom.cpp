@@ -6919,6 +6919,7 @@ int initTableRendMethods( ldomNode * enode, int state )
                         }
                     }
                 }
+                tbox->persist();
             }
             // If tbox is NULL, all unproper have been removed, and no element added
             if (is_last)
@@ -7218,6 +7219,7 @@ void ldomNode::initNodeRendMethod()
                             ibox->setAttributeValue(LXML_NS_NONE, attr_T, U"EmbeddedBlock");
                             setNodeStyle( ibox, getStyle(), getFont() );
                             ibox->setRendMethod( erm_inline );
+                            ibox->persist();
                         }
                     }
                 }
@@ -7727,6 +7729,7 @@ void ldomNode::initNodeRendMethod()
                         tbox->initNodeStyle();
                         tbox->setRendMethod( erm_table );
                         initTableRendMethods( tbox, 0 );
+                        tbox->persist();
                     }
                     did_wrap = true;
                 }
@@ -8149,9 +8152,12 @@ void ldomNode::initNodeRendMethod()
                                     }
                                     // We let <rp> be invisible like other unexpected elements
                                 }
+                                rbox3->persist();
                             }
                         }
+                        rbox2->persist();
                     }
+                    rbox1->persist();
                 }
             }
         }
