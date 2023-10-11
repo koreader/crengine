@@ -535,6 +535,11 @@ public:
     // Obsolete:
     // virtual int getKerningOffset(lChar32 ch1, lChar32 ch2, lChar32 def_char) { CR_UNUSED3(ch1,ch2,def_char); return 0; }
 
+    /// clear internal references to this font pointer
+    virtual void clearFontRefs( const LVFont *ptr ) { }
+    /// clear all internal font references
+    virtual void clearFontRefs() { }
+
     /// set fallback font for this font
     virtual void setFallbackFont( LVFontRef font ) { CR_UNUSED(font); }
     /// get fallback font for this font
