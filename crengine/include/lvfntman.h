@@ -375,6 +375,9 @@ enum glyph_extra_metric_t
 
 class LVDrawBuf;
 class SVGGlyphsCollector;
+class LVFont;
+
+typedef LVProtectedFastRef<LVFont> LVFontRef;
 
 /** \brief base class for fonts
 
@@ -533,12 +536,12 @@ public:
     // virtual int getKerningOffset(lChar32 ch1, lChar32 ch2, lChar32 def_char) { CR_UNUSED3(ch1,ch2,def_char); return 0; }
 
     /// set fallback font for this font
-    virtual void setFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
+    virtual void setFallbackFont( LVFontRef font ) { CR_UNUSED(font); }
     /// get fallback font for this font
     LVFont * getFallbackFont() { return NULL; }
 
     /// set next fallback font for this font (for when used as a fallback font)
-    virtual void setNextFallbackFont( LVProtectedFastRef<LVFont> font ) { CR_UNUSED(font); }
+    virtual void setNextFallbackFont( LVFontRef font ) { CR_UNUSED(font); }
     /// get next fallback font for this font (when already used as a fallback font)
     LVFont * getNextFallbackFont() { return NULL; }
 
@@ -547,8 +550,6 @@ public:
     /// get alternative font for drawing disc/circle/square list item markers (could return an other font with better bullet glyphs)
     virtual LVFont * getBulletListItemFont() { return this; }
 };
-
-typedef LVProtectedFastRef<LVFont> LVFontRef;
 
 enum font_antialiasing_t
 {
