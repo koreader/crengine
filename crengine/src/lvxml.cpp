@@ -5428,8 +5428,9 @@ int codeconvert(int code)
     }
 }
 
+template<bool pre>
 static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lChar32 *enc_table,
-                           const lChar32 *&src, lChar32 *&dst, bool pre, bool attribute, bool cdata,
+                           const lChar32 *&src, lChar32 *&dst, bool attribute, bool cdata,
                            int &nsp, lChar32 &lch, lChar32 &nch, int &state) {
     for (; src < end; ++src) {
         lChar32 ch = *src;
@@ -5552,7 +5553,8 @@ static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
             }
         }
 next:
-        lch = ch;
+        if (pre)
+            lch = ch;
     }
 }
 
@@ -5574,7 +5576,10 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
     const lChar32 *src = str;
     const lChar32 *end = str + len;
     lChar32 *dst = str;
-    PreProcessXmlString(str, end, enc_table, src, dst, pre, attribute, cdata, nsp, lch, nch, state);
+    if (pre)
+        PreProcessXmlString<true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch, state);
+    else
+        PreProcessXmlString<false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch, state);
     return dst - str;
 }
 
