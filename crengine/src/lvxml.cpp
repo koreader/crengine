@@ -5428,10 +5428,11 @@ int codeconvert(int code)
     }
 }
 
-template<bool pre>
-static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lChar32 *enc_table,
+template<bool pre, bool ampersand>
+static bool PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lChar32 *enc_table,
                            const lChar32 *&src, lChar32 *&dst, bool attribute, bool cdata,
-                           int &nsp, lChar32 &lch, lChar32 &nch, int &state) {
+                           int &nsp, lChar32 &lch, lChar32 &nch) {
+    int state = ampersand ? 1 : 0;
     for (; src < end; ++src) {
         lChar32 ch = *src;
         if (ch <= '&') [[unlikely]] {
@@ -5451,11 +5452,12 @@ static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                     ch = ' ';
             }
             if (ch == '&' && !cdata) {
-                state = 1;
                 nch = 0;
-                goto next;
+                if (pre)
+                    lch = ch;
+                return true;
             }
-            if (state == 0) {
+            if (!ampersand) {
                 if (ch == ' ') {
                     if ( pre || attribute || !nsp )
                         *dst++ = ch;
@@ -5464,7 +5466,7 @@ static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                 }
             }
         }
-        if (state == 0) {
+        if (!ampersand) {
             *dst++ = ch;
             nsp = 0;
         } else {
@@ -5553,17 +5555,22 @@ static void PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                 // error: return to normal mode
                 state = 0;
             }
+            if (!state) {
+                if (pre)
+                    lch = ch;
+                return false;
+            }
         }
 next:
         if (pre)
             lch = ch;
     }
+    return false;
 }
 
 /// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
 int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
 {
-    int state = 0;
     lChar32 nch = 0;
     lChar32 lch = 0;
     int nsp = 0;
@@ -5575,13 +5582,22 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
     bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
     //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
 
-    const lChar32 *src = str;
     const lChar32 *end = str + len;
     lChar32 *dst = str;
-    if (pre)
-        PreProcessXmlString<true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch, state);
-    else
-        PreProcessXmlString<false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch, state);
+    bool ampersand = false;
+    for (const lChar32 *src = str; src < end; ++src) {
+        if (pre) {
+            if (ampersand)
+                ampersand = PreProcessXmlString<true, true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+            else
+                ampersand = PreProcessXmlString<true, false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+        } else {
+            if (ampersand)
+                ampersand = PreProcessXmlString<false, true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+            else
+                ampersand = PreProcessXmlString<false, false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+        }
+    }
     return dst - str;
 }
 
