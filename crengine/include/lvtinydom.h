@@ -2469,20 +2469,16 @@ public:
 typedef LVRef<ListNumberingProps> ListNumberingPropsRef;
 
 class StyleSheetCache {
-    LVHashTable<lString32, LVStyleSheet *> files;
+    LVHashTable<lString32, LVStyleSheet *, true> files;
 
 public:
-    StyleSheetCache() : files(LVHashTable<lString32, LVStyleSheet *>(8)) {}
+    StyleSheetCache() : files(8) {}
 
     ~StyleSheetCache() {
         clear();
     }
 
     void clear() {
-        auto it = files.forwardIterator();
-        for (auto *pair = it.next(); pair; pair = it.next()) {
-            delete pair->value;
-        }
         files.clear();
     }
 
