@@ -167,9 +167,13 @@ static void SVGGlyphsCollector_svg_continue_to(hb_draw_funcs_t *, SVGGlyphsColle
 }
 
 #if USE_HARFBUZZ==1
+
 // For use with hb_font_draw_glyph()
 static hb_draw_funcs_t *SVGGlyphsCollector_svg_funcs = NULL;
-void setup_SVGGlyphsCollector_svg_funcs() {
+
+static void setup_SVGGlyphsCollector_svg_funcs() {
+    if ( SVGGlyphsCollector_svg_funcs != NULL )
+        return;
     SVGGlyphsCollector_svg_funcs = hb_draw_funcs_create();
     hb_draw_funcs_set_move_to_func(      SVGGlyphsCollector_svg_funcs, (hb_draw_move_to_func_t)      SVGGlyphsCollector_svg_move_to, nullptr, nullptr);
     hb_draw_funcs_set_line_to_func(      SVGGlyphsCollector_svg_funcs, (hb_draw_line_to_func_t)      SVGGlyphsCollector_svg_line_to, nullptr, nullptr);
@@ -178,6 +182,14 @@ void setup_SVGGlyphsCollector_svg_funcs() {
     hb_draw_funcs_set_close_path_func(   SVGGlyphsCollector_svg_funcs, (hb_draw_close_path_func_t)   SVGGlyphsCollector_svg_close_path, nullptr, nullptr);
     hb_draw_funcs_make_immutable(SVGGlyphsCollector_svg_funcs);
 }
+
+static void destroy_SVGGlyphsCollector_svg_funcs() {
+    if ( SVGGlyphsCollector_svg_funcs == NULL )
+        return;
+    hb_draw_funcs_destroy(SVGGlyphsCollector_svg_funcs);
+    SVGGlyphsCollector_svg_funcs = NULL;
+}
+
 #endif
 
 #endif // USE_FREETYPE==1
@@ -2524,9 +2536,7 @@ public:
                 // So fallback to the Freetype method in that case.
                 if ( _synth_weight == 0 && _italic != 2 ) {
                     // No synthetic weight or italic: the font is used as-is.
-                    if ( SVGGlyphsCollector_svg_funcs == NULL ) {
-                        setup_SVGGlyphsCollector_svg_funcs();
-                    }
+                    setup_SVGGlyphsCollector_svg_funcs();
                     hb_font_draw_glyph(_hb_font, code, SVGGlyphsCollector_svg_funcs, svg_collector);
                     return true;
                 }
@@ -5770,6 +5780,9 @@ public:
         _cache.clear();
         if ( _library )
             FT_Done_FreeType( _library );
+        #if USE_HARFBUZZ==1
+        destroy_SVGGlyphsCollector_svg_funcs();
+        #endif
         #if (DEBUG_FONT_MAN==1)
             if ( _log ) {
                 fclose(_log);
