@@ -140,7 +140,7 @@ struct LVFontGlyphCacheItem
     //       We just use 16 everywhere, as this turned out to be mildly helpful on armv7 (c.f., https://github.com/koreader/crengine/pull/441).
     alignas(16) lUInt8 bmp[1];
     //=======================================================================
-    int getSize()
+    int getSize() const
     {
         // NOTE: Again, we stash the data *in place of* the bmp array, so, the effective size of our object is:
         //       LVFontGlyphCacheItem-up-to-bmp + the glyph storage size.
@@ -570,10 +570,10 @@ public:
     LVEmbeddedFontDef() : _bold(false), _italic(false) {
     }
 
-    const lString32 & getUrl() { return _url; }
-    const lString8 & getFace() { return _face; }
-    bool getBold() { return _bold; }
-    bool getItalic() { return _italic; }
+    const lString32 & getUrl() const { return _url; }
+    const lString8 & getFace() const { return _face; }
+    bool getBold() const { return _bold; }
+    bool getItalic() const { return _italic; }
     void setFace(const lString8 &  face) { _face = face; }
     void setBold(bool bold) { _bold = bold; }
     void setItalic(bool italic) { _italic = italic; }

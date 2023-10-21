@@ -634,7 +634,7 @@ public:
             ;
     }
 
-    lUInt32 getHash() {
+    lUInt32 getHash() const {
         lUInt32 h =  (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
         // _bias is not a static property, and can be set/unset on these definitions.
         // If a same _bias value is moved from one font to another, *adding* _bias
@@ -669,9 +669,9 @@ public:
     void setHasOTMath(bool has_ot_math) { _has_ot_math = has_ot_math; }
     bool hasEmojis() const { return _has_emojis; }
     void setHasEmojis(bool has_emojis) { _has_emojis = has_emojis; }
-    int getDocumentId() { return _documentId; }
+    int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
-    LVByteArrayRef getBuf() { return _buf; }
+    LVByteArrayRef getBuf() const { return _buf; }
     void setBuf(LVByteArrayRef buf) { _buf = buf; }
     ~LVFontDef() {}
     /// calculates difference between two fonts
@@ -719,7 +719,7 @@ public:
     void update( const LVFontDef * def, LVFontRef ref );
     void removeDocumentFonts(int documentId);
     void getAvailableFontWeights(LVArray<int>& weights, lString8 faceName);
-    int  length() { return _registered_list.length(); }
+    int  length() const { return _registered_list.length(); }
     void addInstance( const LVFontDef * def, LVFontRef ref );
     bool setAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias );
     LVPtrVector< LVFontCacheItem > * getInstances() { return &_instance_list; }
@@ -1402,7 +1402,7 @@ struct LVCharTriplet
     lChar32 prevChar;
     lChar32 Char;
     lChar32 nextChar;
-    bool operator == (const struct LVCharTriplet& other) {
+    bool operator == (const struct LVCharTriplet& other) const {
         return prevChar == other.prevChar && Char == other.Char && nextChar == other.nextChar;
     }
 };
