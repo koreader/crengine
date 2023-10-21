@@ -1485,15 +1485,15 @@ public:
     }
 
     /// get fallback font for this font (when it is used as the main font)
-    LVFont * getFallbackFont() {
+    LVFontRef getFallbackFont() {
         if ( _fallbackFontIsSet )
-            return _fallbackFont.get();
+            return _fallbackFont;
         _fallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0);
         if ( fontMan->GetFallbackFontSizesAdjusted() ) {
             _fallbackFont = getVisuallyAdjustedOtherFont( _fallbackFont );
         }
         _fallbackFontIsSet = true;
-        return _fallbackFont.get();
+        return _fallbackFont;
     }
 
     /// set next fallback font for this font (for when used as a fallback font)
@@ -1504,15 +1504,15 @@ public:
     }
 
     /// get next fallback font for this font (when it is already used as a fallback font)
-    LVFont * getNextFallbackFont() {
+    LVFontRef getNextFallbackFont() {
         if ( _nextFallbackFontIsSet )
-            return _nextFallbackFont.get();
+            return _nextFallbackFont;
         _nextFallbackFont = fontMan->GetFallbackFont(_size, getWeight(), _italic!=0, _faceName);
         if ( fontMan->GetFallbackFontSizesAdjusted() ) {
             _nextFallbackFont = getVisuallyAdjustedOtherFont( _nextFallbackFont );
         }
         _nextFallbackFontIsSet = true;
-        return _nextFallbackFont.get();
+        return _nextFallbackFont;
     }
 
     LVFontRef getVisuallyAdjustedOtherFont( LVFontRef other_font ) {
@@ -1551,9 +1551,9 @@ public:
         return x_height;
     }
 
-    virtual LVFont * getDecimalListItemFont() {
+    virtual LVFontRef getDecimalListItemFont() {
         if ( !_DecimalListItemFont.isNull() )
-            return _DecimalListItemFont.get();
+            return _DecimalListItemFont;
         if ( _kerningMode == KERNING_MODE_HARFBUZZ && !(getFeatures() & LFNT_OT_FEATURES_P_TNUM) ) {
             // We can request the same font with OpenType feature "tabular nums", for fixed width
             // digits and better alignment of decimal list items (no need to do it if this feature
@@ -1574,12 +1574,12 @@ public:
             // LFNT_OT_FEATURES_P_TNUM won't be used with other kerning modes, so use this same font
             _DecimalListItemFont = LVFontRef(this);
         }
-        return _DecimalListItemFont.get();
+        return _DecimalListItemFont;
     }
 
-    virtual LVFont * getBulletListItemFont() {
+    virtual LVFontRef getBulletListItemFont() {
         if ( !_BulletListItemFont.isNull() )
-            return _BulletListItemFont.get();
+            return _BulletListItemFont;
         lString8 preferred_bullet_fonts(PREFERRED_BULLET_FONTS);
         _BulletListItemFont = fontMan->GetFont(
             getSize(),
@@ -1606,7 +1606,7 @@ public:
             if ( !found ) // None found: use this same font
                 _BulletListItemFont = LVFontRef(this);
         }
-        return _BulletListItemFont.get();
+        return _BulletListItemFont;
     }
 
     /// returns font weight
@@ -2344,7 +2344,7 @@ public:
         else {
             glyph_index = getCharIndex( code, 0 );
             if ( glyph_index==0 ) {
-                LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
+                LVFontRef fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
                 if ( !fallback ) {
                     // No fallback
                     glyph_index = getCharIndex( code, def_char );
@@ -2546,7 +2546,7 @@ public:
         else {
             glyph_index = getCharIndex( code, 0 );
             if ( glyph_index==0 ) {
-                LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
+                LVFontRef fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
                 if ( !fallback ) {
                     // No fallback
                     glyph_index = getCharIndex( code, '?' );
@@ -2691,7 +2691,7 @@ public:
     virtual bool getGlyphExtraMetric( glyph_extra_metric_t metric, lUInt32 code, int & value, bool scaled_to_px, lChar32 def_char=0, bool is_fallback=false ) {
         int glyph_index = getCharIndex( code, 0 );
         if ( glyph_index==0 ) {
-            LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
+            LVFontRef fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
             if ( !fallback ) {
                 // No fallback
                 glyph_index = getCharIndex( code, def_char );
@@ -2830,8 +2830,8 @@ public:
             // full shaping without filterChar(), and if any .notdef
             // codepoint, re-shape with filterChar()...
             bool is_fallback_font = hints & LFNT_HINT_IS_FALLBACK_FONT;
-            LVFont * fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
-            bool has_fallback_font = (bool) fallback;
+            LVFontRef fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
+            bool has_fallback_font = !fallback.isNull();
             if ( has_fallback_font ) { // It has a fallback font, add chars as-is
                 for (i = 0; i < len; i++) {
                     hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
@@ -3348,7 +3348,7 @@ public:
         //FONT_GUARD
         FT_UInt ch_glyph_index = getCharIndex( ch, 0 );
         if ( ch_glyph_index==0 ) {
-            LVFont * fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
+            LVFontRef fallback = is_fallback ? getNextFallbackFont() : getFallbackFont();
             if ( !fallback ) {
                 // No fallback
                 ch_glyph_index = getCharIndex( ch, def_char );
@@ -4049,8 +4049,8 @@ public:
             hb_buffer_clear_contents(_hb_buffer);
             // Fill HarfBuzz buffer
             bool is_fallback_font = flags & LFNT_HINT_IS_FALLBACK_FONT;
-            LVFont * fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
-            bool has_fallback_font = (bool) fallback;
+            LVFontRef fallback = is_fallback_font ? getNextFallbackFont() : getFallbackFont();
+            bool has_fallback_font = !fallback.isNull();
             if ( has_fallback_font ) { // It has a fallback font, add chars as-is
                 for (i = 0; i < len; i++) {
                     hb_buffer_add(_hb_buffer, (hb_codepoint_t)(text[i]), i);
