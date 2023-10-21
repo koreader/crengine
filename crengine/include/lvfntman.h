@@ -538,17 +538,17 @@ public:
     /// set fallback font for this font
     virtual void setFallbackFont( LVFontRef font ) { CR_UNUSED(font); }
     /// get fallback font for this font
-    LVFont * getFallbackFont() { return NULL; }
+    LVFontRef getFallbackFont() { return LVFontRef(); }
 
     /// set next fallback font for this font (for when used as a fallback font)
     virtual void setNextFallbackFont( LVFontRef font ) { CR_UNUSED(font); }
     /// get next fallback font for this font (when already used as a fallback font)
-    LVFont * getNextFallbackFont() { return NULL; }
+    LVFontRef getNextFallbackFont() { return LVFontRef(); }
 
     /// get alternative font for drawing decimal list item numbers (could return same font with OTF tabular-nums)
-    virtual LVFont * getDecimalListItemFont() { return this; }
+    virtual LVFontRef getDecimalListItemFont() { return LVFontRef(this); }
     /// get alternative font for drawing disc/circle/square list item markers (could return an other font with better bullet glyphs)
-    virtual LVFont * getBulletListItemFont() { return this; }
+    virtual LVFontRef getBulletListItemFont() { return LVFontRef(this); }
 };
 
 enum font_antialiasing_t
