@@ -714,9 +714,29 @@ class LVFontCache
     LVPtrVector< LVFontCacheItem > _registered_list;
     LVPtrVector< LVFontCacheItem > _instance_list;
 public:
-    void clear() { _registered_list.clear(); _instance_list.clear(); }
+    void clear() {
+        // First: execute a garbage collection pass.
+        gc();
+        // Finally: clear remaining references.
+        int i;
+        for (i = _registered_list.length(); i--; ) {
+#ifndef NDEBUG
+            LVFontRef &fnt = _registered_list[i]->_fnt;
+            assert(fnt.isNull() || fnt.getRefCount() == 1);
+#endif
+            delete _registered_list.remove(i);
+        }
+        for (i = _instance_list.length(); i--; ) {
+#ifndef NDEBUG
+            LVFontRef &fnt = _registered_list[i]->_fnt;
+            assert(fnt.isNull() || fnt.getRefCount() == 1);
+#endif
+            delete _instance_list.remove(i);
+        }
+    }
     void gc(); // garbage collector
     void update( const LVFontDef * def, LVFontRef ref );
+    void _removeDocumentFonts(int documentId, LVPtrVector< LVFontCacheItem > &list);
     void removeDocumentFonts(int documentId);
     void getAvailableFontWeights(LVArray<int>& weights, lString8 faceName);
     int  length() const { return _registered_list.length(); }
@@ -1475,6 +1495,30 @@ protected:
     LVHashTable<struct LVCharTriplet, struct LVCharPosInfo> _width_cache2;
 #endif
 public:
+
+    virtual void clearFontRefs( const LVFont *ptr ) {
+        if ( _fallbackFont.get() == ptr ) {
+            _fallbackFontIsSet = false;
+            _fallbackFont.Clear();
+        }
+        if ( _nextFallbackFont.get() == ptr ) {
+            _nextFallbackFontIsSet = false;
+            _nextFallbackFont.Clear();
+        }
+        if ( _DecimalListItemFont.get() == ptr )
+            _DecimalListItemFont.Clear();
+        if ( _BulletListItemFont.get() == ptr )
+            _BulletListItemFont.Clear();
+    }
+
+    virtual void clearFontRefs() {
+        _fallbackFontIsSet = false;
+        _fallbackFont.Clear();
+        _nextFallbackFontIsSet = false;
+        _nextFallbackFont.Clear();
+        _DecimalListItemFont.Clear();
+        _BulletListItemFont.Clear();
+    }
 
     // fallback font support
     /// set fallback font for this font
@@ -7376,26 +7420,25 @@ bool LVFontCache::setAsPreferredFontWithBias( lString8 face, int bias, bool clea
     return found;
 }
 
-void LVFontCache::addInstance( const LVFontDef * def, LVFontRef ref )
+void LVFontCache::addInstance( const LVFontDef * def, LVFontRef fnt )
 {
-    if ( ref.isNull() )
-        printf("Adding null font instance!");
+    assert( !fnt.isNull() );
     LVFontCacheItem * item = new LVFontCacheItem(*def);
-    item->_fnt = ref;
+    item->_fnt = fnt;
     _instance_list.add( item );
 }
 
-void LVFontCache::update( const LVFontDef * def, LVFontRef ref )
+void LVFontCache::update( const LVFontDef * def, LVFontRef fnt )
 {
     int i;
-    if ( !ref.isNull() ) {
+    if ( !fnt.isNull() ) {
         for (i=0; i<_instance_list.length(); i++) {
             if ( _instance_list[i]->_def == *def ) {
-                if (ref.isNull()) {
+                if (fnt.isNull()) {
                     _instance_list.erase(i, 1);
                 }
                 else {
-                    _instance_list[i]->_fnt = ref;
+                    _instance_list[i]->_fnt = fnt;
                 }
                 return;
             }
@@ -7403,7 +7446,7 @@ void LVFontCache::update( const LVFontDef * def, LVFontRef ref )
         // add new
         //LVFontCacheItem * item;
         //item = new LVFontCacheItem(*def);
-        addInstance( def, ref );
+        addInstance( def, fnt );
     }
     else {
         for (i=0; i<_registered_list.length(); i++) {
@@ -7418,19 +7461,44 @@ void LVFontCache::update( const LVFontDef * def, LVFontRef ref )
     }
 }
 
+void LVFontCache::_removeDocumentFonts(int documentId, LVPtrVector< LVFontCacheItem > &list)
+{
+    int *documentFonts = new int[list.length()];
+    int numDocumentFonts = 0;
+    for (int i = 0; i < list.length(); ++i) {
+        if (list[i]->_def.getDocumentId() == documentId)
+            documentFonts[numDocumentFonts++] = i;
+    }
+    for (int i = 0; i < numDocumentFonts; ++i) {
+        LVFont *ptr = list[documentFonts[i]]->_fnt.get();
+        if ( ptr == nullptr )
+            continue;
+        ptr->clearFontRefs();
+        for (int j = 0; j < _registered_list.length(); ++j) {
+            if ( !_registered_list[j]->_fnt.isNull() )
+                _registered_list[j]->_fnt->clearFontRefs(ptr);
+        }
+        for (int j = 0; j < _instance_list.length(); ++j) {
+            if ( !_instance_list[j]->_fnt.isNull() )
+                _instance_list[j]->_fnt->clearFontRefs(ptr);
+        }
+    }
+    while (numDocumentFonts--) {
+#ifndef NDEBUG
+        LVFontCacheItem *item = list[documentFonts[numDocumentFonts]];
+        assert(!item->_fnt || item->_fnt.getRefCount() == 1);
+#endif
+        delete list.remove(documentFonts[numDocumentFonts]);
+    }
+    delete[] documentFonts;
+}
+
 void LVFontCache::removeDocumentFonts(int documentId)
 {
     if (-1 == documentId)
         return;
-    int i;
-    for (i=_instance_list.length()-1; i>=0; i--) {
-        if (_instance_list[i]->_def.getDocumentId() == documentId)
-            delete _instance_list.remove(i);
-    }
-    for (i=_registered_list.length()-1; i>=0; i--) {
-        if (_registered_list[i]->_def.getDocumentId() == documentId)
-            delete _registered_list.remove(i);
-    }
+    _removeDocumentFonts(documentId, _registered_list);
+    _removeDocumentFonts(documentId, _instance_list);
 }
 
 static int s_int_comparator(const void * n1, const void * n2)
@@ -7463,13 +7531,16 @@ void LVFontCache::gc()
     int droppedCount = 0;
     int usedCount = 0;
     for (int i=_instance_list.length()-1; i>=0; i--) {
-        if ( _instance_list[i]->_fnt.getRefCount()<=1 ) {
+        LVFontRef &fnt = _instance_list[i]->_fnt;
+        fnt->clearFontRefs();
+        assert( fnt.getRefCount() >=1 );
+        if ( fnt.getRefCount() == 1 ) {
             if ( CRLog::isTraceEnabled() ) {
                 CRLog::trace("dropping font instance %s[%d] by gc()",
                         _instance_list[i]->getDef()->getTypeFace().c_str(),
                         _instance_list[i]->getDef()->getSize() );
             }
-            _instance_list.erase(i,1);
+            _instance_list.erase(i, 1);
             droppedCount++;
         }
         else {
