@@ -5577,10 +5577,7 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         // We don't want such instances to be used for styles as it could cause some
         // cache check issues (perpetual "style hash mismatch", as these synthetised
         // fonts would not yet be there when loading from cache).
-        // We need 2 gc() for a complete cleanup. The performance impact of
-        // reinstantiating the fonts is minimal.
-        gc(); // drop font instances that were only referenced by dropped styles
-        gc(); // drop fallback font instances that were only referenced by dropped fonts
+        gc();
 
         //ldomNode * root = getRootNode();
         //css_style_ref_t roots = root->getStyle();

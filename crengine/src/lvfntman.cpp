@@ -7478,6 +7478,13 @@ void LVFontCache::gc()
     }
     if ( CRLog::isDebugEnabled() )
         CRLog::debug("LVFontCache::gc() : %d fonts still used, %d fonts dropped", usedCount, droppedCount );
+    if (droppedCount) {
+        // We need more than 1 gc() for a complete cleanup: to drop font
+        // instances that were only referenced by dropped fonts (fallbacks,
+        // bullet, decimal, …).  The performance impact of reinstantiating
+        // fonts is minimal.
+        gc();
+    }
 }
 
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && USE_FREETYPE!=1
