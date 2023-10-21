@@ -4951,6 +4951,8 @@ ldomDocument::~ldomDocument()
 #if BUILD_LITE!=1
     updateMap(); // NOLINT: Call to virtual function during destruction
 #endif
+    _def_font.Clear();
+    _fonts.clear();
     fontMan->UnregisterDocumentFonts(_docIndex);
     ldomNode::unregisterDocument(this);
 }
