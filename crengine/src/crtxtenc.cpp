@@ -1892,23 +1892,28 @@ double CompareDblCharStats( const dbl_char_stat_t * stat1, const dbl_char_stat_t
 // EXTERNAL DEFINE
 extern cp_stat_t cp_stat_table[];
 
+const char *SniffBOM(const unsigned char * buf, int size) {
+    if (size < 4)
+        return nullptr;
+    // checking byte order signatures
+    if ( buf[0]==0xEF && buf[1]==0xBB && buf[2]==0xBF )
+        return "utf-8";
+    else if ( buf[0]==0 && buf[1]==0 && buf[2]==0xFE && buf[3]==0xFF )
+        return "utf-32be";
+    else if ( buf[0]==0xFE && buf[1]==0xFF )
+        return "utf-16be";
+    else if ( buf[0]==0xFF && buf[1]==0xFE && buf[2]==0 && buf[3]==0 )
+        return "utf-32le";
+    else if ( buf[0]==0xFF && buf[1]==0xFE )
+        return "utf-16le";
+    return nullptr;
+}
+
 int AutodetectCodePageUtf( const unsigned char * buf, int buf_size, char * cp_name )
 {
-    // checking byte order signatures
-    if ( buf[0]==0xEF && buf[1]==0xBB && buf[2]==0xBF ) {
-        strcpy( cp_name, "utf-8" );     // NOLINT: strcpy is fine with hardcoded string with len < 32
-        return 1;
-    } else if ( buf[0]==0 && buf[1]==0 && buf[2]==0xFE && buf[3]==0xFF ) {
-        strcpy( cp_name, "utf-32be" ); // NOLINT
-        return 1;
-    } else if ( buf[0]==0xFE && buf[1]==0xFF ) {
-        strcpy( cp_name, "utf-16be" ); // NOLINT
-        return 1;
-    } else if ( buf[0]==0xFF && buf[1]==0xFE && buf[2]==0 && buf[3]==0 ) {
-        strcpy( cp_name, "utf-32le" ); // NOLINT
-        return 1;
-    } else if ( buf[0]==0xFF && buf[1]==0xFE ) {
-        strcpy( cp_name, "utf-16le" ); // NOLINT
+    const char *encoding = SniffBOM(buf, buf_size);
+    if (encoding) {
+        strcpy(cp_name, encoding);     // NOLINT
         return 1;
     }
     if ( isValidUtf8Data( buf, buf_size ) ) {
