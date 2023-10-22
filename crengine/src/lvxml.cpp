@@ -831,7 +831,6 @@ int LVTextFileBase::ReadChars( lChar32 * buf, int maxsize )
 bool LVTextFileBase::AutodetectEncoding( bool utfOnly )
 {
     char enc_name[32];
-    char lang_name[32];
     lvpos_t oldpos = m_stream->GetPos();
     unsigned sz = CP_AUTODETECT_BUF_SIZE;
     m_stream->SetPos( 0 );
@@ -850,14 +849,13 @@ bool LVTextFileBase::AutodetectEncoding( bool utfOnly )
     int res = 0;
     bool hasTags = hasXmlTags(buf, sz);
     if ( utfOnly )
-        res = AutodetectCodePageUtf(buf, sz, enc_name, lang_name);
+        res = AutodetectCodePageUtf(buf, sz, enc_name);
     else
-        res = AutodetectCodePage(buf, sz, enc_name, lang_name, hasTags);
+        res = AutodetectCodePage(buf, sz, enc_name, hasTags);
     delete[] buf;
     m_stream->SetPos( oldpos );
     if ( res) {
-        //CRLog::debug("Code page decoding results: encoding=%s, lang=%s", enc_name, lang_name);
-        m_lang_name = lString32( lang_name );
+        //CRLog::debug("Code page decoding results: encoding=%s", enc_name);
         SetCharset( lString32( enc_name ).c_str() );
     }
 
@@ -2498,7 +2496,6 @@ bool LVTextBookmarkParser::CheckFormat()
 {
     Reset();
     // encoding test
-    m_lang_name = cs32("en");
     SetCharset( U"utf8" );
 
     #define TEXT_PARSER_DETECT_SIZE 16384
@@ -2755,7 +2752,6 @@ LVTextRobustParser::~LVTextRobustParser()
 /// returns true if format is recognized by parser
 bool LVTextRobustParser::CheckFormat()
 {
-    m_lang_name = lString32( "en" );
     SetCharset( lString32( "utf-8" ).c_str() );
     return true;
 }
