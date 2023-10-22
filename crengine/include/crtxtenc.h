@@ -109,6 +109,8 @@ int AutodetectCodePage(const unsigned char * buf, int buf_size, char * cp_name, 
 */
 int AutodetectCodePageUtf( const unsigned char * buf, int buf_size, char * cp_name );
 
+const char *SniffBOM(const unsigned char * buf, int buf_size);
+
 bool hasXmlTags(const lUInt8 * buf, int size);
 
 /**
