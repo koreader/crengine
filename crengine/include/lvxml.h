@@ -185,7 +185,6 @@ protected:
     char_encoding_type m_enc_type;
     lString32 m_txt_buf;
     lString32 m_encoding_name;
-    lString32 m_lang_name;
     lChar32 * m_conv_table; // charset conversion table for 8-bit encodings
 
     lChar32 m_read_buffer[XML_CHAR_BUFFER_SIZE];
@@ -281,8 +280,6 @@ public:
     //lString32 ReadLine( int maxLineSize, lvpos_t & fpos, lvsize_t & fsize, lUInt32 & flags );
     /// returns name of character encoding
     lString32 GetEncodingName() { return m_encoding_name; }
-    /// returns name of language
-    lString32 GetLangName() { return m_lang_name; }
 
     // overrides
     /// sets charset by name
