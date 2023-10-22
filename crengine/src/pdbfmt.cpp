@@ -1166,7 +1166,6 @@ bool DetectPDBFormat( LVStreamRef stream, doc_format_t & contentFormat )
 
 bool isCorrectUtf8Text(LVStreamRef & stream) {
     char enc_name[32];
-    char lang_name[32];
     lvpos_t oldpos = stream->GetPos();
     unsigned sz = 16384;
     stream->SetPos( 0 );
@@ -1183,7 +1182,7 @@ bool isCorrectUtf8Text(LVStreamRef & stream) {
     }
 
     int res = 0;
-    res = AutodetectCodePageUtf(buf, sz, enc_name, lang_name);
+    res = AutodetectCodePageUtf(buf, sz, enc_name);
     delete[] buf;
     return res != 0;
 }
