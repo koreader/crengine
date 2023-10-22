@@ -5428,53 +5428,47 @@ int codeconvert(int code)
     }
 }
 
-/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
-int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
-{
-    int state = 0;
-    lChar32 nch = 0;
-    lChar32 lch = 0;
-    lChar32 nsp = 0;
-    bool cdata = (flags & TXTFLG_CDATA) != 0;
-    bool pre = (flags & TXTFLG_PRE) != 0;
-    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
-    if ( pre_para_splitting )
-        pre = false;
-    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
-    //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
-    int j = 0;
-    for (int i=0; i<len; ++i ) {
-        if (j >= len)
-            break;
-        lChar32 ch = str[i];
-        if (pre) {
-            if (ch == '\r') {
-                if ((i==0 || lch!='\n') && (i==len-1 || str[i+1]!='\n')) {
-                    str[j++] = '\n';
-                    lch = '\n';
+template<bool pre, bool ampersand>
+static bool PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lChar32 *enc_table,
+                           const lChar32 *&src, lChar32 *&dst, bool attribute, bool cdata,
+                           int &nsp, lChar32 &lch, lChar32 &nch) {
+    int state = ampersand ? 1 : 0;
+    for (; src < end; ++src) {
+        lChar32 ch = *src;
+        if (ch <= '&') [[unlikely]] {
+            if (pre) {
+                if (ch == '\r') {
+                    if ((src == str || lch!='\n') && (src == end - 1 || src[1]!='\n')) {
+                        *dst++ = '\n';
+                        lch = '\n';
+                    }
+                    continue;
+                } else if (ch == '\n') {
+                    *dst++ = '\n';
+                    goto next;
                 }
-                continue;
-            } else if (ch == '\n') {
-                str[j++] = '\n';
-                lch = ch;
-                continue;
+            } else if ( !attribute ) {
+                if (ch=='\r' || ch=='\n' || ch=='\t')
+                    ch = ' ';
             }
-        } else if ( !attribute ) {
-            if (ch=='\r' || ch=='\n' || ch=='\t')
-                ch = ' ';
+            if (ch == '&' && !cdata) {
+                nch = 0;
+                if (pre)
+                    lch = ch;
+                return true;
+            }
+            if (!ampersand) {
+                if (ch == ' ') {
+                    if ( pre || attribute || !nsp )
+                        *dst++ = ch;
+                    nsp++;
+                    goto next;
+                }
+            }
         }
-        if (ch == '&' && !cdata) {
-            state = 1;
-            nch = 0;
-        } else if (state == 0) {
-            if (ch == ' ') {
-                if ( pre || attribute || !nsp )
-                    str[j++] = ch;
-                nsp++;
-            } else {
-                str[j++] = ch;
-                nsp = 0;
-            }
+        if (!ampersand) {
+            *dst++ = ch;
+            nsp = 0;
         } else {
             if (state == 2 && ch=='x')
                 state = 22;
@@ -5488,7 +5482,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                 int k;
                 lChar32 entname[32];
                 for ( k = 0; k < 32; k++ ) {
-                    entname[k] = str[k + i];
+                    entname[k] = src[k];
                     if (!entname[k] || entname[k]==';' || entname[k]==' ')
                         break;
                 }
@@ -5497,7 +5491,7 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                 entname[k] = 0;
                 lChar32 code = 0;
                 lChar32 code2 = 0;
-                if ( str[i+k]==';' || str[i+k]==' ' ) {
+                if ( src[k]==';' || src[k]==' ' ) {
                     // Nb of iterations for some classic named entities:
                     //   nbsp: 5 - amp: 7 - lt: 8 - quot: 9
                     //   apos gt shy eacute   10
@@ -5532,39 +5526,79 @@ int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * e
                     }
                 }
                 if ( code ) {
-                    i+=k;
+                    src += k;
                     state = 0;
                     if ( enc_table && code<256 && code>=128 )
                         code = enc_table[code - 128];
-                    str[j++] = code;
+                    *dst++ = code;
                     if ( code2 ) {
                         if ( enc_table && code2<256 && code2>=128 )
                             code2 = enc_table[code2 - 128];
-                        str[j++] = code2;
+                        *dst++ = code2;
                     }
                     nsp = 0;
                 } else {
                     // include & and rest of entity into output string
-                    if (j < len - 1) {
-                        str[j++] = '&';
-                        str[j++] = str[i];
+                    if (dst < end - 1) {
+                        *dst++ = '&';
+                        *dst++ = *src;
                     }
                     state = 0;
                 }
 
             } else if (ch == ';') {
                 if (nch)
-                    str[j++] = codeconvert(nch);
+                    *dst++ = codeconvert(nch);
                 state = 0;
                 nsp = 0;
             } else {
                 // error: return to normal mode
                 state = 0;
             }
+            if (!state) {
+                if (pre)
+                    lch = ch;
+                return false;
+            }
         }
-        lch = ch;
+next:
+        if (pre)
+            lch = ch;
     }
-    return j;
+    return false;
+}
+
+/// in-place XML string decoding, don't expand tabs, returns new length (may be less than initial len)
+int PreProcessXmlString(lChar32 * str, int len, lUInt32 flags, const lChar32 * enc_table)
+{
+    lChar32 nch = 0;
+    lChar32 lch = 0;
+    int nsp = 0;
+    bool cdata = (flags & TXTFLG_CDATA) != 0;
+    bool pre = (flags & TXTFLG_PRE) != 0;
+    bool pre_para_splitting = (flags & TXTFLG_PRE_PARA_SPLITTING)!=0;
+    if ( pre_para_splitting )
+        pre = false;
+    bool attribute = (flags & TXTFLG_PROCESS_ATTRIBUTE) != 0;
+    //CRLog::trace("before: '%s' %s, len=%d", LCSTR(str), pre ? "pre ":" ", len);
+
+    const lChar32 *end = str + len;
+    lChar32 *dst = str;
+    bool ampersand = false;
+    for (const lChar32 *src = str; src < end; ++src) {
+        if (pre) {
+            if (ampersand)
+                ampersand = PreProcessXmlString<true, true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+            else
+                ampersand = PreProcessXmlString<true, false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+        } else {
+            if (ampersand)
+                ampersand = PreProcessXmlString<false, true>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+            else
+                ampersand = PreProcessXmlString<false, false>(str, end, enc_table, src, dst, attribute, cdata, nsp, lch, nch);
+        }
+    }
+    return dst - str;
 }
 
 int CalcTabCount(const lChar32 * str, int nlen) {
