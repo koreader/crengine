@@ -564,8 +564,6 @@ public:
     value_type & at( size_type pos ) { if (pos > (size_type)pchunk->len) crFatalError(); return modify()[pos]; }
     /// get character at specified position without range check
     value_type operator [] ( size_type pos ) const { return pchunk->buf8[pos]; }
-    /// get reference to character at specified position
-    value_type & operator [] ( size_type pos ) { return modify()[pos]; }
 
     /// ensures that reference count is 1
     void  lock( size_type newsize );
@@ -825,8 +823,6 @@ public:
     value_type & at( size_type pos ) { if ((unsigned)pos > (unsigned)pchunk->len) crFatalError(); return modify()[pos]; }
     /// returns character at specified position, without index bounds checking
     value_type operator [] ( size_type pos ) const { return pchunk->buf32[pos]; }
-    /// returns reference to specified character position (lvalue)
-    value_type & operator [] ( size_type pos ) { return modify()[pos]; }
     /// resizes string, copies if several references exist
     void  lock( size_type newsize );
     /// returns writable pointer to string buffer
