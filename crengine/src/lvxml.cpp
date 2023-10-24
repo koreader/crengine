@@ -6044,7 +6044,21 @@ bool LVHTMLParser::CheckFormat()
     FillBuffer(html_parser_scan_bytes);
 
     const char *encoding = SniffBOM(m_buf, m_buf_len);
-    if (encoding && (!strncmp(encoding, "utf-16", 6) || !strncmp(encoding, "utf-32", 6))) {
+    if (!encoding) {
+        // step 3 of https://html.spec.whatwg.org/multipage/parsing.html#prescan-a-byte-stream-to-determine-its-encoding
+        if (m_buf_len >= 6) {
+            if (memcmp(m_buf, "\x3c\x00\x3f\x00\x78\x00", 6) == 0)
+                encoding = "utf-16le";
+            else if (memcmp(m_buf, "\x00\x3c\x00\x3f\x00\x78", 6) == 0)
+                encoding = "utf-16be";
+        }
+    }
+    bool utf16_or_32 = encoding && (!strncmp(encoding, "utf-16", 6) || !strncmp(encoding, "utf-32", 6));
+    // Check current encoding. LVParseCHMHTMLStream() sets default encoding beforehand.
+    if (!utf16_or_32 && !m_encoding_name.empty()) {
+        utf16_or_32 = m_encoding_name.startsWith("utf-16") || m_encoding_name.startsWith("utf-32");
+    }
+    if (utf16_or_32) {
         lString32 s(encoding);
         SetCharset(s.c_str());
 
@@ -6125,10 +6139,20 @@ bool LVHTMLParser::CheckFormat()
         // "In XHTML-conforming user agents, the value of the encoding declaration of the XML declaration
         // takes precedence" (over the one from <meta http-equiv="Content-type" .../>
         if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
-            int encpos = s.pos("encoding=\"");
+            // see https://html.spec.whatwg.org/multipage/parsing.html#concept-get-attributes-when-sniffing
+            int encpos = s.pos("encoding=");
             if ( encpos >= 0 ) {
-                lString8 encname = s.substr( encpos+10, 20 );
-                int endpos = s.pos("\"");
+                int pos = encpos + 9;
+                int end = s.length();
+                lChar8 quote;
+                while (pos < end) {
+                    quote = s[pos];
+                    if (quote == '\'' || quote == '\"')
+                        break;
+                    ++pos;
+                }
+                lString8 encname = s.substr(pos + 1, 20 );
+                int endpos = encname.pos(quote);
                 if ( endpos>0 ) {
                     encname.erase( endpos, encname.length() - endpos );
                     lString32 enc32(encname.c_str());
