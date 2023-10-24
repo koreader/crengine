@@ -191,6 +191,7 @@ protected:
     int m_read_buffer_len;
     int m_read_buffer_pos;
     bool m_eof;
+    bool m_bom_removed = false;
 
     void checkEof(int bytes_needed);
 
