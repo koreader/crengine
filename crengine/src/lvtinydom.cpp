@@ -17704,10 +17704,9 @@ void ldomNode::destroy()
                 if ( child )
                     child->destroy();
             }
-            delete me;
-            NPELEM = NULL;
         }
         delete NPELEM;
+        NPELEM = NULL;
         break;
 #if BUILD_LITE!=1
     case NT_PTEXT:
