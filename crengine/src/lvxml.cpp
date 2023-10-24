@@ -5951,7 +5951,7 @@ void LVXMLParser::SetSpaceMode( bool flgTrimSpaces )
     m_trimspaces = flgTrimSpaces;
 }
 
-lString32 htmlCharset( lString32 htmlHeader )
+static lString32 htmlCharset( const lString8 &htmlHeader )
 {
     // Parse meta http-equiv or
     // meta charset
@@ -6036,63 +6036,119 @@ lString32 htmlCharset( lString32 htmlHeader )
 bool LVHTMLParser::CheckFormat()
 {
     Reset();
-    // encoding test
-    if ( !AutodetectEncoding(!this->m_encoding_name.empty()) )
-        return false;
-    lChar32 * chbuf = new lChar32[XML_PARSER_DETECT_SIZE];
-    FillBuffer( XML_PARSER_DETECT_SIZE );
-    int charsDecoded = ReadTextBytes( 0, m_buf_len, chbuf, XML_PARSER_DETECT_SIZE-1, 0 );
-    chbuf[charsDecoded] = 0;
-    bool res = false;
-    if ( charsDecoded > 30 ) {
-        lString32 s( chbuf, charsDecoded );
-        s.lowercase();
-        if ( s.pos("<html") >=0 && ( s.pos("<head") >= 0 || s.pos("<body") >=0 ) ) {
-            res = true;
-        }
-        if ( !res ) { // check <!doctype html> (and others) which may have no/implicit <html/head/body>
-            int doctype_pos = s.pos("<!doctype ");
-            if ( doctype_pos >= 0 ) {
-                int html_pos = s.pos("html", doctype_pos);
-                if ( html_pos >= 0 && html_pos < 32 )
+    // HTML standard describes an encoding sniffing algorithm:
+    // https://html.spec.whatwg.org/multipage/parsing.html#determining-the-character-encoding
+    // It recommends scanning for the first 1024 bytes. Let's read more for the
+    // sake of non-conforming documents in the wild.
+    const int html_parser_scan_bytes = 2048;
+    FillBuffer(html_parser_scan_bytes);
+
+    const char *encoding = SniffBOM(m_buf, m_buf_len);
+    if (encoding && (!strncmp(encoding, "utf-16", 6) || !strncmp(encoding, "utf-32", 6))) {
+        lString32 s(encoding);
+        SetCharset(s.c_str());
+
+        // For UTF-16/32, we don't need to scan the stream for encoding,
+        // just check whether it looks like html or not.
+        lChar32 * chbuf = new lChar32[html_parser_scan_bytes / 2];
+        int charsDecoded = ReadTextBytes( 0, m_buf_len, chbuf, html_parser_scan_bytes / 2 - 1, 0 );
+        chbuf[charsDecoded] = 0;
+        bool res = false;
+        if ( charsDecoded > 30 ) {
+            lString32 s( chbuf, charsDecoded );
+            s.lowercase();
+            if ( s.pos("<html") >=0 && ( s.pos("<head") >= 0 || s.pos("<body") >=0 ) ) {
+                res = true;
+            }
+            if ( !res ) { // check <!doctype html> (and others) which may have no/implicit <html/head/body>
+                int doctype_pos = s.pos("<!doctype ");
+                if ( doctype_pos >= 0 ) {
+                    int html_pos = s.pos("html", doctype_pos);
+                    if ( html_pos >= 0 && html_pos < 32 )
+                        res = true;
+                }
+            }
+            if ( !res ) { // check filename extension and present of common HTML tags
+                lString32 name=m_stream->GetName();
+                name.lowercase();
+                bool html_ext = name.endsWith(".htm") || name.endsWith(".html") || name.endsWith(".hhc") || name.endsWith(".xhtml");
+                if ( html_ext && (s.pos("<!--")>=0 || s.pos("ul")>=0 || s.pos("<p>")>=0) )
                     res = true;
             }
         }
-        if ( !res ) { // check filename extension and present of common HTML tags
-            lString32 name=m_stream->GetName();
-            name.lowercase();
-            bool html_ext = name.endsWith(".htm") || name.endsWith(".html") || name.endsWith(".hhc") || name.endsWith(".xhtml");
-            if ( html_ext && (s.pos("<!--")>=0 || s.pos("ul")>=0 || s.pos("<p>")>=0) )
-                res = true;
-        }
-        //else if ( s.pos("<html xmlns=\"http://www.w3.org/1999/xhtml\"") >= 0 )
-        //    res = true;
-        if ( res ) {
-            // https://www.w3.org/TR/xhtml1/#C_9
-            // "In XHTML-conforming user agents, the value of the encoding declaration of the XML declaration
-            // takes precedence" (over the one from <meta http-equiv="Content-type" .../>
-            bool charset_found = false;
-            if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
-                int encpos = s.pos("encoding=\"");
-                if ( encpos >= 0 ) {
-                    lString32 encname = s.substr( encpos+10, 20 );
-                    int endpos = s.pos("\"");
-                    if ( endpos>0 ) {
-                        encname.erase( endpos, encname.length() - endpos );
-                        SetCharset( encname.c_str() );
-                        charset_found = true;
-                    }
-                }
-            }
-            if ( !charset_found ) {
-                // Look for any charset specified in <meta> tags
-                lString32 enc = htmlCharset( s );
-                if ( !enc.empty() )
-                    SetCharset( enc.c_str() );
-            }
+        delete[] chbuf;
+        Reset();
+        return res;
+    }
+
+    if (m_buf_len <= 30)
+        return false;
+
+    // At this stage, UTF-16/32 have been handled and returned. In crengine, we
+    // have never supported any other ascii incompatible encodings, so it's safe
+    // to just operate on bytes, as the following algorithm only cares about
+    // ascii data. It is also what the standard do.
+    // Doing ascii lowercase is sufficient here. Other than A~Z, there are only
+    // 2 characters whose lowercase are within the range of a-z: U+0130 and
+    // U+212A. It's quite unlikely that they are used in tags or encoding
+    // declarations.
+    const lUInt8 *end = m_buf + m_buf_len;
+    for (lUInt8 *ptr = m_buf; ptr < end; ++ptr) {
+        lUInt8 ch = *ptr;
+        if (ch >= 'A' && ch <= 'Z') {
+            *ptr = ch - 'A' + 'a';
         }
     }
-    delete[] chbuf;
+    lString8 s(reinterpret_cast<lChar8 *>(m_buf), m_buf_len);
+
+    bool res = s.pos("<html") >= 0 && (s.pos("<head") >= 0 || s.pos("<body") >= 0);
+    if ( !res ) { // check <!doctype html> (and others) which may have no/implicit <html/head/body>
+        int doctype_pos = s.pos("<!doctype ");
+        if ( doctype_pos >= 0 ) {
+            int html_pos = s.pos("html", doctype_pos);
+            if ( html_pos >= 0 && html_pos < 32 )
+                res = true;
+        }
+    }
+    if ( !res ) { // check filename extension and present of common HTML tags
+        lString32 name=m_stream->GetName();
+        name.lowercase();
+        bool html_ext = name.endsWith(".htm") || name.endsWith(".html") || name.endsWith(".hhc") || name.endsWith(".xhtml");
+        if ( html_ext && (s.pos("<!--")>=0 || s.pos("ul")>=0 || s.pos("<p>")>=0) )
+            res = true;
+    }
+    //else if ( s.pos("<html xmlns=\"http://www.w3.org/1999/xhtml\"") >= 0 )
+    //    res = true;
+    if ( res ) {
+        bool charset_found = false;
+        // https://www.w3.org/TR/xhtml1/#C_9
+        // "In XHTML-conforming user agents, the value of the encoding declaration of the XML declaration
+        // takes precedence" (over the one from <meta http-equiv="Content-type" .../>
+        if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
+            int encpos = s.pos("encoding=\"");
+            if ( encpos >= 0 ) {
+                lString8 encname = s.substr( encpos+10, 20 );
+                int endpos = s.pos("\"");
+                if ( endpos>0 ) {
+                    encname.erase( endpos, encname.length() - endpos );
+                    lString32 enc32(encname.c_str());
+                    SetCharset(enc32.c_str());
+                    charset_found = true;
+                }
+            }
+        }
+        if ( !charset_found ) {
+            // Look for any charset specified in <meta> tags
+            lString32 enc = htmlCharset( s );
+            if ( !enc.empty() ) {
+                SetCharset( enc.c_str() );
+                charset_found = true;
+            }
+        }
+        // fallback to heuristics
+        if (!charset_found)
+            AutodetectEncoding(!this->m_encoding_name.empty());
+    }
     Reset();
     //CRLog::trace("LVXMLParser::CheckFormat() finished");
     return res;
