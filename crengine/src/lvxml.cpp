@@ -11,6 +11,7 @@
 
 *******************************************************/
 
+#include <string_view>
 #include "../include/lvxml.h"
 #include "../include/crtxtenc.h"
 #include "../include/fb2def.h"
@@ -5951,30 +5952,30 @@ void LVXMLParser::SetSpaceMode( bool flgTrimSpaces )
     m_trimspaces = flgTrimSpaces;
 }
 
-static lString32 htmlCharset( const lString8 &htmlHeader )
+static lString32 htmlCharset( std::string_view htmlHeader )
 {
     // Parse meta http-equiv or
     // meta charset
     // https://www.w3.org/TR/2011/WD-html5-author-20110809/the-meta-element.html
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/meta
     lString32 enc;
-    int metapos = htmlHeader.pos("<meta");
-    if (metapos >= 0) {
+    std::string_view::size_type metapos = htmlHeader.find("<meta");
+    if (metapos != std::string_view::npos) {
         // 1. attribute 'http-equiv'
-        int pos = htmlHeader.pos("http-equiv", metapos);
-        if (pos > 0) {
-            pos = htmlHeader.pos("=");
-            if (pos > 0) {
-                pos = htmlHeader.pos("content-type", pos);
-                if (pos > 0) {
-                    pos = htmlHeader.pos("content", pos);
-                    if (pos > 0) {
-                        pos = htmlHeader.pos("text/html", pos);
-                        if (pos > 0) {
-                            pos = htmlHeader.pos("charset", pos);
-                            if (pos > 0) {
-                                pos = htmlHeader.pos("=", pos);
-                                if (pos > 0) {
+        std::string_view::size_type pos = htmlHeader.find("http-equiv", metapos);
+        if (pos > 0 && pos != std::string_view::npos ) {
+            pos = htmlHeader.find("=");
+            if (pos > 0 && pos != std::string_view::npos) {
+                pos = htmlHeader.find("content-type", pos);
+                if (pos > 0 && pos != std::string_view::npos) {
+                    pos = htmlHeader.find("content", pos);
+                    if (pos > 0 && pos != std::string_view::npos) {
+                        pos = htmlHeader.find("text/html", pos);
+                        if (pos > 0 && pos != std::string_view::npos) {
+                            pos = htmlHeader.find("charset", pos);
+                            if (pos > 0 && pos != std::string_view::npos) {
+                                pos = htmlHeader.find("=", pos);
+                                if (pos > 0 && pos != std::string_view::npos) {
                                     pos += 1;       // skip "="
                                     // skip spaces
                                     lChar32 ch;
@@ -5999,10 +6000,10 @@ static lString32 htmlCharset( const lString8 &htmlHeader )
             }
         } else {
             // 2. Attribute 'charset'
-            pos = htmlHeader.pos("charset", metapos);
-            if (pos > 0) {
-                pos = htmlHeader.pos("=", pos);
-                if (pos > 0) {
+            pos = htmlHeader.find("charset", metapos);
+            if (pos > 0 && pos != std::string_view::npos) {
+                pos = htmlHeader.find("=", pos);
+                if (pos > 0 && pos != std::string_view::npos) {
                     pos += 1;           // skip "="
                     // skip spaces
                     lChar32 ch;
@@ -6113,14 +6114,16 @@ bool LVHTMLParser::CheckFormat()
             *ptr = ch - 'A' + 'a';
         }
     }
-    lString8 s(reinterpret_cast<lChar8 *>(m_buf), m_buf_len);
+    std::string_view s(reinterpret_cast<char *>(m_buf), m_buf_len);
 
-    bool res = s.pos("<html") >= 0 && (s.pos("<head") >= 0 || s.pos("<body") >= 0);
+    bool res = s.find("<html") != std::string_view::npos
+            && (s.find("<head") != std::string_view::npos
+                || s.find("<body") != std::string_view::npos);
     if ( !res ) { // check <!doctype html> (and others) which may have no/implicit <html/head/body>
-        int doctype_pos = s.pos("<!doctype ");
-        if ( doctype_pos >= 0 ) {
-            int html_pos = s.pos("html", doctype_pos);
-            if ( html_pos >= 0 && html_pos < 32 )
+        int doctype_pos = s.find("<!doctype ");
+        if ( doctype_pos != std::string_view::npos ) {
+            std::string_view::size_type html_pos = s.find("html", doctype_pos);
+            if ( html_pos < 32 )
                 res = true;
         }
     }
@@ -6128,7 +6131,10 @@ bool LVHTMLParser::CheckFormat()
         lString32 name=m_stream->GetName();
         name.lowercase();
         bool html_ext = name.endsWith(".htm") || name.endsWith(".html") || name.endsWith(".hhc") || name.endsWith(".xhtml");
-        if ( html_ext && (s.pos("<!--")>=0 || s.pos("ul")>=0 || s.pos("<p>")>=0) )
+        if ( html_ext
+                && (s.find("<!--") != std::string_view::npos
+                    || s.find("ul") != std::string_view::npos
+                    || s.find("<p>") != std::string_view::npos) )
             res = true;
     }
     //else if ( s.pos("<html xmlns=\"http://www.w3.org/1999/xhtml\"") >= 0 )
@@ -6138,10 +6144,12 @@ bool LVHTMLParser::CheckFormat()
         // https://www.w3.org/TR/xhtml1/#C_9
         // "In XHTML-conforming user agents, the value of the encoding declaration of the XML declaration
         // takes precedence" (over the one from <meta http-equiv="Content-type" .../>
-        if ( s.pos("<?xml") >= 0 && s.pos("version=") >= 6 ) {
+        std::string_view::size_type xml = s.find("<?xml");
+        std::string_view::size_type ver = s.find("version=");
+        if (xml != std::string_view::npos && ver != std::string_view::npos && ver >= 6) {
             // see https://html.spec.whatwg.org/multipage/parsing.html#concept-get-attributes-when-sniffing
-            int encpos = s.pos("encoding=");
-            if ( encpos >= 0 ) {
+            std::string_view::size_type encpos = s.find("encoding=");
+            if ( encpos != std::string_view::npos ) {
                 int pos = encpos + 9;
                 int end = s.length();
                 lChar8 quote;
@@ -6151,11 +6159,10 @@ bool LVHTMLParser::CheckFormat()
                         break;
                     ++pos;
                 }
-                lString8 encname = s.substr(pos + 1, 20 );
-                int endpos = encname.pos(quote);
-                if ( endpos>0 ) {
-                    encname.erase( endpos, encname.length() - endpos );
-                    lString32 enc32(encname.c_str());
+                std::string_view encname = s.substr(pos + 1);
+                std::string_view::size_type endpos = encname.find(quote);
+                if ( endpos>0 && endpos != std::string_view::npos ) {
+                    lString32 enc32(encname.data(), endpos);
                     SetCharset(enc32.c_str());
                     charset_found = true;
                 }
