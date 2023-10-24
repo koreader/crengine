@@ -973,7 +973,7 @@ lString32 lString32::substr(size_type pos, size_type n) const
 
 lString32 & lString32::pack()
 {
-    if (pchunk->len + 4 < pchunk->size )
+    if (pchunk->len < pchunk->size)
     {
         if (pchunk->nref>1)
         {
@@ -2448,7 +2448,7 @@ int lString32::pos(lString32 subStr) const
 
 lString8 & lString8::pack()
 {
-    if (pchunk->len + 4 < pchunk->size )
+    if (pchunk->len < pchunk->size)
     {
         if (pchunk->nref>1)
         {
