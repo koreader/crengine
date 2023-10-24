@@ -821,8 +821,9 @@ struct ldomNodeHandle {
 
 
 class ldomTextNode;
-// no vtable, very small size (16 bytes)
-// optimized for 32 bit systems
+// no vtable, very small size
+// optimized for 32 bits systems: 8 bytes
+// (16 bytes on 64 bits systems)
 struct ldomNode
 {
     friend class tinyNodeCollection;
