@@ -14790,7 +14790,7 @@ void ldomDocumentWriterFilter::appendStyle( const lChar32 * style )
     //     return; // disabled
 
     lString32 oldStyle = node->getAttributeValue(attr_style);
-    if ( !oldStyle.empty() && oldStyle.at(oldStyle.length()-1)!=';' )
+    if ( !oldStyle.empty() && oldStyle.lastChar()!=';' )
         oldStyle << "; ";
     oldStyle << style;
     node->setAttributeValue(LXML_NS_NONE, attr_style, oldStyle.c_str());

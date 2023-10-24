@@ -1755,7 +1755,7 @@ public:
                                                 parent = parent->getParentNode();
                                             if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
                                                 lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
-                                                if ( href.length()>0 && href.at(0)=='#' ) {
+                                                if ( href.firstChar()=='#' ) {
                                                     href.erase(0,1);
                                                     if ( is_single_column )
                                                         row->single_col_context->addLink( href, link_insert_pos );
@@ -5281,7 +5281,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                             // specifying a -cr-hint: to the footnote target, with no need
                                             // to set one to the link itself
                                         lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
-                                        if ( href.length()>0 && href.at(0)=='#' ) {
+                                        if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             context.addLink( href, link_insert_pos );
                                         }
@@ -5316,7 +5316,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                         parent = parent->getParentNode();
                                     if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
                                         lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
-                                        if ( href.length()>0 && href.at(0)=='#' ) {
+                                        if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             context.addLink( href, link_insert_pos );
                                         }
@@ -8722,7 +8722,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                             // specifying a -cr-hint: to the footnote target, with no need
                                             // to set one to the link itself
                                         lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
-                                        if ( href.length()>0 && href.at(0)=='#' ) {
+                                        if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             flow->getPageContext()->addLink( href, link_insert_pos );
                                         }
