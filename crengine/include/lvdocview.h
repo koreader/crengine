@@ -16,7 +16,6 @@
 #include "crsetup.h"
 #include "lvtypes.h"
 #include "lvplatform.h"
-#include "crskin.h"
 #include "lvtinydom.h"
 #include "lvpagesplitter.h"
 #include "lvdrawbuf.h"
@@ -368,8 +367,6 @@ private:
     lString32 m_pageHeaderOverride;
 
     int m_drawBufferBits;
-
-    CRPageSkinRef _pageSkin;
 
     /// sets current document format
     void setDocFormat( doc_format_t fmt );
@@ -743,9 +740,6 @@ public:
         m_statusColor = cl;
         clearImageCache();
     }
-
-    CRPageSkinRef getPageSkin();
-    void setPageSkin( CRPageSkinRef skin );
 
     /// returns xpointer for specified window point
     ldomXPointer getNodeByPoint( lvPoint pt, bool strictBounds=false, bool forTextSelection=false );
