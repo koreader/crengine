@@ -858,7 +858,7 @@ void lString32::reset( size_type size )
 void lString32::resize(size_type n, lChar32 e)
 {
     lock( n );
-    if (n>=pchunk->size)
+    if (pchunk->size < n)
     {
         pchunk->buf32 = (lChar32*) ::realloc( pchunk->buf32, sizeof(lChar32)*(n+1) );
         pchunk->size = n;
@@ -1958,7 +1958,7 @@ void lString8::reset( size_type size )
 void lString8::resize(size_type n, lChar8 e)
 {
     lock( n );
-    if (n>=pchunk->size)
+    if (pchunk->size < n)
     {
         pchunk->buf8 = (lChar8*) ::realloc( pchunk->buf8, sizeof(lChar8)*(n+1) );
         pchunk->size = n;
