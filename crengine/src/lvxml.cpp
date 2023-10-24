@@ -993,9 +993,7 @@ void LVTextFileBase::Reset()
 {
     LVFileParserBase::Reset();
     clearCharBuffer();
-    // Remove Byte Order Mark from beginning of file
-    if ( PeekCharFromBuffer()==0xFEFF )
-        ReadCharFromBuffer();
+    m_bom_removed = false;
 }
 
 void LVTextFileBase::SetCharset( const lChar32 * name )
@@ -5678,6 +5676,12 @@ int LVTextFileBase::fillCharBuffer()
 //    CRLog::trace("buf: %s\n", UnicodeToUtf8(lString32(m_read_buffer, m_read_buffer_len)).c_str() );
 //#endif
     //CRLog::trace("Buf:'%s'", LCSTR(lString32(m_read_buffer, m_read_buffer_len)) );
+    if (!m_bom_removed) {
+        m_bom_removed = true;
+        if (charsRead > 0 && m_read_buffer[m_read_buffer_pos] == 0xfeff) {
+            ++m_read_buffer_pos;
+        }
+    }
     return m_read_buffer_len - m_read_buffer_pos;
 }
 
