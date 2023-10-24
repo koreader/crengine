@@ -553,9 +553,9 @@ public:
     bool startsWith ( const char * substring ) const;
 
     /// returns last character
-    value_type lastChar() { return empty() ? 0 : at(length()-1); }
+    value_type lastChar() const { return empty() ? 0 : pchunk->buf8[length()-1]; }
     /// returns first character
-    value_type firstChar() { return empty() ? 0 : at(0); }
+    value_type firstChar() const { return empty() ? 0 : pchunk->buf8[0]; }
 
     /// calculate hash
     lUInt32 getHash() const;
@@ -813,9 +813,9 @@ public:
     bool startsWithNoCase (const lString32 & substring) const;
 
     /// returns last character
-    value_type lastChar() { return empty() ? 0 : at(length()-1); }
+    value_type lastChar() const { return empty() ? 0 : pchunk->buf32[length()-1]; }
     /// returns first character
-    value_type firstChar() { return empty() ? 0 : at(0); }
+    value_type firstChar() const { return empty() ? 0 : pchunk->buf32[0]; }
 
     /// calculates hash for string
     lUInt32 getHash() const;
