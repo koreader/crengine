@@ -10513,8 +10513,6 @@ ldomXPointer ldomDocument::createXPointerV1( ldomNode * baseNode, const lString3
     int index = -1;
     ldomNode * currNode = baseNode;
     lString32 name;
-    lString8 ptr8 = UnicodeToUtf8(xPointerStr);
-    //const char * ptr = ptr8.c_str();
     xpath_step_t step_type;
 
     while ( *str ) {
