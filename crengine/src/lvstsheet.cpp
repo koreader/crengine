@@ -5062,7 +5062,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
             lString32 val = node->getAttributeValue(_attrid);
             if (_type == cssrt_attrhas_i)
                 val.lowercase();
-            int p = val.pos( lString32(_value.c_str()) );            
+            int p = val.pos( _value );
             if (p<0)
                 return false;
             if ( (p>0 && val[p-1]!=' ') 
