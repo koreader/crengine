@@ -795,12 +795,14 @@ public:
         return (lUInt32)m_doc_props->getIntDef(DOC_PROP_FILE_CRC32, 0);
     }
 
+#if 0 // unused
     /// export to WOL format
     bool exportWolFile( const char * fname, bool flgGray, int levels );
     /// export to WOL format
     bool exportWolFile( const lChar32 * fname, bool flgGray, int levels );
     /// export to WOL format
     bool exportWolFile( LVStream * stream, bool flgGray, int levels );
+#endif
 
     /// get a stream for reading to document internal file (path inside the ZIP for EPUBs,
     /// path relative to document directory for non-container documents like HTML)
