@@ -10513,8 +10513,6 @@ ldomXPointer ldomDocument::createXPointerV1( ldomNode * baseNode, const lString3
     int index = -1;
     ldomNode * currNode = baseNode;
     lString32 name;
-    lString8 ptr8 = UnicodeToUtf8(xPointerStr);
-    //const char * ptr = ptr8.c_str();
     xpath_step_t step_type;
 
     while ( *str ) {
@@ -10724,7 +10722,7 @@ lString32 ldomXPointer::toStringV1()
     ldomNode * node = getNode();
     int offset = getOffset();
     if ( offset >= 0 ) {
-        path << "." << fmt::decimal(offset);
+        path << '.' << fmt::decimal(offset);
     }
     ldomNode * p = node;
     ldomNode * mainNode = node->getDocument()->getRootNode();
@@ -10802,7 +10800,7 @@ lString32 ldomXPointer::toStringV2()
     ldomNode * p = node;
     if ( !node->isBoxingNode(true) ) { // (nor pseudoElem)
         if ( offset >= 0 ) {
-            path << "." << fmt::decimal(offset);
+            path << '.' << fmt::decimal(offset);
         }
     }
     else {
@@ -14453,7 +14451,7 @@ lString32 ldomDocumentFragmentWriter::convertHref( lString32 href )
 {
     if ( href.pos("://")>=0 )
         return href; // fully qualified href: no conversion
-    if ( href.length() > 10 && href[4] == ':' && href.startsWith(lString32("data:image/")) )
+    if ( href.length() > 10 && href[4] == ':' && href.startsWith("data:image/") )
         return href; // base64 encoded image (<img src="data:image/png;base64,iVBORw0KG...>): no conversion
 
     //CRLog::trace("convertHref(%s, codeBase=%s, filePathName=%s)", LCSTR(href), LCSTR(codeBase), LCSTR(filePathName));
@@ -14478,7 +14476,7 @@ lString32 ldomDocumentFragmentWriter::convertHref( lString32 href )
 
     // resolve relative links
     lString32 p, id; // path, id
-    if ( !href.split2(cs32("#"), p, id) )
+    if ( !href.split2("#", p, id) )
         p = href;
     if ( p.empty() ) {
         //CRLog::trace("codebase = %s -> href = %s", LCSTR(codeBase), LCSTR(href));
@@ -14505,7 +14503,7 @@ lString32 ldomDocumentFragmentWriter::convertHref( lString32 href )
         //p = LVCombinePaths( codeBase, p ); // relative to absolute path
     }
     if ( !id.empty() )
-        p = p + "_" + " " + id;
+        p << '_' << ' ' << id;
 
     p = cs32("#") + p;
 
@@ -17704,10 +17702,9 @@ void ldomNode::destroy()
                 if ( child )
                     child->destroy();
             }
-            delete me;
-            NPELEM = NULL;
         }
         delete NPELEM;
+        NPELEM = NULL;
         break;
 #if BUILD_LITE!=1
     case NT_PTEXT:
