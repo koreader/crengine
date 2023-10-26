@@ -21,7 +21,7 @@
 #include "../include/lvstsheet.h"
 #include "../include/textlang.h"
 
-#include "../include/wolutil.h"
+// #include "../include/wolutil.h"
 #include "../include/crtxtenc.h"
 #include "../include/crtrace.h"
 #include "../include/epubfmt.h"
@@ -798,6 +798,8 @@ void LVDocView::cachePageImage( int delta )
 }
 #endif
 
+#if 0 // unused
+
 bool LVDocView::exportWolFile(const char * fname, bool flgGray, int levels) {
 	LVStreamRef stream = LVOpenFileStream(fname, LVOM_WRITE);
 	if (!stream)
@@ -811,6 +813,8 @@ bool LVDocView::exportWolFile(const lChar32 * fname, bool flgGray, int levels) {
 		return false;
 	return exportWolFile(stream.get(), flgGray, levels);
 }
+
+#endif
 
 void dumpSection(ldomNode * elem) {
 	lvRect rc;
@@ -1196,6 +1200,8 @@ void LVDocView::drawCoverTo(LVDrawBuf * drawBuf, lvRect & rc) {
 	//CRLog::trace("drawCoverTo() - done");
 }
 
+#if 0 // unused
+
 /// export to WOL format
 bool LVDocView::exportWolFile(LVStream * stream, bool flgGray, int levels) {
 	checkRender();
@@ -1332,6 +1338,8 @@ bool LVDocView::exportWolFile(LVStream * stream, bool flgGray, int levels) {
 
 	return true;
 }
+
+#endif
 
 int LVDocView::GetFullHeight() {
 	LVLock lock(getMutex());
