@@ -367,7 +367,7 @@ inline void _lStr_memcpy(lChar32 * dst, const lChar32 * src, int count)
 
 inline void _lStr_memcpy(lChar8 * dst, const lChar8 * src, int count)
 {
-    memcpy(dst, (const lChar8 *) src, count);
+    memcpy(dst, src, count);
 }
 
 inline void _lStr_memset(lChar32 * dst, lChar32 value, int count)
@@ -378,7 +378,7 @@ inline void _lStr_memset(lChar32 * dst, lChar32 value, int count)
 
 inline void _lStr_memset(lChar8 * dst, lChar8 value, int count)
 {
-    memset(dst, (lChar8) value, count);
+    memset(dst, value, count);
 }
 
 int lStr_len(const lChar32 * str)
