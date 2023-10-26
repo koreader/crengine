@@ -577,12 +577,10 @@ public:
     void  reset( size_type size );
     /// returns character count
     size_type   length() const { return pchunk->len; }
-    /// returns buffer size
-    size_type   size() const { return pchunk->len; }
     /// changes buffer size
     void  resize(size_type count = 0, value_type e = 0);
     /// returns maximum number of chars that can fit into buffer
-    size_type   capacity() const { return pchunk->size-1; }
+    size_type   capacity() const { return pchunk->size; }
     /// reserve space for specified amount of chars
     void  reserve(size_type count = 0);
     /// returns true if string is empty
@@ -839,12 +837,10 @@ public:
     void  reset( size_type size );
     /// returns string length, in characters
     size_type   length() const { return pchunk->len; }
-    /// returns string length, in characters
-    size_type   size() const { return pchunk->len; }
     /// resizes string buffer, appends with specified character if buffer is being extended
     void  resize(size_type count = 0, value_type e = 0);
     /// returns string buffer size
-    size_type   capacity() const { return pchunk->size-1; }
+    size_type   capacity() const { return pchunk->size; }
     /// ensures string buffer can hold at least count characters
     void  reserve(size_type count = 0);
     /// erase all extra characters from end of string after size
