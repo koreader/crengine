@@ -4459,7 +4459,7 @@ static css_length_t read_length( int * &data )
     return len;
 }
 
-void LVCssDeclaration::apply( css_style_rec_t * style )
+void LVCssDeclaration::apply( css_style_rec_t * style ) const
 {
     if (!_data)
         return;
@@ -4832,7 +4832,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style )
     }
 }
 
-lUInt32 LVCssDeclaration::getHash() {
+lUInt32 LVCssDeclaration::getHash() const {
     if (!_data)
         return 0;
     int * p = _data;
@@ -4857,7 +4857,7 @@ lUInt32 LVCssDeclaration::getHash() {
 #define WEIGHT_SPECIFICITY_ELEMENT  1<<19 // allow for 32 element names div > p span (d)
 #define WEIGHT_SELECTOR_ORDER       1     // allow for counting 524288 selectors
 
-lUInt32 LVCssSelectorRule::getWeight() {
+lUInt32 LVCssSelectorRule::getWeight() const {
     /* Each LVCssSelectorRule will add its own weight to
        its LVCssSelector container specifity.
 
@@ -4922,7 +4922,7 @@ lUInt32 LVCssSelectorRule::getWeight() {
     return 0;
 }
 
-bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
+bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
 {
     if (!node || node->isNull() || node->isRoot())
         return false;
@@ -5388,7 +5388,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache )
     return true;
 }
 
-bool LVCssSelectorRule::checkNextRules( const ldomNode * node, bool allow_cache )
+bool LVCssSelectorRule::checkNextRules( const ldomNode * node, bool allow_cache ) const
 {
     // Similar to LVCssSelector::check() just below, but
     // invoked from a rule
@@ -5991,7 +5991,7 @@ LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
     _selector_count = sheet._selector_count;
 }
 
-void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style )
+void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
 {
     if (!_selectors.length())
         return; // no rules!
@@ -6052,7 +6052,7 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style )
     }
 }
 
-lUInt32 LVCssSelectorRule::getHash()
+lUInt32 LVCssSelectorRule::getHash() const
 {
     lUInt32 hash = 0;
     hash = ( ( ( (lUInt32)_type * 31
@@ -6082,7 +6082,7 @@ lUInt32 LVCssSelector::getHash() const
 }
 
 /// calculate hash
-lUInt32 LVStyleSheet::getHash()
+lUInt32 LVStyleSheet::getHash() const
 {
     lUInt32 hash = 0;
     for ( int i=0; i<_selectors.length(); i++ ) {
@@ -6206,7 +6206,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
 }
 
 /// Gather snippets in the provided CSS that the provided node would match
-bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) {
+bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) const {
     // Parsing as in parseAndAdvance() but simplified as we don't need to build anything
     bool ret = false;
     if ( !_doc ) {

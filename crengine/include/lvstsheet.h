@@ -83,16 +83,16 @@ private:
     bool _check_if_supported;
     bool  _extra_weighted;
 public:
-    void apply( css_style_rec_t * style );
-    bool empty() { return _data==NULL; }
+    void apply( css_style_rec_t * style ) const;
+    bool empty() const { return _data==NULL; }
     bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL, lString32 codeBase=lString32::empty_str );
     bool parseAndCheckIfSupported( const char * & decl, lxmlDocBase * doc=NULL ) {
         _check_if_supported = true; // will tweak parse() behaviour and meaning of return value
         return parse(decl, false, doc);
     }
     void setExtraWeighted( bool weighted ) { _extra_weighted = weighted; }
-    int isExtraWeighted() { return _extra_weighted; }
-    lUInt32 getHash();
+    int isExtraWeighted() const { return _extra_weighted; }
+    lUInt32 getHash() const;
     LVCssDeclaration() : _data(NULL), _datalen(0), _check_if_supported(false), _extra_weighted(false) { }
     ~LVCssDeclaration() { if (_data) delete[] _data; }
 };
@@ -139,17 +139,17 @@ public:
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
     void setAttr( lUInt16 id, const lString32 value ) { _attrid = id; _value = value; }
-    LVCssSelectorRule * getNext() { return _next; }
+    LVCssSelectorRule * getNext() const { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
     /// check condition for node
-    bool check( const ldomNode * & node, bool allow_cache=true );
+    bool check( const ldomNode * & node, bool allow_cache=true ) const;
     /// check next rules for node
-    bool checkNextRules( const ldomNode * node, bool allow_cache=true );
+    bool checkNextRules( const ldomNode * node, bool allow_cache=true ) const;
     /// Some selector rule types do the full rules chain check themselves
-    bool isFullChecking() { return _type == cssrt_ancessor || _type == cssrt_predsibling; }
-    lUInt32 getHash();
-    lUInt32 getWeight();
+    bool isFullChecking() const { return _type == cssrt_ancessor || _type == cssrt_predsibling; }
+    lUInt32 getHash() const;
+    lUInt32 getWeight() const;
 };
 
 /** \brief simple CSS selector
@@ -296,12 +296,12 @@ public:
         return parseAndAdvance(s, higher_importance, codeBase);
     }
     /// apply stylesheet to node style
-    void apply( const ldomNode * node, css_style_rec_t * style );
+    void apply( const ldomNode * node, css_style_rec_t * style ) const;
     /// calculate hash
-    lUInt32 getHash();
+    lUInt32 getHash() const;
     void merge(const LVStyleSheet &other);
     /// gather snippets in the provided CSS that the provided node would match
-    bool gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches);
+    bool gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) const;
 };
 
 /// parse number/length value like "120px" or "90%"
