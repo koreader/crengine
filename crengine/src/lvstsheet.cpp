@@ -4922,6 +4922,16 @@ lUInt32 LVCssSelectorRule::getWeight() const {
     return 0;
 }
 
+bool LVCssSelectorRule::quickCheck(const lUInt32 *classIndices, size_t size) const {
+    if (_type != cssrt_class)
+        return true;
+    for (size_t i = 0; i < size; ++i) {
+        if (classIndices[i] == _index)
+            return true;
+    }
+    return false;
+}
+
 bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
 {
     if (!node || node->isNull() || node->isRoot())
@@ -5453,6 +5463,10 @@ bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
     return true;
 }
 
+bool LVCssSelector::quickCheck(const lUInt32 *classIndices, size_t size) const {
+    return !_rules || _rules->quickCheck(classIndices, size);
+}
+
 bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, char stop_char=']' )
 {
     int pos = 0;
@@ -5539,6 +5553,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
         const lString32 s( attrvalue );
         // s.lowercase(); // className should be case sensitive
         rule->setAttr(attr_class, s);
+        rule->setIndex(doc->addClassAttribute(s));
         return rule;
     } else if ( *str=='#' ) {
         // E#id
@@ -5972,6 +5987,7 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 : _type(v._type), _id(v._id), _attrid(v._attrid)
 , _next(NULL)
 , _value( v._value )
+, _index(v._index)
 {
     if ( v._next )
         _next = new LVCssSelectorRule( *v._next );
@@ -6038,14 +6054,30 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
     LVCssSelector * selector_0 = _selectors[0];
     LVCssSelector * selector_id = id>0 && id<_selectors.length() ? _selectors[id] : NULL;
 
+    lUInt32 classIndex;
+    const lUInt32 *classIndices = nullptr;
+    size_t size;
+
     for (;;)
     {
         if (selector_0!=NULL)
         {
+            if (!classIndices) {
+                classIndex = node->getAttributeIndex(LXML_NS_ANY, attr_class);
+                LVArray<lUInt32> *classArray = _doc->getClassAttributes(classIndex);
+                if (classArray) {
+                    classIndices = classArray->get();
+                    size = classArray->size();
+                } else {
+                    classIndices = &classIndex;
+                    size = 1;
+                }
+            }
             if (selector_id==NULL || selector_0->getSpecificity() < selector_id->getSpecificity() )
             {
                 // step by sel_0
-                selector_0->apply( node, style );
+                if (selector_0->quickCheck(classIndices, size))
+                    selector_0->apply( node, style );
                 selector_0 = selector_0->getNext();
             }
             else

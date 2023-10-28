@@ -973,6 +973,7 @@ public:
     int getAttrCount() const;
     /// returns attribute value by attribute name id and namespace id
     const lString32 & getAttributeValue( lUInt16 nsid, lUInt16 id ) const;
+    lUInt32 getAttributeIndex(lUInt16 nsid, lUInt16 id) const;
     /// returns attribute value by attribute name
     inline const lString32 & getAttributeValue( const lChar32 * attrName ) const
     {
@@ -994,7 +995,7 @@ public:
     /// returns attribute name by index
     const lString32 & getAttributeName( lUInt32 ) const;
     /// sets attribute value
-    void setAttributeValue( lUInt16 , lUInt16 , const lChar32 *  );
+    lUInt32 setAttributeValue( lUInt16 , lUInt16 , const lChar32 *  );
     /// returns attribute value by attribute name id
     inline const lString32 & getAttributeValue( lUInt16 id ) const { return getAttributeValue( LXML_NS_ANY, id ); }
     /// returns true if element node has attribute with specified name id
@@ -1352,6 +1353,11 @@ public:
 #endif
 
     void onAttributeSet( lUInt16 attrId, lUInt32 valueId, ldomNode * node );
+    // If there are multiple classes, they are split and added. Returns index for single class.
+    lUInt32 addClassAttribute(const lString32 &str, lUInt32 index = LXML_ATTR_VALUE_NONE);
+    // Returns a array of class indices if `index` points to an attribute with multiple classes,
+    // otherwise `nullptr`.
+    LVArray<lUInt32> *getClassAttributes(lUInt32 index);
 
     /// get element by id attribute value code
     inline ldomNode * getNodeById( lUInt32 attrValueId )
@@ -1432,6 +1438,7 @@ protected:
     LVHashTable<lString32,LVImageSourceRef> _urlImageMap; // url to image source map
     lUInt16 _idAttrId; // Id for "id" attribute name
     lUInt16 _nameAttrId; // Id for "name" attribute name
+    LVHashTable<lUInt32, LVArray<lUInt32> *, true> _classAttributeTable;
 
 #if BUILD_LITE!=1
     SerialBuf _pagesData;
@@ -2801,7 +2808,7 @@ class ldomElementWriter
     }
     lString32 getPath();
     void onText( const lChar32 * text, int len, lUInt32 flags, bool insert_before_last_child=false );
-    void addAttribute( lUInt16 nsid, lUInt16 id, const lChar32 * value );
+    lUInt32 addAttribute( lUInt16 nsid, lUInt16 id, const lChar32 * value );
     //lxmlElementWriter * pop( lUInt16 id );
 
     ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUInt16 id, ldomElementWriter * parent, bool insert_before_last_child=false);

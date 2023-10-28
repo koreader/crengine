@@ -3776,6 +3776,7 @@ lxmlDocBase::lxmlDocBase( int /*dataBufSize*/ )
 ,_urlImageMap(1024)
 ,_idAttrId(0)
 ,_nameAttrId(0)
+,_classAttributeTable(0)
 #if BUILD_LITE!=1
 //,_keepData(false)
 //,_mapped(false)
@@ -3806,6 +3807,42 @@ void lxmlDocBase::onAttributeSet( lUInt16 attrId, lUInt32 valueId, ldomNode * no
         if (nodeName == "a")
             _idNodeMap.set( valueId, node->getDataIndex() );
     }
+}
+
+template<typename F>
+void for_each_split(const lChar32 *begin, F functor) {
+    const lChar32 *end = begin;
+    while (*end) {
+        if (*end == ' ') {
+            if (end > begin)
+                functor(begin, end);
+            begin = end + 1;
+        }
+        ++end;
+    }
+    if (end > begin)
+        functor(begin, end);
+}
+
+lUInt32 lxmlDocBase::addClassAttribute(const lString32 &str, lUInt32 index) {
+    if (index == LXML_ATTR_VALUE_NONE)
+        return _attrValueTable.add(str.c_str());
+
+    LVArray<lUInt32> *array = new LVArray<lUInt32>();
+    array->reserve(4);
+    for_each_split(str.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
+        lString32 s(begin, end - begin);
+        array->add(addClassAttribute(s));
+    });
+
+    _classAttributeTable.set(index, array);
+    return 0;
+}
+
+LVArray<lUInt32> *lxmlDocBase::getClassAttributes(lUInt32 index) {
+    LVArray<lUInt32> *array = nullptr;
+    _classAttributeTable.get(index, array);
+    return array;
 }
 
 lUInt16 lxmlDocBase::getNsNameIndex( const lChar32 * name )
@@ -3938,6 +3975,7 @@ lxmlDocBase::lxmlDocBase( lxmlDocBase & doc )
 ,   _urlImageMap(1024)
 ,   _idAttrId(doc._idAttrId) // Id for "id" attribute name
 //,   _docFlags(doc._docFlags)
+,   _classAttributeTable(doc._classAttributeTable)
 #if BUILD_LITE!=1
 ,   _pagesData(8192)
 #endif
@@ -8594,9 +8632,9 @@ void ldomNode::gatherStylesheetMatchingRulesets(const lString8 & css, bool inclu
 
 #endif
 
-void ldomElementWriter::addAttribute( lUInt16 nsid, lUInt16 id, const lChar32 * value )
+lUInt32 ldomElementWriter::addAttribute( lUInt16 nsid, lUInt16 id, const lChar32 * value )
 {
-    getElement()->setAttributeValue(nsid, id, value);
+    return getElement()->setAttributeValue(nsid, id, value);
 #if BUILD_LITE!=1
     /* This is now done by ldomDocumentFragmentWriter::OnTagOpen() directly,
      * as we need to do it too for <DocFragment><stylesheet> tag, and not
@@ -8998,15 +9036,17 @@ void ldomDocumentWriter::OnAttribute( const lChar32 * nsname, const lChar32 * at
         // selectors for a class attribute with multiple classnames (separated by spaces),
         // we append a space now if there is any inside attrvalue (we are provided with it
         // trimmed, so a trailing space will mean there is an inner space)
-        lChar32 * c = (lChar32*)attrvalue;
+        const lChar32 * c = attrvalue;
+        lString32 new_value = lString32(attrvalue);
         for ( ; *c != 0; c++) {
             if ( *c == U' ' ) { // There is at least one space
-                lString32 new_value = lString32(attrvalue);
                 new_value.append(U" ");
-                _currNode->addAttribute( attr_ns, attr_id, new_value.c_str() );
+                lUInt32 index = _currNode->addAttribute( attr_ns, attr_id, new_value.c_str() );
+                _document->addClassAttribute(new_value, index);
                 return;
             }
         }
+        _document->addClassAttribute(new_value);
     }
 
     _currNode->addAttribute( attr_ns, attr_id, attrvalue );
@@ -18071,31 +18111,32 @@ int ldomNode::getAttrCount() const
 #endif
 }
 
-/// returns attribute value by attribute name id and namespace id
-const lString32 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
-{
+lUInt32 ldomNode::getAttributeIndex(lUInt16 nsid, lUInt16 id) const {
     ASSERT_NODE_NOT_NULL;
     if ( !isElement() )
-        return lString32::empty_str;
+        return LXML_ATTR_VALUE_NONE;
 #if BUILD_LITE!=1
     if ( !isPersistent() ) {
 #endif
         // element
         tinyElement * me = NPELEM;
-        lUInt32 valueId = me->_attrs.get( nsid, id );
-        if ( valueId==LXML_ATTR_VALUE_NONE )
-            return lString32::empty_str;
-        return getDocument()->getAttrValue(valueId);
+        return me->_attrs.get( nsid, id );
 #if BUILD_LITE!=1
     } else {
         // persistent element
         ElementDataStorageItem * me = getDocument()->_elemStorage.getElem( _data._pelem_addr );
-        lUInt32 valueId = me->getAttrValueId( nsid, id );
-        if ( valueId==LXML_ATTR_VALUE_NONE )
-            return lString32::empty_str;
-        return getDocument()->getAttrValue(valueId);
+        return me->getAttrValueId( nsid, id );
     }
 #endif
+}
+
+/// returns attribute value by attribute name id and namespace id
+const lString32 & ldomNode::getAttributeValue( lUInt16 nsid, lUInt16 id ) const
+{
+    lUInt32 valueId = getAttributeIndex(nsid, id);
+    if (valueId == LXML_ATTR_VALUE_NONE)
+        return lString32::empty_str;
+    return getDocument()->getAttrValue(valueId);
 }
 
 /// returns attribute value by attribute name and namespace
@@ -18170,11 +18211,11 @@ const lString32 & ldomNode::getAttributeName( lUInt32 index ) const
 }
 
 /// sets attribute value
-void ldomNode::setAttributeValue( lUInt16 nsid, lUInt16 id, const lChar32 * value )
+lUInt32 ldomNode::setAttributeValue( lUInt16 nsid, lUInt16 id, const lChar32 * value )
 {
     ASSERT_NODE_NOT_NULL;
     if ( !isElement() )
-        return;
+        return LXML_ATTR_VALUE_NONE;
     lUInt32 valueIndex = getDocument()->getAttrValueIndex(value);
 #if BUILD_LITE!=1
     if ( isPersistent() ) {
@@ -18184,7 +18225,7 @@ void ldomNode::setAttributeValue( lUInt16 nsid, lUInt16 id, const lChar32 * valu
         if ( attr ) {
             attr->index = valueIndex;
             modified();
-            return;
+            return valueIndex;
         }
         // else: convert to modifable and continue as non-persistent
         modify();
@@ -18195,6 +18236,7 @@ void ldomNode::setAttributeValue( lUInt16 nsid, lUInt16 id, const lChar32 * valu
     me->_attrs.set(nsid, id, valueIndex);
     if (nsid == LXML_NS_NONE)
         getDocument()->onAttributeSet( id, valueIndex, this );
+    return valueIndex;
 }
 
 /// returns attribute value by attribute name id, looking at children if needed
