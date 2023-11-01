@@ -1274,6 +1274,14 @@ bool lString32::atod( double &d, char dp ) const {
 }
 
 #define STRING_HASH_MULT 31
+
+lUInt32 lString32::getHash(const lChar32 *begin, const lChar32 *end) {
+    lUInt32 res = 0;
+    for (; begin < end; ++begin)
+        res = res * STRING_HASH_MULT + *begin;
+    return res;
+}
+
 lUInt32 lString32::getHash() const
 {
     lUInt32 res = 0;

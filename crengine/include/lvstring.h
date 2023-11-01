@@ -820,7 +820,9 @@ public:
     value_type firstChar() { return empty() ? 0 : at(0); }
 
     /// calculates hash for string
+    static lUInt32 getHash(const lChar32 *begin, const lChar32 *end);
     lUInt32 getHash() const;
+
     /// returns character at specified position, with index bounds checking, fatal error if fails
     value_type & at( size_type pos ) { if ((unsigned)pos > (unsigned)pchunk->len) crFatalError(); return modify()[pos]; }
     /// returns character at specified position, without index bounds checking
