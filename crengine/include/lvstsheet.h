@@ -139,7 +139,7 @@ public:
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
     void setAttr( lUInt16 id, const lString32 value ) { _attrid = id; _value = value; }
-    LVCssSelectorRule * getNext() const { return _next; }
+    const LVCssSelectorRule * getNext() const { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
     /// check condition for node
@@ -169,14 +169,12 @@ private:
     lUInt32 _specificity;
     int _pseudo_elem; // from enum LVCssSelectorPseudoElement, or 0
     LVCssSelector * _next;
-    LVCssSelectorRule * _rules;
-    void insertRuleStart( LVCssSelectorRule * rule );
-    void insertRuleAfterStart( LVCssSelectorRule * rule );
+    LVRef<LVCssSelectorRule> _rules;
 public:
     LVCssSelector( LVCssSelector & v );
     LVCssSelector() : _id(0), _specificity(0), _pseudo_elem(0),  _next(NULL), _rules(NULL) { }
-    LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
-    ~LVCssSelector() { if (_next) delete _next; if (_rules) delete _rules; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
+    explicit LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
+    ~LVCssSelector() { if (_next) delete _next; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
@@ -209,8 +207,7 @@ public:
         s->_decl = _decl; // (this is a LVRef)
         s->_specificity = _specificity;
         s->_pseudo_elem = _pseudo_elem;
-        if ( _rules ) // (deep copy of each rule)
-            s->_rules = new LVCssSelectorRule(*_rules);
+        s->_rules = _rules;
         return s;
     }
 };
