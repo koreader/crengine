@@ -132,16 +132,24 @@ class LVCssSelectorRule
     lUInt16 _attrid;
     LVCssSelectorRule * _next;
     lString32 _value;
+    lUInt32 _valueHash = 0;
 public:
-    LVCssSelectorRule(LVCssSelectorRuleType type)
+    explicit LVCssSelectorRule(LVCssSelectorRuleType type)
     : _type(type), _id(0), _attrid(0), _next(NULL)
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
-    void setAttr( lUInt16 id, const lString32 value ) { _attrid = id; _value = value; }
+    void setAttr( lUInt16 id, const lString32 value ) {
+        _attrid = id;
+        _value = value;
+        if (_type == cssrt_class)
+            _valueHash = _value.getHash();
+    }
     const LVCssSelectorRule * getNext() const { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
+    // A fail-fast check, returning false to rule out a match.
+    bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
     /// check condition for node
     bool check( const ldomNode * & node, bool allow_cache=true ) const;
     /// check next rules for node
@@ -178,6 +186,7 @@ public:
     bool parse( const char * &str, lxmlDocBase * doc );
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
+    bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
     void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
     void apply( const ldomNode * node, css_style_rec_t * style ) const
     {

@@ -4922,6 +4922,16 @@ lUInt32 LVCssSelectorRule::getWeight() const {
     return 0;
 }
 
+bool LVCssSelectorRule::quickClassCheck(const lUInt32 *classHashes, size_t size) const {
+    if (_type != cssrt_class)
+        return true;
+    for (size_t i = 0; i < size; ++i) {
+        if (classHashes[i] == _valueHash)
+            return true;
+    }
+    return false;
+}
+
 bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
 {
     if (!node || node->isNull() || node->isRoot())
@@ -5453,6 +5463,11 @@ bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
     return true;
 }
 
+bool LVCssSelector::quickClassCheck(const lUInt32 *classHashes, size_t size) const {
+    // pseudo_elem: `LVCssSelector::check()` may move the check to its parent node
+    return !_rules || _pseudo_elem || _rules->quickClassCheck(classHashes, size);
+}
+
 bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, char stop_char=']' )
 {
     int pos = 0;
@@ -5953,6 +5968,7 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 : _type(v._type), _id(v._id), _attrid(v._attrid)
 , _next(NULL)
 , _value( v._value )
+, _valueHash(v._valueHash)
 {
     if ( v._next )
         _next = new LVCssSelectorRule( *v._next );
@@ -5988,6 +6004,21 @@ LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
     _selector_count = sheet._selector_count;
 }
 
+template<typename F>
+static void for_each_split(const lChar32 *begin, F functor) {
+    const lChar32 *end = begin;
+    while (*end) {
+        if (*end == ' ') {
+            if (end > begin)
+                functor(begin, end);
+            begin = end + 1;
+        }
+        ++end;
+    }
+    if (end > begin)
+        functor(begin, end);
+}
+
 void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
 {
     if (!_selectors.length())
@@ -6019,27 +6050,40 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
     LVCssSelector * selector_0 = _selectors[0];
     LVCssSelector * selector_id = id>0 && id<_selectors.length() ? _selectors[id] : NULL;
 
+    LVArray<lUInt32> class_hash_array;
+    bool class_hash_inited = false;
+
     for (;;)
     {
         if (selector_0!=NULL)
         {
+            if (!class_hash_inited) {
+                class_hash_inited = true;
+                const lString32 &v = node->getAttributeValue(attr_class);
+                for_each_split(v.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
+                    class_hash_array.add(lString32::getHash(begin, end));
+                });
+            }
             if (selector_id==NULL || selector_0->getSpecificity() < selector_id->getSpecificity() )
             {
                 // step by sel_0
-                selector_0->apply( node, style );
+                if (selector_0->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
+                    selector_0->apply( node, style );
                 selector_0 = selector_0->getNext();
             }
             else
             {
                 // step by sel_id
-                selector_id->apply( node, style );
+                if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
+                    selector_id->apply( node, style );
                 selector_id = selector_id->getNext();
             }
         }
         else if (selector_id!=NULL)
         {
             // step by sel_id
-            selector_id->apply( node, style );
+            if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
+                selector_id->apply( node, style );
             selector_id = selector_id->getNext();
         }
         else
