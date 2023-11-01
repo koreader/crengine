@@ -816,6 +816,7 @@ public:
     value_type firstChar() const { return empty() ? 0 : pchunk->buf32[0]; }
 
     /// calculates hash for string
+    static lUInt32 getHash(const lChar32 *begin, const lChar32 *end);
     lUInt32 getHash() const;
     /// returns character at specified position, without index bounds checking
     value_type operator [] ( size_type pos ) const { return pchunk->buf32[pos]; }
