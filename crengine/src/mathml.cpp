@@ -617,12 +617,13 @@ lString32 MathMLHelper::getMathMLAdjustedText(ldomNode * node, const lChar32 * t
     // (no substitution for "normal")
     if ( mathvariant != mathml_mathvariant_normal ) {
         len = mtext.length();
+        lChar32 *ptr = mtext.modify();
         for ( int i=0; i<len; i++ ) {
             lChar32 c = substitute_codepoint(mtext[i], mathvariant);
             // If c==0, no available substitution : we avoid modifying
             // the lString32 when not needed (as it may malloc/free)
             if (c != 0) {
-                mtext[i] = c;
+                ptr[i] = c;
             }
         }
     }
@@ -648,24 +649,25 @@ lString32 MathMLHelper::getMathMLAdjustedText(ldomNode * node, const lChar32 * t
     // as we meet them.
     // Some small list at https://trac.webkit.org/changeset/203714/webkit
     // More at https://lists.w3.org/Archives/Public/www-math/2018Nov/0005.html
-    switch (mtext[0]) {
-        case 0x0302:            // COMBINING CIRCUMFLEX ACCENT
-            mtext[0] = 0x02C6;  // => MODIFIER LETTER CIRCUMFLEX ACCENT
+    lChar32 *ptr = mtext.modify();
+    switch (ptr[0]) {
+        case 0x0302:          // COMBINING CIRCUMFLEX ACCENT
+            ptr[0] = 0x02C6;  // => MODIFIER LETTER CIRCUMFLEX ACCENT
             break;
-        case 0x0303:            // COMBINING TILDE
-            mtext[0] = 0x007E;  // => TILDE
+        case 0x0303:          // COMBINING TILDE
+            ptr[0] = 0x007E;  // => TILDE
             break;
-        case 0x0304:            // COMBINING MACRON
-            mtext[0] = 0x00AF;  // => MACRON
+        case 0x0304:          // COMBINING MACRON
+            ptr[0] = 0x00AF;  // => MACRON
             break;
-        case 0x0305:            // COMBINING OVERLINE
-            mtext[0] = 0x00AF;  // => MACRON
+        case 0x0305:          // COMBINING OVERLINE
+            ptr[0] = 0x00AF;  // => MACRON
             break;
-        case 0x030C:            // COMBINING CARON
-            mtext[0] = 0x02C7;  // => CARON
+        case 0x030C:          // COMBINING CARON
+            ptr[0] = 0x02C7;  // => CARON
             break;
-        case 0x0332:            // COMBINING LOW LINE
-            mtext[0] = 0x005F;  // => LOW LINE
+        case 0x0332:          // COMBINING LOW LINE
+            ptr[0] = 0x005F;  // => LOW LINE
             break;
         default:
             break;
