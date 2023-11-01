@@ -5392,7 +5392,7 @@ bool LVCssSelectorRule::checkNextRules( const ldomNode * node, bool allow_cache 
 {
     // Similar to LVCssSelector::check() just below, but
     // invoked from a rule
-    LVCssSelectorRule * rule = getNext();
+    const LVCssSelectorRule * rule = getNext();
     if (!rule)
         return true;
     const ldomNode * n = node;
@@ -5439,7 +5439,7 @@ bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
         return true;
     // check additional rules
     const ldomNode * n = node;
-    LVCssSelectorRule * rule = _rules;
+    const LVCssSelectorRule * rule = _rules.get();
     do {
         if ( !rule->check(n, allow_cache) )
             return false;
@@ -5689,26 +5689,17 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     return rule;
 }
 
-void LVCssSelector::insertRuleStart( LVCssSelectorRule * rule )
-{
-    rule->setNext( _rules );
-    _rules = rule;
-}
-
-void LVCssSelector::insertRuleAfterStart( LVCssSelectorRule * rule )
-{
-    if ( !_rules ) {
-        _rules = rule;
-        return;
-    }
-    rule->setNext( _rules->getNext() );
-    _rules->setNext( rule );
+static void insertRuleAtStart(LVCssSelectorRule * & start, LVCssSelectorRule * rule) {
+    rule->setNext(start);
+    start = rule;
 }
 
 bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
 {
     if (!str || !*str)
         return false;
+    bool res = false;
+    LVCssSelectorRule * start = nullptr;
     for (;;)
     {
         skip_spaces( str );
@@ -5746,8 +5737,9 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             // ident
             char ident[64];
-            if (!parse_ident( str, ident, 64, true ))
-                return false;
+            if (!parse_ident( str, ident, 64, true )) {
+                goto exit;
+            }
             // All element names have been lowercased by HTMLParser (except
             // a few ones that are added explicitely by crengine): we need
             // to lowercase them here too to expect a match.
@@ -5790,10 +5782,12 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         }
         else
         {
-            return false;
+            goto exit;
         }
-        if ( *str == ',' || *str == '{' )
-            return true;
+        if ( *str == ',' || *str == '{' ) {
+            res = true;
+            goto exit;
+        }
         // one or more attribute rules
         bool attr_rule = false;
         if (check_attribute_rules) {
@@ -5817,13 +5811,13 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                             // ("x::before::before" seems not ensured by Firefox - if we
                             // stop between them, the 2nd "::before" will make the parsing
                             // of the declaration invalid, and so this rule.)
-                            return true;
+                            res = true;
+                            goto exit;
                         }
                     }
-                    return false;
+                    goto exit;
                 }
-                insertRuleStart( rule ); //insertRuleAfterStart
-                //insertRuleAfterStart( rule ); //insertRuleAfterStart
+                insertRuleAtStart( start, rule );
                 _specificity += rule->getWeight();
 
                 /*
@@ -5851,7 +5845,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_parent);
             rule->setId(_id);
-            insertRuleStart( rule );
+            insertRuleAtStart( start, rule );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5861,7 +5855,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predecessor);
             rule->setId(_id);
-            insertRuleStart( rule );
+            insertRuleAtStart( start, rule );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5871,7 +5865,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predsibling);
             rule->setId(_id);
-            insertRuleStart( rule );
+            insertRuleAtStart( start, rule );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5880,16 +5874,21 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_ancessor);
             rule->setId(_id);
-            insertRuleStart( rule );
+            insertRuleAtStart( start, rule );
             _specificity += rule->getWeight();
             _id=0;
             continue;
         }
-        if ( !attr_rule )
-            return false;
-        else if ( *str == ',' || *str == '{' )
-            return true;
+        if ( !attr_rule ) {
+            goto exit;
+        } else if ( *str == ',' || *str == '{' ) {
+            res = true;
+            goto exit;
+        }
     }
+exit:
+    _rules = start;
+    return res;
 }
 
 static bool skip_until_end_of_rule( const char * &str )
@@ -5960,12 +5959,10 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 }
 
 LVCssSelector::LVCssSelector( LVCssSelector & v )
-: _id(v._id), _decl(v._decl), _specificity(v._specificity), _pseudo_elem(v._pseudo_elem), _next(NULL), _rules(NULL)
+: _id(v._id), _decl(v._decl), _specificity(v._specificity), _pseudo_elem(v._pseudo_elem), _next(NULL), _rules(v._rules)
 {
     if ( v._next )
         _next = new LVCssSelector( *v._next );
-    if ( v._rules )
-        _rules = new LVCssSelectorRule( *v._rules );
 }
 
 void LVStyleSheet::set(LVPtrVector<LVCssSelector> & v  )
@@ -6069,7 +6066,7 @@ lUInt32 LVCssSelector::getHash() const
 
     if (_next)
         nextHash = _next->getHash();
-    for (LVCssSelectorRule * p = _rules; p; p = p->getNext()) {
+    for (const LVCssSelectorRule * p = _rules.get(); p; p = p->getNext()) {
         lUInt32 ruleHash = p->getHash();
         hash = hash * 31 + ruleHash;
     }
