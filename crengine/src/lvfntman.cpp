@@ -728,7 +728,7 @@ public:
         }
         for (i = _instance_list.length(); i--; ) {
 #ifndef NDEBUG
-            LVFontRef &fnt = _registered_list[i]->_fnt;
+            LVFontRef &fnt = _instance_list[i]->_fnt;
             assert(fnt.isNull() || fnt.getRefCount() == 1);
 #endif
             delete _instance_list.remove(i);
