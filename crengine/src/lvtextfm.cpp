@@ -2907,6 +2907,7 @@ public:
             }
         }
 
+        bool boxes_positions_possibly_invalid = false;
         if ( extra_width < 0 ) {
             // line is too wide
             // reduce spaces to fit line
@@ -2947,11 +2948,30 @@ public:
         else if ( alignment==LTEXT_ALIGN_LEFT ) {
             // no additional alignment necessary
             // Except may be with CJK lines (the last line of a justified paragraph being left aligned)
-            if ( m_has_cjk && ( m_cjk_prev_line_added_space_div > 0 || m_cjk_prev_line_added_space_mod > 0 ) ) {
-                // We did add spacing to the previous line to ensure text justification (see below)
-                if ( frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
-                                              && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
-                    // 2 steps: first, check if we don't exceed the available width; if not, apply changes
+            if ( m_has_cjk ) {
+                if ( m_pbuffer->light_formatting ) {
+                    // If we are here, it's because we have inline boxes (probably ruby).
+                    // But the previous line may not, and may not have gone thru alignLine(), and
+                    // so m_cjk_prev_line_added_space_div/_mod may not be from the previous line
+                    // and may not be accurate.
+                    // The x position of the inlineBoxes we'll have computed below will be invalid,
+                    // and we'll need to recompute it when drawing that line (that we alas won't
+                    // get saved in the cache).
+                    // We'll set a flag in this case, but only if we know we'll need to do that work:
+                    if ( frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
+                                                  && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
+                        boxes_positions_possibly_invalid = true;
+                    }
+                }
+                else if ( (m_cjk_prev_line_added_space_div > 0 || m_cjk_prev_line_added_space_mod > 0)
+                          && frmline->word_count >= 2 && frmline->words[0].flags & LTEXT_WORD_IS_CJK
+                                                      && frmline->words[1].flags & LTEXT_WORD_IS_CJK ) {
+                    // Non-light-formatting:
+                    // The previous line did get some spacing added to ensure text justification (see below), so it is justified.
+                    // This is the last line, it is left-aligned, and it starts with at least 2 CJK chars.
+                    // We can apply that same spacing between the leading CJK chars of this last line, so they look vertically
+                    // aligned with the ones in the line above.
+                    // 2 steps: first, check if we won't exceed the available width; if not, apply changes
                     for ( int apply=0; apply<=1; apply++ ) {
                         if ( !apply ) {
                             // Don't do it if addSpaceDiv is larger than 1/4 em (probably some excessive
@@ -3068,7 +3088,8 @@ public:
                     RenderRectAccessor fmt( node );
                     if ( RENDER_RECT_HAS_FLAG(fmt, BOX_IS_POSITIONNED) )
                         continue;
-                    RENDER_RECT_SET_FLAG(fmt, BOX_IS_POSITIONNED);
+                    if ( !boxes_positions_possibly_invalid )
+                        RENDER_RECT_SET_FLAG(fmt, BOX_IS_POSITIONNED);
                     fmt.setX( frmline->x + word->x );
                     fmt.setY( frmline->y + frmline->baseline - word->o.baseline + word->y );
                     fmt.push();
