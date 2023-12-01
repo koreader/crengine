@@ -402,6 +402,7 @@ public:
     int  m_y;
     int  m_max_img_height;
     bool m_has_images;
+    bool m_has_inline_boxes;
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
@@ -457,7 +458,8 @@ public:
         m_srcs = NULL;
         m_charindex = NULL;
         m_widths = NULL;
-        m_has_images = false,
+        m_has_images = false;
+        m_has_inline_boxes = false;
         m_max_img_height = -1;
         m_has_float_to_position = false;
         m_has_ongoing_float = false;
@@ -916,6 +918,9 @@ public:
                         m_max_img_height -= node->getSurroundingAddedHeight(true);
                         m_has_images = true;
                     }
+                }
+                else if ( (src->o.objflags & LTEXT_OBJECT_IS_INLINE_BOX) && !m_has_inline_boxes ) {
+                    m_has_inline_boxes = true;
                 }
             }
             else {
@@ -3119,6 +3124,20 @@ public:
         // position them to have their x/y saved in their RenderRectAccessor
         // (so getRect() can work accurately before the page is drawn).
         bool light_formatting = m_pbuffer->light_formatting && !hasInlineBoxes;
+
+        // In one specific case, we don't want to have light formatting, and we need to go
+        // thru alignLine() with all the lines of the paragraph: if the paragraph contains
+        // CJK chars and inline boxes, and is justified and is not a single line.
+        // Because of our specific handling of the alignment of CJK chars on the last line
+        // with those of the previous line, we need that previous-to-last line to be non-light
+        // formatted so we get accurate m_cjk_prev_line_added_space_div/_mod to position
+        // any inline box in the last line (as their positions are saved in the cache).
+        // As we don't and can't know here if the current line is the previous to last,
+        // we go at non-light-formatting all lines...
+        if ( light_formatting && m_has_cjk && m_has_inline_boxes && !(first && last)
+                              && ((para->flags & LTEXT_FLAG_NEWLINE) == LTEXT_ALIGN_WIDTH) ) {
+            light_formatting = false;
+        }
 
         // todo: we can avoid some more work below when light_formatting (and
         // possibly the BiDi re-ordering we need for ordering footnotes, as
