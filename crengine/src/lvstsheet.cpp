@@ -6051,19 +6051,15 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
     LVCssSelector * selector_id = id>0 && id<_selectors.length() ? _selectors[id] : NULL;
 
     LVArray<lUInt32> class_hash_array;
-    bool class_hash_inited = false;
+    const lString32 &v = node->getAttributeValue(attr_class);
+    for_each_split(v.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
+        class_hash_array.add(lString32::getHash(begin, end));
+    });
 
     for (;;)
     {
         if (selector_0!=NULL)
         {
-            if (!class_hash_inited) {
-                class_hash_inited = true;
-                const lString32 &v = node->getAttributeValue(attr_class);
-                for_each_split(v.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
-                    class_hash_array.add(lString32::getHash(begin, end));
-                });
-            }
             if (selector_id==NULL || selector_0->getSpecificity() < selector_id->getSpecificity() )
             {
                 // step by sel_0
