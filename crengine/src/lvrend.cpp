@@ -11017,25 +11017,25 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     // border_width[4] [TRBL]: computed value: "the absolute length or 0 if border-style is none or hidden"
     if ( pstyle->border_width[0].type == css_val_inherited ) {
-        if ( parent_style->border_style_top == css_border_none )
+        if ( parent_style->border_style_top < css_border_solid )
             pstyle->border_width[0] = css_length_t(css_val_screen_px, 0);
         else
             inheritLength( pstyle->border_width[0], parent_style->border_width[0], parent_font_size );
     }
     if ( pstyle->border_width[1].type == css_val_inherited ) {
-        if ( parent_style->border_style_right == css_border_none )
+        if ( parent_style->border_style_right < css_border_solid )
             pstyle->border_width[1] = css_length_t(css_val_screen_px, 0);
         else
             inheritLength( pstyle->border_width[1], parent_style->border_width[1], parent_font_size );
     }
     if ( pstyle->border_width[2].type == css_val_inherited ) {
-        if ( parent_style->border_style_bottom == css_border_none )
+        if ( parent_style->border_style_bottom < css_border_solid )
             pstyle->border_width[2] = css_length_t(css_val_screen_px, 0);
         else
             inheritLength( pstyle->border_width[2], parent_style->border_width[2], parent_font_size );
     }
     if ( pstyle->border_width[3].type == css_val_inherited ) {
-        if ( parent_style->border_style_left == css_border_none )
+        if ( parent_style->border_style_left < css_border_solid )
             pstyle->border_width[3] = css_length_t(css_val_screen_px, 0);
         else
             inheritLength( pstyle->border_width[3], parent_style->border_width[3], parent_font_size );

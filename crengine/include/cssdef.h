@@ -259,6 +259,7 @@ enum css_value_type_t {
 enum css_border_style_type_t {
     css_border_inherit,
     css_border_none,
+    css_border_hidden,
     css_border_solid,
     css_border_dotted,
     css_border_dashed,
