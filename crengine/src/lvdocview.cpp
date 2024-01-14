@@ -834,6 +834,7 @@ LVTocItem * LVDocView::getToc() {
         if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers(getVisiblePageNumberCount())) {
             updatePageNumbers(m_doc->getToc());
             m_doc->setCacheFileStale(true); // have cache saved with the updated TOC
+            m_doc->setTocFromCacheValid();  // consider it valid now that page numbers are updated
         }
 	return m_doc->getToc();
 }

@@ -2610,6 +2610,7 @@ public:
 
 #if BUILD_LITE!=1
     bool isTocFromCacheValid() { return _toc_from_cache_valid; }
+    void setTocFromCacheValid() { _toc_from_cache_valid = true; }
 
     /// save document formatting parameters after render
     void updateRenderContext();
