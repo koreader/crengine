@@ -5708,9 +5708,39 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
     return rule;
 }
 
-static void insertRuleAtStart(LVCssSelectorRule * & start, LVCssSelectorRule * rule) {
-    rule->setNext(start);
-    start = rule;
+static void insertRule(LVCssSelectorRule * rule, LVCssSelectorRule * & start, LVCssSelectorRule * & anchor, bool anchorable) {
+    if ( !start ) {
+        start = rule;
+        if ( anchorable ) {
+            anchor = rule;
+        }
+        return;
+    }
+    if ( !anchorable ) {
+        // Parsed a parent, ancessor, predecessor, predsibling rule.
+        // Reset any anchor: any next rule will be put at start, and will become
+        // the new anchor if anchorable.
+        anchor = nullptr;
+    }
+    if ( anchorable && anchor ) {
+        // Parsed a class, id, attr, pseudoclass... rule, following another one
+        // of this type (that became anchor): append it to this anchor so they
+        // are checked in the order specified by the author (as all these rules
+        // are AND'ed, this order may not matter, but following the original order
+        // may be less expensive, ie: "table.mytab[rules]:not([rules="none"]").
+        // 'anchor' is always the tail end of consecutive anchorables
+        rule->setNext( (LVCssSelectorRule*)anchor->getNext() );
+        anchor->setNext( rule );
+        anchor = rule;
+    }
+    else {
+        // Not anchorable, or no anchor: put it at start.
+        rule->setNext(start);
+        start = rule;
+        if ( anchorable ) {
+            anchor = rule;
+        }
+    }
 }
 
 bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
@@ -5719,6 +5749,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         return false;
     bool res = false;
     LVCssSelectorRule * start = nullptr;
+    LVCssSelectorRule * anchor = nullptr;
     for (;;)
     {
         skip_spaces( str );
@@ -5836,7 +5867,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
                     }
                     goto exit;
                 }
-                insertRuleAtStart( start, rule );
+                insertRule( rule, start, anchor, true );
                 _specificity += rule->getWeight();
 
                 /*
@@ -5864,7 +5895,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_parent);
             rule->setId(_id);
-            insertRuleAtStart( start, rule );
+            insertRule( rule, start, anchor, false );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5874,7 +5905,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predecessor);
             rule->setId(_id);
-            insertRuleAtStart( start, rule );
+            insertRule( rule, start, anchor, false );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5884,7 +5915,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             str++;
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_predsibling);
             rule->setId(_id);
-            insertRuleAtStart( start, rule );
+            insertRule( rule, start, anchor, false );
             _specificity += rule->getWeight();
             _id=0;
             continue;
@@ -5893,7 +5924,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         {
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_ancessor);
             rule->setId(_id);
-            insertRuleAtStart( start, rule );
+            insertRule( rule, start, anchor, false );
             _specificity += rule->getWeight();
             _id=0;
             continue;
