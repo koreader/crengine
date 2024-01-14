@@ -275,6 +275,18 @@ enum LVCssSelectorPseudoClass
     csspc_only_child,       // :only-child
     csspc_only_of_type,     // :only-of-type
     csspc_empty,            // :empty
+    // The following functional pseudo classes are handled differently
+    // than the above ones, and are not affected by the re-rendering
+    // need in the above comment.
+    csspc_is,               // :is(...)
+    csspc_where,            // :where(...)
+    csspc_not,              // :not(...)
+        // Note: :has(...) is more recent, and could be nice to have
+        // for style tweaks, but it is harder to implement (its presence
+        // would always require this re-rendering, and would need us to
+        // either check subselectors for each of ALL children, or to
+        // implement a new up>down LVCssSelector::check() which feels
+        // complicated.
 };
 
 static const char * css_pseudo_classes[] =
@@ -292,6 +304,9 @@ static const char * css_pseudo_classes[] =
     "only-child",
     "only-of-type",
     "empty",
+    "is",
+    "where",
+    "not",
     NULL
 };
 
@@ -4905,8 +4920,28 @@ lUInt32 LVCssSelectorRule::getWeight() const {
         case cssrt_attrcontains:      // E[foo*="value"]
         case cssrt_attrcontains_i:    // E[foo*="value" i]
         case cssrt_class:             // E.class
-        case cssrt_pseudoclass:       // E:pseudo-class
             return WEIGHT_SPECIFICITY_ATTRCLS;
+            break;
+        case cssrt_pseudoclass:       // E:pseudo-class
+            if ( _attrid < csspc_is ) {
+                return WEIGHT_SPECIFICITY_ATTRCLS;
+            }
+            else if ( _attrid == csspc_where ) {
+                // "The difference between :where() and :is() is that :where() always has 0 specificity"
+                return 0;
+            }
+            else {
+                // :is() and :not() take the specificity of the most specific subselector
+                lUInt32 max_specificity = 0;
+                LVCssSelector * selector = getSubSelectors().get();
+                while ( selector ) {
+                    lUInt32 specificity = selector->getSpecificity();
+                    if ( max_specificity < specificity )
+                        max_specificity = specificity;
+                    selector = selector->getNext();
+                }
+                return max_specificity;
+            }
             break;
         case cssrt_parent:        // E > F
         case cssrt_ancessor:      // E F
@@ -5536,6 +5571,29 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
                     return n == 2;
                 }
                 break;
+                case csspc_is:
+                case csspc_where:
+                case csspc_not:
+                {
+                    LVCssSelector * selector = getSubSelectors().get();
+                    while ( selector ) {
+                        const ldomNode * n = node; // We don't want to update 'node'
+                        if ( selector->check(n) ) {
+                            if ( _attrid == csspc_not ) {
+                                // :not() : any match is enough to fail
+                                return false;
+                            }
+                            else {
+                                // :is(), :where() : any match is enough to succeed
+                                return true;
+                            }
+                        }
+                        selector = selector->getNext();
+                    }
+                    // No match: it is a success with :not(), otherwise a failure.
+                    return _attrid == csspc_not;
+                }
+                break;
             }
         }
         return false;
@@ -5723,6 +5781,64 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc, bool usera
             str--; // LVCssSelector::parse() will also check for :before/after with a single ':'
             return NULL;
         }
+        if ( n >= csspc_is ) {
+            // Specific parsing and handling of functional pseudo classes :is() :where() :not()
+            // https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes#functional_pseudo-classes
+            if ( *str!='(' ) {
+                return NULL;
+            }
+            str++;
+            // We should parse a list of selectors, with possibly other nested :is()...,
+            // so trust our selector parsing code
+            LVCssSelector * first_selector = NULL;
+            LVCssSelector * prev_selector = NULL;
+            LVCssSelector * selector = NULL;
+            bool has_invalid_selectors = false;
+            while ( *str ) {
+                selector = new LVCssSelector();
+                if ( selector->parse(str, doc, useragent_sheet, true) ) {
+                    if ( !first_selector )
+                        first_selector = selector;
+                    if ( prev_selector )
+                        prev_selector->setNext( selector );
+                    prev_selector = selector;
+                }
+                else {
+                    delete selector;
+                    // With :is() or :where(), we should just ignore unsupported selectors,
+                    // and continue parsing others.
+                    // With :not(), we'll fail, but keep parsing properly so the parsing
+                    // state is clean for what comes next.
+                    has_invalid_selectors = true;
+                }
+                skip_to_next( str, ',', ')' );
+                if ( *str == ')' ) { // end of selector list
+                    str++;
+                    if ( has_invalid_selectors && n == csspc_not ) {
+                        // :is() and :where() accepts a "forgiving selector list", meaning unsupported
+                        // selectors are just ignored.
+                        // But :not() does not, and any unsupported one make it all invalid. It also
+                        // makes any any prev or next selectors skipped (checked with Firefox), ie.:
+                        //   "blockquote, div p:not(.foo, :unsupported), article { color: yellow;}
+                        // wouldn't get blockquote nor article yellow. So, we don't need to build
+                        // and return a valid but non-matching LVCssSelectorRule.
+                        break;
+                    }
+                    LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
+                    rule->setAttr(n, lString32::empty_str);
+                    rule->setSubSelectors(LVRef(first_selector));
+                    return rule;
+                }
+                // Either ',' met (and skipped by skip_to_next()) and we should expect another selector,
+                // or end of string and we'll just exit the loop.
+                continue;
+            }
+            // No proper ')' met, or not() with some invalid selector: invalid, clean up
+            if ( first_selector )
+                delete first_selector;
+            return NULL;
+        }
+        // Generic parsing of other pseudo classes
         attrvalue[0] = 0;
         if (*str=='(') { // parse () content
             str++;
@@ -5897,7 +6013,7 @@ static void insertRule(LVCssSelectorRule * rule, LVCssSelectorRule * & start, LV
     }
 }
 
-bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet )
+bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet, bool for_functional_pseudo_class )
 {
     if (!str || !*str)
         return false;
@@ -5988,7 +6104,13 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc, bool useragent_
         {
             goto exit;
         }
-        if ( *str == ',' || *str == '{' ) {
+        if ( for_functional_pseudo_class ) {
+            if ( *str == ',' || *str == ')' ) {
+                res = true;
+                goto exit;
+            }
+        }
+        else if ( *str == ',' || *str == '{' ) {
             res = true;
             goto exit;
         }
@@ -6085,7 +6207,14 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc, bool useragent_
         }
         if ( !attr_rule ) {
             goto exit;
-        } else if ( *str == ',' || *str == '{' ) {
+        }
+        else if ( for_functional_pseudo_class ) {
+            if ( *str == ',' || *str == ')' ) {
+                res = true;
+                goto exit;
+            }
+        }
+        else if ( *str == ',' || *str == '{' ) {
             res = true;
             goto exit;
         }
@@ -6158,6 +6287,7 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 , _next(NULL)
 , _value( v._value )
 , _valueHash(v._valueHash)
+, _subSelectors(v._subSelectors)
 {
     if ( v._next )
         _next = new LVCssSelectorRule( *v._next );
@@ -6285,6 +6415,8 @@ lUInt32 LVCssSelectorRule::getHash() const
         + (lUInt32)_id ) *31 )
         + (lUInt32)_attrid * 31 )
         + ::getHash(_value);
+    if ( !_subSelectors.isNull() )
+        hash = hash * 31 + _subSelectors->getHash();
     return hash;
 }
 

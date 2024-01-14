@@ -124,6 +124,9 @@ enum LVCssSelectorRuleType
     cssrt_pseudoclass        // E:pseudo-class, E:pseudo-class(value)
 };
 
+class LVCssSelector;
+typedef LVRef<LVCssSelector> LVCssSelectorRef;
+
 class LVCssSelectorRule
 {
     //
@@ -133,10 +136,11 @@ class LVCssSelectorRule
     LVCssSelectorRule * _next;
     lString32 _value;
     lUInt32 _valueHash = 0;
+    LVCssSelectorRef _subSelectors; // For pseudoclass rules :is(...), :where(...), :not(...)
     bool checkInnerText( const ldomNode * & node ) const;
 public:
     explicit LVCssSelectorRule(LVCssSelectorRuleType type)
-    : _type(type), _id(0), _attrid(0), _next(NULL)
+    : _type(type), _id(0), _attrid(0), _next(NULL), _subSelectors(NULL)
     { }
     LVCssSelectorRule( LVCssSelectorRule & v );
     void setId( lUInt16 id ) { _id = id; }
@@ -148,6 +152,8 @@ public:
     }
     const LVCssSelectorRule * getNext() const { return _next; }
     void setNext(LVCssSelectorRule * next) { _next = next; }
+    LVCssSelectorRef getSubSelectors() const { return _subSelectors; }
+    void setSubSelectors(LVCssSelectorRef subSelectors) { _subSelectors = subSelectors; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
     // A fail-fast check, returning false to rule out a match.
     bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
@@ -184,7 +190,7 @@ public:
     LVCssSelector() : _id(0), _specificity(0), _pseudo_elem(0),  _next(NULL), _rules(NULL) { }
     explicit LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
     ~LVCssSelector() { if (_next) delete _next; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
-    bool parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet=false );
+    bool parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet=false, bool for_functional_pseudo_class=false );
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
     bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
