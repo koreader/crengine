@@ -5078,7 +5078,7 @@ public:
         source_info << "/* --- in " << sourceInfo << ": --- */";
         matches.add(source_info);
         LVStyleSheet styleSheet(_document);
-        styleSheet.gatherNodeMatchingRulesets(node, s, matches);
+        styleSheet.gatherNodeMatchingRulesets(node, s, false, matches);
     }
 
 private:
@@ -8571,7 +8571,7 @@ bool ldomNode::applyNodeStylesheet()
 
 void ldomNode::gatherStylesheetMatchingRulesets(const lString8 & css, bool include_document_stylesheets, lString8Collection & matches) {
     LVStyleSheet styleSheet(getDocument());
-    styleSheet.gatherNodeMatchingRulesets(this, css.c_str(), matches);
+    styleSheet.gatherNodeMatchingRulesets(this, css.c_str(), true, matches); // useragent sheet
     if ( include_document_stylesheets ) {
         // Find the nodes and stylesheets as in ldomNode::applyNodeStylesheet() above.
         // (This also handles FB2's <FictionBook><stylesheet> as in ldomDocument::applyDocumentStyleSheet().)

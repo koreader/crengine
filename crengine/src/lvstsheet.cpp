@@ -5540,7 +5540,7 @@ bool parse_attr_value( const char * &str, char * buf, char stop_char=']' )
     return parse_attr_value( str, buf, parse_trailing_i, stop_char );
 }
 
-LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc )
+LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc, bool useragent_sheet )
 {
     // We should not skip_spaces() here: it's invalid just after one of '.#:'
     // and we should keep the one after the parsed value as its presence or not
@@ -5743,7 +5743,7 @@ static void insertRule(LVCssSelectorRule * rule, LVCssSelectorRule * & start, LV
     }
 }
 
-bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
+bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet )
 {
     if (!str || !*str)
         return false;
@@ -5843,7 +5843,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
         if (check_attribute_rules) {
             while ( *str == '[' || *str=='.' || *str=='#' || *str==':' )
             {
-                LVCssSelectorRule * rule = parse_attr( str, doc );
+                LVCssSelectorRule * rule = parse_attr( str, doc, useragent_sheet );
                 if (!rule) {
                     // Might be one of our supported pseudo elements, which should
                     // start with "::" but might start with a single ":".
@@ -6212,7 +6212,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             selector = new LVCssSelector(_selector_count);
             _selector_count += 1; // = +WEIGHT_SELECTOR_ORDER
             selector->setNext( prev_selector );
-            if ( !selector->parse(str, _doc) )
+            if ( !selector->parse(str, _doc, useragent_sheet) )
             {
                 err = true;
                 break;
@@ -6281,7 +6281,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
 }
 
 /// Gather snippets in the provided CSS that the provided node would match
-bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) const {
+bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str, bool useragent_sheet, lString8Collection & matches) const {
     // Parsing as in parseAndAdvance() but simplified as we don't need to build anything
     bool ret = false;
     if ( !_doc ) {
@@ -6306,7 +6306,7 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
                 start = str;
             }
             LVCssSelector selector;
-            if ( !selector.parse(str, _doc) ) {
+            if ( !selector.parse(str, _doc, useragent_sheet) ) {
                 err = true;
                 break;
             }
@@ -6328,7 +6328,7 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
             }
             // parse declaration
             LVCssDeclaration decl;
-            if ( !decl.parse( str, false, _doc) ) {
+            if ( !decl.parse( str, useragent_sheet, _doc) ) {
                 err = true;
             }
             end = str;

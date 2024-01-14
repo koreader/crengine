@@ -183,7 +183,7 @@ public:
     LVCssSelector() : _id(0), _specificity(0), _pseudo_elem(0),  _next(NULL), _rules(NULL) { }
     explicit LVCssSelector(lUInt32 specificity) : _id(0), _specificity(specificity), _pseudo_elem(0), _next(NULL), _rules(NULL) { }
     ~LVCssSelector() { if (_next) delete _next; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
-    bool parse( const char * &str, lxmlDocBase * doc );
+    bool parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet=false );
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
     bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
@@ -307,7 +307,7 @@ public:
     lUInt32 getHash() const;
     void merge(const LVStyleSheet &other);
     /// gather snippets in the provided CSS that the provided node would match
-    bool gatherNodeMatchingRulesets(ldomNode * node, const char * str, lString8Collection & matches) const;
+    bool gatherNodeMatchingRulesets(ldomNode * node, const char * str, bool useragent_sheet, lString8Collection & matches) const;
 };
 
 /// parse number/length value like "120px" or "90%"
