@@ -5073,13 +5073,16 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             lString32 val = node->getAttributeValue(_attrid);
             if (_type == cssrt_attrhas_i)
                 val.lowercase();
-            int p = val.pos( _value );
-            if (p<0)
-                return false;
-            if ( (p>0 && val[p-1]!=' ') 
-                    || (p+_value.length()<val.length() && val[p+_value.length()]!=' ') )
-                return false;
-            return true;
+            int val_len = val.length();
+            int value_len = _value.length();
+            int start = 0;
+            int pos;
+            while ((pos = val.pos(_value, start)) >= 0) {
+                if ((pos == 0 || val[pos - 1] == ' ') && (pos + value_len == val_len || val[pos + value_len] == ' '))
+                    return true;
+                start = pos + 1;
+            }
+            return false;
         }
         break;
     case cssrt_attrstarts_word:    // E[foo|="value"]
