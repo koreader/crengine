@@ -146,6 +146,7 @@ XS_TAG1T( dir )    // similar to "ul"
 XS_TAG1T( menu )   // similar to "ul"
 // Other non-inline elements present in html5.css
 XS_TAG1T( noframes )
+XS_TAG1T( search )
 XS_TAG1D( listing, true, css_d_block, css_ws_pre ) // similar to "pre"
 XS_TAG1D( textarea, true, css_d_block, css_ws_pre ) // similar to "pre"
 XS_TAG1D( plaintext, true, css_d_block, css_ws_pre ) // start of raw text (no end tag), not supported
@@ -227,6 +228,7 @@ XS_TAG1I( u )
 XS_TAG1I( acronym )
 XS_TAG1I( bdi )
 XS_TAG1I( bdo )
+XS_TAG1I( blink )
 XS_TAG1I( br )
 XS_TAG1I( cite ) // conflict between HTML (inline) and FB2 (block): default here to inline (fb2.css puts it back to block)
 XS_TAG1I( del )
@@ -236,6 +238,7 @@ XS_TAG1I( ins )
 XS_TAG1I( kbd )
 XS_TAG1I( q )
 XS_TAG1I( samp )
+XS_TAG1I( slot )
 XS_TAG1I( span )
 XS_TAG1I( sub )
 XS_TAG1I( sup )
