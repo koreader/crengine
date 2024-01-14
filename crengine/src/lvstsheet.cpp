@@ -5886,7 +5886,7 @@ bool LVCssSelector::parse( const char * &str, lxmlDocBase * doc )
             _id=0;
             continue;
         }
-        else if (css_is_alpha( *str ) || (*str == '.') || (*str == '#') || (*str == '*') )
+        else if (css_is_alpha( *str ) || (*str == '.') || (*str == '#') || (*str == '*') || (*str == '[') || (*str == ':') )
         {
             LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_ancessor);
             rule->setId(_id);
