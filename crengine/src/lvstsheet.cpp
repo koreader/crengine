@@ -6188,7 +6188,7 @@ static void insert_into_selectors(LVCssSelector *item, LVPtrVector<LVCssSelector
         selectors[id] = item;
 }
 
-bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, lString32 codeBase )
+bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lString32 codeBase )
 {
     if ( !_doc ) {
         // We can't parse anything if no _doc to get element name ids from
@@ -6227,8 +6227,11 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool higher_importance, l
                 }
             }
             // parse declaration
+            // (If useragent_sheet, we pass higher_importance=true to ensure !important from
+            // the useragent + user (tweaks) sheets are not overridden by authors !important,
+            // as per the CSS cascade specs.)
             LVCssDeclRef decl( new LVCssDeclaration );
-            if ( !decl->parse( str, higher_importance, _doc, codeBase ) )
+            if ( !decl->parse( str, useragent_sheet, _doc, codeBase ) )
             {
                 err = true;
                 err_count++;

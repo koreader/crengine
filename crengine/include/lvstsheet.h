@@ -295,11 +295,11 @@ public:
     /// copy constructor
     LVStyleSheet( LVStyleSheet & sheet );
     /// parse stylesheet, compile and add found rules to sheet
-    bool parseAndAdvance( const char * &str, bool higher_importance=false, lString32 codeBase=lString32::empty_str );
-    bool parse( const char * str, bool higher_importance=false, lString32 codeBase=lString32::empty_str ) {
+    bool parseAndAdvance( const char * &str, bool useragent_sheet=false, lString32 codeBase=lString32::empty_str );
+    bool parse( const char * str, bool useragent_sheet=false, lString32 codeBase=lString32::empty_str ) {
         // (Need this wrapper for 'const char * &str' to work with string litteral/LCSTR()/c_str())
         const char * s = str;
-        return parseAndAdvance(s, higher_importance, codeBase);
+        return parseAndAdvance(s, useragent_sheet, codeBase);
     }
     /// apply stylesheet to node style
     void apply( const ldomNode * node, css_style_rec_t * style ) const;
