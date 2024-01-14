@@ -2970,12 +2970,14 @@ private:
     lString32 baseTagReplacement;
     lString32 codeBase;
     lString32 filePathName;
+    lString32 fragmentType;
     lString32 codeBasePrefix;
     lString32 tmpStylesheetLink;
     lString32 tmpStylesheetMediaCondition;
     lString32Collection stylesheetLinks;
     lString32Collection stylesheetLinksMediaConditions;
     bool insideTag;
+    bool baseTagMet;
     int styleDetectionState;
     LVHashTable<lString32, lString32> pathSubstitutions;
 
@@ -3008,6 +3010,9 @@ public:
         pathSubstitutions.set(key, value);
     }
 
+    bool hasMetBaseTag() { return baseTagMet; }
+    void setFragmentType( lString32 fragment_type=lString32::empty_str ) { fragmentType = fragment_type; }
+
     virtual void setCodeBase( lString32 filePath );
     /// returns flags
     virtual lUInt32 getFlags() { return parent->getFlags(); }
@@ -3021,6 +3026,7 @@ public:
     virtual void OnStart(LVFileFormatParser *)
     {
         insideTag = false;
+        baseTagMet = false;
         headStyleText.clear();
         headStyleState = 0;
         insideHtmlTag = false;
