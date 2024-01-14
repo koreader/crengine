@@ -8869,6 +8869,10 @@ ldomDocumentWriter::~ldomDocumentWriter()
                 // Some pseudoclass like :last-child has been met which has set this flag
                 printf("CRE: document loaded, but styles re-init needed (cause: peculiar CSS pseudoclasses met)\n");
             }
+            if ( _document->_nodeStylesInvalidIfLoadingReasons & NODE_STYLES_INVALID_PECULIAR_CSS_INNER_CONTENT_CHECK ) {
+                // Some CSS selector like private syntax [_*=text] (or :has(), once we support it) has been met which has set this flag
+                printf("CRE: document loaded, but styles re-init needed (cause: peculiar CSS inner content check met)\n");
+            }
             if ( _document->_nodeStylesInvalidIfLoadingReasons & NODE_STYLES_INVALID_FOSTER_PARENTING_OF_INVALID_TABLE_ELEMENT ) {
                 // With the HTML parser, foster parenting of invalid element in tables
                 printf("CRE: document loaded, but styles re-init needed (cause: foster parenting of invalid element in tables)\n");

@@ -133,6 +133,7 @@ class LVCssSelectorRule
     LVCssSelectorRule * _next;
     lString32 _value;
     lUInt32 _valueHash = 0;
+    bool checkInnerText( const ldomNode * & node ) const;
 public:
     explicit LVCssSelectorRule(LVCssSelectorRuleType type)
     : _type(type), _id(0), _attrid(0), _next(NULL)
