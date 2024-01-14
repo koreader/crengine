@@ -2755,6 +2755,7 @@ static const char * css_lsp_names[] =
 static const char * css_bst_names[]={
   "", // css_border_inherit
   "none",
+  "hidden",
   "solid",
   "dotted",
   "dashed",
