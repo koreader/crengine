@@ -434,6 +434,7 @@ XS_ATTR( Before ) // for pseudoElem internal element
 XS_ATTR( After )  // for pseudoElem internal element
 XS_ATTR( ParserHint )   // HTML parser hints (used for Lib.ru support)
 XS_ATTR( NonLinear )    // for non-linear items in EPUB
+XS_ATTR( InnerText )    // for CSS attribute rules to match against the inner text instead
 
 // Other classic attributes present in html5.css
 XS_ATTR2( accept_charset, "accept-charset" )

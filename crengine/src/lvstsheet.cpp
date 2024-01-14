@@ -4923,6 +4923,133 @@ lUInt32 LVCssSelectorRule::getWeight() const {
     return 0;
 }
 
+bool LVCssSelectorRule::checkInnerText( const ldomNode * & node ) const {
+    // Non per-specs CSS, using the same syntax as attribute selectors, with "_" as
+    // the attribute name, to match against the node full inner text.
+    lString32 val = node->getText();
+    // Not sure if we should trim() this to remove any leading and trailing space
+    switch (_type)
+    {
+    case cssrt_attrset:       // E[_]
+        // with attributes: defined
+        // => with text: not empty
+        {
+            return !val.empty();
+        }
+        break;
+    case cssrt_attreq:        // E[_="value"]
+    case cssrt_attreq_i:      // E[_="value" i]
+        {
+            if (_type == cssrt_attreq_i)
+                val.lowercase();
+            return val == _value;
+        }
+        break;
+    case cssrt_attrhas:       // E[_~="value"]
+    case cssrt_attrhas_i:     // E[_~="value" i]
+        // with attributes: one of space separated values
+        // => with text: bounded by characters considered word boundaries (as for lvtinydom.cpp IsWordBoundary()):
+        //    not alpha, diacritic, softhyphen nor digit; that is: spaces, punctuations, but also CJK and
+        //    sign/symbols (which themselves are a boundary of the single-char word they are
+        {
+            if (_type == cssrt_attrhas_i)
+                val.lowercase();
+            int val_len = val.length();
+            int value_len = _value.length();
+            int start = 0;
+            int pos;
+            while ((pos = val.pos(_value, start)) >= 0) {
+                bool start_ok = false;
+                if ( pos == 0 ) {
+                    start_ok = true;
+                }
+                else {
+                    lChar32 ch = val[pos-1];
+                    if ( !(lGetCharProps(ch) & (CH_PROP_ALPHA|CH_PROP_MODIFIER|CH_PROP_HYPHEN|CH_PROP_DIGIT)) || lStr_isCJK(ch) ) {
+                        start_ok = true;
+                    }
+                }
+                if ( start_ok ) {
+                    if ( pos + value_len >= val_len ) {
+                        return true; // end_ok
+                    }
+                    lChar32 ch = val[pos+value_len];
+                    if ( !(lGetCharProps(ch) & (CH_PROP_ALPHA|CH_PROP_MODIFIER|CH_PROP_HYPHEN|CH_PROP_DIGIT)) || lStr_isCJK(ch) ) {
+                        return true; // end_ok
+                    }
+                }
+                start = pos + 1;
+            }
+            return false;
+        }
+        break;
+    case cssrt_attrstarts_word:    // E[_|="value"]
+    case cssrt_attrstarts_word_i:  // E[_|="value" i]
+        // with attrbutes: value can be exactly value or can begin with value immediately followed by a hyphen
+        // => with text: bounded by characters considered word boundaries (as cssrt_attrhas) but only on the left
+        {
+            if (_type == cssrt_attrstarts_word_i)
+                val.lowercase();
+            int val_len = val.length();
+            int value_len = _value.length();
+            int start = 0;
+            int pos;
+            while ((pos = val.pos(_value, start)) >= 0) {
+                bool start_ok = false;
+                if ( pos == 0 ) {
+                    return true; // start_ok
+                }
+                else {
+                    lChar32 ch = val[pos-1];
+                    if ( !(lGetCharProps(ch) & (CH_PROP_ALPHA|CH_PROP_MODIFIER|CH_PROP_HYPHEN|CH_PROP_DIGIT)) || lStr_isCJK(ch) ) {
+                        return true; // start_ok
+                    }
+                }
+                start = pos + 1;
+            }
+            return false;
+        }
+        break;
+    case cssrt_attrstarts:    // E[_^="value"]
+    case cssrt_attrstarts_i:  // E[_^="value" i]
+        {
+            int val_len = val.length();
+            int value_len = _value.length();
+            if (value_len > val_len)
+                return false;
+            val = val.substr(0, value_len);
+            if (_type == cssrt_attrstarts_i)
+                val.lowercase();
+            return val == _value;
+        }
+        break;
+    case cssrt_attrends:    // E[_$="value"]
+    case cssrt_attrends_i:  // E[_$="value" i]
+        {
+            int val_len = val.length();
+            int value_len = _value.length();
+            if (value_len > val_len)
+                return false;
+            val = val.substr(val_len-value_len, value_len);
+            if (_type == cssrt_attrends_i)
+                val.lowercase();
+            return val == _value;
+        }
+        break;
+    case cssrt_attrcontains:    // E[_*="value"]
+    case cssrt_attrcontains_i:  // E[_*="value" i]
+        {
+            if (_value.length()>val.length())
+                return false;
+            if (_type == cssrt_attrcontains_i)
+                val.lowercase();
+            return val.pos(_value, 0) >= 0;
+        }
+        break;
+    }
+    return false;
+}
+
 bool LVCssSelectorRule::quickClassCheck(const lUInt32 *classHashes, size_t size) const {
     if (_type != cssrt_class)
         return true;
@@ -5048,6 +5175,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
         break;
     case cssrt_attrset:       // E[foo]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttributes() )
                 return false;
             return node->hasAttribute(_attrid);
@@ -5056,6 +5185,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attreq:        // E[foo="value"]
     case cssrt_attreq_i:      // E[foo="value" i]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             lString32 val = node->getAttributeValue(_attrid);
@@ -5068,6 +5199,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attrhas_i:     // E[foo~="value" i]
         // one of space separated values
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             lString32 val = node->getAttributeValue(_attrid);
@@ -5088,6 +5221,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attrstarts_word:    // E[foo|="value"]
     case cssrt_attrstarts_word_i:  // E[foo|="value" i]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             // value can be exactly value or can begin with value
@@ -5111,6 +5246,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attrstarts:    // E[foo^="value"]
     case cssrt_attrstarts_i:  // E[foo^="value" i]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             lString32 val = node->getAttributeValue(_attrid);
@@ -5127,6 +5264,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attrends:    // E[foo$="value"]
     case cssrt_attrends_i:  // E[foo$="value" i]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             lString32 val = node->getAttributeValue(_attrid);
@@ -5143,6 +5282,8 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
     case cssrt_attrcontains:    // E[foo*="value"]
     case cssrt_attrcontains_i:  // E[foo*="value" i]
         {
+            if ( _attrid == attr_InnerText )
+                return checkInnerText(node);
             if ( !node->hasAttribute(_attrid) )
                 return false;
             lString32 val = node->getAttributeValue(_attrid);
@@ -5482,7 +5623,7 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
         str++;
         for ( ; str[pos] && str[pos]!=quote_ch; pos++)
         {
-            if (pos>=64)
+            if (pos>=512)
                 return false;
         }
         if (str[pos]!=quote_ch)
@@ -5510,7 +5651,7 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
     {
         for ( ; str[pos] && str[pos]!=' ' && str[pos]!='\t' && str[pos]!=stop_char; pos++)
         {
-            if (pos>=64)
+            if (pos>=512)
                 return false;
         }
         int end_pos = pos;
@@ -5703,7 +5844,20 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc, bool usera
     if (parse_trailing_i) { // cssrt_attr*_i met
         s.lowercase();
     }
-    lUInt16 id = doc->getAttrNameIndex( lString32(attrname).c_str() );
+    lUInt16 id;
+    if ( useragent_sheet && attrname[0] == '_' && attrname[1] == 0 ) {
+        // crengine private syntax (only allowed in useragent stylesheet (which
+        // includes styletweaks): '_' as the attribute name means we want to
+        // match against the node's full inner text.
+        id = attr_InnerText;
+        // When applying styles while in the initial book loading and DOM building phase,
+        // no text is available yet, so this does need a re-rendering.
+        // (All the initial checks will fail, quickly and cheaply, no need to try to avoid them.)
+        doc->setNodeStylesInvalidIfLoading(NODE_STYLES_INVALID_PECULIAR_CSS_INNER_CONTENT_CHECK);
+    }
+    else {
+        id = doc->getAttrNameIndex( lString32(attrname).c_str() );
+    }
     rule->setAttr(id, s);
     return rule;
 }
