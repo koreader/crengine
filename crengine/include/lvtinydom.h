@@ -523,7 +523,8 @@ protected:
 
     int _styleIndex;
 
-    LVStyleSheet  _stylesheet;
+    LVStyleSheet  _ua_stylesheet; // user-agent stylesheet (set by frontend)
+    LVStyleSheet  _stylesheet;    // authors stylesheet, filled with document's stylesheet(s)
 
     LVHashTable<lUInt16, lUInt16> _fontMap; // style index to font index
 
@@ -1339,14 +1340,31 @@ public:
 #endif
     }
 
+    /// get authors stylesheet
     inline LVStyleSheet * getStyleSheet() { return &_stylesheet; }
-    /// sets style sheet, clears old content of css if arg replace is true
+
+    /// sets user-agent style sheet, clears old content of css if arg replace is true
     void setStyleSheet( const char * css, bool replace );
 
 #if BUILD_LITE!=1
     /// apply document's stylesheet to element node
     inline void applyStyle( ldomNode * element, css_style_rec_t * pstyle)
     {
+        // We used to have a single _stylesheet, filled with user-agent stylesheet,
+        // and then, as we meet author stylesheets,  backuped (with .push()) and
+        // extended with author stylesheet content (by inserting author selectors
+        // *among* useragent depending on their relative specificity - and then
+        // restored (with .pop()) to the original useragent stylesheet state when
+        // leaving the document or DocFragment.
+        // This was wrong!
+        // https://www.w3.org/TR/css-cascade-4/#cascading
+        // The specs says that all selectors from the useragent are to be applied first,
+        // and then all those from the author stylesheet, without interleaving.
+        // To ensure that, we now have 2 stylesheet objects.
+        // (We're keeping the .push() / .pop() where they were, just in case, but
+        // they are now useless, saving & restoring an empty _stylesheet. The
+        // existing comments around these places may no longer be relevant.)
+        _ua_stylesheet.apply( element, pstyle );
         _stylesheet.apply( element, pstyle );
     }
 #endif

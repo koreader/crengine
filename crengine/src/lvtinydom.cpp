@@ -2437,6 +2437,7 @@ tinyNodeCollection::tinyNodeCollection( tinyNodeCollection & v )
 , _styleStorage(this, 's', (lUInt32)(STYLE_CACHE_UNPACKED_SPACE*_storageMaxUncompressedSizeFactor), STYLE_CACHE_CHUNK_SIZE ) // element style info storage
 ,_docProps(LVCreatePropsContainer())
 ,_docFlags(v._docFlags)
+,_ua_stylesheet(v._ua_stylesheet)
 ,_stylesheet(v._stylesheet)
 ,_fontMap(113)
 {
@@ -3785,6 +3786,7 @@ lxmlDocBase::lxmlDocBase( int /*dataBufSize*/ )
 #endif
 {
     // create and add one data buffer
+    _ua_stylesheet.setDocument( this );
     _stylesheet.setDocument( this );
 }
 
@@ -5136,7 +5138,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->caption_side = css_cs_top;
     s->cr_hint = css_length_t(css_val_unspecified, CSS_CR_HINT_NONE);
 
-    //lUInt32 defStyleHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
+    //lUInt32 defStyleHash = (((_ua_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
     if ( _last_docflags != getDocFlags() ) {
         CRLog::trace("ldomDocument::setRenderProps() - doc flags changed");
@@ -16634,7 +16636,7 @@ bool ldomDocument::saveChanges()
 bool tinyNodeCollection::saveStylesData()
 {
     SerialBuf stylebuf(0, true);
-    lUInt32 stHash = _stylesheet.getHash();
+    lUInt32 stHash = _ua_stylesheet.getHash();
     LVArray<css_style_ref_t> * list = _styles.getIndex();
     stylebuf.putMagic(styles_magic);
     stylebuf << stHash;
@@ -17465,7 +17467,7 @@ void ldomDocument::updateRenderContext()
     int dy = _page_height;
     _nodeStyleHash = 0; // force recalculation by calcStyleHash()
     lUInt32 styleHash = calcStyleHash(_rendered, _partial_rerendering_fake_node_style_hash);
-    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
+    lUInt32 stylesheetHash = (((_ua_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
     _hdr.render_style_hash = styleHash;
     _hdr.stylesheet_hash = stylesheetHash;
@@ -17495,7 +17497,7 @@ bool ldomDocument::checkRenderContext()
     int dy = _page_height;
     // printf("checkRenderContext: _nodeStyleHash before %x\n", _nodeStyleHash);
     lUInt32 styleHash = calcStyleHash(_rendered, _partial_rerendering_fake_node_style_hash);
-    lUInt32 stylesheetHash = (((_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
+    lUInt32 stylesheetHash = (((_ua_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font))*31 + getFontFamilyFontsHash();
     //calcStyleHash( getRootNode(), styleHash );
     // printf("checkRenderContext: _nodeStyleHash after  %x\n", _nodeStyleHash);
     // printf("checkRenderContext: Style hash %x!=%x\n", styleHash, _hdr.render_style_hash);
@@ -17553,23 +17555,20 @@ bool ldomDocument::checkRenderContext()
 
 void lxmlDocBase::setStyleSheet( const char * css, bool replace )
 {
-    lUInt32 oldHash = _stylesheet.getHash();
+    lUInt32 oldHash = _ua_stylesheet.getHash();
     if ( replace ) {
         //CRLog::debug("cleaning stylesheet contents");
-        _stylesheet.clear();
+        _ua_stylesheet.clear();
     }
     if ( css && *css ) {
         //CRLog::debug("appending stylesheet contents: \n%s", css);
-        _stylesheet.parse( css, true );
-        // We use override_important=true: we are the only code
-        // that sets the main CSS (including style tweaks). We allow
-        // any !important to override any previous !important.
-        // Other calls to _stylesheet.parse() elsewhere are used to
-        // include document embedded or inline CSS, with the default
-        // of override_important=false, so they won't override
-        // the ones we set here.
+        _ua_stylesheet.parse( css, true );
+        // We provide useragent_sheet=true: we are the only code
+        // that sets the main CSS (including style tweaks).
+        // This will allow any !important to not be overridden
+        // by !important from authors stylesheets.
     }
-    lUInt32 newHash = _stylesheet.getHash();
+    lUInt32 newHash = _ua_stylesheet.getHash();
     if (oldHash != newHash) {
         CRLog::debug("New stylesheet hash: %08x", newHash);
     }
