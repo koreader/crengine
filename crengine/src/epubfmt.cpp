@@ -1533,6 +1533,19 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     m_doc->setDocFlags( saveFlags );
     m_doc->setContainer( m_arc );
 
+    // Create a DocFragment for each and all items in the EPUB's <spine>
+    bool relaxed_spine = true;
+    if ( m_doc->getDOMVersionRequested() < 20240114 ) {
+        // Only accept spine items with media-type="application/xhtml+xml
+        relaxed_spine = false;
+    }
+
+    // Per EPUB specs, we should get XHTML content, HTML with proper XML balanced tags,
+    // which is what ldomDocumentWriter expects. It will not fail if meeting unbalanced
+    // HTML, but may auto-close any unclosed element when meeting a close tag for a parent,
+    // and may generate a DOM different from the HTML expected one.
+    // We can't really notice that, and we can't switch to using ldomDocumentWriterFilter
+    // (which would do the right thing with unbalanced HTML).
     ldomDocumentWriter writer(m_doc);
 #if 0
     m_doc->setNodeTypes( fb2_elem_table );
@@ -1555,7 +1568,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     int fragmentCount = 0;
     size_t spineItemsNb = spineItems.length();
     for ( size_t i=0; i<spineItemsNb; i++ ) {
-        if (spineItems[i]->is_xhtml) {
+        if (relaxed_spine || spineItems[i]->is_xhtml) {
             // ldomDocumentFragmentWriter will get all id=, href=, src=... prefixed
             // with _doc_fragment_n, so they are unique in this single DOM.
             lString32 name = LVCombinePaths(codeBase, spineItems[i]->href);
@@ -1573,31 +1586,83 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 lastProgressPercent = percent;
             }
         }
-        if (spineItems[i]->is_xhtml) {
+        if (relaxed_spine || spineItems[i]->is_xhtml) {
             lString32 name = LVCombinePaths(codeBase, spineItems[i]->href);
             {
+                // We want to make sure all spineItems get a DocFragment made,
+                // even if we don't support or fail parsing them: we let this
+                // fact be known, and if we later fix/support their handling,
+                // we won't be inserting a new DocFragment between existing
+                // ones and get all xpointers (highlights, last page) invalid
+                // because their DocFragment index has been shifted.
+                bool handled = false;
+                appender.setCodeBase( name );
+                appender.setNonLinearFlag(spineItems[i]->nonlinear);
+                appender.setFragmentType(); // unset
                 CRLog::debug("Checking fragment: %s", LCSTR(name));
                 LVStreamRef stream = m_arc->OpenStream(name.c_str(), LVOM_READ);
                 if ( !stream.isNull() ) {
-                    appender.setCodeBase( name );
                     lString32 base = name;
                     LVExtractLastPathElement(base);
                     //CRLog::trace("base: %s", LCSTR(base));
-                    //LVXMLParser
                     LVHTMLParser parser(stream, &appender);
-                    appender.setNonLinearFlag(spineItems[i]->nonlinear);
-                    if ( parser.CheckFormat() && parser.Parse() ) {
-                        // Note: this test is not perfect (the two bytes "ul" in some encrypted stream
-                        // will get CheckFormat() to succeed, and Parse() won't complain (but nothing
-                        // will be added to the DOM if no "<body" met)
+                    if ( parser.CheckFormat() && parser.Parse() && appender.hasMetBaseTag() ) {
+                        // CheckFormat() is not perfect (the two bytes "ul" in some encrypted stream
+                        // will get CheckFormat() to succeed) and Parse() won't complain.
+                        // Checking hasMetBaseTag() ensures we have met a <body> and that
+                        // a <DocFragment> has been added into the DOM.
+                        handled = true;
                         fragmentCount++;
                         // We may also meet @font-face in the html <head><style>
                         lString8 headCss = appender.getHeadStyleText();
                         //CRLog::trace("style: %s", headCss.c_str());
                         styleParser.parse(base, headCss);
-                    } else {
-                        CRLog::error("Document type is not XML/XHTML for fragment %s", LCSTR(name));
                     }
+                    if ( !handled && relaxed_spine ) {
+                        // SVG are allowed in the <spine>
+                        LVXMLParser svgparser(stream, &writer, false, false, true);
+                        if (svgparser.CheckFormat()) {
+                            appender.setFragmentType(U"SpineSvgWrapper");
+                            // Alas, we can't easily have this svgparser drive writer or appender
+                            // after we would ourselve OnTagOpen(body/html/div) as the parser would
+                            // autoclose everything...
+                            // SVGs in the spine are rare, so let's not hack these parser/writers,
+                            // and get ugly and build some HTML as string that we will fed as
+                            // a stream to a HTMLParser.
+                            stream->SetPos(0);
+                            LVStreamRef mstream = LVCreateMemoryStream();
+                            // Make the SVG image horizontally centered (as for standalone SVG
+                            // image documents, see top of ldomNode::initNodeRendMethod()).
+                            lString8 s("<html><body><autoBoxing style='text-align: center'>");
+                            mstream->Write(s.c_str(), s.length(), NULL);
+                            LVPumpStream(mstream.get(), stream.get());
+                            s = "</autoBoxing></body></html>";
+                            mstream->Write(s.c_str(), s.length(), NULL);
+                            LVHTMLParser mparser(mstream, &appender);
+                            mparser.Parse();
+                            handled = true;
+                            fragmentCount++;
+                        }
+                    }
+                }
+                if ( !handled && relaxed_spine ) {
+                    CRLog::error("Document type is not XML/XHTML for fragment %s", LCSTR(name));
+                    appender.setFragmentType(U"SpineItemUnsupported");
+                    // Create a dummy DocFragment with info about what we couldn't handle
+                    LVStreamRef mstream = LVCreateMemoryStream();
+                    lString8 s;
+                    s << "<html><body><pre>Failed handling EPUB spine item '";
+                    s << UnicodeToUtf8(name);
+                    s << "' (";
+                    s << UnicodeToUtf8(spineItems[i]->mediaType);
+                    s << ", ";
+                    s << UnicodeToUtf8(spineItems[i]->id);
+                    s << ").";
+                    s << "</pre></body></html>";
+                    mstream->Write(s.c_str(), s.length(), NULL);
+                    LVHTMLParser mparser(mstream, &appender);
+                    mparser.Parse();
+                    fragmentCount++;
                 }
             }
         }
@@ -1736,9 +1801,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     if ( !has_toc ) {
         LVTocItem * baseToc = m_doc->getToc();
         for ( size_t i=0; i<spineItemsNb; i++ ) {
-            if (spineItems[i]->is_xhtml) {
+            if (relaxed_spine || spineItems[i]->is_xhtml) {
                 lString32 title = spineItems[i]->id; // nothing much else to use
-                lString32 href = appender.convertHref(spineItems[i]->id);
+                lString32 href = appender.convertHref(spineItems[i]->href);
                 if ( href.empty() || href[0]!='#' )
                     continue;
                 ldomNode * target = m_doc->getNodeById(m_doc->getAttrValueIndex(href.substr(1).c_str()));

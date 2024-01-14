@@ -19,7 +19,7 @@
 // Users of this library can request the old behaviour by setting
 // gDOMVersionRequested to an older version to request the old (possibly
 // buggy) behaviour.
-#define DOM_VERSION_CURRENT 20210904
+#define DOM_VERSION_CURRENT 20240114
 
 // Also defined in include/lvtinydom.h
 #define DOM_VERSION_WITH_NORMALIZED_XPOINTERS 20200223
@@ -83,6 +83,11 @@
 //
 // 20210904: per HTML specs, strip a leading newline character
 // immediately following the <pre> or <textarea> element start tag
+//
+// 20240114: we now parse and create a <DocFragment> for all items in the
+// EPUB <spine>, and not only those with media-type="application/xhtml+xml".
+// This means we can insert <DocFragment> in the DOM that wouldn't be here
+// before, and risk DocFragment[index] in xpointers to get the index shifted.
 
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
@@ -8668,8 +8673,13 @@ ldomElementWriter::~ldomElementWriter()
 // for each individual HTML files in the EPUB.
 // For all these document formats, it is fed by HTMLParser that does
 // convert to lowercase the tag names and attributes.
-// ldomDocumentWriter does not do any auto-close of unbalanced tags and
-// expect a fully correct and balanced XHTML.
+// ldomDocumentWriter expects balanced XHTML, and does NOT handle HTML unbalanced
+// tags as allowed by the HTML specs (auto-closing of no-content element like <hr>,
+// implicit closing of some previous elements when meeting new elements like <p>...
+// that ldomDocumentWriterFilter does handle), but may auto-close any unclosed
+// element when meeting a close tag for a parent.
+// This means it will not fail when fed unbalanced HTML, but it may generate
+// a DOM different from the HTML expected one.
 
 // overrides
 void ldomDocumentWriter::OnStart(LVFileFormatParser * parser)
@@ -14641,6 +14651,7 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
 
     if ( !insideTag && baseTag==tagname ) { // with EPUBs: baseTag="body"
         insideTag = true;
+        baseTagMet = true;
         if ( !baseTagReplacement.empty() ) { // with EPUBs: baseTagReplacement="DocFragment"
             baseElement = parent->OnTagOpen(U"", baseTagReplacement.c_str()); // start <DocFragment
             lastBaseElement = baseElement;
@@ -14669,6 +14680,10 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                 parent->OnAttribute(U"", U"class", htmlClass.c_str() );
             if (this->m_nonlinear)
                 parent->OnAttribute(U"", U"NonLinear", U"" );
+            if ( !fragmentType.empty() ) // let it known if any
+                parent->OnAttribute(U"", U"T", fragmentType.c_str() );
+            if ( !filePathName.empty() ) // may help users find the file to investigate in the EPUB
+                parent->OnAttribute(U"", U"Source", filePathName.c_str() );
 
             parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {
