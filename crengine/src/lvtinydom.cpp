@@ -18897,9 +18897,17 @@ ldomNode * ldomNode::elementFromPoint( lvPoint pt, int direction, bool strict_bo
             }
             if ( pt.y >= fmt.getY() + fmt.getHeight() ) { // pt.y is inside the box bottom overflow
                 // Get back absolute coordinates of pt
-                lvRect rc;
-                getParentNode()->getAbsRect( rc );
-                lvPoint pt0 = lvPoint(rc.left+pt.x, rc.top+pt.y );
+                lvPoint pt0;
+                ldomNode * parentNode = getParentNode();
+                if ( parentNode ) {
+                    lvRect rc;
+                    parentNode->getAbsRect( rc );
+                    pt0 = lvPoint(rc.left+pt.x, rc.top+pt.y );
+                }
+                else {
+                    // No parent node: we are the root node (and the origin of absolute coordinates)
+                    pt0 = pt;
+                }
                 // Check each of this element's children if pt is inside it (so, we'll
                 // go by here for each of them that has some overflow too, and that
                 // contributed to making this element's overflow.)
