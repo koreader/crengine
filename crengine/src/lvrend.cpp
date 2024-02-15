@@ -9192,12 +9192,12 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                                       rightpoint2.y-i+1, shadecolor);}
                     break;
                 case css_border_inset:
-                    for(int i=0;i<=leftpoint1.y-leftpoint3.y;i++)
+                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
                     {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, lightcolor,dot,interval,0);}
                     break;
                 case css_border_outset:
-                    for(int i=0;i<=leftpoint1.y-leftpoint3.y;i++)
+                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
                     {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
                                       rightpoint1.y-i+1, shadecolor,dot,interval,0);}
                     break;
