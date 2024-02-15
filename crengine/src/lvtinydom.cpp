@@ -14279,14 +14279,16 @@ void ldomWordExList::init()
 class ldomTextCollector : public ldomNodeCallback
 {
 private:
-    bool lastText;
     bool newBlock;
     lChar32  delimiter;
     int  maxLen;
+    lChar32 imageReplacement;
+    LVArray<ldomNode*> * imageNodes;
     lString32 text;
 public:
-    ldomTextCollector( lChar32 blockDelimiter, int maxTextLen )
-        : lastText(false), newBlock(true), delimiter( blockDelimiter), maxLen( maxTextLen )
+    ldomTextCollector( lChar32 blockDelimiter, int maxTextLen, lChar32 imageReplacementChar, LVArray<ldomNode*> * imageNodesArray )
+        : newBlock(true), delimiter( blockDelimiter), maxLen( maxTextLen )
+        , imageReplacement(imageReplacementChar), imageNodes(imageNodesArray)
     {
     }
     /// destructor
@@ -14303,7 +14305,6 @@ public:
         if ( start < end ) {
             text << txt.substr( start, end-start );
         }
-        lastText = true;
         newBlock = false;
     }
     /// called for each found node in range
@@ -14313,38 +14314,51 @@ public:
         ldomNode * elem = (ldomNode *)ptr->getNode();
         // Allow tweaking that with hints
         css_style_ref_t style = elem->getStyle();
+        lvdom_element_render_method rm = elem->getRendMethod();
+        if ( rm == erm_invisible ) {
+            return false;
+        }
         if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_SKIP) ) {
             return false;
         }
-        else if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_INLINE) ) {
+        if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_INLINE) ) {
             newBlock = false;
-            return true;
         }
         else if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_BLOCK) ) {
             newBlock = true;
-            return true;
         }
-        lvdom_element_render_method rm = elem->getRendMethod();
-        if ( rm == erm_invisible )
-            return false;
-        if ( rm == erm_inline ) {
+        else if ( rm == erm_inline ) {
             // Don't set newBlock if rendering method is erm_inline,
             // no matter the original CSS display.
             // (Don't reset any previously set and not consumed newBlock)
-            return true;
         }
-        // For other rendering methods (that would bring newBlock=true),
-        // look at the initial CSS display, as we might have boxed some
-        // inline-like elements for rendering purpose.
-        css_display_t d = style->display;
-        if ( d <= css_d_inline || d == css_d_inline_block || d == css_d_inline_table ) {
-            // inline, ruby; consider inline-block/-table as inline, in case
-            // they don't contain much (if they do, some inner block element
-            // will set newBlock=true).
-            return true;
+        else {
+            // For other rendering methods (that would bring newBlock=true),
+            // look at the initial CSS display, as we might have boxed some
+            // inline-like elements for rendering purpose.
+            css_display_t d = style->display;
+            if ( d <= css_d_inline || d == css_d_inline_block || d == css_d_inline_table ) {
+                // inline, ruby; consider inline-block/-table as inline, in case
+                // they don't contain much (if they do, some inner block element
+                // will set newBlock=true).
+            }
+            else {
+                // Otherwise, it's a block like node, and we want a \n before the next text
+                newBlock = true;
+            }
         }
-        // Otherwise, it's a block like node, and we want a \n before the next text
-        newBlock = true;
+        if ( imageReplacement && elem->isImage() ) {
+            if ( newBlock ) {
+                if ( !text.empty() ) {
+                    text << delimiter;
+                }
+                newBlock = false;
+            }
+            text << imageReplacement;
+            if ( imageNodes )
+                imageNodes->add(elem);
+            return false; // don't walk into SVG tags
+        }
         return true;
 #else
         newBlock = true;
@@ -14356,10 +14370,15 @@ public:
 };
 
 /// returns text between two XPointer positions
-lString32 ldomXRange::getRangeText( lChar32 blockDelimiter, int maxTextLen )
+lString32 ldomXRange::getRangeText( lChar32 blockDelimiter, int maxTextLen, lChar32 imageReplacement, LVArray<ldomNode*> * imageNodes )
 {
-    ldomTextCollector callback( blockDelimiter, maxTextLen );
+    ldomTextCollector callback( blockDelimiter, maxTextLen, imageReplacement, imageNodes );
     forEach( &callback );
+    if ( imageReplacement && _end.isImage() ) {
+        // ldomXRange::forEach will consider _end as excluded. If _end is an image,
+        // it is part of the selection, so add it.
+        callback.onElement( &_end );
+    }
     return removeSoftHyphens( callback.getText() );
 }
 
