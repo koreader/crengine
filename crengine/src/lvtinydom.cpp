@@ -5473,7 +5473,6 @@ bool ldomDocument::partialRender( ldomNode * node ) {
     if ( _doc_pages ) {
         _doc_pages->replacePages(base_y, orig_h, &newpages, next_fragments_shift_y);
     }
-    _pagesData.setPos(0); // so a next render() won't go deserializing them from _pageData
 
     _partial_rerenderings_count++;
     return true;
@@ -5684,7 +5683,7 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
 
     } else {
         CRLog::info("rendering context is not changed - no render!");
-        if ( _pagesData.pos() ) {
+        if ( was_just_rendered_from_cache && _pagesData.pos() ) {
             _pagesData.setPos(0);
             pages->deserialize( _pagesData );
         }
