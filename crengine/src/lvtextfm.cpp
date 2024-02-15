@@ -3774,6 +3774,10 @@ public:
                         // Per specs, the baseline is the bottom of the image
                         top_to_baseline = word->o.height;
                         baseline_to_bottom = 0;
+                        // Flag word if that image is at the start of a link (for in-page footnotes)
+                        if ( srcline->flags & LTEXT_IS_LINK ) {
+                            word->flags |= LTEXT_WORD_IS_LINK_START;
+                        }
                     }
                     else if ( srcline->o.objflags & LTEXT_OBJECT_IS_PAD ) {
                         word->flags = LTEXT_WORD_IS_PAD;

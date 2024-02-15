@@ -3876,10 +3876,18 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             #ifdef DEBUG_DUMP_ENABLED
                 logfile << "+OBJECT ";
             #endif
+            lUInt32 linkflags = 0;
+            if (is_link_start && *is_link_start) { // was propagated from some outer <A>
+                linkflags = LTEXT_IS_LINK; // used to gather in-page footnotes
+                *is_link_start = false;
+                    // reset to false, so next text nodes or other images in that link are not
+                    // flagged, and don't make out duplicate in-page footnotes
+            }
             bool isBlock = style->display == css_d_block;
             if ( isBlock ) {
                 // If block image, forget any current flags and start from baseflags (?)
                 lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
+                flags |= linkflags;
                 //txform->AddSourceLine(U"title", 5, 0x000000, 0xffffff, font, baseflags, interval, margin, NULL, 0, 0);
                 LVFontRef font = enode->getFont();
                 lUInt32 cl = getForegroundColor(style);
@@ -3912,6 +3920,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             } else { // inline image
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
+                flags |= linkflags;
                 txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
