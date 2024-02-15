@@ -4765,6 +4765,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
         // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
         if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) &&
                     enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
+            // Note: this has purposedly *not* been updated to use getAllInnerAttributeValues()
+            // like in renderBlockElementEnhanced, so we can compare their behaviours.
             footnoteId = enode->getFirstInnerAttributeValue(attr_id);
             if ( !footnoteId.empty() )
                 isFootNoteBody = true;
@@ -7220,20 +7222,21 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if this block is a footnote container, so we can deal with it accordingly
     bool isFootNoteBody = false;
-    lString32 footnoteId;
+    lString32Collection footnoteIds;
     // Allow displaying footnote content at the bottom of all pages that contain a link
     // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
     if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) &&
                 enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
-        footnoteId = enode->getFirstInnerAttributeValue(attr_id);
-        if ( !footnoteId.empty() )
+        enode->getAllInnerAttributeValues(attr_id, footnoteIds);
+        if ( footnoteIds.length() > 0 )
             isFootNoteBody = true;
         // Notes:
-        // It fails when that block element has itself an id, but links
-        // do target an other inline sub element id (getFirstInnerAttributeValue()
-        // would get the block element id, and there would be no existing footnote
-        // for the link target id).
-        // Not tested how it would behave with nested "-cr-hint: footnote-inpage"
+        // enterFootNote() takes care of not creating a new footnote if we are already
+        // inside a footnotebody (in case of nested "-cr-hint: footnote-inpage"), which
+        // should keep the state sane.
+        // If feels that if there are duplicated id= in the document, and they are
+        // involved in footnotes links and targets, things can get messy... No specific
+        // attention is currently given to this situation.
     }
     // For fb2 documents. Description of the <body> element from FictionBook2.2.xsd:
     //   Main content of the book, multiple bodies are used for additional
@@ -7998,7 +8001,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 fmt.push();
 
                 if ( isFootNoteBody )
-                    flow->getPageContext()->enterFootNote( footnoteId );
+                    flow->getPageContext()->enterFootNote( footnoteIds );
 
                 // Ensure page-break-inside avoid, from the table's style or
                 // from outer containers
@@ -8170,7 +8173,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if (padding_top==0) {
                         flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
                     }
-                    flow->getPageContext()->enterFootNote( footnoteId );
+                    flow->getPageContext()->enterFootNote( footnoteIds );
                 }
 
                 // recurse all sub-blocks for blocks
@@ -8647,7 +8650,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if (padding_top==0) {
                         flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
                     }
-                    flow->getPageContext()->enterFootNote( footnoteId );
+                    flow->getPageContext()->enterFootNote( footnoteIds );
                 }
 
                 // We have lines of text in 'txform', that we should register
