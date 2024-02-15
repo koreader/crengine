@@ -18315,6 +18315,45 @@ const lString32 & ldomNode::getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 i
     return lString32::empty_str;
 }
 
+/// returns all attribute values by attribute name id, looking at all children
+const void ldomNode::getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const
+{
+    ASSERT_NODE_NOT_NULL;
+    values.clear();
+    if (hasAttribute(nsid, id))
+        values.add( getAttributeValue(nsid, id) );
+    ldomNode * n = (ldomNode *) this;
+    if (n->isElement() && n->getChildCount() > 0) {
+        int nextChildIndex = 0;
+        n = n->getChildNode(nextChildIndex);
+        while (true) {
+            // Check only the first time we met a node (nextChildIndex == 0)
+            // and not when we get back to it from a child to process next sibling
+            if (nextChildIndex == 0) {
+                if (n->isElement() && n->hasAttribute(nsid, id)) {
+                    lString32 v = n->getAttributeValue(nsid, id);
+                    if (!values.contains(v))
+                        values.add(v);
+                }
+            }
+            // Process next child
+            if (n->isElement() && nextChildIndex < n->getChildCount()) {
+                n = n->getChildNode(nextChildIndex);
+                nextChildIndex = 0;
+                continue;
+            }
+            // No more child, get back to parent and have it process our sibling
+            nextChildIndex = n->getNodeIndex() + 1;
+            n = n->getParentNode();
+            if (!n) // back to root node
+                break;
+            if (n == this && nextChildIndex >= n->getChildCount())
+                // back to this node, and done with its children
+                break;
+        }
+    }
+}
+
 /// returns element type structure pointer if it was set in document for this element name
 const css_elem_def_props_t * ldomNode::getElementTypePtr()
 {
