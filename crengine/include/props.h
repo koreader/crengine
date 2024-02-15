@@ -39,6 +39,8 @@ public:
 
     /// returns true if specified property exists
     virtual bool hasProperty( const char * propName ) const = 0;
+    /// delete specified property
+    virtual bool deleteProperty( const char * propName ) = 0;
     /// get string property by name, returns false if not found
     virtual bool getString( const char * propName, lString32 &result ) const = 0;
     /// get string property by name, returns default value if not found
