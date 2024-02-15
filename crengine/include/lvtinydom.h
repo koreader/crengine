@@ -1014,6 +1014,11 @@ public:
     /// returns attribute value by attribute name id, looking at children if needed
     const lString32 & getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 id ) const;
     const lString32 & getFirstInnerAttributeValue( lUInt16 id ) const { return getFirstInnerAttributeValue( LXML_NS_ANY, id ); }
+    /// returns all attribute values by attribute name id, looking at all children
+    const void getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const;
+    const void getAllInnerAttributeValues( lUInt16 id, lString32Collection & values ) const {
+        return getAllInnerAttributeValues( LXML_NS_ANY, id, values );
+    }
 
     /// returns element type structure pointer if it was set in document for this element name
     const css_elem_def_props_t * getElementTypePtr();
