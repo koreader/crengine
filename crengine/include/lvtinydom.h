@@ -2046,7 +2046,7 @@ public:
     /// returns true if this interval intersects specified interval
     bool checkIntersection( ldomXRange & v );
     /// returns text between two XPointer positions
-    lString32 getRangeText( lChar32 blockDelimiter='\n', int maxTextLen=0 );
+    lString32 getRangeText( lChar32 blockDelimiter='\n', int maxTextLen=0, lChar32 imageReplacement=0, LVArray<ldomNode*> * imageNodes=NULL);
     /// get all words from specified range
     void getRangeWords( LVArray<ldomWord> & list );
     /// returns href attribute of <A> element, null string if not found
