@@ -12192,8 +12192,9 @@ void ldomXRangeList::getRanges( ldomMarkedRangeList &dst )
         else {
             // Enhanced marks drawing: from a single ldomXRange, make multiple segmented
             // ldomMarkedRange, each spanning a single line.
+            bool includeImages = range->getFlags() & 0x100;
             LVArray<lvRect> rects;
-            range->getSegmentRects(rects);
+            range->getSegmentRects(rects, includeImages);
             for (int i=0; i<rects.length(); i++) {
                 lvRect r = rects[i];
                 // printf("r %d %dx%d %dx%d\n", i, r.topLeft().x, r.topLeft().y, r.bottomRight().x, r.bottomRight().y);
@@ -12314,7 +12315,7 @@ bool ldomXRange::getRectEx( lvRect & rect, bool & isSingleLine )
 //   ======
 //   ==E..
 //   ......
-void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
+void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 {
     bool go_on = true;
     lvRect lineStartRect = lvRect();
@@ -12328,6 +12329,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
     // text on a line get the same .top and .bottom, even if they have a
     // smaller font size - but using ldomXRange.getRectEx() on multiple
     // text nodes gives wrong rects for the last chars on a line...)
+    // Note: this has been updated to also grab inline images (the comments
+    // may all still mention "text nodes", which should read ok as we
+    // masquerade an image as a single char text node in this processing).
 
     // Note: someRect.extend(someOtherRect) and !someRect.isEmpty() expect
     // a rect to have both width and height non-zero. So, make sure
@@ -12338,8 +12342,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
     // char after, or last char + 1 if it includes the whole text node text)
     ldomXPointerEx rangeEnd = getEnd();
     ldomXPointerEx curPos = ldomXPointerEx( getStart() ); // copy, will change
-    if (!curPos.isText()) // we only deal with text nodes: get the first
-        go_on = curPos.nextText();
+    if (!curPos.isText() && !(includeImages && curPos.isImage()))
+        // we only deal with text nodes (and optionally images): get the first
+        go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
 
     while (go_on) { // new line or new/continued text node
         // We may have (empty or not if not yet pushed) from previous iteration:
@@ -12352,9 +12357,15 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         // We use getRectEx() with adjusted=true, for fine tuned glyph rectangles
         // that include the excessive left or right side bearing.
 
-        if (!curPos || curPos.isNull() || curPos.compare(rangeEnd) >= 0) {
-            // no more text node, or after end of range: we're done
+        if (!curPos || curPos.isNull() ) {
+            // no more text node
             break;
+        }
+        if (curPos.compare(rangeEnd) >= 0) {
+            // after end of range; but if range ends on an image, that image is still
+            // part of the range (unlike with text, where it's the char after)
+            if ( !includeImages || !rangeEnd.getNode()->isImage() || curPos.compare(rangeEnd) > 0 )
+                break;
         }
 
         ldomNode *curFinalNode = curPos.getFinalNode();
@@ -12376,8 +12387,18 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         if (startOffset == 0) { // new text node
             nodeStartRect = lvRect(); // reset
             if (textLen == 0) { // empty text node (not sure that can happen)
-                go_on = curPos.nextText();
-                continue;
+                // But it can happen when the node is an image
+                if ( includeImages && curPos.getNode()->isImage() ) {
+                    // We can pretend (for the whole code that follows) that the image
+                    // is a text node of a single char (doesn't really matter which
+                    // char, but let's use U+FFFC Object Replacement Character)
+                    nodeText = U"\xFFFC";
+                    textLen = 1;
+                }
+                else {
+                    go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
+                    continue;
+                }
             }
         }
         // Skip space at start of node or at start of new line
@@ -12388,7 +12409,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
             nodeStartRect = lvRect(); // reset
         }
         if (startOffset >= textLen) { // no more text in this node (or single space node)
-            go_on = curPos.nextText();
+            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
             nodeStartRect = lvRect(); // reset
             continue;
         }
@@ -12410,7 +12431,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
                 // go processing next text node on failure (it may fail for other
                 // reasons that we won't notice, except for may be holes in the
                 // highlighting)
-                go_on = curPos.nextText(); // skip this text node
+                go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
                 continue;
             }
@@ -12438,7 +12459,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
             if (!curPos.getRectEx(curCharRect, true)) {
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
-                go_on = curPos.nextText(); // skip this text node
+                go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
                 continue;
             }
@@ -12456,7 +12477,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
         curCharRect = lvRect();
         if (!curPos.getRectEx(curCharRect, true)) {
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
-            go_on = curPos.nextText(); // skip this text node
+            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
             nodeStartRect = lvRect(); // reset
             continue;
         }
@@ -12465,7 +12486,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects )
             // lineStartRect can still be extended with (parts of) next text nodes
             lineStartRect.extend(curCharRect);
             nodeStartRect  = lvRect(); // reset
-            go_on = curPos.nextText(); // go processing next text node
+            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // go processing next text node
             continue;
         }
 
@@ -12888,6 +12909,31 @@ bool ldomXPointerEx::isVisible()
         p = p->getParentNode();
     }
     return true;
+}
+
+/// move to next text node
+bool ldomXPointerEx::nextTextOrImage( bool thisBlockOnly )
+{
+    ldomNode * block = NULL;
+    if ( thisBlockOnly )
+        block = getThisBlockNode();
+    setOffset( 0 );
+    while ( firstChild() ) {
+        if ( isText() || isImage() )
+            return (!thisBlockOnly || getThisBlockNode()==block);
+    }
+    for (;;) {
+        while ( nextSibling() ) {
+            if ( isText() || isImage() )
+                return (!thisBlockOnly || getThisBlockNode()==block);
+            while ( firstChild() ) {
+                if ( isText() || isImage() )
+                    return (!thisBlockOnly || getThisBlockNode()==block);
+            }
+        }
+        if ( !parent() )
+            return false;
+    }
 }
 
 /// move to next text node

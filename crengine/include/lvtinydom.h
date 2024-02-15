@@ -1698,6 +1698,8 @@ public:
     inline bool isElement() const { return !isNull() && getNode()->isElement(); }
     /// returns true if current node is element
     inline bool isText() const { return !isNull() && getNode()->isText(); }
+    /// returns true if current node is an image
+    inline bool isImage() const { return !isNull() && getNode()->isImage(); }
     /// returns HTML (serialized from the DOM, may be different from the source HTML)
     lString8 getHtml( lString32Collection & cssFiles, lString8 & extra, int wflags=0 );
     lString8 getHtml( int wflags=0 ) {
@@ -1823,6 +1825,8 @@ public:
     bool nextVisibleText( bool thisBlockOnly = false );
     /// move to previous visible text node
     bool prevVisibleText( bool thisBlockOnly = false );
+    /// move to next text node or image
+    bool nextTextOrImage( bool thisBlockOnly = false );
 
     /// move to prev visible char
     bool prevVisibleChar( bool thisBlockOnly = false );
@@ -2061,7 +2065,7 @@ public:
     };
     // returns multiple segments rects (one for each text line)
     // that the ldomXRange spans on the page.
-    void getSegmentRects( LVArray<lvRect> & rects );
+    void getSegmentRects( LVArray<lvRect> & rects, bool includeImages=false );
 #endif
     /// returns nearest common element for start and end points
     ldomNode * getNearestCommonParent();
@@ -2117,6 +2121,7 @@ public:
     //         LTR paragraphs) (2 & 3 might be used for crengine internal bookmarks,
     //         see hist.h for enum bmk_type)
     //  0x11, 0x12, 0x13:  enhanced drawing (segmented mark, spanning a single line)
+    //  0x111, 0x112, 0x113: additionally include images in segments
     lUInt32   flags;
     bool empty()
     {
