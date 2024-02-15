@@ -8769,6 +8769,25 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // by our block containers if we overflow them.
                 flow->updateCurrentLevelBottomOverflow(bottom_overflow);
 
+                if ( is_involded_in_current_non_linear_sequence ) {
+                    // We started a non-linear sequence (or did not if we are combining), so close it
+                    // (except if we are combining and the followup sibling would combine too).
+                    bool close_sequence = true;
+                    if ( is_combining_non_linear_sequence ) {
+                        ldomNode * sibling = enode->getUnboxedNextSibling(true); // skip text nodes
+                        if ( sibling && !sibling->getStyle().isNull() && STYLE_HAS_CR_HINT(sibling->getStyle(), NON_LINEAR_COMBINING) ) {
+                            // Next sibling is also "-cr-hint: non-linear-combining", don't close it
+                            close_sequence = false;
+                        }
+                    }
+                    if ( close_sequence ) {
+                        flow->newSequence(false);
+                        if ( enode->getDocument()->getDocFlag(DOC_FLAG_NONLINEAR_PAGEBREAK) ) {
+                            break_after = RN_SPLIT_ALWAYS;
+                        }
+                    }
+                }
+
                 flow->addVerticalMargin( enode, margin_bottom, break_after );
                 if ( no_margin_collapse ) {
                     // Push our margin so it does not get collapsed with some later one
