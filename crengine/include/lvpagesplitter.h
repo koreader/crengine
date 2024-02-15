@@ -336,7 +336,9 @@ public:
     {
         lines.add( line );
     }
-    CompactArray<LVRendLineInfo*, 2, 4> & getLines() { return lines; }
+    // CompactArray<LVRendLineInfo*, 2, 4> & getLines() { printf("getLines %x\n", lines); return lines; }
+    LVRendLineInfo * getLine(int index) { return lines[index]; }
+    int  length() { return lines.length(); }
     bool empty() { return lines.empty(); }
     void clear() { lines.clear(); }
     lString32 getId() { return id; }

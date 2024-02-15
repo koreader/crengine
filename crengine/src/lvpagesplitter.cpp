@@ -644,13 +644,13 @@ public:
     void StartFootNote( LVFootNote * note )
     {
         #ifdef DEBUG_FOOTNOTES
-            CRLog::trace( "StartFootNote(%d)", note->getLines().length() );
+            CRLog::trace( "StartFootNote(%d)", note->length() );
         #endif
-        if ( !note || note->getLines().length()==0 )
+        if ( !note || note->length()==0 )
             return;
         footnote = note;
-        //footstart = footnote->getLines()[0];
-        //footlast = footnote->getLines()[0];
+        //footstart = footnote->getLine(0);
+        //footlast = footnote->getLine(0);
         footend = NULL;
     }
     void AddFootnoteFragmentToList()
@@ -1052,7 +1052,7 @@ public:
             // delayed footnotes, so push them now.
             // But only if the first line of them fits. Otherwise, keep
             // them delayed (our own footnotes will then be delayed too).
-            if ( delayed_footnotes[0]->getLines()[0]->getHeight() <= getAvailableHeightForFootnotes() ) {
+            if ( delayed_footnotes[0]->getLine(0)->getHeight() <= getAvailableHeightForFootnotes() ) {
                 pushDelayedFootnotes();
             }
         }
@@ -1069,12 +1069,12 @@ public:
             return;
         cur_page_seen_footnotes.add(note);
 
-        int note_nb_lines = note->getLines().length();
+        int note_nb_lines = note->length();
         int note_top = -1;
         int note_bottom = -1;
         for ( int i=0; i < note_nb_lines; i++ ) {
             // Note: we don't ensure SPLIT_AVOID/ALWAYS inside footnotes
-            LVRendLineInfo * line = note->getLines()[i];
+            LVRendLineInfo * line = note->getLine(i);
             if ( note_top < 0 )
                 note_top = line->getStart();
             int new_note_bottom = line->getEnd();
@@ -1136,7 +1136,7 @@ public:
                     // See if a first footnote line + its top margin fit on the page.
                     // If they don't, delay all footnotes but don't flush the page,
                     // as some main content line could still fit on this page.
-                    if ( note->getLines()[0]->getHeight() > getAvailableHeightForFootnotes() ) {
+                    if ( note->getLine(0)->getHeight() > getAvailableHeightForFootnotes() ) {
                         if ( delayed_footnotes.indexOf(note) < 0 )
                             delayed_footnotes.add( note );
                         continue;
@@ -1262,14 +1262,14 @@ void LVRendPageContext::split()
            // }
             for ( int j=0; j<line->getLinks()->length(); j++ ) {
                 LVFootNote* note = line->getLinks()->get(j);
-                if ( note->getLines().length() ) {
+                if ( note->length() ) {
                     // Avoid duplicated footnotes in the same page
                     if (s.IsFootNoteInCurrentPage(note))
                         continue;
                     foundFootNote = true;
                     s.StartFootNote( note );
-                    for ( int k=0; k<note->getLines().length(); k++ ) {
-                        s.AddFootnoteLine( note->getLines()[k] );
+                    for ( int k=0; k<note->length(); k++ ) {
+                        s.AddFootnoteLine( note->getLine(k) );
                     }
                     s.EndFootNote();
                 }
