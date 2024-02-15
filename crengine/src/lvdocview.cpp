@@ -208,6 +208,7 @@ LVDocView::LVDocView(int bitsPerPixel, bool noDefaultDocument) :
 	m_props = LVCreatePropsContainer();
 	m_doc_props = LVCreatePropsContainer();
 	propsUpdateDefaults( m_props);
+	m_alt_doc_props = LVCreatePropsContainer();
 
 	//m_drawbuf.Clear(m_backgroundColor);
 
@@ -1112,9 +1113,9 @@ void LVDocView::drawCoverTo(LVDrawBuf * drawBuf, lvRect & rc) {
             css_ff_serif, cs8("Times New Roman")));
 	LVFontRef series_fnt(fontMan->GetFont(base_font_size - 3, 400, true,
             css_ff_serif, cs8("Times New Roman")));
-	lString32 authors = getAuthors();
-	lString32 title = getTitle();
-	lString32 series = getSeries();
+	lString32 authors = getAltAuthorsOrAuthors();
+	lString32 title = getAltTitleOrTitle();
+	lString32 series = getAltSeriesOrSeries();
 	if (title.empty())
         title = "no title";
 	LFormattedText txform;
@@ -1917,11 +1918,11 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		int authorsw = 0;
 		lString32 authors;
 		if (phi & PGHDR_AUTHOR)
-			authors = getAuthors();
+			authors = getAltAuthorsOrAuthors();
 		int titlew = 0;
 		lString32 title;
 		if (phi & PGHDR_TITLE) {
-			title = getTitle();
+			title = getAltTitleOrTitle();
 			if (title.empty() && authors.empty())
 				title = m_doc_props->getStringDef(DOC_PROP_FILE_NAME);
 			if (!title.empty())

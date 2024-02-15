@@ -358,6 +358,8 @@ private:
     CRPropRef m_props;
     // document properties
     CRPropRef m_doc_props;
+    // alternative doc properties, set by frontend, used for display, not saved in cache
+    CRPropRef m_alt_doc_props;
 
     bool m_swapDone;
 
@@ -793,6 +795,32 @@ public:
     /// returns book content CRC32
     lUInt32 getFileCRC32() {
         return (lUInt32)m_doc_props->getIntDef(DOC_PROP_FILE_CRC32, 0);
+    }
+
+    /// return alt document properties
+    CRPropRef getAltDocProps() { return m_alt_doc_props; }
+    /// returns alt or original book title
+    lString32 getAltTitleOrTitle() {
+        if ( m_alt_doc_props->hasProperty(DOC_PROP_TITLE) )
+            return m_alt_doc_props->getStringDef(DOC_PROP_TITLE);
+        return m_doc_props->getStringDef(DOC_PROP_TITLE);
+    }
+    /// returns alt or original book authors
+    lString32 getAltAuthorsOrAuthors() {
+        if ( m_alt_doc_props->hasProperty(DOC_PROP_AUTHORS) )
+            return m_alt_doc_props->getStringDef(DOC_PROP_AUTHORS);
+        return m_doc_props->getStringDef(DOC_PROP_AUTHORS);
+    }
+    /// returns alt or original book series
+    lString32 getAltSeriesOrSeries() {
+        if ( m_alt_doc_props->hasProperty(DOC_PROP_SERIES_NAME) ) {
+            lString32 name = m_alt_doc_props->getStringDef(DOC_PROP_SERIES_NAME);
+            lString32 number = m_alt_doc_props->getStringDef(DOC_PROP_SERIES_NUMBER);
+            if ( !name.empty() && !number.empty() )
+                name << " #" << number;
+            return name;
+        }
+        return getSeries();
     }
 
 #if 0 // unused

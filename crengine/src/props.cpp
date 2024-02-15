@@ -200,6 +200,16 @@ public:
         int pos;
         return findItem( propName, pos );
     }
+    /// delete specified property
+    virtual bool deleteProperty( const char * propName )
+    {
+        int pos;
+        if ( findItem( propName, pos ) ) {
+            clear(pos, pos+1);
+            return true;
+        }
+        return false;
+    }
     /// clear all items
     virtual void clear();
     /// returns property path in root container
@@ -781,6 +791,12 @@ public:
     {
         lString32 str;
         return getString( propName, str );
+    }
+    /// delete specified property
+    virtual bool deleteProperty( const char * propName )
+    {
+        // not implemented
+        return false;
     }
     CRPropSubContainer(CRPropContainer * root, lString8 path)
     : _root(root), _path(path), _start(0), _end(0), _revision(0)
