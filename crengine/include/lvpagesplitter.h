@@ -326,21 +326,40 @@ typedef LVFastRef<LVFootNote> LVFootNoteRef;
 
 class LVFootNote : public LVRefCounter {
     lString32 id;
+    LVFootNote * actual_footnote; // when set, this LVFootNote is a proxy to this actual_footnote
     CompactArray<LVRendLineInfo*, 2, 4> lines;
 public:
     LVFootNote( lString32 noteId )
-        : id(noteId)
+        : id(noteId), actual_footnote(NULL)
     {
+    }
+    LVFootNote * getActualFootnote() {
+        return actual_footnote;
+    }
+    void setActualFootnote( LVFootNote * actualfootnote ) {
+        actual_footnote = actualfootnote;
     }
     void addLine( LVRendLineInfo * line )
     {
         lines.add( line );
     }
     // CompactArray<LVRendLineInfo*, 2, 4> & getLines() { printf("getLines %x\n", lines); return lines; }
-    LVRendLineInfo * getLine(int index) { return lines[index]; }
-    int  length() { return lines.length(); }
-    bool empty() { return lines.empty(); }
-    void clear() { lines.clear(); }
+    LVRendLineInfo * getLine(int index) {
+        if ( actual_footnote )
+            return actual_footnote->lines[index];
+        return lines[index];
+    }
+    int  length() {
+        if ( actual_footnote )
+            return actual_footnote->lines.length();
+        return lines.length();
+    }
+    bool empty() {
+        if ( actual_footnote )
+            return actual_footnote->lines.empty();
+        return lines.empty();
+    }
+    // void clear() { lines.clear(); }
     lString32 getId() { return id; }
 };
 
@@ -389,8 +408,55 @@ class LVRendPageContext
     {
         LVFootNoteRef ref = footNotes.get(id);
         if ( ref.isNull() ) {
+            // Not found: create one and index it
             ref = LVFootNoteRef( new LVFootNote( id ) );
             footNotes.set( id, ref );
+        }
+        return ref;
+    }
+    LVFootNoteRef getOrCreateFootNote( lString32Collection & ids )
+    {
+        if (ids.length() == 1) {
+            return getOrCreateFootNote(ids.at(0));
+        }
+        // Multiple ids provided: zero, one, or more of them may exist
+        LVFootNoteRef ref;
+        int found = -1;
+        for ( int n=0; n<ids.length(); n++ ) {
+            ref = footNotes.get(ids.at(n));
+            if ( !ref.isNull() ) {
+                found = n;
+                break;
+            }
+        }
+        if ( found < 0 ) {
+            // None found: create one with (arbitrarily) the first of the ids provided
+            ref = LVFootNoteRef( new LVFootNote( ids.at(0) ) );
+        }
+        // Need to do something for each of the ids provided
+        for ( int n=0; n<ids.length(); n++ ) {
+            if (found < 0 ) {
+                // No existing footnote found: index with this id the same LVFootnote we created
+                footNotes.set( ids.at(n), ref );
+            }
+            else if ( n == found ) {
+                // The one we found (so, already indexed), and that we will return and
+                // that will get lines: nothing else to do.
+            }
+            else {
+                // Other ids may alredy exist or not
+                LVFootNoteRef nref = footNotes.get(ids.at(n));
+                if ( nref.isNull() ) {
+                    // No existing footnote with this id: index with this id the same LVFootnote we created
+                    footNotes.set( ids.at(n), ref );
+                }
+                else {
+                    // Existing other footnote linking to one of our multiple ids:
+                    // keep it, but make it be a proxy to the footnote we will return
+                    // (and that will get lines)
+                    nref.get()->setActualFootnote( ref.get() );
+                }
+            }
         }
         return ref;
     }
@@ -423,6 +489,7 @@ public:
 
     /// mark start of foot note
     void enterFootNote( lString32 id );
+    void enterFootNote( lString32Collection & ids );
 
     /// mark end of foot note
     void leaveFootNote();

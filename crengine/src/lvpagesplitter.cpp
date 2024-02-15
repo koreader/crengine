@@ -130,6 +130,17 @@ void LVRendPageContext::enterFootNote( lString32 id )
     curr_note = getOrCreateFootNote( id ).get();
 }
 
+void LVRendPageContext::enterFootNote( lString32Collection & ids )
+{
+    if ( !page_list )
+        return;
+    if ( curr_note != NULL ) {
+        CRLog::error("Nested entering note" );
+        return;
+    }
+    curr_note = getOrCreateFootNote( ids ).get();
+}
+
 /// mark end of foot note
 void LVRendPageContext::leaveFootNote()
 {
@@ -1068,6 +1079,13 @@ public:
         if ( cur_page_seen_footnotes.indexOf(note) >= 0 )
             return;
         cur_page_seen_footnotes.add(note);
+        // Also check the actual footnote if this one is just a proxy
+        LVFootNote * actual_footnote = note->getActualFootnote();
+        if ( actual_footnote ) {
+            if ( cur_page_seen_footnotes.indexOf(actual_footnote) >= 0 )
+                return;
+            cur_page_seen_footnotes.add(actual_footnote);
+        }
 
         int note_nb_lines = note->length();
         int note_top = -1;
@@ -1096,6 +1114,8 @@ public:
                 // (even if one won't see the starting text and footnote number,
                 // it's better than seeing again the same duplicated footnote text)
                 cur_page_seen_footnotes.add(note);
+                if ( actual_footnote )
+                    cur_page_seen_footnotes.add(actual_footnote);
             }
             // This footnote line fits
             note_bottom = new_note_bottom;
@@ -1126,6 +1146,9 @@ public:
                     continue;
                 if ( cur_page_seen_footnotes.indexOf(note) >= 0 )
                     continue; // Already shown on this page
+                LVFootNote * actual_footnote = note->getActualFootnote();
+                if ( actual_footnote && cur_page_seen_footnotes.indexOf(actual_footnote) >= 0 )
+                    continue;
                 if ( !delayed_footnotes.empty() ) {
                     // Already some delayed footnotes
                     if ( delayed_footnotes.indexOf(note) < 0 )
