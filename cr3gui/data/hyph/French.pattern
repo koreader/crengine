@@ -1883,10 +1883,13 @@ but needed by crengine no quote pattern -->
 <pattern>4q </pattern>
 <pattern>4d </pattern>
 <pattern>4r </pattern>
+<pattern>4l </pattern>
 <!-- other rules -->
 <pattern> dé3s2i4r </pattern>
 <pattern> dé3s2i4rs </pattern>
 <pattern> souf5f6le</pattern>
+<pattern> neu5ro5s6cien6ce</pattern>
+<pattern> neu5ro5s6cien5</pattern>
 <!-- dealing with cyber- -->
 <pattern> cy1be2r1</pattern>
 <pattern> cybera2</pattern>
