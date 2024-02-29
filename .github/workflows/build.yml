@@ -30,4 +30,4 @@ jobs:
     - run: npm init --yes && npm install stylelint stylelint-config-standard
 
     - name: Check CSS syntax (only epub.css, html5.css and fb2.css)
-      run: npx stylelint cr3gui/data/epub.css cr3gui/data/html5.css fb2.css
+      run: npx stylelint cr3gui/data/epub.css cr3gui/data/html5.css cr3gui/data/fb2.css
