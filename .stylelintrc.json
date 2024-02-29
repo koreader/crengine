@@ -5,6 +5,9 @@
     "declaration-block-no-redundant-longhand-properties": null,
     "declaration-block-single-line-max-declarations": null,
     "length-zero-no-unit": null,
+    "property-no-unknown": [true, {
+      "ignoreProperties": ["hyphenate"]
+    }],
     "rule-empty-line-before": null,
     "selector-attribute-quotes": null,
     "selector-type-case": ["lower", {
@@ -23,6 +26,14 @@
         "description",
         "genre",
 
+        "epigraph",
+        "v",
+        "stanza",
+        "poem",
+        "text-author",
+        "epigraph",
+
+        "book-title",
         "subtitle",
         "title-info",
         "keywords",
