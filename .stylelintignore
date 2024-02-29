@@ -1,2 +1,0 @@
-# This contains CSS embedded in a raw string literal, which confuses stylelint.
-crengine/src/mathml_css_h.css
