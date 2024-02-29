@@ -16,6 +16,8 @@
 
     "selector-type-no-unknown": [true, {
       "ignoreTypes": [
+        "noframes",
+
         "DocFragment",
         "rubyBox",
 
