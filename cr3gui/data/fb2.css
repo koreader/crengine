@@ -43,10 +43,8 @@ title, h1, h2, h3, h4, h5, h6, subtitle {
 h1, h2, h3, h4, h5, h6 {
 	display: block;
 	margin-top: 0.5em;
-	margin-bottom: 0.3em;
-	padding: 10px ;
-	margin-top: 0.5em;
 	margin-bottom: 0.5em;
+	padding: 10px ;
 }
 title, h1, h2 {
 	page-break-before: always;
