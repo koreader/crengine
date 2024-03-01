@@ -1,0 +1,66 @@
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "comment-empty-line-before": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "declaration-block-single-line-max-declarations": null,
+    "length-zero-no-unit": [true, { "severity": "warning" }],
+    "no-descending-specificity": [true, { "severity": "warning" }],
+    "no-duplicate-selectors": [true, { "severity": "warning" }],
+    "property-no-unknown": [true, {
+      "ignoreProperties": [
+        "binding",
+
+        "hyphenate"
+      ]
+    }],
+    "rule-empty-line-before": null,
+    "selector-attribute-quotes": null,
+    "selector-class-pattern": "(^([a-z][a-z0-9]*)(-[a-z0-9]+)*$|^fb2_info$)",
+    "selector-type-case": ["lower", {
+      "ignoreTypes": ["DocFragment", "rubyBox"]
+    }],
+    "selector-type-no-unknown": [true, {
+      "ignoreTypes": [
+        "noframes",
+        "rbc",
+
+        "DocFragment",
+        "rubyBox",
+
+        "empty-line",
+
+        "author",
+        "date",
+        "description",
+        "genre",
+
+        "epigraph",
+        "v",
+        "stanza",
+        "poem",
+        "text-author",
+        "epigraph",
+
+        "book-title",
+        "subtitle",
+        "title-info",
+        "keywords",
+        "lang",
+        "src-lang",
+        "translator",
+        "document-info",
+        "publish-info",
+        "custom-info",
+        "coverpage",
+        "underline",
+        "spacing",
+        "emphasis",
+        "underline",
+        "strikethrough",
+        "spacing"
+      ]
+    }],
+    "shorthand-property-no-redundant-values": null
+  }
+}

@@ -17,3 +17,17 @@ jobs:
 
     - name: Lint
       run: .ci/script.sh
+
+    # NPM tests
+
+    - name: Uses Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'latest'
+        # No cache, there are complaints about lockfiles that we don't want otherwise. See <https://github.com/actions/setup-node/issues/928>.
+        # cache: 'npm'
+
+    - run: npm init --yes && npm install stylelint stylelint-config-standard
+
+    - name: Check CSS syntax (only epub.css, html5.css and fb2.css)
+      run: npx stylelint cr3gui/data/epub.css cr3gui/data/html5.css cr3gui/data/fb2.css
