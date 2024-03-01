@@ -211,41 +211,25 @@ span[type=pagebreak] { display: none; }
  * which could be a huge list of reference page numbers */
 nav[hidden] { display: none; }
 
-/* Old element or className based selectors involving display: that
- * we need to support for older gDOMVersionRequested
+/* Old element or className based selectors involving display: that we need
+ * to support for older gDOMVersionRequested (these were fixed in 20180528).
  * DO NOT MODIFY BELOW to not break past highlights */
-
-/* Images are now inline by default, and no more block with exceptions.
- * Note that when 'block', lvrend.cpp displays the title="" content
- * under the image */
-img {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    text-align: center;
-    text-indent: 0;
-    display: block;
+@media (-cr-max-cre-dom-version: 20180527) {
+  /* Images are now inline by default, and no more block with exceptions */
+  img { text-align: center; text-indent: 0; display: block; }
+  sup img { display: inline; }
+  sub img { display: inline; }
+  a img   { display: inline; }
+  p img   { display: inline; }
+  p image { display: inline; } /* non html */
+  /* With dom_version < 20180528, unknown elements defaulted to 'display: inherit'
+   * These ones here were explicitely set to inline (and some others not
+   * specified here were also set to inline in fb2def.h */
+  b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, samp, kbd, code {
+      display: inline;
+  }
+  form { display: none; }
+  .title, .title1, .title2, .title3, .title4, .title5, .subtitle { display: block; }
+  .fb2_info { display: block; }
+  .code     { display: block; }
 }
-sup img { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
-sub img { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
-a img   { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
-p img   { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; }
-p image { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: inline; } /* non html */
-
-/* With dom_version < 20180528, unknown elements defaulted to 'display: inherit'
- * These ones here were explicitely set to inline (and some others not
- * specified here were also set to inline in fb2def.h */
-b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, samp, kbd, code {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: inline;
-}
-
-form {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: none;
-}
-
-.title, .title1, .title2, .title3, .title4, .title5, .subtitle {
-    -cr-ignore-if-dom-version-greater-or-equal: 20180528;
-    display: block;
-}
-.fb2_info { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
-.code     { -cr-ignore-if-dom-version-greater-or-equal: 20180528; display: block; }
