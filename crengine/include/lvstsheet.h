@@ -85,7 +85,7 @@ private:
     bool _zero_weighted;
     bool _presentational_hint;
 public:
-    void apply( css_style_rec_t * style ) const;
+    void apply( css_style_rec_t * style, const ldomNode * node=NULL ) const;
     bool empty() const { return _data==NULL; }
     bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL, lString32 codeBase=lString32::empty_str );
     bool parseAndCheckIfSupported( const char * & decl, lxmlDocBase * doc=NULL ) {
@@ -214,7 +214,7 @@ public:
                 applyToPseudoElement(node, style);
             }
             else {
-                _decl->apply(style);
+                _decl->apply(style, node);
             }
             // style->flags |= STYLE_REC_FLAG_MATCHED;
             // Done in applyToPseudoElement() as currently only needed there.
