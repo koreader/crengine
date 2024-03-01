@@ -553,7 +553,9 @@ dd {
   margin-left: 40px;
 } /* LTR-specific: use 'margin-right' for rtl elements */
 dir, ol, ul {
-  padding-left: 40px;
+  /* padding-left: 40px; */
+  padding-left: -cr-special;
+  padding-right: -cr-special;
 } /* LTR-specific: use 'padding-right' for rtl elements */
 
 ol {
