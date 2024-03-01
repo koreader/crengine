@@ -3411,6 +3411,18 @@ public:
                 break;
             }
         }
+        // Handle some edge case here (can't find another place where we could
+        // handle it): when this line ends with a CJK char and then a space.
+        // Usually, this trailing space is made part of the last word (and this
+        // last word gets its width reduced so this space is like it was not there).
+        // When making CJK words, we make a word on each CJK char, not knowing
+        // yet what comes after, and we would end with a space-only word, that
+        // would get a width of 0, but would prevent any CJK flexible width at
+        // end-of-line tuning for that previous CJK char/word, as it is not at
+        // end of line because of this space char...
+        if ( lastnonspace < end-1 && lastnonspace >= start && (m_flags[lastnonspace] & LCHAR_IS_CJK) ) {
+            end = lastnonspace+1; // ignore last space(s)
+        }
 
         // Create/add a new line to buffer
         formatted_line_t * frmline =  lvtextAddFormattedLine( m_pbuffer );
