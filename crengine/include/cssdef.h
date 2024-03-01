@@ -412,6 +412,12 @@ enum css_generic_value_t {
 // only squared CJK glyphs get less chance to need to spread the glyphs).
 #define CSS_CR_HINT_CJK_TAILORED            0x00000008 // -cr-hint: cjk-tailored (inheritable)
 
+// Skip/ignore CSS selectors flagged as "presentational hints"
+// Will be forced on all styles when embedded styles are disabled.
+// Can also be set explicitely on elements, but it Will reduce the specificity of selectors
+// containing it in their declaration so they get applied at the earliest.
+#define CSS_CR_HINT_NO_PRESENTATIONAL_CSS   0x00000010 // -cr-hint: no-presentational
+
 // A node with these should be considered as TOC item of level N when building alternate TOC
 #define CSS_CR_HINT_TOC_LEVEL1              0x00000100 // -cr-hint: toc-level1
 #define CSS_CR_HINT_TOC_LEVEL2              0x00000200 // -cr-hint: toc-level2
