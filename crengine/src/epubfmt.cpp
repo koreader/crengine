@@ -1302,25 +1302,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
-        // Fallback to the ePub 3 spec for cover-image, c.f. https://www.w3.org/publishing/epub3/epub-packages.html#sec-cover-image
-        if (isEpub3 && coverId.empty()) {
-            // Iterate all package/manifest/item
-            lUInt16 item_id = doc->getElementNameIndex(U"item");
-            for (size_t i=0; i<nb_manifest_items; i++) {
-                ldomNode * item = manifest->getChildNode(i);
-                if ( item->getNodeId() != item_id )
-                    continue;
-                // NOTE: Yes, plural, not a typo... -_-"
-                lString32 props = item->getAttributeValue("properties");
-                if (!props.empty() && props == "cover-image") {
-                    lString32 id = item->getAttributeValue("id");
-                    coverId = id;
-                    // Can only be one (or none), we're done!
-                    break;
-                }
-            }
-        }
-
         // Fallback to ePub 3 series metadata, c.f., https://www.w3.org/publishing/epub3/epub-packages.html#sec-belongs-to-collection
         // Because, yes, they're less standard than Calibre's ;D. Gotta love the ePub specs...
         // NOTE: This doesn't include the shittier variant where apparently a collection-type refines a dc:title's id,
@@ -1399,8 +1380,12 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
-        // If no coverId, we're done looking for metadata
-        bool metadataDone = metadataOnly && coverId.empty();
+        // If no cover to look for, we're done looking for metadata.
+        // We still prefer finding an ePub3 cover (it may happen that even in an ePub3,
+        // a ePub2 cover is specified, possibly some remnant metadata, and may not exist).
+        // We'll have to find out that while iterating the manifest, and exit when found out.
+        bool look_for_coverid = !coverId.empty();
+        bool look_for_epub3_cover = isEpub3;
 
         if ( progressCallback )
             progressCallback->OnLoadFileProgress(2);
@@ -1410,7 +1395,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // Iterate all package/manifest/item
         lUInt16 item_id = doc->getElementNameIndex(U"item");
         for (size_t i=0; i<nb_manifest_items; i++) {
-            if ( metadataDone ) {
+            if ( metadataOnly && !look_for_coverid && !look_for_epub3_cover ) {
+                // No more stuff to find, stop iterating
                 break;
             }
             ldomNode * item = manifest->getChildNode(i);
@@ -1421,8 +1407,25 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             lString32 id = item->getAttributeValue("id");
             if ( !href.empty() && !id.empty() ) {
                 href = DecodeHTMLUrlString(href);
-                if ( id==coverId ) {
-                    // coverpage file
+                if ( look_for_epub3_cover ) {
+                    // c.f. https://www.w3.org/publishing/epub3/epub-packages.html#sec-cover-image
+                    lString32 props = item->getAttributeValue("properties"); // NOTE: Yes, plural, not a typo... -_-"
+                    if (!props.empty() && props == "cover-image") {
+                        lString32 coverFileName = LVCombinePaths(codeBase, href);
+                        LVStreamRef stream = m_arc->OpenStream(coverFileName.c_str(), LVOM_READ);
+                        if ( !stream.isNull() ) {
+                            LVImageSourceRef img = LVCreateStreamImageSource(stream);
+                            if ( !img.isNull() ) {
+                                m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
+                                // We found the epub3 cover, and it is a valid image: stop looking for any epub2 one
+                                look_for_coverid = false;
+                            }
+                        }
+                        // We found the cover-image item: valid image or not, stop looking for it
+                        look_for_epub3_cover = false;
+                    }
+                }
+                if ( look_for_coverid && id==coverId ) {
                     lString32 coverFileName = LVCombinePaths(codeBase, href);
                     CRLog::info("EPUB coverpage file: %s", LCSTR(coverFileName));
                     LVStreamRef stream = m_arc->OpenStream(coverFileName.c_str(), LVOM_READ);
@@ -1433,10 +1436,8 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                             m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
                         }
                     }
-                    if (metadataOnly) {
-                        // coverId found, no need for more work
-                        metadataDone = true;
-                    }
+                    // We found the coverid: valid image or not, stop looking for it
+                    look_for_coverid = false;
                 }
                 if (metadataOnly) {
                     continue;
