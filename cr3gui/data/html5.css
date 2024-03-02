@@ -5,7 +5,7 @@
     DocFragment {
         page-break-before: always;
     }
-    h1, h2, h3, h4, h5, h6 {
+    h6, h5, h4, h3, h2, h1 {
         page-break-inside: avoid;
         page-break-after: avoid;
     }
@@ -65,6 +65,11 @@
    (without any note when balanced and strictly equivalent, not caring about
    vertical writing mode that we don't support).
 
+   When multiple selectors are associated to a same declaration, we may have
+   reorder the selectors from the specs snippets to have the rare ones on the
+   left and the most popular on the right, to get less noise in our "Show
+   matched stylesheet rules" output (as we truncate on the matched element).
+
    Some ideas and additional bits taken from Firefox UA stylesheet ("UAS" hereafter)
    https://searchfox.org/mozilla-central/source/layout/style/res/html.css
 
@@ -85,7 +90,7 @@ param, script, style, template, title {
 }
 
 /* crengine: not caring about differences of embed[hidden] and [hidden=until-found i] */
-[hidden], input[type=hidden i] {
+input[type=hidden i], [hidden] {
   -cr-hint: presentational-hint;
   display: none;
 }
@@ -129,7 +134,8 @@ header, hr, legend, listing, main, p, plaintext, pre, search, xmp {
 }
 */
 
-blockquote, figure, listing, p, plaintext, pre, xmp {
+listing, plaintext, xmp,
+blockquote, figure, pre, p {
   margin-top: 1em;
   margin-bottom: 1em;
 }
@@ -143,7 +149,7 @@ address {
   font-style: italic;
 }
 
-listing, plaintext, pre, xmp {
+listing, plaintext, xmp, pre {
   font-family: monospace;
   white-space: pre;
 }
@@ -169,7 +175,7 @@ div[align=right i] {
   -cr-hint: presentational-hint;
   text-align: -cr-html-align-right;
 }
-div[align=center i], div[align=middle i] {
+div[align=middle i], div[align=center i] {
   -cr-hint: presentational-hint;
   text-align: -cr-html-align-center;
 }
@@ -182,26 +188,26 @@ div[align=justify i] {
 /* These about align= for P and headings are mixed in the specs with table related rules...
    We have moved them here, for clarity.
    No "align descandants" mentionned for these, as they are not expected to have block children. */
-p[align=left i], h1[align=left i], h2[align=left i], h3[align=left i],
-h4[align=left i], h5[align=left i], h6[align=left i] {
+h6[align=left i], h5[align=left i], h4[align=left i], h3[align=left i],
+h2[align=left i], h1[align=left i], p[align=left i] {
   -cr-hint: presentational-hint;
   text-align: left;
 }
 
-p[align=right i], h1[align=right i], h2[align=right i], h3[align=right i],
-h4[align=right i], h5[align=right i], h6[align=right i] {
+h6[align=right i], h5[align=right i], h4[align=right i], h3[align=right i],
+h2[align=right i], h1[align=right i], p[align=right i] {
   -cr-hint: presentational-hint;
   text-align: right;
 }
 
-p[align=center i], h1[align=center i], h2[align=center i], h3[align=center i],
-h4[align=center i], h5[align=center i], h6[align=center i] {
+h6[align=center i], h5[align=center i], h4[align=center i], h3[align=center i],
+h2[align=center i], h1[align=center i], p[align=center i] {
   -cr-hint: presentational-hint;
   text-align: center;
 }
 
-p[align=justify i], h1[align=justify i], h2[align=justify i], h3[align=justify i],
-h4[align=justify i], h5[align=justify i], h6[align=justify i] {
+h6[align=justify i], h5[align=justify i], h4[align=justify i], h3[align=justify i],
+h2[align=justify i], h1[align=justify i], p[align=justify i] {
   -cr-hint: presentational-hint;
   text-align: justify;
 }
@@ -209,15 +215,15 @@ h4[align=justify i], h5[align=justify i], h6[align=justify i] {
 
 /* Phrasing content */
 
-cite, dfn, em, i, var {
+cite, dfn, var, em, i {
   font-style: italic;
 }
 
-b, strong {
+strong, b {
   font-weight: bolder;
 }
 
-code, kbd, samp, tt {
+samp, tt, kbd, code {
   font-family: monospace;
 }
 
@@ -270,6 +276,12 @@ rt:lang(zh-TW) { font-size: 30%; }
 :link, :visited { text-decoration: underline; cursor: pointer; }
 :focus-visible { outline: auto; }
 */
+
+/* But have :link style set on all <a href=''> */
+a[href] {
+  color: #00E;
+  text-decoration: underline;
+}
 
 mark {
   background: yellow;
@@ -415,7 +427,7 @@ li {
 }
   /* additionally by specs, but not supported: text-align: match-parent */
 
-dir, dl, menu, ol, ul {
+dir, menu, dl, ol, ul {
   margin-top: 1em;
   margin-bottom: 1em;
 }
@@ -425,11 +437,11 @@ dir, dl, menu, ol, ul {
    Having an element name at its tail end makes it only checked for nodes being that element.
    This is actually how Firefox has it in its UAS. */
 /* Nested lists have no top/bottom margins */
-:is(ul, ol, dir, menu, dl) ul,
-:is(ul, ol, dir, menu, dl) ol,
 :is(ul, ol, dir, menu, dl) dir,
 :is(ul, ol, dir, menu, dl) menu,
-:is(ul, ol, dir, menu, dl) dl {
+:is(ul, ol, dir, menu, dl) dl,
+:is(ul, ol, dir, menu, dl) ol,
+:is(ul, ol, dir, menu, dl) ul {
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -470,16 +482,16 @@ dir, menu, ul {
 }
 
 /* 2-deep unordered lists use a circle */
-:is(ol, ul, menu, dir) ul,
+:is(ol, ul, menu, dir) dir,
 :is(ol, ul, menu, dir) menu,
-:is(ol, ul, menu, dir) dir {
+:is(ol, ul, menu, dir) ul {
   list-style-type: circle;
 }
 
 /* 3-deep (or more) unordered lists use a square */
-:is(ol, ul, menu, dir) :is(ol, ul, menu, dir) ul,
+:is(ol, ul, menu, dir) :is(ol, ul, menu, dir) dir,
 :is(ol, ul, menu, dir) :is(ol, ul, menu, dir) menu,
-:is(ol, ul, menu, dir) :is(ol, ul, menu, dir) dir {
+:is(ol, ul, menu, dir) :is(ol, ul, menu, dir) ul {
   list-style-type: square;
 }
 
@@ -571,12 +583,12 @@ tr, tr[hidden] {
   display: table-row;
 }
 
-td, th {
+th, td {
   display: table-cell;
 }
 
 /* crengine+: we need these to keep being 'display: table-cell' for our table rendering algo */
-td[hidden], th[hidden] {
+th[hidden], td[hidden] {
   display: table-cell;
   visibility: collapse;
 }
@@ -593,7 +605,7 @@ table {
   text-indent: initial;
 }
 
-td, th {
+th, td {
   padding: 1px;
 }
 
@@ -609,7 +621,7 @@ thead, tbody, tfoot, table > tr {
   vertical-align: middle;
 }
 
-tr, td, th {
+tr, th, td {
   vertical-align: inherit;
 }
 
@@ -632,10 +644,10 @@ thead, tbody, tfoot, tr {
    Note that Firefox does not have this and use currentColor, while Edge seems to have it. */
 table[frame]:where([frame=void i], [frame=above i], [frame=below i], [frame=hsides i], [frame=lhs i], [frame=rhs i], [frame=vsides i], [frame=box i], [frame=border i]),
 table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]),
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > tr > td,
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > tr > th,
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > :is(thead, tbody, tfoot) > tr > th,
 table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > :is(thead, tbody, tfoot) > tr > td,
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > :is(thead, tbody, tfoot) > tr > th {
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > tr > th,
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i], [rules=cols i], [rules=all i]) > tr > td {
   -cr-hint: presentational-hint;
   border-color: black;
 }
@@ -660,30 +672,30 @@ table[align=center i] {
 /* Note: Firefox UAS has other related rules starting with: table[align="center"] > caption */
 
 thead[align=left i], tbody[align=left i], tfoot[align=left i],
-tr[align=left i], td[align=left i], th[align=left i] {
+tr[align=left i], th[align=left i], td[align=left i] {
   -cr-hint: presentational-hint;
   text-align: -cr-html-align-left;
 }
 thead[align=justify i], tbody[align=justify i], tfoot[align=justify i],
-tr[align=justify i], td[align=justify i], th[align=justify i] {
+tr[align=justify i], th[align=justify i], td[align=justify i] {
   -cr-hint: presentational-hint;
   text-align: justify;
 }
 thead[align=right i], tbody[align=right i], tfoot[align=right i],
-tr[align=right i], td[align=right i], th[align=right i] {
+tr[align=right i], th[align=right i], td[align=right i] {
   -cr-hint: presentational-hint;
   text-align: -cr-html-align-right;
 }
 thead[align=center i], tbody[align=center i], tfoot[align=center i],
 thead[align=middle i], tbody[align=middle i], tfoot[align=middle i],
-tr[align=center i], td[align=center i], th[align=center i],
-tr[align=middle i], td[align=middle i], th[align=middle i] {
+tr[align=center i], th[align=center i], td[align=center i],
+tr[align=middle i], th[align=middle i], td[align=middle i] {
   -cr-hint: presentational-hint;
   text-align: -cr-html-align-center;
 }
 /* This one is presented as-is in the specs, which do not mention any required "align descendants" behaviour */
 thead[align=absmiddle i], tbody[align=absmiddle i], tfoot[align=absmiddle i],
-tr[align=absmiddle i], td[align=absmiddle i], th[align=absmiddle i] {
+tr[align=absmiddle i], th[align=absmiddle i], td[align=absmiddle i] {
   -cr-hint: presentational-hint;
   text-align: center;
 }
@@ -696,30 +708,30 @@ caption[align=bottom i] {
 /* The specs have here selectors regarding p[align] and h1...h6[align] that we have moved above. */
 
 thead[valign=top i], tbody[valign=top i], tfoot[valign=top i],
-tr[valign=top i], td[valign=top i], th[valign=top i] {
+tr[valign=top i], th[valign=top i], td[valign=top i] {
   -cr-hint: presentational-hint;
   vertical-align: top;
 }
 
 thead[valign=middle i], tbody[valign=middle i], tfoot[valign=middle i],
-tr[valign=middle i], td[valign=middle i], th[valign=middle i] {
+tr[valign=middle i], th[valign=middle i], td[valign=middle i] {
   -cr-hint: presentational-hint;
   vertical-align: middle;
 }
 
 thead[valign=bottom i], tbody[valign=bottom i], tfoot[valign=bottom i],
-tr[valign=bottom i], td[valign=bottom i], th[valign=bottom i] {
+tr[valign=bottom i], th[valign=bottom i], td[valign=bottom i] {
   -cr-hint: presentational-hint;
   vertical-align: bottom;
 }
 
 thead[valign=baseline i], tbody[valign=baseline i], tfoot[valign=baseline i],
-tr[valign=baseline i], td[valign=baseline i], th[valign=baseline i] {
+tr[valign=baseline i], th[valign=baseline i], td[valign=baseline i] {
   -cr-hint: presentational-hint;
   vertical-align: baseline;
 }
 
-td[nowrap], th[nowrap] {
+th[nowrap], td[nowrap] {
   -cr-hint: presentational-hint;
   white-space: nowrap;
 }
@@ -782,37 +794,37 @@ table[frame=box i], table[frame=border i] {
 
 /* Note: following list of selectors in the specs simplified to use :is(...) */
 /* If table's border is not equivalent to zero, this -cr-apply-func will set 'border-width: 1px; border-style: inset' */
-table[border] > tr > td,
-table[border] > tr > th,
+table[border] > :is(thead, tbody, tfoot) > tr > th,
 table[border] > :is(thead, tbody, tfoot) > tr > td,
-table[border] > :is(thead, tbody, tfoot) > tr > th {
+table[border] > tr > th,
+table[border] > tr > td {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-border-from-table-border-attribute;
 }
 
 /* Note: following lists of selectors in the specs simplified to use :where(...) and :is(...) */
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > td,
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > th,
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :is(thead, tbody, tfoot) > tr > th,
 table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :is(thead, tbody, tfoot) > tr > td,
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :is(thead, tbody, tfoot) > tr > th {
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > th,
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > td {
   -cr-hint: presentational-hint;
   border-width: 1px;
   border-style: none;
 }
 
-table[rules=cols i] > tr > td,
-table[rules=cols i] > tr > th,
+table[rules=cols i] > :is(thead, tbody, tfoot) > tr > th,
 table[rules=cols i] > :is(thead, tbody, tfoot) > tr > td,
-table[rules=cols i] > :is(thead, tbody, tfoot) > tr > th {
+table[rules=cols i] > tr > th,
+table[rules=cols i] > tr > td {
   -cr-hint: presentational-hint;
   border-width: 1px;
   border-style: none solid;
 }
 
-table[rules=all i] > tr > td,
-table[rules=all i] > tr > th,
+table[rules=all i] > :is(thead, tbody, tfoot) > tr > th,
 table[rules=all i] > :is(thead, tbody, tfoot) > tr > td,
-table[rules=all i] > :is(thead, tbody, tfoot) > tr > th {
+table[rules=all i] > tr > th,
+table[rules=all i] > tr > td {
   -cr-hint: presentational-hint;
   border-width: 1px;
   border-style: solid;
@@ -836,8 +848,8 @@ table[rules=groups i] > tfoot {
   border-bottom-style: solid;
 }
 
-table[rules=rows i] > tr,
-table[rules=rows i] > :is(thead, tbody, tfoot) > tr {
+table[rules=rows i] > :is(thead, tbody, tfoot) > tr,
+table[rules=rows i] > tr {
   -cr-hint: presentational-hint;
   border-top-width: 1px;
   border-top-style: solid;
@@ -861,10 +873,10 @@ table[cellspacing] {
 }
 
 /* Note: following list of selectors in the specs simplified to use :is(...) */
-table[cellpadding] > tr > td,
-table[cellpadding] > tr > th,
+table[cellpadding] > :is(thead, tbody, tfoot) > tr > th,
 table[cellpadding] > :is(thead, tbody, tfoot) > tr > td,
-table[cellpadding] > :is(thead, tbody, tfoot) > tr > th {
+table[cellpadding] > tr > th,
+table[cellpadding] > tr > td {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-padding-from-parent-table-cellpadding-attribute;
 }
@@ -875,12 +887,12 @@ table[height], thead[height], tbody[height], tfoot[height], tr[height] {
   -cr-apply-func: css-height-from-height-attribute;
 }
 
-td[height], th[height] {
+th[height], td[height] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-height-from-height-attribute-ignoring-zero;
 }
 
-table[width], td[width], th[width] {
+table[width], th[width], td[width] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-width-from-width-attribute-ignoring-zero;
 }
@@ -890,12 +902,12 @@ col[width] {
   -cr-apply-func: css-width-from-width-attribute;
 }
 
-table[background], thead[background], tbody[background], tfoot[background], tr[background], td[background], th[background] {
+table[background], thead[background], tbody[background], tfoot[background], tr[background], th[background], td[background] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-background-image-from-background-attribute;
 }
 
-table[bgcolor], thead[bgcolor], tbody[bgcolor], tfoot[bgcolor], tr[bgcolor], td[bgcolor], th[bgcolor] {
+table[bgcolor], thead[bgcolor], tbody[bgcolor], tfoot[bgcolor], tr[bgcolor], th[bgcolor], td[bgcolor] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-background-color-from-bgcolor-attribute;
 }
@@ -913,12 +925,12 @@ table[bordercolor] > thead,
 table[bordercolor] > tfoot,
 table[bordercolor] > col,
 table[bordercolor] > colgroup,
-table[bordercolor] > tr,
 table[bordercolor] > * > tr,
-table[bordercolor] > tr > td,
-table[bordercolor] > * > tr > td,
+table[bordercolor] > tr,
+table[bordercolor] > * > tr > th,
 table[bordercolor] > tr > th,
-table[bordercolor] > * > tr > th {
+table[bordercolor] > * > tr > td,
+table[bordercolor] > tr > td {
   -cr-hint: presentational-hint;
   border-color: inherit;
 }
@@ -1074,32 +1086,32 @@ iframe[frameborder='0'], iframe[frameborder=no i] {
   border: none;
 }
 
-embed[align=left i], iframe[align=left i], img[align=left i],
-input[type=image i][align=left i], object[align=left i] {
+embed[align=left i], iframe[align=left i], input[align=left i],
+object[type=image i][align=left i], img[align=left i] {
   -cr-hint: presentational-hint;
   float: left;
 }
 
-embed[align=right i], iframe[align=right i], img[align=right i],
-input[type=image i][align=right i], object[align=right i] {
+embed[align=right i], iframe[align=right i], input[align=right i],
+object[type=image i][align=right i], img[align=right i] {
   -cr-hint: presentational-hint;
   float: right;
 }
 
-embed[align=top i], iframe[align=top i], img[align=top i],
-input[type=image i][align=top i], object[align=top i] {
+embed[align=top i], iframe[align=top i], input[align=top i],
+object[type=image i][align=top i], img[align=top i] {
   -cr-hint: presentational-hint;
   vertical-align: top;
 }
 
-embed[align=baseline i], iframe[align=baseline i], img[align=baseline i],
-input[type=image i][align=baseline i], object[align=baseline i] {
+embed[align=baseline i], iframe[align=baseline i], input[align=baseline i],
+object[type=image i][align=baseline i], img[align=baseline i] {
   -cr-hint: presentational-hint;
   vertical-align: baseline;
 }
 
-embed[align=texttop i], iframe[align=texttop i], img[align=texttop i],
-input[type=image i][align=texttop i], object[align=texttop i] {
+embed[align=texttop i], iframe[align=texttop i], input[align=texttop i],
+object[type=image i][align=texttop i], img[align=texttop i] {
   -cr-hint: presentational-hint;
   vertical-align: text-top;
 }
@@ -1107,45 +1119,45 @@ input[type=image i][align=texttop i], object[align=texttop i] {
 /* align=middle/center should have a specific treatment: middle of image aligned
    to the baseline, a behaviour that none of the classic CSS vertical-align
    values provide; so we fallback to handling them as absmiddle */
-embed[align=middle i], iframe[align=middle i], img[align=middle i],
-input[type=image i][align=middle i], object[align=middle i],
-embed[align=center i], iframe[align=center i], img[align=center i],
-input[type=image i][align=center i], object[align=center i],
-embed[align=absmiddle i], iframe[align=absmiddle i], img[align=absmiddle i],
-input[type=image i][align=absmiddle i], object[align=absmiddle i],
-embed[align=abscenter i], iframe[align=abscenter i], img[align=abscenter i],
-input[type=image i][align=abscenter i], object[align=abscenter i] {
+embed[align=middle i], iframe[align=middle i], input[align=middle i],
+object[type=image i][align=middle i], img[align=middle i],
+embed[align=center i], iframe[align=center i], input[align=center i],
+object[type=image i][align=center i], img[align=center i],
+embed[align=absmiddle i], iframe[align=absmiddle i], input[align=absmiddle i],
+object[type=image i][align=absmiddle i], img[align=absmiddle i],
+embed[align=abscenter i], iframe[align=abscenter i], input[align=abscenter i],
+object[type=image i][align=abscenter i], img[align=abscenter i] {
   -cr-hint: presentational-hint;
   vertical-align: middle;
 }
 
-embed[align=bottom i], iframe[align=bottom i], img[align=bottom i],
-input[type=image i][align=bottom i], object[align=bottom i] {
+embed[align=bottom i], iframe[align=bottom i], input[align=bottom i],
+object[type=image i][align=bottom i], img[align=bottom i] {
   -cr-hint: presentational-hint;
   vertical-align: bottom;
 }
 
-embed[hspace], img[hspace], input[type=image i][hspace], object[hspace] {
+embed[hspace], input[hspace], object[type=image i][hspace], img[hspace] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-margin-from-hspace-attribute;
 }
 
-embed[vspace], img[vspace], input[type=image i][vspace], object[vspace] {
+embed[vspace], input[vspace], object[type=image i][vspace], img[vspace] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-margin-from-vspace-attribute;
 }
 
-img[border], input[type=image i][border], object[border] {
+input[type=image i][border], object[border], img[border] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-border-from-border-attribute;
 }
 
-embed[width], iframe[width], img[width], input[type=image i][width], object[width], video[width] {
+embed[width], iframe[width], input[type=image i][width], video[width], object[width], img[width] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-width-from-width-attribute;
 }
 
-embed[height], iframe[height], img[height], input[type=image i][height], object[height], video[height] {
+embed[height], iframe[height], input[type=image i][height], video[height], object[height], img[height] {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-height-from-height-attribute;
 }

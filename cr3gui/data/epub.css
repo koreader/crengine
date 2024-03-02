@@ -10,7 +10,7 @@ body {
 }
 
 /* Constant margin on all levels */
-h1, h2, h3, h4, h5, h6 {
+h6, h5, h4, h3, h2, h1 {
   margin-top: 0.7em;
   margin-bottom: 0.5em;
   hyphens: none;
@@ -48,12 +48,12 @@ hr {
 }
 
 /* Lists: no vertical margin, a bit of margin left added to our -cr-special padding */
-ul, ol {
+ol, ul {
   margin-left: 1em;
   margin-top: 0;
   margin-bottom: 0;
 }
-ul:dir(rtl), ol:dir(rtl) {
+ol:dir(rtl), ul:dir(rtl) {
   margin-left: unset;
   margin-right: 1em;
 }
@@ -86,7 +86,7 @@ table table { /* stop imbricated tables from getting smaller */
 }
 
 /* A bit more default padding in cells */
-td, th {
+th, td {
   padding: 3px;
 }
 
@@ -103,7 +103,7 @@ table caption {
 }
 
 /* Pre: smaller vertical margins, drop our inherited justification */
-pre, xmp {
+xmp, pre {
   text-align: left;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
@@ -113,14 +113,13 @@ pre, xmp {
 sup { font-size: 70%; }
 sub { font-size: 70%; }
 
-/* Make links noticable */
-a {
-  text-decoration: underline;
-  color: gray;
+/* Have links darker blue, 'blue' looks too light gray on eInk */
+a[href] {
+  color: navy;
 }
 
 /* Keep ensuring this in legacy rendering */
-h2, h3 {
+h3, h2 {
   -cr-only-if: legacy -epub-document;
     page-break-before: always;
 }
