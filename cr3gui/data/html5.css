@@ -362,7 +362,7 @@ h1 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-:is(article, aside, nav, section) h1,
+:where(article, aside, nav, section) h1,
 h2 {
   margin-top: 0.83em;
   margin-bottom: 0.83em;
@@ -372,7 +372,7 @@ h2 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-:is(article, aside, nav, section) :is(article, aside, nav, section) h1,
+:where(article, aside, nav, section) :where(article, aside, nav, section) h1,
 h3 {
   margin-top: 1.00em;
   margin-bottom: 1.00em;
@@ -382,7 +382,7 @@ h3 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-:is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1,
 h4 {
   margin-top: 1.33em;
   margin-bottom: 1.33em;
@@ -392,7 +392,7 @@ h4 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-:is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1,
 h5 {
   margin-top: 1.67em;
   margin-bottom: 1.67em;
@@ -402,7 +402,7 @@ h5 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-:is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1,
 h6 {
   margin-top: 2.33em;
   margin-bottom: 2.33em;
@@ -850,19 +850,19 @@ table[frame=box i], table[frame=border i] {
   border-style: outset;
 }
 
-/* Note: following list of selectors in the specs simplified to use :is(...) */
+/* Note: following list of selectors in the specs simplified to use :where(...) */
 /* If table's border is not equivalent to zero, this -cr-apply-func will set 'border-width: 1px; border-style: inset' */
-table[border] > :is(thead, tbody, tfoot) > tr > th,
-table[border] > :is(thead, tbody, tfoot) > tr > td,
+table[border] > :where(thead, tbody, tfoot) > tr > th,
+table[border] > :where(thead, tbody, tfoot) > tr > td,
 table[border] > tr > th,
 table[border] > tr > td {
   -cr-hint: presentational-hint;
   -cr-apply-func: css-border-from-table-border-attribute;
 }
 
-/* Note: following lists of selectors in the specs simplified to use :where(...) and :is(...) */
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :is(thead, tbody, tfoot) > tr > th,
-table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :is(thead, tbody, tfoot) > tr > td,
+/* Note: following lists of selectors in the specs simplified to use :where(...) */
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :where(thead, tbody, tfoot) > tr > th,
+table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > :where(thead, tbody, tfoot) > tr > td,
 table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > th,
 table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > td {
   -cr-hint: presentational-hint;
@@ -870,8 +870,8 @@ table[rules]:where([rules=none i], [rules=groups i], [rules=rows i]) > tr > td {
   border-style: none;
 }
 
-table[rules=cols i] > :is(thead, tbody, tfoot) > tr > th,
-table[rules=cols i] > :is(thead, tbody, tfoot) > tr > td,
+table[rules=cols i] > :where(thead, tbody, tfoot) > tr > th,
+table[rules=cols i] > :where(thead, tbody, tfoot) > tr > td,
 table[rules=cols i] > tr > th,
 table[rules=cols i] > tr > td {
   -cr-hint: presentational-hint;
@@ -879,8 +879,8 @@ table[rules=cols i] > tr > td {
   border-style: none solid;
 }
 
-table[rules=all i] > :is(thead, tbody, tfoot) > tr > th,
-table[rules=all i] > :is(thead, tbody, tfoot) > tr > td,
+table[rules=all i] > :where(thead, tbody, tfoot) > tr > th,
+table[rules=all i] > :where(thead, tbody, tfoot) > tr > td,
 table[rules=all i] > tr > th,
 table[rules=all i] > tr > td {
   -cr-hint: presentational-hint;
@@ -906,7 +906,7 @@ table[rules=groups i] > tfoot {
   border-bottom-style: solid;
 }
 
-table[rules=rows i] > :is(thead, tbody, tfoot) > tr,
+table[rules=rows i] > :where(thead, tbody, tfoot) > tr,
 table[rules=rows i] > tr {
   -cr-hint: presentational-hint;
   border-top-width: 1px;
@@ -930,9 +930,9 @@ table[cellspacing] {
   -cr-apply-func: css-border-spacing-from-cellspacing-attribute;
 }
 
-/* Note: following list of selectors in the specs simplified to use :is(...) */
-table[cellpadding] > :is(thead, tbody, tfoot) > tr > th,
-table[cellpadding] > :is(thead, tbody, tfoot) > tr > td,
+/* Note: following list of selectors in the specs simplified to use :where(...) */
+table[cellpadding] > :where(thead, tbody, tfoot) > tr > th,
+table[cellpadding] > :where(thead, tbody, tfoot) > tr > td,
 table[cellpadding] > tr > th,
 table[cellpadding] > tr > td {
   -cr-hint: presentational-hint;
