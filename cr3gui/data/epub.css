@@ -86,12 +86,13 @@ table table { /* stop imbricated tables from getting smaller */
 }
 
 /* A bit more default padding in cells */
-th, td {
+td {
   padding: 3px;
 }
 
 /* Background by default on table headers, and text-align center */
 th {
+  padding: 3px;
   background-color: #DDD;
   text-align: center;
 }

@@ -5,10 +5,6 @@
     DocFragment {
         page-break-before: always;
     }
-    h6, h5, h4, h3, h2, h1 {
-        page-break-inside: avoid;
-        page-break-after: avoid;
-    }
     /* Don't break page on headings or section in EPUBs: publishers may not
      * expect it; most EPUB renderers only break page on a new DocFragment. */
     section, h1 {
@@ -46,6 +42,16 @@
    (excluding the ones tagged as "apply in quirks mode")
    as of 20240101 (it will be hard to track future changes in this page...).
 
+   Some of these snippets have been splitted and merged by element name, to
+   reduce the number of selectors (ie. 5 snippets targetting a plain <th>,
+   3 targetting <ol> or <ul>, merged into a single one for each).
+   Some of these have also been reordered by ascending specificity, for clarity.
+
+   When multiple selectors are associated to a same declaration, we may have
+   reorder the selectors from the specs snippets to have the rare ones on the
+   left and the most popular on the right, to get less noise in our "Show
+   matched stylesheet rules" output (as we truncate on the matched element).
+
    Those from sections (and writings) tagged as "presentational hints" have
    added to their declarations: "-cr-hint: presentational-hint;" which helps
    distinguish them and to not have them applied when "Embedded styles" are
@@ -64,11 +70,6 @@
    note when they are unbalanced and will so not work as expected in RTL documents
    (without any note when balanced and strictly equivalent, not caring about
    vertical writing mode that we don't support).
-
-   When multiple selectors are associated to a same declaration, we may have
-   reorder the selectors from the specs snippets to have the rare ones on the
-   left and the most popular on the right, to get less noise in our "Show
-   matched stylesheet rules" output (as we truncate on the matched element).
 
    Some ideas and additional bits taken from Firefox UA stylesheet ("UAS" hereafter)
    https://searchfox.org/mozilla-central/source/layout/style/res/html.css
@@ -90,7 +91,8 @@ param, script, style, template, title {
 }
 
 /* crengine: not caring about differences of embed[hidden] and [hidden=until-found i] */
-input[type=hidden i], [hidden] {
+input[type=hidden i],
+[hidden] {
   -cr-hint: presentational-hint;
   display: none;
 }
@@ -134,13 +136,34 @@ header, hr, legend, listing, main, p, plaintext, pre, search, xmp {
 }
 */
 
-listing, plaintext, xmp,
-blockquote, figure, pre, p {
+p {
   margin-top: 1em;
   margin-bottom: 1em;
 }
 
+/* These about align= for P are mixed in the specs with table related rules...
+   We have moved them here, for clarity.
+   No "align descandants" mentionned for these, as they are not expected to have block children. */
+p[align=left i] {
+  -cr-hint: presentational-hint;
+  text-align: left;
+}
+p[align=right i] {
+  -cr-hint: presentational-hint;
+  text-align: right;
+}
+p[align=center i] {
+  -cr-hint: presentational-hint;
+  text-align: center;
+}
+p[align=justify i] {
+  -cr-hint: presentational-hint;
+  text-align: justify;
+}
+
 blockquote, figure {
+  margin-top: 1em;
+  margin-bottom: 1em;
   margin-left: 40px;
   margin-right: 40px;
 }
@@ -152,6 +175,8 @@ address {
 listing, plaintext, xmp, pre {
   font-family: monospace;
   white-space: pre;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 /* crengine: not caring about styling 'dialog' and [popover] */
@@ -185,33 +210,6 @@ div[align=justify i] {
   text-align: justify;
 }
 
-/* These about align= for P and headings are mixed in the specs with table related rules...
-   We have moved them here, for clarity.
-   No "align descandants" mentionned for these, as they are not expected to have block children. */
-h6[align=left i], h5[align=left i], h4[align=left i], h3[align=left i],
-h2[align=left i], h1[align=left i], p[align=left i] {
-  -cr-hint: presentational-hint;
-  text-align: left;
-}
-
-h6[align=right i], h5[align=right i], h4[align=right i], h3[align=right i],
-h2[align=right i], h1[align=right i], p[align=right i] {
-  -cr-hint: presentational-hint;
-  text-align: right;
-}
-
-h6[align=center i], h5[align=center i], h4[align=center i], h3[align=center i],
-h2[align=center i], h1[align=center i], p[align=center i] {
-  -cr-hint: presentational-hint;
-  text-align: center;
-}
-
-h6[align=justify i], h5[align=justify i], h4[align=justify i], h3[align=justify i],
-h2[align=justify i], h1[align=justify i], p[align=justify i] {
-  -cr-hint: presentational-hint;
-  text-align: justify;
-}
-
 
 /* Phrasing content */
 
@@ -237,13 +235,12 @@ small {
 
 sub {
   vertical-align: sub;
+  line-height: normal;
+  font-size: smaller;
 }
 
 sup {
   vertical-align: super;
-}
-
-sub, sup {
   line-height: normal;
   font-size: smaller;
 }
@@ -371,6 +368,8 @@ h1 {
   margin-bottom: 0.67em;
   font-size: 2.00em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
 }
 
 :is(article, aside, nav, section) h1,
@@ -379,6 +378,8 @@ h2 {
   margin-bottom: 0.83em;
   font-size: 1.50em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
 }
 
 :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
@@ -387,6 +388,8 @@ h3 {
   margin-bottom: 1.00em;
   font-size: 1.17em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
 }
 
 :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
@@ -395,6 +398,8 @@ h4 {
   margin-bottom: 1.33em;
   font-size: 1.00em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
 }
 
 :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
@@ -403,6 +408,8 @@ h5 {
   margin-bottom: 1.67em;
   font-size: 0.83em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
 }
 
 :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) :is(article, aside, nav, section) h1,
@@ -411,6 +418,32 @@ h6 {
   margin-bottom: 2.33em;
   font-size: 0.67em;
   font-weight: bold;
+  page-break-inside: avoid; /* crengine+ */
+  page-break-after: avoid;  /* crengine+ */
+}
+
+/* These about align= for headings are mixed in the specs with table related rules...
+   We have moved them here, for clarity.
+   No "align descandants" mentionned for these, as they are not expected to have block children. */
+h6[align=left i], h5[align=left i], h4[align=left i],
+h3[align=left i], h2[align=left i], h1[align=left i] {
+  -cr-hint: presentational-hint;
+  text-align: left;
+}
+h6[align=right i], h5[align=right i], h4[align=right i],
+h3[align=right i], h2[align=right i], h1[align=right i] {
+  -cr-hint: presentational-hint;
+  text-align: right;
+}
+h6[align=center i], h5[align=center i], h4[align=center i],
+h3[align=center i], h2[align=center i], h1[align=center i] {
+  -cr-hint: presentational-hint;
+  text-align: center;
+}
+h6[align=justify i], h5[align=justify i], h4[align=justify i],
+h3[align=justify i], h2[align=justify i], h1[align=justify i] {
+  -cr-hint: presentational-hint;
+  text-align: justify;
 }
 
 
@@ -421,32 +454,20 @@ dir, dd, dl, dt, menu, ol, ul {
   display: block;
 }
 */
-
+/* crengine-: also "display:list-item" by default (fb2def.h)
+   Additionally by specs, but not supported: text-align: match-parent
 li {
   display: list-item;
 }
-  /* additionally by specs, but not supported: text-align: match-parent */
+*/
 
-dir, menu, dl, ol, ul {
+dl {
   margin-top: 1em;
   margin-bottom: 1em;
 }
-
-/* This one and others below could be written as a single selector ending with ':is(dir,dl,menu,ol,ul)',
-   but it would then be checked on all nodes.
-   Having an element name at its tail end makes it only checked for nodes being that element.
-   This is actually how Firefox has it in its UAS. */
-/* Nested lists have no top/bottom margins */
-:is(ul, ol, dir, menu, dl) dir,
-:is(ul, ol, dir, menu, dl) menu,
-:is(ul, ol, dir, menu, dl) dl,
-:is(ul, ol, dir, menu, dl) ol,
-:is(ul, ol, dir, menu, dl) ul {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
 /* Unbalanced by specs, but not supported: margin-inline-start: 40px.
+   (dl/dt/dd are rare, and we don't really care about the indentation,
+   so let's keep this 40px.)
    Fix the unbalance if dir=rtl set on a parent */
 dd {
   margin-left: 40px;
@@ -456,29 +477,47 @@ dd:dir(rtl) {
   margin-right: 40px;
 }
 
-/* By specs, this should be: padding-inline-start: 40px
-   This fixed absolute 40px is to give room for the list item markers,
-   rendered outside the <li> box, but it is not the best thing to use
-   as it will vary with DPI and not with the font size.
-   Publishers ought to override that if they care about the list items
-   rendering. If they don't, we'll use thse -cr-special and compute
-   dynamically some optimal padding from the widest marker width.
+/* By specs, the padding-left/right below should be: padding-inline-start: 40px.
+   This fixed absolute 40px is to give room for the list item markers, rendered
+   outside the <li> box, but it is not the best thing to use as it will vary
+   with DPI and not with the font size.  Publishers ought to override that
+   if they care about the list items rendering. If they don't, we'll use
+   these -cr-special and compute dynamically some optimal padding from
+   the widest marker width.
 */
-dir, menu, ol, ul {
+dir, menu, ul {
+  margin-top: 1em;
+  margin-bottom: 1em;
   padding-left: -cr-special;
   padding-right: -cr-special;
+  list-style-type: disc;
+}
+
+ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: -cr-special;
+  padding-right: -cr-special;
+  list-style-type: decimal;
 }
 
 /* crengine-: not supported
 ol, ul, menu { counter-reset: list-item; }
 */
 
-ol {
-  list-style-type: decimal;
-}
+/* This one and others below could be written as a single selector ending with ':is(dir,dl,menu,ol,ul)',
+   but it would then be checked on all nodes.
+   Having an element name at its tail end makes it only checked for nodes being that element.
+   This is actually how Firefox has it in its UAS. */
 
-dir, menu, ul {
-  list-style-type: disc;
+/* Nested lists have no top/bottom margins */
+:is(ol, ul, menu, dir, dl) dir,
+:is(ol, ul, menu, dir, dl) menu,
+:is(ol, ul, menu, dir, dl) dl,
+:is(ol, ul, menu, dir, dl) ol,
+:is(ol, ul, menu, dir, dl) ul {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* 2-deep unordered lists use a circle */
@@ -551,52 +590,36 @@ ol[reversed]
 
 /* Tables */
 
+/* crengine-: these elements have these "display:" values by default (fb2def.h)
+   Those with [hidden] are re-set below.
 table {
   display: table;
 }
-
 caption {
   display: table-caption;
 }
-
 colgroup, colgroup[hidden] {
   display: table-column-group;
 }
-
 col, col[hidden] {
   display: table-column;
 }
-
 thead, thead[hidden] {
   display: table-header-group;
 }
-
 tbody, tbody[hidden] {
   display: table-row-group;
 }
-
 tfoot, tfoot[hidden] {
   display: table-footer-group;
 }
-
 tr, tr[hidden] {
   display: table-row;
 }
-
 th, td {
   display: table-cell;
 }
-
-/* crengine+: we need these to keep being 'display: table-cell' for our table rendering algo */
-th[hidden], td[hidden] {
-  display: table-cell;
-  visibility: collapse;
-}
-
-colgroup[hidden], col[hidden], thead[hidden], tbody[hidden],
-tfoot[hidden], tr[hidden] {
-  visibility: collapse;
-}
+*/
 
 table {
   box-sizing: border-box;
@@ -605,24 +628,21 @@ table {
   text-indent: initial;
 }
 
-th, td {
-  padding: 1px;
-}
-
-th {
-  font-weight: bold;
-}
-
 caption {
   text-align: center;
 }
 
-thead, tbody, tfoot, table > tr {
-  vertical-align: middle;
+thead, tbody, tfoot {
+  border-color: inherit;
 }
 
-tr, th, td {
+tr {
   vertical-align: inherit;
+  border-color: inherit;
+}
+
+thead, tbody, tfoot, table > tr {
+  vertical-align: middle;
 }
 
 /* User agents are expected to have a rule in their user agent style
@@ -630,14 +650,51 @@ tr, th, td {
    computed value for the 'text-align' property is its initial
    value, whose declaration block consists of just a single declaration
    that sets the 'text-align' property to the value 'center'.
-   (Firefox has it named: th { text-align: -moz-center-or-inherit; }. ) */
+   (Firefox has it named: th { text-align: -moz-center-or-inherit; }.) */
 th {
+  vertical-align: inherit;
+  padding: 1px;
+  font-weight: bold;
   -cr-apply-func: css-text-align-center-if-parent-text-align-initial;
 }
 
-thead, tbody, tfoot, tr {
-  border-color: inherit;
+td {
+  vertical-align: inherit;
+  padding: 1px;
 }
+
+/* We need to re-set "display:" to the proper value if [hidden] (as they are set
+   set display:none by our rule above), by specs, or for th/td because our table
+   rendering algorithm expects them to to be table-cell */
+colgroup[hidden] {
+  display: table-column-group;
+  visibility: collapse;
+}
+col[hidden] {
+  display: table-column;
+  visibility: collapse;
+}
+thead[hidden] {
+  display: table-header-group;
+  visibility: collapse;
+}
+tbody[hidden] {
+  display: table-row-group;
+  visibility: collapse;
+}
+tfoot[hidden] {
+  display: table-footer-group;
+  visibility: collapse;
+}
+tr[hidden] {
+  display: table-row;
+  visibility: collapse;
+}
+th[hidden], td[hidden] {
+  display: table-cell;
+  visibility: collapse;
+}
+
 
 /* Note: huge list of selectors in the specs simplified to use :where(...) and :is(...)
    (this all seems to be just to check frame= and rules= have valid named values).
