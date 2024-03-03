@@ -415,12 +415,12 @@ h6 {
 /* crengine+: make a new page on H1 and section, but not in EPUBs (publishers may not
  * expect it; most EPUB renderers only break page on a new DocFragment). */
 section, h1 {
-    -cr-only-if: -epub-document; /* only if NOT EPUB document */
-        page-break-before: always;
+  -cr-only-if: -epub-document; /* only if NOT EPUB document */
+    page-break-before: always;
 }
 section > h1:first-of-type, section section {
-    -cr-only-if: -epub-document; /* only if NOT EPUB document */
-        page-break-before: auto;
+  -cr-only-if: -epub-document; /* only if NOT EPUB document */
+    page-break-before: auto;
 }
 
 /* These about align= for headings are mixed in the specs with table related rules...

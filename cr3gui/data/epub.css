@@ -22,6 +22,12 @@ h3 { font-size: 130%; }
 h4 { font-size: 120%; }
 h5 { font-size: 110%; }
 h6 { font-size: 100%; }
+/* The same for H1 in nested sections */
+:where(article, aside, nav, section) h1 { font-size: 140%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 130%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 120%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 110%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 100%; }
 
 /* Paragraphs: no spacing between them, and text-indentation */
 p {
