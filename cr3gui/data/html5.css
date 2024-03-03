@@ -412,14 +412,14 @@ h6 {
   page-break-after: avoid;  /* crengine+ */
 }
 
-/* crengine+: make a new page on H1 and section, but not in EPUBs (publishers may not
- * expect it; most EPUB renderers only break page on a new DocFragment). */
+/* crengine+: with plain HTML files, make a new page on top level H1 and section (but not with other formats
+   like EPUB, publishers may not expect it; most EPUB renderers only break page on a new DocFragment). */
 section, h1 {
-  -cr-only-if: -epub-document; /* only if NOT EPUB document */
+  -cr-only-if: html-document;
     page-break-before: always;
 }
-section > h1:first-of-type, section section {
-  -cr-only-if: -epub-document; /* only if NOT EPUB document */
+section section, section h1 {
+  -cr-only-if: html-document;
     page-break-before: auto;
 }
 

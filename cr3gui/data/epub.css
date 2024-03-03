@@ -127,8 +127,12 @@ a[href] {
 
 /* Keep ensuring this in legacy rendering */
 h3, h2 {
-  -cr-only-if: legacy -epub-document;
+  -cr-only-if: legacy html-document;
     page-break-before: always;
+}
+section h3, section h2 {
+  -cr-only-if: legacy html-document;
+    page-break-before: auto;
 }
 
 /* Old element or className based selectors involving display: that we need
