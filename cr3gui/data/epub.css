@@ -211,6 +211,18 @@ span[type=pagebreak] { display: none; }
  * which could be a huge list of reference page numbers */
 nav[hidden] { display: none; }
 
+/* Added to avoid "style have changed in such a way" when switching between html5.css and epub.css */
+area, datalist, noembed, param, template, title {
+  display: none;
+}
+button, input, marquee {
+  display: inline-block;
+}
+textarea {
+  white-space: pre-wrap;
+}
+
+
 /* Old element or className based selectors involving display: that we need
  * to support for older gDOMVersionRequested (these were fixed in 20180528).
  * DO NOT MODIFY BELOW to not break past highlights */
