@@ -1,6 +1,6 @@
-body { text-align: left; margin: 0; text-indent: 0px; page-break-after: always; }
+body { text-align: left; margin: 0; text-indent: 0; page-break-after: always; }
 
-p { text-align: justify; text-indent: 1.2em; margin-top: 0em; margin-bottom: 0em; min-height: 1em; }
+p { text-align: justify; text-indent: 1.2em; margin-top: 0; margin-bottom: 0; min-height: 1em; }
 
 empty-line { height: 1em }
 
@@ -10,20 +10,20 @@ a { display: inline; text-decoration: underline; }
 a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 a[type="note"]::before { content: "\2060" } /* word joiner, avoid break before */
 
-image { text-align: center; text-indent: 0px; display: block }
+image { text-align: center; text-indent: 0; display: block }
 p image { display: inline }
 li image { display: inline }
 
-li { display: list-item; text-indent: 0em;  }
+li { display: list-item; text-indent: 0;  }
 ul { display: block; list-style-type: disc; margin-left: 1em; padding-left: -cr-special }
 ol { display: block; list-style-type: decimal; margin-left: 1em; padding-left: -cr-special }
 
-cite p, epigraph p { text-align: left; text-indent: 0px }
+cite p, epigraph p { text-align: left; text-indent: 0 }
 v { text-align: left; text-align-last: -cr-right-if-not-first; text-indent: 1em hanging; hyphenate: none }
 
-stanza + stanza { margin-top: 1em; }
 stanza { margin-left: 15%; text-align: left; font-style: italic  }
-poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0px }
+stanza + stanza { margin-top: 1em; }
+poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0 }
 text-author { font-weight: bold; font-style: italic; margin-left: 5%}
 date { font-style: italic; margin-left: 5% }
 epigraph { margin-left: 15%; margin-right: 1em; text-align: left; text-indent: 1em; font-style: italic; margin-top: 15px; margin-bottom: 25px }
@@ -32,11 +32,11 @@ style { display: inline; }
 
 title p, subtitle p, h1 p, h2 p, h3 p, h4 p, h5 p, h6 p {
 	text-align: center;
-	text-indent: 0px
+	text-indent: 0
 }
 title, h1, h2, h3, h4, h5, h6, subtitle {
 	text-align: center;
-	text-indent: 0px;
+	text-indent: 0;
 	font-weight: bold;
 	hyphenate: none;
 }
@@ -45,18 +45,6 @@ h1, h2, h3, h4, h5, h6 {
 	margin-top: 0.5em;
 	margin-bottom: 0.5em;
 	padding: 10px ;
-}
-title, h1, h2 {
-	page-break-before: always;
-	page-break-inside: avoid;
-	page-break-after: avoid;
-}
-ol title, ul title {
-	page-break-before: auto;
-}
-subtitle, h3, h4, h5, h6 {
-	page-break-inside: avoid;
-	page-break-after: avoid;
 }
 title {
 	font-size: 110%;
@@ -73,12 +61,24 @@ h2 { font-size: 140% }
 h3 { font-size: 130% }
 h4 { font-size: 120% }
 h5 { font-size: 110% }
+title, h1, h2 {
+	page-break-before: always;
+	page-break-inside: avoid;
+	page-break-after: avoid;
+}
+ol title, ul title {
+	page-break-before: auto;
+}
+subtitle, h3, h4, h5, h6 {
+	page-break-inside: avoid;
+	page-break-after: avoid;
+}
 
 table { font-size: 80%; width: 100%;  }
-td, th { text-indent: 0px; padding: 3px }
+td, th { text-indent: 0; padding: 3px }
 th {  font-weight: bold; text-align: center; background-color: #DDD  }
 /* #808080; */
-table caption { text-indent: 0px; padding: 4px; background-color: #EEE }
+table caption { text-indent: 0; padding: 4px; background-color: #EEE }
 table, th, td { border-width: 1px; border-style: solid; border-color: black; border-collapse: collapse; }
 
 tt, samp, kbd { font-family: monospace; }
@@ -156,14 +156,14 @@ big { font-size: 130%; }
 
 nobr { display: inline; hyphenate: none; white-space: nowrap; }
 
-dl { margin-left: 0em; }
-dt { display: block; margin-left: 0em; margin-top:0.3em; font-weight: bold; }
+dl { margin-left: 0; }
+dt { display: block; margin-left: 0; margin-top:0.3em; font-weight: bold; }
 dd { display: block; margin-left: 1.3em; }
 
 img {
    margin: 0.5em;
    text-align: center;
-   text-indent: 0em;
+   text-indent: 0;
    border-style: solid;
    border-width: medium;
 }
