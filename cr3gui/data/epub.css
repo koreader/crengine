@@ -78,10 +78,14 @@ center {
 ul {
     list-style-type: disc;
     margin-left: 1em;
+    padding-left: -cr-special;
+    padding-right: -cr-special;
 }
 ol {
     list-style-type: decimal;
     margin-left: 1em;
+    padding-left: -cr-special;
+    padding-right: -cr-special;
 }
 ul:dir(rtl), ol:dir(rtl) {
     margin-left: 0;
