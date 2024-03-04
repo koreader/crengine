@@ -2690,6 +2690,9 @@ static const char * css_ta_names[] =
     "justify",
     "start",
     "end",
+    "-cr-html-align-left",
+    "-cr-html-align-right",
+    "-cr-html-align-center",
     "auto",
     "-cr-left-if-not-first",
     "-cr-right-if-not-first",
@@ -3503,6 +3506,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 prop_code = cssd_text_align_last;
                 IF_g_SET_n_AND_break(true, css_ta_inherit, css_ta_auto)
                 n = parse_name( decl, css_ta_names, -1 );
+                if ( n >= css_ta_html_align_left && n <= css_ta_html_align_center ) // only accepted with text-align
+                    n = -1;
                 break;
             case cssd_text_decoration:
             case cssd_text_decoration2:
