@@ -6014,6 +6014,10 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             // won't work: the borders will go away from the text, but will continue to stick to each
             // others... It would be quite a lot more complicated to handle this properly, and hopefully
             // this implementation is good enough in practice.)
+            // This limitations is also quite noticable with <img> having borders: the border may be
+            // drawn over by the image, or there may be blanks between the image and some border
+            // sides (ie. if an image sits at the baseline, the border will be drawn under the strut,
+            // leaving some gap below the image)...
             if ( has_inline_borders ) {
                 // Draw top border, and then bottom border (we use the same kind
                 // of logic with lastWordStart/End as for background color above)
