@@ -5081,6 +5081,8 @@ bool LVCssSelectorRule::checkInnerText( const ldomNode * & node ) const {
             return val.pos(_value, 0) >= 0;
         }
         break;
+    default:
+        break;
     }
     return false;
 }
@@ -5826,7 +5828,7 @@ LVCssSelectorRule * parse_attr( const char * &str, lxmlDocBase * doc, bool usera
                     }
                     LVCssSelectorRule * rule = new LVCssSelectorRule(cssrt_pseudoclass);
                     rule->setAttr(n, lString32::empty_str);
-                    rule->setSubSelectors(LVRef(first_selector));
+                    rule->setSubSelectors(LVCssSelectorRef(first_selector));
                     return rule;
                 }
                 // Either ',' met (and skipped by skip_to_next()) and we should expect another selector,
