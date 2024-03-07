@@ -15,8 +15,8 @@ p image { display: inline }
 li image { display: inline }
 
 li { display: list-item; text-indent: 0em;  }
-ul { display: block; list-style-type: disc; margin-left: 1em }
-ol { display: block; list-style-type: decimal; margin-left: 1em }
+ul { display: block; list-style-type: disc; margin-left: 1em; padding-left: -cr-special }
+ol { display: block; list-style-type: decimal; margin-left: 1em; padding-left: -cr-special }
 
 cite p, epigraph p { text-align: left; text-indent: 0px }
 v { text-align: left; text-align-last: -cr-right-if-not-first; text-indent: 1em hanging; hyphenate: none }
