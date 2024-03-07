@@ -443,17 +443,6 @@ public:
                         ExtendCols(colindex+1);
                         CCRTableCol * col = cols[colindex];
                         col->elem = item;
-                        /*
-                        lString32 w = item->getAttributeValue(attr_width);
-                        if (!w.empty()) {
-                            // TODO: px, em, and other length types support
-                            int wn = StrToIntPercent(w.c_str(), digitwidth);
-                            if (wn<0)
-                                col->percent = -wn;
-                            else if (wn>0)
-                                col->width = wn;
-                        }
-                        */
                         css_length_t w = style->width;
                         if ( w.type == css_val_percent ) { // %
                             col->percent = w.value / 256;
@@ -504,39 +493,6 @@ public:
                         if (rs>0 && rs<100) {
                             cell->rowspan=rs;
                         }
-                        /*
-                        // "width"
-                        lString32 w = item->getAttributeValue(attr_width);
-                        if (!w.empty()) {
-                            int wn = StrToIntPercent(w.c_str(), digitwidth);
-                            if (wn<0)
-                                cell->percent = -wn;
-                            else if (wn>0)
-                                cell->width = wn;
-                        }
-                        // "align"
-                        lString32 halign = item->getAttributeValue(attr_align);
-                        if (halign == "center")
-                            cell->halign = 1; // center
-                        else if (halign == "right")
-                            cell->halign = 2; // right
-                        // "valign"
-                        lString32 valign = item->getAttributeValue(attr_valign);
-                        if (valign == "center")
-                            cell->valign = 2; // middle
-                        else if (valign == "bottom")
-                            cell->valign = 3; // bottom
-                        */
-                        // These commented above attributes have been translated to
-                        // CSS properties by ldomDocumentWriterFilter::OnAttribute():
-                        //   width= has been translated to elem style->width
-                        //   align= has been translated to elem style->text_align
-                        //   valign= has been translated to elem style->vertical_align
-                        // (This allows overriding them with Style tweaks to remove
-                        // publisher alignments and specified widths)
-                        // Note: this is only done with plain .html files, but
-                        // not with EPUBs.
-                        // todo: see if needed with EPUBs
 
                         css_length_t w = style->width;
                         if ( w.type == css_val_percent ) { // %
