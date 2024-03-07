@@ -3881,7 +3881,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     // flagged, and don't make out duplicate in-page footnotes
             }
             bool isBlock = style->display == css_d_block;
-            if ( isBlock ) {
+            // The next bit of code inserting the values of the suptitle/title/subtitle attributes in
+            // the rendering is maybe only expected with FB2 documents (it is not mentionned in the FB2
+            // specs, but see https://github.com/koreader/koreader/issues/11173#issuecomment-1950282867).
+            // We don't want it with other document formats, as this text could interact badly
+            // with any styling of the image (ie. width, border...)
+            int doc_format = enode->getDocument()->getProps()->getIntDef(DOC_PROP_FILE_FORMAT_ID, doc_format_none);
+            bool isFB2 = (doc_format == doc_format_fb2) || (doc_format == doc_format_fb3);
+            if ( isBlock && isFB2 ) {
                 // If block image, forget any current flags and start from baseflags (?)
                 lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
                 flags |= linkflags;
@@ -3914,7 +3921,22 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     for ( int i=0; i<lines.length(); i++ )
                         txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
                 }
-            } else { // inline image
+            }
+            else if ( isBlock ) {
+                // Block image in HTML
+                if ( rm == erm_final ) { // (should probably always be the case)
+                    // If standalone block image, do as done above for floating images
+                    // (Firefox does not ensure the strut and neither text-indent.)
+                    txform->setStrut(0, 0);
+                    line_h = 0;
+                    indent = 0;
+                }
+                // Forget any current flags and start from baseflags
+                lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
+                flags |= linkflags;
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+            }
+            else { // inline image
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
                 flags |= linkflags;
@@ -7364,6 +7386,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // We may trust width set on our own boxing elements, even if a table
     // element wheree it is usually ignored
     bool is_boxing_elem = nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START;
+    // Images needs some specific handling
+    bool is_image = enode->isImage();
     // <HR> gets its style width, height and margin:auto no matter flags
     bool is_hr = nodeElementId == el_hr;
     // <EMPTY-LINE> block element with height added for empty lines in txt document
@@ -7627,6 +7651,33 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         width = container_width - margin_left - margin_right;
         auto_width = true; // no more width tweaks
         // For tables, keep table_shrink_to_fit=false, so this width is not reduced
+    }
+    else if ( is_image ) {
+        // A standalone block image shouldn't have its border take the full container
+        // width, they should stick to the image.
+        int img_width = 0;
+        int img_height = 0;
+        getStyledImageSize( enode, img_width, img_height, container_width, -1, true );
+        // Not mentionned in the CSS2 specs, but browsers do apply any padding between the image and its borders
+        width = padding_left + img_width + padding_right;
+        // In case style's width and height were in %, update them to the computed value
+        // (otherwise, the % would somehow be applied a second time...)
+        css_style_ref_t newstyle(new css_style_rec_t);
+        copystyle(style, newstyle);
+        newstyle->width.type = css_val_screen_px;
+        newstyle->width.value = img_width;
+        newstyle->height.type = css_val_screen_px;
+        newstyle->height.value = img_height;
+        newstyle->min_width.type = css_val_unspecified;
+        newstyle->min_width.value = css_generic_auto;
+        newstyle->min_height.type = css_val_unspecified;
+        newstyle->min_height.value = css_generic_auto;
+        newstyle->max_width.type = css_val_unspecified;
+        newstyle->max_width.value = css_generic_none;
+        newstyle->max_height.type = css_val_unspecified;
+        newstyle->max_height.value = css_generic_none;
+        enode->setStyle(newstyle);
+        style = enode->getStyle(); // Re-fetch it
     }
     else { // regular element (non-float)
         bool apply_style_width = false;
