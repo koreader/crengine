@@ -141,6 +141,7 @@ enum css_decl_code {
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
     cssd_cr_only_if,
+    cssd_cr_apply_func,
     cssd_stop
 };
 
@@ -250,6 +251,7 @@ static const char * css_decl_name[] = {
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
     "-cr-only-if",
+    "-cr-apply-func",
     NULL
 };
 
@@ -697,6 +699,11 @@ bool parse_number_value( const char * & str, css_length_t & value,
             value.value = (int)(256 * 2);
             return true;
         }
+        else if ( substr_icompare( "xxx-large", str ) ) {
+            value.type = css_val_rem;
+            value.value = (int)(256 * 3);
+            return true;
+        }
         // Approximate the (usually uneven) gaps between named sizes.
         else if ( substr_icompare( "smaller", str ) ) {
             value.type = css_val_percent;
@@ -796,6 +803,68 @@ bool parse_number_value( const char * & str, css_length_t & value,
     value.value = n * 256 + (256 * frac + frac_div / 2 ) / frac_div; // *256
     if (negative)
         value.value = -value.value;
+    return true;
+}
+
+static bool parse_html_length( const char * & str, css_length_t & value, bool parse_as_dimension=false)
+{
+    // Implement parsing of HTML attributes described in https://html.spec.whatwg.org/multipage/rendering.html
+    // With parse_as_dimension=false, parse a "pixel length property", following rules for parsing
+    // non-negative integers (that is, -/+/nothing followed by digits).
+    // With parse_as_dimension=true, parse a "dimension property", following rules for parsing dimension
+    // values (that is, digits, followed optionally by a dot followed by digits, and nothing or '%').
+    // In both cases, we stop as soon as digits or '%' can't be gathered, and any crap can follow without
+    // causing any failulre (that is: "123.456abcd" is valid and will return 123.456).
+    skip_spaces( str );
+    // Even if we don't accept negative values, we must parse "-0", which is a non-negative integer.
+    bool negative = false;
+    if ( !parse_as_dimension ) {
+        if ( *str == '-' ) {
+            str++;
+            negative = true;
+        }
+        else if (*str=='+') { // This is accepted, and means it's positive
+            str++; // just ignore it
+        }
+    }
+    // In all cases, it must start with a digit
+    if (*str<'0' || *str>'9') {
+        return false; // not a number
+    }
+    int n = 0;
+    while (*str>='0' && *str<='9') {
+        n = n*10 + (*str - '0');
+        str++;
+    }
+    if ( !parse_as_dimension ) {
+        if ( negative && n != 0 )
+            return false;
+        value.type = css_val_px;
+        value.value = n * 256;
+        return true;
+    }
+    int frac = 0;
+    int frac_div = 1;
+    if (*str == '.') {
+        str++;
+        while (*str>='0' && *str<='9')
+        {
+            // don't process more than 6 digits after decimal point
+            // to avoid overflow in case of very long values
+            if (frac_div < 1000000) {
+                frac = frac*10 + (*str - '0');
+                frac_div *= 10;
+            }
+            str++;
+        }
+    }
+    if (*str == '%')
+        value.type = css_val_percent;
+    else
+        value.type = css_val_px;
+    value.value = n * 256 + (256 * frac + frac_div / 2 ) / frac_div; // *256
+    if ( negative && value.value != 0 )
+        return false;
     return true;
 }
 
@@ -3041,6 +3110,52 @@ enum cr_only_if_t {
     cr_only_if_not_inside_inpage_footnote,
 };
 
+static const char * css_cr_apply_func_names[]={
+    "css-color-from-color-attribute",
+    "css-color-from-text-attribute",
+    "css-background-color-from-bgcolor-attribute",
+    "css-background-image-from-background-attribute",
+    "css-font-family-from-face-attribute",
+    "css-font-size-from-size-attribute",
+    "css-width-from-width-attribute",
+    "css-width-from-width-attribute-ignoring-zero",
+    "css-height-from-height-attribute",
+    "css-height-from-height-attribute-ignoring-zero",
+    "css-border-spacing-from-cellspacing-attribute",
+    "css-padding-from-parent-table-cellpadding-attribute",
+    "css-border-from-table-border-attribute",
+    "css-border-color-from-bordercolor-attribute",
+    "css-various-from-hr-size-attribute",
+    "css-margin-from-hspace-attribute",
+    "css-margin-from-vspace-attribute",
+    "css-border-from-border-attribute",
+    "css-text-align-center-if-parent-text-align-initial",
+    NULL
+};
+enum cr_apply_func_t {
+    cr_apply_func_css_color_from_color_attribute,
+    cr_apply_func_css_color_from_text_attribute,
+    cr_apply_func_css_background_color_from_bgcolor_attribute,
+    cr_apply_func_css_background_image_from_background_attribute,
+    cr_apply_func_css_font_family_from_face_attribute,
+    cr_apply_func_css_font_size_from_size_attribute,
+    cr_apply_func_css_width_from_width_attribute,
+    cr_apply_func_css_width_from_width_attribute_ignoring_zero,
+    cr_apply_func_css_height_from_height_attribute,
+    cr_apply_func_css_height_from_height_attribute_ignoring_zero,
+    cr_apply_func_css_border_spacing_from_cellspacing_attribute,
+    cr_apply_func_css_padding_from_parent_table_cellpadding_attribute,
+    cr_apply_func_css_border_from_table_border_attribute,
+    cr_apply_func_css_border_color_from_bordercolor_attribute,
+    cr_apply_func_css_various_from_hr_size_attribute,
+    cr_apply_func_css_margin_from_hspace_attribute,
+    cr_apply_func_css_margin_from_vspace_attribute,
+    cr_apply_func_css_border_from_border_attribute,
+    cr_apply_func_css_text_align_center_if_parent_text_align_initial,
+};
+
+
+
 // Handle inherit/initial/unset, as "#define..." to keep LVCssDeclaration::parse() lean.
 #define IF_g_SET_n_AND_break(default_inherited, inherit_val, initial_val) \
     if (g >= 0) { \
@@ -3362,6 +3477,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         // (css_val_unspecified just says this value has no unit)
                     }
                 }
+                break;
+            case cssd_cr_apply_func:
+                n = parse_name( decl, css_cr_apply_func_names, -1 );
                 break;
             case cssd_display:
                 IF_g_SET_n_AND_break(false, css_d_inherit, css_d_inline);
@@ -4508,6 +4626,342 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
     return false;
 }
 
+static void apply_cr_apply_func( cr_apply_func_t apply_func, css_style_rec_t * style, const ldomNode * node, lUInt8 is_important=0) {
+    // Quotes from the specs https://html.spec.whatwg.org/multipage/rendering.html
+    switch (apply_func) {
+    case cr_apply_func_css_color_from_color_attribute:
+        if ( node && node->hasAttribute(attr_color) ) {
+            // The specs point to "rules for parsing a legacy color value", which are
+            // a bit different than what we use for CSS color values, but let's be
+            // lazy and parse it with the same code.
+            css_length_t color;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_color));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_color_value( cvalue8, color ) ) {
+                style->Apply( color, &style->color, imp_bit_color, is_important );
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            }
+        }
+        break;
+    case cr_apply_func_css_color_from_text_attribute:
+        if ( node && node->hasAttribute(attr_text) ) {
+            css_length_t color;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_text));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_color_value( cvalue8, color ) ) {
+                style->Apply( color, &style->color, imp_bit_color, is_important );
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            }
+        }
+        break;
+    case cr_apply_func_css_background_color_from_bgcolor_attribute:
+        if ( node && node->hasAttribute(attr_bgcolor) ) {
+            css_length_t color;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_bgcolor));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_color_value( cvalue8, color ) ) {
+                style->Apply( color, &style->background_color, imp_bit_background_color, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_background_image_from_background_attribute:
+        if ( node && node->hasAttribute(attr_background) ) {
+            lString32 value = node->getAttributeValue(attr_background);
+            if ( !value.empty() ) {
+                // With EPUBs, we would probably need to resolve the file path relative
+                // to this html fragment with resolve_url_path(value, codeBase), which
+                // is unreachable from here... Let's not bother for now.
+                lString8 value8 = UnicodeToUtf8(value);
+                style->Apply( value8, &style->background_image, imp_bit_background_image, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_font_family_from_face_attribute:
+        if ( node && node->hasAttribute(attr_face) ) {
+            lString32 value = node->getAttributeValue(attr_face);
+            if ( !value.empty() ) {
+                // "the user agent is expected to treat the attribute as a presentational hint
+                // setting the element's 'font-family' property to the attribute's value"
+                // As our handling of font-family is a bit complex, just handle it as if
+                // we were parsing a style= content with it.
+                value = cs32("{font-family:") + value + "}";
+                lString8 value8 = UnicodeToUtf8(value);
+                const char * cvalue8 = value8.c_str();
+                LVCssDeclaration decl;
+                if ( decl.parse( cvalue8, false, node->getDocument() ) ) {
+                    decl.apply( style );
+                }
+            }
+        }
+        break;
+    case cr_apply_func_css_font_size_from_size_attribute:
+        if ( node && node->hasAttribute(attr_size) ) {
+            // As specified in "rules for parsing a legacy font size"
+            css_length_t length;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_size));
+            const char * str = value8.c_str();
+            skip_spaces(str);
+            bool is_rel_plus = false;
+            bool is_rel_minus = false;
+            if ( *str == '+' ) {
+                is_rel_plus = true;
+                str++;
+            }
+            else if ( *str == '-' ) {
+                is_rel_minus = true;
+                str++;
+            }
+            int num;
+            if ( parse_integer(str, num) ) {
+                // Note: per-specs, any trailing non-digits cause no issue (that is:
+                // size="1" and size="1zz" are both valid and result in the same value)
+                if ( is_rel_plus )
+                    num = num + 3;
+                else if ( is_rel_minus )
+                    num = 3 - num;
+                if ( num < 1 )
+                    num = 1;
+                else if ( num > 7 )
+                    num = 7;
+                // This number (1 to 7) maps to CSS font size named values (x-small to xxx-large)
+                // as mentionned below. Let's use the same values made by parse_number_value()
+                // when parsing these named values.
+                css_length_t size;
+                size.type = css_val_rem;
+                switch (num) {
+                    case 1: size.value = (int)(256 * 3/4); break; // x-small
+                    case 2: size.value = (int)(256 * 8/9); break; // small
+                    case 3: size.value = 256;              break; // medium
+                    case 4: size.value = (int)(256 * 6/5); break; // large
+                    case 5: size.value = (int)(256 * 3/2); break; // x-large
+                    case 6: size.value = (int)(256 * 2);   break; // xx-large
+                    case 7: size.value = (int)(256 * 3);   break; // xxx-large
+                }
+                style->Apply( size, &style->font_size, imp_bit_font_size, is_important );
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            }
+        }
+        break;
+    case cr_apply_func_css_width_from_width_attribute:
+    case cr_apply_func_css_width_from_width_attribute_ignoring_zero:
+        if ( node && node->hasAttribute(attr_width) ) {
+            css_length_t width;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_width));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, width, true ) ) {
+                if ( apply_func != cr_apply_func_css_width_from_width_attribute_ignoring_zero || width.value != 0 )
+                    style->Apply( width, &style->width, imp_bit_width, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_height_from_height_attribute:
+    case cr_apply_func_css_height_from_height_attribute_ignoring_zero:
+        if ( node && node->hasAttribute(attr_height) ) {
+            css_length_t height;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_height));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, height, true ) ) {
+                if ( apply_func != cr_apply_func_css_height_from_height_attribute_ignoring_zero || height.value != 0 )
+                    style->Apply( height, &style->height, imp_bit_height, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_border_spacing_from_cellspacing_attribute:
+        if ( node && node->hasAttribute(attr_cellspacing) ) {
+            css_length_t spacing;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_cellspacing));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, spacing, false ) ) {
+                style->Apply( spacing, &style->border_spacing[0], imp_bit_border_spacing_h, is_important );
+                style->Apply( spacing, &style->border_spacing[1], imp_bit_border_spacing_v, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_padding_from_parent_table_cellpadding_attribute:
+        // Our CSS explicitely matches a direct parent table with a cellpadding attribute,
+        // so go looking for the first table parent.
+        {
+            ldomNode * parent = node->getParentNode();
+            while (parent && parent->getNodeId() != el_table)
+                parent = parent->getParentNode();
+            if ( parent && parent->hasAttribute(attr_cellpadding) ) {
+                css_length_t padding;
+                lString8 value8 = UnicodeToUtf8(parent->getAttributeValue(attr_cellpadding));
+                const char * cvalue8 = value8.c_str();
+                if ( parse_html_length( cvalue8, padding, false ) ) {
+                    style->Apply( padding, &style->padding[2], imp_bit_padding_top, is_important );
+                    style->Apply( padding, &style->padding[1], imp_bit_padding_right, is_important );
+                    style->Apply( padding, &style->padding[3], imp_bit_padding_bottom, is_important );
+                    style->Apply( padding, &style->padding[0], imp_bit_padding_left, is_important );
+                }
+            }
+        }
+        break;
+    case cr_apply_func_css_border_from_table_border_attribute:
+        {
+            // This can be used with either the table element or its td and th children (still using
+            // the attribute from their parent table)
+            const ldomNode * parent = node;
+            while (parent && parent->getNodeId() != el_table)
+                parent = parent->getParentNode();
+            if ( parent && parent->hasAttribute(attr_border) ) {
+                bool is_table = parent == node; // otherwise, this is a cell
+                css_length_t border;
+                lString8 value8 = UnicodeToUtf8(parent->getAttributeValue(attr_border));
+                const char * cvalue8 = value8.c_str();
+                if ( !parse_html_length( cvalue8, border, false ) ) {
+                    // "If the attribute is present but parsing the attribute's value using the rules
+                    //  for parsing non-negative integers generates an error, a default value of 1px
+                    //  is expected to be used for that property instead"
+                    border.type = css_val_px;
+                    border.value = 256;
+                }
+                if ( is_table || border.value != 0 ) {
+                    if ( !is_table ) {
+                        // The table border size is not propagated to the cell, we should ensure:
+                        //   table[border] > tr > td (& similar) { border-width: 1px; ... }
+                        // "only if border is not equivalent to zero", so forcing it to be 1px.
+                        border.type = css_val_px;
+                        border.value = 256;
+                    }
+                    style->Apply( border, &style->border_width[0], imp_bit_border_width_top, is_important );
+                    style->Apply( border, &style->border_width[1], imp_bit_border_width_right, is_important );
+                    style->Apply( border, &style->border_width[2], imp_bit_border_width_bottom, is_important );
+                    style->Apply( border, &style->border_width[3], imp_bit_border_width_left, is_important );
+                }
+                // We should also ensure other CSS snippets from the HTML specs suggested rendering
+                // marked "Rules marked "only if border is not equivalent to zero":
+                // table[border] { border-style: outset; }
+                // table[border] > tr > td (& similar) { ...; border-style: inset; }
+                if ( border.value != 0 ) {
+                    css_border_style_type_t border_style;
+                    if ( is_table ) {
+                        border_style = css_border_outset;
+                    }
+                    else { // cell
+                        border_style = css_border_inset;
+                    }
+                    style->Apply(border_style, &style->border_style_top, imp_bit_border_style_top, is_important );
+                    style->Apply(border_style, &style->border_style_right, imp_bit_border_style_right, is_important );
+                    style->Apply(border_style, &style->border_style_bottom, imp_bit_border_style_bottom, is_important );
+                    style->Apply(border_style, &style->border_style_left, imp_bit_border_style_left, is_important );
+                }
+            }
+        }
+        break;
+    case cr_apply_func_css_border_color_from_bordercolor_attribute:
+        if ( node && node->hasAttribute(attr_bordercolor) ) {
+            css_length_t color;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_bordercolor));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_color_value( cvalue8, color ) ) {
+                style->Apply( color, &style->border_color[0], imp_bit_border_color_top, is_important );
+                style->Apply( color, &style->border_color[1], imp_bit_border_color_right, is_important );
+                style->Apply( color, &style->border_color[2], imp_bit_border_color_bottom, is_important );
+                style->Apply( color, &style->border_color[3], imp_bit_border_color_left, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_various_from_hr_size_attribute:
+        if ( node && node->hasAttribute(attr_size) ) {
+            css_length_t size;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_size));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, size, false ) ) {
+                // Different behaviour depending of the presence of color or noshade attributes
+                if ( node->hasAttribute(attr_color) || node->hasAttribute(attr_noshade) ) {
+                    // "the user agent is expected to use the parsed value divided by two as a pixel length
+                    // for presentational hints for the properties 'border-top-width', 'border-right-width',
+                    // 'border-bottom-width', and 'border-left-width' on the element"
+                    size.value = size.value / 2;
+                    if ( size.value <= 0 )
+                        size.value = 256; // approximate what Firefox does with "0" and "1"
+                    style->Apply( size, &style->border_width[0], imp_bit_border_width_top, is_important );
+                    style->Apply( size, &style->border_width[1], imp_bit_border_width_right, is_important );
+                    style->Apply( size, &style->border_width[2], imp_bit_border_width_bottom, is_important );
+                    style->Apply( size, &style->border_width[3], imp_bit_border_width_left, is_important );
+                }
+                else {
+                    // "if the parsed value is one, then the user agent is expected to use the attribute as
+                    // a presentational hint setting the element's 'border-bottom-width' to 0; otherwise,
+                    // if the parsed value is greater than one, then the user agent is expected to use the
+                    // parsed value minus two as a pixel length for presentational hints for the 'height'
+                    // property on the element"
+                    if ( size.value == 256 ) { // "1"
+                        size.value = 0;
+                        style->Apply( size, &style->border_width[2], imp_bit_border_width_bottom, is_important );
+                    }
+                    else {
+                        size.value = size.value - 2*256;
+                        if ( size.value < 0 )
+                            size.value = 256; // approximate what Firefox does with "0"
+                        style->Apply( size, &style->height, imp_bit_height, is_important );
+                    }
+                }
+            }
+        }
+        break;
+    case cr_apply_func_css_margin_from_hspace_attribute:
+        if ( node && node->hasAttribute(attr_hspace) ) {
+            css_length_t space;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_hspace));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, space, false ) ) {
+                style->Apply( space, &style->margin[0], imp_bit_margin_left, is_important );
+                style->Apply( space, &style->margin[1], imp_bit_margin_right, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_margin_from_vspace_attribute:
+        if ( node && node->hasAttribute(attr_vspace) ) {
+            css_length_t space;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_vspace));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, space, false ) ) {
+                style->Apply( space, &style->margin[2], imp_bit_margin_top, is_important );
+                style->Apply( space, &style->margin[3], imp_bit_margin_bottom, is_important );
+            }
+        }
+        break;
+    case cr_apply_func_css_border_from_border_attribute:
+        if ( node && node->hasAttribute(attr_border) ) {
+            css_length_t border;
+            lString8 value8 = UnicodeToUtf8(node->getAttributeValue(attr_border));
+            const char * cvalue8 = value8.c_str();
+            if ( parse_html_length( cvalue8, border, false ) ) {
+                if ( border.value >= 256 ) {
+                    style->Apply( border, &style->border_width[0], imp_bit_border_width_top, is_important );
+                    style->Apply( border, &style->border_width[1], imp_bit_border_width_right, is_important );
+                    style->Apply( border, &style->border_width[2], imp_bit_border_width_bottom, is_important );
+                    style->Apply( border, &style->border_width[3], imp_bit_border_width_left, is_important );
+                    style->Apply( css_border_solid, &style->border_style_top, imp_bit_border_style_top, is_important );
+                    style->Apply( css_border_solid, &style->border_style_right, imp_bit_border_style_right, is_important );
+                    style->Apply( css_border_solid, &style->border_style_bottom, imp_bit_border_style_bottom, is_important );
+                    style->Apply( css_border_solid, &style->border_style_left, imp_bit_border_style_left, is_important );
+                }
+            }
+        }
+        break;
+    case cr_apply_func_css_text_align_center_if_parent_text_align_initial:
+        // "User agents are expected to have a rule in their user agent style
+        //  sheet that matches th elements that have a parent node whose
+        //  computed value for the 'text-align' property is its initial
+        //  value, whose declaration block consists of just a single declaration
+        //  that sets the 'text-align' property to the value 'center'."
+        // https://stackoverflow.com/questions/76786755/text-align-left-and-start-behaving-differently-with-direction-left-to-right
+        // "In other words, user agents should center th only if the default value of its parent
+        // is unchanged. text-align: start is the default value in current browsers, therefore
+        // th gets centered."
+        // We have the parent style fully computed when we apply the stylesheet to its children.
+        css_style_ref_t pstyle = node->getParentNode()->getStyle();
+        if ( pstyle->text_align == css_ta_start ) {
+            style->Apply( css_ta_center, &style->text_align, imp_bit_text_align, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+        }
+        break;
+    }
+}
+
 static css_length_t read_length( int * &data )
 {
     css_length_t len;
@@ -4516,7 +4970,7 @@ static css_length_t read_length( int * &data )
     return len;
 }
 
-void LVCssDeclaration::apply( css_style_rec_t * style ) const
+void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) const
 {
     if (!_data)
         return;
@@ -4870,6 +5324,9 @@ void LVCssDeclaration::apply( css_style_rec_t * style ) const
                     }
                 }
             }
+            break;
+        case cssd_cr_apply_func:
+            apply_cr_apply_func( (cr_apply_func_t) *p++, style, node, is_important );
             break;
         case cssd_content:
             {
