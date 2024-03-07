@@ -41,7 +41,7 @@
 /* Hidden elements */
 
 [hidden], area, base, basefont, datalist, head, link,
-meta, noembed, noframes, param, rp, script, source, style, template, track, title {
+meta, noembed, param, script, style, template, title {
   display: none;
 }
 
@@ -128,12 +128,12 @@ ruby {
 
 rb {
   display: ruby-base;
-  white-space: nowrap;
+  /* white-space: nowrap; */
 }
 
 rt {
   display: ruby-text;
-  white-space: nowrap;
+  /* white-space: nowrap; */
   font-size: 50%;
   font-variant-east-asian: ruby;
   text-emphasis: none;
@@ -905,6 +905,10 @@ textarea {
 input[type="radio"], input[type="checkbox"], input[type="reset"], input[type="button"],
 input[type="submit"], select, button {
   box-sizing: border-box;
+}
+
+button, input, marquee {
+  display: inline-block;
 }
 
 /* Horizontal rule */
