@@ -1,227 +1,139 @@
+@import url("html5.css");
+
+/* Extend html5.css with tweaks to make it more "book" looking and less
+ * like a web page, especially needed with unstyled EPUB/HTML documents.
+ * (styling similar to what we got with our older epub.css). */
+
+/* Text justified by default */
 body {
-    text-indent: 0;
-    margin: 0;
-    text-align: justify;
+  text-align: justify;
 }
 
-head, script {
-    display: none;
+/* Constant margin on all levels */
+h6, h5, h4, h3, h2, h1 {
+  margin-top: 0.7em;
+  margin-bottom: 0.5em;
+  hyphens: none;
 }
-
-/* EPUB container of each individual HTML file */
-DocFragment {
-    page-break-before: always;
-}
-/* Non-linear fragments (hideable) */
-DocFragment[NonLinear] {
-    -cr-hint: non-linear;
-}
-section[type=footnotes] {
-    -cr-hint: non-linear;
-}
-aside[type=footnote] {
-    -cr-hint: non-linear-combining;
-}
-
-
-/* Headings */
-h1, h2, h3, h4, h5, h6 {
-    margin-top: 0.7em;
-    margin-bottom: 0.5em;
-    font-weight: bold;
-    text-indent: 0;
-    hyphens: none;
-    page-break-inside: avoid;
-    page-break-after: avoid;
-}
-/* Don't break page on headings in EPUBs: publishers may not expect it,
- * as most EPUB renderers only break page on a new DocFragment. */
-h1 {
-    -cr-only-if: -epub-document; /* only if NOT EPUB document */
-        page-break-before: always;
-}
-h2, h3 {
-    -cr-only-if: legacy -epub-document;
-        page-break-before: always;
-}
+/* Less radical font size changes */
 h1 { font-size: 150%; }
 h2 { font-size: 140%; }
 h3 { font-size: 130%; }
 h4 { font-size: 120%; }
 h5 { font-size: 110%; }
+h6 { font-size: 100%; }
+/* The same for H1 in nested sections */
+:where(article, aside, nav, section) h1 { font-size: 140%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 130%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 120%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 110%; }
+:where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) :where(article, aside, nav, section) h1 { font-size: 100%; }
 
-/* Block elements */
+/* Paragraphs: no spacing between them, and text-indentation */
 p {
-    text-indent: 1.2em;
-    margin-top: 0;
-    margin-bottom: 0;
+  text-indent: 1.2em;
+  margin-top: 0;
+  margin-bottom: 0;
 }
+
+/* Blockquote: smaller margins, based on font size; unbalanced but fine */
 blockquote {
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
-    margin-left: 2em;
-    margin-right: 1em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 2em;
+  margin-right: 1em;
 }
 blockquote:dir(rtl) {
-    margin-left: 1em;
-    margin-right: 2em;
+  margin-left: 1em;
+  margin-right: 2em;
 }
+
+/* HR: less 1990s HTML */
 hr {
-    border: 1px solid #808080;
-    margin: 0.5em auto;
-}
-center {
-    text-align: center;
+  border-style: solid;
 }
 
-/* Lists */
-ul {
-    list-style-type: disc;
-    margin-left: 1em;
-    padding-left: -cr-special;
-    padding-right: -cr-special;
+/* Lists: no vertical margin, a bit of margin left added to our -cr-special padding */
+ol, ul {
+  margin-left: 1em;
+  margin-top: 0;
+  margin-bottom: 0;
 }
-ol {
-    list-style-type: decimal;
-    margin-left: 1em;
-    padding-left: -cr-special;
-    padding-right: -cr-special;
-}
-ul:dir(rtl), ol:dir(rtl) {
-    margin-left: 0;
-    margin-right: 1em;
-}
-li {
-    display: list-item;
-    text-indent: 0;
+ol:dir(rtl), ul:dir(rtl) {
+  margin-left: unset;
+  margin-right: 1em;
 }
 
-/* Definitions */
+/* Definitions: smaller margins all around, dt bold */
 dl {
-    margin-left: 0;
+  margin-left: 0;
 }
 dt {
-    margin-left: 0;
-    margin-top: 0.3em;
-    font-weight: bold;
+  margin-left: 0;
+  margin-top: 0.3em;
+  font-weight: bold;
 }
 dd {
-    margin-left: 1.3em;
+  margin-left: 1.3em;
 }
 dd:dir(rtl) {
-    margin-left: 0;
-    margin-right: 1.3em;
+  margin-left: unset;
+  margin-right: 1.3em;
 }
 
-/* Tables */
+/* Tables: smaller font size (for less wrapping and less height taken on our small screens) */
 table {
-    font-size: 80%;
-    margin: 3px 0;
-    border-collapse: separate;
-    border-spacing: 1px; /* needed for separate border to not look uneven */
+  font-size: 80%;
+  margin: 3px 0;
+  border-spacing: 1px; /* needed for separate border to not look uneven */
 }
 table table { /* stop imbricated tables from getting smaller */
-    font-size: 100%;
+  font-size: 100%;
 }
-td, th {
-    text-indent: 0;
-    padding: 3px;
+
+/* A bit more default padding in cells */
+td {
+  padding: 3px;
 }
+
+/* Background by default on table headers, and text-align center */
 th {
-    font-weight: bold;
-    text-align: center;
-    background-color: #DDD;
+  padding: 3px;
+  background-color: #DDD;
+  text-align: center;
 }
+
+/* Same for caption */
 table caption {
-    text-indent: 0;
-    padding: 4px;
-    background-color: #EEE;
+  padding: 4px;
+  background-color: #EEE;
 }
 
-/* Monospace block elements */
-/* (note that xmp should ignore html, which won't be done, but pre is a better
- * approximation than no pre */
-pre, xmp {
-    white-space: pre; /* has to be set in fb2def.h to work */
-    font-family: monospace;
-    text-align: left;
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
-    /* background-color: #BFBFBF; */
+/* Pre: smaller vertical margins, drop our inherited justification */
+xmp, pre {
+  text-align: left;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
-/* Inline elements (all unknown elements default now to display: inline) */
-code, kbd, samp, tt     { font-family: monospace; }
-sup                     { font-size: 70%; vertical-align: super; }
-sub                     { font-size: 70%; vertical-align: sub; }
-small                   { font-size: 80%; }
-big                     { font-size: 130%; }
-b, strong               { font-weight: bold; }
-i, em, dfn, var, cite   { font-style: italic; }
-u, ins                  { text-decoration: underline; }
-del, s, strike          { text-decoration: line-through; }
-a                       { text-decoration: underline; color: gray; }
+/* sup/sub: smaller font size */
+sup { font-size: 70%; }
+sub { font-size: 70%; }
 
-/* Ruby support */
-ruby {
-    /* These will have no effect when ruby is reset to display: inline */
-    text-align: center;
-    text-indent: 0;
-}
-rb, rubyBox[T=rb] {
-    line-height: 1;
-}
-rt, rubyBox[T=rt] {
-    line-height: 1.6;
-    font-size: 42%;
-    font-variant-east-asian: ruby;
-    -cr-hint: text-selection-skip;
+/* Have links darker blue, 'blue' looks too light gray on eInk */
+a[href] {
+  color: navy;
 }
 
-/* No support for the "quotes:" property, these will use default quote chars */
-q::before               { content: open-quote; }
-q::after                { content: close-quote; }
-
-nobr {
-    display: inline;
-    hyphens: none;
-    white-space: nowrap;
+/* Keep ensuring this in legacy rendering */
+h3, h2 {
+  -cr-only-if: legacy html-document;
+    page-break-before: always;
 }
-
-/* Element added for each empty line when rendering plain txt files */
-empty-line {
-    height: 1em;
+section h3, section h2 {
+  -cr-only-if: legacy html-document;
+    page-break-before: auto;
 }
-
-/* Attributes that make some elements float or clear */
-br[clear=all i], br[clear=both i]   { clear: both; }
-br[clear=left i]     { clear: left; }
-br[clear=right i]    { clear: right; }
-img[align=left i]    { float: left; }
-img[align=right i]   { float: right; }
-table[align=left i]  { float: left; }
-table[align=right i] { float: right; }
-
-/* EPUB3 epub:type="pagebreak" may sometimes have the page number
- * as content: hide it. (Usually, its content is empty and the
- * page number is in a title= attribute.) */
-span[type=pagebreak] { display: none; }
-
-/* EPUB3: also hide any <nav hidden=""> made available in the book content,
- * which could be a huge list of reference page numbers */
-nav[hidden] { display: none; }
-
-/* Added to avoid "style have changed in such a way" when switching between html5.css and epub.css */
-area, datalist, noembed, param, template, title {
-  display: none;
-}
-button, input, marquee {
-  display: inline-block;
-}
-textarea {
-  white-space: pre-wrap;
-}
-
 
 /* Old element or className based selectors involving display: that we need
  * to support for older gDOMVersionRequested (these were fixed in 20180528).
@@ -238,7 +150,7 @@ textarea {
    * These ones here were explicitely set to inline (and some others not
    * specified here were also set to inline in fb2def.h */
   b, strong, i, em, dfn, var, q, u, del, s, strike, small, big, sub, sup, acronym, tt, samp, kbd, code {
-      display: inline;
+    display: inline;
   }
   form { display: none; }
   .title, .title1, .title2, .title3, .title4, .title5, .subtitle { display: block; }
