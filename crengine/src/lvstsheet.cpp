@@ -1979,6 +1979,7 @@ enum css_atmedia_code {
     css_atmedia_update,
     css_atmedia_overflow_inline,
     css_atmedia_overflow_block,
+    css_atmedia_cr_max_cre_dom_version,
     css_atmedia_unknown
 };
 
@@ -2023,6 +2024,9 @@ static const char * css_atmedia_name[] = {
     "update",           // "none", "Once it has been rendered, the layout can no longer be updated"
     "overflow-inline",  // "none", no horizontal scrolling
     "overflow-block",   // "paged", which is our main purpose (even if we have a scroll mode)
+
+    // Private keyword (same purpose as "-cr-ignore-if-dom-version-greater-or-equal:" property)
+    "-cr-max-cre-dom-version",
 
     // Not implemented:
     // "color-index",
@@ -2277,6 +2281,15 @@ protected:
                     char ident[8];
                     if ( parse_ident(str, ident, 8) && lString8(ident).lowercase() == "paged" )
                         setResult( true );
+                }
+                break;
+            case css_atmedia_cr_max_cre_dom_version:
+                {
+                    int dom_version;
+                    if ( parse_integer( str, dom_version ) ) {
+                        if ( doc && ((ldomDocument*)doc)->getDOMVersionRequested() <= dom_version )
+                            setResult( true );
+                    }
                 }
                 break;
             default:
@@ -3119,6 +3132,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             switch ( prop_code )
             {
             // non standard property to ignore declaration depending on gDOMVersionRequested
+            // (superceded by the clearer "@media (-cr-max-cre-dom-version: 20180527)", but
+            // support kept for users who may have cloned and customized our old epub.css)
             case cssd_cr_ignore_if_dom_version_greater_or_equal:
                 {
                     int dom_version;
