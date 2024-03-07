@@ -383,7 +383,9 @@ enum css_generic_value_t {
     css_generic_currentcolor = -4, // (css_val_unspecified, css_generic_currentcolor), for "color: currentcolor"
     css_generic_contain = -5,      // (css_val_unspecified, css_generic_contain), for "background-size: contain"
     css_generic_cover = -6,        // (css_val_unspecified, css_generic_cover), for "background-size: cover"
-    css_generic_none = -7          // (css_val_unspecified, css_generic_none), for "max-width: none"
+    css_generic_none = -7,         // (css_val_unspecified, css_generic_none), for "max-width: none"
+    css_generic_cr_special = -8,   // (css_val_unspecified, css_generic_cr_special), for "padding-left: -cr-special"
+                                             //  (could be used with other properties for other special behaviours)
 };
 
 // color 'transparent' is transparent black rgba(0,0,0,0) per specs

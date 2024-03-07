@@ -620,6 +620,7 @@ bool parse_number_value( const char * & str, css_length_t & value,
                                     bool accept_normal,
                                     bool accept_unspecified,
                                     bool accept_contain_cover,
+                                    bool accept_cr_special,
                                     bool is_font_size )
 {
     const char * orig_pos = str;
@@ -639,6 +640,11 @@ bool parse_number_value( const char * & str, css_length_t & value,
     if ( accept_normal && substr_icompare( "normal", str ) ) {
         value.type = css_val_unspecified;
         value.value = css_generic_normal;
+        return true;
+    }
+    if ( accept_cr_special && substr_icompare( "-cr-special", str ) ) {
+        value.type = css_val_unspecified;
+        value.value = css_generic_cr_special;
         return true;
     }
     if ( accept_contain_cover ) {
@@ -3815,7 +3821,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     if ( prop_code==cssd_font_size )
                         is_font_size = true;
                     css_length_t len;
-                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, is_font_size) ) {
+                    // -cr-special, only accepted with padding-left and padding-right
+                    bool accept_cr_special = false;
+                    if ( prop_code==cssd_padding_left || prop_code==cssd_padding_right )
+                        accept_cr_special = true;
+                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, accept_cr_special, is_font_size) ) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;

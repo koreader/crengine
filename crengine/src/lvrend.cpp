@@ -3143,7 +3143,9 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
         css_style_ref_t style = enode->getStyle();
         LVFontRef font = enode->getFont();
         lUInt32 cl = getForegroundColor(style);
-        lUInt32 bgcl = getBackgroundColor(style);
+        // Always draw with transparent background (if outside, we may be on another
+        // kind of background, if inside it has already been drawn)
+        lUInt32 bgcl = LTEXT_COLOR_TRANSPARENT;
         if (line_h < 0) { // -1, not specified by caller: find it out from the node
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
@@ -7331,6 +7333,50 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     int padding_top    = lengthToPx( enode, style->padding[2], container_width ) + measureBorder(enode, 0) + DEBUG_TREE_DRAW;
     int padding_bottom = lengthToPx( enode, style->padding[3], container_width ) + measureBorder(enode, 2) + DEBUG_TREE_DRAW;
 
+    // Handle our auto/special/dynamic padding sizing (if it has not been overridden) set in our user-agent
+    // stylesheet: "ol, ul { padding-left: -cr-special; padding-right: -cr-special }".
+    // (This replaces the per-specs absurd "padding-left:40px" (an absolute length, independant on the font size,
+    // that may change with DPI), that publishers ought to override if they care about rendering. If they haven't,
+    // let's do the best thing (that crengine used to do with ALL list-items - but this wasn't per-specs, so we
+    // removed this behaviour, allowing us to still get it with -cr-special on the list-items parent container).)
+    if ( (!is_rtl && style->padding[0].type == css_val_unspecified && style->padding[0].value == css_generic_cr_special) ||
+          (is_rtl && style->padding[1].type == css_val_unspecified && style->padding[1].value == css_generic_cr_special) ) {
+        // This is to be used on nodes expecting to have children with "display:list-item".
+        // Look for any, considering only those with "list-style-position:outside" (they are allowed to be mixed).
+        int cnt = enode->getChildCount();
+        for (int i=0; i<cnt; i++) {
+            ldomNode * child = enode->getChildNode( i );
+            if ( !child->isElement() )
+                continue;
+            css_style_ref_t child_style = child->getStyle();
+            if ( child_style->display == css_d_list_item_block ) {
+                if ( !renderAsListStylePositionInside( child_style, is_rtl ) ) {
+                    int marker_width = 0;;
+                    renderListItemMarker( child, marker_width );
+                    // renderListItemMarker() goes thru all the siblings to compute each marker width,
+                    // and remembers and returns the widest. So, if we found one, we're done.
+                    // Update this node's style with our max marker width.
+                    css_style_ref_t newstyle(new css_style_rec_t);
+                    copystyle(style, newstyle);
+                    if ( is_rtl ) {
+                        newstyle->padding[1].type = css_val_screen_px;
+                        newstyle->padding[1].value = marker_width;
+                    }
+                    else {
+                        newstyle->padding[0].type = css_val_screen_px;
+                        newstyle->padding[0].value = marker_width;
+                    }
+                    enode->setStyle(newstyle);
+                    style = enode->getStyle(); // Re-fetch it
+                    // And re-compute the values we'll use below.
+                    padding_left   = lengthToPx( enode, style->padding[0], container_width ) + border_left + DEBUG_TREE_DRAW;
+                    padding_right  = lengthToPx( enode, style->padding[1], container_width ) + border_right + DEBUG_TREE_DRAW;
+                    break;
+                }
+            }
+        }
+    }
+
     css_length_t css_margin_left  = style->margin[0];
     css_length_t css_margin_right = style->margin[1];
 
@@ -8117,21 +8163,20 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     return;
                 }
                 // Deal with list item marker
-                // List item marker rendering when css_d_list_item_block
-                int list_marker_padding = 0; // set to non-zero when list-style-position = outside
+                // We used to extend the padding with the widest marker width, but this was
+                // not per-CSS-specs. list-item blocks are just regular blocks, with the
+                // marker drawn outside the border box without any adjustment.
+                // We now just need to get the marker height, and handle one specific case.
+                // (Note: Firefox and Edge have different and random behaviours when the <li>
+                // is empty, or contains an empty element, and this with 'list-style-type:none'
+                // or without: they may or may not show the empty item, and may even draw its
+                // number marker over the one of the next item. We show it, properly and empty,
+                // in all these cases.)
                 int list_marker_height = 0;
                 if ( style->display == css_d_list_item_block ) {
-                    // list_item_block rendered as block (containing text and block elements)
-                    // Get marker width and height
-                    int list_marker_width;
+                    int list_marker_width; // not used
                     renderListItemMarker( enode, list_marker_width, &list_marker_height );
-                    if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
-                        // When list_style_position = outside, we have to shift the whole block
-                        // to the right and reduce the available width, which is done
-                        // below when calling renderBlockElement() for each child
-                        list_marker_padding = list_marker_width;
-                    }
-                    else if ( style->list_style_type != css_lst_none ) {
+                    if ( style->list_style_type != css_lst_none && renderAsListStylePositionInside(style, is_rtl) ) {
                         // When list_style_position = inside, we need to let renderFinalBlock()
                         // know there is a marker to prepend when rendering the first of our
                         // children (or grand-children, depth first) that is erm_final
@@ -8191,8 +8236,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // Shrink flow state area: children that are float will be
                 // constrained into this area
                 // ('width' already had margin_left/_right substracted)
-                flow->newBlockLevel(width - list_marker_padding - padding_left - padding_right, // width
-                       margin_left + (is_rtl ? 0 : list_marker_padding) + padding_left, // d_left
+                flow->newBlockLevel(width - padding_left - padding_right, // width
+                       margin_left + padding_left, // d_left
                        usable_overflow_reset_left, usable_overflow_reset_right,
                        break_inside==RN_SPLIT_AVOID,
                        direction,
@@ -8264,8 +8309,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // punctuation will leak outside the floatBox - but the floatBox contains
                         // the initial float element's margins, which can then be used if it has
                         // no border (if borders, only the padding can be used).
-                        renderBlockElement( alt_context, child, (is_rtl ? 0 : list_marker_padding) + padding_left,
-                                    0, width - list_marker_padding - padding_left - padding_right, 0, 0, direction );
+                        renderBlockElement( alt_context, child, padding_left, 0, width - padding_left - padding_right, 0, 0, direction );
                         flow->addFloat(child, child_clear, is_right, flt_vertical_margin, alt_context.getLinkIds());
                             // We pass the footnote links accumulated by alt_context,
                             // so they can be forwarded onto the main context lines.
@@ -8276,8 +8320,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         if ( CssPageBreak2Flags( child_style->page_break_before ) == RN_SPLIT_ALWAYS )
                             child_clear = css_c_both;
                         flow->clearFloats( child_clear );
-                        renderBlockElementEnhanced( flow, child, (is_rtl ? 0 : list_marker_padding )+ padding_left,
-                            width - list_marker_padding - padding_left - padding_right, flags );
+                        renderBlockElementEnhanced( flow, child, padding_left, width - padding_left - padding_right, flags );
                         // Vertical margins collapsing is mostly ensured in flow->pushVerticalMargin()
                         //
                         // Various notes about it:
@@ -8447,23 +8490,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             break;
         case erm_final:
             {
-                // Deal with list item marker
-                int list_marker_padding = 0;;
-                if ( style->display == css_d_list_item_block ) {
-                    // list_item_block rendered as final (containing only text and inline elements)
-                    if ( ! renderAsListStylePositionInside(style, is_rtl) ) {
-                        // When list_style_position = outside, we have to shift the final block
-                        // to the right (or to the left if RTL) and reduce its width
-                        renderListItemMarker( enode, list_marker_padding );
-                        // With css_lsp_outside, the marker is outside: it shifts x left and reduces width
-                        width -= list_marker_padding;
-                        fmt.setWidth( width );
-                        // when is_rtl, just reducing width is enough
-                        if (!is_rtl)
-                            fmt.setX( fmt.getX() + list_marker_padding );
-                        fmt.push();
-                    }
-                }
+                // Nothing special to do about any list item marker.
+                // (We used to extend the padding with the widest marker width,
+                // but this was not per-CSS-specs).
+
                 // Deal with negative text-indent
                 if ( style->text_indent.value < 0 ) {
                     int indent = - lengthToPx(enode, style->text_indent, container_width);
@@ -8619,8 +8649,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // object, that will provide at most 5 rectangles representing outer
                 // floats (either real floats, or fake floats).
                 BlockFloatFootprint float_footprint = flow->getFloatFootprint( enode,
-                    margin_left + (is_rtl ? 0: list_marker_padding) + padding_left,
-                    margin_right + (is_rtl ? list_marker_padding : 0) + padding_right,
+                    margin_left + padding_left,
+                    margin_right + padding_right,
                     padding_top );
                     // (No need to account for margin-top, as we pushed vertical margin
                     // just above if there were floats.)
@@ -9969,8 +9999,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         base_width = pfmt.getWidth();
                     }
                     int padding_top = lengthToPx( enode, style->padding[2], base_width ) + measureBorder(enode,0) + DEBUG_TREE_DRAW;
-                    // We already adjusted all children blocks' left-padding and width in renderBlockElement(),
-                    // we just need to draw the marker in the space we made
+                    // we need to draw the marker outside our box.
                     // But adjust the x to draw our marker if the first line of our
                     // first final children would start being drawn further because
                     // some outer floats are involved (as Calibre and Firefox do).
@@ -9993,7 +10022,6 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                             }
                         }
                     }
-
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     // Different marker alignement whether LTR/RTL or outside/-cr-outside
                     lUInt32 txt_flags;
@@ -10015,15 +10043,22 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     */
                     // Better to draw it, even if it slightly overflows, or we might lose some
                     // list item number for no real reason
+                    // Draw it ouside our box, as per-CSS-specs, possibly shifted by shift_x:
+                    if ( !BLOCK_RENDERING(rend_flags, ENHANCED) ) {
+                        // Except in legacy rendering, where we still render it inside
+                        if ( is_rtl )
+                            shift_x -= list_marker_width;
+                        else
+                            shift_x += list_marker_width;
+                    }
                     txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
-                    // In both LTR and RTL, for erm_block, we draw the marker inside 'width',
-                    // (only the child elements got their width shrinked by list_marker_width).
                     if ( is_rtl ) {
-                        txform->Draw( &drawbuf, doc_x+x0 + width + shift_x - list_marker_width, doc_y+y0 + padding_top );
+                        // Draw it starting after 'width'
+                        txform->Draw( &drawbuf, doc_x+x0 + width + shift_x, doc_y+y0 + padding_top );
                     }
                     else {
-                        // (Don't shift by padding left, the list marker is outside padding left)
-                        txform->Draw( &drawbuf, doc_x+x0 + shift_x, doc_y+y0 + padding_top );
+                        // Draw it so it ends at x0
+                        txform->Draw( &drawbuf, doc_x+x0 + shift_x - list_marker_width, doc_y+y0 + padding_top );
                     }
                 }
 
@@ -10178,16 +10213,13 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 // Rendering hack (in renderAsListStylePositionInside(): not when text-align "right"
                 // or "center", we treat it just as "inside", and drawing is managed by renderFinalBlock())
                 if ( style->display == css_d_list_item_block && !renderAsListStylePositionInside(style, is_rtl) && !isHidden ) {
-                    // We already adjusted our block X and width in renderBlockElement(),
-                    // we just need to draw the marker in the space we made on the left of
-                    // this node.
+                    // we need to draw the marker outside our box.
                     // But adjust the x to draw our marker if the first line of this
                     // final block would start being drawn further because some outer
                     // floats are involved (as Calibre and Firefox do).
                     BlockFloatFootprint float_footprint;
                     float_footprint.restore( enode, inner_width );
                     int shift_x = float_footprint.getTopShiftX(inner_width, is_rtl);
-
                     LFormattedTextRef txform( enode->getDocument()->createFormattedText() );
                     // Different marker alignement whether LTR/RTL or outside/-cr-outside
                     lUInt32 txt_flags;
@@ -10209,21 +10241,16 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     */
                     // Better to draw it, even if it slightly overflows, or we might lose some
                     // list item number for no real reason
+                    // Draw it ouside our box, as per-CSS-specs, possibly shifted by shift_x:
                     txform->Format( (lUInt16)list_marker_width, (lUInt16)page_height, direction );
-                    // In both LTR and RTL, for erm_final, we draw the marker outside 'width',
-                    // as 'width' has already been shrinked by list_marker_width.
                     if ( is_rtl ) {
+                        // Draw it starting after 'width'
                         txform->Draw( &drawbuf, doc_x+x0 + width + shift_x, doc_y+y0 + padding_top, NULL, NULL );
                     }
                     else {
+                        // Draw it so it ends at x0
                         txform->Draw( &drawbuf, doc_x+x0 + shift_x - list_marker_width, doc_y+y0 + padding_top, NULL, NULL );
                     }
-                    // Note: if there's a float on the left of the list item, we let
-                    // the marker where it would be if there were no float, while Firefox
-                    // would shift it by the float width. But for both, the marker may
-                    // be hidden by/shown inside the float...
-                    // Not obvious to do as Firefox, which draws it like if it has some
-                    // negative padding from the text.
                 }
 
                 // draw whole node content as single formatted object
@@ -11435,25 +11462,18 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         // apply the % to, so we can only do that when we get a maxWidth
         // and minWidth from children.
 
-        // For list-items, we need to compute the bullet width to use either
-        // as indent, or as left padding
+        // For list-items, we need to compute the bullet width if we are
+        // to use it as some prefix if "list-style-position:inside".
         int list_marker_width = 0;
-        bool list_marker_width_as_padding = false;
         if ( style->display == css_d_list_item_block ) {
-            renderListItemMarker( node, list_marker_width );
-            #ifdef DEBUG_GETRENDEREDWIDTHS
-                printf("GRW: list_marker_width: %d\n", list_marker_width);
-            #endif
             bool is_rtl = direction == REND_DIRECTION_RTL;
-            if ( !renderAsListStylePositionInside(style, is_rtl) ) {
+            if ( style->list_style_type != css_lst_none && renderAsListStylePositionInside(style, is_rtl) ) {
                 // (same hack as in rendering code: we render 'outside' just
                 // like 'inside' when center or right aligned)
-                list_marker_width_as_padding = true;
-            }
-            else if ( style->list_style_type == css_lst_none ) {
-                // When css_lsp_inside, or with that hack when outside & center/right,
-                // no space should be used if list-style-type: none.
-                list_marker_width = 0;
+                renderListItemMarker( node, list_marker_width );
+                #ifdef DEBUG_GETRENDEREDWIDTHS
+                    printf("GRW: list_marker_width inside: %d\n", list_marker_width);
+                #endif
             }
         }
 
@@ -11525,7 +11545,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     curWordWidth += indent;
                     indent = 0; // but no more on following words in this final node, even after <BR>
                 }
-                if (list_marker_width > 0 && !list_marker_width_as_padding) {
+                if (list_marker_width > 0 ) {
                     // with additional list marker if list-style-position: inside
                     curMaxWidth += list_marker_width;
                     curWordWidth += list_marker_width;
@@ -11876,10 +11896,6 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
 
         int padLeft = 0; // these will include padding, border and margin
         int padRight = 0;
-        if (list_marker_width > 0 && list_marker_width_as_padding) {
-            // with additional left padding for marker if list-style-position: outside
-            padLeft += list_marker_width;
-        }
         // For % values, we need to reverse-apply them as a whole.
         // We can'd do that individually for each, so we aggregate
         // the % values.
@@ -11927,6 +11943,38 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             // border (which does not accept units in %)
             padLeft += measureBorder(node,3);
             padRight += measureBorder(node,1);
+            // Handle our "padding-left:-cr-special" case, possibly still set on OL/UL if it has not
+            // be overridden, used to dynamically size a list item container padding according to the
+            // widest marker width (the above padding would have computed to 0 with "-cr-special").
+            bool is_rtl = direction == REND_DIRECTION_RTL;
+            if ( (!is_rtl && style->padding[0].type == css_val_unspecified && style->padding[0].value == css_generic_cr_special) ||
+                  (is_rtl && style->padding[1].type == css_val_unspecified && style->padding[1].value == css_generic_cr_special) ) {
+                // This node is expected to have children with "display:list-item". Look for any, considering
+                // only those with "list-style-position:outside" (inside/outside are allowed to be mixed).
+                int cnt = node->getChildCount();
+                for (int i=0; i<cnt; i++) {
+                    ldomNode * child = node->getChildNode( i );
+                    if ( !child->isElement() )
+                        continue;
+                    css_style_ref_t child_style = child->getStyle();
+                    if ( child_style->display == css_d_list_item_block ) {
+                        if ( !renderAsListStylePositionInside( child_style, is_rtl ) ) {
+                            int marker_width = 0;;
+                            renderListItemMarker( child, marker_width );
+                            if ( is_rtl )
+                                padRight += marker_width;
+                            else
+                                padLeft += marker_width;
+                            // renderListItemMarker() goes thru all the siblings to compute each marker width,
+                            // and remembers and returns the widest. So, if we found one, we're done.
+                            #ifdef DEBUG_GETRENDEREDWIDTHS
+                                printf("GRW padding -cr-special: +%d\n", marker_width);
+                            #endif
+                            break;
+                        }
+                    }
+                }
+            }
         }
         // Add the non-pct values to make our base to invert-apply padPct
         _minWidth += padLeft + padRight;
