@@ -11395,6 +11395,10 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         enode->ensurePseudoElement(true);
     if ( requires_pseudo_element_after )
         enode->ensurePseudoElement(false);
+
+    // For debugging changes in display/white-space when comparing user-agent stylesheets
+    // (which should be avoided to prevent the suggestion to reload the document)
+    // printf("%s display:%d white-space:%d\n", UnicodeToUtf8(enode->getNodeName()).c_str(), style->display, style->white_space);
 }
 
 // Uncomment for debugging getRenderedWidths():
