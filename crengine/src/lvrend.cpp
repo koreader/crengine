@@ -7881,10 +7881,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // printf("fixed width: %d\n", width);
         // For these initial overflow checks, we use the original container_width
         // and not the adjusted one
+        // We need to update margin_left and margin_right to their used values, as
+        // they keep being used below with newBlockLevel() and float_footprint.
         if ( width + margin_left + margin_right > container_width ) {
             if ( is_rtl ) {
                 margin_left = 0; // drop margin_left if RTL
-                dx = 0;
             }
             else {
                 margin_right = 0; // drop margin_right otherwise
@@ -7907,31 +7908,33 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 //
                 // (if margin_left_auto, we have until now: dx = margin_left = 0)
                 if ( margin_left_auto && margin_right_auto ) {
-                    dx = (adjusted_container_width - width) / 2;
+                    margin_left = (adjusted_container_width - width) / 2;
+                    margin_right = adjusted_container_width - width - margin_left;
                     margin_auto_ensured = true;
                 }
                 else if ( margin_left_auto ) {
-                    dx = adjusted_container_width - width - margin_right;
+                    margin_left = adjusted_container_width - width - margin_right;
                     margin_auto_ensured = true;
                 }
                 else if ( margin_right_auto ) {
-                    // No dx tweak needed
+                    margin_right = adjusted_container_width - width - margin_left;
                     margin_auto_ensured = true;
                 }
-                if ( is_hr && dx < 0 && margin_auto_ensured ) {
+                if ( is_hr && margin_left < 0 && margin_auto_ensured ) {
                     // With Firefox, when any margin is auto and the HR width
                     // doesn't fit, it is fitted left.
-                    dx = 0;
+                    margin_left = 0;
                 }
             }
             if ( !margin_auto_ensured ) {
                 // Nothing else needed for LTR: stay stuck to the left
                 // For RTL: stick it to the right
                 if (is_rtl) {
-                    dx = adjusted_container_width - width;
+                    margin_left = adjusted_container_width - width;
                 }
             }
         }
+        dx = margin_left;
         // Add left shift imposed by left floats to HR
         dx += adjusted_forced_x_shift;
     }
@@ -7941,10 +7944,13 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         if ( width > container_width ) { // width alone is bigger than container
             dx = 0; // drop any left shift
             width = container_width; // adjust to contained width
+            margin_left = margin_right = 0;
         }
         else if ( dx + width > container_width ) {
             // width is smaller that container's, but dx makes it overflow
             dx = container_width - width;
+            margin_left = dx;
+            margin_right = 0;
         }
     }
     if ( ! BLOCK_RENDERING(flags, ALLOW_HORIZONTAL_PAGE_OVERFLOW) ) {
@@ -7959,9 +7965,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // to renderBlockElementEnhanced() as x).
         if ( abs_x + dx < 0 ) {
             dx = - abs_x; // clip to page left margin
+            margin_left = dx;
         }
         if ( abs_x + dx + width > o_width ) {
             width = o_width - abs_x - dx; // clip width to page right margin
+            margin_right = container_width - width - dx;
         }
     }
 
