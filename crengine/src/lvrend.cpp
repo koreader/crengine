@@ -318,6 +318,7 @@ public:
     int caption_h;
     int caption_direction;
     bool caption_at_bottom;
+    lString32Collection caption_links;
     LVPtrVector<CCRTableRow> rows;
     LVPtrVector<CCRTableCol> cols;
     LVPtrVector<CCRTableRowGroup> rowgroups;
@@ -1569,8 +1570,36 @@ public:
             fmt = RenderRectAccessor( caption );
             fmt.setHeight( caption_h );
             fmt.push();
-            if ( !caption_at_bottom )
+            // Note: we do not care about splitting a caption by line, as it's usually small
+            // and should better not be splitted as it is at the top or bottom of a table.
+            // (If needed, it can be handled as we do with is_single_column).
+            if ( elem->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
+                int count = txform->GetLineCount();
+                for (int i=0; i<count; i++) {
+                    const formatted_line_t * line = txform->GetLineInfo(i);
+                    for ( int w=0; w<line->word_count; w++ ) { // check link start flag for every word
+                        if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
+                            const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
+                            if ( src && src->object ) {
+                                ldomNode * node = (ldomNode*)src->object;
+                                ldomNode * parent = node->getParentNode();
+                                while (parent && parent->getNodeId() != el_a)
+                                    parent = parent->getParentNode();
+                                if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
+                                    lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                    if ( href.firstChar()=='#' ) {
+                                        href.erase(0,1);
+                                        caption_links.add( href );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if ( !caption_at_bottom ) {
                 table_h += caption_h;
+            }
         }
         table_h += table_padding_top; // padding top applies after caption
         if (nb_rows > 0) {
@@ -1596,6 +1625,11 @@ public:
                 line_flags |= RN_LINE_IS_RTL;
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h;
+        }
+        if ( !caption_at_bottom && caption_links.length() > 0 ) {
+            for ( int n=0; n<caption_links.length(); n++ ) {
+                context.addLink( caption_links[n] );
+            }
         }
 
         // If table is a single column, we can add to main context
@@ -2126,6 +2160,11 @@ public:
             context.AddLine(last_y, table_y0 + table_h, line_flags);
             last_y = table_y0 + table_h; // not read after here
             (void)last_y; // silences clang warning
+        }
+        if ( caption_at_bottom && caption_links.length() > 0 ) {
+            for ( int n=0; n<caption_links.length(); n++ ) {
+                context.addLink( caption_links[n] );
+            }
         }
 
         // Update each cell height to be its row height, so it can draw its
