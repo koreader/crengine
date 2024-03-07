@@ -5076,7 +5076,7 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
     int cur = pos;
     for (; cur>=0; cur--) {
         lUInt16 props = getCharProp(str[cur]);
-        if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) )
+        if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) && !lStr_isCJK(str[cur]) )
             break;
     }
     if ( cur<0 ) { // no alpha found at pos or on its left
@@ -5091,7 +5091,7 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
     for (; cur>=0; cur--) {
         lChar32 ch = str[cur];
         lUInt16 props = getCharProp(ch);
-        if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) ) {
+        if ( props & (CH_PROP_ALPHA|CH_PROP_HYPHEN) && !lStr_isCJK(ch) ) {
             first = cur;
             if ( !has_rtl && lStr_isRTL(ch) ) {
                 has_rtl = true;
@@ -5109,7 +5109,7 @@ void lStr_findWordBounds( const lChar32 * str, int sz, int pos, int & start, int
     // Find the furthest alpha (or modifiers following an alpha) on the right
     for (cur=pos+1; cur<sz; cur++) {
         lUInt16 props = getCharProp(str[cur]);
-        if ( !(props & (CH_PROP_ALPHA|CH_PROP_HYPHEN|CH_PROP_MODIFIER)) )
+        if ( !(props & (CH_PROP_ALPHA|CH_PROP_HYPHEN|CH_PROP_MODIFIER)) || lStr_isCJK(str[cur]) )
             break;
     }
     end = cur; // returned 'end' is exclusive
