@@ -7869,26 +7869,57 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // was no float, and only its text will adjust to be in-between floats,
     // while a HR box does adjust to fit between the floats. Couldn't find
     // any mention of that in the CSS specs...
+    // Block images positionning is also different from regular block or final
+    // elements when floats are involved... (very tedious to understand how
+    // this works in browsers, tried different things until I luckily got
+    // the same rendering with various combinations of floats, margin fixed
+    // or auto, and HTML align=... but it's quite possible this will fail
+    // in other contexts or combinations... Note that Firefox and Edge do
+    // handle some cases differently, so this is quite gray territory...)
     // Let's try to handle that, even if it feels hackish and might not be right.
     int adjusted_container_width = container_width;
-    int adjusted_forced_x_shift = 0;
-    if ( is_hr && flow->hasActiveFloats() ) {
+    int added_margin_left = 0;
+    int added_margin_right = 0;
+    if ( (is_hr || is_image) && flow->hasActiveFloats() ) {
         // <HR> should not be drawn over floats (except if negative
         // margins or larger specified width - its width in % is to
         // stay computed as a % of its container width)
+        // <IMG> margins, if smaller that the float footprint, seem
+        // to be forced to that footprint (for positionning the image,
+        // obviously so it does not overlap with the floats, but also
+        // when used for adjusting these margins when some are "auto"
+        // or HTML align= is involved below).
         int dx_left;
         int dx_right;
         flow->getFloatsCurrentShifts(dx_left, dx_right);
         if ( dx_right > 0 ) {
-            adjusted_container_width -= dx_right;
+            added_margin_right = dx_right;
+            if ( is_image && !margin_right_auto ) {
+                margin_right -= dx_right;
+                if (margin_right < 0)
+                    margin_right = 0;
+            }
         }
         if ( dx_left > 0 ) {
-            adjusted_container_width -= dx_left;
-            adjusted_forced_x_shift = dx_left;
+            added_margin_left = dx_left;
+            if ( is_image && !margin_left_auto ) {
+                margin_left -= dx_left;
+                if (margin_left < 0)
+                    margin_left = 0;
+            }
         }
-        if ( style->width.type == css_val_unspecified ) {
+        adjusted_container_width = adjusted_container_width - dx_right - dx_left;
+        if ( is_hr && style->width.type == css_val_unspecified ) {
             // When no specified width, it is to become the constrained width
             width = adjusted_container_width;
+        }
+        if ( width > adjusted_container_width ) {
+            // If there is not enough width for the image or the HR, it seems
+            // Firefox and Edge clear (all?) floats to get that room.
+            flow->clearFloats( css_c_both );
+            adjusted_container_width = container_width;
+            added_margin_left = 0;
+            added_margin_right = 0;
         }
         // And go again at adjusting this HR position
         auto_width = false;
@@ -7970,6 +8001,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // doesn't fit, it is fitted left.
                     margin_left = 0;
                 }
+                margin_left += added_margin_left;
+                margin_right += added_margin_right;
             }
             if ( !margin_auto_ensured ) {
                 // Nothing else needed for LTR: stay stuck to the left
@@ -7980,8 +8013,6 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             }
         }
         dx = margin_left;
-        // Add left shift imposed by left floats to HR
-        dx += adjusted_forced_x_shift;
     }
 
     // Prevent overflows if not allowed
