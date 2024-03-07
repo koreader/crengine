@@ -10526,6 +10526,12 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // Some hint flags need to be inherited early, to have some effect on the stylesheet soon to be applied
     pstyle->cr_hint.value |= (parent_style->cr_hint.value & CSS_CR_HINT_INHERITABLE_EARLY_MASK);
 
+    if ( !doc->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) ) {
+        // Avoid CSS selectors (in our user-agent stylesheet) flagged as presentational hints
+        // (so, depending on HTML attributes in the document) from being applied.
+        pstyle->cr_hint.value |= CSS_CR_HINT_NO_PRESENTATIONAL_CSS;
+    }
+
     // display before stylesheet is applied (for fallback below if legacy mode)
     css_display_t orig_elem_display = pstyle->display;
 

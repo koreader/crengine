@@ -3313,6 +3313,22 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else if ( substr_icompare("noteref-ignore", decl) )         hints |= CSS_CR_HINT_NOTEREF_IGNORE;
                         else if ( substr_icompare("footnote", decl) )               hints |= CSS_CR_HINT_FOOTNOTE;
                         else if ( substr_icompare("footnote-ignore", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_IGNORE;
+                        else if ( substr_icompare("no-presentational", decl) ) {
+                            // "-cr-hint: no-presentational" can be explicitely set on a node so any presentational-hint
+                            // later selector is not matching, to avoid (some) presentational hints. For this to be
+                            // ensured, we need to make selectors having this property have a very low specificity.
+                            hints |= CSS_CR_HINT_NO_PRESENTATIONAL_CSS;
+                            setZeroWeighted(true);
+                        }
+                        else if ( substr_icompare("presentational-hint", decl) ) {
+                            // "-cr-hint: presentational-hint", unlike previous ones, does not set a flag to
+                            // the nodes matched by the selector(s): it just flags that selector as being
+                            // "presentational hints" used for mapping (mostly legacy) HTML attributes to CSS.
+                            // This is for use in our user-agent stylesheet, ant the previous hint will allow
+                            // these selectors to be skipped when document/embedded stylesheets are disabled.
+                            setPresentationalHint(true);
+                            nb_invalid++; // as it is not to be saved into 'buf'
+                        }
                         //
                         else if ( substr_icompare("late", decl) ) {
                             // "-cr-hint: late", unlike previous ones, does not set a flag to the nodes matched
@@ -6321,7 +6337,13 @@ LVCssSelectorRule::LVCssSelectorRule( LVCssSelectorRule & v )
 }
 
 LVCssSelector::LVCssSelector( LVCssSelector & v )
-: _id(v._id), _decl(v._decl), _specificity(v._specificity), _pseudo_elem(v._pseudo_elem), _next(NULL), _rules(v._rules)
+: _id(v._id)
+, _is_presentational_hint(v._is_presentational_hint)
+, _decl(v._decl)
+, _specificity(v._specificity)
+, _pseudo_elem(v._pseudo_elem)
+, _next(NULL)
+, _rules(v._rules)
 {
     if ( v._next )
         _next = new LVCssSelector( *v._next );
@@ -6459,6 +6481,7 @@ lUInt32 LVCssSelector::getHash() const
         hash = hash * 31 + ruleHash;
     }
     hash = hash * 31 + nextHash;
+    hash = hash * 31 + (lUInt32)_is_presentational_hint;
     hash = hash * 31 + _specificity;
     hash = hash * 31 + _pseudo_elem;
     if (!_decl.isNull())
@@ -6556,6 +6579,10 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
                     p->setDeclaration( decl );
                     if ( decl->isExtraWeighted() )
                         p->addSpecificity(WEIGHT_SPECIFICITY_EXTRA);
+                    if ( decl->isZeroWeighted() )
+                        p->setSpecificity(0);
+                    if ( decl->isPresentationalHint() )
+                        p->setIsPresentationalHint(true);
                 }
                 rule_count++;
             }
