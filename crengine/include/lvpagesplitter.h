@@ -324,14 +324,27 @@ public:
 
 typedef LVFastRef<LVFootNote> LVFootNoteRef;
 
+// A LVFootNote is created when we meet a <a href=> with some internal link, and may
+// later be fed with "lines" of footnote text, and then it becomes actual.
+// When not yet actual, it may be diverted to another already created LVFootnote (when
+// an actual footnote contains, and is then associated to, multiple id=).
 class LVFootNote : public LVRefCounter {
     lString32 id;
+    bool is_actual; // set when a LVFootNote holds text (it should then never become a proxy to another one)
     LVFootNote * actual_footnote; // when set, this LVFootNote is a proxy to this actual_footnote
     CompactArray<LVRendLineInfo*, 2, 4> lines;
 public:
     LVFootNote( lString32 noteId )
-        : id(noteId), actual_footnote(NULL)
+        : id(noteId), is_actual(false), actual_footnote(NULL)
     {
+    }
+    bool isActual() {
+        return is_actual;
+    }
+    void setIsActual( bool actual ) {
+        is_actual = actual;
+        if ( actual ) // clean any previously set proxy
+            actual_footnote = NULL;
     }
     LVFootNote * getActualFootnote() {
         return actual_footnote;
@@ -359,7 +372,7 @@ public:
             return actual_footnote->lines.empty();
         return lines.empty();
     }
-    // void clear() { lines.clear(); }
+    void clear() { lines.clear(); }
     lString32 getId() { return id; }
 };
 
@@ -404,19 +417,51 @@ class LVRendPageContext
 
     LVFootNote * curr_note;
 
-    LVFootNoteRef getOrCreateFootNote( lString32 id )
+    // Note: a footnote indexed in 'footNotes' may have pointers to it stored in other
+    // footnotes' actual_footnote. 'footNotes' is usually the only thing holding a
+    // reference to a LVFootNote. If we replace with footNotes.set() an existing
+    // footnote, it may be deleted, and using these other footnotes' actual_footnote
+    // could cause segfault. So, below, we should avoid doing that, and prefer just
+    // erasing a previous footnote's 'lines'.
+    // In the following, we want to handle as well as possible the edge case
+    // of buggy books having duplicated id= among footnotes (which may happen
+    // in Wikipedia EPUBs), which makes things a tad more complex...
+    LVFootNoteRef getOrCreateFootNote( lString32 id, bool actual=true )
     {
         LVFootNoteRef ref = footNotes.get(id);
         if ( ref.isNull() ) {
             // Not found: create one and index it
             ref = LVFootNoteRef( new LVFootNote( id ) );
             footNotes.set( id, ref );
+            if ( actual ) {
+                ref.get()->setIsActual(true);
+            }
+        }
+        else {
+            // Found an existing one
+            if ( actual ) {
+                // We are going to add lines
+                if ( ref.get()->isActual() ) {
+                    // If the one we found is already actual, something is wrong: this may
+                    // happen with buggy books with duplicated id= (ie. Wikipedia EPUBs...).
+                    // LVPageSplitter expects a footnote to be a single chunk/slice of the
+                    // document, so we can't accumulate lines from different places: override
+                    // its content. (This is consistent with the way crengine handle id= when
+                    // building the DOM: later ones override ealier ones).
+                    ref.get()->clear();
+                }
+                // Make a non-actual (which may be a proxy or not) actual
+                ref.get()->setIsActual(true);
+            }
+            // if actual=false, we're all fine, any kind will do.
         }
         return ref;
     }
     LVFootNoteRef getOrCreateFootNote( lString32Collection & ids )
     {
-        if (ids.length() == 1) {
+        // This, with multiple ids, is always called to create an actual footnote,
+        // so no need to handle any actual=false case.
+        if (ids.length() == 1) { // use single id method.
             return getOrCreateFootNote(ids.at(0));
         }
         // Multiple ids provided: zero, one, or more of them may exist
@@ -426,12 +471,18 @@ class LVRendPageContext
             ref = footNotes.get(ids.at(n));
             if ( !ref.isNull() ) {
                 found = n;
+                // As above, see comments there.
+                if ( ref.get()->isActual() ) {
+                    ref.get()->clear();
+                }
+                ref.get()->setIsActual(true);
                 break;
             }
         }
         if ( found < 0 ) {
-            // None found: create one with (arbitrarily) the first of the ids provided
+            // None found: create one with the first of the ids provided
             ref = LVFootNoteRef( new LVFootNote( ids.at(0) ) );
+            ref.get()->setIsActual(true);
         }
         // Need to do something for each of the ids provided
         for ( int n=0; n<ids.length(); n++ ) {
@@ -451,10 +502,16 @@ class LVRendPageContext
                     footNotes.set( ids.at(n), ref );
                 }
                 else {
-                    // Existing other footnote linking to one of our multiple ids:
-                    // keep it, but make it be a proxy to the footnote we will return
-                    // (and that will get lines)
-                    nref.get()->setActualFootnote( ref.get() );
+                    // Existing other footnote associated to one of our multiple ids:
+                    if ( nref.get()->isActual() ) {
+                        // That other footnote is already actual, holding lines: it feels it's best
+                        // to not do anything and let it be, and don't associate to this footnote.
+                    }
+                    else {
+                        // Not actual: make it a proxy to the footnote we will return
+                        // (and that will get lines)
+                        nref.get()->setActualFootnote( ref.get() );
+                    }
                 }
             }
         }

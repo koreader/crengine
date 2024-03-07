@@ -113,7 +113,7 @@ void LVRendPageContext::addLink( lString32 id, int pos )
     }
     if ( lines.empty() )
         return;
-    LVFootNoteRef note = getOrCreateFootNote( id );
+    LVFootNoteRef note = getOrCreateFootNote( id, false ); // not yet actual
     lines.last()->addLink(note.get(), pos);
 }
 
