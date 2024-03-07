@@ -148,7 +148,7 @@ public:
     int min_content_width;
     short colspan;
     short rowspan;
-    char halign;
+    // char halign; // not used
     char valign;
     ldomNode * elem;
     CCRTableCell() : col(NULL), row(NULL)
@@ -162,7 +162,7 @@ public:
     , min_content_width(0)
     , colspan(1)
     , rowspan(1)
-    , halign(0) // default to text-align: left
+    // , halign(0) // default to text-align: left
     , valign(0) // default to vertical-align: baseline
     , elem(NULL)
     { }
@@ -503,6 +503,7 @@ public:
                         }
                         // else: cell->percent and cell->width stay at 0
 
+                        /*
                         // This is not used here, but style->text_align will
                         // be naturally handled when cells are rendered
                         css_text_align_t ta = style->text_align;
@@ -510,6 +511,7 @@ public:
                             cell->halign = 1; // center
                         else if ( ta == css_ta_right )
                             cell->halign = 2; // right
+                        */
 
                         // https://developer.mozilla.org/en-US/docs/Web/CSS/vertical-align
                         // The default for vertical_align is baseline (cell->valign=0,
@@ -2442,12 +2444,15 @@ lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt
         switch (style->text_align)
         {
             case css_ta_left:
+            case css_ta_html_align_left:
                 flg |= LTEXT_ALIGN_LEFT;
                 break;
             case css_ta_right:
+            case css_ta_html_align_right:
                 flg |= LTEXT_ALIGN_RIGHT;
                 break;
             case css_ta_center:
+            case css_ta_html_align_center:
                 flg |= LTEXT_ALIGN_CENTER;
                 break;
             case css_ta_justify:
@@ -2485,6 +2490,9 @@ lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt
                 break;
             case css_ta_auto: // let flg have none of the above set, which will mean "auto"
             case css_ta_inherit:
+            case css_ta_html_align_left: // not supported with text-align-last
+            case css_ta_html_align_right:
+            case css_ta_html_align_center:
                 break;
             case css_ta_left_if_not_first:     // Private text-align-last keywords
                 flg |= LTEXT_LAST_LINE_ALIGN_LEFT;
@@ -3191,15 +3199,15 @@ bool renderAsListStylePositionInside( const css_style_ref_t style, bool is_rtl=f
         // at the near left of the text (otherwise, the marker would be drawn on
         // the far left of the whole available width, which is ugly)
         css_text_align_t ta = style->text_align;
-        if ( ta == css_ta_end ) {
+        if ( ta == css_ta_end || ta == css_ta_center || ta == css_ta_html_align_center ) {
             return true;
         }
         else if ( is_rtl ) {
-            if (ta == css_ta_center || ta == css_ta_left )
+            if ( ta == css_ta_left || ta == css_ta_html_align_left)
                 return true;
         }
         else {
-            if (ta == css_ta_center || ta == css_ta_right )
+            if ( ta == css_ta_right || ta == css_ta_html_align_right )
                 return true;
         }
     }
@@ -3957,12 +3965,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                     // all its children, including this inlineBox wrapper.
                     switch (style->text_align) {
                     case css_ta_left:
+                    case css_ta_html_align_left:
                         flags |= LTEXT_ALIGN_LEFT;
                         break;
                     case css_ta_right:
+                    case css_ta_html_align_right:
                         flags |= LTEXT_ALIGN_RIGHT;
                         break;
                     case css_ta_center:
+                    case css_ta_html_align_center:
                         flags |= LTEXT_ALIGN_CENTER;
                         break;
                     case css_ta_justify:
@@ -4260,12 +4271,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             //baseflags |= LTEXT_ALIGN_LEFT;
             switch (style->text_align) {
             case css_ta_left:
+            case css_ta_html_align_left:
                 baseflags |= LTEXT_ALIGN_LEFT;
                 break;
             case css_ta_right:
+            case css_ta_html_align_right:
                 baseflags |= LTEXT_ALIGN_RIGHT;
                 break;
             case css_ta_center:
+            case css_ta_html_align_center:
                 baseflags |= LTEXT_ALIGN_CENTER;
                 break;
             case css_ta_justify:
@@ -5078,7 +5092,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                         int list_marker_width;
                         renderListItemMarker( enode, list_marker_width, &list_marker_height );
                         if ( style->list_style_position >= css_lsp_outside &&
-                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                            style->text_align != css_ta_center && style->text_align != css_ta_html_align_center &&
+                            style->text_align != css_ta_right  && style->text_align != css_ta_html_align_right ) {
                             // When list_style_position = outside, we have to shift the whole block
                             // to the right and reduce the available width, which is done
                             // below when calling renderBlockElement() for each child
@@ -5179,7 +5194,8 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                         // list_item_block rendered as final (containing only text and inline elements)
                         // Rendering hack: not when text-align "right" or "center", as we treat it just as "inside"
                         if ( style->list_style_position >= css_lsp_outside &&
-                            style->text_align != css_ta_center && style->text_align != css_ta_right) {
+                            style->text_align != css_ta_center && style->text_align != css_ta_html_align_center &&
+                            style->text_align != css_ta_right  && style->text_align != css_ta_html_align_right ) {
                             // When list_style_position = outside, we have to shift the final block
                             // to the right and reduce its width
                             int list_marker_width;
@@ -7920,6 +7936,35 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     margin_right = adjusted_container_width - width - margin_left;
                     margin_auto_ensured = true;
                 }
+                else {
+                    // It feels this is the right and only place where to handle <center>
+                    // or <div align="left/center/right">.
+                    // https://html.spec.whatwg.org/multipage/rendering.html#align-descendants
+                    // An align= should not impact the positionning of its node, only of its
+                    // descendants, so we here need to look at the style of the parent.
+                    if ( enode->getParentNode() ) {
+                        css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                        if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
+                            // Our parent is, or is a descendant of, a <center> or a <div align="left/center/right">
+                            // (and had not had this fact overridden by any classic text-align. In Firefox and
+                            // Chromium, any text-align kills any align= effect propagation :/)
+                            int extra_width = adjusted_container_width - width - margin_left - margin_right;
+                            if (extra_width > 0 ) {
+                                if ( pstyle->text_align == css_ta_html_align_center ) {
+                                    margin_left += extra_width / 2;
+                                    margin_right += extra_width - (extra_width / 2);
+                                }
+                                else if ( pstyle->text_align == css_ta_html_align_right ) {
+                                    margin_left += extra_width;
+                                }
+                                else { // css_ta_html_align_left
+                                    margin_right += extra_width;
+                                }
+                                margin_auto_ensured = true;
+                            }
+                        }
+                    }
+                }
                 if ( is_hr && margin_left < 0 && margin_auto_ensured ) {
                     // With Firefox, when any margin is auto and the HR width
                     // doesn't fit, it is fitted left.
@@ -8142,12 +8187,30 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if (is_rtl) { // right align
                         shift_x = (width - table_width);
                     }
+                    // Ensure any margin auto
                     if (margin_left_auto) {
                         if (margin_right_auto) { // center align
                             shift_x = (width - table_width)/2;
                         }
                         else { // right align
                             shift_x = (width - table_width);
+                        }
+                    }
+                    else if (margin_right_auto) {
+                        shift_x = 0;
+                    }
+                    else {
+                        // No margin auto, see if any HTML align=left/right/center (as done above)
+                        if ( enode->getParentNode() ) {
+                            css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                            if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
+                                if ( pstyle->text_align == css_ta_html_align_center )
+                                    shift_x = (width - table_width)/2;
+                                else if ( pstyle->text_align == css_ta_html_align_right )
+                                    shift_x = (width - table_width);
+                                else if ( pstyle->text_align == css_ta_html_align_left )
+                                    shift_x = 0;
+                            }
                         }
                     }
                     if (shift_x) {
@@ -10453,25 +10516,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
-    // Firefox resets text-align: to 'left' for table (eg: <center><table>
-    // doesn't have its cells' content centered, not even justified if body
-    // has "text-align: justify"), while crengine would make them centered.
-    // So, we dont wan't table to starts with css_ta_inherit. We could use
-    // css_ta_left (as Firefox), but it's best in our context to use the
-    // value set to the (or current DocFragment's) BODY node, which starts
-    // with css_ta_left but may be set to css_ta_justify by our epub.css.
-    if (nodeElementId == el_table) {
-        // To do as Firefox:
-        // pstyle->text_align = css_ta_left;
-        // But we'd rather use the BODY value:
-        ldomNode * body = enode->getParentNode();
-        while ( body != NULL && body->getNodeId()!=el_body )
-            body = body->getParentNode();
-        if ( body ) {
-            pstyle->text_align = body->getStyle()->text_align;
-        }
-    }
-
     if ( !BLOCK_RENDERING(rend_flags, USE_W3C_BOX_MODEL) ) {
         // In enhanced mode, box sizing can be set as default to be border-box
         // with this flag - which can then be overriden by embedded styles.
@@ -10867,6 +10911,29 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( word_break, css_wb_inherit );
     UPDATE_STYLE_FIELD( caption_side, css_cs_inherit );
     UPDATE_STYLE_FIELD( border_collapse, css_border_c_inherit );
+
+    // Firefox and Webkit/Chromium reset text-align: to 'start' for table if it originates from
+    // the HTML align= attribute (eg: <center><table>):
+    //   https://github.com/mozilla/gecko-dev/blob/28eb956d45/servo/components/style/style_adjuster.rs#L646-L666
+    //   https://github.com/WebKit/WebKit/blob/77ac337531/Source/WebCore/style/StyleAdjuster.cpp#L432-L434
+    if (nodeElementId == el_table && pstyle->text_align >= css_ta_html_align_left
+                                  && pstyle->text_align <= css_ta_html_align_center) {
+        pstyle->text_align = css_ta_start;
+        // It would be best in our context to use the value set to the (or current
+        // DocFragment's) BODY node, which starts with css_ta_start but may be set
+        // to css_ta_justify by our epub.css. But some additional HTML specs for
+        // tables (ie. styling of TH's text-align) have some specific behaviour
+        // with css_ta_start, that we'd rather keep to compare renderings.
+        // Otherwise, we would have done:
+        /*
+           ldomNode * body = enode->getParentNode();
+           while ( body != NULL && body->getNodeId()!=el_body )
+               body = body->getParentNode();
+           if ( body ) {
+               pstyle->text_align = body->getStyle()->text_align;
+           }
+        */
+    }
 
     // text-decoration should not be inherited per CSS specs, but our quite
     // limited support for it requires us to have its initial value be
