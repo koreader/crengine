@@ -104,6 +104,14 @@ enum css_text_align_t {
     css_ta_justify,
     css_ta_start, // = left if LTR, right if RTL
     css_ta_end,   // = right if LTR, left if LTR
+    // Non-standard keywords (similar to -moz-center, -webkit-right...), used to implement <div align=...>
+    // (this feels like it's not the right way to implement how "aligning descendants" as described in
+    // the HTML specs, which sounds orthogonal to text-align, but both Firefox and Chromium implement
+    // it this way, with unnatural (but probably expected, and worked around by authors) side effects;
+    // we need to implement it the same way to be able to compare our rendering to something...)
+    css_ta_html_align_left,   // <div align=left>
+    css_ta_html_align_right,  // <div align=right>
+    css_ta_html_align_center, // <div align=center>, <center>
     // Next ones are only accepted with text-align-last
     css_ta_auto,
     css_ta_left_if_not_first,    // These non standard keywords allow text-align-last
