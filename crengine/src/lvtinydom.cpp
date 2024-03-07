@@ -14622,6 +14622,7 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lCha
                 parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
         } else if ( !lStr_cmp(attrname, "src") ) {
             parent->OnAttribute(nsname, attrname, convertHref(lString32(attrvalue)).c_str() );
+            // We should probably handle 'background' the same way, but it is rare, let's not bother.
         } else if ( !lStr_cmp(attrname, "name") ) {
             //CRLog::trace("name attribute = %s", LCSTR(lString32(attrvalue)));
             parent->OnAttribute(nsname, attrname, convertId(lString32(attrvalue)).c_str() );
@@ -15730,95 +15731,9 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar32 * nsname, const lChar3
         return;
     }
 
-    // ldomDocumentWriterFilter is used for HTML/CHM/PDB (not with EPUBs).
-    // We translate some attributes (now possibly deprecated) to their
-    // CSS style equivalent, globally or for some elements only.
-    // https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
     lUInt16 id = _currNode->_element->getNodeId();
 
-    // Not sure this is to be done here: we get attributes as they are read,
-    // so possibly before or after a style=, that the attribute may override.
-    // Hopefully, a document use either one or the other.
-    // (Alternative: in lvrend.cpp when used, as fallback when there is
-    // none specified in node->getStyle().)
-    #if MATHML_SUPPORT==1
-        // We should really remove this handling below and support them via CSS
-        // for HTML5 elements that support them.
-        // In the meantime, just don't mess with MathML
-        if ( id >= EL_MATHML_START && id <= EL_MATHML_END ) {
-            lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
-            lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
-            _currNode->addAttribute( attr_ns, attr_id, attrvalue );
-            return;
-        }
-    #endif
-
-    // HTML align= => CSS text-align:
-    // Done for all elements, except IMG and TABLE (for those, it should
-    // translate to float:left/right, which is ensured by epub.css)
-    // Should this be restricted to some specific elements?
-    if ( !lStr_cmp(attrname, "align") && (id != el_img) && (id != el_table) ) {
-        lString32 align = lString32(attrvalue).lowercase();
-        if ( align == U"justify")
-            appendStyle( U"text-align: justify" );
-        else if ( align == U"left")
-            appendStyle( U"text-align: left" );
-        else if ( align == U"right")
-            appendStyle( U"text-align: right" );
-        else if ( align == U"center")
-            appendStyle( U"text-align: center" );
-       return;
-    }
-
-    // For the table & friends elements where we do support the following styles,
-    // we translate these deprecated attributes to their style equivalents:
-    //
-    // HTML valign= => CSS vertical-align: only for TH & TD (as lvrend.cpp
-    // only uses it with table cells (erm_final or erm_block))
-    if (id == el_th || id == el_td) {
-        // Default rendering for cells is valign=baseline
-        if ( !lStr_cmp(attrname, "valign") ) {
-            lString32 valign = lString32(attrvalue).lowercase();
-            if ( valign == U"top" )
-                appendStyle( U"vertical-align: top" );
-            else if ( valign == U"middle" )
-                appendStyle( U"vertical-align: middle" );
-            else if ( valign == U"bottom")
-                appendStyle( U"vertical-align: bottom" );
-           return;
-        }
-    }
-    // HTML width= => CSS width: only for TH, TD and COL (as lvrend.cpp
-    // only uses it with erm_table_column and table cells)
-    // Note: with IMG, lvtextfm LFormattedText::AddSourceObject() only uses
-    // style, and not attributes: <img width=100 height=50> would not be used.
-    if (id == el_th || id == el_td || id == el_col) {
-        if ( !lStr_cmp(attrname, "width") ) {
-            lString32 val = lString32(attrvalue);
-            const lChar32 * s = val.c_str();
-            bool is_pct = false;
-            int n=0;
-            if (s && s[0]) {
-                for (int i=0; s[i]; i++) {
-                    if (s[i]>='0' && s[i]<='9') {
-                        n = n*10 + (s[i]-'0');
-                    } else if (s[i] == '%') {
-                        is_pct = true;
-                        break;
-                    }
-                }
-                if (n > 0) {
-                    val = lString32("width: ");
-                    val.appendDecimal(n);
-                    val += is_pct ? "%" : "px"; // CSS pixels
-                    appendStyle(val.c_str());
-                }
-            }
-            return;
-        }
-    }
-
-    // Othewise, add the attribute
+    // Add the attribute
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
     lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
 
