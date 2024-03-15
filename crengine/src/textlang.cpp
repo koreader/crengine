@@ -635,12 +635,9 @@ lChar32 lb_char_sub_func_czech_slovak(struct LineBreakContext *lbpCtx, const lCh
 }
 
 lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 * text, int pos, int next_usable) {
-    // Russian typography prohibits one and two letter words at the end of the line.
+    // Russian typography prohibits one letter words at the end of the line.
     // https://www.artlebedev.ru/kovodstvo/sections/62/
     if ( pos >= 1 && text[pos-1] == ' ' ) {
-        return '(';
-    }
-    if ( pos >= 2 && text[pos-2] == ' ' ) {
         return '(';
     }
     return text[pos];
@@ -1193,7 +1190,7 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     else if ( LANG_STARTS_WITH(("pt") ("sr")) ) { // Portuguese, Serbian
         _duplicate_real_hyphen_on_next_line = true;
     }
-	else if ( LANG_STARTS_WITH(("ru")) ) { // Russian
+    else if ( LANG_STARTS_WITH(("ru")) ) { // Russian
         _lb_char_sub_func = &lb_char_sub_func_russian;
     }
 #endif
