@@ -634,6 +634,18 @@ lChar32 lb_char_sub_func_czech_slovak(struct LineBreakContext *lbpCtx, const lCh
     return text[pos];
 }
 
+lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 * text, int pos, int next_usable) {
+    // Russian typography prohibits one and two letter words at the end of the line.
+    // https://www.artlebedev.ru/kovodstvo/sections/62/
+    if ( pos >= 1 && text[pos-1] == ' ' ) {
+        return '(';
+    }
+	  if ( pos >= 2 && text[pos-2] == ' ' ) {
+        return '(';
+    }
+    return text[pos];
+}
+
 // (Mostly) non-language specific char substitution to ensure CSS line-break and word-break properties
 //
 // Note: the (hardcoded in many places) default behaviour (without these tweaks) in crengine
@@ -1180,6 +1192,9 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     }
     else if ( LANG_STARTS_WITH(("pt") ("sr")) ) { // Portuguese, Serbian
         _duplicate_real_hyphen_on_next_line = true;
+    }
+	  else if ( LANG_STARTS_WITH(("ru")) ) { // Russian
+        _lb_char_sub_func = &lb_char_sub_func_russian;
     }
 #endif
 
