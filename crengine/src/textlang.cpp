@@ -635,11 +635,29 @@ lChar32 lb_char_sub_func_czech_slovak(struct LineBreakContext *lbpCtx, const lCh
 }
 
 lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 * text, int pos, int next_usable) {
-    // Russian typography prohibits one letter words at the end of the line.
+    // Russian typography prohibits one letter prepositions and conjunctions at the end of the line.
     // https://www.artlebedev.ru/kovodstvo/sections/62/
     if ( pos >= 1 && text[pos-1] == ' ' ) {
-        return '(';
-    }
+        switch ( text[pos] ) {
+            case 'А':
+            case 'В':
+            case 'И':
+	        case 'К':
+            case 'О':
+            case 'С':
+            case 'У':
+            case 'а':
+            case 'в':
+            case 'и':
+	        case 'к':
+            case 'о':
+            case 'с':
+            case 'у':
+                return '(';
+                break;
+            default:
+                break;
+        }
     return text[pos];
 }
 
