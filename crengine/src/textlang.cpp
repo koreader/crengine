@@ -639,20 +639,20 @@ lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 
     // https://www.artlebedev.ru/kovodstvo/sections/62/
     if ( pos >= 1 && text[pos-1] == ' ' ) {
         switch ( text[pos] ) {
-            case 'А':
-            case 'В':
-            case 'И':
-            case 'К':
-            case 'О':
-            case 'С':
-            case 'У': // Meaning in English:
-            case 'а': // but
-            case 'в': // in
-            case 'и': // and
-            case 'к': // towards
-            case 'о': // about
-            case 'с': // with
-            case 'у': // at
+            case U"\x0410": // "А"
+            case U"\x0412": // "В"
+            case U"\x0418": // "И"
+            case U"\x041a": // "К"
+            case U"\x041e": // "О" 
+            case U"\x0421": // "С"
+            case U"\x0423": // "У". Meaning in English:
+            case U"\x0430": // but ("а")
+            case U"\x0432": // in ("в")
+            case U"\x0438": // and ("и")
+            case U"\x043a": // towards ("к")
+            case U"\x043e": // about ("о")
+            case U"\x0441": // with ("с")
+            case U"\x0443": // at ("у")
                 return '(';
                 break;
             default:
