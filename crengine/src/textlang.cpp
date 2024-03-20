@@ -658,6 +658,7 @@ lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 
             default:
                 break;
         }
+    }
     return text[pos];
 }
 
