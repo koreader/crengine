@@ -105,6 +105,7 @@ public:
     virtual void setHidePartialGlyphs( bool hide ) = 0;
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) = 0;
+    virtual bool getInvertImages() const = 0;
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) = 0;
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
@@ -251,6 +252,7 @@ public:
     virtual void setHidePartialGlyphs( bool hide ) { _hidePartialGlyphs = hide; }
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
+    virtual bool getInvertImages() const { return _invertImages; }
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor

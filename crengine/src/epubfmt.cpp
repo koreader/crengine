@@ -1,4 +1,5 @@
 #include "../include/epubfmt.h"
+#include "../include/fb2def.h"
 
 class EpubItem {
 public:
@@ -334,6 +335,125 @@ void ReadEpubAdobePageMap( ldomDocument * doc, ldomNode * mapRoot, LVPageMap * p
         ldomXPointer ptr(target, 0);
         pageMap->addPage(title, ptr, lString32::empty_str);
     }
+}
+
+bool ExtractCoverFilenameFromCoverPageFragment( LVStreamRef stream, lString32 & cover_image_href,
+            const elem_def_t * node_scheme, const attr_def_t * attr_scheme, const ns_def_t * ns_scheme)
+{
+    // We expect such a cover xhtml file to be small in size
+    if ( stream.isNull() || stream->GetSize() > 5000 )
+        return false;
+    // We needed to get the *_scheme passed from lvdocview.cpp (they are only available there)
+    // to this ImportEpubDocument() just for this: this HTML parser expects these hardcoded
+    // elements id to properly handle auto-open-close tags (not passing them would result
+    // in our parsed HTML being: <RootNode><body><html><body><html><body><div> ...).
+    ldomDocument * coverDoc = LVParseHTMLStream( stream, node_scheme, attr_scheme, ns_scheme);
+    if ( !coverDoc )
+        return false;
+    // We expect to find a single image, and no text, to consider the image as a possible cover.
+    lString32 img_href;
+    bool has_more_images = false;
+    bool has_text = false;
+    bool in_body = false;
+    bool img_has_alt_attribute_equal_cover = false;
+    ldomNode * coverDocRoot = coverDoc->getRootNode();
+    /* For debugging:
+    lString32Collection cssFiles;
+    lString8 extra;
+    lString8 html = ldomXPointer(coverDocRoot,0).getHtml(cssFiles, extra, 0);
+    printf("HTML: %s\n", html.c_str());
+    */
+    // Use our usual non-recursive node walker
+    ldomNode * n = coverDocRoot;
+    if (n->isElement() && n->getChildCount() > 0) {
+        int nextChildIndex = 0;
+        n = n->getChildNode(nextChildIndex);
+        while (true) {
+            // Check only the first time we met a node (nextChildIndex == 0)
+            // and not when we get back to it from a child to process next sibling
+            if (nextChildIndex == 0) {
+                if ( n->isElement() ) {
+                    lUInt16 id = n->getNodeId();
+                    if ( !in_body ) {
+                        // We should ignore text outside <body>, ie. <title> or <style>
+                        if (id == el_body ) {
+                            in_body = true;
+                        }
+                    }
+                    else if (id == el_img ) { // <img src=''>
+                        if ( img_href.empty() ) {
+                            img_href = n->getAttributeValue(attr_src);
+                            lString32 img_alt = n->getAttributeValue(attr_alt);
+                            if ( img_alt.lowercase() == U"cover" ) {
+                                img_has_alt_attribute_equal_cover = true;
+                            }
+                        }
+                        else {
+                            // Too many images for a single cover: give up
+                            has_more_images = true;
+                            break;
+                        }
+                    }
+                    else if (id == el_image ) { // <svg>...<image href=''>
+                        if ( img_href.empty() ) {
+                            img_href = n->getAttributeValue(attr_href);
+                        }
+                        else {
+                            has_more_images = true;
+                            break;
+                        }
+                    }
+                }
+                else if ( in_body && n->isText() ) {
+                    lUInt16 id = n->getParentNode()->getNodeId();
+                    if (id == el_stylesheet || id == el_script ) {
+                        // We don't have styles here to know if this element is display:none, but
+                        // skip commmon known ones that should be invisible and may contain text.
+                    }
+                    else {
+                        // This won't ignore \n and &nbsp;, we'll see if we need to do more
+                        lString32 text = n->getText().trim();
+                        if ( text.length() > 0 ) {
+                            // printf("TEXT: #%s#\n", LCSTR(text));
+                            has_text = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            // Process next child
+            if (n->isElement() && nextChildIndex < n->getChildCount()) {
+                n = n->getChildNode(nextChildIndex);
+                nextChildIndex = 0;
+                continue;
+            }
+            // No more child, get back to parent and have it process our sibling
+            nextChildIndex = n->getNodeIndex() + 1;
+            n = n->getParentNode();
+            if (!n) // back to root node
+                break;
+            if (n == coverDocRoot && nextChildIndex >= n->getChildCount())
+                // back to this node, and done with its children
+                break;
+        }
+    }
+    delete coverDoc;
+    // printf("EPUB coverpage check: has_text:%d, has_more_images:%d, has_alt=cover:%d img_href:%d (%s)\n",
+    //               has_text, has_more_images, img_has_alt_attribute_equal_cover, !img_href.empty(), LCSTR(img_href));
+    if ( !img_href.empty() ) {
+        if ( !has_text && !has_more_images ) {
+            // Single image with no text in this fragment: it must be a cover image.
+            cover_image_href = img_href;
+            return true;
+        }
+        if ( img_has_alt_attribute_equal_cover ) {
+            // If we have met an image with alt="cover" before any text or other images,
+            // consider it valid.
+            cover_image_href = img_href;
+            return true;
+        }
+    }
+    return false;
 }
 
 lString32 EpubGetRootFilePath(LVContainerRef m_arc)
@@ -1083,7 +1203,9 @@ public:
     }
 };
 
-bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback, CacheLoadingCallback * formatCallback, bool metadataOnly )
+bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
+            CacheLoadingCallback * formatCallback, bool metadataOnly,
+            const elem_def_t * node_scheme, const attr_def_t * attr_scheme, const ns_def_t * ns_scheme )
 {
     LVContainerRef arc = LVOpenArchieve( stream );
     if ( arc.isNull() )
@@ -1282,6 +1404,9 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             if (coverId.empty() && name == "cover") {
                 lString32 content = item->getAttributeValue("content");
                 coverId = content;
+                // Note: this is expected to be an id, found in the manifest.
+                // Some bad EPUBs put there the path to the cover image file, which we then
+                // won't find in the manifest.
                 continue;
             }
             // Has to come before calibre:series_index
@@ -1380,12 +1505,38 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
+        // We'll be reusing these later
+        ldomNode * spine = doc->nodeFromXPath( cs32("package/spine") );
+        lUInt16 itemref_id = doc->getElementNameIndex(U"itemref");
+
+        // If no cover specified among the metadata by the publisher, or if it is
+        // not found, there may still be one used (and usable by us) in the first
+        // XHTML fragment, that we may want to look at.
+        lString32 cover_xhtml_id;
+        if ( spine && spine->getChildCount() > 1 ) {
+            // We need at least 2 xhtml fragments to maybe have the 1st hold a cover
+            int nb_itemrefs = spine->getChildCount();
+            for (size_t i=0; i<nb_itemrefs; i++) {
+                ldomNode * item = spine->getChildNode(i);
+                if ( item->getNodeId() != itemref_id )
+                    continue;
+                cover_xhtml_id = item->getAttributeValue("idref");
+                // We'll be looking for it later
+                break;
+            }
+        }
+
         // If no cover to look for, we're done looking for metadata.
         // We still prefer finding an ePub3 cover (it may happen that even in an ePub3,
         // a ePub2 cover is specified, possibly some remnant metadata, and may not exist).
         // We'll have to find out that while iterating the manifest, and exit when found out.
         bool look_for_coverid = !coverId.empty();
         bool look_for_epub3_cover = isEpub3;
+        // We'll also have to look for the href of the coverxhtml_id: if none of the previous
+        // covers is found, we'll look inside the xhtml for a cover image.
+        bool look_for_coverxhtml_id = !cover_xhtml_id.empty();
+        lString32 cover_xhtml_href;
+        bool look_at_cover_xhtml = true;
 
         if ( progressCallback )
             progressCallback->OnLoadFileProgress(2);
@@ -1395,7 +1546,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // Iterate all package/manifest/item
         lUInt16 item_id = doc->getElementNameIndex(U"item");
         for (size_t i=0; i<nb_manifest_items; i++) {
-            if ( metadataOnly && !look_for_coverid && !look_for_epub3_cover ) {
+            if ( metadataOnly && !look_for_coverid && !look_for_epub3_cover && !look_for_coverxhtml_id) {
                 // No more stuff to find, stop iterating
                 break;
             }
@@ -1417,8 +1568,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                             LVImageSourceRef img = LVCreateStreamImageSource(stream);
                             if ( !img.isNull() ) {
                                 m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
-                                // We found the epub3 cover, and it is a valid image: stop looking for any epub2 one
+                                // We found the epub3 cover, and it is a valid image: stop looking for any other
                                 look_for_coverid = false;
+                                look_for_coverxhtml_id = false;
+                                look_at_cover_xhtml = false;
                             }
                         }
                         // We found the cover-image item: valid image or not, stop looking for it
@@ -1434,10 +1587,19 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                         if ( !img.isNull() ) {
                             CRLog::info("EPUB coverpage image is correct: %d x %d", img->GetWidth(), img->GetHeight() );
                             m_doc_props->setString(DOC_PROP_COVER_FILE, coverFileName);
+                            // We found the epub2 cover, and it is a valid image: stop looking for the coverxhtml one.
+                            look_for_coverxhtml_id = false;
+                            look_at_cover_xhtml = false;
                         }
                     }
                     // We found the coverid: valid image or not, stop looking for it
                     look_for_coverid = false;
+                }
+                if ( look_for_coverxhtml_id && id==cover_xhtml_id ) {
+                    // At this point, we just store the href. We will parse it if we end up
+                    // not having found any of the epub3 cover or coverId.
+                    cover_xhtml_href = href;
+                    look_for_coverxhtml_id = false;
                 }
                 if (metadataOnly) {
                     continue;
@@ -1480,6 +1642,35 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         }
         CRLog::debug("opf: reading items done.");
 
+        if ( look_at_cover_xhtml && !cover_xhtml_href.empty() ) {
+            // No other cover found: look inside the cover xhtml fragment
+            lString32 cover_xhtml_path = LVCombinePaths(codeBase, cover_xhtml_href);
+            CRLog::info("EPUB cover xhtml page file: %s", LCSTR(cover_xhtml_path));
+            LVStreamRef stream = m_arc->OpenStream(cover_xhtml_path.c_str(), LVOM_READ);
+            lString32 cover_image_href;
+            if ( ExtractCoverFilenameFromCoverPageFragment(stream, cover_image_href, node_scheme, attr_scheme, ns_scheme) ) {
+                lString32 codeBase = LVExtractPath( cover_xhtml_path );
+                if ( codeBase.length()>0 && codeBase.lastChar()!='/' )
+                    codeBase.append(1, U'/');
+                lString32 cover_image_path = LVCombinePaths(codeBase, cover_image_href);
+                CRLog::info("EPUB cover image file: %s", LCSTR(cover_image_path));
+                LVStreamRef stream = m_arc->OpenStream(cover_image_path.c_str(), LVOM_READ);
+                if ( stream.isNull() ) {
+                    // Try again in case cover_image_path is percent-encoded
+                    cover_image_path = LVCombinePaths(codeBase, DecodeHTMLUrlString(cover_image_href));
+                    CRLog::info("EPUB cover image file pct-decoded: %s", LCSTR(cover_image_path));
+                    stream = m_arc->OpenStream(cover_image_path.c_str(), LVOM_READ);
+                }
+                if ( !stream.isNull() ) {
+                    LVImageSourceRef img = LVCreateStreamImageSource(stream);
+                    if ( !img.isNull() ) {
+                        CRLog::info("EPUB coverpage image is correct: %d x %d", img->GetWidth(), img->GetHeight() );
+                        m_doc_props->setString(DOC_PROP_COVER_FILE, cover_image_path);
+                    }
+                }
+            }
+        }
+
         if ( progressCallback )
             progressCallback->OnLoadFileProgress(4);
 
@@ -1487,7 +1678,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         // and in which order, make out the book content
         if ( !metadataOnly && epubItems.length()>0 ) {
             CRLog::debug("opf: reading spine");
-            ldomNode * spine = doc->nodeFromXPath( cs32("package/spine") );
             if ( spine ) {
                 // Some attributes specify that some EpubItems have a specific purpose
                 // <spine toc="ncx" page-map="page-map">
@@ -1498,7 +1688,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 if ( page_map!=NULL )
                     pageMapHref = LVCombinePaths(codeBase, page_map->href);
                 // Iterate all package/spine/itemref (each will make a book fragment)
-                lUInt16 itemref_id = doc->getElementNameIndex(U"itemref");
                 int nb_itemrefs = spine->getChildCount();
                 for (size_t i=0; i<nb_itemrefs; i++) {
                     ldomNode * item = spine->getChildNode(i);

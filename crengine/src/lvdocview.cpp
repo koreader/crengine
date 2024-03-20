@@ -1161,6 +1161,7 @@ void LVDocView::drawCoverTo(LVDrawBuf * drawBuf, lvRect & rc) {
 			dst_dy = imgrc.height();
 		//CRLog::trace("drawCoverTo() - drawing image");
         LVColorDrawBuf buf2(src_dx, src_dy, 32);
+        buf2.setInvertImages(drawBuf->getInvertImages());
         buf2.Draw(imgsrc, 0, 0, src_dx, src_dy, true);
         drawBuf->DrawRescaled(&buf2, imgrc.left + (imgrc.width() - dst_dx) / 2,
                 imgrc.top + (imgrc.height() - dst_dy) / 2, dst_dx, dst_dy, 0);
@@ -4438,7 +4439,9 @@ bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 			if ( m_callback )
                 m_callback->OnLoadFileFormatDetected(doc_format_epub);
             updateDocStyleSheet();
-            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this, metadataOnly );
+            // See epubfmt.cpp's ExtractCoverFilenameFromCoverPageFragment()
+            // for why we need to pass fb2_elem_table and such.
+            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this, metadataOnly, fb2_elem_table, fb2_attr_table, fb2_ns_table );
 			if ( !res ) {
 				setDocFormat( doc_format_none );
                 createDefaultDocument( cs32("ERROR: Error reading EPUB format"), cs32("Cannot open document") );
