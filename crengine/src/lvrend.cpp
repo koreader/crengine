@@ -1543,8 +1543,9 @@ public:
                                 ldomNode * parent = node->getParentNode();
                                 while (parent && parent->getNodeId() != el_a)
                                     parent = parent->getParentNode();
-                                if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                    lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
+                                            && !STYLE_HAS_CR_HINT(parent->getStyle(), NOTEREF_IGNORE) ) {
+                                    lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href);
                                     if ( href.firstChar()=='#' ) {
                                         href.erase(0,1);
                                         caption_links.add( href );
@@ -1745,8 +1746,9 @@ public:
                                             ldomNode * parent = node->getParentNode();
                                             while (parent && parent->getNodeId() != el_a)
                                                 parent = parent->getParentNode();
-                                            if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                                lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                            if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
+                                                        && !STYLE_HAS_CR_HINT(parent->getStyle(), NOTEREF_IGNORE) ) {
+                                                lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href);
                                                 if ( href.firstChar()=='#' ) {
                                                     href.erase(0,1);
                                                     if ( is_single_column )
@@ -5321,12 +5323,9 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                     ldomNode * parent = node->getParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
-                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
-                                            // but we want to be able to gather in-page footnotes by only
-                                            // specifying a -cr-hint: to the footnote target, with no need
-                                            // to set one to the link itself
-                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
+                                                && !STYLE_HAS_CR_HINT(parent->getStyle(), NOTEREF_IGNORE) ) {
+                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href);
                                         if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             context.addLink( href, link_insert_pos );
@@ -5360,8 +5359,9 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                     ldomNode * parent = node->getParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
-                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
+                                                && !STYLE_HAS_CR_HINT(parent->getStyle(), NOTEREF_IGNORE) ) {
+                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href);
                                         if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             context.addLink( href, link_insert_pos );
@@ -8906,12 +8906,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                     ldomNode * parent = node->getParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
-                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href ) ) {
-                                            // was: && parent->getAttributeValue(LXML_NS_ANY, attr_type ) == "note")
-                                            // but we want to be able to gather in-page footnotes by only
-                                            // specifying a -cr-hint: to the footnote target, with no need
-                                            // to set one to the link itself
-                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href );
+                                    if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
+                                                && !STYLE_HAS_CR_HINT(parent->getStyle(), NOTEREF_IGNORE) ) {
+                                        lString32 href = parent->getAttributeValue(LXML_NS_ANY, attr_href);
                                         if ( href.firstChar()=='#' ) {
                                             href.erase(0,1);
                                             flow->getPageContext()->addLink( href, link_insert_pos );
