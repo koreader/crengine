@@ -643,16 +643,16 @@ lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 
             case 0x0412: // "В"
             case 0x0418: // "И"
             case 0x041a: // "К"
-            case 0x041e: // "О" 
+            case 0x041e: // "О"
             case 0x0421: // "С"
-            case 0x0423: // "У". Meaning in English:
-            case 0x0430: // but ("а")
-            case 0x0432: // in ("в")
-            case 0x0438: // and ("и")
-            case 0x043a: // towards ("к")
-            case 0x043e: // about ("о")
-            case 0x0441: // with ("с")
-            case 0x0443: // at ("у")
+            case 0x0423: // "У" (Meaning in English:)
+            case 0x0430: // "а" ("but")
+            case 0x0432: // "в" ("in")
+            case 0x0438: // "и" ("and")
+            case 0x043a: // "к" ("towards")
+            case 0x043e: // "о" ("about")
+            case 0x0441: // "с" ("with")
+            case 0x0443: // "у" ("at")
                 return '(';
                 break;
             default:
