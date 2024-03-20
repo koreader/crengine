@@ -4439,7 +4439,9 @@ bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 			if ( m_callback )
                 m_callback->OnLoadFileFormatDetected(doc_format_epub);
             updateDocStyleSheet();
-            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this, metadataOnly );
+            // See epubfmt.cpp's ExtractCoverFilenameFromCoverPageFragment()
+            // for why we need to pass fb2_elem_table and such.
+            bool res = ImportEpubDocument( m_stream, m_doc, m_callback, this, metadataOnly, fb2_elem_table, fb2_attr_table, fb2_ns_table );
 			if ( !res ) {
 				setDocFormat( doc_format_none );
                 createDefaultDocument( cs32("ERROR: Error reading EPUB format"), cs32("Cannot open document") );
