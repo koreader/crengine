@@ -652,6 +652,7 @@ public:
     // (In vim, find divisions with: /\v(\/)@<!(\*)@<!\/(\/)@!(\*)@!.*   )
 
     void PlaceCells() {
+        int rend_flags = elem->getDocument()->getRenderBlockRenderingFlags();
         int i, j;
         // search for max column number
         int maxcols = 0;
@@ -947,7 +948,6 @@ public:
                 // rows[i]->cells contains only real cells made from node elements
                 CCRTableCell * cell = (rows[i]->cells[j]);
                 if ( cell->elem ) { // otherwise might be an empty cell added by MathML tweaks
-                    int rend_flags = cell->elem->getDocument()->getRenderBlockRenderingFlags();
                     getRenderedWidths(cell->elem, cell->max_content_width, cell->min_content_width, cell->direction, true, rend_flags);
                 }
                 #ifdef DEBUG_TABLE_RENDERING
@@ -1308,7 +1308,6 @@ public:
                 // Per-specs, a caption should not be involved in the computation of the table
                 // width, so we did not measure it above. Except for its min width, as to
                 // avoid breaking words. So measure it now.
-                int rend_flags = caption->getDocument()->getRenderBlockRenderingFlags();
                 int caption_max_content_width = 0;
                 int caption_min_content_width = 0;
                 getRenderedWidths(caption, caption_max_content_width, caption_min_content_width, caption_direction, true, rend_flags);
@@ -1439,6 +1438,7 @@ public:
 
     int renderCells( LVRendPageContext & context )
     {
+        int rend_flags = elem->getDocument()->getRenderBlockRenderingFlags();
         // We should set, for each of the table children and sub-children,
         // its RenderRectAccessor fmt(node) x/y/w/h.
         // x/y of a cell are relative to its own parent node top left corner
@@ -1659,6 +1659,22 @@ public:
                         int padding_right = lengthToPx( cell->elem, elem_style->padding[1], cell->width ) + border_right;
                         int padding_top = lengthToPx( cell->elem, elem_style->padding[2], cell->width ) + measureBorder(cell->elem,0);
                         int padding_bottom = lengthToPx( cell->elem, elem_style->padding[3], cell->width ) + measureBorder(cell->elem,2);
+                        // Deal with negative text-indent, as done in renderBlockElementEnhanced when erm_final
+                        if ( elem_style->text_indent.value < 0 ) {
+                            int indent = - lengthToPx(cell->elem, elem_style->text_indent, cell->width);
+                            if ( !is_rtl ) {
+                                padding_left -= indent;
+                                if ( padding_left < 0 && !BLOCK_RENDERING(rend_flags, ALLOW_HORIZONTAL_BLOCK_OVERFLOW) ) {
+                                    padding_left = 0; // be safe, drop excessive part of indent
+                                }
+                            }
+                            else {
+                                padding_right -= indent;
+                                if ( padding_right < 0 && !BLOCK_RENDERING(rend_flags, ALLOW_HORIZONTAL_BLOCK_OVERFLOW) ) {
+                                    padding_right = 0;
+                                }
+                            }
+                        }
                         RenderRectAccessor fmt( cell->elem );
                         fmt.setWidth( cell->width ); // needed before calling elem->renderFinalBlock
                         if ( is_ruby_table )
@@ -1775,14 +1791,14 @@ public:
                         // Except when table is a single column, and we can just
                         // transfer lines to the upper context.
                         LVRendPageContext * cell_context;
-                        int rend_flags = elem->getDocument()->getRenderBlockRenderingFlags();
+                        int rendflags = rend_flags;
                         if ( is_single_column ) {
                             row->single_col_context = new LVRendPageContext(NULL, context.getPageHeight());
                             cell_context = row->single_col_context;
                             // We want to avoid negative margins (if allowed in global flags) and
                             // going back the flow y, as the transfered lines would not reflect
                             // that, and we could get some small mismatches and glitches.
-                            rend_flags &= ~BLOCK_RENDERING_ALLOW_NEGATIVE_COLLAPSED_MARGINS;
+                            rendflags &= ~BLOCK_RENDERING_ALLOW_NEGATIVE_COLLAPSED_MARGINS;
                         }
                         else {
                             cell_context = new LVRendPageContext( NULL, context.getPageHeight(), 0, false );
@@ -1792,7 +1808,7 @@ public:
                         cell->baseline = REQ_BASELINE_FOR_TABLE;
                         int h = renderBlockElement( *cell_context, cell->elem, 0, 0, cell->width,
                                                     0, 0, // no usable left/right overflow outside cell
-                                                    cell->direction, &cell->baseline, rend_flags);
+                                                    cell->direction, &cell->baseline, rendflags);
                         cell->height = h;
                         // See above about what we store in cell->adjusted_baseline
                         if ( cell->valign == 0 ) { // vertical-align: baseline
@@ -12047,26 +12063,49 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             }
         }
         if (!ignorePadding) {
+            bool is_rtl = direction == REND_DIRECTION_RTL;
             // padding
+            int padding_left = 0;
             if (style->padding[0].type == css_val_percent) {
                 padPct += style->padding[0].value;
                 padPctNb += 1;
             }
-            else
-                padLeft += lengthToPx( node, style->padding[0], 0 );
+            else {
+                padding_left = lengthToPx( node, style->padding[0], 0 );
+                padLeft += padding_left;
+            }
+            int padding_right = 0;
             if (style->padding[1].type == css_val_percent) {
                 padPct += style->padding[1].value;
                 padPctNb += 1;
             }
-            else
-                padRight += lengthToPx( node, style->padding[1], 0 );
+            else {
+                padding_right = lengthToPx( node, style->padding[1], 0 );
+                padRight += padding_right;
+            }
+            // negative text-indent (as handled in renderBlockElementEnhanced when erm_final
+            if ( m == erm_final && style->text_indent.value < 0 && !BLOCK_RENDERING(rendFlags, ALLOW_HORIZONTAL_BLOCK_OVERFLOW) ) {
+                // Usually, some negative text-indent is compensated by some equivalent padding-left.
+                // This takes care of increasing the width to avoid overflow when not enough padding-left.
+                // It's possible that the compensating padding-left is ensured by some parent block,
+                // that we can't check here; in this case, this will wrongly add some uneeded width...
+                // (Note that text-indent being inherited, we have to ensure it only on the erm_final element.)
+                int indent = - lengthToPx(node, style->text_indent, 0);
+                if ( is_rtl ) {
+                    if ( indent > padding_right )
+                        padRight += indent - padding_right;
+                }
+                else {
+                    if ( indent > padding_left )
+                        padLeft += indent - padding_left;
+                }
+            }
             // border (which does not accept units in %)
             padLeft += measureBorder(node,3);
             padRight += measureBorder(node,1);
             // Handle our "padding-left:-cr-special" case, possibly still set on OL/UL if it has not
             // be overridden, used to dynamically size a list item container padding according to the
             // widest marker width (the above padding would have computed to 0 with "-cr-special").
-            bool is_rtl = direction == REND_DIRECTION_RTL;
             if ( (!is_rtl && style->padding[0].type == css_val_unspecified && style->padding[0].value == css_generic_cr_special) ||
                   (is_rtl && style->padding[1].type == css_val_unspecified && style->padding[1].value == css_generic_cr_special) ) {
                 // This node is expected to have children with "display:list-item". Look for any, considering
