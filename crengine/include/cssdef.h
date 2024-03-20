@@ -456,6 +456,7 @@ enum css_generic_value_t {
 
 
 // For footnote popup detection by koreader-base/cre.cpp
+// 'noteref-ignore' also prevents in-page footnotes from being added to the pages of links with that hint
 #define CSS_CR_HINT_NOTEREF                 0x01000000 // -cr-hint: noteref         link is to a footnote
 #define CSS_CR_HINT_NOTEREF_IGNORE          0x02000000 // -cr-hint: noteref-ignore  link is not to a footnote (even if
                                                        //                           everything else indicates it is)
