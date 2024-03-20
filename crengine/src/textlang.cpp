@@ -634,6 +634,33 @@ lChar32 lb_char_sub_func_czech_slovak(struct LineBreakContext *lbpCtx, const lCh
     return text[pos];
 }
 
+lChar32 lb_char_sub_func_russian(struct LineBreakContext *lbpCtx, const lChar32 * text, int pos, int next_usable) {
+    // Russian typography doesn't recommend one letter prepositions and conjunctions at the end of the line.
+    // https://www.artlebedev.ru/kovodstvo/sections/62/
+    if ( pos >= 1 && text[pos-1] == ' ' ) {
+        switch ( text[pos] ) {
+            case 0x0410: // "А"
+            case 0x0412: // "В"
+            case 0x0418: // "И"
+            case 0x041a: // "К"
+            case 0x041e: // "О" 
+            case 0x0421: // "С"
+            case 0x0423: // "У". Meaning in English:
+            case 0x0430: // but ("а")
+            case 0x0432: // in ("в")
+            case 0x0438: // and ("и")
+            case 0x043a: // towards ("к")
+            case 0x043e: // about ("о")
+            case 0x0441: // with ("с")
+            case 0x0443: // at ("у")
+                return '(';
+                break;
+            default:
+                break;
+        }
+    return text[pos];
+}
+
 // (Mostly) non-language specific char substitution to ensure CSS line-break and word-break properties
 //
 // Note: the (hardcoded in many places) default behaviour (without these tweaks) in crengine
@@ -1180,6 +1207,9 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     }
     else if ( LANG_STARTS_WITH(("pt") ("sr")) ) { // Portuguese, Serbian
         _duplicate_real_hyphen_on_next_line = true;
+    }
+    else if ( LANG_STARTS_WITH(("ru")) ) { // Russian
+        _lb_char_sub_func = &lb_char_sub_func_russian;
     }
 #endif
 
