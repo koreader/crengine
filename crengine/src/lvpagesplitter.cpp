@@ -932,6 +932,23 @@ public:
                 has_footnotes = true;
             }
         }
+        // Handle a rare edge case
+        if ( cur_page_nb_lines == 0 && start_if_new_page >= 0 && (cur_page_nb_footnotes_lines>0 || !delayed_footnotes.empty()) ) {
+            // Empty page, but with footnotes or delayed footnotes not yet added.
+            // These footnotes are associated to the previous page's flow.
+            // If the lines we are about to add are from a different flow, we don't want
+            // these footnotes to be with them (or they could get hidden and skipped).
+            // If that's the case, add any delayed footnotes to this empty page, before
+            // creating a new page for these lines from another flow.
+            LVRendLineInfo * line = lines[start_if_new_page];
+            if ( line->flow != prev_page_flow ) {
+                pushDelayedFootnotes();
+                flushCurrentPage(false);
+                // and call us again
+                addLinesToPage(start, end);
+                return;
+            }
+        }
         #ifdef DEBUG_PAGESPLIT
             printf("PS: adding (%d+%d) to current page %d>%d\n", lines[start]->getStart() - cur_page_bottom,
                             lines_max_bottom - lines[start]->getStart(), cur_page_top, cur_page_bottom);
