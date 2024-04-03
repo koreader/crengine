@@ -1397,7 +1397,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             lString32 scheme = item->getAttributeValue(U"scheme");
             lString32 identifier;
             // In version 3, scheme is not set but the type is rather included in the text itself
-            if(scheme.empty_str == scheme) {
+            if(scheme.empty()) {
                 identifier = item->getText().trim().lowercase();
             }else {
                 // In version 2, the scheme is only found as attribute
