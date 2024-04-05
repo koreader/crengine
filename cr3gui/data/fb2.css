@@ -10,7 +10,7 @@ a { display: inline; text-decoration: underline; }
 a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 a[type="note"]::before { content: "\2060" } /* word joiner, avoid break before */
 
-image { text-align: center; text-indent: 0; display: block }
+image { text-align: center; text-indent: 0; display: block; max-height: 99vh; }
 p image { display: inline }
 li image { display: inline }
 
@@ -64,7 +64,7 @@ h5 { font-size: 110% }
 title, h1, h2 {
 	page-break-before: always;
 	page-break-inside: avoid;
-	page-break-after: avoid;
+	page-break-after: auto;
 }
 ol title, ul title {
 	page-break-before: auto;
