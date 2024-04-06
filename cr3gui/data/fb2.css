@@ -10,7 +10,7 @@ a { display: inline; text-decoration: underline; }
 a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 a[type="note"]::before { content: "\2060" } /* word joiner, avoid break before */
 
-image { text-align: center; text-indent: 0; display: block }
+image { text-indent: 0; display: block; margin: 0 auto; }
 p image { display: inline }
 li image { display: inline }
 
