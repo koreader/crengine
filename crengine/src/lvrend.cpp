@@ -3918,35 +3918,47 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // If block image, forget any current flags and start from baseflags (?)
                 lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
                 flags |= linkflags;
-                //txform->AddSourceLine(U"title", 5, 0x000000, 0xffffff, font, baseflags, interval, margin, NULL, 0, 0);
-                LVFontRef font = enode->getFont();
-                lUInt32 cl = getForegroundColor(style);
-                lUInt32 bgcl = LTEXT_COLOR_CURRENT; // erm_final: any background will be drawn by DrawDocument
-                lString32 title;
-                //txform->AddSourceLine( title.c_str(), title.length(), cl, bgcl, font, LTEXT_FLAG_OWNTEXT|LTEXT_FLAG_NEWLINE, line_h, 0, NULL );
-                //baseflags
-                title = enode->getAttributeValue(attr_suptitle);
-                if ( !title.empty() ) {
-                    lString32Collection lines;
-                    lines.parse(title, cs32("\\n"), true);
-                    for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
+                lString32 suptitle = enode->getAttributeValue(attr_suptitle);
+                lString32 subtitle = enode->getAttributeValue(attr_subtitle);
+                lString32 title = enode->getAttributeValue(attr_title);
+                if ( !suptitle.empty() || !subtitle.empty() || !title.empty() ) {
+                    // If any of these exist and are not empty, we add them around the images.
+                    // We can't easily ensure and adequate height to the image so they all fit
+                    // on a page. We then don't need to care about setting a zero strut and line_h
+                    // as done below with standalone block images.
+                    LVFontRef font = enode->getFont();
+                    lUInt32 cl = getForegroundColor(style);
+                    lUInt32 bgcl = LTEXT_COLOR_CURRENT; // erm_final: any background will be drawn by DrawDocument
+                    if ( !suptitle.empty() ) {
+                        lString32Collection lines;
+                        lines.parse(suptitle, cs32("\\n"), true);
+                        for ( int i=0; i<lines.length(); i++ )
+                            txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
+                    }
+                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+                    if ( !subtitle.empty() ) {
+                        lString32Collection lines;
+                        lines.parse(subtitle, cs32("\\n"), true);
+                        for ( int i=0; i<lines.length(); i++ )
+                            txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
+                    }
+                    if ( !title.empty() ) {
+                        lString32Collection lines;
+                        lines.parse(title, cs32("\\n"), true);
+                        for ( int i=0; i<lines.length(); i++ )
+                            txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
+                    }
                 }
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
-                title = enode->getAttributeValue(attr_subtitle);
-                if ( !title.empty() ) {
-                    lString32Collection lines;
-                    lines.parse(title, cs32("\\n"), true);
-                    for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
+                else {
+                    if ( rm == erm_final ) {
+                        // Do as just below for non-FB2 images, so a standalone image won't exceed the page height.
+                        txform->setStrut(0, 0);
+                        line_h = 0;
+                        indent = 0;
+                    }
+                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
                 }
-                title = enode->getAttributeValue(attr_title);
-                if ( !title.empty() ) {
-                    lString32Collection lines;
-                    lines.parse(title, cs32("\\n"), true);
-                    for ( int i=0; i<lines.length(); i++ )
-                        txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
-                }
+
             }
             else if ( isBlock ) {
                 // Block image in HTML
