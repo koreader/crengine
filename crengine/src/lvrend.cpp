@@ -5894,11 +5894,7 @@ public:
         last_split_after_flag = RN_GET_SPLIT_AFTER(flags);
     }
 
-    int addContentLine( int height, int flags, int baseline=NO_BASELINE_UPDATE, bool is_padding=false ) {
-        // As we may push vertical margins, we return the total height moved
-        // (needed when adding bottom padding that may push inner vertical
-        // margins, which should be accounted in the element height).
-        int start_c_y = c_y;
+    void addContentLine( int height, int flags, int baseline=NO_BASELINE_UPDATE, bool is_padding=false ) {
         int line_dir_flag = direction == REND_DIRECTION_RTL ? RN_LINE_IS_RTL : 0;
         // Ensure avoid_pb_inside
         if ( avoid_pb_inside_just_toggled_off ) {
@@ -5976,7 +5972,6 @@ public:
                 }
             }
         }
-        return c_y - start_c_y;
     }
 
     void addContentSpace( int height, int line_h, bool split_avoid_before,
@@ -8560,9 +8555,24 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // (Firefox, with a float taller than text, both in another
                 // float, applies bottom padding after the inner float)
                 if (padding_bottom>0) {
-                    int padding_bottom_with_inner_pushed_vm = flow->addContentLine(padding_bottom, RN_SPLIT_BEFORE_AVOID, 0, true);
-                    h += padding_bottom_with_inner_pushed_vm;
-                    bottom_overflow -= padding_bottom_with_inner_pushed_vm;
+                    // We may push any inner vertical margin: gather how much we moved
+                    int c_y = flow->getCurrentAbsoluteY();
+                    flow->addContentLine(padding_bottom, RN_SPLIT_BEFORE_AVOID, 0, true);
+                    int padding_bottom_with_inner_pushed_vm = flow->getCurrentAbsoluteY() - c_y;
+                    if (h <= 0) {
+                        // Empty block: any pushed vertical margin can be put outside this block
+                        // Note: this different behaviour seems needed for this bottom padding/border
+                        // to be drawn at the expected position. Not really sure what happens, it
+                        // might be that pushVerticalMargin() shifts or not our node differently if
+                        // it happens to have no content and didn't call other flow methods...
+                        h += padding_bottom;
+                    }
+                    else {
+                        // We have some content/height: any pushed vertical margin
+                        // is inside and part of our block height
+                        h += padding_bottom_with_inner_pushed_vm;
+                        bottom_overflow -= padding_bottom_with_inner_pushed_vm;
+                    }
                 }
 
                 if (h <=0) {
