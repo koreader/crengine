@@ -1384,6 +1384,36 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         m_doc_props->setString(DOC_PROP_KEYWORDS, subjects);
         CRLog::info("Authors: %s Title: %s", LCSTR(authors), LCSTR(title));
 
+        // Return possibly multiple <dc:identifier> (identifiers)
+        // as a single doc_props string with values in a key-value format (scheme:identifier) separated by ;
+        bool identifiers_set = false;
+        lString32 identifiers;
+        // Iterate all package/metadata/identifier
+        lUInt16 identifier_id = doc->getElementNameIndex(U"identifier");
+        for (size_t i=0; i<nb_metadata_items; i++) {
+            ldomNode * item = metadata->getChildNode(i);
+            if ( item->getNodeId() != identifier_id )
+                continue;
+            lString32 scheme = item->getAttributeValue(U"scheme");
+            lString32 identifier;
+            // In version 3, scheme is not set but the type is rather included in the text itself
+            if (scheme.empty()) {
+                identifier = item->getText().trim();
+            }
+            else {
+                // In version 2, the scheme is only found as attribute
+                identifier << scheme << ":" << item->getText().trim();
+            }
+            if (identifiers_set) {
+                identifiers << "\n" << identifier;
+            }
+            else {
+                identifiers << identifier;
+                identifiers_set = true;
+            }
+        }
+        m_doc_props->setString(DOC_PROP_IDENTIFIERS, identifiers);
+
         bool hasSeriesMeta = false;
         bool hasSeriesIdMeta = false;
         // Iterate all package/metadata/meta

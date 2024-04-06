@@ -768,6 +768,8 @@ public:
     lString32 getDescription() { return m_doc_props->getStringDef(DOC_PROP_DESCRIPTION); }
     /// returns book keywords (separated by "; ")
     lString32 getKeywords() { return m_doc_props->getStringDef(DOC_PROP_KEYWORDS); }
+    /// returns book identifiers (scheme:identifier separated by "\n")
+    lString32 getIdentifiers() { return m_doc_props->getStringDef(DOC_PROP_IDENTIFIERS); }
     /// returns book series name and number (series name #1)
     lString32 getSeries()
     {
