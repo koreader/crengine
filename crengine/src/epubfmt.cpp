@@ -2068,14 +2068,15 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
     if ( fontList.length() != fontList_nb_before_head_parsing ) {
         // New fonts met when parsing <head><style> of some DocFragments
+        // Drop styles (before unregistering fonts, as they may reference them)
+        m_doc->forceReinitStyles();
+            // todo: we could avoid forceReinitStyles() when embedded fonts are disabled
+            // (but being here is quite rare - and having embedded font disabled even more)
         m_doc->unregisterEmbeddedFonts();
         // set document font list, and register fonts
         m_doc->getEmbeddedFontList().set(fontList);
         m_doc->registerEmbeddedFonts();
         printf("CRE: document loaded, but styles re-init needed (cause: embedded fonts)\n");
-        m_doc->forceReinitStyles();
-        // todo: we could avoid forceReinitStyles() when embedded fonts are disabled
-        // (but being here is quite rare - and having embedded font disabled even more)
     }
 
     // fragmentCount is not fool proof, best to check if we really made
