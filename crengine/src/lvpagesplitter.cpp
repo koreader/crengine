@@ -51,7 +51,7 @@ static LVRendPageContext * main_context = NULL;
 LVRendPageContext::LVRendPageContext(LVRendPageList * pageList, int pageHeight, int docFontSize, bool gatherLines)
     : callback(NULL), totalFinalBlocks(0)
     , renderedFinalBlocks(0), lastPercent(-1), page_list(pageList), page_h(pageHeight)
-    , doc_font_size(docFontSize), gather_lines(gatherLines), current_flow(0), max_flow(0)
+    , doc_font_size(docFontSize), gather_lines(gatherLines), current_flow(0), max_flow(0), current_flow_empty(false)
     , footNotes(64), curr_note(NULL)
 {
     if ( callback ) {
@@ -157,13 +157,21 @@ void LVRendPageContext::newFlow( bool nonlinear )
 {
     /// A new non-linear flow gets the next number
     /// A new linear flow simply gets appended to flow 0
+    if ( current_flow > 0 && current_flow_empty ) {
+        // We created a flow but didn't fill it: have it like it never happened
+        max_flow--;
+        if ( page_list )
+            page_list->setHasNonLinearFlows(max_flow > 0);
+        current_flow_empty = false;
+    }
     if (nonlinear) {
-       max_flow++;
-       current_flow = max_flow;
-       if ( page_list )
-           page_list->setHasNonLinearFlows();
+        max_flow++;
+        current_flow = max_flow;
+        current_flow_empty = true;
+        if ( page_list )
+            page_list->setHasNonLinearFlows(max_flow > 0);
     } else {
-       current_flow = 0;
+        current_flow = 0;
     }
 }
 
@@ -177,6 +185,7 @@ void LVRendPageContext::AddLine( int starty, int endy, int flags )
         flags |= RN_SPLIT_FOOT_NOTE;
     LVRendLineInfo * line = new LVRendLineInfo(starty, endy, flags, current_flow);
     lines.add( line );
+    current_flow_empty = false;
     if ( curr_note != NULL ) {
         //CRLog::trace("adding line to note (%d)", line->start);
         curr_note->addLine( line );

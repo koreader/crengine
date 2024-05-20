@@ -236,7 +236,7 @@ class LVRendPageList : public LVPtrVector<LVRendPageInfo>
 public:
     LVRendPageList() : has_nonlinear_flows(false) {}
     int FindNearestPage( int y, int direction );
-    void setHasNonLinearFlows() { has_nonlinear_flows=true; }
+    void setHasNonLinearFlows( bool hasnonlinearflows ) { has_nonlinear_flows = hasnonlinearflows; }
     bool hasNonLinearFlows() { return has_nonlinear_flows; }
     bool serialize( SerialBuf & buf );
     bool deserialize( SerialBuf & buf );
@@ -412,6 +412,8 @@ class LVRendPageContext
     int current_flow;
     // maximum flow encountered so far
     int max_flow;
+    // to know if current flow got some lines
+    bool current_flow_empty;
 
     LVHashTable<lString32, LVFootNoteRef> footNotes;
 
