@@ -367,6 +367,8 @@ private:
     ldomXPointer m_cursorPos;
 
     lString32 m_pageHeaderOverride;
+    /// custom page info (curpage / nbpages %) can be set by frontend
+    lString32 m_pageInfoOverride;
 
     int m_drawBufferBits;
 
@@ -422,6 +424,8 @@ public:
     void setDrawBufferBits( int bits ) { m_drawBufferBits = bits; }
     /// substitute page header with custom text (e.g. to be used while loading)
     void setPageHeaderOverride( lString32 s );
+    /// substitute page info (curpage / nbpages %) with custom text
+    void setPageInfoOverride( lString32 s );
     /// get screen rectangle for current cursor position, returns false if not visible
     bool getCursorRect( lvRect & rc, bool scrollToCursor = false )
     {
