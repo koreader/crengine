@@ -11565,10 +11565,12 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 lastSpaceWidth = 0;
                 int _maxw = 0;
                 int _minw = 0;
-                if ( is_img && img_width > 0) {
-                    // Inline img with a fixed width
-                    _maxw = img_width;
-                    _minw = img_width;
+                if ( is_img ) {
+                    if ( img_width > 0) {
+                        // Inline img with a fixed width
+                        _maxw = img_width;
+                        _minw = img_width;
+                    }
                 }
                 else {
                     // Get the rendered width of the inlineBox
