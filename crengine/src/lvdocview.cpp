@@ -1721,6 +1721,12 @@ void LVDocView::setPageHeaderOverride(lString32 s) {
 	clearImageCache();
 }
 
+/// substitute page info (curpage / nbpages %) with custom text
+void LVDocView::setPageInfoOverride(lString32 s) {
+	m_pageInfoOverride = s;
+	clearImageCache();
+}
+
 /// draw page header to buffer
 void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 		int pageIndex, int phi, int pageCount) {
@@ -1872,7 +1878,10 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 			}
 		}
 		lString32 pageinfo;
-		if (pageCount > 0) {
+		if (!m_pageInfoOverride.empty()) {
+			pageinfo = m_pageInfoOverride;
+		}
+		else if (pageCount > 0) {
 			if (phi & PGHDR_PAGE_NUMBER)
                 pageinfo += fmt::decimal( getExternalPageNumber(pageIndex) + 1 );
             if (phi & PGHDR_PAGE_COUNT) {
