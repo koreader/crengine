@@ -243,6 +243,7 @@ sup {
 ruby {
   display: ruby;
   text-align: center;
+  text-align-last: initial;
   text-indent: 0;
 }
 rb, rubyBox[T=rb] {
