@@ -881,7 +881,7 @@ lString32 & lString32::append(const lChar32 * str)
 lString32 & lString32::append(const lChar32 * str, size_type count)
 {
     reserve(pchunk->len + count);
-    _lStr_ncpy(pchunk->buf32 + pchunk->len, str, count);
+    memcpy(pchunk->buf32 + pchunk->len, str, sizeof(*str) * count);
     pchunk->len += count;
     return *this;
 }
