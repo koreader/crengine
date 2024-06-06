@@ -5751,6 +5751,7 @@ bool LVXMLParser::ReadText()
                                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                                         return false;
                                     }
+                                    goto break_inner_loop;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5777,6 +5778,7 @@ bool LVXMLParser::ReadText()
                                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                                         return false;
                                     }
+                                    goto break_inner_loop;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5795,6 +5797,7 @@ bool LVXMLParser::ReadText()
                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                         return false;
                     }
+                    goto break_inner_loop;
                 }
             }
             splitParas = false;
@@ -5803,7 +5806,7 @@ bool LVXMLParser::ReadText()
                 // by a line starting with a few spaces.
                 splitParas = true;
             }
-            if (!flgBreak && !splitParas) { // regular char, passed-by text content
+            if (!splitParas) { // regular char, passed-by text content
                 tlen++;
             }
             if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas ) {
