@@ -5800,16 +5800,16 @@ bool LVXMLParser::ReadText()
                     goto break_inner_loop;
                 }
             }
-            splitParas = false;
-            if (pre_para_splitting && last_eol && (ch==' ' || ch=='\t' || ch==160) && tlen>0 ) {
+            if (pre_para_splitting) {
                 // In Lib.ru books, lines are split at ~76 bytes. The start of a paragraph is indicated
                 // by a line starting with a few spaces.
-                splitParas = true;
+                splitParas = last_eol && (ch==' ' || ch=='\t' || ch == 160) && tlen > 0;
+                if (splitParas)
+                    goto break_inner_loop;
+                last_eol = ch == '\r' || ch == '\n';
             }
-            if (!splitParas) { // regular char, passed-by text content
-                tlen++;
-            }
-            if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas ) {
+            tlen++; // regular char, passed-by text content
+            if ( tlen > TEXT_SPLIT_SIZE || flgBreak ) {
 break_inner_loop:
                 // m_txt_buf filled, end of text node, para splitting, or need more data
                 if ( last_split_txtlen==0 || flgBreak || splitParas )
@@ -5821,7 +5821,6 @@ break_inner_loop:
                 // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
                 // on spaces, \r and \n when giving the text to the callback?
                 last_split_txtlen = tlen;
-                last_eol = false;
             }
             else if (ch=='\r' || ch=='\n') {
                 // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
@@ -5832,10 +5831,6 @@ break_inner_loop:
                 if ( (ch=='\r' && nextch!='\n') || (ch=='\n' && nextch!='\r') ) {
                     last_split_txtlen = tlen;
                 }
-                last_eol = true; // Keep track of them to allow splitting paragraphs
-            }
-            else {
-                last_eol = false;
             }
         }
         if ( i>0 ) { // Append passed-by regular text content to m_txt_buf
