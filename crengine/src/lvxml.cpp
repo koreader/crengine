@@ -5735,16 +5735,16 @@ bool LVXMLParser::ReadText()
             }
         }
         // Walk buffer without updating m_read_buffer_pos
-        int i=0;
+        const lChar32 *ptr = m_read_buffer + m_read_buffer_pos;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
-        for ( ; m_read_buffer_pos+i<m_read_buffer_len; i++ ) {
-            lChar32 ch = m_read_buffer[m_read_buffer_pos + i];
+        for (const lChar32 *end = m_read_buffer + m_read_buffer_len; ptr < end; ++ptr) {
+            lChar32 ch = *ptr;
             if ( m_in_cdata ) { // we're done only when we meet ']]>'
                 if ( ch==']' ) {
-                    if ( m_read_buffer_pos+i+1 < m_read_buffer_len ) {
-                        if ( m_read_buffer[m_read_buffer_pos+i+1] == ']' ) {
-                            if ( m_read_buffer_pos+i+2 < m_read_buffer_len ) {
-                                if ( m_read_buffer[m_read_buffer_pos+i+2] == '>' ) {
+                    if ( ptr + 1 < end ) {
+                        if ( ptr[1] == ']' ) {
+                            if ( ptr + 2 < end ) {
+                                if ( ptr[2] == '>' ) {
                                     flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 3;
                                     if (!tlen) {
@@ -5766,10 +5766,10 @@ bool LVXMLParser::ReadText()
             }
             else if ( ch=='<' ) {
                 if ( m_in_html_script_tag ) { // we're done only when we meet </script>
-                    if ( m_read_buffer_pos+i+1 < m_read_buffer_len ) {
-                        if ( m_read_buffer[m_read_buffer_pos+i+1] == '/' ) {
-                            if ( m_read_buffer_pos+i+7 < m_read_buffer_len ) {
-                                const lChar32 * buf = (const lChar32 *)(m_read_buffer + m_read_buffer_pos + i + 2);
+                    if ( ptr + 1 < end ) {
+                        if ( ptr[1] == '/' ) {
+                            if ( ptr + 7 < end ) {
+                                const lChar32 * buf = ptr + 2;
                                 lString32 tag(buf, 6);
                                 if ( tag.lowercase() == U"script" ) {
                                     flgBreak = true;
@@ -5827,15 +5827,15 @@ break_inner_loop:
                 // of a first text node, and the next one starting with \n.
                 // We could just 'break' if !hasNoMoreData and go fetch more char - but as this
                 // is hard to test, just be conservative and keep doing it this way.
-                lChar32 nextch = m_read_buffer_pos+i+1 < m_read_buffer_len ? m_read_buffer[m_read_buffer_pos+i+1] : 0;
+                lChar32 nextch = ptr + 1 < end ? ptr[1] : 0;
                 if ( (ch=='\r' && nextch!='\n') || (ch=='\n' && nextch!='\r') ) {
                     last_split_txtlen = tlen;
                 }
             }
         }
-        if ( i>0 ) { // Append passed-by regular text content to m_txt_buf
-            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, i );
-            m_read_buffer_pos += i;
+        if ( ptr > m_read_buffer + m_read_buffer_pos) { // Append passed-by regular text content to m_txt_buf
+            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - m_read_buffer - m_read_buffer_pos);
+            m_read_buffer_pos = ptr - m_read_buffer;
         }
         if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas) {
             //=====================================================
