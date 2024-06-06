@@ -5734,9 +5734,14 @@ bool LVXMLParser::ReadText()
             }
         }
         // Walk buffer without updating m_read_buffer_pos
-        const lChar32 *ptr = m_read_buffer + m_read_buffer_pos;
+        const lChar32 *begin = m_read_buffer + m_read_buffer_pos;
+        const lChar32 *ptr = begin;
+        const lChar32 *end = m_read_buffer + m_read_buffer_len;
+        const lChar32 *limit = m_read_buffer + (TEXT_SPLIT_SIZE + 1 - tlen);
+        if (limit > end)
+            limit = end;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
-        for (const lChar32 *end = m_read_buffer + m_read_buffer_len; ptr < end; ++ptr) {
+        for (; ptr < end; ++ptr) {
             lChar32 ch = *ptr;
             if ( m_in_cdata ) { // we're done only when we meet ']]>'
                 if ( ch==']' ) {
@@ -5746,20 +5751,20 @@ bool LVXMLParser::ReadText()
                                 if ( ptr[2] == '>' ) {
                                     flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 3;
-                                    if (!tlen) {
+                                    if (!tlen && ptr == begin) {
                                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                                         return false;
                                     }
-                                    goto break_inner_loop;
+                                    break;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                goto break_inner_loop;
+                                break;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        goto break_inner_loop;
+                        break;
                     }
                 }
             }
@@ -5773,49 +5778,44 @@ bool LVXMLParser::ReadText()
                                 if ( tag.lowercase() == U"script" ) {
                                     flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 1;
-                                    if (!tlen) {
+                                    if (!tlen && ptr == begin) {
                                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                                         return false;
                                     }
-                                    goto break_inner_loop;
+                                    break;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                goto break_inner_loop;
+                                break;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        goto break_inner_loop;
+                        break;
                     }
                 }
                 else { // '<' marks the end of this text node
                     flgBreak = true;
                     nbCharToSkipOnFlgBreak = 1;
-                    if (!tlen) {
+                    if (!tlen && ptr == begin) {
                         m_read_buffer_pos += nbCharToSkipOnFlgBreak;
                         return false;
                     }
-                    goto break_inner_loop;
+                    break;
                 }
             }
             if (pre_para_splitting) {
                 // In Lib.ru books, lines are split at ~76 bytes. The start of a paragraph is indicated
                 // by a line starting with a few spaces.
-                splitParas = last_eol && (ch==' ' || ch=='\t' || ch == 160) && tlen > 0;
+                splitParas = last_eol && (ch==' ' || ch=='\t' || ch == 160) && tlen > 0 && ptr > begin;
                 if (splitParas)
-                    goto break_inner_loop;
+                    break;
                 last_eol = ch == '\r' || ch == '\n';
             }
-            tlen++; // regular char, passed-by text content
-            if ( tlen > TEXT_SPLIT_SIZE || flgBreak ) {
-break_inner_loop:
-                // m_txt_buf filled, end of text node, para splitting, or need more data
-                break;
-            }
         }
-        if ( ptr > m_read_buffer + m_read_buffer_pos) { // Append passed-by regular text content to m_txt_buf
-            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - m_read_buffer - m_read_buffer_pos);
+        if ( ptr > begin) { // Append passed-by regular text content to m_txt_buf
+            tlen += ptr - begin;
+            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - begin);
             m_read_buffer_pos = ptr - m_read_buffer;
         }
         if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas) {
