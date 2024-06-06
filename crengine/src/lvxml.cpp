@@ -5749,13 +5749,8 @@ bool LVXMLParser::ReadText()
                         if ( ptr[1] == ']' ) {
                             if ( ptr + 2 < end ) {
                                 if ( ptr[2] == '>' ) {
-                                    flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 3;
-                                    if (!tlen && ptr == begin) {
-                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
-                                        return false;
-                                    }
-                                    break;
+                                    goto end_of_node;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5776,13 +5771,8 @@ bool LVXMLParser::ReadText()
                                 const lChar32 * buf = ptr + 2;
                                 lString32 tag(buf, 6);
                                 if ( tag.lowercase() == U"script" ) {
-                                    flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 1;
-                                    if (!tlen && ptr == begin) {
-                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
-                                        return false;
-                                    }
-                                    break;
+                                    goto end_of_node;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5795,13 +5785,8 @@ bool LVXMLParser::ReadText()
                     }
                 }
                 else { // '<' marks the end of this text node
-                    flgBreak = true;
                     nbCharToSkipOnFlgBreak = 1;
-                    if (!tlen && ptr == begin) {
-                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
-                        return false;
-                    }
-                    break;
+                    goto end_of_node;
                 }
             }
             if (pre_para_splitting) {
@@ -5812,6 +5797,14 @@ bool LVXMLParser::ReadText()
                     break;
                 last_eol = ch == '\r' || ch == '\n';
             }
+            continue;
+end_of_node:
+            flgBreak = true;
+            if (!tlen && ptr == begin) {
+                m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                return false;
+            }
+            break;
         }
         if ( ptr > begin) { // Append passed-by regular text content to m_txt_buf
             tlen += ptr - begin;
