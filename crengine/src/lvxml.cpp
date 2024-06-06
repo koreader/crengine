@@ -5702,7 +5702,6 @@ bool LVXMLParser::ReadText()
         // be sure we have 10 chars available (to get '</script') so we
         // don't uneedlessly loop 8 times with needMoreData=true.
         #define TEXT_READ_AHEAD_NEEDED_SIZE 10
-        bool needMoreData = false; // set when more buffer data needed to properly check for things
         bool hasNoMoreData = false;
         int available = m_read_buffer_len - m_read_buffer_pos;
         if ( available < TEXT_READ_AHEAD_NEEDED_SIZE ) {
@@ -5755,12 +5754,12 @@ bool LVXMLParser::ReadText()
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                needMoreData = true;
+                                goto break_inner_loop;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        needMoreData = true;
+                        goto break_inner_loop;
                     }
                 }
             }
@@ -5781,12 +5780,12 @@ bool LVXMLParser::ReadText()
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                needMoreData = true;
+                                goto break_inner_loop;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        needMoreData = true;
+                        goto break_inner_loop;
                     }
                 }
                 else { // '<' marks the end of this text node
@@ -5804,10 +5803,11 @@ bool LVXMLParser::ReadText()
                 // by a line starting with a few spaces.
                 splitParas = true;
             }
-            if (!flgBreak && !splitParas && !needMoreData) { // regular char, passed-by text content
+            if (!flgBreak && !splitParas) { // regular char, passed-by text content
                 tlen++;
             }
-            if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas || needMoreData ) {
+            if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas ) {
+break_inner_loop:
                 // m_txt_buf filled, end of text node, para splitting, or need more data
                 if ( last_split_txtlen==0 || flgBreak || splitParas )
                     last_split_txtlen = tlen;
