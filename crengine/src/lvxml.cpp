@@ -5687,7 +5687,6 @@ int LVTextFileBase::fillCharBuffer()
 
 bool LVXMLParser::ReadText()
 {
-    int last_split_txtlen = 0;
     int tlen = 0;
     m_txt_buf.reset(TEXT_SPLIT_SIZE+1);
     lUInt32 flags = m_callback->getFlags();
@@ -5812,25 +5811,7 @@ bool LVXMLParser::ReadText()
             if ( tlen > TEXT_SPLIT_SIZE || flgBreak ) {
 break_inner_loop:
                 // m_txt_buf filled, end of text node, para splitting, or need more data
-                if ( last_split_txtlen==0 || flgBreak || splitParas )
-                    last_split_txtlen = tlen;
                 break;
-            }
-            else if (ch==' ') {
-                // Not sure what this last_split_txtlen is about: may be to avoid spliting
-                // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
-                // on spaces, \r and \n when giving the text to the callback?
-                last_split_txtlen = tlen;
-            }
-            else if (ch=='\r' || ch=='\n') {
-                // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
-                // of a first text node, and the next one starting with \n.
-                // We could just 'break' if !hasNoMoreData and go fetch more char - but as this
-                // is hard to test, just be conservative and keep doing it this way.
-                lChar32 nextch = ptr + 1 < end ? ptr[1] : 0;
-                if ( (ch=='\r' && nextch!='\n') || (ch=='\n' && nextch!='\r') ) {
-                    last_split_txtlen = tlen;
-                }
             }
         }
         if ( ptr > m_read_buffer + m_read_buffer_pos) { // Append passed-by regular text content to m_txt_buf
@@ -5841,6 +5822,33 @@ break_inner_loop:
             //=====================================================
             // Provide accumulated text to callback
             lChar32 * buf = m_txt_buf.modify();
+
+            int last_split_txtlen = tlen;
+            if (tlen > TEXT_SPLIT_SIZE) {
+                for (const lChar32 *ptr = buf + m_txt_buf.length() - 1; ptr >= buf; --ptr) {
+                    lChar32 ch = *ptr;
+                    if (ch <= ' ') [[unlikely]] {
+                        if (ch == ' ') {
+                            // Not sure what this last_split_txtlen is about: may be to avoid spliting
+                            // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
+                            // on spaces, \r and \n when giving the text to the callback?
+                            last_split_txtlen = ptr - buf;
+                            break;
+                        } else if (ch == '\r' || ch == '\n') {
+                            // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
+                            // of a first text node, and the next one starting with \n.
+                            // We could just 'break' if !hasNoMoreData and go fetch more char - but as this
+                            // is hard to test, just be conservative and keep doing it this way.
+                            lChar32 nextch = 0;
+                            if (ptr < buf + m_txt_buf.length() - 1)
+                                nextch = ptr[1];
+                            if ((ch == '\r' && nextch != '\n') || (ch == '\n' && nextch != '\r')) {
+                                last_split_txtlen = ptr - buf;
+                            }
+                        }
+                    }
+                }
+            }
 
             const lChar32 * enc_table = NULL;
             if ( flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING )
