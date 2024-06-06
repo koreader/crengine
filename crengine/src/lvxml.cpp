@@ -5748,6 +5748,10 @@ bool LVXMLParser::ReadText()
                                 if ( m_read_buffer[m_read_buffer_pos+i+2] == '>' ) {
                                     flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 3;
+                                    if (!tlen) {
+                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                                        return false;
+                                    }
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5770,6 +5774,10 @@ bool LVXMLParser::ReadText()
                                 if ( tag.lowercase() == U"script" ) {
                                     flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 1;
+                                    if (!tlen) {
+                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                                        return false;
+                                    }
                                 }
                             }
                             else if ( !hasNoMoreData ) {
@@ -5784,11 +5792,11 @@ bool LVXMLParser::ReadText()
                 else { // '<' marks the end of this text node
                     flgBreak = true;
                     nbCharToSkipOnFlgBreak = 1;
+                    if (!tlen) {
+                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                        return false;
+                    }
                 }
-            }
-            if ( flgBreak && !tlen ) { // no passed-by text content to provide to callback
-                m_read_buffer_pos += nbCharToSkipOnFlgBreak;
-                return false;
             }
             splitParas = false;
             if (pre_para_splitting && last_eol && (ch==' ' || ch=='\t' || ch==160) && tlen>0 ) {
