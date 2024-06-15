@@ -7482,3 +7482,15 @@ void LVDrawBookCover(LVDrawBuf & buf, LVImageSourceRef image, bool respectAspect
         CRLog::error("Cannot get font for coverpage");
     }
 }
+
+// (This needs to be in lvdocview.cpp, fb2_elem_table and friends are only available here.)
+bool getBalancedHTML(LVStreamRef stream, lString8 & output, int wflags) {
+    ldomDocument * doc = LVParseHTMLStream( stream, fb2_elem_table, fb2_attr_table, fb2_ns_table );
+    if ( !doc )
+        return false;
+    ldomNode * docRoot = doc->getRootNode()->getChildNode(0);
+    ldomXPointer docxp(docRoot, 0);
+    output = docxp.getHtml(wflags);
+    delete doc;
+    return true;
+}
