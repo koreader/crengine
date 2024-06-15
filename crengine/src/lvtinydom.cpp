@@ -4738,8 +4738,10 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                         }
                     }
                     else {
-                        // Ignoring an attribute or its value is left to frontend
-                        *extra_stream << "\t[" << attrName << "=" << attrValue << "]";
+                        // Ignoring an attribute or its value is left to frontend.
+                        // But we don't want to mess the extra_stream specific format
+                        // with a multilines attribute value: replace \n with a space.
+                        *extra_stream << "\t[" << attrName << "=" << attrValue.replace('\n', ' ') << "]";
                     }
                 }
             }
