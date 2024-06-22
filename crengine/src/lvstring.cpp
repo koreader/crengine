@@ -3106,28 +3106,25 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar32 * dst, int &dstlen)
     lChar32 * p = dst;
     lChar32 * endp = p + dstlen;
     lUInt32 ch;
-    bool matched;
     while (p < endp && s < ends) {
         ch = *s;
-        matched = false;
         if ( (ch & 0x80) == 0 ) {
-            matched = true;
             *p++ = (char)ch;
             s++;
+            continue;
         } else if ( (ch & 0xE0) == 0xC0 ) {
             if (s + 2 > ends)
                 break;
             if (IS_FOLLOWING(1)) {
-                matched = true;
                 *p++ = ((ch & 0x1F) << 6)
                         | CONT_BYTE(1,0);
                 s += 2;
+                continue;
             }
         } else if ( (ch & 0xF0) == 0xE0 ) {
             if (s + 3 > ends)
                 break;
             if (IS_FOLLOWING(1) && IS_FOLLOWING(2)) {
-                matched = true;
                 *p++ = ((ch & 0x0F) << 12)
                     | CONT_BYTE(1,6)
                     | CONT_BYTE(2,0);
@@ -3159,30 +3156,29 @@ void Utf8ToUnicode(const lUInt8 * src,  int &srclen, lChar32 * dst, int &dstlen)
                         }
                     }
                 }
+                continue;
             }
         } else if ( (ch & 0xF8) == 0xF0 ) {
             if (s + 4 > ends)
                 break;
             if (IS_FOLLOWING(1) && IS_FOLLOWING(2) && IS_FOLLOWING(3)) {
-                matched = true;
                 *p++ = ((ch & 0x07) << 18)
                     | CONT_BYTE(1,12)
                     | CONT_BYTE(2,6)
                     | CONT_BYTE(3,0);
                 s += 4;
+                continue;
             }
         } else {
             // Invalid first byte in UTF-8 sequence
             // Pass with mask 0x7F, to resolve exception around env->NewStringUTF()
             *p++ = (char) (ch & 0x7F);
             s++;
-            matched = true; // just to avoid next if
+            continue;
         }
         // unexpected character
-        if (!matched) {
-            *p++ = '?';
-            s++;
-        }
+        *p++ = '?';
+        s++;
     }
     srclen = (int)(s - src);
     dstlen = (int)(p - dst);
