@@ -617,15 +617,21 @@ public:
     }
 
     virtual lverror_t Read( void * buf, lvsize_t count, lvsize_t * nBytesRead ) {
-        lvpos_t pos = _base->GetPos();
         lverror_t res = _base->Read(buf, count, nBytesRead);
-        if (pos < 1040 && _key.length() == 20) {
-            for (int i=0; i + pos < 1040; i++) {
-                int keyPos = (i + pos) % 20;
-                ((lUInt8*)buf)[i+pos] ^= _key[keyPos];
-            }
+        if (res != LVERR_OK)
+            return res;
+        lvpos_t pos = _base->GetPos();
+        if (pos >= count || _key.length() != 20)
+            return LVERR_OK;
+        unsigned obfuscated_size = 1040;
+        if (obfuscated_size > count)
+            obfuscated_size = count;
+        for (unsigned i = pos; i < obfuscated_size; ++i) {
+            unsigned keyPos = i % 20;
+            assert(keyPos < count);
+            ((lUInt8*)buf)[i] ^= _key[keyPos];
         }
-        return res;
+        return LVERR_OK;
     }
 
 };
