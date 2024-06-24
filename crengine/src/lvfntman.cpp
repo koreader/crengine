@@ -6280,9 +6280,8 @@ public:
         lUInt32 size = (lUInt32)stream->GetSize();
         if (size < 100 || size > 5000000)
             return false;
-        LVByteArrayRef buf(new LVByteArray(size, 0));
-        lvsize_t bytesRead = 0;
-        if (stream->Read(buf->get(), size, &bytesRead) != LVERR_OK || bytesRead != size)
+        LVByteArrayRef buf = stream->GetData();
+        if (!buf)
             return false;
 
         bool res = false;
