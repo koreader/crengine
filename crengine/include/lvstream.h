@@ -237,6 +237,16 @@ public:
 		return false;
 	}
 
+	virtual LVByteArrayRef GetData()
+	{
+		lvsize_t nBytesRead = 0;
+		lvsize_t size = GetSize();
+		LVByteArrayRef buf(new LVByteArray(size, 0));
+		if (Read(buf->get(), size, &nBytesRead) != LVERR_OK || nBytesRead != size)
+			return LVByteArrayRef();
+		return buf;
+	}
+
 	virtual int ReadByte()
 	{
 		unsigned char buf[1];
