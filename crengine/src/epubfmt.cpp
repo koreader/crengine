@@ -596,20 +596,25 @@ public:
     virtual lverror_t Read( void * buf, lvsize_t count, lvsize_t * nBytesRead ) {
         lvpos_t pos = _base->GetPos();
         lverror_t res = _base->Read(buf, count, nBytesRead);
-        if (pos < 1024 && _key.length() == 16) {
-            for (int i=0; i + pos < 1024; i++) {
-                int keyPos = (i + pos) & 15;
-                ((lUInt8*)buf)[i] ^= _key[keyPos];
-            }
-        }
-        return res;
+        if (res != LVERR_OK)
+            return res;
+        if (_key.length() != 16)
+            return LVERR_OK;
+        int obfuscated_size = 1024 - pos;
+        if (obfuscated_size <= 0)
+            return LVERR_OK;
+        if (obfuscated_size > count)
+            obfuscated_size = count;
+        for (unsigned i = 0; i < obfuscated_size; ++i)
+            ((lUInt8*)buf)[i] ^= _key[(i + pos) % 16];
+        return LVERR_OK;
     }
 
 };
 
 // IDPF obfuscated item demangling proxy: XORs first 1040 bytes of source stream with key
 // https://idpf.org/epub/20/spec/FontManglingSpec.html
-// https://www.w3.org/publishing/epub3/epub-ocf.html#obfus-algorithm
+// https://www.w3.org/submissions/epub-ocf/#obfus-algorithm
 class IdpfDemanglingStream : public StreamProxy {
     LVArray<lUInt8> & _key;
 public:
@@ -619,13 +624,18 @@ public:
     virtual lverror_t Read( void * buf, lvsize_t count, lvsize_t * nBytesRead ) {
         lvpos_t pos = _base->GetPos();
         lverror_t res = _base->Read(buf, count, nBytesRead);
-        if (pos < 1040 && _key.length() == 20) {
-            for (int i=0; i + pos < 1040; i++) {
-                int keyPos = (i + pos) % 20;
-                ((lUInt8*)buf)[i+pos] ^= _key[keyPos];
-            }
-        }
-        return res;
+        if (res != LVERR_OK)
+            return res;
+        if (_key.length() != 20)
+            return LVERR_OK;
+        int obfuscated_size = 1040 - pos;
+        if (obfuscated_size <= 0)
+            return LVERR_OK;
+        if (obfuscated_size > count)
+            obfuscated_size = count;
+        for (unsigned i = 0; i < obfuscated_size; ++i)
+            ((lUInt8*)buf)[i] ^= _key[(i + pos) % 20];
+        return LVERR_OK;
     }
 
 };
