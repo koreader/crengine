@@ -1,6 +1,10 @@
 #include "../include/epubfmt.h"
 #include "../include/fb2def.h"
 
+#if (USE_ZLIB==1)
+#include <zlib.h>
+#endif
+
 class EpubItem {
 public:
     lString32 href;
@@ -586,6 +590,61 @@ static int sha1digest(uint8_t *digest, const uint8_t *data, size_t databytes) {
     return 0;
 }
 
+/* Attempt to decompress the whole buffer, return the original data on error. */
+static LVByteArrayRef try_buffer_decompress(LVByteArrayRef packed) {
+#if (USE_ZLIB==1)
+    if (!packed)
+        return packed;
+
+    const unsigned MINIMAL_CHUNK_SIZE = 1024;
+
+    LVByteArrayRef unpacked(new LVByteArray());
+    unpacked->reserve(MINIMAL_CHUNK_SIZE);
+
+    z_stream_s zstrm;
+    int        zerr;
+
+    memset(&zstrm, 0, sizeof (zstrm));
+    zstrm.avail_in = packed->length();
+    zstrm.next_in = packed->get();
+    zstrm.avail_out = unpacked->size();
+    zstrm.next_out = unpacked->get();
+
+    zerr = inflateInit2(&zstrm, -15);
+    for (;;) {
+        switch (zerr) {
+        case Z_OK:
+            break;
+        case Z_BUF_ERROR:
+            /* Not enough space in the output buffer. */
+            break;
+        case Z_STREAM_END:
+            /* The end… */
+            if (zstrm.total_out > unpacked->length())
+                unpacked->addSpace(zstrm.total_out - unpacked->length());
+            assert(zstrm.total_in == packed->length());
+            packed = unpacked;
+            [[fallthrough]];
+        default:
+            // The data was not compressed or is corrupted.
+            goto end;
+        }
+        if (Z_BUF_ERROR == zerr || zstrm.avail_out < MINIMAL_CHUNK_SIZE) {
+            if (zstrm.total_out > unpacked->length())
+                unpacked->addSpace(zstrm.total_out - unpacked->length());
+            unpacked->reserve(MINIMAL_CHUNK_SIZE + zstrm.total_out + 2 * zstrm.avail_in);
+            zstrm.avail_out = unpacked->size() - zstrm.total_out;
+            zstrm.next_out = unpacked->get() + zstrm.total_out;
+        }
+        zerr = inflate(&zstrm, Z_FINISH);
+    }
+
+end:
+    inflateEnd(&zstrm);
+#endif
+    return packed;
+}
+
 // Adobe obfuscated item demangling proxy: XORs first 1024 bytes of source stream with key
 class AdobeDemanglingStream : public StreamProxy {
     LVArray<lUInt8> & _key;
@@ -608,6 +667,11 @@ public:
         for (unsigned i = 0; i < obfuscated_size; ++i)
             ((lUInt8*)buf)[i] ^= _key[(i + pos) % 16];
         return LVERR_OK;
+    }
+
+    virtual LVByteArrayRef GetData()
+    {
+        return try_buffer_decompress(LVStream::GetData());
     }
 
 };
@@ -636,6 +700,11 @@ public:
         for (unsigned i = 0; i < obfuscated_size; ++i)
             ((lUInt8*)buf)[i] ^= _key[(i + pos) % 20];
         return LVERR_OK;
+    }
+
+    virtual LVByteArrayRef GetData()
+    {
+        return try_buffer_decompress(LVStream::GetData());
     }
 
 };
