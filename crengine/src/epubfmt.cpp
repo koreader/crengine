@@ -814,13 +814,8 @@ public:
 
     void setIdpfManglingKey(lString32 key) {
         _idpfFontManglingKey.clear();
-        _idpfFontManglingKey.reserve(20);
         lString8 utf = UnicodeToUtf8(key);
-        lUInt8 result[20];
-        sha1digest(result, (lUInt8*)(utf.c_str()), utf.length());
-        for ( int i=0; i < 20; i++ ) {
-            _idpfFontManglingKey.add(result[i]);
-        }
+        sha1digest(_idpfFontManglingKey.addSpace(20), (lUInt8*)(utf.c_str()), utf.length());
     }
 
     bool hasAdobeObfuscatedItems() {
