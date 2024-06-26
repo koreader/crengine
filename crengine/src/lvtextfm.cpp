@@ -1845,7 +1845,6 @@ public:
         #define MAX_TEXT_CHUNK_SIZE 4096
         static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
-        int tabIndex = -1;
         #if (USE_FRIBIDI==1)
             FriBidiLevel lastBidiLevel = 0;
             FriBidiLevel newBidiLevel;
@@ -1864,9 +1863,6 @@ public:
             LVFont * newFont = NULL;
             lInt16 newLetterSpacing = 0;
             src_text_fragment_t * newSrc = NULL;
-            if ( tabIndex<0 && m_text[i]=='\t' ) {
-                tabIndex = i;
-            }
             bool isObject = false;
             bool prevCharIsObject = false;
             if ( i<m_length ) {
@@ -2422,14 +2418,17 @@ public:
                     lastBidiLevel = newBidiLevel;
             #endif
         }
-        if ( tabIndex >= 0 && m_srcs[0]->indent < 0) {
+        if (m_srcs[0] && m_srcs[0]->indent < 0) {
             // Used by obsolete rendering of css_d_list_item_legacy when css_lsp_outside,
             // where the marker width is provided as negative/hanging indent.
             int tabPosition = -m_srcs[0]->indent; // has been set to marker_width
-            if ( tabPosition>0 && tabPosition > m_widths[tabIndex] ) {
-                int dx = tabPosition - m_widths[tabIndex];
-                for ( i=tabIndex; i<m_length; i++ )
-                    m_widths[i] += dx;
+            for (int j = 0; j < m_length && m_widths[j] >= tabPosition; ++j) {
+                if (m_text[j] == '\t') {
+                    int dx = tabPosition - m_widths[j];
+                    for ( int i=j; i<m_length; i++ )
+                        m_widths[i] += dx;
+                    break;
+                }
             }
         }
 //        // debug dump
