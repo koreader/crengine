@@ -1900,17 +1900,13 @@ public:
                 }
             #endif
             bool bidiLevelChanged = false;
-            int lastDirection = 0; // unknown
             #if (USE_FRIBIDI==1)
-                lastDirection = 1; // direction known: LTR if no bidi found
                 if (m_has_bidi) {
                     newBidiLevel = m_bidi_levels[i];
                     if (i == 0)
                         lastBidiLevel = newBidiLevel;
                     else if ( newBidiLevel != lastBidiLevel )
                         bidiLevelChanged = true;
-                    if ( FRIBIDI_LEVEL_IS_RTL(lastBidiLevel) )
-                        lastDirection = -1; // RTL
                 }
             #endif
             // When measuring with Harfbuzz, we should also split on Unicode script change,
@@ -1972,11 +1968,13 @@ public:
                     lUInt32 hints = 0;
                     if ( start == 0 ) hints |= LFNT_HINT_BEGINS_PARAGRAPH;
                     if ( i == m_length ) hints |= LFNT_HINT_ENDS_PARAGRAPH;
-                    if ( lastDirection ) {
-                        hints |= LFNT_HINT_DIRECTION_KNOWN;
-                        if ( lastDirection < 0 )
-                            hints |= LFNT_HINT_DIRECTION_IS_RTL;
-                    }
+                    #if (USE_FRIBIDI==1)
+                        if (m_has_bidi) {
+                            hints |= LFNT_HINT_DIRECTION_KNOWN;
+                            if (FRIBIDI_LEVEL_IS_RTL(lastBidiLevel))
+                                hints |= LFNT_HINT_DIRECTION_IS_RTL;
+                        }
+                    #endif
                     int chars_measured = lastFont->measureText(
                             m_text + start,
                             len,
@@ -2302,7 +2300,7 @@ public:
                         // (In the context of inline elements, margin/border/padding-inline-start/end
                         // would be more natural to use than -left/right - but it's a more recent CSS
                         // addition that we don't support.)
-                        bool is_mirrored = lastDirection < 0;
+                        bool is_mirrored = FRIBIDI_LEVEL_IS_RTL(lastBidiLevel);
                         if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
                             // Use right margin/border/padding values
                             margin = lengthToPx( node, style->margin[1], base_width );
