@@ -79,6 +79,16 @@ typedef void hb_draw_funcs_t;
 typedef void hb_draw_state_t;
 #endif
 
+static void ft_error_trace(const char *where, const char *call, FT_Error error) {
+    const char *errstr = FT_Error_String(error);
+    if (!errstr) {
+        static char hex[17];
+        snprintf(hex, sizeof (hex), "%#x", error);
+        errstr = hex;
+    }
+    fprintf(stderr, "CRE: %s: %s failed: %s\n", where, call, errstr);
+}
+
 // Note: y are inverted as the glyphs shapes are in a mirrored coordinates system
 static void SVGGlyphsCollector_svg_move_to(hb_draw_funcs_t *, SVGGlyphsCollector *collector, hb_draw_state_t *,
                                         float to_x, float to_y, void *) {
@@ -2015,9 +2025,11 @@ public:
         _fontFamily = fontFamily;
         if (_face)
             FT_Done_Face(_face);
-        int error = FT_New_Memory_Face( _library, buf->get(), buf->length(), index, &_face ); /* create face object */
-        if (error)
+        FT_Error error = FT_New_Memory_Face( _library, buf->get(), buf->length(), index, &_face ); /* create face object */
+        if (error != FT_Err_Ok) {
+            ft_error_trace(__func__, "FT_New_Memory_Face", error);
             return false;
+        }
         if ( _fileName.endsWith(".pfb") || _fileName.endsWith(".pfa") ) {
             lString8 kernFile = _fileName.substr(0, _fileName.length()-4);
             if ( LVFileExists(Utf8ToUnicode(kernFile) + ".afm" ) ) {
@@ -2133,9 +2145,11 @@ public:
             return false;
         if (_face)
             FT_Done_Face(_face);
-        int error = FT_New_Face( _library, _fileName.c_str(), index, &_face ); /* create face object */
-        if (error)
+        FT_Error error = FT_New_Face( _library, _fileName.c_str(), index, &_face ); /* create face object */
+        if (error != FT_Err_Ok) {
+            ft_error_trace(__func__, "FT_New_Face", error);
             return false;
+        }
         if ( _fileName.endsWith(".pfb") || _fileName.endsWith(".pfa") ) {
             lString8 kernFile = _fileName.substr(0, _fileName.length()-4);
             if ( LVFileExists(Utf8ToUnicode(kernFile) + ".afm") ) {
@@ -5939,11 +5953,9 @@ public:
 
         // for all faces in file
         for ( ;; index++ ) {
-            int error = FT_New_Face( _library, item->getDef()->getName().c_str(), index, &face ); /* create face object */
-            if ( error ) {
-                if (index == 0) {
-                    CRLog::error("FT_New_Face returned error %d", error);
-                }
+            FT_Error error = FT_New_Face( _library, item->getDef()->getName().c_str(), index, &face ); /* create face object */
+            if (error != FT_Err_Ok) {
+                ft_error_trace(__func__, "FT_New_Face", error);
                 break;
             }
             int num_faces = face->num_faces;
@@ -6290,11 +6302,9 @@ public:
 
         // for all faces in file
         for ( ;; index++ ) {
-            int error = FT_New_Memory_Face( _library, buf->get(), buf->length(), index, &face ); /* create face object */
-            if ( error ) {
-                if (index == 0) {
-                    CRLog::error("FT_New_Memory_Face returned error %d", error);
-                }
+            FT_Error error = FT_New_Memory_Face( _library, buf->get(), buf->length(), index, &face ); /* create face object */
+            if (error != FT_Err_Ok) {
+                ft_error_trace(__func__, "FT_New_Memory_Face", error);
                 break;
             }
             // bool scal = FT_IS_SCALABLE( face );
@@ -6399,11 +6409,9 @@ public:
 
         // for all faces in file
         for ( ;; index++ ) {
-            int error = FT_New_Face( _library, fname.c_str(), index, &face ); /* create face object */
-            if ( error ) {
-                if (index == 0) {
-                    CRLog::error("FT_New_Face returned error %d", error);
-                }
+            FT_Error error = FT_New_Face( _library, fname.c_str(), index, &face ); /* create face object */
+            if (error != FT_Err_Ok) {
+                ft_error_trace(__func__, "FT_New_Face", error);
                 break;
             }
             bool scal = FT_IS_SCALABLE( face ) != 0;
@@ -6513,11 +6521,9 @@ public:
 
         // for all faces in file
         for ( ;; index++ ) {
-            int error = FT_New_Face( _library, fname.c_str(), index, &face ); /* create face object */
-            if ( error ) {
-                if (index == 0) {
-                    CRLog::error("FT_New_Face returned error %d", error);
-                }
+            FT_Error error = FT_New_Face( _library, fname.c_str(), index, &face ); /* create face object */
+            if (error != FT_Err_Ok) {
+                ft_error_trace(__func__, "FT_New_Face", error);
                 break;
             }
             bool scal = FT_IS_SCALABLE( face );
