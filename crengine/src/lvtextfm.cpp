@@ -1845,14 +1845,12 @@ public:
         #define MAX_TEXT_CHUNK_SIZE 4096
         static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
         static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
-        int tabIndex = -1;
         #if (USE_FRIBIDI==1)
             FriBidiLevel lastBidiLevel = 0;
             FriBidiLevel newBidiLevel;
         #endif
         #if (USE_HARFBUZZ==1)
-            bool checkIfHarfbuzz = true;
-            bool usingHarfbuzz = false;
+            bool usingHarfbuzz = m_kerning_mode == KERNING_MODE_HARFBUZZ;
             // Unicode script change (note: hb_script_t is uint32_t)
             lUInt32 prevScript = HB_SCRIPT_COMMON;
             hb_unicode_funcs_t* _hb_unicode_funcs = hb_unicode_funcs_get_default();
@@ -1864,9 +1862,6 @@ public:
             LVFont * newFont = NULL;
             lInt16 newLetterSpacing = 0;
             src_text_fragment_t * newSrc = NULL;
-            if ( tabIndex<0 && m_text[i]=='\t' ) {
-                tabIndex = i;
-            }
             bool isObject = false;
             bool prevCharIsObject = false;
             if ( i<m_length ) {
@@ -1874,15 +1869,6 @@ public:
                 isObject = m_flags[i] & LCHAR_IS_OBJECT; // image, float or inline box
                 newFont = isObject ? NULL : (LVFont *)newSrc->t.font;
                 newLetterSpacing = newSrc->letter_spacing; // 0 for objects
-                #if (USE_HARFBUZZ==1)
-                    // Check if we are using Harfbuzz kerning with the first font met
-                    if ( checkIfHarfbuzz && newFont ) {
-                        if ( m_kerning_mode == KERNING_MODE_HARFBUZZ ) {
-                            usingHarfbuzz = true;
-                        }
-                        checkIfHarfbuzz = false;
-                    }
-                #endif
             }
             if (i > 0)
                 prevCharIsObject = m_flags[i-1] & LCHAR_IS_OBJECT; // image, float or inline box
@@ -1904,17 +1890,13 @@ public:
                 }
             #endif
             bool bidiLevelChanged = false;
-            int lastDirection = 0; // unknown
             #if (USE_FRIBIDI==1)
-                lastDirection = 1; // direction known: LTR if no bidi found
                 if (m_has_bidi) {
                     newBidiLevel = m_bidi_levels[i];
                     if (i == 0)
                         lastBidiLevel = newBidiLevel;
                     else if ( newBidiLevel != lastBidiLevel )
                         bidiLevelChanged = true;
-                    if ( FRIBIDI_LEVEL_IS_RTL(lastBidiLevel) )
-                        lastDirection = -1; // RTL
                 }
             #endif
             // When measuring with Harfbuzz, we should also split on Unicode script change,
@@ -1976,11 +1958,13 @@ public:
                     lUInt32 hints = 0;
                     if ( start == 0 ) hints |= LFNT_HINT_BEGINS_PARAGRAPH;
                     if ( i == m_length ) hints |= LFNT_HINT_ENDS_PARAGRAPH;
-                    if ( lastDirection ) {
-                        hints |= LFNT_HINT_DIRECTION_KNOWN;
-                        if ( lastDirection < 0 )
-                            hints |= LFNT_HINT_DIRECTION_IS_RTL;
-                    }
+                    #if (USE_FRIBIDI==1)
+                        if (m_has_bidi) {
+                            hints |= LFNT_HINT_DIRECTION_KNOWN;
+                            if (FRIBIDI_LEVEL_IS_RTL(lastBidiLevel))
+                                hints |= LFNT_HINT_DIRECTION_IS_RTL;
+                        }
+                    #endif
                     int chars_measured = lastFont->measureText(
                             m_text + start,
                             len,
@@ -2306,7 +2290,7 @@ public:
                         // (In the context of inline elements, margin/border/padding-inline-start/end
                         // would be more natural to use than -left/right - but it's a more recent CSS
                         // addition that we don't support.)
-                        bool is_mirrored = lastDirection < 0;
+                        bool is_mirrored = FRIBIDI_LEVEL_IS_RTL(lastBidiLevel);
                         if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
                             // Use right margin/border/padding values
                             margin = lengthToPx( node, style->margin[1], base_width );
@@ -2422,14 +2406,17 @@ public:
                     lastBidiLevel = newBidiLevel;
             #endif
         }
-        if ( tabIndex >= 0 && m_srcs[0]->indent < 0) {
+        if (m_srcs[0] && m_srcs[0]->indent < 0) {
             // Used by obsolete rendering of css_d_list_item_legacy when css_lsp_outside,
             // where the marker width is provided as negative/hanging indent.
             int tabPosition = -m_srcs[0]->indent; // has been set to marker_width
-            if ( tabPosition>0 && tabPosition > m_widths[tabIndex] ) {
-                int dx = tabPosition - m_widths[tabIndex];
-                for ( i=tabIndex; i<m_length; i++ )
-                    m_widths[i] += dx;
+            for (int j = 0; j < m_length && m_widths[j] >= tabPosition; ++j) {
+                if (m_text[j] == '\t') {
+                    int dx = tabPosition - m_widths[j];
+                    for ( int i=j; i<m_length; i++ )
+                        m_widths[i] += dx;
+                    break;
+                }
             }
         }
 //        // debug dump
