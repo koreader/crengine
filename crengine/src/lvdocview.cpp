@@ -1946,18 +1946,26 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 			authorsw = m_infoFont->getTextWidth(authors.c_str(),
 					authors.length());
 		}
-		int w = info.width() - 10;
-		if (authorsw + titlew + 10 > w) {
-			// Not enough room for both: alternate them
-			if (getExternalPageNumber(pageIndex) & 1)
-				text = title;
-			else {
-				text = authors;
-				if (!text.empty() && text[text.length() - 1] == '.')
-					text = text.substr(0, text.length() - 1);
+		if (phi & PGHDR_AUTHOR && phi & PGHDR_TITLE) {
+			int w = info.width() - 10;
+			if (authorsw + titlew + 10 > w) {
+				// Not enough room for both: alternate them
+				if (getExternalPageNumber(pageIndex) & 1)
+					text = title;
+				else {
+					text = authors;
+					if (!text.empty() && text[text.length() - 1] == '.')
+						text = text.substr(0, text.length() - 1);
+				}
+			} else {
+            	text = authors + "  " + title;
 			}
-		} else {
-            text = authors + "  " + title;
+		} else if (phi & PGHDR_AUTHOR) {
+			text = authors;
+			if (!text.empty() && text[text.length() - 1] == '.')
+				text = text.substr(0, text.length() - 1);
+		} else if (phi & PGHDR_TITLE) {
+			text = title;
 		}
 	}
 	lvRect newcr = headerRc;
