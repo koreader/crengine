@@ -5,29 +5,29 @@ SHELLSCRIPT_ERROR=0
 # Protect against forgetting to add or remove hyphenation patterns in languages.json
 search_dir=./cr3gui/data/hyph
 file_list=""
-for entry in "$search_dir"/*; do
-    if [ -f "$entry" ] && [ ! "$entry" = "$search_dir/languages.json" ]; then
-        entry=${entry#*${search_dir}/}
-        [ ! "$file_list" = "" ] && file_list="$file_list"$'\n'"$entry" || file_list="$entry"
+for entry in "${search_dir}"/*; do
+    if [ -f "${entry}" ] && [ ! "${entry}" = "${search_dir}/languages.json" ]; then
+        entry=${entry#*"${search_dir}"/}
+        [ ! "${file_list}" = "" ] && file_list="${file_list}"$'\n'"${entry}" || file_list="${entry}"
     fi
 done
 
-file_list_jq=$(jq -r '.[].filename' "$search_dir/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
+file_list_jq=$(jq -r '.[].filename' "${search_dir}/languages.json" | grep -v '@none' | grep -v '@algorithm' | grep -v '@softhyphens')
 
 # Sort to ensure they're in exactly the same order.
-file_list=$(echo "$file_list"|tr " " "\n"|sort -u|tr "\n" " ")
-file_list_jq=$(echo "$file_list_jq"|tr " " "\n"|sort -u|tr "\n" " ")
+file_list=$(echo "${file_list}" | tr " " "\n" | sort -u | tr "\n" " ")
+file_list_jq=$(echo "${file_list_jq}" | tr " " "\n" | sort -u | tr "\n" " ")
 
-if [ ! "$file_list" = "$file_list_jq" ]; then
+if [ ! "${file_list}" = "${file_list_jq}" ]; then
     echo "Warning, json should reflect hyphenation patterns. Diff:"
-    diff <(echo "$file_list") <(echo "$file_list_jq")
+    diff <(echo "${file_list}") <(echo "${file_list_jq}")
     SHELLSCRIPT_ERROR=1
 fi
 
 mapfile -t pattern_files < <(git ls-files cr3gui/data/hyph/*.pattern)
 for pattern in "${pattern_files[@]}"; do
     echo "Running xmllint on ${pattern}"
-    xmllint "$pattern" >/dev/null || SHELLSCRIPT_ERROR=1
+    xmllint "${pattern}" >/dev/null || SHELLSCRIPT_ERROR=1
 done
 
 changed_files="$(git diff --name-only origin/master HEAD | grep -E '\.([CcHh]|[ch]pp)$')"
