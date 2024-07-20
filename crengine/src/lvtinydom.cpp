@@ -2705,12 +2705,9 @@ bool tinyNodeCollection::loadNodeData(lUInt16 type, ldomNode ** list, int nodeco
             // buf contains `sz' ldomNode items
             // _elemList, _textList (as `list' argument) must always be TNC_PART_LEN size
             // add into `list' zero filled (TNC_PART_LEN - sz) items
-            list[i] = (ldomNode *)realloc(buf, TNC_PART_LEN * sizeof(ldomNode));
-            if (NULL == list[i]) {
-                free(buf);
-                CRLog::error("Not enough memory!");
+            list[i] = cr_realloc(buf, TNC_PART_LEN);
+            if (NULL == list[i])
                 return false;
-            }
             memset( list[i] + sz, 0, (TNC_PART_LEN - sz) * sizeof(ldomNode) );
         }
         for (int j=0; j<sz; j++) {
@@ -7972,7 +7969,7 @@ void ldomNode::initNodeRendMethod()
                 bool ruby_base_present = false;
                 for ( int i1=0; i1<=len1; i1++ ) {
                     ldomNode * child;
-                    lInt16 elemId;
+                    lInt16 elemId = -3;
                     bool eoc = i1 == len1; // end of children
                     if ( !eoc ) {
                         child = rbox1->getChildNode(i1);
@@ -8016,6 +8013,7 @@ void ldomNode::initNodeRendMethod()
                         if (eoc)
                             break;
                     }
+                    assert(elemId != -3);
                     if ( elemId == -1 ) { // isText(), non empty
                         if ( first_to_wrap < 0 ) {
                             first_to_wrap = i1;
@@ -9650,7 +9648,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         // Ignore fake floats (no srctext) made from outer floats footprint
         if ( flt->srctext == NULL )
             continue;
-        if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + flt->height ) {
+        if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + (int)flt->height ) {
             // pt is inside this float.
             ldomNode * node = (ldomNode *) flt->srctext->object; // floatBox node
             ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -15732,8 +15730,6 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar32 * nsname, const lChar3
     if ( _curTagIsIgnored ) { // Ignore attributes if tag was ignored
         return;
     }
-
-    lUInt16 id = _currNode->_element->getNodeId();
 
     // Add the attribute
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
