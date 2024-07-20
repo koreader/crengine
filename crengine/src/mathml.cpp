@@ -1292,7 +1292,7 @@ void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style ) {
         // If the use has requested font names to be ignored when font-family set,
         // force his math font to be used for <math>.
         // If no stylesheet has set anything, we should be here with css_ff_inherit.
-        bool ignore_font_names;
+        bool ignore_font_names = false;
         lString8 math_font = node->getDocument()->getFontForFamily(css_ff_math, ignore_font_names);
         if ( ignore_font_names && !math_font.empty() ) {
             style->font_name = math_font;
@@ -1944,8 +1944,8 @@ static void fixupMathML( ldomNode * node, bool is_in_script ) {
     const mathml_operator_dict_entry *   infix = NULL;
     const mathml_operator_dict_entry *  prefix = NULL;
     const mathml_operator_dict_entry * postfix = NULL;
-    bool found = getOperatorProperties((const lChar32 *)text.c_str(), infix, prefix, postfix);
-        // printf("%s %d %d %d %d\n", UnicodeToLocal(text).c_str(), found, infix, prefix, postfix);
+    /*bool found =*/ getOperatorProperties((const lChar32 *)text.c_str(), infix, prefix, postfix);
+    // printf("%s %d %d %d %d\n", UnicodeToLocal(text).c_str(), found, infix, prefix, postfix);
 
     // The "form" (prefix/infix/postfix) to be used depends on various things:
     // https://mathml-refresh.github.io/mathml-core/#dictionary-based-attributes
