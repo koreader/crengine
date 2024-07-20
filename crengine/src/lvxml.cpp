@@ -6153,21 +6153,14 @@ bool LVHTMLParser::CheckFormat()
             // see https://html.spec.whatwg.org/multipage/parsing.html#concept-get-attributes-when-sniffing
             int encpos = s.pos("encoding=");
             if ( encpos >= 0 ) {
-                int pos = encpos + 9;
+                int startpos, endpos;
                 int end = s.length();
-                lChar8 quote;
-                while (pos < end) {
-                    quote = s[pos];
-                    if (quote == '\'' || quote == '\"')
+                for (startpos = encpos + 9; startpos < end; ++startpos)
+                    if (s[startpos] == '\'' || s[startpos] == '\"')
                         break;
-                    ++pos;
-                }
-                lString8 encname = s.substr(pos + 1, 20 );
-                int endpos = encname.pos(quote);
-                if ( endpos>0 ) {
-                    encname.erase( endpos, encname.length() - endpos );
-                    lString32 enc32(encname.c_str());
-                    SetCharset(enc32.c_str());
+                endpos = s.pos(s[startpos], startpos + 1);
+                if (endpos > startpos) {
+                    SetCharset(lString32(s.c_str() + startpos + 1, endpos - startpos - 1).c_str());
                     charset_found = true;
                 }
             }
