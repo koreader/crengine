@@ -7136,7 +7136,7 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
         + (italic_match   * 5)
         + (features_match * 1000)
         + (family_match   * 100)
-        + (typeface_match * 1000);
+        + (typeface_match * 10000);
 
 //    printf("### %s (%d) vs %s (%d): size=%d weight=%d italic=%d family=%d typeface=%d bias=%d => %d\n",
 //        _typeface.c_str(), _family, def._typeface.c_str(), def._family,
@@ -7386,8 +7386,11 @@ LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef, bool useBias )
             def.setTypeFace( list[nindex] );
         else
             def.setTypeFace(lString8::empty_str);
+        bool typeface_match = false;
         for (i=0; i<_instance_list.length(); i++) {
             int match = _instance_list[i]->_def.CalcMatch( def, useBias );
+            if ( match >= 2560000 )
+                typeface_match = true;
             match = match * 256 + ordering_weight;
             if (match > best_instance_match) {
                 best_instance_match = match;
@@ -7396,15 +7399,25 @@ LVFontCacheItem * LVFontCache::find( const LVFontDef * fntdef, bool useBias )
         }
         for (i=0; i<_registered_list.length(); i++) {
             int match = _registered_list[i]->_def.CalcMatch( def, useBias );
+            if ( match >= 2560000 )
+                typeface_match = true;
             match = match * 256 + ordering_weight;
             if (match > best_match) {
                 best_match = match;
                 best_index = i;
             }
         }
+        if ( typeface_match ) {
+            // No need to check next font names (which may get a better score
+            // if the first fonts do not have the requested italic or weight
+            // variants, so let's avoid that too).
+            break;
+        }
     }
     if (best_index<0)
         return NULL;
+    // if (best_instance_match >= best_match) printf("Find '%s' best instance: %s\n", fntdef->getTypeFace().c_str(), _instance_list[best_instance_index]->_def.getTypeFace().c_str());
+    // else printf("Find '%s' best registered: %s\n", fntdef->getTypeFace().c_str(), _registered_list[best_index]->_def.getTypeFace().c_str());
     if (best_instance_match >= best_match)
         return _instance_list[best_instance_index];
     return _registered_list[best_index];
