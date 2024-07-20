@@ -2835,7 +2835,7 @@ public:
 
         lUInt16 prev_width = 0;
         lUInt16 cur_width = 0;
-        lUInt16 lastFitChar = 0;
+        lUInt16 lastFitChar = 0; // actually the index of the char after the one that fitted
         updateTransform(); // no-op
         // measure character widths
 
@@ -3016,6 +3016,7 @@ public:
             int hcl = 0; // cluster glyph at hg
             int t_notdef_start = -1;
             int t_notdef_end = -1;
+            bool max_width_reached = false; // set when reached while measuring with the fallback font
             for (int t = 0; t < len; t++) {
                 #ifdef DEBUG_MEASURE_TEXT
                     printf("MTHB t%d (=%x) ", t, text[t]);
@@ -3053,18 +3054,18 @@ public:
                                     if ( t_notdef_end < len )
                                         fb_hints &= ~LFNT_HINT_ENDS_PARAGRAPH;
                                     lUInt16 last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
-                                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, t_notdef_end - t_notdef_start,
+                                    lUInt16 chars_notdef_len = t_notdef_end - t_notdef_start;
+                                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, chars_notdef_len,
                                                     widths + t_notdef_start, flags + t_notdef_start,
                                                     max_width - last_good_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                                     fb_hints );
+                                    if ( chars_measured < chars_notdef_len ) {
+                                        max_width_reached = true;
+                                    }
                                     lastFitChar = t_notdef_start + chars_measured;
                                     // Fix previous bad measurements
                                     for (int tn = t_notdef_start; tn < lastFitChar; tn++) {
                                         widths[tn] += last_good_width;
-                                        if (widths[tn] > max_width) {
-                                            lastFitChar = tn;
-                                            break;
-                                        }
                                     }
                                     // And fix our current width
                                     cur_width = widths[lastFitChar-1];
@@ -3072,6 +3073,10 @@ public:
                                     #ifdef DEBUG_MEASURE_TEXT
                                         printf("MTHB ### measured past failures > W= %d\n[...]", cur_width);
                                     #endif
+                                    if ( max_width_reached ) {
+                                        t_notdef_start = -1; // be sure we won't "Process .notdef glyphs at end of text"
+                                        break; // break hg loop
+                                    }
                                 }
                                 else {
                                     // No fallback font: stay with what's been measured: the notdef/tofu char
@@ -3105,7 +3110,10 @@ public:
                         hg++;
                         continue; // keep grabbing glyphs
                     }
-                    break;
+                    break; // break hg loop
+                }
+                if ( max_width_reached ) {
+                    break; // break t loop
                 }
                 // Done grabbing clustered glyphs: they contributed to cur_width.
                 // All 't' lower than the next cluster will have that same cur_width.
@@ -3159,18 +3167,14 @@ public:
                     if ( t_notdef_start > 0 )
                         fb_hints &= ~LFNT_HINT_BEGINS_PARAGRAPH;
                     lUInt16 last_good_width = t_notdef_start > 0 ? widths[t_notdef_start-1] : 0;
-                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, // start
-                                    t_notdef_end - t_notdef_start, // len
+                    lUInt16 chars_notdef_len = t_notdef_end - t_notdef_start;
+                    lUInt16 chars_measured = fallback->measureText( text + t_notdef_start, chars_notdef_len,
                                     widths + t_notdef_start, flags + t_notdef_start,
                                     max_width - last_good_width, def_char, lang_cfg, letter_spacing, allow_hyphenation,
                                     fb_hints );
                     lastFitChar = t_notdef_start + chars_measured;
                     for (int tn = t_notdef_start; tn < lastFitChar; tn++) {
                         widths[tn] += last_good_width;
-                        if (widths[tn] > max_width) {
-                            lastFitChar = tn;
-                            break;
-                        }
                     }
                     // And add all that to our current width
                     cur_width = widths[lastFitChar-1];
@@ -3191,6 +3195,7 @@ public:
             #ifdef DEBUG_MEASURE_TEXT
                 printf("MTHB <<< W=%d [%s]\n", cur_width, _faceName.c_str());
                 printf("MTHB dwidths[]: ");
+                // (This will show invalid values after where we stopped when reaching max_width)
                 for (int t = 0; t < len; t++)
                     printf("%d:%d ", t, widths[t] - (t>0?widths[t-1]:0));
                 printf("\n");
