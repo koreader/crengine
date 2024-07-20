@@ -651,7 +651,7 @@ bWordDecryptor(FILE *pFile, long lFilesize, diagram_type *pDiag)
 	ULONG	ulChar;
 	long	lBeforeIndentation, lAfterIndentation;
 	long	lLeftIndentation, lLeftIndentation1, lRightIndentation;
-	long	lWidthCurr, lWidthMax, lDefaultTabWidth, lHalfSpaceWidth, lTmp;
+	long	lWidthCurr, lWidthMax, lDefaultTabWidth, lTmp;
 	list_id_enum 	eListID;
 	image_info_enum	eRes;
 	UINT	uiFootnoteNumber, uiEndnoteNumber, uiTmp;
@@ -1133,9 +1133,6 @@ bWordDecryptor(FILE *pFile, long lFilesize, diagram_type *pDiag)
 				vStoreCharacter(TAB, pOutput);
 				break;
 			}
-			lHalfSpaceWidth = (lComputeSpaceWidth(
-					pOutput->tFontRef,
-					pOutput->usFontSize) + 1) / 2;
 			lTmp = lTotalStringWidth(pAnchor);
 			lTmp += lDrawUnits2MilliPoints(pDiag->lXleft);
 			lTmp /= lDefaultTabWidth;
@@ -1273,7 +1270,6 @@ pHdrFtrDecryptor(FILE *pFile, ULONG ulCharPosStart, ULONG ulCharPosNext)
 	long	lWidthCurr, lWidthMax;
 	long	lRightIndentation;
 	USHORT	usChar;
-	UCHAR	ucAlignment;
 	BOOL	bSkip;
 
 	fail(iWordVersion < 0);
@@ -1286,7 +1282,6 @@ pHdrFtrDecryptor(FILE *pFile, ULONG ulCharPosStart, ULONG ulCharPosNext)
 	}
 
 	lRightIndentation = 0;
-	ucAlignment = ALIGNMENT_LEFT;
 	bSkip = FALSE;
 	lWidthMax = lGetWidthMax(tOptions.iParagraphBreak);
 	pAnchor = pStartNewOutput(NULL, NULL);

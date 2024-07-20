@@ -729,7 +729,7 @@ szGetLastSaveDtm(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "%04d-%02d-%02d",
+	snprintf(szTime, sizeof (szTime), "%04hu-%02hhu-%02hhu",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday);
 	return szTime;
 } /* end of szGetLastSaveDtm */
@@ -750,7 +750,7 @@ szGetModDate(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "D:%04d%02d%02d%02d%02d",
+	snprintf(szTime, sizeof (szTime), "D:%04hu%02hhu%02hhu%02hhu%02hhu",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday,
 		pTime->tm_hour, pTime->tm_min);
 	return szTime;
@@ -772,7 +772,7 @@ szGetCreationDate(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "D:%04d%02d%02d%02d%02d",
+	snprintf(szTime, sizeof (szTime), "D:%04hu%02hhu%02hhu%02hhu%02hhu",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday,
 		pTime->tm_hour, pTime->tm_min);
 	return szTime;
