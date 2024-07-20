@@ -340,8 +340,10 @@ static const char _CHMU_LZXC_CONTROLDATA[] =
         "::DataSpace/Storage/MSCompressed/ControlData";
 static const char _CHMU_CONTENT[] =
         "::DataSpace/Storage/MSCompressed/Content";
+#if 0
 static const char _CHMU_SPANINFO[] =
         "::DataSpace/Storage/MSCompressed/SpanInfo";
+#endif
 
 /*
  * structures local to this module
@@ -699,7 +701,10 @@ static Int64 _chm_fetch_bytes(struct chmFile *h,
                               UInt64 os,
                               Int64 len)
 {
-    Int64 readLen=0, oldOs=0;
+    Int64 readLen=0;
+#ifndef CHM_EXTERNAL_STREAM_SUPPORT
+    Int64 oldOs=0;
+#endif
     if (h->fd  ==  CHM_NULL_FD)
         return readLen;
 
@@ -955,6 +960,8 @@ struct chmFile *chm_open(const char *filename)
             chm_close(newHandle);
             return NULL;
         }
+
+        memset(&ctlData, 0, sizeof (ctlData));
 
         sbufpos = sbuffer;
         if (chm_retrieve_object(newHandle, &uiLzxc, sbuffer,
