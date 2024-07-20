@@ -1946,18 +1946,26 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 			authorsw = m_infoFont->getTextWidth(authors.c_str(),
 					authors.length());
 		}
-		int w = info.width() - 10;
-		if (authorsw + titlew + 10 > w) {
-			// Not enough room for both: alternate them
-			if (getExternalPageNumber(pageIndex) & 1)
-				text = title;
-			else {
-				text = authors;
-				if (!text.empty() && text[text.length() - 1] == '.')
-					text = text.substr(0, text.length() - 1);
+		if (phi & PGHDR_AUTHOR && phi & PGHDR_TITLE) {
+			int w = info.width() - 10;
+			if (authorsw + titlew + 10 > w) {
+				// Not enough room for both: alternate them
+				if (getExternalPageNumber(pageIndex) & 1)
+					text = title;
+				else {
+					text = authors;
+					if (!text.empty() && text[text.length() - 1] == '.')
+						text = text.substr(0, text.length() - 1);
+				}
+			} else {
+				text = authors + "  " + title;
 			}
-		} else {
-            text = authors + "  " + title;
+		} else if (phi & PGHDR_AUTHOR) {
+			text = authors;
+			if (!text.empty() && text[text.length() - 1] == '.')
+				text = text.substr(0, text.length() - 1);
+		} else if (phi & PGHDR_TITLE) {
+			text = title;
 		}
 	}
 	lvRect newcr = headerRc;
@@ -6654,6 +6662,7 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 	}
 	props->setIntDef(PROP_STATUS_LINE, 0);
 	props->setIntDef(PROP_SHOW_TITLE, 1);
+	props->setIntDef(PROP_SHOW_AUTHOR, 1);
 	props->setIntDef(PROP_SHOW_TIME, 1);
 	props->setIntDef(PROP_SHOW_TIME_12HOURS, 0);
 	props->setIntDef(PROP_SHOW_BATTERY, 1);
@@ -6732,8 +6741,8 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 #define H_MARGIN 8
 #define V_MARGIN 8
 #define ALLOW_BOTTOM_STATUSBAR 0
-void LVDocView::setStatusMode(int newMode, bool showClock, bool showTitle,
-        bool showBattery, bool showChapterMarks, bool showPercent, bool showPageNumber, bool showPageCount) {
+void LVDocView::setStatusMode(int newMode, bool showClock, bool showTitle, bool showAuthor,
+		bool showBattery, bool showChapterMarks, bool showPercent, bool showPageNumber, bool showPageCount) {
 	CRLog::debug("LVDocView::setStatusMode(%d, %s %s %s %s)", newMode,
 			showClock ? "clock" : "", showTitle ? "title" : "",
 			showBattery ? "battery" : "", showChapterMarks ? "marks" : "");
@@ -6749,7 +6758,7 @@ void LVDocView::setStatusMode(int newMode, bool showClock, bool showTitle,
                 | (showClock ? PGHDR_CLOCK : 0)
                 | (showBattery ? PGHDR_BATTERY : 0)
                 | (showPageCount ? PGHDR_PAGE_COUNT : 0)
-				| (showTitle ? PGHDR_AUTHOR : 0)
+				| (showAuthor ? PGHDR_AUTHOR : 0)
 				| (showTitle ? PGHDR_TITLE : 0)
 				| (showChapterMarks ? PGHDR_CHAPTER_MARKS : 0)
                 | (showPercent ? PGHDR_PERCENT : 0)
@@ -6912,13 +6921,15 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         } else if (name == PROP_STATUS_FONT_FACE) {
             setStatusFontFace(UnicodeToUtf8(value));
         } else if (name == PROP_STATUS_LINE || name == PROP_SHOW_TIME
-                   || name	== PROP_SHOW_TITLE || name == PROP_SHOW_BATTERY
-                   || name == PROP_STATUS_CHAPTER_MARKS || name == PROP_SHOW_POS_PERCENT
-                   || name == PROP_SHOW_PAGE_COUNT || name == PROP_SHOW_PAGE_NUMBER) {
+                   || name	== PROP_SHOW_TITLE || name == PROP_SHOW_AUTHOR
+                   || name == PROP_SHOW_BATTERY || name == PROP_STATUS_CHAPTER_MARKS
+                   || name == PROP_SHOW_POS_PERCENT || name == PROP_SHOW_PAGE_COUNT
+                   || name == PROP_SHOW_PAGE_NUMBER) {
             m_props->setString(name.c_str(), value);
             setStatusMode(m_props->getIntDef(PROP_STATUS_LINE, 0),
                           m_props->getBoolDef(PROP_SHOW_TIME, false),
                           m_props->getBoolDef(PROP_SHOW_TITLE, true),
+                          m_props->getBoolDef(PROP_SHOW_AUTHOR, true),
                           m_props->getBoolDef(PROP_SHOW_BATTERY, true),
                           m_props->getBoolDef(PROP_STATUS_CHAPTER_MARKS, true),
                           m_props->getBoolDef(PROP_SHOW_POS_PERCENT, false),
