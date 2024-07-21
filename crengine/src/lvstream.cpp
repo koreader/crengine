@@ -3130,8 +3130,10 @@ public:
 		case LVSEEK_END:
 			newpos = m_size + offset;
 			break;
+		default:
+			return LVERR_FAIL;
 		}
-                if (newpos>m_size)
+		if (newpos>m_size)
 			return LVERR_FAIL;
 		m_pos = newpos;
 		if (pNewPos)
