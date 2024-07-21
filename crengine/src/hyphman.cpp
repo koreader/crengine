@@ -411,7 +411,6 @@ bool HyphDictionaryList::open(lString32 hyphDirectory, bool clear)
 
 	if ( !container.isNull() ) {
 		int len = container->GetObjectCount();
-        int count = 0;
         CRLog::info("%d items found in hyph directory", len);
 		for ( int i=0; i<len; i++ ) {
 			const LVContainerItemInfo * item = container->GetObjectInfo( i );
@@ -439,7 +438,6 @@ bool HyphDictionaryList::open(lString32 hyphDirectory, bool clear)
 			if (!suffix2add.empty())
 				title.append(suffix2add);
 			_list.add( new HyphDictionary( t, title, id, filename ) );
-            count++;
 		}
         _list.sort(HyphDictionary_comparator);
 		CRLog::info("%d dictionaries added to list", _list.length());
@@ -1209,7 +1207,7 @@ AlgoHyph::~AlgoHyph()
 #define HYPH_HASH_MULT 7
 
 lString32 UserHyphDict::_filename = U"";
-size_t UserHyphDict::_filesize = 0;
+lvsize_t UserHyphDict::_filesize = 0;
 lUInt32 UserHyphDict::_hash_value = 0;
 
 lUInt32 UserHyphDict::words_in_memory = 0;
@@ -1309,7 +1307,7 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
         return USER_HYPH_DICT_RELOAD;
     }
 
-    size_t filesize = instream->GetSize();
+    lvsize_t filesize = instream->GetSize();
     if ( _filename.compare(filename)==0 && _filesize == filesize && not reload ) {
         return USER_HYPH_DICT_NOCHANGE;
     }
@@ -1359,7 +1357,7 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
     char mask[HYPHENATION_LENGTH];
     lvsize_t pos = 0; // pos in puffer
     while (pos < count ) {
-        int i;
+        unsigned i;
         for ( i = 0; i < WORD_LENGTH-1; ++i ) { // -1 because of trailing NULL
             if ( buf[pos] == ';' ) {
                 ++pos;
@@ -1450,7 +1448,7 @@ bool UserHyphDict::getMask(lChar32 *word, char *mask)
 lString32 UserHyphDict::getHyphenation(const char *word)
 {
     lString32 orig_word_str(word);
-    size_t orig_len = orig_word_str.length();
+    int orig_len = orig_word_str.length();
 
     // Given some combined words like stairway2heaven, we want to get the first potential part
     // as the candidate for hyphenation for a clearer layout, with smaller gaps.
