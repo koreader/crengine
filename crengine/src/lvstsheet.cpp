@@ -600,7 +600,7 @@ static inline bool next_token( const char * & str, char stop_char='}')
     return skip_to_next( str, ';', stop_char, ' ' );
 }
 
-static bool parse_integer( const char * & str, int & value)
+static bool parse_integer( const char * & str, unsigned & value)
 {
     skip_spaces( str );
     if (*str<'0' || *str>'9') {
@@ -2221,8 +2221,8 @@ protected:
                     if ( ! doc )
                         break; // No doc provided: not able to check
                     // The value may be a fraction like "4/3"
-                    int num;
-                    int den = 1;
+                    unsigned num;
+                    unsigned den = 1;
                     if ( parse_integer(str, num) && num > 0 ) {
                         skip_spaces(str);
                         if ( *str == '/' ) {
@@ -2281,7 +2281,7 @@ protected:
                         setResult( true ); // resolution is always > 0
                         break;
                     }
-                    int num;
+                    unsigned num;
                     if ( parse_integer(str, num) ) {
                         int dpi = -1;
                         if ( substr_icompare( "dpi", str ) ) {
@@ -2307,8 +2307,8 @@ protected:
             case css_atmedia_monochrome:
                 {
                     // For now, pretend we have 8 bits per color (24/32 bpp)
-                    int colors = 8;
-                    int value;
+                    unsigned colors = 8;
+                    unsigned value;
                     if ( use_default_value ) { // "other than zero" per specs
                         if ( name == css_atmedia_color )
                             setResult( true );
@@ -2329,7 +2329,7 @@ protected:
                 break;
             case css_atmedia_grid:
                 {
-                    int value;
+                    unsigned value;
                     if ( use_default_value ) // "other than zero" per specs
                         setResult( false );
                     else if ( parse_integer(str, value) && value == 0 )
@@ -2354,7 +2354,7 @@ protected:
                 break;
             case css_atmedia_cr_max_cre_dom_version:
                 {
-                    int dom_version;
+                    unsigned dom_version;
                     if ( parse_integer( str, dom_version ) ) {
                         if ( doc && ((ldomDocument*)doc)->getDOMVersionRequested() <= dom_version )
                             setResult( true );
@@ -3254,7 +3254,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             // support kept for users who may have cloned and customized our old epub.css)
             case cssd_cr_ignore_if_dom_version_greater_or_equal:
                 {
-                    int dom_version;
+                    unsigned dom_version;
                     if ( parse_integer( decl, dom_version ) ) {
                         if ( !doc || doc->getDOMVersionRequested() >= dom_version ) {
                             return false; // ignore the whole declaration
@@ -4716,7 +4716,7 @@ static void apply_cr_apply_func( cr_apply_func_t apply_func, css_style_rec_t * s
                 is_rel_minus = true;
                 str++;
             }
-            int num;
+            unsigned num;
             if ( parse_integer(str, num) ) {
                 // Note: per-specs, any trailing non-digits cause no issue (that is:
                 // size="1" and size="1zz" are both valid and result in the same value)
