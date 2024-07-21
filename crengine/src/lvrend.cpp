@@ -1729,7 +1729,7 @@ public:
                             int count = txform->GetLineCount();
                             for (int i=0; i<count; i++) {
                                 const formatted_line_t * line = txform->GetLineInfo(i);
-                                int link_insert_pos; // used if is_single_column
+                                int link_insert_pos = -1; // used if is_single_column, -1 for append
                                 if ( is_single_column ) {
                                     int line_flags = 0;
                                     // Honor widows and orphans
@@ -1751,8 +1751,6 @@ public:
                                         continue;
                                     if ( line->flags & LTEXT_LINE_PARA_IS_RTL )
                                         link_insert_pos = row->single_col_context->getCurrentLinksCount();
-                                    else
-                                        link_insert_pos = -1; // append
                                 }
                                 for ( int w=0; w<line->word_count; w++ ) { // check link start flag for every word
                                     if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
@@ -10246,7 +10244,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // printf("Starting 2-steps drawing at %d %s\n", cfmt.getY(),
                     //      UnicodeToLocal(ldomXPointer(child, 0).toString()).c_str());
                     int overflow_y = cfmt.getY() + cfmt.getHeight() + cfmt.getBottomOverflow();
-                    int last_two_steps_drawn_node;
+                    int last_two_steps_drawn_node = -1;
                     for (int j=i; j<cnt; j++) {
                         last_two_steps_drawn_node = j;
                         child = enode->getChildNode( j );
@@ -10269,6 +10267,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                         overflow_y = current_y + this_overflow;
                     }
                     // Now, draw the content of all these nodes we've just drawn the background of
+                    assert(last_two_steps_drawn_node != -1);
                     for (int k=i; k<=last_two_steps_drawn_node; k++) {
                         child = enode->getChildNode( k );
                         if ( child->isFloatingBox() ) {
