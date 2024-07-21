@@ -272,6 +272,8 @@ static QImageScaleInfo* QImageScale::qimageCalcScaleInfo(const unsigned char* __
 }
 
 
+#if defined(FBINK_QIS_NO_SIMD) || (!defined(__SSE4_1__) && !defined(__ARM_NEON__))
+
 static void qt_qimageScaleAARGBA_up_x_down_y(QImageScaleInfo *isi, unsigned int * __restrict dest,
                                              int dw, int dh, int dow, int sow);
 
@@ -280,6 +282,8 @@ static void qt_qimageScaleAARGBA_down_x_up_y(QImageScaleInfo *isi, unsigned int 
 
 static void qt_qimageScaleAARGBA_down_xy(QImageScaleInfo *isi, unsigned int * __restrict dest,
                                          int dw, int dh, int dow, int sow);
+
+#endif
 
 #ifndef FBINK_QIS_NO_SIMD
 #if defined(__SSE4_1__)
@@ -396,6 +400,8 @@ static void qt_qimageScaleAARGBA(QImageScaleInfo *isi, unsigned int * __restrict
 #endif
     }
 }
+
+#if defined(FBINK_QIS_NO_SIMD) || (!defined(__SSE4_1__) && !defined(__ARM_NEON__))
 
 inline static void qt_qimageScaleAARGBA_helper(const unsigned int * __restrict pix, const int xyap, const int Cxy, const int step, int &r, int &g, int &b, int &a)
 {
@@ -553,6 +559,8 @@ static void qt_qimageScaleAARGB_down_x_up_y(QImageScaleInfo *isi, unsigned int *
 static void qt_qimageScaleAARGB_down_xy(QImageScaleInfo *isi, unsigned int * __restrict dest,
                                         int dw, int dh, int dow, int sow);
 
+#endif
+
 /* scale by area sampling - IGNORE the ALPHA byte*/
 static void qt_qimageScaleAARGB(QImageScaleInfo *isi, unsigned int * __restrict dest,
                                 int dw, int dh, int dow, int sow)
@@ -605,6 +613,8 @@ static void qt_qimageScaleAARGB(QImageScaleInfo *isi, unsigned int * __restrict 
     }
 }
 
+
+#if defined(FBINK_QIS_NO_SIMD) || (!defined(__SSE4_1__) && !defined(__ARM_NEON__))
 
 inline static void qt_qimageScaleAARGB_helper(const unsigned int * __restrict pix, const int xyap, const int Cxy, const int step, int &r, int &g, int &b)
 {
@@ -742,6 +752,8 @@ static void qt_qimageScaleAARGB_down_xy(QImageScaleInfo *isi, unsigned int * __r
         }
     }
 }
+
+#endif
 
 unsigned char* qSmoothScaleImage(const unsigned char* __restrict src, int sw, int sh, bool ignore_alpha, int dw, int dh)
 {
