@@ -388,6 +388,7 @@ private:
     //========================================
 public:
 
+#if 0
 	/// creates reference to copy
 	LVRef & clone()
 	{
@@ -395,6 +396,7 @@ public:
 			return LVRef(NULL);
 		return LVRef( new T( *_ptr ) );
 	}
+#endif
 
     /// Default constructor.
     /** Initializes pointer to NULL */
