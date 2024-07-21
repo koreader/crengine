@@ -1218,6 +1218,31 @@ lChar32 getSingleLineChar( const lString32 & s) {
 #define MAX_BUF_LINES  200
 #define MIN_MULTILINE_PARA_WIDTH 45
 
+typedef enum {
+    tftNone = 0,
+    tftParaPerLine = 1,
+    tftParaIdents  = 2,
+    tftEmptyLineDelimPara = 4,
+    tftCenteredHeaders = 8,
+    tftEmptyLineDelimHeaders = 16,
+    tftFormatted = 32, // text lines are wrapped and formatted
+    tftJustified = 64, // right bound is justified
+    tftDoubleEmptyLineBeforeHeaders = 128,
+    tftPreFormatted = 256,
+    tftPML = 512 // Palm Markup Language
+} formatFlags_t;
+
+inline constexpr formatFlags_t operator | (formatFlags_t a, formatFlags_t b)
+{
+    return static_cast<formatFlags_t>(static_cast<unsigned>(a) | static_cast<unsigned>(b)); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+}
+
+inline formatFlags_t operator |= (formatFlags_t a, formatFlags_t b)
+{
+    a = a | b;
+    return a;
+}
+
 class LVTextLineQueue : public LVPtrVector<LVTextFileLine>
 {
 private:
@@ -1228,7 +1253,7 @@ private:
     lString32 bookAuthors;
     lString32 seriesName;
     lString32 seriesNumber;
-    int formatFlags;
+    formatFlags_t formatFlags;
     int min_left;
     int max_right;
     int avg_left;
@@ -1241,19 +1266,6 @@ private:
     int max_left_stats_pos;
     int max_left_second_stats_pos;
     int max_right_stats_pos;
-
-    enum {
-        tftParaPerLine = 1,
-        tftParaIdents  = 2,
-        tftEmptyLineDelimPara = 4,
-        tftCenteredHeaders = 8,
-        tftEmptyLineDelimHeaders = 16,
-        tftFormatted = 32, // text lines are wrapped and formatted
-        tftJustified = 64, // right bound is justified
-        tftDoubleEmptyLineBeforeHeaders = 128,
-        tftPreFormatted = 256,
-        tftPML = 512 // Palm Markup Language
-    } formatFlags_t;
 public:
     LVTextLineQueue( LVTextFileBase * f, int maxLineLen )
     : file(f), first_line_index(0), maxLineSize(maxLineLen), lastParaWasTitle(false), inSubSection(false)
@@ -1356,7 +1368,7 @@ public:
         formatFlags = tftParaPerLine | tftEmptyLineDelimHeaders; // default format
         if ( length()<10 )
             return;
-        formatFlags = 0;
+        formatFlags = tftNone;
         avg_center = 0;
         int empty_lines = 0;
         int ident_lines = 0;
@@ -1496,7 +1508,7 @@ public:
             //tftDoubleEmptyLineBeforeHeaders
             return;
         }
-        formatFlags = 0;
+        formatFlags = tftNone;
         int ident_lines_percent = ident_lines * 100 / non_empty_lines;
         int center_lines_percent = center_lines * 100 / non_empty_lines;
         int empty_lines_percent = empty_lines * 100 / length();
@@ -1819,7 +1831,7 @@ public:
                 return;
             //if ( updateStack )
             //if ( !line.empty() )
-                postText();
+            postText();
             for ( int i=styleTags.length()-1; i>=pos; i-- ) {
                 const lChar32 * tag = getStyleTagName(styleTags[i]);
                 if ( updateStack )
@@ -5500,9 +5512,7 @@ static bool PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                         int left = 0;
                         int right = sizeof(def_entity_table) / sizeof((def_entity_table)[0]) - 1; // ignore last NULL
                         int middle;
-                        int iters = 0;
                         while ( left < right ) {
-                            iters++;
                             middle = (left + right) / 2;
                             int res = lStr_cmp( entname, def_entity_table[middle].name );
                             if ( res == 0 ) {
@@ -6153,21 +6163,14 @@ bool LVHTMLParser::CheckFormat()
             // see https://html.spec.whatwg.org/multipage/parsing.html#concept-get-attributes-when-sniffing
             int encpos = s.pos("encoding=");
             if ( encpos >= 0 ) {
-                int pos = encpos + 9;
+                int startpos, endpos;
                 int end = s.length();
-                lChar8 quote;
-                while (pos < end) {
-                    quote = s[pos];
-                    if (quote == '\'' || quote == '\"')
+                for (startpos = encpos + 9; startpos < end; ++startpos)
+                    if (s[startpos] == '\'' || s[startpos] == '\"')
                         break;
-                    ++pos;
-                }
-                lString8 encname = s.substr(pos + 1, 20 );
-                int endpos = encname.pos(quote);
-                if ( endpos>0 ) {
-                    encname.erase( endpos, encname.length() - endpos );
-                    lString32 enc32(encname.c_str());
-                    SetCharset(enc32.c_str());
+                endpos = s.pos(s[startpos], startpos + 1);
+                if (endpos > startpos) {
+                    SetCharset(lString32(s.c_str() + startpos + 1, endpos - startpos - 1).c_str());
                     charset_found = true;
                 }
             }
