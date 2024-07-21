@@ -1072,7 +1072,7 @@ lString32 & lString32::trim()
 int lString32::atoi() const
 {
     int n = 0;
-    bool res = atoi(n);
+    bool res = atoi(n); // cppcheck-suppress nullPointer
     return res ? n : 0;
 }
 
