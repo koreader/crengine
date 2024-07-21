@@ -243,7 +243,7 @@ vDestroyDiagram(diagram_type *pDiag)
         return;
     }
     vEpilogue(pDiag);
-    pDiag = (diagram_type *)xfree(pDiag);
+    xfree(pDiag);
 } /* end of vDestroyDiagram */
 
 /*
