@@ -19,4 +19,5 @@ SET (CHMLIB_SOURCES
 
 ADD_LIBRARY(chmlib STATIC ${CHMLIB_SOURCES})
 
+target_compile_options(chmlib PRIVATE -Wall)
 set_target_properties(chmlib PROPERTIES C_VISIBILITY_PRESET hidden)
