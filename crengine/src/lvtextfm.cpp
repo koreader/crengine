@@ -536,7 +536,7 @@ public:
                 embedded_float_t * flt = m_pbuffer->floats[i];
                 if (flt->to_position) // ignore not yet positioned floats
                     continue;
-                if (flt->y <= y && flt->y + flt->height > y) { // this float is spanning this y
+                if (flt->y <= y && flt->y + (int)flt->height > y) { // this float is spanning this y
                     if (flt->is_right) {
                         if (flt->x < fl_right_min_x)
                             fl_right_min_x = flt->x;
@@ -753,7 +753,7 @@ public:
                 embedded_float_t * flt = m_pbuffer->floats[i];
                 if (flt->to_position) // ignore not yet positioned floats (even if
                     continue;         // there shouldn't be any when this is called)
-                if (flt->y < m_y && flt->y + flt->height > m_y) {
+                if (flt->y < m_y && flt->y + (int)flt->height > m_y) {
                     has_ongoing_float = true;
                     break;
                 }
@@ -824,7 +824,7 @@ public:
             embedded_float_t * flt = m_pbuffer->floats[i];
             if (flt->to_position) // ignore not yet positioned floats, as they
                 continue;         // are not yet running past m_y
-            if (flt->y < m_y && flt->y + flt->height > m_y) {
+            if (flt->y < m_y && flt->y + (int)flt->height > m_y) {
                 m_has_ongoing_float = true;
                 break;
             }
@@ -862,7 +862,7 @@ public:
                     embedded_float_t * flt = m_pbuffer->floats[i];
                     if (flt->to_position) // ignore not yet positioned floats
                         continue;
-                    if (flt->y <= y && flt->y + flt->height > y) { // this float is spanning this y
+                    if (flt->y <= y && flt->y + (int)flt->height > y) { // this float is spanning this y
                         if (flt->is_right) {
                             if (flt->x < fl_right_min_x)
                                 fl_right_min_x = flt->x;
@@ -1848,7 +1848,7 @@ public:
         int tabIndex = -1;
         #if (USE_FRIBIDI==1)
             FriBidiLevel lastBidiLevel = 0;
-            FriBidiLevel newBidiLevel;
+            FriBidiLevel newBidiLevel = 0;
         #endif
         #if (USE_HARFBUZZ==1)
             bool checkIfHarfbuzz = true;
@@ -3724,8 +3724,8 @@ public:
                 // This LTEXT_VALIGN_ flag is now only of use with objects (images)
                 int vertical_align_flag = srcline->flags & LTEXT_VALIGN_MASK;
                 // These will be used later to adjust the main line baseline and height:
-                int top_to_baseline; // distance from this word top to its own baseline (formerly named 'b')
-                int baseline_to_bottom; // descender below baseline for this word (formerly named 'h')
+                int top_to_baseline = -1; // distance from this word top to its own baseline (formerly named 'b')
+                int baseline_to_bottom = -1; // descender below baseline for this word (formerly named 'h')
                 // For each word, we'll have to check and adjust line height and baseline,
                 // except when LTEXT_VALIGN_TOP and LTEXT_VALIGN_BOTTOM where it has to
                 // be delayed until the full line is laid out. Until that, we store some
@@ -3851,6 +3851,8 @@ public:
                         word->y = srcline->valign_dy - baseline_to_bottom;
                     }
                     else if ( vertical_align_flag == LTEXT_VALIGN_MIDDLE ) {
+                        assert(top_to_baseline != -1);
+                        assert(baseline_to_bottom != -1);
                         // srcline->valign_dy has been set to where the middle of image or box should be
                         word->y = srcline->valign_dy - (top_to_baseline + baseline_to_bottom)/2 + top_to_baseline;
                     }
@@ -5822,6 +5824,9 @@ static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode *
             case 1: border_style = style->border_style_right;  break;
             case 2: border_style = style->border_style_bottom; break;
             case 3: border_style = style->border_style_left;   break;
+            default:
+                    assert(0);
+                    border_style = css_border_none;
         }
         int dot, interval;
         switch (border_style){
@@ -6407,7 +6412,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
         int top_overflow = fmt.getTopOverflow();
         int bottom_overflow = fmt.getBottomOverflow();
 
-        if (y + flt->y - top_overflow < clip.bottom && y + flt->y + flt->height + bottom_overflow > clip.top) {
+        if (y + flt->y - top_overflow < clip.bottom && y + flt->y + (int)flt->height + bottom_overflow > clip.top) {
             // DrawDocument() parameters (y0 + doc_y must be equal to our y,
             // doc_y just shift the viewport, so anything outside is not drawn).
             int x0 = x + flt->x;
