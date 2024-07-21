@@ -1888,8 +1888,8 @@ protected:
     int level;
     bool malformed;
     lxmlDocBase * doc;
-    lChar32 stop_char;
-    lChar32 stop_char2;
+    char stop_char;
+    char stop_char2;
     AtRuleLogicalConditionParser(lxmlDocBase * d, char stopchar='{', char stopchar2=0)
     : doc(d), stop_char(stopchar), stop_char2(stopchar2) {
         malformed = false;
@@ -5881,7 +5881,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
         return true; // should it be: return !node->isBoxingNode(); ?
     case cssrt_pseudoclass:   // E:pseudo-class
         {
-            int nodeId;
+            int nodeId = -1;
             switch (_attrid) {
                 case csspc_root:
                 {
@@ -6061,6 +6061,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
                         const ldomNode * elem = node->getUnboxedParent(exceptBoxingNodeId)->getUnboxedFirstChild(true, exceptBoxingNodeId);
                         while (elem) {
                             if (elem != node) {
+                                assert(nodeId != -1);
                                 if (_attrid == csspc_only_child || elem->getNodeId() == nodeId) {
                                     n = 1; // false, we're not alone
                                     break;
@@ -6991,8 +6992,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
     }
     LVCssSelector * selector = NULL;
     LVCssSelector * prev_selector;
-    int err_count = 0;
-    int rule_count = 0;
     for (;*str;)
     {
         // new rule
@@ -7029,7 +7028,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             if ( !decl->parse( str, useragent_sheet, _doc, codeBase ) )
             {
                 err = true;
-                err_count++;
             }
             else
             {
@@ -7043,7 +7041,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
                     if ( decl->isPresentationalHint() )
                         p->setIsPresentationalHint(true);
                 }
-                rule_count++;
             }
             break;
         }
@@ -7097,7 +7094,7 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
         // new section
         bool match = false;
         const char * start;
-        const char * end;
+        const char * end = NULL;
         bool err = false;
         for (;*str;) {
             if ( !match ) {
@@ -7145,6 +7142,7 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
         }
         else {
             if ( match ) {
+                assert(end != NULL);
                 skip_spaces(start); // cleanup up \n and spaces at start (end should already be clean)
                 matches.add(lString8(start, end-start).trim());
                 ret = true;
