@@ -1149,7 +1149,9 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
         */
     }
     else if ( LANG_STARTS_WITH(("ru")) ) { // Russian
-        has_left_double_quotation_mark_closing = true;
+        // The following rule is disabled because Russian texts often
+        // use quotation marks from Word (“”)
+        // has_left_double_quotation_mark_closing = true;
         has_left_double_angle_quotation_mark_opening = true;
         has_right_double_angle_quotation_mark_closing = true;
     }
