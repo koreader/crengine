@@ -33,6 +33,8 @@ extern int getopt(int, char **, const char *);
 #define LEAFNAME_SIZE		(32+1)
 #endif /* __riscos */
 
+#if CR3_ANTIWORD_PATCH!=1
+
 #if defined(__riscos)
 /* Temporary values for options */
 static options_type	tOptionsTemp;
@@ -82,8 +84,12 @@ static const options_type	tOptionsDefault = {
 #endif /* __riscos */
 };
 
+#endif
+
 /* Current values for options */
 static options_type	tOptionsCurr;
+
+#if CR3_ANTIWORD_PATCH!=1
 
 #if !defined(__riscos)
 /*
@@ -267,7 +273,6 @@ vCloseCharacterMappingFile(FILE *pFile)
 	(void)fclose(pFile);
 } /* end of pCloseCharacterMappingFile */
 
-#if CR3_ANTIWORD_PATCH!=1
 /*
  * iReadOptions - read options
  *
