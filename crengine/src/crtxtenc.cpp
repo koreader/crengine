@@ -1697,7 +1697,7 @@ public:
                 pData[k].count = 0;
             }
         }
-        delete[] pdata;
+        delete[] pdata; // cppcheck-suppress uninitdata
         Close();
    }
 
