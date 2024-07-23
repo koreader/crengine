@@ -60,7 +60,6 @@ define CPPFILES+=
 crengine/qimagescale/qimagescale.cpp
 crengine/src/chmfmt.cpp
 crengine/src/cp_stats.cpp
-crengine/src/crconcurrent.cpp
 crengine/src/cri18n.cpp
 crengine/src/crtxtenc.cpp
 crengine/src/docxfmt.cpp
