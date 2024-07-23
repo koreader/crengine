@@ -1,7 +1,4 @@
 #include "../include/odtfmt.h"
-#include "../include/lvtinydom.h"
-#include "../include/fb2def.h"
-#include "../include/lvopc.h"
 #include "odxutil.h"
 
 // If you add new element - update odt_elements_mapping table below
