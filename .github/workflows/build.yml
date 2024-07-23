@@ -40,8 +40,6 @@ jobs:
           libfribidi-dev
           libharfbuzz-dev
           libjpeg-turbo8-dev
-          libnanosvg-dev
-          libstb-dev
           libunibreak-dev
           libutf8proc-dev
           libxml2-utils
