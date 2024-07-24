@@ -5687,6 +5687,7 @@ int LVTextFileBase::fillCharBuffer()
 
 bool LVXMLParser::ReadText()
 {
+    int last_split_txtlen = 0;
     int tlen = 0;
     m_txt_buf.reset(TEXT_SPLIT_SIZE+1);
     lUInt32 flags = m_callback->getFlags();
@@ -5734,14 +5735,9 @@ bool LVXMLParser::ReadText()
             }
         }
         // Walk buffer without updating m_read_buffer_pos
-        const lChar32 *begin = m_read_buffer + m_read_buffer_pos;
-        const lChar32 *ptr = begin;
-        const lChar32 *end = m_read_buffer + m_read_buffer_len;
-        const lChar32 *limit = m_read_buffer + (TEXT_SPLIT_SIZE + 1 - tlen);
-        if (limit > end)
-            limit = end;
+        const lChar32 *ptr = m_read_buffer + m_read_buffer_pos;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
-        for (; ptr < end; ++ptr) {
+        for (const lChar32 *end = m_read_buffer + m_read_buffer_len; ptr < end; ++ptr) {
             lChar32 ch = *ptr;
             if ( m_in_cdata ) { // we're done only when we meet ']]>'
                 if ( ch==']' ) {
@@ -5749,17 +5745,22 @@ bool LVXMLParser::ReadText()
                         if ( ptr[1] == ']' ) {
                             if ( ptr + 2 < end ) {
                                 if ( ptr[2] == '>' ) {
+                                    flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 3;
-                                    goto end_of_node;
+                                    if (!tlen) {
+                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                                        return false;
+                                    }
+                                    goto break_inner_loop;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                break;
+                                goto break_inner_loop;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        break;
+                        goto break_inner_loop;
                     }
                 }
             }
@@ -5771,77 +5772,75 @@ bool LVXMLParser::ReadText()
                                 const lChar32 * buf = ptr + 2;
                                 lString32 tag(buf, 6);
                                 if ( tag.lowercase() == U"script" ) {
+                                    flgBreak = true;
                                     nbCharToSkipOnFlgBreak = 1;
-                                    goto end_of_node;
+                                    if (!tlen) {
+                                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                                        return false;
+                                    }
+                                    goto break_inner_loop;
                                 }
                             }
                             else if ( !hasNoMoreData ) {
-                                break;
+                                goto break_inner_loop;
                             }
                         }
                     }
                     else if ( !hasNoMoreData ) {
-                        break;
+                        goto break_inner_loop;
                     }
                 }
                 else { // '<' marks the end of this text node
+                    flgBreak = true;
                     nbCharToSkipOnFlgBreak = 1;
-                    goto end_of_node;
+                    if (!tlen) {
+                        m_read_buffer_pos += nbCharToSkipOnFlgBreak;
+                        return false;
+                    }
+                    goto break_inner_loop;
                 }
             }
             if (pre_para_splitting) {
                 // In Lib.ru books, lines are split at ~76 bytes. The start of a paragraph is indicated
                 // by a line starting with a few spaces.
-                splitParas = last_eol && (ch==' ' || ch=='\t' || ch == 160) && tlen > 0 && ptr > begin;
+                splitParas = last_eol && (ch==' ' || ch=='\t' || ch == 160) && tlen > 0;
                 if (splitParas)
-                    break;
+                    goto break_inner_loop;
                 last_eol = ch == '\r' || ch == '\n';
             }
-            continue;
-end_of_node:
-            flgBreak = true;
-            if (!tlen && ptr == begin) {
-                m_read_buffer_pos += nbCharToSkipOnFlgBreak;
-                return false;
+            tlen++; // regular char, passed-by text content
+            if ( tlen > TEXT_SPLIT_SIZE || flgBreak ) {
+break_inner_loop:
+                // m_txt_buf filled, end of text node, para splitting, or need more data
+                if ( last_split_txtlen==0 || flgBreak || splitParas )
+                    last_split_txtlen = tlen;
+                break;
             }
-            break;
+            else if (ch==' ') {
+                // Not sure what this last_split_txtlen is about: may be to avoid spliting
+                // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
+                // on spaces, \r and \n when giving the text to the callback?
+                last_split_txtlen = tlen;
+            }
+            else if (ch=='\r' || ch=='\n') {
+                // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
+                // of a first text node, and the next one starting with \n.
+                // We could just 'break' if !hasNoMoreData and go fetch more char - but as this
+                // is hard to test, just be conservative and keep doing it this way.
+                lChar32 nextch = ptr + 1 < end ? ptr[1] : 0;
+                if ( (ch=='\r' && nextch!='\n') || (ch=='\n' && nextch!='\r') ) {
+                    last_split_txtlen = tlen;
+                }
+            }
         }
-        if ( ptr > begin) { // Append passed-by regular text content to m_txt_buf
-            tlen += ptr - begin;
-            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - begin);
+        if ( ptr > m_read_buffer + m_read_buffer_pos) { // Append passed-by regular text content to m_txt_buf
+            m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - m_read_buffer - m_read_buffer_pos);
             m_read_buffer_pos = ptr - m_read_buffer;
         }
         if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas) {
             //=====================================================
             // Provide accumulated text to callback
             lChar32 * buf = m_txt_buf.modify();
-
-            int last_split_txtlen = tlen;
-            if (tlen > TEXT_SPLIT_SIZE) {
-                for (const lChar32 *ptr = buf + m_txt_buf.length() - 1; ptr >= buf; --ptr) {
-                    lChar32 ch = *ptr;
-                    if (ch <= ' ') [[unlikely]] {
-                        if (ch == ' ') {
-                            // Not sure what this last_split_txtlen is about: may be to avoid spliting
-                            // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
-                            // on spaces, \r and \n when giving the text to the callback?
-                            last_split_txtlen = ptr - buf;
-                            break;
-                        } else if (ch == '\r' || ch == '\n') {
-                            // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
-                            // of a first text node, and the next one starting with \n.
-                            // We could just 'break' if !hasNoMoreData and go fetch more char - but as this
-                            // is hard to test, just be conservative and keep doing it this way.
-                            lChar32 nextch = 0;
-                            if (ptr < buf + m_txt_buf.length() - 1)
-                                nextch = ptr[1];
-                            if ((ch == '\r' && nextch != '\n') || (ch == '\n' && nextch != '\r')) {
-                                last_split_txtlen = ptr - buf;
-                            }
-                        }
-                    }
-                }
-            }
 
             const lChar32 * enc_table = NULL;
             if ( flags & TXTFLG_CONVERT_8BIT_ENTITY_ENCODING )
