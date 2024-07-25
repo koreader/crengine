@@ -5741,7 +5741,7 @@ bool LVXMLParser::ReadText()
         if (limit > end)
             limit = end;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
-        for (; ptr < end; ++ptr) {
+        for (; ptr < limit; ++ptr) {
             lChar32 ch = *ptr;
             if ( m_in_cdata ) { // we're done only when we meet ']]>'
                 if ( ch==']' ) {
@@ -5825,7 +5825,7 @@ end_of_node:
                             // Not sure what this last_split_txtlen is about: may be to avoid spliting
                             // a word into multiple text nodes (when tlen > TEXT_SPLIT_SIZE), so splitting
                             // on spaces, \r and \n when giving the text to the callback?
-                            last_split_txtlen = ptr - buf;
+                            last_split_txtlen = ptr - buf + 1;
                             break;
                         } else if (ch == '\r' || ch == '\n') {
                             // Not sure what happens when \r\n at buffer boundary, and we would have \r at end
@@ -5836,7 +5836,8 @@ end_of_node:
                             if (ptr < buf + m_txt_buf.length() - 1)
                                 nextch = ptr[1];
                             if ((ch == '\r' && nextch != '\n') || (ch == '\n' && nextch != '\r')) {
-                                last_split_txtlen = ptr - buf;
+                                last_split_txtlen = ptr - buf + 1;
+                                break;
                             }
                         }
                     }
