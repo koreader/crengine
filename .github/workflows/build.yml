@@ -55,5 +55,13 @@ jobs:
         npm init --yes
         npm install stylelint stylelint-config-standard
 
+    - name: Setup problem matchers
+      run: |
+        set -x
+        echo '::remove-matcher owner=eslint-compact::'
+        echo '::remove-matcher owner=eslint-stylish::'
+        echo '::remove-matcher owner=tsc::'
+        echo '::add-matcher::.github/problem-matchers.json'
+
     - name: Lint
       run: ./utils/lint.sh 2>&1

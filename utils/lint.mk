@@ -152,17 +152,15 @@ endef
 ifneq (,$(GITHUB_ACTIONS))
 ci_startgroup := printf '::group::'
 ci_endgroup := printf '::endgroup::\n'
-ci_error = printf '%b\n::error::%s\n%b\n' '$(ANSI_RESET)' $1 '$(ANSI_RESET)'
 ci_time := time
 else
 ci_startgroup := :
 ci_endgroup := :
-ci_error := :
 ci_time =
 endif
 
 define warn_on_error
-if [ $1 -ne 0 ]; then $(call $(if $(GITHUB_ACTIONS),ci_error,trace_warn),$2); fi
+if [ $1 -ne 0 ]; then $(call trace_warn,$2); fi
 endef
 
 # `$(call lint_rule,prefix,file,command)`
