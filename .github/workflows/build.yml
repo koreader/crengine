@@ -36,7 +36,10 @@ jobs:
         sudo dpkg -i *.deb
 
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
+      with:
+          clean: false
+          show-progress: false
 
     - name: Lint
       run: ./utils/lint.sh
