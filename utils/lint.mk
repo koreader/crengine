@@ -1,5 +1,5 @@
 .ONESHELL:
-SHELL := bash
+export SHELL := bash
 .SHELLFLAGS := -eo pipefail -c
 
 # C/C++ files. {{{
@@ -143,10 +143,12 @@ ifneq (,$(GITHUB_ACTIONS))
 ci_startgroup := printf '::group::'
 ci_endgroup := printf '::endgroup::\n'
 ci_error = printf '%b\n::error::%s\n%b\n' '$(ANSI_RESET)' $1 '$(ANSI_RESET)'
+ci_time := time
 else
 ci_startgroup := :
 ci_endgroup := :
 ci_error := :
+ci_time =
 endif
 
 define warn_on_error
@@ -231,7 +233,7 @@ $(if $(CLICOLOR_FORCE),--use-color)
 endef
 
 define clang_tidy_rule
-$(call lint_rule,clang-tidy,$1,clang-tidy $(strip $(CLANG_TIDY_FLAGS) $1 -- $(if $(filter %.cpp,$1),--std=c++17) $(CPPFLAGS)))
+$(call lint_rule,clang-tidy,$1,$(ci_time) clang-tidy $(strip $(CLANG_TIDY_FLAGS) $1 -- $(if $(filter %.cpp,$1),--std=c++17) $(CPPFLAGS)))
 endef
 
 # }}}
@@ -259,7 +261,7 @@ define CPPCHECK_FLAGS+=
 endef
 
 define cppcheck_rule
-$(call lint_rule,cppcheck,$1,$(call fake_tty,cppcheck $(strip $(CPPCHECK_FLAGS) $(filter-out -pthread,$(CPPFLAGS))) $1))
+$(call lint_rule,cppcheck,$1,$(call fake_tty,$(ci_time) cppcheck $(strip $(CPPCHECK_FLAGS) $(filter-out -pthread,$(CPPFLAGS))) $1))
 endef
 
 # }}}
@@ -275,7 +277,7 @@ define check_languages.json
 	  return 1;
 	  fi
 	}
-	check
+	$(ci_time) check
 endef
 
 # }}}
@@ -283,7 +285,7 @@ endef
 # XmlLint. {{{
 
 define xmllint_rule
-$(call lint_rule,xmllint,$1,xmllint --output /dev/null $1)
+$(call lint_rule,xmllint,$1,$(ci_time) xmllint --output /dev/null $1)
 endef
 
 # }}}
