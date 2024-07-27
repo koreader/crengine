@@ -98,6 +98,16 @@ endef
 
 # }}}
 
+# CSS files. {{{
+
+define CSS_FILES
+cr3gui/data/epub.css
+cr3gui/data/html5.css
+cr3gui/data/fb2.css
+endef
+
+# }}}
+
 # Hyphenation patterns. {{{
 
 HYPH_DIR := cr3gui/data/hyph
@@ -282,6 +292,19 @@ endef
 
 # }}}
 
+# Stylelint. {{{
+
+define STYLELINT_FLAGS
+$(if $(CLICOLOR_FORCE),--color)
+--formatter=$(if $(GITHUB_ACTIONS),github,unix)
+endef
+
+define stylelint_rule
+$(call lint_rule,stylelint,$1,$(ci_time) npx stylelint $(strip $(STYLELINT_FLAGS) $1))
+endef
+
+# }}}
+
 # XmlLint. {{{
 
 define xmllint_rule
@@ -291,17 +314,20 @@ endef
 # }}}
 
 CPPFILES := $(filter %.c %.cpp,$(sort $(CPPFILES) $(filter-out cppcheck-% clang-tidy-%,$(MAKECMDGOALS))))
+CSS_FILES := $(filter %.css, $(sort $(CSS_FILES) $(filter-out stylelint-%,$(MAKECMDGOALS))))
 HYPH_PATTERNS := $(filter %.pattern,$(sort $(HYPH_PATTERNS) $(filter-out xmllint-%,$(MAKECMDGOALS))))
 
-lint: $(CPPFILES) $(HYPH_LANGUAGES) $(HYPH_PATTERNS)
+lint: $(CPPFILES) $(CSS_FILES) $(HYPH_LANGUAGES) $(HYPH_PATTERNS)
 
 cpp: $(CPPFILES)
 
 hyph: $(HYPH_LANGUAGES) $(HYPH_PATTERNS)
 
+style: $(CSS_FILES)
+
 # Avoid "Nothing to be done for '…'"
 # or "'…' is up to date messages".
-$(CPPFILES) $(HYPH_PATTERNS):
+$(CPPFILES) $(CSS_FILES) $(HYPH_PATTERNS):
 	@:
 
 .PHONY: $(HYPH_LANGUAGES)
@@ -309,6 +335,10 @@ $(CPPFILES) $(HYPH_PATTERNS):
 $(foreach f,$(CPPFILES),\
 	$(eval $(call clang_tidy_rule,$f))\
 	$(eval $(call cppcheck_rule,$f))\
+	)
+
+$(foreach f,$(CSS_FILES),\
+	$(eval $(call stylelint_rule,$f))\
 	)
 
 $(eval $(call lint_rule,check,$(HYPH_LANGUAGES),$(check_languages.json)))

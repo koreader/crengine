@@ -6,15 +6,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
   linux:
+
     name: Static linting
     runs-on: ubuntu-24.04
     env:
       CLICOLOR_FORCE: "1"
 
     steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+          clean: false
+          show-progress: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 'latest'
+        # No cache, there are complaints about lockfiles that we don't want otherwise. See <https://github.com/actions/setup-node/issues/928>.
+        # cache: 'npm'
+
     - name: Install prerequisites
       run: |
+        set -ex
         packages=(
           clang-tidy
           cppcheck
@@ -34,26 +51,9 @@ jobs:
         # We need a more recent version of libunibreak for `lb_get_char_class` support.
         wget http://ftp.debian.org/debian/pool/main/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
         sudo dpkg -i *.deb
-
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-          clean: false
-          show-progress: false
+        # Install stylelint.
+        npm init --yes
+        npm install stylelint stylelint-config-standard
 
     - name: Lint
       run: ./utils/lint.sh 2>&1
-
-    # NPM tests
-
-    - name: Uses Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 'latest'
-        # No cache, there are complaints about lockfiles that we don't want otherwise. See <https://github.com/actions/setup-node/issues/928>.
-        # cache: 'npm'
-
-    - run: npm init --yes && npm install stylelint stylelint-config-standard
-
-    - name: Check CSS syntax (only epub.css, html5.css and fb2.css)
-      run: npx stylelint cr3gui/data/epub.css cr3gui/data/html5.css cr3gui/data/fb2.css
