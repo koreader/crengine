@@ -4,19 +4,38 @@ on: [push, pull_request]
 jobs:
   linux:
     name: Static linting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      CLICOLOR_FORCE: "1"
 
     steps:
     - name: Install prerequisites
-      run: sudo apt-get update && sudo apt-get install clang-tidy cppcheck jq libxml2-utils
+      run: |
+        packages=(
+          clang-tidy
+          cppcheck
+          jq
+          libfreetype-dev
+          libfribidi-dev
+          libharfbuzz-dev
+          libjpeg-turbo8-dev
+          libnanosvg-dev
+          libstb-dev
+          libunibreak-dev
+          libutf8proc-dev
+          libxml2-utils
+          libzstd-dev
+        )
+        sudo apt-get update && sudo apt-get install --no-install-recommends "${packages[@]}"
+        # We need a more recent version of libunibreak for `lb_get_char_class` support.
+        wget http://ftp.debian.org/debian/pool/main/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
+        sudo dpkg -i *.deb
 
     - name: Checkout
       uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
 
     - name: Lint
-      run: .ci/script.sh
+      run: ./utils/lint.sh
 
     # NPM tests
 
