@@ -440,7 +440,7 @@ private:
             }
             lUInt32 have = UNPACK_BUF_SIZE - z.avail_out;
             uncompressed_buf = cr_realloc(uncompressed_buf, uncompressed_size + have);
-            memcpy(uncompressed_buf + uncompressed_size, tmp, have );
+            memcpy(uncompressed_buf + uncompressed_size, tmp, have ); // cppcheck-suppress uninitvar
             uncompressed_size += have;
             if (ret == Z_STREAM_END) {
                 break;
