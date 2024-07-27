@@ -434,6 +434,7 @@ public:
 template <typename keyT, class dataT> class LVCacheMap
 {
 private:
+    keyT empty_key;
     class Pair {
     public:
         keyT key;
@@ -469,7 +470,7 @@ public:
         return numitems;
     }
     LVCacheMap( int maxSize )
-    : size(maxSize), orig_size(maxSize), numitems(0), lastAccess(1)
+    : empty_key(), size(maxSize), orig_size(maxSize), numitems(0), lastAccess(1)
     {
         buf = new Pair[ size ];
         clear();
@@ -490,7 +491,7 @@ public:
     {
         for ( int i=0; i<size; i++ )
         {
-            buf[i].key = keyT();
+            buf[i].key = empty_key;
             buf[i].data = dataT();
             buf[i].lastAccess = 0;
         }
@@ -513,7 +514,7 @@ public:
     {
         for ( int i=0; i<size; i++ ) {
             if ( buf[i].key == key ) {
-                buf[i].key = keyT();
+                buf[i].key = empty_key;
                 buf[i].data = dataT();
                 buf[i].lastAccess = 0;
                 numitems--;
@@ -539,7 +540,7 @@ public:
             }
         }
         checkOverflow(oldestAccessTime);
-        if ( buf[oldestIndex].key==keyT() )
+        if ( buf[oldestIndex].key == empty_key )
             numitems++;
         buf[oldestIndex].key = key;
         buf[oldestIndex].data = data;
