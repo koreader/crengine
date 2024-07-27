@@ -42,7 +42,7 @@ jobs:
           show-progress: false
 
     - name: Lint
-      run: ./utils/lint.sh
+      run: ./utils/lint.sh 2>&1
 
     # NPM tests
 
