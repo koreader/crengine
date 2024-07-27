@@ -200,6 +200,7 @@ define CPPFLAGS+=
 -DUSE_LIBUNIBREAK=1
 -DUSE_NANOSVG=0
 -DUSE_UTF8PROC=1
+-DUSE_ZSTD=1
 endef
 # Antiword needs one of DEBUG or NDEBUG (and only one).
 define CPPFLAGS+=

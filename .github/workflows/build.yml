@@ -43,6 +43,7 @@ jobs:
           libunibreak-dev
           libutf8proc-dev
           libxml2-utils
+          libzstd-dev
         )
         sudo apt-get update && sudo apt-get install --no-install-recommends "${packages[@]}"
         # We need a more recent version of libunibreak for `lb_get_char_class` support.
