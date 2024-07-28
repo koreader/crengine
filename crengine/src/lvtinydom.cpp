@@ -2705,12 +2705,9 @@ bool tinyNodeCollection::loadNodeData(lUInt16 type, ldomNode ** list, int nodeco
             // buf contains `sz' ldomNode items
             // _elemList, _textList (as `list' argument) must always be TNC_PART_LEN size
             // add into `list' zero filled (TNC_PART_LEN - sz) items
-            list[i] = (ldomNode *)realloc(buf, TNC_PART_LEN * sizeof(ldomNode));
-            if (NULL == list[i]) {
-                free(buf);
-                CRLog::error("Not enough memory!");
+            list[i] = cr_realloc(buf, TNC_PART_LEN);
+            if (NULL == list[i])
                 return false;
-            }
             memset( list[i] + sz, 0, (TNC_PART_LEN - sz) * sizeof(ldomNode) );
         }
         for (int j=0; j<sz; j++) {
