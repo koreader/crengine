@@ -5528,12 +5528,9 @@ bool LVCssSelectorRule::checkInnerText( const ldomNode * & node ) const {
         {
             if (_type == cssrt_attrstarts_word_i)
                 val.lowercase();
-            int val_len = val.length();
-            int value_len = _value.length();
             int start = 0;
             int pos;
             while ((pos = val.pos(_value, start)) >= 0) {
-                bool start_ok = false;
                 if ( pos == 0 ) {
                     return true; // start_ok
                 }
