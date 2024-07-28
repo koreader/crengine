@@ -536,7 +536,7 @@ public:
                 embedded_float_t * flt = m_pbuffer->floats[i];
                 if (flt->to_position) // ignore not yet positioned floats
                     continue;
-                if (flt->y <= y && flt->y + flt->height > y) { // this float is spanning this y
+                if (flt->y <= y && flt->y + (int)flt->height > y) { // this float is spanning this y
                     if (flt->is_right) {
                         if (flt->x < fl_right_min_x)
                             fl_right_min_x = flt->x;
@@ -753,7 +753,7 @@ public:
                 embedded_float_t * flt = m_pbuffer->floats[i];
                 if (flt->to_position) // ignore not yet positioned floats (even if
                     continue;         // there shouldn't be any when this is called)
-                if (flt->y < m_y && flt->y + flt->height > m_y) {
+                if (flt->y < m_y && flt->y + (int)flt->height > m_y) {
                     has_ongoing_float = true;
                     break;
                 }
@@ -824,7 +824,7 @@ public:
             embedded_float_t * flt = m_pbuffer->floats[i];
             if (flt->to_position) // ignore not yet positioned floats, as they
                 continue;         // are not yet running past m_y
-            if (flt->y < m_y && flt->y + flt->height > m_y) {
+            if (flt->y < m_y && flt->y + (int)flt->height > m_y) {
                 m_has_ongoing_float = true;
                 break;
             }
@@ -862,7 +862,7 @@ public:
                     embedded_float_t * flt = m_pbuffer->floats[i];
                     if (flt->to_position) // ignore not yet positioned floats
                         continue;
-                    if (flt->y <= y && flt->y + flt->height > y) { // this float is spanning this y
+                    if (flt->y <= y && flt->y + (int)flt->height > y) { // this float is spanning this y
                         if (flt->is_right) {
                             if (flt->x < fl_right_min_x)
                                 fl_right_min_x = flt->x;
@@ -6407,7 +6407,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
         int top_overflow = fmt.getTopOverflow();
         int bottom_overflow = fmt.getBottomOverflow();
 
-        if (y + flt->y - top_overflow < clip.bottom && y + flt->y + flt->height + bottom_overflow > clip.top) {
+        if (y + flt->y - top_overflow < clip.bottom && y + flt->y + (int)flt->height + bottom_overflow > clip.top) {
             // DrawDocument() parameters (y0 + doc_y must be equal to our y,
             // doc_y just shift the viewport, so anything outside is not drawn).
             int x0 = x + flt->x;
