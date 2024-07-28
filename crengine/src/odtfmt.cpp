@@ -374,10 +374,10 @@ public:
         xml_ElementHandler(reader, writer, odt_el_NULL, odt_elements),
         m_footNotesWriter(doc), m_endNotesWriter(doc), m_saveWriter(NULL),
         m_context(context), m_footNotes(NULL), m_endNotes(NULL), m_body(NULL),
-        m_isEndNote(false), m_titleHandler(titleHandler),
-        m_outlineLevel(0), m_inTable(false), m_inListItem(false),
+        m_isEndNote(false), m_paragraphStarted(false),
         m_stylesHandler(reader, NULL, odt_el_automaticStyles, context),
-        m_listItemHadContent(false), m_paragraphStarted(false) {
+        m_titleHandler(titleHandler), m_outlineLevel(0), m_inTable(false),
+        m_inListItem(false), m_listItemHadContent(false) {
     }
     inline bool isInList() { return m_ListLevels.length() != 0; }
     ldomNode *handleTagOpen(int tagId);
