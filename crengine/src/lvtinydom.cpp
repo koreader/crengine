@@ -15733,8 +15733,6 @@ void ldomDocumentWriterFilter::OnAttribute( const lChar32 * nsname, const lChar3
         return;
     }
 
-    lUInt16 id = _currNode->_element->getNodeId();
-
     // Add the attribute
     lUInt16 attr_ns = (nsname && nsname[0]) ? _document->getNsNameIndex( nsname ) : 0;
     lUInt16 attr_id = (attrname && attrname[0]) ? _document->getAttrNameIndex( attrname ) : 0;
