@@ -1517,7 +1517,7 @@ bool CacheFile::ldomPack( const lUInt8 * buf, size_t bufsize, lUInt8 * &dstbuf, 
         }
         int have = PACK_BUF_SIZE - z.avail_out;
         compressed_buf = cr_realloc(compressed_buf, compressed_size + have);
-        memcpy(compressed_buf + compressed_size, tmp, have );
+        memcpy(compressed_buf + compressed_size, tmp, have ); // cppcheck-suppress uninitvar
         compressed_size += have;
         if (z.avail_out != 0) // buffer not fully filled = deflate is done
             break;
@@ -1559,7 +1559,7 @@ bool CacheFile::ldomUnpack( const lUInt8 * compbuf, size_t compsize, lUInt8 * &d
         }
         lUInt32 have = UNPACK_BUF_SIZE - z.avail_out;
         uncompressed_buf = cr_realloc(uncompressed_buf, uncompressed_size + have);
-        memcpy(uncompressed_buf + uncompressed_size, tmp, have );
+        memcpy(uncompressed_buf + uncompressed_size, tmp, have ); // cppcheck-suppress uninitvar
         uncompressed_size += have;
         if (ret == Z_STREAM_END) {
             break;
