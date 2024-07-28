@@ -10246,7 +10246,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // printf("Starting 2-steps drawing at %d %s\n", cfmt.getY(),
                     //      UnicodeToLocal(ldomXPointer(child, 0).toString()).c_str());
                     int overflow_y = cfmt.getY() + cfmt.getHeight() + cfmt.getBottomOverflow();
-                    int last_two_steps_drawn_node;
+                    int last_two_steps_drawn_node = i;
                     for (int j=i; j<cnt; j++) {
                         last_two_steps_drawn_node = j;
                         child = enode->getChildNode( j );
