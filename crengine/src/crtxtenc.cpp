@@ -2074,6 +2074,7 @@ void MakeStatsForFile( const char * fname, const char * cp_name, const char * la
    fseek( in, 0, SEEK_SET );
    unsigned char * buf = new unsigned char[buf_size];
    if ( (long)fread(buf, 1, buf_size, in) != buf_size ) {
+       delete [] buf;
        fclose(in);
        return;
    }
