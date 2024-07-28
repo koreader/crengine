@@ -1888,8 +1888,8 @@ protected:
     int level;
     bool malformed;
     lxmlDocBase * doc;
-    lChar32 stop_char;
-    lChar32 stop_char2;
+    char stop_char;
+    char stop_char2;
     AtRuleLogicalConditionParser(lxmlDocBase * d, char stopchar='{', char stopchar2=0)
     : doc(d), stop_char(stopchar), stop_char2(stopchar2) {
         malformed = false;
