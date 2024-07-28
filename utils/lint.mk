@@ -198,7 +198,7 @@ define CPPFLAGS+=
 -DUSE_FRIBIDI=1
 -DUSE_HARFBUZZ=1
 -DUSE_LIBUNIBREAK=1
--DUSE_NANOSVG=1
+-DUSE_NANOSVG=0
 -DUSE_UTF8PROC=1
 -DUSE_ZSTD=1
 endef
@@ -224,8 +224,6 @@ libutf8proc
 endef
 CPPFLAGS += $(shell echo 'pkg-config!' >>log; pkg-config --cflags $(strip $(PACKAGES)))
 define CPPFLAGS+=
--I/usr/include/nanosvg
--I/usr/include/stb
 -Ithirdparty/antiword
 -Ithirdparty/chmlib/src
 -Icrengine/include
