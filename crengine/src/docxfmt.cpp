@@ -1623,10 +1623,9 @@ bool ImportDocXDocument( LVStreamRef stream, ldomDocument * doc, LVDocViewCallba
 }
 
 docxImportContext::docxImportContext(OpcPackage *package, ldomDocument *doc) :
-    odx_ImportContext(doc), m_abstractNumbers(16),
-    m_Numbers(16), m_footNoteCount(0), m_endNoteCount(0),
-    m_inField(false), m_linkNode(NULL), m_pStyle(NULL),
-    m_package(package)
+    odx_ImportContext(doc), m_abstractNumbers(16), m_Numbers(16),
+    m_package(package), m_footNoteCount(0), m_endNoteCount(0),
+    m_inField(false), m_linkNode(NULL), m_pStyle(NULL)
 {
 }
 
