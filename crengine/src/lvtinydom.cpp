@@ -9650,7 +9650,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         // Ignore fake floats (no srctext) made from outer floats footprint
         if ( flt->srctext == NULL )
             continue;
-        if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + flt->height ) {
+        if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + (int)flt->height ) {
             // pt is inside this float.
             ldomNode * node = (ldomNode *) flt->srctext->object; // floatBox node
             ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
