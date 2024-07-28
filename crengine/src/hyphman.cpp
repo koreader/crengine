@@ -1359,7 +1359,7 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
     char mask[HYPHENATION_LENGTH];
     lvsize_t pos = 0; // pos in puffer
     while (pos < count ) {
-        int i;
+        unsigned i;
         for ( i = 0; i < WORD_LENGTH-1; ++i ) { // -1 because of trailing NULL
             if ( buf[pos] == ';' ) {
                 ++pos;
@@ -1450,7 +1450,7 @@ bool UserHyphDict::getMask(lChar32 *word, char *mask)
 lString32 UserHyphDict::getHyphenation(const char *word)
 {
     lString32 orig_word_str(word);
-    size_t orig_len = orig_word_str.length();
+    int orig_len = orig_word_str.length();
 
     // Given some combined words like stairway2heaven, we want to get the first potential part
     // as the candidate for hyphenation for a clearer layout, with smaller gaps.
