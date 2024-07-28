@@ -5614,7 +5614,7 @@ SerialBuf & SerialBuf::operator << ( const lString32 & s )
 	lString8 s8 = UnicodeToUtf8(s);
 	lUInt32 len = (lUInt32)s8.length();
 	(*this) << len;
-	for ( int i=0; i<len; i++ ) {
+	for ( unsigned i=0; i<len; i++ ) {
 		if ( check(1) )
 			return *this;
 		(*this) << (lUInt8)(s8[i]);
@@ -5627,7 +5627,7 @@ SerialBuf & SerialBuf::operator << ( const lString8 & s8 )
 		return *this;
 	lUInt32 len = (lUInt32)s8.length();
 	(*this) << len;
-	for ( int i=0; i<len; i++ ) {
+	for ( unsigned i=0; i<len; i++ ) {
 		if ( check(1) )
 			return *this;
 		(*this) << (lUInt8)(s8[i]);
@@ -5707,7 +5707,7 @@ SerialBuf & SerialBuf::operator >> ( lString8 & s8 )
 	(*this) >> len;
 	s8.clear();
 	s8.reserve(len);
-	for ( int i=0; i<len; i++ ) {
+	for ( unsigned i=0; i<len; i++ ) {
 		if ( check(1) )
 			return *this;
         lUInt8 c = 0;

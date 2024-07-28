@@ -47,4 +47,5 @@ endif(WIN32)
 
 ADD_LIBRARY(antiword STATIC ${ANTIWORD_SOURCES})
 
+target_compile_options(antiword PRIVATE -Wall)
 set_target_properties(antiword PROPERTIES C_VISIBILITY_PRESET hidden)

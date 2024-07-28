@@ -1606,9 +1606,11 @@ inline static lUInt32 BB(lUInt32 color) {
 	return color & 0xFF;
 }
 
+#if 0
 inline static lUInt32 RRGGBB(lUInt32 r, lUInt32 g, lUInt32 b) {
 	return ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
 }
+#endif
 
 inline static lUInt32 AARRGGBB(lUInt32 a, lUInt32 r, lUInt32 g, lUInt32 b) {
     return ((a & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);

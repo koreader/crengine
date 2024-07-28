@@ -196,7 +196,7 @@ tFiletime(ULONG ulOffset, const UCHAR *aucBuffer)
 	NO_DBG_FLT(dTmp);
 
 	/* Make a time_t */
-	if (dTmp - 0.5 < TIME_T_MIN || dTmp + 0.5 > TIME_T_MAX) {
+	if (dTmp - 0.5 < TIME_T_MIN || dTmp + 0.5 > (double)TIME_T_MAX) {
 		return (time_t)-1;
 	}
 	tResult = dTmp < 0.0 ? (time_t)(dTmp - 0.5) : (time_t)(dTmp + 0.5);
@@ -719,7 +719,7 @@ szGetAuthor(void)
 const char *
 szGetLastSaveDtm(void)
 {
-	static char	szTime[12];
+	static char	szTime[27];
 	struct tm	*pTime;
 
 	if (tLastSaveDtm == (time_t)-1) {
@@ -729,7 +729,7 @@ szGetLastSaveDtm(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "%04d-%02d-%02d",
+	snprintf(szTime, sizeof (szTime), "%04d-%02d-%02d",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday);
 	return szTime;
 } /* end of szGetLastSaveDtm */
@@ -740,7 +740,7 @@ szGetLastSaveDtm(void)
 const char *
 szGetModDate(void)
 {
-	static char	szTime[20];
+	static char	szTime[31];
 	struct tm	*pTime;
 
 	if (tLastSaveDtm == (time_t)-1) {
@@ -750,7 +750,7 @@ szGetModDate(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "D:%04d%02d%02d%02d%02d",
+	snprintf(szTime, sizeof (szTime), "D:%04d%02d%02d%02d%02d",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday,
 		pTime->tm_hour, pTime->tm_min);
 	return szTime;
@@ -762,7 +762,7 @@ szGetModDate(void)
 const char *
 szGetCreationDate(void)
 {
-	static char	szTime[20];
+	static char	szTime[31];
 	struct tm	*pTime;
 
 	if (tCreateDtm == (time_t)-1) {
@@ -772,7 +772,7 @@ szGetCreationDate(void)
 	if (pTime == NULL) {
 		return NULL;
 	}
-	sprintf(szTime, "D:%04d%02d%02d%02d%02d",
+	snprintf(szTime, sizeof (szTime), "D:%04d%02d%02d%02d%02d",
 		pTime->tm_year + 1900, pTime->tm_mon + 1, pTime->tm_mday,
 		pTime->tm_hour, pTime->tm_min);
 	return szTime;

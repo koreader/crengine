@@ -571,11 +571,11 @@ lString32 CRFileHistRecord::getLastTimeString( bool longFormat )
 
     time_t t = getLastTime();
     tm * bt = localtime(&t);
-    char str[20];
+    char str[33];
     if ( !longFormat )
-        sprintf(str, "%02d.%02d.%04d", bt->tm_mday, 1+bt->tm_mon, 1900+bt->tm_year );
+        snprintf(str, sizeof (str), "%02d.%02d.%04d", bt->tm_mday, 1+bt->tm_mon, 1900+bt->tm_year );
     else
-        sprintf(str, "%02d.%02d.%04d %02d:%02d", bt->tm_mday, 1+bt->tm_mon, 1900+bt->tm_year, bt->tm_hour, bt->tm_min);
+        snprintf(str, sizeof (str), "%02d.%02d.%04d %02d:%02d", bt->tm_mday, 1+bt->tm_mon, 1900+bt->tm_year, bt->tm_hour, bt->tm_min);
     return Utf8ToUnicode( lString8( str ) );
 }
 

@@ -130,10 +130,7 @@ public:
     /// copies range to beginning of array
     void trim( int pos, int count, int reserved )
     {
-#if defined(_DEBUG) && !defined(ANDROID)
-        if ( pos<0 || count<=0 || pos+count > _count )
-            throw;
-#endif
+        assert(pos >= 0 && count > 0 && pos+count <= _count);
         int i;
         int new_sz = count;
         if (new_sz < reserved)
@@ -154,10 +151,7 @@ public:
     /// removes several items from vector
     void erase( int pos, int count )
     {
-#if defined(_DEBUG) && !defined(ANDROID)
-        if ( pos<0 || count<=0 || pos+count > _count )
-            throw;
-#endif
+        assert(pos >= 0 && count > 0 && pos+count <= _count);
         int i;
         for (i=pos+count; i<_count; i++)
         {

@@ -939,7 +939,7 @@ bool LVPngImageSource::Decode( LVImageDecoderCallback * callback )
             png_set_packing(png_ptr);
 
         //if (color_type == PNG_COLOR_TYPE_RGB)
-            png_set_filler(png_ptr, 0, PNG_FILLER_AFTER);
+        png_set_filler(png_ptr, 0, PNG_FILLER_AFTER);
 
         //if (color_type == PNG_COLOR_TYPE_RGB_ALPHA)
         //    png_set_swap_alpha(png_ptr);

@@ -826,17 +826,17 @@ void dumpSection(ldomNode * elem) {
 LVTocItem * LVDocView::getToc() {
 	if (!m_doc)
 		return NULL;
-        // When just loaded from cache, TocItems are missing their _position
-        // properties (a XPointer object), but all other properties (_path,
-        // _page, _percent) are valid and enough to display TOC.
-        // Avoid calling updatePageNumbers() in that case (as it is expensive
-        // and would delay book opening when loaded from cache - it will be
-        // called when it is really needed: after next full rendering)
-        if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers(getVisiblePageNumberCount())) {
-            updatePageNumbers(m_doc->getToc());
-            m_doc->setCacheFileStale(true); // have cache saved with the updated TOC
-            m_doc->setTocFromCacheValid();  // consider it valid now that page numbers are updated
-        }
+	// When just loaded from cache, TocItems are missing their _position
+	// properties (a XPointer object), but all other properties (_path,
+	// _page, _percent) are valid and enough to display TOC.
+	// Avoid calling updatePageNumbers() in that case (as it is expensive
+	// and would delay book opening when loaded from cache - it will be
+	// called when it is really needed: after next full rendering)
+	if (!m_doc->isTocFromCacheValid() || !m_doc->getToc()->hasValidPageNumbers(getVisiblePageNumberCount())) {
+		updatePageNumbers(m_doc->getToc());
+		m_doc->setCacheFileStale(true); // have cache saved with the updated TOC
+		m_doc->setTocFromCacheValid();  // consider it valid now that page numbers are updated
+	}
 	return m_doc->getToc();
 }
 
@@ -1358,11 +1358,11 @@ int LVDocView::getPageHeaderHeight() {
 		return 0;
 	if (!getInfoFont())
 		return 0;
-        int h = getInfoFont()->getHeight();
-        int bh = m_batteryIcons.length()>0 ? m_batteryIcons[0]->GetHeight() * 11/10 + HEADER_MARGIN / 2 : 0;
-        if ( bh>h )
-            h = bh;
-        return h + HEADER_MARGIN;
+	int h = getInfoFont()->getHeight();
+	int bh = m_batteryIcons.length()>0 ? m_batteryIcons[0]->GetHeight() * 11/10 + HEADER_MARGIN / 2 : 0;
+	if ( bh>h )
+		h = bh;
+	return h + HEADER_MARGIN;
 }
 
 /// calculate page header rectangle
@@ -1752,7 +1752,7 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	bool leftPage = (!m_twoVisiblePagesAsOnePageNumber && getVisiblePageCount() == 2 && !(pageIndex & 1));
 	if (leftPage || !drawGauge)
 		percent = 10000;
-        int percent_pos = /*info.left + */percent * info.width() / 10000;
+	int percent_pos = /*info.left + */percent * info.width() / 10000;
 	//    int gh = 3; //drawGauge ? 3 : 1;
 	LVArray<int> & sbounds = getSectionBounds();
 	int gpos = info.bottom;

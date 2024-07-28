@@ -178,7 +178,7 @@ class UserHyphDict
 {
 private:
     static lString32 _filename;
-    static size_t _filesize;
+    static lvsize_t _filesize;
     static lUInt32 _hash_value; // for calculating rendering hashes
 
     static lUInt32 words_in_memory;

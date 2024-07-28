@@ -1050,7 +1050,7 @@ vGet6ChrInfo(FILE *pFile, ULONG ulStartBlock,
 	fail(aulBBD == NULL);
 
 	ulBeginCharInfo = ulGetLong(0xb8, aucHeader); /* fcPlcfbteChpx */
-	NO_DBG_HEX(lBeginCharInfo);
+	NO_DBG_HEX(ulBeginCharInfo);
 	tCharInfoLen = (size_t)ulGetLong(0xbc, aucHeader); /* lcbPlcfbteChpx */
 	NO_DBG_DEC(tCharInfoLen);
 	if (tCharInfoLen < 4) {

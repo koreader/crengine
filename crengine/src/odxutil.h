@@ -408,14 +408,9 @@ public:
     void setChildrenInfo(const struct item_def_t *tags);
     ldomNode * handleTagOpen(const lChar32 * nsname, const lChar32 * tagname);
     virtual ldomNode * handleTagOpen(int tagId);
-    void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue)
+    virtual void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue)
     {
-        CR_UNUSED(nsname);
-
-        handleAttribute(attrname, attrvalue);
-    }
-    virtual void handleAttribute(const lChar32 * attrname, const lChar32 * attrvalue) {
-        CR_UNUSED2(attrname, attrvalue);
+        CR_UNUSED3(nsname, attrname, attrvalue);
     }
     virtual void handleTagBody() {}
     virtual void handleText( const lChar32 * text, int len, lUInt32 flags ) {
