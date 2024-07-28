@@ -2292,7 +2292,7 @@ public:
     bool hbCalcCharWidth(struct LVCharPosInfo* posInfo, const struct LVCharTriplet& triplet, lChar32 def_char) {
         if (!posInfo)
             return false;
-        unsigned int segLen = 0;
+        int segLen = 0;
         int cluster;
         hb_buffer_clear_contents(_hb_buffer);
         if ( triplet.prevChar != 0 ) {
@@ -2309,10 +2309,10 @@ public:
         hb_buffer_set_content_type(_hb_buffer, HB_BUFFER_CONTENT_TYPE_UNICODE);
         hb_buffer_guess_segment_properties(_hb_buffer);
         hb_shape(_hb_font, _hb_buffer, _hb_features.ptr(), (unsigned int)_hb_features.length());
-        unsigned int glyph_count = hb_buffer_get_length(_hb_buffer);
+        int glyph_count = hb_buffer_get_length(_hb_buffer);
         if (segLen == glyph_count) {
-            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, &glyph_count);
-            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, &glyph_count);
+            hb_glyph_info_t *glyph_info = hb_buffer_get_glyph_infos(_hb_buffer, NULL);
+            hb_glyph_position_t *glyph_pos = hb_buffer_get_glyph_positions(_hb_buffer, NULL);
             // Ignore HB measurements when there is a single glyph not found,
             // as it may be found in a fallback font
             int codepoint_notfound_nb = 0;
@@ -2858,7 +2858,7 @@ public:
              *           even if they are separate glyphs, hb_buffer_set_cluster_level()
              *           allow selecting more fine-grained cluster handling.
              */
-            unsigned int glyph_count;
+            int glyph_count;
             hb_glyph_info_t* glyph_info = 0;
             hb_glyph_position_t* glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
@@ -2970,7 +2970,7 @@ public:
 
             #ifdef DEBUG_MEASURE_TEXT
                 printf("MTHB >>> measureText %x len %d is_rtl=%d [%s]\n", text, len, is_rtl, _faceName.c_str());
-                for (i = 0; i < (int)glyph_count; i++) {
+                for (i = 0; i < glyph_count; i++) {
                     char glyphname[32];
                     hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
                     printf("MTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
@@ -4095,7 +4095,7 @@ public:
         if ( y + text_height < clip.top || y >= clip.bottom )
             return 0;
 
-        unsigned int i;
+        int i;
         //lUInt16 prev_width = 0;
         lChar32 ch;
         // measure character widths
@@ -4106,7 +4106,7 @@ public:
         if (_kerningMode == KERNING_MODE_HARFBUZZ) {
             // See measureText() for more comments on how to work with Harfbuzz,
             // as we do and must work the same way here.
-            unsigned int glyph_count;
+            int glyph_count;
             hb_glyph_info_t *glyph_info = 0;
             hb_glyph_position_t *glyph_pos = 0;
             hb_buffer_clear_contents(_hb_buffer);
@@ -4182,7 +4182,7 @@ public:
 
             #ifdef DEBUG_DRAW_TEXT
                 printf("DTHB >>> drawTextString %x len %d is_rtl=%d [%s]\n", text, len, is_rtl, _faceName.c_str());
-                for (i = 0; i < (int)glyph_count; i++) {
+                for (i = 0; i < glyph_count; i++) {
                     char glyphname[32];
                     hb_font_get_glyph_name(_hb_font, glyph_info[i].codepoint, glyphname, sizeof(glyphname));
                     printf("DTHB g%d c%d(=t:%x) [%x %s]\tadvance=(%d,%d)", i, glyph_info[i].cluster,
@@ -4480,7 +4480,7 @@ public:
             struct LVCharPosInfo posInfo;
             triplet.Char = 0;
             bool is_rtl = (flags & LFNT_HINT_DIRECTION_KNOWN) && (flags & LFNT_HINT_DIRECTION_IS_RTL);
-            for ( i=0; i<=(unsigned int)len; i++) {
+            for ( i=0; i<=len; i++) {
                 if ( i==len && !addHyphen )
                     break;
                 if ( i<len ) {
@@ -4498,7 +4498,7 @@ public:
                 if ( svg_collector ) {
                     triplet.prevChar = triplet.Char;
                     triplet.Char = ch;
-                    if (i < (unsigned int)(len - 1))
+                    if (i < len - 1)
                         triplet.nextChar = is_rtl ? text[len-1-i-1] : text[i + 1];
                     else
                         triplet.nextChar = 0;
@@ -4518,7 +4518,7 @@ public:
                 if ( (item && !isHyphen) || i==len ) { // only draw soft hyphens at end of string
                     triplet.prevChar = triplet.Char;
                     triplet.Char = ch;
-                    if (i < (unsigned int)(len - 1))
+                    if (i < len - 1)
                         triplet.nextChar = is_rtl ? text[len-1-i-1] : text[i + 1];
                     else
                         triplet.nextChar = 0;
@@ -4602,7 +4602,7 @@ public:
         int use_kerning = _kerningMode != KERNING_MODE_DISABLED && FT_HAS_KERNING( _face );
         #endif
         bool is_rtl = (flags & LFNT_HINT_DIRECTION_KNOWN) && (flags & LFNT_HINT_DIRECTION_IS_RTL);
-        for ( i=0; i<=(unsigned int)len; i++) {
+        for ( i=0; i<=len; i++) {
             if ( i==len && !addHyphen )
                 break;
             if ( i<len ) {
@@ -4869,8 +4869,8 @@ public:
         FT_Bitmap * bitmap = &_slot->bitmap;
 
         // Position the resulting bitmap in the targeted area (and center the rounding errors)
-        int pad_x = pad_left + (target_w > bitmap->width ? (target_w - bitmap->width)/2 : 0);
-        int pad_y = pad_top_bottom + (target_h > bitmap->rows ? (target_h - bitmap->rows)/2 : 0);
+        int pad_x = pad_left + (target_w > (int)bitmap->width ? (target_w - bitmap->width)/2 : 0);
+        int pad_y = pad_top_bottom + (target_h > (int)bitmap->rows ? (target_h - bitmap->rows)/2 : 0);
 
         // This felt needed at some point to draw tall stretchy glyphs, but seems no longer needed
         // buf->setHidePartialGlyphs(false);
