@@ -225,7 +225,7 @@ libjpeg
 libunibreak
 libutf8proc
 endef
-CPPFLAGS += $(shell echo 'pkg-config!' >>log; pkg-config --cflags $(strip $(PACKAGES)))
+CPPFLAGS += $(shell pkg-config --cflags $(strip $(PACKAGES)))
 define CPPFLAGS+=
 -Ithirdparty/antiword
 -Ithirdparty/chmlib/src
