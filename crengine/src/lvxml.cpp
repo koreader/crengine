@@ -5737,7 +5737,7 @@ bool LVXMLParser::ReadText()
         const lChar32 *begin = m_read_buffer + m_read_buffer_pos;
         const lChar32 *ptr = begin;
         const lChar32 *end = m_read_buffer + m_read_buffer_len;
-        const lChar32 *limit = m_read_buffer + (TEXT_SPLIT_SIZE + 1 - tlen);
+        const lChar32 *limit = m_read_buffer + (TEXT_SPLIT_SIZE - tlen);
         if (limit > end)
             limit = end;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
@@ -5811,13 +5811,13 @@ end_of_node:
             m_txt_buf.append( m_read_buffer + m_read_buffer_pos, ptr - begin);
             m_read_buffer_pos = ptr - m_read_buffer;
         }
-        if ( tlen > TEXT_SPLIT_SIZE || flgBreak || splitParas) {
+        if ( tlen >= TEXT_SPLIT_SIZE || flgBreak || splitParas) {
             //=====================================================
             // Provide accumulated text to callback
             lChar32 * buf = m_txt_buf.modify();
 
             int last_split_txtlen = tlen;
-            if (tlen > TEXT_SPLIT_SIZE) {
+            if (tlen >= TEXT_SPLIT_SIZE) {
                 for (const lChar32 *ptr = buf + m_txt_buf.length() - 1; ptr >= buf; --ptr) {
                     lChar32 ch = *ptr;
                     if (ch <= ' ') [[unlikely]] {
