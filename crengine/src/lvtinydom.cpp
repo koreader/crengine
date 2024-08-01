@@ -426,6 +426,7 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     return hash;
 }
 
+#if 0
 static void dumpRendMethods( ldomNode * node, lString32 prefix )
 {
     lString32 name = prefix;
@@ -438,6 +439,7 @@ static void dumpRendMethods( ldomNode * node, lString32 prefix )
         dumpRendMethods( node->getChildNode(i), prefix + "   ");
     }
 }
+#endif
 
 
 
