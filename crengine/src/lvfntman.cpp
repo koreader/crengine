@@ -797,7 +797,7 @@ public:
     {
         int base_weight = bold ? 700 : 400;
         LVFontDef * best_def = NULL;
-        int best_delta;
+        int best_delta = INT_MAX;
         for ( int i=0; i<_registered_list.length(); i++ ) {
             if (_registered_list[i]->getDef()->getDocumentId() == -1) {
                 LVFontDef * fdef = _registered_list[i]->getDef();
