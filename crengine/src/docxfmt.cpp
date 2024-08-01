@@ -215,10 +215,6 @@ const struct item_def_t footnotes_elements[] = {
     DOCX_LAST_ITEM
 };
 
-const struct item_def_t no_elements[] = {
-    DOCX_LAST_ITEM
-};
-
 const struct item_def_t jc_attr_values[] = {
     { css_ta_left, U"left"},
     { css_ta_right, U"right" },
