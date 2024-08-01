@@ -3025,7 +3025,7 @@ public:
     bool hasMetBaseTag() { return baseTagMet; }
     void setFragmentType( lString32 fragment_type=lString32::empty_str ) { fragmentType = fragment_type; }
 
-    virtual void setCodeBase( lString32 filePath );
+    void setCodeBase( lString32 filePath );
     /// returns flags
     virtual lUInt32 getFlags() { return parent->getFlags(); }
     /// sets flags
