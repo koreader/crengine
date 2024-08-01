@@ -392,8 +392,8 @@ protected:
 protected:
     xml_ElementHandler(docXMLreader * reader, ldomDocumentWriter *writer,
                        int element, const struct item_def_t *children) :
-        m_reader(reader), m_writer(writer), m_children(children), m_element(element),
-        m_state(element)
+        m_reader(reader), m_writer(writer), m_savedHandler(NULL),
+        m_children(children), m_element(element), m_state(element)
     {
     }
     virtual ~xml_ElementHandler() {}
