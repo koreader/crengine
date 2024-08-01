@@ -205,9 +205,9 @@ define CPPFLAGS+=
 -DUSE_UTF8PROC=1
 -DUSE_ZSTD=1
 endef
-# Antiword needs one of DEBUG or NDEBUG (and only one).
+# Check release build.
 define CPPFLAGS+=
--DDEBUG
+-DNDEBUG
 endef
 # Platform flags.
 define CPPFLAGS+=
