@@ -7096,8 +7096,8 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
     for (;*str;) {
         // new section
         bool match = false;
-        const char * start;
-        const char * end;
+        const char * start = NULL;
+        const char * end = NULL;
         bool err = false;
         for (;*str;) {
             if ( !match ) {
