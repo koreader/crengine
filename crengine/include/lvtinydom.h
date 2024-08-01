@@ -2689,6 +2689,7 @@ public:
             ignore_font_names = !_fontFamilyFonts[0].empty(); // [0] holds this boolean option (false if empty, true if not)
             return _fontFamilyFonts[idx];
         }
+        ignore_font_names = false;
         return lString8::empty_str;
     }
 
