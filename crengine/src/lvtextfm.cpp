@@ -5822,6 +5822,10 @@ static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode *
             case 1: border_style = style->border_style_right;  break;
             case 2: border_style = style->border_style_bottom; break;
             case 3: border_style = style->border_style_left;   break;
+            default:
+                    assert(0);
+                    border_style = css_border_none;
+                    break;
         }
         int dot, interval;
         switch (border_style){
