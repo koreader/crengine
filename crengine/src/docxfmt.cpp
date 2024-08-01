@@ -632,8 +632,8 @@ public:
     /// constructor
     docx_styleHandler(docXMLreader * reader, ldomDocumentWriter *writer, docxImportContext *context) :
         docx_ElementHandler(reader, writer, context, docx_el_style, style_elements),
-        m_pPrHandler(reader, writer, context),
-        m_rPrHandler(reader, writer, context)
+        m_pPrHandler(reader, writer, context), m_rPrHandler(reader, writer, context),
+        m_style(NULL)
     {
     }
     ldomNode * handleTagOpen(int tagId);
@@ -673,7 +673,7 @@ public:
     /// constructor
     docx_lvlHandler(docXMLreader * reader, ldomDocumentWriter *writer, docxImportContext *context) :
         docx_ElementHandler(reader, writer, context, docx_el_lvl, lvl_elements),
-        m_pPrHandler(reader, writer, context),
+        m_lvl(NULL), m_pPrHandler(reader, writer, context),
         m_rPrHandler(reader, writer, context)
     {
     }
