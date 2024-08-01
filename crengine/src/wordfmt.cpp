@@ -268,7 +268,7 @@ vMove2NextLine(diagram_type *pDiag, drawfile_fontref tFontRef,
 {
     TRACE("antiword::vMove2NextLine()");
     LFAIL(pDiag == NULL);
-    LFAIL(pDiag->pOutFile == NULL);
+    LFAIL(pDiag->pOutFile == NULL); // NOLINT(clang-analyzer-core.NullDereference)
     LFAIL(usFontSize < MIN_FONT_SIZE || usFontSize > MAX_FONT_SIZE);
 
     if ( (inside_p || inside_li) && !last_space_char )
@@ -416,7 +416,7 @@ vEndOfParagraph(diagram_type *pDiag,
 {
     TRACE("antiword::vEndOfParagraph()");
     LFAIL(pDiag == NULL);
-    LFAIL(pDiag->pOutFile == NULL);
+    LFAIL(pDiag->pOutFile == NULL); // NOLINT(clang-analyzer-core.NullDereference)
     LFAIL(usFontSize < MIN_FONT_SIZE || usFontSize > MAX_FONT_SIZE);
     LFAIL(lAfterIndentation < 0);
     //vEndOfParagraphXML(pDiag, 1);
