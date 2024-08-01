@@ -2918,7 +2918,7 @@ public:
                     hb_flags |= HB_BUFFER_FLAG_BOT;
                 if ( hints & LFNT_HINT_ENDS_PARAGRAPH )
                     hb_flags |= HB_BUFFER_FLAG_EOT;
-                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
             }
             if ( lang_cfg ) {
                 hb_buffer_set_language(_hb_buffer, lang_cfg->getHBLanguage());
@@ -4142,7 +4142,7 @@ public:
                     hb_flags |= HB_BUFFER_FLAG_BOT;
                 if ( flags & LFNT_HINT_ENDS_PARAGRAPH )
                     hb_flags |= HB_BUFFER_FLAG_EOT;
-                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags);
+                hb_buffer_set_flags(_hb_buffer, (hb_buffer_flags_t)hb_flags); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
             }
             if ( lang_cfg ) {
                 hb_buffer_set_language(_hb_buffer, lang_cfg->getHBLanguage());
