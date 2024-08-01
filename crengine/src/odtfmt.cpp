@@ -304,7 +304,8 @@ public:
     odt_stylesHandler(docXMLreader * reader, ldomDocumentWriter *writer, int element,
                       odtImportContext *context) :
         xml_ElementHandler(reader, writer, element, odt_style_elements),
-            m_style(NULL), m_ListStyle(NULL), m_pPr(NULL), m_rPr(NULL), m_context(context)
+        m_style(NULL), m_ListStyle(NULL), m_ListLevelStyle(NULL),
+        m_pPr(NULL), m_rPr(NULL), m_context(context)
     {
     }
     ldomNode * handleTagOpen(int tagId);
