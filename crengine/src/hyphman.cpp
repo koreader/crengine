@@ -1478,8 +1478,8 @@ lString32 UserHyphDict::getHyphenation(const char *word)
 
     lString32 word_str(orig_word_str.c_str() + start, end - start);
     size_t len = word_str.length();
-    lUInt16 widths[len+2];
-    lUInt8 flags[len+2];
+    lUInt16 widths[len+2]; // NOLINT(clang-diagnostic-vla-cxx-extension)
+    lUInt8 flags[len+2]; // NOLINT(clang-diagnostic-vla-cxx-extension)
 
     for ( size_t i = 0; i < len; ++i ) {
         widths[i] = 0;
