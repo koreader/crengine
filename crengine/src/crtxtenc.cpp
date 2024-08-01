@@ -1913,11 +1913,11 @@ int AutodetectCodePageUtf( const unsigned char * buf, int buf_size, char * cp_na
 {
     const char *encoding = SniffBOM(buf, buf_size);
     if (encoding) {
-        strcpy(cp_name, encoding);     // NOLINT
+        strcpy(cp_name, encoding); // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
         return 1;
     }
     if ( isValidUtf8Data( buf, buf_size ) ) {
-        strcpy( cp_name, "utf-8" );    // NOLINT
+        strcpy( cp_name, "utf-8" ); // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
         return 1;
     }
    return 0;
@@ -2035,7 +2035,7 @@ int AutodetectCodePage(const unsigned char * buf, int buf_size, char * cp_name, 
 		   bestq = q;
 	   }
    }
-   strcpy(cp_name, cp_stat_table[bestn].cp_name);     // NOLINT: strcpy is fine, all strings are len < 32
+   strcpy(cp_name, cp_stat_table[bestn].cp_name); // NOLINT(clang-analyzer-security.insecureAPI.strcpy)
    CRLog::debug("Detected codepage:%s index:%d %s", cp_name, bestn, skipHtml ? "(skipHtml)" : "");
    if (skipHtml) {
        if (detectXmlHtmlEncoding(buf, buf_size, cp_name)) {
