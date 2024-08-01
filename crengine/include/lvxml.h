@@ -36,6 +36,7 @@ class LVXMLParserCallback
 {
 protected:
     LVFileFormatParser * _parser;
+    LVXMLParserCallback() : _parser(NULL) {}
 public:
     /// returns flags
     virtual lUInt32 getFlags() { return 0; }

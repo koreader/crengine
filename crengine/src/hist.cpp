@@ -21,7 +21,6 @@ void CRFileHist::clear()
 class CRHistoryFileParserCallback : public LVXMLParserCallback
 {
 protected:
-	LVFileFormatParser * _parser;
     CRFileHist *  _hist;
     CRBookmark * _curr_bookmark;
     CRFileHistRecord * _curr_file;

@@ -664,7 +664,7 @@ protected:
 public:
     HyphPatternReader(lString32Collection & result) : insidePatternTag(false), data(result)
     {
-        result.clear(); // NOLINT: 1 uninitialized field at the end of the constructor call (?!)
+        result.clear();
     }
     /// called on parsing end
     virtual void OnStop() { }

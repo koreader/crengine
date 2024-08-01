@@ -6544,7 +6544,6 @@ lverror_t LVBase64Stream::Read(void* buf, lvsize_t size, lvsize_t* pBytesRead)
 class FB2CoverpageParserCallback : public LVXMLParserCallback
 {
 protected:
-    LVFileFormatParser * _parser;
     bool insideFictionBook;
     bool insideDescription;
     bool insideTitleInfo;
