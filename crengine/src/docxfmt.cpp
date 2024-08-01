@@ -443,6 +443,7 @@ public:
     }
     ldomNode * handleTagOpen(int tagId);
     void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue);
+    void start() { docx_ElementHandler::start(); };
     void start(odx_rPr *rPr);
     void reset();
 };
@@ -502,6 +503,7 @@ public:
     ldomNode * handleTagOpen(int tagId);
     void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue);
     void handleTagClose( const lChar32 * nsname, const lChar32 * tagname );
+    void start() { docx_ElementHandler::start(); };
     void start(odx_pPr *pPr);
     void reset();
 };
@@ -686,9 +688,12 @@ public:
         m_rPrHandler(reader, writer, context)
     {
     }
+    void start() {
+        docx_ElementHandler::start();
+    }
     void start(docxNumLevel* level) {
         m_lvl = level;
-        docx_ElementHandler::start();
+        start();
     }
     void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue);
     ldomNode * handleTagOpen(int tagId);
@@ -926,7 +931,7 @@ void docx_rPrHandler::reset()
 void docx_rPrHandler::start(odx_rPr * const rPr)
 {
     m_rPr = rPr;
-    docx_ElementHandler::start();
+    start();
 }
 
 void docx_rHandler::handleInstruction(lString32 &instruction, lString32 parameters)
