@@ -1729,7 +1729,7 @@ public:
                             int count = txform->GetLineCount();
                             for (int i=0; i<count; i++) {
                                 const formatted_line_t * line = txform->GetLineInfo(i);
-                                int link_insert_pos; // used if is_single_column
+                                int link_insert_pos = -1; // used if is_single_column, -1 for append
                                 if ( is_single_column ) {
                                     int line_flags = 0;
                                     // Honor widows and orphans
@@ -1751,8 +1751,6 @@ public:
                                         continue;
                                     if ( line->flags & LTEXT_LINE_PARA_IS_RTL )
                                         link_insert_pos = row->single_col_context->getCurrentLinksCount();
-                                    else
-                                        link_insert_pos = -1; // append
                                 }
                                 for ( int w=0; w<line->word_count; w++ ) { // check link start flag for every word
                                     if ( line->words[w].flags & LTEXT_WORD_IS_LINK_START ) {
