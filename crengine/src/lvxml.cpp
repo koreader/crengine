@@ -1218,6 +1218,31 @@ lChar32 getSingleLineChar( const lString32 & s) {
 #define MAX_BUF_LINES  200
 #define MIN_MULTILINE_PARA_WIDTH 45
 
+typedef enum {
+    tftNone = 0,
+    tftParaPerLine = 1,
+    tftParaIdents  = 2,
+    tftEmptyLineDelimPara = 4,
+    tftCenteredHeaders = 8,
+    tftEmptyLineDelimHeaders = 16,
+    tftFormatted = 32, // text lines are wrapped and formatted
+    tftJustified = 64, // right bound is justified
+    tftDoubleEmptyLineBeforeHeaders = 128,
+    tftPreFormatted = 256,
+    tftPML = 512 // Palm Markup Language
+} formatFlags_t;
+
+inline constexpr formatFlags_t operator | (formatFlags_t a, formatFlags_t b)
+{
+    return static_cast<formatFlags_t>(static_cast<unsigned>(a) | static_cast<unsigned>(b)); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+}
+
+inline formatFlags_t operator |= (formatFlags_t a, formatFlags_t b)
+{
+    a = a | b;
+    return a;
+}
+
 class LVTextLineQueue : public LVPtrVector<LVTextFileLine>
 {
 private:
@@ -1228,7 +1253,7 @@ private:
     lString32 bookAuthors;
     lString32 seriesName;
     lString32 seriesNumber;
-    int formatFlags;
+    formatFlags_t formatFlags;
     int min_left;
     int max_right;
     int avg_left;
@@ -1241,19 +1266,6 @@ private:
     int max_left_stats_pos;
     int max_left_second_stats_pos;
     int max_right_stats_pos;
-
-    enum {
-        tftParaPerLine = 1,
-        tftParaIdents  = 2,
-        tftEmptyLineDelimPara = 4,
-        tftCenteredHeaders = 8,
-        tftEmptyLineDelimHeaders = 16,
-        tftFormatted = 32, // text lines are wrapped and formatted
-        tftJustified = 64, // right bound is justified
-        tftDoubleEmptyLineBeforeHeaders = 128,
-        tftPreFormatted = 256,
-        tftPML = 512 // Palm Markup Language
-    } formatFlags_t;
 public:
     LVTextLineQueue( LVTextFileBase * f, int maxLineLen )
     : file(f), first_line_index(0), maxLineSize(maxLineLen), lastParaWasTitle(false), inSubSection(false)
@@ -1356,7 +1368,7 @@ public:
         formatFlags = tftParaPerLine | tftEmptyLineDelimHeaders; // default format
         if ( length()<10 )
             return;
-        formatFlags = 0;
+        formatFlags = tftNone;
         avg_center = 0;
         int empty_lines = 0;
         int ident_lines = 0;
@@ -1496,7 +1508,7 @@ public:
             //tftDoubleEmptyLineBeforeHeaders
             return;
         }
-        formatFlags = 0;
+        formatFlags = tftNone;
         int ident_lines_percent = ident_lines * 100 / non_empty_lines;
         int center_lines_percent = center_lines * 100 / non_empty_lines;
         int empty_lines_percent = empty_lines * 100 / length();
