@@ -1819,7 +1819,7 @@ public:
                 return;
             //if ( updateStack )
             //if ( !line.empty() )
-                postText();
+            postText();
             for ( int i=styleTags.length()-1; i>=pos; i-- ) {
                 const lChar32 * tag = getStyleTagName(styleTags[i]);
                 if ( updateStack )
