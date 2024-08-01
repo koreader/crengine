@@ -308,7 +308,7 @@ public:
     {
     }
     ldomNode * handleTagOpen(int tagId);
-    void handleAttribute(const lChar32 * attrname, const lChar32 * attrvalue);
+    void handleAttribute(const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue);
     void handleTagClose( const lChar32 * nsname, const lChar32 * tagname );
 };
 
@@ -381,7 +381,7 @@ public:
     }
     inline bool isInList() { return m_ListLevels.length() != 0; }
     ldomNode *handleTagOpen(int tagId);
-    void handleAttribute(const lChar32 *attrname, const lChar32 *attrValue);
+    void handleAttribute(const lChar32 * nsname, const lChar32 *attrname, const lChar32 *attrValue);
     void handleTagBody();
     void handleTagClose(const lChar32 *nsname, const lChar32 *tagname);
     void handleText(const lChar32 *text, int len, lUInt32 flags);
@@ -615,7 +615,7 @@ ldomNode *odt_documentHandler::handleTagOpen(int tagId)
     return NULL;
 }
 
-void odt_documentHandler::handleAttribute(const lChar32 *attrname, const lChar32 *attrValue)
+void odt_documentHandler::handleAttribute(const lChar32 * nsname, const lChar32 *attrname, const lChar32 *attrValue)
 {
     switch (m_state) {
     case odt_el_bookmark:
@@ -890,7 +890,7 @@ ldomNode *odt_stylesHandler::handleTagOpen(int tagId)
     return NULL;
 }
 
-void odt_stylesHandler::handleAttribute(const lChar32 *attrname, const lChar32 *attrvalue)
+void odt_stylesHandler::handleAttribute(const lChar32 * nsname, const lChar32 *attrname, const lChar32 *attrvalue)
 {
     switch(m_state) {
     case odt_el_style:
