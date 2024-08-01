@@ -1654,7 +1654,7 @@ public:
         if (c1==' ' && c2==' ')
             return;
         total++;
-        if ( stats[c1]==NULL ) {
+        if ( stats[c1]==NULL ) { // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
             stats[c1] = new lUInt16[256]();
         }
         if ( stats[c1][c2]++ == 0)
