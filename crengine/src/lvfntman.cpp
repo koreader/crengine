@@ -2019,132 +2019,22 @@ public:
     // Used when an embedded font (registered by RegisterDocumentFont()) is intantiated
     bool loadFromBuffer(LVByteArrayRef buf, int index, int size, css_font_family_t fontFamily,
                                             bool monochrome, bool italicize, int weight=-1, int face_size=-1 ) {
-        FONT_GUARD
-        _hintingMode = fontMan->GetHintingMode();
-        _drawMonochrome = monochrome;
-        _fontFamily = fontFamily;
-        if (_face)
-            FT_Done_Face(_face);
+        FONT_GUARD;
+        Clear();
         FT_Error error = FT_New_Memory_Face( _library, buf->get(), buf->length(), index, &_face ); /* create face object */
         if (error != FT_Err_Ok) {
             ft_error_trace(__func__, "FT_New_Memory_Face", error);
             return false;
         }
-        if ( _fileName.endsWith(".pfb") || _fileName.endsWith(".pfa") ) {
-            lString8 kernFile = _fileName.substr(0, _fileName.length()-4);
-            if ( LVFileExists(Utf8ToUnicode(kernFile) + ".afm" ) ) {
-                kernFile += ".afm";
-            }
-            else if ( LVFileExists(Utf8ToUnicode(kernFile) + ".pfm" ) ) {
-                kernFile += ".pfm";
-            }
-            else {
-                kernFile.clear();
-            }
-            if ( !kernFile.empty() )
-                error = FT_Attach_File( _face, kernFile.c_str() );
-        }
-        //FT_Face_SetUnpatentedHinting( _face, 1 );
-        _slot = _face->glyph;
-        _faceName = familyName(_face);
-        _face_size = face_size > 0 ? face_size : size;
-        CRLog::debug("Loaded font %s [%d]: faceName=%s, ", _fileName.c_str(), index, _faceName.c_str() );
-        //if ( !FT_IS_SCALABLE( _face ) ) {
-        //    Clear();
-        //    return false;
-        //}
-        error = FT_Set_Pixel_Sizes(
-            _face,    /* handle to face object */
-            0,        /* pixel_width           */
-            _face_size );   /* pixel_height          */
-
-        #if USE_HARFBUZZ==1
-        if (FT_Err_Ok == error) {
-            if (_hb_font)
-                hb_font_destroy(_hb_font);
-            _hb_font = hb_ft_font_create(_face, NULL);
-            if (!_hb_font) {
-                error = FT_Err_Invalid_Argument;
-            }
-            else {
-                // Use the same load flags as we do when using FT directly, to avoid mismatching advances & raster
-                int flags = FT_LOAD_DEFAULT;
-                flags |= (!_drawMonochrome ? FT_LOAD_TARGET_LIGHT : FT_LOAD_TARGET_MONO);
-                if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
-                    flags |= FT_LOAD_NO_AUTOHINT;
-                }
-                else if (_hintingMode == HINTING_MODE_AUTOHINT) {
-                    flags |= FT_LOAD_FORCE_AUTOHINT;
-                }
-                else if (_hintingMode == HINTING_MODE_DISABLED) {
-                    flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
-                }
-                hb_ft_font_set_load_flags(_hb_font, flags);
-            }
-        }
-        #endif
-
-        if (error) {
-            Clear();
-            return false;
-        }
-
-        #if 0
-        int nheight = _face->size->metrics.height;
-        int targetheight = size << 6;
-        error = FT_Set_Pixel_Sizes(
-            _face,    /* handle to face object */
-            0,        /* pixel_width           */
-            (size * targetheight + nheight/2)/ nheight );  /* pixel_height */
-        #endif
-
-        _height = FONT_METRIC_TO_PX( _face->size->metrics.height );
-        _size = size; //(_face->size->metrics.height >> 6);
-        _baseline = _height + FONT_METRIC_TO_PX( _face->size->metrics.descender );
-        _weight = weight > 0 ? weight : getFontWeight(_face);
-        _italic = _face->style_flags & FT_STYLE_FLAG_ITALIC ? 1 : 0;
-        updateUnderlineMetrics();
-
-        if ( !error && italicize && !_italic ) {
-            _italic = 2;
-            // We'll use FT_GlyphSlot_Oblique(), with this additional
-            // matrix to fix up fake italic glyph metrics.
-            // We must use the same matrix values as FT_GlyphSlot_Oblique()
-            // (see freetype2/src/base/ftsynth.c)
-            _matrix.xx = 0x10000L;
-            _matrix.yx = 0x00000L;
-            _matrix.xy = 0x0366AL;
-            _matrix.yy = 0x10000L;
-        }
-
-        if ( error ) {
-            return false;
-        }
-
-        // If no unicode charmap, select any symbol charmap.
-        // This is needed with Harfbuzz shaping (with Freetype, we switch charmap
-        // when needed). It might not be needed with a Harfbuzz newer than 2.6.1
-        // that will include https://github.com/harfbuzz/harfbuzz/pull/1948.
-        if (FT_Select_Charmap(_face, FT_ENCODING_UNICODE)) // non-zero means failure
-            // If no unicode charmap found, try symbol charmap
-            FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL);
-
-        return true;
+        return setupFace(index, size, fontFamily, monochrome, italicize, weight, face_size);
     }
 
     // Load font from file path
     bool loadFromFile( const char * fname, int index, int size, css_font_family_t fontFamily,
                                            bool monochrome, bool italicize, int weight=-1, int face_size=-1 ) {
-        FONT_GUARD
-        _hintingMode = fontMan->GetHintingMode();
-        _drawMonochrome = monochrome;
-        _fontFamily = fontFamily;
-        if ( fname )
-            _fileName = fname;
-        if ( _fileName.empty() )
-            return false;
-        if (_face)
-            FT_Done_Face(_face);
+        FONT_GUARD;
+        Clear();
+        _fileName = fname;
         FT_Error error = FT_New_Face( _library, _fileName.c_str(), index, &_face ); /* create face object */
         if (error != FT_Err_Ok) {
             ft_error_trace(__func__, "FT_New_Face", error);
@@ -2161,19 +2051,29 @@ public:
             else {
                 kernFile.clear();
             }
-            if ( !kernFile.empty() )
+            if ( !kernFile.empty() ) {
                 error = FT_Attach_File( _face, kernFile.c_str() );
+                if (error != FT_Err_Ok)
+                    ft_error_trace(__func__, "FT_Attach_File", error);
+            }
         }
+        return setupFace(index, size, fontFamily, monochrome, italicize, weight, face_size);
+    }
+
+    bool setupFace(int index, int size, css_font_family_t fontFamily,
+                   bool monochrome, bool italicize, int weight, int face_size) {
         //FT_Face_SetUnpatentedHinting( _face, 1 );
         _slot = _face->glyph;
         _faceName = familyName(_face);
         _face_size = face_size > 0 ? face_size : size;
-        CRLog::debug("Loaded font %s [%d]: faceName=%s, ", _fileName.c_str(), index, _faceName.c_str() );
+        _hintingMode = fontMan->GetHintingMode();
+        _drawMonochrome = monochrome;
+        _fontFamily = fontFamily;
         //if ( !FT_IS_SCALABLE( _face ) ) {
         //    Clear();
         //    return false;
         //}
-        error = FT_Set_Pixel_Sizes(
+        FT_Error error = FT_Set_Pixel_Sizes(
             _face,    /* handle to face object */
             0,        /* pixel_width           */
             _face_size );  /* pixel_height          */
@@ -2241,7 +2141,7 @@ public:
         }
 
         if ( error ) {
-            // error
+            Clear();
             return false;
         }
 
@@ -2252,6 +2152,8 @@ public:
         if (FT_Select_Charmap(_face, FT_ENCODING_UNICODE)) // non-zero means failure
             // If no unicode charmap found, try symbol charmap
             FT_Select_Charmap(_face, FT_ENCODING_MS_SYMBOL);
+
+        CRLog::debug("Loaded font %s [%d]: faceName=%s, ", _fileName.c_str(), index, _faceName.c_str() );
 
         return true;
     }
