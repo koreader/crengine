@@ -14281,13 +14281,12 @@ class ldomTextCollector : public ldomNodeCallback
 private:
     bool newBlock;
     lChar32  delimiter;
-    int  maxLen;
     lChar32 imageReplacement;
     LVArray<ldomNode*> * imageNodes;
     lString32 text;
 public:
-    ldomTextCollector( lChar32 blockDelimiter, int maxTextLen, lChar32 imageReplacementChar, LVArray<ldomNode*> * imageNodesArray )
-        : newBlock(true), delimiter( blockDelimiter), maxLen( maxTextLen )
+    ldomTextCollector( lChar32 blockDelimiter, lChar32 imageReplacementChar, LVArray<ldomNode*> * imageNodesArray )
+        : newBlock(true), delimiter( blockDelimiter)
         , imageReplacement(imageReplacementChar), imageNodes(imageNodesArray)
     {
     }
@@ -14370,9 +14369,9 @@ public:
 };
 
 /// returns text between two XPointer positions
-lString32 ldomXRange::getRangeText( lChar32 blockDelimiter, int maxTextLen, lChar32 imageReplacement, LVArray<ldomNode*> * imageNodes )
+lString32 ldomXRange::getRangeText( lChar32 blockDelimiter, lChar32 imageReplacement, LVArray<ldomNode*> * imageNodes )
 {
-    ldomTextCollector callback( blockDelimiter, maxTextLen, imageReplacement, imageNodes );
+    ldomTextCollector callback( blockDelimiter, imageReplacement, imageNodes );
     forEach( &callback );
     if ( imageReplacement && _end.isImage() ) {
         // ldomXRange::forEach will consider _end as excluded. If _end is an image,
