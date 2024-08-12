@@ -2572,13 +2572,11 @@ public:
             // Step 3. for bezier: Q control-point-x control-point-y, destination-x, destination-y
             //         for line:   L x-coord, y-coord
             //         for move:   M x-coord, y-coord
-            FT_Outline outline = _slot->outline;
-            FT_Vector* points = outline.points;
-            char* tags = outline.tags;
-            short* contours = outline.contours;
+            const FT_Outline * outline = &_slot->outline;
+            const FT_Vector * points = outline->points;
             int contour_starti = 0;
-            for (int i = 0 ; i < outline.n_contours ; i++ ) {
-                int contour_endi = contours[i];
+            for (int i = 0 ; i < outline->n_contours ; i++ ) {
+                int contour_endi = outline->contours[i];
                 int offset = contour_starti;
                 int npts = contour_endi - contour_starti + 1;
                 SVGGlyphsCollector_svg_move_to(NULL, svg_collector, NULL, points[contour_starti].x, points[contour_starti].y, NULL);
@@ -2591,9 +2589,9 @@ public:
                     long y =   points[a].y;
                     long nx =  points[nexti].x;
                     long ny =  points[nexti].y;
-                    bool this_tagbit1 = (tags[a] & 1);
-                    bool next_tagbit1 = (tags[nexti] & 1);
-                    bool nextnext_tagbit1 = (tags[ nextnexti ] & 1);
+                    bool this_tagbit1 = (outline->tags[a] & 1);
+                    bool next_tagbit1 = (outline->tags[nexti] & 1);
+                    bool nextnext_tagbit1 = (outline->tags[ nextnexti ] & 1);
                     bool this_isctl = !this_tagbit1;
                     bool next_isctl = !next_tagbit1;
                     bool nextnext_isctl = !nextnext_tagbit1;
