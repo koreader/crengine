@@ -91,6 +91,7 @@
 // use 0 for old crengine behaviour (no support for absolute units and 1css px = 1 screen px)
 #define PROP_RENDER_DPI                 "crengine.render.dpi"
 #define PROP_RENDER_SCALE_FONT_WITH_DPI "crengine.render.scale.font.with.dpi"
+#define PROP_RENDER_NORMAL_LINE_HEIGHT "crengine.render.normal.line.height"
 #define PROP_RENDER_BLOCK_RENDERING_FLAGS "crengine.render.block.rendering.flags"
 #define PROP_REQUESTED_DOM_VERSION      "crengine.render.requested_dom_version"
 

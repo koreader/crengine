@@ -52,6 +52,10 @@
 
 int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
 bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
+int gRenderNormalLineHeight = DEF_RENDER_NORMAL_LINE_HEIGHT;
+
+static const css_length_t relative_normal_line_height = css_length_t(css_val_em, 1*256 + (256 * 5 + 100 / 2) / 100); // 1.05em
+static const css_length_t fallback_normal_line_height = css_length_t(css_val_unspecified, 1*256 + (256 * 2 + 10 / 2) / 10); // 1.2 unitless
 
 int scaleForRenderDPI( int value ) {
     // if gRenderDPI == 0 or 96, use value as is (1px = 1px)
@@ -3129,7 +3133,13 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
         if (line_h < 0) { // -1, not specified by caller: find it out from the node
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                line_h = font->getHeight(); // line-height: normal
+                int em = font->getSize();
+                if (gRenderMinNormalLineHeight > 0) {
+                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                }
+                else {
+                    line_h = font->getHeight(); // line-height: normal
+                }
             }
             else {
                 int em = font->getSize();
@@ -3400,7 +3410,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // Only "normal" uses enode->getFont()->getHeight()
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                line_h = enode->getFont()->getHeight(); // line-height: normal
+                if (gRenderMinNormalLineHeight > 0) {
+                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                }
+                else {
+                    line_h = enode->getFont()->getHeight(); // line-height: normal
+                }
             }
             else {
                 // In all other cases (%, em, unitless/unspecified), we can just scale 'em',
@@ -7455,7 +7470,12 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             int line_h;
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                line_h = enode->getFont()->getHeight(); // line-height: normal
+                if (gRenderMinNormalLineHeight > 0) {
+                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                }
+                else {
+                    line_h = enode->getFont()->getHeight(); // line-height: normal
+                }
             }
             else {
                 // In all other cases (%, em, unitless/unspecified), we can just
