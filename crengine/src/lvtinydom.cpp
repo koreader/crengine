@@ -405,6 +405,7 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // hash = hash * 31 + (int)fontMan->GetHintingMode();
     hash = hash * 31 + LVRendGetBaseFontWeight();
     hash = hash * 31 + gRenderDPI;
+    hash = hash * 31 + gRenderNormalLineHeight;
     // If not yet rendered (initial loading with XML parsing), we can
     // ignore some global flags that have not yet produced any effect,
     // so they can possibly be updated between loading and rendering
