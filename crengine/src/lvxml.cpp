@@ -5749,7 +5749,7 @@ bool LVXMLParser::ReadText()
         const lChar32 *begin = m_read_buffer + m_read_buffer_pos;
         const lChar32 *ptr = begin;
         const lChar32 *end = m_read_buffer + m_read_buffer_len;
-        const lChar32 *limit = m_read_buffer + (TEXT_SPLIT_SIZE - tlen);
+        const lChar32 *limit = begin + (TEXT_SPLIT_SIZE - tlen);
         if (limit > end)
             limit = end;
         // If m_eof (m_read_buffer_pos == m_read_buffer_len), this 'for' won't loop
