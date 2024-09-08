@@ -54,9 +54,6 @@ int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1i
 bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
 int gRenderNormalLineHeight = DEF_RENDER_NORMAL_LINE_HEIGHT;
 
-static const css_length_t relative_normal_line_height = css_length_t(css_val_em, 1*256 + (256 * 5 + 100 / 2) / 100); // 1.05em
-static const css_length_t fallback_normal_line_height = css_length_t(css_val_unspecified, 1*256 + (256 * 2 + 10 / 2) / 10); // 1.2 unitless
-
 int scaleForRenderDPI( int value ) {
     // if gRenderDPI == 0 or 96, use value as is (1px = 1px)
     if (gRenderDPI && gRenderDPI != BASE_CSS_DPI) {
@@ -3134,8 +3131,12 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
                 int em = font->getSize();
-                if (gRenderMinNormalLineHeight > 0) {
-                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                if (gRenderNormalLineHeight > 0) {
+                    int rem = enode->getDocument()->getDefaultFont()->getSize();
+                    // Scale slightly to font size. Line height is partially a fixed offset and
+                    // partially relative to font size, so scale half of the offset.
+                    // Larger font sizes need less line height
+                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
                 }
                 else {
                     line_h = font->getHeight(); // line-height: normal
@@ -3410,8 +3411,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // Only "normal" uses enode->getFont()->getHeight()
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                if (gRenderMinNormalLineHeight > 0) {
-                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                if (gRenderNormalLineHeight > 0) {
+                    int rem = enode->getDocument()->getDefaultFont()->getSize();
+                    // Scale slightly to font size. Line height is partially a fixed offset and
+                    // partially relative to font size, so scale half of the offset.
+                    // Larger font sizes need less line height
+                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
                 }
                 else {
                     line_h = enode->getFont()->getHeight(); // line-height: normal
@@ -7470,8 +7475,12 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             int line_h;
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                if (gRenderMinNormalLineHeight > 0) {
-                    line_h = gRenderMinNormalLineHeight + lengthToPx(enode, relative_normal_line_height, em, em, true);
+                if (gRenderNormalLineHeight > 0) {
+                    int rem = enode->getDocument()->getDefaultFont()->getSize();
+                    // Scale slightly to font size. Line height is partially a fixed offset and
+                    // partially relative to font size, so scale half of the offset.
+                    // Larger font sizes need less line height
+                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
                 }
                 else {
                     line_h = enode->getFont()->getHeight(); // line-height: normal
