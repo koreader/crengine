@@ -3131,15 +3131,12 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
                 int em = font->getSize();
-                if (gRenderNormalLineHeight > 0) {
-                    int rem = enode->getDocument()->getDefaultFont()->getSize();
-                    // Scale slightly to font size. Line height is partially a fixed offset and
-                    // partially relative to font size, so scale half of the offset.
-                    // Larger font sizes need less line height
-                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
+                if ( style->cr_normal_line_height.type == css_val_unspecified &&
+                            style->cr_normal_line_height.value == css_generic_normal ) {
+                    line_h = font->getHeight(); // line-height: normal
                 }
                 else {
-                    line_h = font->getHeight(); // line-height: normal
+                    line_h = lengthToPx(enode, style->cr_normal_line_height, em, em, true);
                 }
             }
             else {
@@ -3411,15 +3408,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // Only "normal" uses enode->getFont()->getHeight()
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                if (gRenderNormalLineHeight > 0) {
-                    int rem = enode->getDocument()->getDefaultFont()->getSize();
-                    // Scale slightly to font size. Line height is partially a fixed offset and
-                    // partially relative to font size, so scale half of the offset.
-                    // Larger font sizes need less line height
-                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
+                if ( style->cr_normal_line_height.type == css_val_unspecified &&
+                            style->cr_normal_line_height.value == css_generic_normal ) {
+                    line_h = enode->getFont()->getHeight(); // line-height: normal
                 }
                 else {
-                    line_h = enode->getFont()->getHeight(); // line-height: normal
+                    line_h = lengthToPx(enode, style->cr_normal_line_height, em, em, true);
                 }
             }
             else {
@@ -4604,6 +4598,8 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
+    dest->cr_normal_line_height.type = source->cr_normal_line_height.type ;
+    dest->cr_normal_line_height.value = source->cr_normal_line_height.value ;
 }
 
 // Only used by renderBlockElementLegacy()
@@ -7475,15 +7471,12 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             int line_h;
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                if (gRenderNormalLineHeight > 0) {
-                    int rem = enode->getDocument()->getDefaultFont()->getSize();
-                    // Scale slightly to font size. Line height is partially a fixed offset and
-                    // partially relative to font size, so scale half of the offset.
-                    // Larger font sizes need less line height
-                    line_h = em + (gRenderNormalLineHeight - rem) * (em + rem) / (2 * em);
+                if ( style->cr_normal_line_height.type == css_val_unspecified &&
+                            style->cr_normal_line_height.value == css_generic_normal ) {
+                    line_h = enode->getFont()->getHeight(); // line-height: normal
                 }
                 else {
-                    line_h = enode->getFont()->getHeight(); // line-height: normal
+                    line_h = lengthToPx(enode, style->cr_normal_line_height, em, em, true);
                 }
             }
             else {
@@ -11233,6 +11226,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                 pstyle->line_height = parent_style->line_height; // inherit as-is
                 break;
         }
+    }
+    if (pstyle->cr_normal_line_height.type == css_val_inherited) {
+        pstyle->cr_normal_line_height = parent_style->cr_normal_line_height; // inherit as-is
     }
 
     // vertical_align: computed value: "for percentage and length values, the absolute length, otherwise the keyword as specified"
