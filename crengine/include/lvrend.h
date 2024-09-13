@@ -188,10 +188,8 @@ bool getInkOffsets( ldomNode * node, lvRect &inkOffsets, bool measure_hidden_con
 #define BASE_CSS_DPI 96 // at 96 dpi, 1 css px = 1 screen px
 #define DEF_RENDER_DPI 96
 #define DEF_RENDER_SCALE_FONT_WITH_DPI 0
-#define DEF_RENDER_NORMAL_LINE_HEIGHT 0
 extern int gRenderDPI;
 extern bool gRenderScaleFontWithDPI;
-extern int gRenderNormalLineHeight;
 extern int gRootFontSize;
 
 #define INTERLINE_SCALE_FACTOR_NO_SCALE 1024

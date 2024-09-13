@@ -6730,7 +6730,6 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 
     props->setIntDef(PROP_RENDER_DPI, DEF_RENDER_DPI); // 96 dpi
     props->setIntDef(PROP_RENDER_SCALE_FONT_WITH_DPI, DEF_RENDER_SCALE_FONT_WITH_DPI); // no scale
-    props->setIntDef(PROP_RENDER_NORMAL_LINE_HEIGHT, DEF_RENDER_NORMAL_LINE_HEIGHT); // no scale
     props->setIntDef(PROP_RENDER_BLOCK_RENDERING_FLAGS, DEF_RENDER_BLOCK_RENDERING_FLAGS);
 
     props->setIntDef(PROP_FILE_PROPS_FONT_SIZE, 22);
@@ -7091,12 +7090,6 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
             if ( gRenderScaleFontWithDPI != value ) {
                 gRenderScaleFontWithDPI = value;
                 REQUEST_RENDER("propsApply render scale font with dpi")
-            }
-        } else if (name == PROP_RENDER_NORMAL_LINE_HEIGHT) {
-            int value = props->getIntDef(PROP_RENDER_NORMAL_LINE_HEIGHT, DEF_RENDER_NORMAL_LINE_HEIGHT);
-            if ( gRenderNormalLineHeight != value ) {
-                gRenderNormalLineHeight = value;
-                REQUEST_RENDER("propsApply render min normal line height")
             }
         } else if (name == PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT) {
             int value = props->getIntDef(PROP_FORMAT_SPACE_WIDTH_SCALE_PERCENT, DEF_SPACE_WIDTH_SCALE_PERCENT);
