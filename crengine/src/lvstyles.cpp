@@ -44,7 +44,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
          + (lUInt32)rec.important[2]) * 31
@@ -117,6 +117,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.box_sizing) * 31
          + (lUInt32)rec.caption_side) * 31
          + (lUInt32)rec.cr_hint.pack()) * 31
+         + (lUInt32)rec.cr_normal_line_height.pack()) * 31
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash()
          + (lUInt32)rec.content.getHash());
@@ -198,7 +199,8 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.box_sizing == r2.box_sizing&&
            r1.caption_side == r2.caption_side&&
            r1.content == r2.content&&
-           r1.cr_hint==r2.cr_hint;
+           r1.cr_hint==r2.cr_hint&&
+           r1.cr_normal_line_height==r2.cr_normal_line_height;
 }
 
 
@@ -401,6 +403,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(caption_side);
     buf << content;
     ST_PUT_LEN(cr_hint);
+    ST_PUT_LEN(cr_normal_line_height);
     lUInt32 hash = calcHash(*this);
     buf << hash;
     return !buf.error();
@@ -475,6 +478,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_caption_side_t, caption_side);
     buf>>content;
     ST_GET_LEN(cr_hint);
+    ST_GET_LEN(cr_normal_line_height);
     lUInt32 hash = 0;
     buf >> hash;
     // printf("imp: %llx oldhash: %lx ", important, hash);

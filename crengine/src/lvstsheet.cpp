@@ -142,6 +142,7 @@ enum css_decl_code {
     cssd_cr_hint,
     cssd_cr_only_if,
     cssd_cr_apply_func,
+    cssd_cr_normal_line_height,
     cssd_stop
 };
 
@@ -252,6 +253,7 @@ static const char * css_decl_name[] = {
     "-cr-hint",
     "-cr-only-if",
     "-cr-apply-func",
+    "-cr-normal-line-height",
     NULL
 };
 
@@ -3916,6 +3918,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // no named value found, don't break: continue checking if value is a number
             case cssd_line_height:
             case cssd_letter_spacing:
+            case cssd_cr_normal_line_height:
                 IF_g_PUSH_LENGTH_AND_break(1, true, css_val_unspecified, css_generic_normal);
             case cssd_font_size:
                 IF_g_PUSH_LENGTH_AND_break(1, true, css_val_rem, 256);
@@ -3964,11 +3967,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         accept_none = true;
                     // only line-height and letter-spacing accept keyword "normal"
                     bool accept_normal = false;
-                    if ( prop_code==cssd_line_height || prop_code==cssd_letter_spacing )
+                    if ( prop_code==cssd_line_height || prop_code==cssd_letter_spacing || prop_code==cssd_cr_normal_line_height)
                         accept_normal = true;
                     // only line-height accepts numbers with unspecified unit
                     bool accept_unspecified = false;
-                    if ( prop_code==cssd_line_height )
+                    if ( prop_code==cssd_line_height || prop_code==cssd_cr_normal_line_height )
                         accept_unspecified = true;
                     // only font-size is... font-size
                     bool is_font_size = false;
@@ -5083,6 +5086,10 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             break;
         case cssd_line_height:
             style->Apply( read_length(p), &style->line_height, imp_bit_line_height, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_cr_normal_line_height:
+            style->Apply( read_length(p), &style->cr_normal_line_height, imp_bit_cr_normal_line_height, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_letter_spacing:
