@@ -3129,12 +3129,12 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
         if (line_h < 0) { // -1, not specified by caller: find it out from the node
             if ( style->line_height.type == css_val_unspecified &&
                         style->line_height.value == css_generic_normal ) {
-                int em = font->getSize();
                 if ( style->cr_normal_line_height.type == css_val_unspecified &&
                             style->cr_normal_line_height.value == css_generic_normal ) {
                     line_h = font->getHeight(); // line-height: normal
                 }
                 else {
+                    int em = font->getSize();
                     line_h = lengthToPx(enode, style->cr_normal_line_height, em, em, true);
                 }
             }
@@ -11188,47 +11188,47 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         break;
     }
 
-    // line_height: computed value: "for percentage and length values, the absolute length, otherwise as specified"
-    if (pstyle->line_height.type == css_val_inherited) {
-        // We didn't have yet the parent font when dealing with the parent style
-        // (or we could have computed an absolute size line-height that we could
-        // have just inherited as-is here).
-        // But we have it now, so compute its absolute size, so it can be
-        // inherited as-is by our children.
-        switch( parent_style->line_height.type ) {
-            case css_val_percent:
-            case css_val_em:
-            case css_val_ex:
-            case css_val_ch:
-                {
-                int pem = parent_font->getSize(); // value in screen px
-                int line_h = lengthToPx(enode, parent_style->line_height, pem, pem);
-                // Scale it according to document's _interlineScaleFactor
-                int interline_scale_factor = doc->getInterlineScaleFactor();
-                if (interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE)
-                    line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
-                pstyle->line_height.value = line_h;
-                pstyle->line_height.type = css_val_screen_px;
-                }
-                break;
-            // For all others, we can inherit as-is:
-            // case css_val_rem:         // related to font size of the root element
-            // case css_val_screen_px:   // absolute sizes
-            // case css_val_px:
-            // case css_val_in:
-            // case css_val_cm:
-            // case css_val_mm:
-            // case css_val_pt:
-            // case css_val_pc:
-            // case css_val_unspecified: // unitless number: factor to element's own font size: no relation to parent font
-            default:
-                pstyle->line_height = parent_style->line_height; // inherit as-is
-                break;
+    static const auto inherit_line_height = [&](css_length_t & line_height, const css_length_t & parent_line_height) {
+        if (line_height.type == css_val_inherited) {
+            // We didn't have yet the parent font when dealing with the parent style
+            // (or we could have computed an absolute size line-height that we could
+            // have just inherited as-is here).
+            // But we have it now, so compute its absolute size, so it can be
+            // inherited as-is by our children.
+            switch( parent_line_height.type ) {
+                case css_val_percent:
+                case css_val_em:
+                case css_val_ex:
+                case css_val_ch:
+                    {
+                    int pem = parent_font->getSize(); // value in screen px
+                    int line_h = lengthToPx(enode, parent_line_height, pem, pem);
+                    // Scale it according to document's _interlineScaleFactor
+                    int interline_scale_factor = doc->getInterlineScaleFactor();
+                    if (interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE)
+                        line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+                    line_height.value = line_h;
+                    line_height.type = css_val_screen_px;
+                    }
+                    break;
+                // For all others, we can inherit as-is:
+                // case css_val_rem:         // related to font size of the root element
+                // case css_val_screen_px:   // absolute sizes
+                // case css_val_px:
+                // case css_val_in:
+                // case css_val_cm:
+                // case css_val_mm:
+                // case css_val_pt:
+                // case css_val_pc:
+                // case css_val_unspecified: // unitless number: factor to element's own font size: no relation to parent font
+                default:
+                    line_height = parent_line_height; // inherit as-is
+                    break;
+            }
         }
-    }
-    if (pstyle->cr_normal_line_height.type == css_val_inherited) {
-        pstyle->cr_normal_line_height = parent_style->cr_normal_line_height; // inherit as-is
-    }
+    };
+    inherit_line_height(pstyle->line_height, parent_style->line_height);
+    inherit_line_height(pstyle->cr_normal_line_height, parent_style->cr_normal_line_height);
 
     // vertical_align: computed value: "for percentage and length values, the absolute length, otherwise the keyword as specified"
     // Not inherited by default (html5.css has TR,TD,TH explicitely set to "vertical-align: inherit",
