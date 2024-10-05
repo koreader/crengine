@@ -5143,7 +5143,6 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->word_break = css_wb_normal;
     s->caption_side = css_cs_top;
     s->cr_hint = css_length_t(css_val_unspecified, CSS_CR_HINT_NONE);
-    s->cr_normal_line_height = css_length_t(css_val_unspecified, css_generic_normal); // derived from font metrics
 
     //lUInt32 defStyleHash = (((_ua_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));
     //defStyleHash = defStyleHash * 31 + getDocFlags();
@@ -21302,8 +21301,6 @@ void runBasicTinyDomUnitTests()
         style1->line_height.value = css_generic_normal; // line-height: normal
         style1->cr_hint.type = css_val_unspecified;
         style1->cr_hint.value = CSS_CR_HINT_NONE;
-        style1->cr_normal_line_height.type = css_val_unspecified;
-        style1->cr_normal_line_height.value = css_generic_normal;
 
         css_style_ref_t style2;
         style2 = css_style_ref_t( new css_style_rec_t );
@@ -21337,8 +21334,6 @@ void runBasicTinyDomUnitTests()
         style2->line_height.value = css_generic_normal; // line-height: normal
         style2->cr_hint.type = css_val_unspecified;
         style2->cr_hint.value = CSS_CR_HINT_NONE;
-        style2->cr_normal_line_height.type = css_val_unspecified;
-        style2->cr_normal_line_height.value = css_generic_normal;
 
         css_style_ref_t style3;
         style3 = css_style_ref_t( new css_style_rec_t );
@@ -21372,8 +21367,6 @@ void runBasicTinyDomUnitTests()
         style3->line_height.value = css_generic_normal; // line-height: normal
         style3->cr_hint.type = css_val_unspecified;
         style3->cr_hint.value = CSS_CR_HINT_NONE;
-        style3->cr_normal_line_height.type = css_val_unspecified;
-        style3->cr_normal_line_height.value = css_generic_normal;
 
         el1->setStyle(style1);
         css_style_ref_t s1 = el1->getStyle();

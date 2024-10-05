@@ -85,7 +85,7 @@ private:
     bool _zero_weighted;
     bool _presentational_hint;
 public:
-    void apply( css_style_rec_t * style, const ldomNode * node=NULL ) const;
+    void apply( css_style_rec_t * style, const css_style_rec_t * parent_style, const ldomNode * node=NULL ) const;
     bool empty() const { return _data==NULL; }
     bool parse( const char * & decl, bool higher_importance=false, lxmlDocBase * doc=NULL, lString32 codeBase=lString32::empty_str );
     bool parseAndCheckIfSupported( const char * & decl, lxmlDocBase * doc=NULL ) {
@@ -203,18 +203,18 @@ public:
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
     bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
-    void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
-    void apply( const ldomNode * node, css_style_rec_t * style ) const
+    void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) const;
+    void apply( const ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) const
     {
         if ( _is_presentational_hint && STYLE_HAS_CR_HINT(style, NO_PRESENTATIONAL_CSS) ) {
             return;
         }
         if (check( node )) {
             if ( _pseudo_elem > 0 ) {
-                applyToPseudoElement(node, style);
+                applyToPseudoElement(node, style, parent_style);
             }
             else {
-                _decl->apply(style, node);
+                _decl->apply(style, parent_style, node);
             }
             // style->flags |= STYLE_REC_FLAG_MATCHED;
             // Done in applyToPseudoElement() as currently only needed there.
@@ -325,7 +325,7 @@ public:
         return parseAndAdvance(s, useragent_sheet, codeBase);
     }
     /// apply stylesheet to node style
-    void apply( const ldomNode * node, css_style_rec_t * style ) const;
+    void apply( const ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) const;
     /// calculate hash
     lUInt32 getHash() const;
     void merge(const LVStyleSheet &other);

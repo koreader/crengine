@@ -29,7 +29,7 @@ bool getLengthFromMathMLAttributeValue( lString32 value, css_length_t & length,
                                             bool accept_namedspaces=true,
                                             bool accept_op_spacing=false);
 
-void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style );
+void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style );
 
 void fixupMathMLMathElement( ldomNode * node );
 

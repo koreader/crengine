@@ -1355,7 +1355,7 @@ public:
 
 #if BUILD_LITE!=1
     /// apply document's stylesheet to element node
-    inline void applyStyle( ldomNode * element, css_style_rec_t * pstyle)
+    inline void applyStyle( ldomNode * element, css_style_rec_t * pstyle, const css_style_rec_t * parent_style)
     {
         // We used to have a single _stylesheet, filled with user-agent stylesheet,
         // and then, as we meet author stylesheets,  backuped (with .push()) and
@@ -1371,8 +1371,8 @@ public:
         // (We're keeping the .push() / .pop() where they were, just in case, but
         // they are now useless, saving & restoring an empty _stylesheet. The
         // existing comments around these places may no longer be relevant.)
-        _ua_stylesheet.apply( element, pstyle );
-        _stylesheet.apply( element, pstyle );
+        _ua_stylesheet.apply( element, pstyle, parent_style );
+        _stylesheet.apply( element, pstyle, parent_style );
     }
 #endif
 
