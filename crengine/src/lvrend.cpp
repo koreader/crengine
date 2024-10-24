@@ -10661,7 +10661,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     //////////////////////////////////////////////////////
     // apply style sheet
     //////////////////////////////////////////////////////
-    doc->applyStyle( enode, pstyle, parent_style.get() );
+    doc->applyStyle( enode, pstyle );
 
     //////////////////////////////////////////////////////
     // apply node style= attribute
@@ -10677,7 +10677,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             // would be needed to resolve "background-image: url(...)" relative
             // file path... So these won't work when defined in a style= attribute.
             if ( decl.parse( s, false, doc ) ) {
-                decl.apply( pstyle, parent_style.get() );
+                decl.apply( pstyle );
             }
         }
     }
@@ -10689,7 +10689,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         // - we want to avoid doing any MathML rendering if the <math> element
         //   has been set display:none by the previous styles
         if ( nodeElementId >= EL_MATHML_START && nodeElementId <= EL_MATHML_END ) {
-            setMathMLElementNodeStyle( enode, pstyle, parent_style.get() );
+            setMathMLElementNodeStyle( enode, pstyle );
         }
         else if (   (nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START)
                   || nodeElementId == el_pseudoElem
@@ -10698,12 +10698,12 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             if ( unboxedParent ) {
                 lUInt16 unboxedParentId = unboxedParent->getNodeId();
                 if ( unboxedParentId >= EL_MATHML_START && unboxedParentId <= EL_MATHML_END ) {
-                    setMathMLElementNodeStyle( enode, pstyle, parent_style.get() );
+                    setMathMLElementNodeStyle( enode, pstyle );
                 }
             }
         }
         else if ( nodeElementId == el_img && enode->getParentNode()->getNodeId() == el_mglyph ) {
-            setMathMLElementNodeStyle( enode, pstyle, parent_style.get() );
+            setMathMLElementNodeStyle( enode, pstyle );
         }
     #endif
 

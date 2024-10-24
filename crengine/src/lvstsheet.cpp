@@ -4635,7 +4635,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
     return false;
 }
 
-static void apply_cr_apply_func( cr_apply_func_t apply_func, css_style_rec_t * style, const css_style_rec_t * parent_style, const ldomNode * node, lUInt8 is_important=0) {
+static void apply_cr_apply_func( cr_apply_func_t apply_func, css_style_rec_t * style, const ldomNode * node, lUInt8 is_important=0) {
     // Quotes from the specs https://html.spec.whatwg.org/multipage/rendering.html
     switch (apply_func) {
     case cr_apply_func_css_color_from_color_attribute:
@@ -4698,7 +4698,7 @@ static void apply_cr_apply_func( cr_apply_func_t apply_func, css_style_rec_t * s
                 const char * cvalue8 = value8.c_str();
                 LVCssDeclaration decl;
                 if ( decl.parse( cvalue8, false, node->getDocument() ) ) {
-                    decl.apply( style, parent_style );
+                    decl.apply( style );
                 }
             }
         }
@@ -4979,7 +4979,7 @@ static css_length_t read_length( int * &data )
     return len;
 }
 
-void LVCssDeclaration::apply( css_style_rec_t * style, const css_style_rec_t * parent_style, const ldomNode * node ) const
+void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) const
 {
     if (!_data)
         return;
@@ -5333,8 +5333,18 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const css_style_rec_t * p
                     }
                 }
                 else if ( only_if == cr_only_if_line_height_normal || only_if == cr_only_if_not_line_height_normal ) {
-                    if ( style->line_height == css_length_t(css_val_unspecified, css_generic_normal)
-                        || (style->line_height == css_length_t(css_val_inherited, 0) && parent_style && parent_style->line_height == css_length_t(css_val_unspecified, css_generic_normal)) ) {
+                    if ( const ldomNode * parent_node = node->getParentNode(); style->line_height == css_length_t(css_val_inherited, 0) && parent_node ) {
+                        const css_style_ref_t parent_style = node->getParentNode()->getStyle();
+                        if ( !parent_style.isNull() && parent_style->line_height == css_length_t(css_val_unspecified, css_generic_normal) ) {
+                            if ( only_if == cr_only_if_not_line_height_normal )
+                                return; // don't apply anything more of this declaration to this style
+                        }
+                        else {
+                            if ( only_if == cr_only_if_line_height_normal )
+                                return; // don't apply anything more of this declaration to this style
+                        }
+                    }
+                    else if ( style->line_height == css_length_t(css_val_unspecified, css_generic_normal) ) {
                         if ( only_if == cr_only_if_not_line_height_normal )
                             return; // don't apply anything more of this declaration to this style
                     }
@@ -5346,7 +5356,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const css_style_rec_t * p
             }
             break;
         case cssd_cr_apply_func:
-            apply_cr_apply_func( (cr_apply_func_t) *p++, style, parent_style, node, is_important );
+            apply_cr_apply_func( (cr_apply_func_t) *p++, style, node, is_important );
             break;
         case cssd_content:
             {
@@ -6750,7 +6760,7 @@ static bool skip_until_end_of_rule( const char * &str )
     return *str != 0;
 }
 
-void LVCssSelector::applyToPseudoElement( const ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) const
+void LVCssSelector::applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const
 {
     // This might be called both on the node that match the selector (we should
     // not apply to the style of this node), and on the actual pseudo element
@@ -6794,7 +6804,7 @@ void LVCssSelector::applyToPseudoElement( const ldomNode * node, css_style_rec_t
             target_style->flags |= STYLE_REC_FLAG_MATCHED;
         }
         // And apply this selector styling.
-        _decl->apply(target_style, parent_style);
+        _decl->apply(target_style);
     }
     return;
 }
@@ -6861,7 +6871,7 @@ static void for_each_split(const lChar32 *begin, F functor) {
         functor(begin, end);
 }
 
-void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) const
+void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
 {
     if (!_selectors.length())
         return; // no rules!
@@ -6906,14 +6916,14 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style, const 
             {
                 // step by sel_0
                 if (selector_0->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                    selector_0->apply( node, style, parent_style );
+                    selector_0->apply( node, style );
                 selector_0 = selector_0->getNext();
             }
             else
             {
                 // step by sel_id
                 if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                    selector_id->apply( node, style, parent_style );
+                    selector_id->apply( node, style );
                 selector_id = selector_id->getNext();
             }
         }
@@ -6921,7 +6931,7 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style, const 
         {
             // step by sel_id
             if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                selector_id->apply( node, style, parent_style );
+                selector_id->apply( node, style );
             selector_id = selector_id->getNext();
         }
         else

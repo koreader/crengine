@@ -1256,13 +1256,13 @@ bool getLengthFromMathMLAttributeValue( lString32 value, css_length_t & length,
 // It applies the internal CSS stylesheet, and complement the styling with
 // computed values from normal MathML MathML attributes but also from the
 // one we have set when building the DOM in MathMLHelper::handleMathMLtag()).
-void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style, const css_style_rec_t * parent_style ) {
+void setMathMLElementNodeStyle( ldomNode * node, css_style_rec_t * style ) {
     // First, apply the MathML stylesheet, which will do a good part of the styling.
     if ( ! _MathML_stylesheet_loaded ) {
         loadMathMLStylesheet( node );
         _MathML_stylesheet_loaded = true;
     }
-    _MathML_stylesheet.apply( node, style, parent_style );
+    _MathML_stylesheet.apply( node, style );
         // This could be done after what's below if needed, depending on which
         // from CSS or code may want to override stuff set by the other
 
