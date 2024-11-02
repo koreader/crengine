@@ -31,6 +31,7 @@
 #include "../include/fb3fmt.h"
 #include "../include/docxfmt.h"
 #include "../include/odtfmt.h"
+#include "mdfmt.h"
 
 /// to show page bounds rectangles
 //#define SHOW_PAGE_RECT
@@ -4644,6 +4645,37 @@ bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
                     m_doc->dumpStatistics();
                 }
                 m_arc = m_doc->getContainer();
+                return true;
+            }
+        }
+#endif
+
+#if (USE_MD4C == 1)
+        if (DetectMarkdownFormat(m_stream, stream->GetName())) {
+            CRLog::info("Markdown format detected");
+            createEmptyDocument();
+            m_doc->setProps(m_doc_props);
+            setRenderProps(0, 0);
+            setDocFormat(doc_format_md);
+            if (m_callback)
+                m_callback->OnLoadFileFormatDetected(doc_format_md);
+            updateDocStyleSheet();
+            bool res = ImportMarkdownDocument(m_stream, stream->GetName(), m_doc, m_callback, this);
+            if (!res) {
+                setDocFormat(doc_format_none);
+                createDefaultDocument(cs32("ERROR: Error reading Markdown format"), cs32("Cannot open document"));
+                if (m_callback) {
+                    m_callback->OnLoadFileError(cs32("Error reading Markdown document"));
+                }
+                return false;
+            } else {
+                setRenderProps(0, 0);
+                REQUEST_RENDER("loadDocument")
+                if (m_callback) {
+                    m_callback->OnLoadFileEnd();
+                    //m_doc->compact();
+                    m_doc->dumpStatistics();
+                }
                 return true;
             }
         }
