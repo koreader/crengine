@@ -3074,6 +3074,8 @@ static const char * css_cr_only_if_names[]={
         "not-inpage-footnote",
         "inside-inpage-footnote",
         "not-inside-inpage-footnote",
+        "line-height-normal",
+        "not-line-height-normal",
         NULL
 };
 enum cr_only_if_t {
@@ -3111,6 +3113,8 @@ enum cr_only_if_t {
     cr_only_if_not_inpage_footnote,
     cr_only_if_inside_inpage_footnote,
     cr_only_if_not_inside_inpage_footnote,
+    cr_only_if_line_height_normal,
+    cr_only_if_not_line_height_normal,
 };
 
 static const char * css_cr_apply_func_names[]={
@@ -5325,6 +5329,27 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                     }
                     else {
                         if ( only_if == cr_only_if_inside_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                }
+                else if ( only_if == cr_only_if_line_height_normal || only_if == cr_only_if_not_line_height_normal ) {
+                    if ( const ldomNode * parent_node = node->getParentNode(); style->line_height == css_length_t(css_val_inherited, 0) && parent_node ) {
+                        const css_style_ref_t parent_style = node->getParentNode()->getStyle();
+                        if ( !parent_style.isNull() && parent_style->line_height == css_length_t(css_val_unspecified, css_generic_normal) ) {
+                            if ( only_if == cr_only_if_not_line_height_normal )
+                                return; // don't apply anything more of this declaration to this style
+                        }
+                        else {
+                            if ( only_if == cr_only_if_line_height_normal )
+                                return; // don't apply anything more of this declaration to this style
+                        }
+                    }
+                    else if ( style->line_height == css_length_t(css_val_unspecified, css_generic_normal) ) {
+                        if ( only_if == cr_only_if_not_line_height_normal )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                    else {
+                        if ( only_if == cr_only_if_line_height_normal )
                             return; // don't apply anything more of this declaration to this style
                     }
                 }
