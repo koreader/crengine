@@ -147,11 +147,4 @@ void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int perce
 
 unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len);
 
-#define IMAGE_SOURCE_FROM_BYTES( imgvar , bufvar ) \
-    extern unsigned char bufvar []; \
-    extern int bufvar ## _size ; \
-    LVImageSourceRef imgvar = LVCreateStreamImageSource( \
-        LVCreateMemoryStream( bufvar , bufvar ## _size ) )
-
-
 #endif

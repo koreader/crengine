@@ -1753,18 +1753,13 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             LVStreamRef stream = m_arc->OpenStream(cover_xhtml_path.c_str(), LVOM_READ);
             lString32 cover_image_href;
             if ( ExtractCoverFilenameFromCoverPageFragment(stream, cover_image_href, node_scheme, attr_scheme, ns_scheme) ) {
+                cover_image_href = DecodeHTMLUrlString(cover_image_href);
                 lString32 codeBase = LVExtractPath( cover_xhtml_path );
                 if ( codeBase.length()>0 && codeBase.lastChar()!='/' )
                     codeBase.append(1, U'/');
                 lString32 cover_image_path = LVCombinePaths(codeBase, cover_image_href);
                 CRLog::info("EPUB cover image file: %s", LCSTR(cover_image_path));
                 LVStreamRef stream = m_arc->OpenStream(cover_image_path.c_str(), LVOM_READ);
-                if ( stream.isNull() ) {
-                    // Try again in case cover_image_path is percent-encoded
-                    cover_image_path = LVCombinePaths(codeBase, DecodeHTMLUrlString(cover_image_href));
-                    CRLog::info("EPUB cover image file pct-decoded: %s", LCSTR(cover_image_path));
-                    stream = m_arc->OpenStream(cover_image_path.c_str(), LVOM_READ);
-                }
                 if ( !stream.isNull() ) {
                     LVImageSourceRef img = LVCreateStreamImageSource(stream);
                     if ( !img.isNull() ) {
