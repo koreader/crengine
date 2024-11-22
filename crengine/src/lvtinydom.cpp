@@ -12388,6 +12388,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // we only deal with text nodes (and optionally images): get the first
         go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
 
+    bool is_whitespace_pre = false;
     while (go_on) { // new line or new/continued text node
         // We may have (empty or not if not yet pushed) from previous iteration:
         // lineStartRect : char rect for first char of line, even if from another text node
@@ -12442,11 +12443,13 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     continue;
                 }
             }
+            ldomNode * parent = curPos.getNode()->getParentNode();
+            is_whitespace_pre = !parent->getStyle().isNull() && parent->getStyle()->white_space >= css_ws_pre_line;
         }
         // Skip space at start of node or at start of new line
         // (the XML parser made sure we always have a single space
         // at boundaries)
-        if (nodeText[startOffset] == ' ') {
+        if (nodeText[startOffset] == ' ' && !is_whitespace_pre) {
             startOffset += 1;
             nodeStartRect = lvRect(); // reset
         }
@@ -12515,7 +12518,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         // 2) Look if the full text node is contained on the line
         // Ignore (possibly collapsed) space at end of text node
-        curPos.setOffset(nodeText[textLen-1] == ' ' ? textLen-2 : textLen-1 );
+        curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
         curCharRect = lvRect();
         if (!curPos.getRectEx(curCharRect, true)) {
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
@@ -12541,9 +12544,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // skip spaces (but let soft-hyphens in, so they are part of the
             // highlight when they are shown at end of line)
             lChar32 c = nodeText[i];
-            if (c == ' ') // || c == 0x00AD)
-                continue;
             curPos.setOffset(i);
+            if (c == ' ' && !is_whitespace_pre) { // || c == 0x00AD)
+                continue;
+            }
             curCharRect = lvRect(); // reset
             if (!curPos.getRectEx(curCharRect, true)) {
                 // printf("#### curPos.getRectEx(char=%d) failed\n", i);
