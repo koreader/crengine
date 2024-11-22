@@ -49,7 +49,7 @@ jobs:
         )
         sudo apt-get update && sudo apt-get install --no-install-recommends "${packages[@]}"
         # We need a more recent version of libunibreak for `lb_get_char_class` support.
-        wget http://ftp.debian.org/debian/pool/main/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
+        wget http://mirrors.kernel.org/ubuntu/pool/universe/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
         sudo dpkg -i *.deb
         # Install stylelint.
         npm init --yes
