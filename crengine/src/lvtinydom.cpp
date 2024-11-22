@@ -423,6 +423,20 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
         hash = hash * 31 + HyphMan::getTrustSoftHyphens();
         hash = hash * 31 + UserHyphDict::getHash();
     }
+    /*
+    printf("  %d %d %d %d %d %d %d %d %d %d %d\n",
+        (int)fontMan->GetKerningMode(),
+        fontMan->GetMonospaceSizeScale(),
+        (int)fontMan->GetFallbackFontSizesAdjusted(),
+        fontMan->GetFontListHash(documentId),
+        LVRendGetBaseFontWeight(),
+        gRenderDPI,
+        TextLangMan::getHash(),
+        HyphMan::getLeftHyphenMin(),
+        HyphMan::getRightHyphenMin(),
+        HyphMan::getTrustSoftHyphens(),
+        UserHyphDict::getHash());
+    */
     return hash;
 }
 
