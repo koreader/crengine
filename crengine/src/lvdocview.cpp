@@ -4838,7 +4838,10 @@ bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 }
 
 const lChar32 * getDocFormatName(doc_format_t fmt) {
+	assert((unsigned)fmt <= doc_format_max);
 	switch (fmt) {
+	case doc_format_none:
+		break;
 	case doc_format_fb2:
 		return U"FictionBook (FB2)";
 	case doc_format_fb3:
@@ -4849,23 +4852,26 @@ const lChar32 * getDocFormatName(doc_format_t fmt) {
 		return U"Rich text (RTF)";
 	case doc_format_epub:
 		return U"EPUB";
-	case doc_format_chm:
-		return U"CHM";
 	case doc_format_html:
 		return U"HTML";
 	case doc_format_txt_bookmark:
 		return U"CR3 TXT Bookmark";
+	case doc_format_chm:
+		return U"CHM";
 	case doc_format_doc:
 		return U"DOC";
 	case doc_format_docx:
 		return U"DOCX";
+	case doc_format_pdb:
+		return U"PDB";
 	case doc_format_odt:
 		return U"OpenDocument (ODT)";
 	case doc_format_svg:
 		return U"SVG";
-	default:
-		return U"Unknown format";
+	case doc_format_md:
+		return U"Markdown";
 	}
+	return U"Unknown format";
 }
 
 /// sets current document format
