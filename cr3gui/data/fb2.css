@@ -11,7 +11,6 @@ a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 a[type="note"]::before { content: "\2060" } /* word joiner, avoid break before */
 
 image { text-indent: 0; display: block; margin: 0 auto; }
-p image { display: inline }
 li image { display: inline }
 
 li { display: list-item; text-indent: 0;  }
