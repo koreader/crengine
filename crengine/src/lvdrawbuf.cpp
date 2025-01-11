@@ -52,10 +52,14 @@ static lUInt8 rgbToGray( lUInt32 color, int bpp )
     return (lUInt8)(((r + g + g + b)>>2) & (((1<<bpp)-1)<<(8-bpp)));
 }
 
+#if 0
+
 static lUInt16 rgb565(int r, int g, int b) {
     // rrrr rggg gggb bbbb
     return (lUInt16)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3));
 }
+
+#endif
 
 static lUInt8 rgbToGrayMask( lUInt32 color, int bpp )
 {
@@ -988,6 +992,8 @@ void LVGrayDrawBuf::FillRect( int x0, int y0, int x1, int y1, lUInt32 color32 )
     }
 }
 
+#if 0
+
 void LVGrayDrawBuf::FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color032, lUInt32 color132, const lUInt8 * __restrict pattern )
 {
     if (x0<_clip.left)
@@ -1032,6 +1038,8 @@ void LVGrayDrawBuf::FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 col
         line += _rowsize;
     }
 }
+
+#endif
 
 static const lUInt8 fill_masks1[5] = {0x00, 0x3, 0x0f, 0x3f, 0xff};
 static const lUInt8 fill_masks2[4] = {0x00, 0xc0, 0xf0, 0xfc};
@@ -1479,6 +1487,8 @@ void LVGrayDrawBuf::Invert()
     }
 }
 
+#if 0
+
 void LVGrayDrawBuf::ConvertToBitmap(bool flgDither)
 {
     if (_bpp==1)
@@ -1525,6 +1535,8 @@ void LVGrayDrawBuf::ConvertToBitmap(bool flgDither)
     _rowsize = (_dx+7)/8;
 	CHECK_GUARD_BYTE;
 }
+
+#endif
 
 //=======================================================
 // 32-bit RGB buffer
@@ -1812,6 +1824,9 @@ void LVColorDrawBuf::DrawLine(int x0, int y0, int x1, int y1, lUInt32 color0, in
         }
     }
 }
+
+#if 0
+
 /// fills rectangle with specified color
 void LVColorDrawBuf::FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 color0, lUInt32 color1, const lUInt8 * __restrict pattern )
 {
@@ -1851,6 +1866,8 @@ void LVColorDrawBuf::FillRectPattern( int x0, int y0, int x1, int y1, lUInt32 co
         }
     }
 }
+
+#endif
 
 /// sets new size
 void LVColorDrawBuf::Resize( int dx, int dy )
@@ -2069,6 +2086,8 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
         }
     }
 }
+
+#if 0
 
 #if !defined(__SYMBIAN32__) && defined(_WIN32) && !defined(QT_GL)
 /// draws buffer content to DC doing color conversion if necessary
@@ -3067,6 +3086,8 @@ void LVColorDrawBuf::DrawRescaled(const LVDrawBuf * __restrict src, int x, int y
 	_drawnImagesSurface += dx*dy;
 }
 
+#endif
+
 /// returns scanline pointer
 lUInt8 * LVColorDrawBuf::GetScanLine( int y ) const
 {
@@ -3136,6 +3157,8 @@ LVColorDrawBuf::~LVColorDrawBuf()
 #endif
 }
 
+#if 0
+
 /// convert to 1-bit bitmap
 void LVColorDrawBuf::ConvertToBitmap(bool flgDither)
 {
@@ -3143,3 +3166,4 @@ void LVColorDrawBuf::ConvertToBitmap(bool flgDither)
     CR_UNUSED(flgDither);
 }
 
+#endif
