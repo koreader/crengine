@@ -4,6 +4,11 @@
     "comment-empty-line-before": null,
     "declaration-block-no-redundant-longhand-properties": null,
     "declaration-block-single-line-max-declarations": null,
+    "declaration-property-value-no-unknown": [true, {
+	"ignoreProperties": {
+	    "/^.+$/": "/^-cr-.*$/"
+	}
+    }],
     "no-descending-specificity": [true, { "severity": "warning" }],
     "no-duplicate-selectors": [true, { "severity": "warning" }],
     "property-no-unknown": [true, {
