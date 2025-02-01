@@ -4,6 +4,15 @@
     "comment-empty-line-before": null,
     "declaration-block-no-redundant-longhand-properties": null,
     "declaration-block-single-line-max-declarations": null,
+    "declaration-property-value-no-unknown": [true, {
+      "ignoreProperties": {
+	"/^padding.*$/": "-cr-special",
+	"/^text-align.*$/": [
+	  "/^-cr-html-align-(center|left|right)$/",
+	  "/^-cr-(center|left|right)-if-not-first$/"
+	]
+      }
+    }],
     "no-descending-specificity": [true, { "severity": "warning" }],
     "no-duplicate-selectors": [true, { "severity": "warning" }],
     "property-no-unknown": [true, {
