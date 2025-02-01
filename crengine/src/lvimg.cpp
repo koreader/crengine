@@ -2077,7 +2077,7 @@ static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const
     ldomDocument * doc = ((LVNodeImageSource *)xcontext->external_object)->GetSourceDocument();
     if ( doc ) {
         ldomNode * node = ((LVNodeImageSource *)xcontext->external_object)->GetSourceNode();
-        img = doc->getObjectImageSource(Utf8ToUnicode(url), node);
+        img = doc->getObjectImageSource(DecodeHTMLUrlString(Utf8ToUnicode(url)), node);
     }
     else {
         // We may be used by frontends without a ldomDocument to render SVG, and
