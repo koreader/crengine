@@ -5842,64 +5842,53 @@ bool lString32::replaceIntParam(int index, int replaceNumber)
     return replaceParam( index, lString32::itoa(replaceNumber));
 }
 
-static int decodeHex( lChar32 ch )
-{
-    if ( ch>='0' && ch<='9' )
-        return ch-'0';
-    else if ( ch>='a' && ch<='f' )
-        return ch-'a'+10;
-    else if ( ch>='A' && ch<='F' )
-        return ch-'A'+10;
-    return -1;
-}
-
-static lChar8 decodeHTMLChar( const lChar32 * s )
-{
-    if (s[0] == '%') {
-        int d1 = decodeHex( s[1] );
-        if (d1 >= 0) {
-            int d2 = decodeHex( s[2] );
-            if (d2 >= 0) {
-                return (lChar8)(d1*16 + d2);
-            }
-        }
-    }
-    return 0;
-}
-
 /// decodes path like "file%20name%C3%A7" to "file nameç"
+/// NOTE: return the original string unchanged on error
+/// (malformed escape sequence, bad UTF-8 encoding, …).
 lString32 DecodeHTMLUrlString( lString32 s )
 {
-    const lChar32 * str = s.c_str();
-    for ( int i=0; str[i]; i++ ) {
-        if ( str[i]=='%'  ) {
-            lChar8 ch = decodeHTMLChar( str + i );
-            if ( ch==0 ) {
+    for (const lChar32 *src = s.c_str(); *src; ++src) {
+        if (*src != '%')
+            continue;
+        lString32 res(s);
+        lChar32 *dst = res.modify() + (src - s.c_str());
+        int continuation = 0;
+        lChar32 c;
+        while (*src) {
+            if (*src != '%') {
+                if (continuation)
+                    return s; // ERROR: truncated UTF-8 sequence.
+                *dst++ = *src++;
                 continue;
             }
-            // HTML encoded char found
-            lString8 res;
-            res.reserve(s.length());
-            res.append(UnicodeToUtf8(str, i));
-            res.append(1, ch);
-            i+=3;
-
-            // continue conversion
-            for ( ; str[i]; i++ ) {
-                if ( str[i]=='%'  ) {
-                    ch = decodeHTMLChar( str + i );
-                    if ( ch==0 ) {
-                        res.append(1, (lChar8)str[i]);
-                        continue;
-                    }
-                    res.append(1, ch);
-                    i+=2;
-                } else {
-                    res.append(1, (lChar8)str[i]);
-                }
+            int hex = decodeHex(src + 1, 2);
+            if (hex <= 0)
+                return s; // ERROR: malformed or invalid escape sequence.
+            src += 3;
+            if (continuation) {
+                if ((hex & 0xc0) != 0x80)
+                    return s; // ERROR: bad UTF-8 continuation byte.
+                c = (c << 6) | (hex & 0x3f);
+                if (!--continuation)
+                    *dst++ = c;
+            } else {
+                if (!(hex & 0x80))
+                    *dst++ = hex;
+                else if ((hex & 0xe0) == 0xc0) {
+                    c = hex & 0x1f;
+                    continuation = 1;
+                } else if ((hex & 0xf0) == 0xe0) {
+                    c = hex & 0x0f;
+                    continuation = 2;
+                } else if ((hex & 0xf8) == 0xf0) {
+                    c = hex & 0x07;
+                    continuation = 3;
+                } else
+                    return s; // ERROR: bad UTF-8 sequence first byte.
             }
-            return Utf8ToUnicode(res);
         }
+        res.erase(dst - res.c_str(), res.length());
+        return res;
     }
     return s;
 }
