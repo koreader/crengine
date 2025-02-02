@@ -2945,7 +2945,7 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
         // printf("  start (%d=%d): %s\n", start_h, start_y + start_h, UnicodeToLocal(start.toString()).c_str());
         if (!start.isNull()) {
             // Check what we got is really in current page
-            lvPoint pt = start.toPoint();
+            lvPoint pt = start.toPoint(true);
             // printf("start pt.y %d start_y %d end_y %d\n", pt.y, start_y, end_y);
             if (pt.y >= start_y && pt.y <= end_y)
                 break; // we found our start of page xpointer
@@ -2958,7 +2958,7 @@ LVRef<ldomXRange> LVDocView::getPageDocumentRange(int pageIndex) {
         // printf("  end (%d=%d): %s\n", end_h, start_y + end_h, UnicodeToLocal(end.toString()).c_str());
         if (!end.isNull()) {
             // Check what we got is really in current page
-            lvPoint pt = end.toPoint();
+            lvPoint pt = end.toPoint(true);
             // printf("end pt.y %d start_y %d end_y %d\n", pt.y, start_y, end_y);
             if (pt.y >= start_y && pt.y <= end_y)
                 break; // we found our end of page xpointer
