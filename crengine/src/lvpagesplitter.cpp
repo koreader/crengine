@@ -1180,12 +1180,13 @@ public:
                 LVFootNote * actual_footnote = note->getActualFootnote();
                 if ( actual_footnote && cur_page_seen_footnotes.indexOf(actual_footnote) >= 0 )
                     continue;
-                // Collect all nested footnotes and add them to the current line's list of footnotes links
-                // (avoiding duplicates) so we can just process them as if they were regular notes on that line.
-                // 
-                // This needs to happen before we decide if the notes are added to this page or delayed
-                // so delayed footnotes does not have to check for nested footnotes and duplicates again.
-                int num_nested_notes = 0;
+                // Collect all nested footnotes and add them to the current line's list
+                // of footnotes links (avoiding duplicates) so we can just process them
+                // as if they were regular notes on that line.
+                // Needs to happen before we decide if the notes are added to this page
+                // or delayed so delayed footnotes does not have to check for nested
+                // footnotes and duplicates again.
+                int nb_nested_notes = 0;
                 for ( int nl=0; nl<note->length(); nl++ ) {
                     LVRendLineInfo * nested_line = note->getLine(nl);
                     if ( ! nested_line->getLinks() || nested_line->getLinks()->length() == 0 ) {
@@ -1201,7 +1202,7 @@ public:
                         if ( nested_note->length() ) {
                             // Add all new nested footnotes depth-first in order of
                             // appearance to the links on the original line
-                            notes->insert(j+1+(num_nested_notes++), nested_note);
+                            notes->insert(j+1+(nb_nested_notes++), nested_note);
                         }
                     }
                 }
