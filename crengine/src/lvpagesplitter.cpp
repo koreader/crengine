@@ -1188,6 +1188,7 @@ public:
                 // we haven't seen footnote 3 yet (from the 4->3 link) and emit it again.
                 // Collecting all nested footnotes (and skipping duplicates) gives us the same result
                 // regardless of if some are delayed or not.
+                int num_nested_notes = 0;
                 for ( int nl=0; nl<note->length(); nl++ ) {
                     LVRendLineInfo * nested_line = note->getLine(nl);
                     if ( ! nested_line->getLinks() || nested_line->getLinks()->length() == 0 ) {
@@ -1201,7 +1202,9 @@ public:
                         if ( actual_footnote && notes->indexOf(actual_footnote) >= 0 )
                             continue;
                         if ( nested_note->length() ) {
-                            notes->add(nested_note);
+                            // Add all new nested footnotes depth-first in order of
+                            // appearance to the links on the original line
+                            notes->insert(j+1+(num_nested_notes++), nested_note);
                         }
                     }
                 }
