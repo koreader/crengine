@@ -1170,7 +1170,7 @@ public:
             if (line->flags & RN_SPLIT_FOOT_NOTE)
                 continue;
 
-            LVFootNoteList * notes{line->getLinks()};
+            LVFootNoteList * notes = line->getLinks();
             for ( int j=0; j<notes->length(); j++ ) {
                 LVFootNote* note = notes->get(j);
                 if ( note->empty() )
