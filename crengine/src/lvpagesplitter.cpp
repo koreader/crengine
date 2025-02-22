@@ -1180,14 +1180,11 @@ public:
                 LVFootNote * actual_footnote = note->getActualFootnote();
                 if ( actual_footnote && cur_page_seen_footnotes.indexOf(actual_footnote) >= 0 )
                     continue;
-                // Collect all nested footnotes before deciding if we delay the current note
-                // e.g. Footnote 3 links to 4, which links to 3
-                // We need to see the whole chain to decide to not add footnote 3 twice
-                // If we collected nested footnotes after `addFootnoteToPage(note_4)`, we might have
-                // decided to delay footnote 4. Then, we're invoked again on the next page and think
-                // we haven't seen footnote 3 yet (from the 4->3 link) and emit it again.
-                // Collecting all nested footnotes (and skipping duplicates) gives us the same result
-                // regardless of if some are delayed or not.
+                // Collect all nested footnotes and add them to the current line's list of footnotes links
+                // (avoiding duplicates) so we can just process them as if they were regular notes on that line.
+                // 
+                // This needs to happen before we decide if the notes are added to this page or delayed
+                // so delayed footnotes does not have to check for nested footnotes and duplicates again.
                 int num_nested_notes = 0;
                 for ( int nl=0; nl<note->length(); nl++ ) {
                     LVRendLineInfo * nested_line = note->getLine(nl);
@@ -1197,7 +1194,7 @@ public:
                     for ( int nn=0; nn<nested_line->getLinks()->length(); nn++ ) {
                         LVFootNote * nested_note = nested_line->getLinks()->get(nn);
                         if ( notes->indexOf(nested_note) >= 0 )
-                            continue; // Already referenced (recursively) on this page
+                            continue; // Already referenced among the current lines notes
                         LVFootNote * actual_footnote = nested_note->getActualFootnote();
                         if ( actual_footnote && notes->indexOf(actual_footnote) >= 0 )
                             continue;
