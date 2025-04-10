@@ -1063,6 +1063,7 @@ public:
 	bool deserialize( SerialBuf & buf );
 
     lString32HashedCollection( lString32HashedCollection & v );
+    // No reason `operator=` can't be implemented, but needs to be done manually and not auto-generated
     lString32HashedCollection& operator=(lString32HashedCollection &) = delete;
     lString32HashedCollection( lUInt32 hashSize );
     ~lString32HashedCollection();
