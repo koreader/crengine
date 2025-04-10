@@ -3416,6 +3416,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             hints = CSS_CR_HINT_NONE_NO_INHERIT;
                         }
                         else if ( substr_icompare("footnote-inpage", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_INPAGE|CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE;
+                        else if ( substr_icompare("extend-footnote-inpage", decl) ) hints |= CSS_CR_HINT_EXTEND_FOOTNOTE_INPAGE|CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE;
                         else if ( substr_icompare("non-linear", decl) )             hints |= CSS_CR_HINT_NON_LINEAR;
                         else if ( substr_icompare("non-linear-combining", decl) )   hints |= CSS_CR_HINT_NON_LINEAR_COMBINING;
                         else if ( substr_icompare("strut-confined", decl) )         hints |= CSS_CR_HINT_STRUT_CONFINED;

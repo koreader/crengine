@@ -418,6 +418,7 @@ class LVRendPageContext
     LVHashTable<lString32, LVFootNoteRef> footNotes;
 
     LVFootNote * curr_note;
+    lString32 curr_note_id;
 
     // Note: a footnote indexed in 'footNotes' may have pointers to it stored in other
     // footnotes' actual_footnote. 'footNotes' is usually the only thing holding a
@@ -428,7 +429,7 @@ class LVRendPageContext
     // In the following, we want to handle as well as possible the edge case
     // of buggy books having duplicated id= among footnotes (which may happen
     // in Wikipedia EPUBs), which makes things a tad more complex...
-    LVFootNoteRef getOrCreateFootNote( lString32 id, bool actual=true )
+    LVFootNoteRef getOrCreateFootNote( lString32 id, bool actual, bool appending )
     {
         LVFootNoteRef ref = footNotes.get(id);
         if ( ref.isNull() ) {
@@ -443,7 +444,7 @@ class LVRendPageContext
             // Found an existing one
             if ( actual ) {
                 // We are going to add lines
-                if ( ref.get()->isActual() ) {
+                if ( ref.get()->isActual() && ! appending ) {
                     // If the one we found is already actual, something is wrong: this may
                     // happen with buggy books with duplicated id= (ie. Wikipedia EPUBs...).
                     // LVPageSplitter expects a footnote to be a single chunk/slice of the
@@ -459,12 +460,12 @@ class LVRendPageContext
         }
         return ref;
     }
-    LVFootNoteRef getOrCreateFootNote( lString32Collection & ids )
+    LVFootNoteRef getOrCreateFootNote( lString32Collection & ids, bool appending )
     {
         // This, with multiple ids, is always called to create an actual footnote,
         // so no need to handle any actual=false case.
         if (ids.length() == 1) { // use single id method.
-            return getOrCreateFootNote(ids.at(0));
+            return getOrCreateFootNote(ids.at(0), true, appending);
         }
         // Multiple ids provided: zero, one, or more of them may exist
         LVFootNoteRef ref;
@@ -474,7 +475,7 @@ class LVRendPageContext
             if ( !ref.isNull() ) {
                 found = n;
                 // As above, see comments there.
-                if ( ref.get()->isActual() ) {
+                if ( ref.get()->isActual() && ! appending ) {
                     ref.get()->clear();
                 }
                 ref.get()->setIsActual(true);
@@ -548,10 +549,14 @@ public:
 
     /// mark start of foot note
     void enterFootNote( lString32 id );
-    void enterFootNote( lString32Collection & ids );
+    void enterFootNote( lString32Collection & ids, bool appending );
 
     /// mark end of foot note
     void leaveFootNote();
+
+    lString32 getCurrentFootNoteId() {
+        return curr_note_id;
+    }
 
     /// returns page height
     int getPageHeight() { return page_h; }

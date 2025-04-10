@@ -464,6 +464,7 @@ enum css_generic_value_t {
                                                        //                           footnote block container)
 #define CSS_CR_HINT_FOOTNOTE_IGNORE         0x08000000 // -cr-hint: footnote-ignore block is not a footnote (even if
                                                        //                           everything else indicates it is)
+#define CSS_CR_HINT_EXTEND_FOOTNOTE_INPAGE  0x10000000 // -cr-hint: extend-footnote-inpage
 
 // A few of them are inheritable, most are not.
 #define CSS_CR_HINT_INHERITABLE_MASK        0x0000000E
