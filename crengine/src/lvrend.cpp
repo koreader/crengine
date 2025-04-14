@@ -7285,9 +7285,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     if ( enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
         if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) ) {
             enode->getAllInnerAttributeValues(attr_id, footnoteIds);
-        } else if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
-            if (lString32 last_footnoteid = flow->getPageContext()->getCurrentFootNoteId();
-                 ! last_footnoteid.empty()) {
+        }
+        else if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
+            lString32 last_footnoteid = flow->getPageContext()->getCurrentFootNoteId();
+            if ( ! last_footnoteid.empty() ) {
                 enode->getAllInnerAttributeValues(attr_id, footnoteIds);
                 footnoteIds.insert(0, last_footnoteid);
                 appendingFootnote = true;

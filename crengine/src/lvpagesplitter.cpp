@@ -193,7 +193,8 @@ void LVRendPageContext::AddLine( int starty, int endy, int flags )
     if ( curr_note != NULL ) {
         //CRLog::trace("adding line to note (%d)", line->start);
         curr_note->addLine( line );
-    } else {
+    }
+    else {
         // Once we add a non-footnote line we can't append to the last footnote anymore
         curr_note_id.clear();
     }
