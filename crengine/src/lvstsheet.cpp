@@ -5354,7 +5354,10 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                             break;
                         }
                         if ( ! STYLE_HAS_CR_HINT(prevstyle, EXTEND_FOOTNOTE_INPAGE) ) {
-                            // found a node that's not part of the footnote chain
+                            // if the sibling doesn't have `extend-footnote-inpage` then the chain
+                            // of footnote extensions has been explicitly broken and we want to stop.
+                            // Otherwise, we continue to look for an actual footnote node in the
+                            // siblings before this one.
                             return; // don't apply anything more of this declaration to this style
                         }
 
