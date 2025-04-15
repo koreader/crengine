@@ -452,8 +452,8 @@ class LVRendPageContext
                     // its content. (This is consistent with the way crengine handle id= when
                     // building the DOM: later ones override ealier ones).
                     // Exception: When `allow_appending` we extend an already created footnote
-                    // trust that the caller has ensured that this is contiguous with already
-                    // accumulated lines by calling `getCurrentFootNoteId`
+                    // and trust that the caller has ensured that this is contiguous with
+                    // already accumulated lines by calling `getCurrentFootNoteId`
                     ref.get()->clear();
                 }
                 // Make a non-actual (which may be a proxy or not) actual
