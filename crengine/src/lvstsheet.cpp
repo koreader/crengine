@@ -5338,65 +5338,41 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                             return; // don't apply anything more of this declaration to this style
                     }
                 }
-                else if ( only_if == cr_only_if_following_inpage_footnote) {
-                    if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE)) {
-                        return; // don't apply anything more of this declaration to this style
-                    }
-                    ldomNode * prevsibling = node->getUnboxedPrevSibling(true);
-                    while (true) {
-                        if ( prevsibling == NULL || prevsibling->isNull() ) {
-                            return; // don't apply anything more of this declaration to this style
+                else if ( only_if == cr_only_if_following_inpage_footnote || cr_only_if_not_following_inpage_footnote ) {
+                    bool does_follow_footnote = [&]() {
+                        if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE)) {
+                            return false;
                         }
-
-                        css_style_ref_t prevstyle = prevsibling->getStyle();
-                        if ( prevstyle.isNull() ) {
-                            return; // don't apply anything more of this declaration to this style
-                        }
-                        if ( STYLE_HAS_CR_HINT(prevstyle, FOOTNOTE_INPAGE)) {
-                            // found a footnote that we are following
-                            break;
-                        }
-                        if ( ! STYLE_HAS_CR_HINT(prevstyle, EXTEND_FOOTNOTE_INPAGE) ) {
-                            // if the sibling doesn't have `extend-footnote-inpage` then the chain
-                            // of footnote extensions has been explicitly broken and we want to stop.
-                            // Otherwise, we continue to look for an actual footnote node in the
-                            // siblings before this one.
-                            return; // don't apply anything more of this declaration to this style
-                        }
-
-                        // NOTE: This needs to skip over text nodes because they don't have a style here that we can check
-                        // They can still be matched via the `autoBoxing` selector
-                        prevsibling = prevsibling->getUnboxedPrevSibling(true);
-                    }
-                }
-                else if ( only_if == cr_only_if_not_following_inpage_footnote) {
-                    if ( ! STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE)) {
                         ldomNode * prevsibling = node->getUnboxedPrevSibling(true);
                         while (true) {
                             if ( prevsibling == NULL || prevsibling->isNull() ) {
-                                break;
+                                return false;
                             }
 
                             css_style_ref_t prevstyle = prevsibling->getStyle();
                             if ( prevstyle.isNull() ) {
-                                break;
+                                return false;
                             }
                             if ( STYLE_HAS_CR_HINT(prevstyle, FOOTNOTE_INPAGE)) {
                                 // found a footnote that we are following
-                                return; // don't apply anything more of this declaration to this style
+                                return true;
                             }
                             if ( ! STYLE_HAS_CR_HINT(prevstyle, EXTEND_FOOTNOTE_INPAGE) ) {
                                 // if the sibling doesn't have `extend-footnote-inpage` then the chain
                                 // of footnote extensions has been explicitly broken and we want to stop.
                                 // Otherwise, we continue to look for an actual footnote node in the
                                 // siblings before this one.
-                                break;
+                                return false;
                             }
 
                             // NOTE: This needs to skip over text nodes because they don't have a style here that we can check
                             // They can still be matched via the `autoBoxing` selector
                             prevsibling = prevsibling->getUnboxedPrevSibling(true);
                         }
+                    }();
+                    if ( (only_if == cr_only_if_following_inpage_footnote && ! does_follow_footnote)
+                            || (only_if == cr_only_if_not_following_inpage_footnote && does_follow_footnote) ) {
+                        return; // don't apply anything more of this declaration to this style
                     }
                 }
                 else if ( only_if == cr_only_if_line_height_normal || only_if == cr_only_if_not_line_height_normal ) {
