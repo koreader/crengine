@@ -5353,6 +5353,8 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                     }
                 }
                 else if ( only_if == cr_only_if_following_inpage_footnote || cr_only_if_not_following_inpage_footnote ) {
+                    // Immediately invoked anonymous function
+                    // Will be inlined by any self-respecting compiler
                     bool does_follow_footnote = [&]() {
                         if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE)) {
                             return false;
