@@ -5364,7 +5364,6 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                             if ( prevsibling == NULL || prevsibling->isNull() ) {
                                 return false;
                             }
-
                             css_style_ref_t prevstyle = prevsibling->getStyle();
                             if ( prevstyle.isNull() ) {
                                 return false;
@@ -5380,9 +5379,6 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                                 // siblings before this one.
                                 return false;
                             }
-
-                            // NOTE: This needs to skip over text nodes because they don't have a style here that we can check
-                            // They can still be matched via the `autoBoxing` selector
                             prevsibling = prevsibling->getUnboxedPrevSibling(true);
                         }
                     }();
