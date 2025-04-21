@@ -1166,8 +1166,13 @@ public:
             LVRendLineInfo * line = lines[i];
             if ( !line->getLinks() )
                 continue;
-            for ( int j=0; j<line->getLinks()->length(); j++ ) {
-                LVFootNote* note = line->getLinks()->get(j);
+            // disable footnotes for footnotes
+            if (line->flags & RN_SPLIT_FOOT_NOTE)
+                continue;
+
+            LVFootNoteList * notes = line->getLinks();
+            for ( int j=0; j<notes->length(); j++ ) {
+                LVFootNote* note = notes->get(j);
                 if ( note->empty() )
                     continue;
                 if ( cur_page_seen_footnotes.indexOf(note) >= 0 )
@@ -1175,6 +1180,32 @@ public:
                 LVFootNote * actual_footnote = note->getActualFootnote();
                 if ( actual_footnote && cur_page_seen_footnotes.indexOf(actual_footnote) >= 0 )
                     continue;
+                // Collect all nested footnotes and add them to the current line's list
+                // of footnotes links (avoiding duplicates) so we can just process them
+                // as if they were regular notes on that line.
+                // Needs to happen before we decide if the notes are added to this page
+                // or delayed so delayed footnotes does not have to check for nested
+                // footnotes and duplicates again.
+                int nb_nested_notes = 0;
+                for ( int nl=0; nl<note->length(); nl++ ) {
+                    LVRendLineInfo * nested_line = note->getLine(nl);
+                    if ( ! nested_line->getLinks() || nested_line->getLinks()->length() == 0 ) {
+                        continue;
+                    }
+                    for ( int nn=0; nn<nested_line->getLinks()->length(); nn++ ) {
+                        LVFootNote * nested_note = nested_line->getLinks()->get(nn);
+                        if ( notes->indexOf(nested_note) >= 0 )
+                            continue; // Already referenced among the current lines notes
+                        LVFootNote * actual_footnote = nested_note->getActualFootnote();
+                        if ( actual_footnote && notes->indexOf(actual_footnote) >= 0 )
+                            continue;
+                        if ( nested_note->length() ) {
+                            // Add all new nested footnotes depth-first in order of
+                            // appearance to the links on the original line
+                            notes->insert(j+1+(nb_nested_notes++), nested_note);
+                        }
+                    }
+                }
                 if ( !delayed_footnotes.empty() ) {
                     // Already some delayed footnotes
                     if ( delayed_footnotes.indexOf(note) < 0 )

@@ -8915,7 +8915,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // See if there are links to footnotes in that line, and add
                     // a reference to it so page splitting can bring the footnotes
                     // text on this page, and then decide about page split.
-                    if ( !isFootNoteBody && enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) { // disable footnotes for footnotes
+                    // (We do this also if we are isFootNoteBody so we can handle footnotes nested in footnotes.)
+                    if ( enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES) ) {
                         // If paragraph is RTL, we are meeting words in the reverse of the reading order:
                         // so, insert each link for this line at the same position, instead of at the end.
                         int link_insert_pos = -1; // append
