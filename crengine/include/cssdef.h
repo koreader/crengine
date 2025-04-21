@@ -465,6 +465,11 @@ enum css_generic_value_t {
 #define CSS_CR_HINT_FOOTNOTE_IGNORE         0x08000000 // -cr-hint: footnote-ignore block is not a footnote (even if
                                                        //                           everything else indicates it is)
 
+// To be set on a block element: it may be considered a continuation of an inpage footnote
+// and will be displayed as part of it on the bottom of pages that contain a link to it
+// (see `-cr-hint: footnote-inpage` above)
+#define CSS_CR_HINT_EXTEND_FOOTNOTE_INPAGE  0x10000000 // -cr-hint: extend-footnote-inpage
+
 // A few of them are inheritable, most are not.
 #define CSS_CR_HINT_INHERITABLE_MASK        0x0000000E
 #define CSS_CR_HINT_INHERITABLE_EARLY_MASK  0x00800000 // inherited before stylesheets are applied

@@ -7278,14 +7278,29 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if this block is a footnote container, so we can deal with it accordingly
     bool isFootNoteBody = false;
+    bool appendingFootnote = false;
     lString32Collection footnoteIds;
     // Allow displaying footnote content at the bottom of all pages that contain a link
     // to it, when -cr-hint: footnote-inpage is set on the footnote block container.
-    if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) &&
-                enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
-        enode->getAllInnerAttributeValues(attr_id, footnoteIds);
-        if ( footnoteIds.length() > 0 )
+    if ( enode->getDocument()->getDocFlag(DOC_FLAG_ENABLE_FOOTNOTES)) {
+        if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) ) {
+            enode->getAllInnerAttributeValues(attr_id, footnoteIds);
+        }
+        else if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
+            lString32 previousActualFootnoteId = flow->getPageContext()->getCurrentFootNoteId();
+            if ( ! previousActualFootnoteId.empty() ) {
+                // prepend the id with which the footnote block that we are appending to
+                // is tracked within the PageContext to ensure any lines we add end up
+                // there and Ids in the current block are linked to it.
+                enode->getAllInnerAttributeValues(attr_id, footnoteIds);
+                footnoteIds.insert(0, previousActualFootnoteId);
+                appendingFootnote = true;
+            }
+        }
+
+        if ( footnoteIds.length() > 0 ) {
             isFootNoteBody = true;
+        }
         // Notes:
         // enterFootNote() takes care of not creating a new footnote if we are already
         // inside a footnotebody (in case of nested "-cr-hint: footnote-inpage"), which
@@ -8198,7 +8213,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 fmt.push();
 
                 if ( isFootNoteBody )
-                    flow->getPageContext()->enterFootNote( footnoteIds );
+                    flow->getPageContext()->enterFootNote( footnoteIds , appendingFootnote );
 
                 // Ensure page-break-inside avoid, from the table's style or
                 // from outer containers
@@ -8387,7 +8402,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if (padding_top==0) {
                         flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
                     }
-                    flow->getPageContext()->enterFootNote( footnoteIds );
+                    flow->getPageContext()->enterFootNote( footnoteIds , appendingFootnote );
                 }
 
                 // recurse all sub-blocks for blocks
@@ -8864,7 +8879,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if (padding_top==0) {
                         flow->addContentLine(0, RN_SPLIT_AFTER_AVOID, 0, true);
                     }
-                    flow->getPageContext()->enterFootNote( footnoteIds );
+                    flow->getPageContext()->enterFootNote( footnoteIds, appendingFootnote );
                 }
 
                 // We have lines of text in 'txform', that we should register

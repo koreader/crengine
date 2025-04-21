@@ -3074,6 +3074,10 @@ static const char * css_cr_only_if_names[]={
         "not-inpage-footnote",
         "inside-inpage-footnote",
         "not-inside-inpage-footnote",
+        "extended-inpage-footnote",
+        "not-extended-inpage-footnote",
+        "following-inpage-footnote",
+        "not-following-inpage-footnote",
         "line-height-normal",
         "not-line-height-normal",
         NULL
@@ -3113,6 +3117,10 @@ enum cr_only_if_t {
     cr_only_if_not_inpage_footnote,
     cr_only_if_inside_inpage_footnote,
     cr_only_if_not_inside_inpage_footnote,
+    cr_only_if_extended_inpage_footnote,
+    cr_only_if_not_extended_inpage_footnote,
+    cr_only_if_following_inpage_footnote,
+    cr_only_if_not_following_inpage_footnote,
     cr_only_if_line_height_normal,
     cr_only_if_not_line_height_normal,
 };
@@ -3416,6 +3424,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             hints = CSS_CR_HINT_NONE_NO_INHERIT;
                         }
                         else if ( substr_icompare("footnote-inpage", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_INPAGE|CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE;
+                        // For now, always set CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE even if the node might not end up extending a previous footnote
+                        else if ( substr_icompare("extend-footnote-inpage", decl) ) hints |= CSS_CR_HINT_EXTEND_FOOTNOTE_INPAGE|CSS_CR_HINT_INSIDE_FOOTNOTE_INPAGE;
                         else if ( substr_icompare("non-linear", decl) )             hints |= CSS_CR_HINT_NON_LINEAR;
                         else if ( substr_icompare("non-linear-combining", decl) )   hints |= CSS_CR_HINT_NON_LINEAR_COMBINING;
                         else if ( substr_icompare("strut-confined", decl) )         hints |= CSS_CR_HINT_STRUT_CONFINED;
@@ -5330,6 +5340,51 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                     else {
                         if ( only_if == cr_only_if_inside_inpage_footnote )
                             return; // don't apply anything more of this declaration to this style
+                    }
+                }
+                else if ( only_if == cr_only_if_extended_inpage_footnote || only_if == cr_only_if_not_extended_inpage_footnote ) {
+                    if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
+                        if ( only_if == cr_only_if_not_extended_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                    else {
+                        if ( only_if == cr_only_if_extended_inpage_footnote )
+                            return; // don't apply anything more of this declaration to this style
+                    }
+                }
+                else if ( only_if == cr_only_if_following_inpage_footnote || only_if == cr_only_if_not_following_inpage_footnote ) {
+                    // Immediately invoked anonymous function
+                    // Will be inlined by any self-respecting compiler
+                    bool does_follow_footnote = [&]() {
+                        if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE)) {
+                            return false;
+                        }
+                        ldomNode * prevsibling = node->getUnboxedPrevSibling(true);
+                        while (true) {
+                            if ( prevsibling == NULL || prevsibling->isNull() ) {
+                                return false;
+                            }
+                            css_style_ref_t prevstyle = prevsibling->getStyle();
+                            if ( prevstyle.isNull() ) {
+                                return false;
+                            }
+                            if ( STYLE_HAS_CR_HINT(prevstyle, FOOTNOTE_INPAGE)) {
+                                // found a footnote that we are following
+                                return true;
+                            }
+                            if ( ! STYLE_HAS_CR_HINT(prevstyle, EXTEND_FOOTNOTE_INPAGE) ) {
+                                // if the sibling doesn't have `extend-footnote-inpage` then the chain
+                                // of footnote extensions has been explicitly broken and we want to stop.
+                                // Otherwise, we continue to look for an actual footnote node in the
+                                // siblings before this one.
+                                return false;
+                            }
+                            prevsibling = prevsibling->getUnboxedPrevSibling(true);
+                        }
+                    }();
+                    if ( (only_if == cr_only_if_following_inpage_footnote && ! does_follow_footnote)
+                            || (only_if == cr_only_if_not_following_inpage_footnote && does_follow_footnote) ) {
+                        return; // don't apply anything more of this declaration to this style
                     }
                 }
                 else if ( only_if == cr_only_if_line_height_normal || only_if == cr_only_if_not_line_height_normal ) {

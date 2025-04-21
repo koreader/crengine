@@ -113,7 +113,7 @@ void LVRendPageContext::addLink( lString32 id, int pos )
     }
     if ( lines.empty() )
         return;
-    LVFootNoteRef note = getOrCreateFootNote( id, false ); // not yet actual
+    LVFootNoteRef note = getOrCreateFootNote( id, false, false ); // not yet actual
     lines.last()->addLink(note.get(), pos);
 }
 
@@ -127,10 +127,10 @@ void LVRendPageContext::enterFootNote( lString32 id )
         CRLog::error("Nested entering note" );
         return;
     }
-    curr_note = getOrCreateFootNote( id ).get();
+    curr_note = getOrCreateFootNote( id, true, false ).get();
 }
 
-void LVRendPageContext::enterFootNote( lString32Collection & ids )
+void LVRendPageContext::enterFootNote( lString32Collection & ids, bool appending )
 {
     if ( !page_list )
         return;
@@ -138,7 +138,8 @@ void LVRendPageContext::enterFootNote( lString32Collection & ids )
         CRLog::error("Nested entering note" );
         return;
     }
-    curr_note = getOrCreateFootNote( ids ).get();
+    curr_note = getOrCreateFootNote( ids, appending ).get();
+    curr_note_id = curr_note->getId();
 }
 
 /// mark end of foot note
@@ -151,6 +152,9 @@ void LVRendPageContext::leaveFootNote()
         CRLog::error("leaveFootNote() w/o current note set");
     }
     curr_note = NULL;
+    // Don't reset curr_note_id here but when the next line is passed to AddLine
+    // This allows appending to the footnote from the next consecutive block via
+    // -cr-hint: extend-footnote-inpage
 }
 
 void LVRendPageContext::newFlow( bool nonlinear )
@@ -189,6 +193,10 @@ void LVRendPageContext::AddLine( int starty, int endy, int flags )
     if ( curr_note != NULL ) {
         //CRLog::trace("adding line to note (%d)", line->start);
         curr_note->addLine( line );
+    }
+    else {
+        // Once we add a non-footnote line we can't append to the last footnote anymore
+        curr_note_id.clear();
     }
 }
 

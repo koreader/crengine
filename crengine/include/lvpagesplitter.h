@@ -418,6 +418,7 @@ class LVRendPageContext
     LVHashTable<lString32, LVFootNoteRef> footNotes;
 
     LVFootNote * curr_note;
+    lString32 curr_note_id;
 
     // Note: a footnote indexed in 'footNotes' may have pointers to it stored in other
     // footnotes' actual_footnote. 'footNotes' is usually the only thing holding a
@@ -428,7 +429,7 @@ class LVRendPageContext
     // In the following, we want to handle as well as possible the edge case
     // of buggy books having duplicated id= among footnotes (which may happen
     // in Wikipedia EPUBs), which makes things a tad more complex...
-    LVFootNoteRef getOrCreateFootNote( lString32 id, bool actual=true )
+    LVFootNoteRef getOrCreateFootNote( lString32 id, bool actual, bool allow_appending )
     {
         LVFootNoteRef ref = footNotes.get(id);
         if ( ref.isNull() ) {
@@ -443,13 +444,16 @@ class LVRendPageContext
             // Found an existing one
             if ( actual ) {
                 // We are going to add lines
-                if ( ref.get()->isActual() ) {
+                if ( ref.get()->isActual() && ! allow_appending ) {
                     // If the one we found is already actual, something is wrong: this may
                     // happen with buggy books with duplicated id= (ie. Wikipedia EPUBs...).
                     // LVPageSplitter expects a footnote to be a single chunk/slice of the
                     // document, so we can't accumulate lines from different places: override
                     // its content. (This is consistent with the way crengine handle id= when
                     // building the DOM: later ones override ealier ones).
+                    // Exception: When `allow_appending` we extend an already created footnote
+                    // and trust that the caller has ensured that this is contiguous with
+                    // already accumulated lines by calling `getCurrentFootNoteId`
                     ref.get()->clear();
                 }
                 // Make a non-actual (which may be a proxy or not) actual
@@ -459,12 +463,12 @@ class LVRendPageContext
         }
         return ref;
     }
-    LVFootNoteRef getOrCreateFootNote( lString32Collection & ids )
+    LVFootNoteRef getOrCreateFootNote( lString32Collection & ids, bool allow_appending )
     {
         // This, with multiple ids, is always called to create an actual footnote,
         // so no need to handle any actual=false case.
         if (ids.length() == 1) { // use single id method.
-            return getOrCreateFootNote(ids.at(0));
+            return getOrCreateFootNote(ids.at(0), true, allow_appending);
         }
         // Multiple ids provided: zero, one, or more of them may exist
         LVFootNoteRef ref;
@@ -474,7 +478,7 @@ class LVRendPageContext
             if ( !ref.isNull() ) {
                 found = n;
                 // As above, see comments there.
-                if ( ref.get()->isActual() ) {
+                if ( ref.get()->isActual() && ! allow_appending ) {
                     ref.get()->clear();
                 }
                 ref.get()->setIsActual(true);
@@ -548,10 +552,14 @@ public:
 
     /// mark start of foot note
     void enterFootNote( lString32 id );
-    void enterFootNote( lString32Collection & ids );
+    void enterFootNote( lString32Collection & ids, bool appending );
 
     /// mark end of foot note
     void leaveFootNote();
+
+    lString32 getCurrentFootNoteId() {
+        return curr_note_id;
+    }
 
     /// returns page height
     int getPageHeight() { return page_h; }
