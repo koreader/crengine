@@ -7287,10 +7287,13 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             enode->getAllInnerAttributeValues(attr_id, footnoteIds);
         }
         else if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
-            lString32 last_footnoteid = flow->getPageContext()->getCurrentFootNoteId();
-            if ( ! last_footnoteid.empty() ) {
+            lString32 previousActualFootnoteId = flow->getPageContext()->getCurrentFootNoteId();
+            if ( ! previousActualFootnoteId.empty() ) {
+                // prepend the id with which the footnote block that we are appending to
+                // is tracked within the PageContext to ensure any lines we add end up
+                // there and Ids in the current block are linked to it.
                 enode->getAllInnerAttributeValues(attr_id, footnoteIds);
-                footnoteIds.insert(0, last_footnoteid);
+                footnoteIds.insert(0, previousActualFootnoteId);
                 appendingFootnote = true;
             }
         }
