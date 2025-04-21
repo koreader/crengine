@@ -924,6 +924,16 @@ public:
     lString32Collection()
         : chunks(NULL), count(0), size(0)
     { }
+    lString32Collection(const lString32Collection & src)
+        : chunks(NULL), count(0), size(0)
+    { reserve(src.size); addAll(src); }
+    lString32Collection& operator=(const lString32Collection& other)
+    {
+        clear();
+        reserve(other.size);
+        addAll(other);
+        return *this;
+    }
     /// parse delimiter-separated string
     void parse( lString32 string, lChar32 delimiter, bool flgTrim );
     /// parse delimiter-separated string
@@ -1053,6 +1063,8 @@ public:
 	bool deserialize( SerialBuf & buf );
 
     lString32HashedCollection( lString32HashedCollection & v );
+    // No reason `operator=` can't be implemented, but needs to be done manually and not auto-generated
+    lString32HashedCollection& operator=(lString32HashedCollection &) = delete;
     lString32HashedCollection( lUInt32 hashSize );
     ~lString32HashedCollection();
     int add( const lChar32 * s );
