@@ -3074,8 +3074,6 @@ static const char * css_cr_only_if_names[]={
         "not-inpage-footnote",
         "inside-inpage-footnote",
         "not-inside-inpage-footnote",
-        "extended-inpage-footnote",
-        "not-extended-inpage-footnote",
         "following-inpage-footnote",
         "not-following-inpage-footnote",
         "line-height-normal",
@@ -3117,8 +3115,6 @@ enum cr_only_if_t {
     cr_only_if_not_inpage_footnote,
     cr_only_if_inside_inpage_footnote,
     cr_only_if_not_inside_inpage_footnote,
-    cr_only_if_extended_inpage_footnote,
-    cr_only_if_not_extended_inpage_footnote,
     cr_only_if_following_inpage_footnote,
     cr_only_if_not_following_inpage_footnote,
     cr_only_if_line_height_normal,
@@ -5323,7 +5319,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                     }
                 }
                 else if ( only_if == cr_only_if_inpage_footnote || only_if == cr_only_if_not_inpage_footnote ) {
-                    if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) ) {
+                    if ( STYLE_HAS_CR_HINT(style, FOOTNOTE_INPAGE) || STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
                         if ( only_if == cr_only_if_not_inpage_footnote )
                             return; // don't apply anything more of this declaration to this style
                     }
@@ -5339,16 +5335,6 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                     }
                     else {
                         if ( only_if == cr_only_if_inside_inpage_footnote )
-                            return; // don't apply anything more of this declaration to this style
-                    }
-                }
-                else if ( only_if == cr_only_if_extended_inpage_footnote || only_if == cr_only_if_not_extended_inpage_footnote ) {
-                    if ( STYLE_HAS_CR_HINT(style, EXTEND_FOOTNOTE_INPAGE) ) {
-                        if ( only_if == cr_only_if_not_extended_inpage_footnote )
-                            return; // don't apply anything more of this declaration to this style
-                    }
-                    else {
-                        if ( only_if == cr_only_if_extended_inpage_footnote )
                             return; // don't apply anything more of this declaration to this style
                     }
                 }
