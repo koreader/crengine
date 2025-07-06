@@ -84,7 +84,7 @@ bool ImportMarkdownDocument(LVStreamRef stream, const lString32& fileName, ldomD
                                     MD_FLAG_STRIKETHROUGH | MD_FLAG_PERMISSIVEURLAUTOLINKS |
                                     MD_FLAG_PERMISSIVEEMAILAUTOLINKS | MD_FLAG_PERMISSIVEWWWAUTOLINKS |
                                     MD_FLAG_LATEXMATHSPANS,
-                            0);
+                            MD_HTML_FLAG_XHTML);
     rawData.clear();
     if (0 != parse_res) {
         // Parse failed
@@ -94,7 +94,11 @@ bool ImportMarkdownDocument(LVStreamRef stream, const lString32& fileName, ldomD
     // Write document content to stream to parse them
     lvsize_t result_len = htmlData.length();
     lString32 title = LVExtractFilenameWithoutExtension(fileName);
-    lString8 gen_preamble = cs8("<html><head><title>") + UnicodeToUtf8(title) + cs8("</title></head><body>");
+    lString8 gen_preamble = cs8(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>"
+    ) + UnicodeToUtf8(title) + cs8("</title></head><body>");
     lString8 gen_tail = cs8("</body></html>");
     lvsize_t dw;
     LVStreamRef memStream = LVCreateMemoryStream();
