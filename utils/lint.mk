@@ -85,6 +85,7 @@ crengine/src/lvtextfm.cpp
 crengine/src/lvtinydom.cpp
 crengine/src/lvxml.cpp
 crengine/src/mathml.cpp
+crengine/src/mdfmt.cpp
 crengine/src/odtfmt.cpp
 crengine/src/odxutil.cpp
 crengine/src/pdbfmt.cpp
