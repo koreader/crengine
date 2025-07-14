@@ -9570,6 +9570,9 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
     if (!style->background_image.empty()) {
         lString32 filepath = lString32(style->background_image.c_str());
         LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filepath);
+        if (img.isNull()) { // filepath may be url-encoded
+            img = enode->getParentNode()->getDocument()->getObjectImageSource(DecodeHTMLUrlString(filepath));
+        }
         if (!img.isNull()) {
             // Native image size
             int img_w =img->GetWidth();
