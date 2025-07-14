@@ -5973,8 +5973,11 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     _flags = 0;
     if ( (_typeDef && _typeDef->white_space >= css_ws_pre_line) || (_parent && _parent->getFlags()&TXTFLG_PRE) )
         _flags |= TXTFLG_PRE; // Parse as PRE: pre-line, pre, pre-wrap and break-spaces
-        // This will be updated in ldomElementWriter::onBodyEnter() after we have
-        // set styles to this node, so we'll get the real white_space value to use.
+    if ( _typeDef )
+        _isBlock = _typeDef->display > css_d_inline && _typeDef->display != css_d_none;
+        // These will be updated in ldomElementWriter::onBodyEnter() after we have
+        // set styles to this node, so we'll get the real white_space and display
+        // values to use for parsing any children text node.
 
     _isSection = (id==el_section);
 
