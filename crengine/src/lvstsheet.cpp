@@ -3641,7 +3641,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     if ( g >= 0 ) {
                         if ( g == css_g_initial ) {
                             n = css_ff_sans_serif; // lvfntman's default
-                            if ( doc ) { strValue = doc->getRootNode()->getStyle()->font_name; }
+                            if ( doc && ((ldomDocument*)doc)->isDefStyleSet() ) {
+                                strValue = ((ldomDocument*)doc)->getDefaultStyle()->font_name;
+                            }
                         }
                         else { // inherit/unset
                             n = css_ff_inherit;
@@ -4054,7 +4056,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             // Done with those that accept 1 to 4 length values.
 
             case cssd_color:
-                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_color, (doc ? doc->getRootNode()->getStyle()->color.value : 0x000000));
+                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_color, (doc && ((ldomDocument*)doc)->isDefStyleSet() ? ((ldomDocument*)doc)->getDefaultStyle()->color.value : 0x000000));
             case cssd_background_color:
                 IF_g_PUSH_LENGTH_AND_break(1, false, css_val_color, CSS_COLOR_TRANSPARENT);
             case cssd_border_top_color:
