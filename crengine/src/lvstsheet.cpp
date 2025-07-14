@@ -548,8 +548,13 @@ static inline bool skip_to_next( const char * & str, char stop_char_to_skip, cha
             if ( *str == closing_paren_ch ) {
                 closing_paren_ch = 0;
             }
+            else if ( *str == '\'' || *str=='\"' ) {
+                quote_ch = *str;
+            }
             // skip closing paren, or anything not this closing paren when
-            // inside parens and not inside quotes (handled above)
+            // inside parens and not inside quotes (handled above);
+            // if we meet a quote, we are now inside quotes and should then ignore
+            // any further closing paren until after we see a closing quote.
         }
         else if ( *str == stop_char_to_skip ) {
             // i.e. ';' after "property:value;" if not inside quotes/parens nor escaped

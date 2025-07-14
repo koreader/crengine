@@ -1248,17 +1248,24 @@ public:
         lString8 css_ = deletecomment(css);
         for (int i=0; i<css_.length(); i++) {
             char ch = css_[i];
-            if (insideQuotes || _state == 13) {
-                if (ch == insideQuotes || (_state == 13 && ch == ')')) {
+            if (insideQuotes) {
+                if (ch == insideQuotes) {
                     onQuotedText(token);
-                    insideQuotes =  0;
-                    if (_state == 13)
-                        onToken(ch);
+                    insideQuotes = 0;
                 } else {
-                    if (_state == 13 && token.empty() && (ch == '\'' || ch=='\"')) {
+                    token << ch;
+                }
+                continue;
+            }
+            else if (_state == 13) {
+                if (ch == ')') {
+                    onQuotedText(token);
+                } else {
+                    if (token.empty() && (ch == '\'' || ch=='\"')) {
                         insideQuotes = ch;
-                    } else if (ch != ' ' || _state != 13)
+                    } else if (ch != ' ') {
                         token << ch;
+                    }
                 }
                 continue;
             }
