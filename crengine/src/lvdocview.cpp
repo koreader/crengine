@@ -32,6 +32,8 @@
 #include "../include/docxfmt.h"
 #include "../include/odtfmt.h"
 #include "mdfmt.h"
+#include "lvdrawbuf.h"
+LVDrawBuf *LVCreateDrawBuf(int dx,int dy,int bpp);
 
 /// to show page bounds rectangles
 //#define SHOW_PAGE_RECT
@@ -749,6 +751,48 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, bool autoResize) {
 		SetPos(pt.y, false);
 		Draw(drawbuf, _pos, -1, false, autoResize);
 			// this will find out the correct page from our page list
+			}
+			 // ... existing rendering code ...
+
+    // Capture hook after page is rendered
+    if (m_capture_enabled) {
+        // Capture current page
+         
+        int width = drawbuf.GetWidth();
+        int height = drawbuf.GetHeight();
+        int bpp = drawbuf.GetBitsPerPixel();
+        int pixelSize = (bpp == 32) ? 4 : (bpp == 16) ? 2 : 1;
+        int bufferSize = width * height * pixelSize;
+        printf("CAPTURE: Current page buffer size: %d bytes\n", m_current_page_buffer.size());
+
+        m_current_page_buffer.clear();
+        m_current_page_buffer.reserve(bufferSize);
+        const lUInt8* src = drawbuf.GetScanLine(0);
+        for (int i=0;i<bufferSize;++i)
+        m_current_page_buffer.add(src[i]);
+
+        // Capture next page
+        if (_page + 1 <= getPageCount()) {
+            // Create temporary buffer for next page
+            LVDrawBuf* nextBuf = LVCreateDrawBuf(width, height, bpp);
+            nextBuf->Clear(0xFFFFFF);  // White background
+            
+            // Render next page into temporary buffer
+            Draw(*nextBuf,_pos, _page + 1,true, autoResize);
+            printf("CAPTURE: Next page buffer size: %d bytes\n",m_next_page_buffer.size());
+            
+            // Store next page pixels
+            const lUInt8* nextSrc = nextBuf->GetScanLine(0);
+            m_next_page_buffer.clear();
+            m_next_page_buffer.reserve(bufferSize);
+            for (int i=0;i<bufferSize;++i)
+            m_next_page_buffer.add(nextSrc[i]);
+            
+            delete nextBuf;  // Clean up temporary buffer
+        }
+        
+        // Reset capture flag after one-time capture
+        m_capture_enabled = false;
 	}
 }
 
