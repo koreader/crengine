@@ -310,6 +310,11 @@ protected:
 
     ldomMarkedRangeList m_markRanges;
     ldomMarkedRangeList m_bmkRanges;
+     bool m_capture_enabled = false;
+    bool m_capture_next_page = false;
+    LVArray<lUInt8> m_current_page_buffer;
+    LVArray<lUInt8> m_next_page_buffer;
+
 
 private:
     lString32 m_filename;
@@ -417,7 +422,19 @@ public:
 
     /// draw current page to specified buffer
     void Draw( LVDrawBuf & drawbuf, bool autoResize = true);
-
+     void setCaptureEnabled(bool enabled) { 
+        m_capture_enabled = enabled; 
+    }
+    const LVArray<lUInt8>& getCurrentPageBuffer() const { 
+        return m_current_page_buffer; 
+    }
+    const LVArray<lUInt8>& getNextPageBuffer() const { 
+        return m_next_page_buffer; 
+    }
+    void clearPageBuffers() {
+        m_current_page_buffer.clear();
+        m_next_page_buffer.clear();
+    }
     /// close document
     void close();
     /// set buffer format
