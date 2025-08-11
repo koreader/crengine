@@ -295,7 +295,7 @@ endef
 
 define STYLELINT_FLAGS
 $(if $(CLICOLOR_FORCE),--color)
---formatter=$(if $(GITHUB_ACTIONS),github,unix)
+$(if $(GITHUB_ACTIONS),--custom-formatter=@csstools/stylelint-formatter-github,--formatter=unix)
 endef
 
 define stylelint_rule
