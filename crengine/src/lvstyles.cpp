@@ -179,6 +179,14 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.border_color[1]==r2.border_color[1]&&
            r1.border_color[2]==r2.border_color[2]&&
            r1.border_color[3]==r2.border_color[3]&&
+           r1.border_radius_h[0]==r2.border_radius_h[0]&&
+           r1.border_radius_h[1]==r2.border_radius_h[1]&&
+           r1.border_radius_h[2]==r2.border_radius_h[2]&&
+           r1.border_radius_h[3]==r2.border_radius_h[3]&&
+           r1.border_radius_v[0]==r2.border_radius_v[0]&&
+           r1.border_radius_v[1]==r2.border_radius_v[1]&&
+           r1.border_radius_v[2]==r2.border_radius_v[2]&&
+           r1.border_radius_v[3]==r2.border_radius_v[3]&&
            r1.background_image==r2.background_image&&
            r1.background_repeat==r2.background_repeat&&
            r1.background_position==r2.background_position&&
@@ -381,6 +389,8 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(border_style_left);
     ST_PUT_LEN4(border_width);
     ST_PUT_LEN4(border_color);
+    ST_PUT_LEN4(border_radius_h);
+    ST_PUT_LEN4(border_radius_v);
     buf<<background_image;
     ST_PUT_ENUM(background_repeat);
     ST_PUT_ENUM(background_position);
@@ -455,6 +465,8 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_border_style_type_t ,border_style_left);
     ST_GET_LEN4(border_width);
     ST_GET_LEN4(border_color);
+    ST_GET_LEN4(border_radius_h);
+    ST_GET_LEN4(border_radius_v);
     buf>>background_image;
     ST_GET_ENUM(css_background_repeat_value_t ,background_repeat);
     ST_GET_ENUM(css_background_position_value_t ,background_position);
