@@ -15,10 +15,16 @@
     }],
     "no-descending-specificity": [true, { "severity": "warning" }],
     "no-duplicate-selectors": [true, { "severity": "warning" }],
+    "property-no-deprecated": [true, {
+      "ignoreProperties": [
+	"page-break-after",
+	"page-break-before",
+	"page-break-inside"
+      ]
+    }],
     "property-no-unknown": [true, {
       "ignoreProperties": [
         "binding",
-
         "hyphenate"
       ]
     }],
