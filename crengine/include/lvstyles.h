@@ -176,8 +176,8 @@ struct css_style_rec_tag {
     css_border_style_type_t border_style_left;
     css_length_t border_width[4]; ///< border-top-width, -right-, -bottom-, -left-
     css_length_t border_color[4]; ///< border-top-color, -right-, -bottom-, -left-
-    css_length_t border_radius_h[4]; // Order: TL, TR, BR, BL.
-    css_length_t border_radius_v[4]; // Order: TL, TR, BR, BL.
+    css_length_t border_radius_h[4]; ///< border-radius-top-left, -top-right, -bottom-right, -bottom-left (horizontal radii)
+    css_length_t border_radius_v[4]; ///< border-radius-top-left, -top-right, -bottom-right, -bottom-left (vertical radii)
     lString8 background_image;
     css_background_repeat_value_t background_repeat;
     css_background_position_value_t background_position;
