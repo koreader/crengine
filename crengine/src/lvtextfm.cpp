@@ -2793,6 +2793,7 @@ public:
             // First, gather some info
             int min_extra_width = 0; // negative value (from the allowed spaces condensing)
             int max_font_size = 0;
+            int n_spaces = 0;
             for ( int i=0; i<(int)frmline->word_count; i++ ) {
                 formatted_word_t * word = &frmline->words[i];
                 // Ignore images, inline boxes, cursive words and CJK words (flexible CJK words can
@@ -2802,6 +2803,8 @@ public:
                 // them get less space added, and western/numbers get the expansion).
                 if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
+                if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 ) // check on i because idk if last word can have this flag
+                    n_spaces++;
                 min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
                 LVFont * font = (LVFont *)srcline->t.font;
@@ -2817,6 +2820,7 @@ public:
                 letter_spacing_ratio++;
                 added_spacing = 0;
                 bool can_try_larger = false;
+                int n_spaced_glyphs = 0;
                 for ( int i=0; i<(int)frmline->word_count; i++ ) {
                     formatted_word_t * word = &frmline->words[i];
                     if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
@@ -2834,9 +2838,18 @@ public:
                     else
                         can_try_larger = true;
                     added_spacing += word->distinct_glyphs * word->added_letter_spacing;
+                    if ( word->added_letter_spacing > 0 )  // things like footnote numbers may not get spacing and shouldn't count
+                        n_spaced_glyphs += word->distinct_glyphs;
                 }
                 int new_extra_width = extra_width - added_spacing;
-                if ( new_extra_width < min_extra_width ) { // too much added, not enough for spaces
+                // Letter spacing may reduce contrast between letter- and word spacing and result in a blur.
+                // We require word spacing to be 2x(letter spacing) above standard to maintain contrast.
+                // Since letter spacing is also added after last letters of words, 1x is already covered.
+                // The other half must come from new_extra_width (plus maaaybe a bit from condensable width).
+                // Since letter spacing = added_spacing/n_spaced_glyphs, we need n_spaces times that in total.
+                int usable_extra_width = new_extra_width; // - min_extra_width/2; to start from half-condensed instead of standard
+                if ( new_extra_width < min_extra_width // too much added, not enough for spaces
+                        || usable_extra_width * n_spaced_glyphs < added_spacing * n_spaces ) { // spacing contrast too low
                     // Get back values from previous step (which was fine)
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
