@@ -2803,7 +2803,7 @@ public:
                 // them get less space added, and western/numbers get the expansion).
                 if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
-                if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 ) // check on i because idk if last word can have this flag
+                if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 ) // ignore last word as we won't draw its trailing space
                     nb_spaces++;
                 min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
@@ -2838,16 +2838,26 @@ public:
                     else
                         can_try_larger = true;
                     added_spacing += word->distinct_glyphs * word->added_letter_spacing;
-                    if ( word->added_letter_spacing > 0 )  // things like footnote numbers may not get spacing and shouldn't count
+                    if ( word->added_letter_spacing > 0 )
                         nb_spaced_glyphs += word->distinct_glyphs;
                 }
                 int new_extra_width = extra_width - added_spacing;
-                // Letter spacing may reduce contrast between letter- and word spacing and result in a blur.
-                // We require word spacing to be 2x(letter spacing) above standard to maintain contrast.
-                // Since letter spacing is also added after last letters of words, 1x is already covered.
-                // The other half must come from new_extra_width (plus maaaybe a bit from condensable width).
-                // Since letter spacing = added_spacing/nb_spaced_glyphs, we need nb_spaces times that in total.
-                int usable_extra_width = new_extra_width; // - min_extra_width/2; to start from half-condensed instead of standard
+                // Letter spacing (aka tracking) will be added after glyphs, including last glyphs of
+                // words, but not after spaces. Standard practice (e.g. letter-spacing property spec
+                // in CSS) is to add it after all characters, including spaces, to maintain visual
+                // contrast between tracking and word spacing at any amount of tracking.
+                // So we must make sure added_spacing (total amount of tracking) only uses up so much
+                // extra_width that still leaves enough left for the missing tracking after spaces.
+                // Per-glyph tracking width: T = added_spacing / nb_spaced_glyphs
+                // Total width of tracking needed after spaces: T * nb_spaces
+                // Extra width remaining (with regular word spacing): new_extra_width
+                // Extra width remaining (with condensed spacing): new_extra_width - min_extra_width
+                // It's an aesthetic choice whether space condensing should be allowed with tracking.
+                // IMO yes, some space condensing is fine, we should allow it at half strength. So:
+                // (new_extra_width - min_extra_width/2) < added_spacing / nb_spaced_glyphs * nb_spaces
+                // ...means we don't have enough spare width for the current level of tracking, and should
+                // roll back to the previous level. Multiply both sides with nb_spaced_glyphs to avoid integer division.
+                int usable_extra_width = new_extra_width - min_extra_width/2;
                 if ( new_extra_width < min_extra_width // too much added, not enough for spaces
                         || usable_extra_width * nb_spaced_glyphs < added_spacing * nb_spaces ) { // spacing contrast too low
                     // Get back values from previous step (which was fine)
