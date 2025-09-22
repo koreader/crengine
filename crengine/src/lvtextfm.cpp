@@ -2845,21 +2845,18 @@ public:
                 // Letter spacing (aka tracking) will be added after glyphs, including last glyphs of
                 // words, but not after spaces. Standard practice (e.g. letter-spacing property spec
                 // in CSS) is to add it after all characters, including spaces, to maintain visual
-                // contrast between tracking and word spacing at any amount of tracking.
+                // contrast between letter spacing and word spacing at any amount of tracking.
                 // So we must make sure added_spacing (total amount of tracking) only uses up so much
                 // extra_width that still leaves enough left for the missing tracking after spaces.
                 // Per-glyph tracking width: T = added_spacing / nb_spaced_glyphs
                 // Total width of tracking needed after spaces: T * nb_spaces
-                // Extra width remaining (with regular word spacing): new_extra_width
-                // Extra width remaining (with condensed spacing): new_extra_width - min_extra_width
-                // It's an aesthetic choice whether space condensing should be allowed with tracking.
-                // IMO yes, some space condensing is fine, we should allow it at half strength. So:
-                // (new_extra_width - min_extra_width/2) < added_spacing / nb_spaced_glyphs * nb_spaces
-                // ...means we don't have enough spare width for the current level of tracking, and should
-                // roll back to the previous level. Multiply both sides with nb_spaced_glyphs to avoid integer division.
-                int usable_extra_width = new_extra_width - min_extra_width/2;
+                // Extra width remaining: new_extra_width
+                // Therefore: new_extra_width < added_spacing / nb_spaced_glyphs * nb_spaces
+                // is when we have less extra width remaining than would be needed for the current
+                // amount of tracking, and should roll back to the previous tracking value.
+                // Multiply both sides with nb_spaced_glyph to avoid integer division.
                 if ( new_extra_width < min_extra_width // too much added, not enough for spaces
-                        || usable_extra_width * nb_spaced_glyphs < added_spacing * nb_spaces ) { // spacing contrast too low
+                        || min_extra_width * nb_spaced_glyphs < added_spacing * nb_spaces ) { // spacing contrast too low
                     // Get back values from previous step (which was fine)
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
