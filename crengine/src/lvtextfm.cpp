@@ -2793,6 +2793,7 @@ public:
             // First, gather some info
             int min_extra_width = 0; // negative value (from the allowed spaces condensing)
             int max_font_size = 0;
+            int nb_spaces = 0;
             for ( int i=0; i<(int)frmline->word_count; i++ ) {
                 formatted_word_t * word = &frmline->words[i];
                 // Ignore images, inline boxes, cursive words and CJK words (flexible CJK words can
@@ -2802,6 +2803,8 @@ public:
                 // them get less space added, and western/numbers get the expansion).
                 if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
+                if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 ) // ignore last word as we won't draw its trailing space
+                    nb_spaces++;
                 min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
                 LVFont * font = (LVFont *)srcline->t.font;
@@ -2817,6 +2820,7 @@ public:
                 letter_spacing_ratio++;
                 added_spacing = 0;
                 bool can_try_larger = false;
+                int nb_spaced_glyphs = 0;
                 for ( int i=0; i<(int)frmline->word_count; i++ ) {
                     formatted_word_t * word = &frmline->words[i];
                     if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
@@ -2834,9 +2838,25 @@ public:
                     else
                         can_try_larger = true;
                     added_spacing += word->distinct_glyphs * word->added_letter_spacing;
+                    if ( word->added_letter_spacing > 0 )
+                        nb_spaced_glyphs += word->distinct_glyphs;
                 }
                 int new_extra_width = extra_width - added_spacing;
-                if ( new_extra_width < min_extra_width ) { // too much added, not enough for spaces
+                // Letter spacing (aka tracking) will be added after glyphs, including last glyphs of
+                // words, but not after spaces. Standard practice (e.g. letter-spacing property spec
+                // in CSS) is to add it after all characters, including spaces, to maintain visual
+                // contrast between letter spacing and word spacing at any amount of tracking.
+                // So we must make sure added_spacing (total amount of tracking) only uses up so much
+                // extra_width that still leaves enough left for the missing tracking after spaces.
+                // Per-glyph tracking width: T = added_spacing / nb_spaced_glyphs
+                // Total width of tracking needed after spaces: T * nb_spaces
+                // Extra width remaining: new_extra_width
+                // Therefore: new_extra_width < added_spacing / nb_spaced_glyphs * nb_spaces
+                // is when we have less extra width remaining than would be needed for the current
+                // amount of tracking, and should roll back to the previous tracking value.
+                // Multiply both sides with nb_spaced_glyph to avoid integer division.
+                if ( new_extra_width < min_extra_width // too much added, not enough for spaces
+                        || min_extra_width * nb_spaced_glyphs < added_spacing * nb_spaces ) { // spacing contrast too low
                     // Get back values from previous step (which was fine)
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
