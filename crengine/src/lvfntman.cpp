@@ -6197,8 +6197,14 @@ public:
         if (stream.isNull())
             return false;
         lUInt32 size = (lUInt32)stream->GetSize();
-        if (size < 100 || size > 5000000)
+        if (size < 100) {
+            printf("CRE WARNING: document font '%s' ignored: file too small\n", LCSTR(name));
             return false;
+        }
+        if (size > 25000000) {
+            printf("CRE WARNING: document font '%s' ignored: file too big\n", LCSTR(name));
+            return false;
+        }
         LVByteArrayRef buf = stream->GetData();
         if (!buf)
             return false;
