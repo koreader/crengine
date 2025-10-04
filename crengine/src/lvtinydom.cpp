@@ -20952,6 +20952,7 @@ void ldomDocument::buildSyntheticPageMap( int chars_per_synthetic_page )
         return; // already done
     }
     m_pagemap.clear();
+    m_pagemap.invalidatePageInfo();
     if ( chars_per_synthetic_page <= 0 ) {
         m_pagemap._chars_per_synthetic_page = 0;
         return;
