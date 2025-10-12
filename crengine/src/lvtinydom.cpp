@@ -20959,31 +20959,70 @@ void ldomDocument::buildSyntheticPageMap( int chars_per_synthetic_page )
     }
     printf("CRE: building synthetic page map (%d)\n", chars_per_synthetic_page);
     m_pagemap._chars_per_synthetic_page = chars_per_synthetic_page;
-    ldomXPointerEx xp = ldomXPointerEx( getRootNode(), 0 );
     int page_num = 0;
     int count = 0; // chars needed until new page
     // We loop thru all text nodes, whether visible or not (as visiblity can be changed
     // with styles, and we want this to be stable)
-    while ( xp.nextText() ) {
-        // But skip text from elements which would by default be hidden (<style>, <script>,
-        // some FB2 elements...), mostly so that a huge <style> at top of document doesn't
-        // generate many synthetic pages that would end up all on the first screen page.
-        const css_elem_def_props_t * ntype = xp.getNode()->getParentNode()->getElementTypePtr();
-        if ( ntype && ntype->display == css_d_none ) {
-            continue;
+    // Use our usual non-recursive node walker code.
+    ldomNode * n = getRootNode();
+    if ( n && n->getChildCount() > 0 ) {
+        int index = 0;
+        n = n->getChildNode(index);
+        while ( true ) {
+            // Check the node only the first time we meet it (index == 0) and
+            // not when we get back to it from a child to process next sibling
+            if ( index == 0 ) {
+                if ( n->isElement() ) {
+                    // We want to skip text from elements which would by default be hidden (<style>, <script>,
+                    // some FB2 elements...), mostly so that a huge <style> at top of document doesn't
+                    // generate many synthetic pages that would end up all on the first screen page.
+                    const css_elem_def_props_t * ntype = n->getElementTypePtr();
+                    if ( ntype && ntype->display == css_d_none ) {
+                        // Ignore all children, get back to parent and have it process our sibling
+                        index = n->getNodeIndex() + 1;
+                        n = n->getParentNode();
+                        if ( !n )
+                            break; // back to root node
+                        continue;
+                    }
+                    lUInt16 id = n->getNodeId();
+                    if (id == el_DocFragment ) {
+                        // Start a new page number on any new DocFragment (each HTML file
+                        // in an EPUB), as this is stable
+                        count = chars_per_synthetic_page;
+                        page_num++;
+                        lString32 title;
+                        title.appendDecimal(page_num);
+                        m_pagemap.addPage(title, ldomXPointer(n, 0), lString32::empty_str);
+                    }
+                }
+                else { // isText()
+                    lString32 text = n->getText().trim();
+                    int len = text.length();
+                    while (len > count) {
+                        int offset = count;
+                        len -= count;
+                        count = chars_per_synthetic_page;
+                        page_num++;
+                        lString32 title;
+                        title.appendDecimal(page_num);
+                        m_pagemap.addPage(title, ldomXPointer(n, offset), lString32::empty_str);
+                    }
+                    count -= len;
+                }
+            }
+            // Process next child
+            if ( index < n->getChildCount() ) {
+                n = n->getChildNode(index);
+                index = 0;
+                continue;
+            }
+            // No more child, get back to parent and have it process our sibling
+            index = n->getNodeIndex() + 1;
+            n = n->getParentNode();
+            if ( !n )
+                break; // back to root node
         }
-        lString32 txt = xp.getText();
-        int len = txt.length();
-        while (len > count) {
-            xp.setOffset(xp.getOffset() + count);
-            len -= count;
-            count = chars_per_synthetic_page;
-            page_num++;
-            lString32 title;
-            title.appendDecimal(page_num);
-            m_pagemap.addPage(title, ldomXPointer(xp.getNode(), xp.getOffset()), lString32::empty_str);
-        }
-        count -= len;
     }
     // cache file will have to be updated with the new page map
     setCacheFileStale(true);
