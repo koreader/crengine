@@ -20997,10 +20997,11 @@ void ldomDocument::buildSyntheticPageMap( int chars_per_synthetic_page )
                     }
                 }
                 else { // isText()
-                    lString32 text = n->getText().trim();
+                    lString32 text = n->getText();
                     int len = text.length();
+                    int offset = 0;
                     while (len > count) {
-                        int offset = count;
+                        offset += count;
                         len -= count;
                         count = chars_per_synthetic_page;
                         page_num++;
