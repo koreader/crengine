@@ -238,7 +238,6 @@ enum CacheFileBlockType {
 #define PACK_BUF_SIZE 0x10000
 #define UNPACK_BUF_SIZE 0x40000
 #endif
-#define XXH_INLINE_ALL
 #include <xxhash.h>
 #include <lvtextfm.h>
 #include "../include/lvdocviewprops.h"
