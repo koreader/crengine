@@ -2894,6 +2894,7 @@ void LVXMLParser::Reset()
     LVTextFileBase::Reset();
     m_state = ps_bof;
     m_in_cdata = false;
+    m_in_html_style_tag = false;
     m_in_html_script_tag = false;
 }
 
@@ -2902,6 +2903,7 @@ LVXMLParser::LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bo
     , m_callback(callback)
     , m_state(0)
     , m_in_cdata(false)
+    , m_in_html_style_tag(false)
     , m_in_html_script_tag(false)
     , m_trimspaces(true)
     , m_citags(false)
@@ -3106,6 +3108,18 @@ bool LVXMLParser::Parse()
 //                    CRLog::trace("<%s>", LCSTR(tagname) );
                 if (!bodyStarted && tagname == "body")
                     bodyStarted = true;
+                else if ( tagname.length() == 5 &&
+                        ( tagname[0] == U'S' || tagname[0] == U's') &&
+                        ( tagname[1] == U'T' || tagname[1] == U't') &&
+                        ( tagname[2] == U'Y' || tagname[2] == U'y') &&
+                        ( tagname[3] == U'L' || tagname[3] == U'l') &&
+                        ( tagname[4] == U'E' || tagname[4] == U'e') ) {
+                    // Handle content as text, but don't stop just at any '<',
+                    // only at '</style>', as <style> may contain comments
+                    // (which can contain anything, so tags) and even tags
+                    // (eg. "background-image:url('data:image/svg+xml;utf8,<svg><path...")
+                    m_in_html_style_tag = true;
+                }
                 else if ( tagname.length() == 6 &&
                         ( tagname[0] == U'S' || tagname[0] == U's') &&
                         ( tagname[1] == U'C' || tagname[1] == U'c') &&
@@ -3133,6 +3147,8 @@ bool LVXMLParser::Parse()
                     // end of tag
                     if ( ch!='>' ) { // '/' in '<hr/>' : self closing tag
                         m_callback->OnTagClose(tagns.c_str(), tagname.c_str(), true);
+                        if ( m_in_html_style_tag )
+                            m_in_html_style_tag = false;
                         if ( m_in_html_script_tag )
                             m_in_html_script_tag = false;
                     }
@@ -3240,6 +3256,9 @@ bool LVXMLParser::Parse()
                     // Get back in ps_text state: there may be some
                     // regular text after ']]>' until the next '<tag>'
                     m_state = ps_text;
+                }
+                else if ( m_in_html_style_tag ) {
+                    m_in_html_style_tag = false;
                 }
                 else if ( m_in_html_script_tag ) {
                     m_in_html_script_tag = false;
@@ -5776,7 +5795,27 @@ bool LVXMLParser::ReadText()
                 }
             }
             else if ( ch=='<' ) {
-                if ( m_in_html_script_tag ) { // we're done only when we meet </script>
+                if ( m_in_html_style_tag ) { // we're done only when we meet </style>
+                    if ( ptr + 1 < end ) {
+                        if ( ptr[1] == '/' ) {
+                            if ( ptr + 6 < end ) {
+                                const lChar32 * buf = ptr + 2;
+                                lString32 tag(buf, 5);
+                                if ( tag.lowercase() == U"style" ) {
+                                    nbCharToSkipOnFlgBreak = 1;
+                                    goto end_of_node;
+                                }
+                            }
+                            else if ( !hasNoMoreData ) {
+                                break;
+                            }
+                        }
+                    }
+                    else if ( !hasNoMoreData ) {
+                        break;
+                    }
+                }
+                else if ( m_in_html_script_tag ) { // we're done only when we meet </script>
                     if ( ptr + 1 < end ) {
                         if ( ptr[1] == '/' ) {
                             if ( ptr + 7 < end ) {
