@@ -1966,6 +1966,14 @@ public:
                 continue;
             }
             if ( *str == ')' ) {
+                if ( level <= 0 ) {
+                    // Closing ')' for a '(' we didn't account for: possibly
+                    // buggy CSS, or we stumbled on some unsupported syntax
+                    // using parens that we didn't parse well
+                    malformed = true;
+                    skip_to_next( str, 0, '{' );
+                    continue;
+                }
                 leaveLevel();
                 str++;
                 continue;
@@ -2000,15 +2008,112 @@ public:
 };
 
 // https://drafts.csswg.org/css-conditional/#at-supports
+// https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@supports
 class AtSupportsLogicalConditionParser : public AtRuleLogicalConditionParser {
 public:
     AtSupportsLogicalConditionParser(lxmlDocBase * d)
         : AtRuleLogicalConditionParser(d, '{', 0) {}
 protected:
     virtual void parseCondition(const char * &str) {
-        // Use our regular declaration parser to see if supported
-        LVCssDeclaration tmp_decl;
-        setResult( tmp_decl.parseAndCheckIfSupported( str, doc ) );
+        skip_spaces( str );
+        // We may meet either some declaration: "property: value",
+        // or some function: "selector(a > b)".
+        // Actually, by specs, a declaration must be enclosed in (...),
+        // but a function may, as parens can also be used for grouping with
+        // logical operators. They are handled in AtRuleLogicalConditionParser:parse()
+        // as such grouping.
+        // So, we should try here to guess what kind it is.
+        const char * orig_pos = str;
+        char ident[16];
+        if ( !parse_ident(str, ident, 16) ) {
+            malformed = true;
+            skip_to_next( str, 0, '{' );
+            return;
+        }
+        skip_spaces( str );
+        if ( *str != '(' ) { // It's not a function
+            str = orig_pos;
+            // Use our regular declaration parser to see if supported
+            LVCssDeclaration tmp_decl;
+            setResult( tmp_decl.parseAndCheckIfSupported( str, doc ) );
+            return;
+        }
+        str++; // skip '(' - we'll have to consume the follow up ')' below
+        skip_spaces( str );
+        lString8 name(ident);
+        name.lowercase();
+        setResult(false);
+        if ( name == "selector" ) {
+            // Use our LVCssSelector parser, with for_functional_pseudo_class=true,
+            // which will have it stop on a ')' (but also on a ',' which is not
+            // per specs, and should not happen, so this should do)
+            LVCssSelector tmp_selector;
+            if ( tmp_selector.parse(str, doc, false, true) ) {
+                skip_spaces( str ); // should have stopped at a ')'
+                if ( *str == ')' ) {
+                    str++;
+                    setResult(true);
+                }
+                else {
+                    malformed = true;
+                    skip_to_next( str, 0, '{' );
+                }
+            }
+            else {
+                skip_to_next( str, ')', 0 );
+            }
+        }
+        else if ( name == "font-tech" ) {
+            // We don't support any (even if we do support some OpenType features
+            // with Harfbuzz, we don't support (yet) the CSS property 'font-feature',
+            // which is probably what would be used in a declaration following
+            // such a "@font-tech(features-opentype) {...}"
+            skip_to_next( str, ')', 0 );
+        }
+        else if ( name == "font-format" ) {
+            // Not sure we support "collection" (.otc, .ttc) for embedded fonts
+            if ( substr_icompare( "opentype", str ) ||
+                 substr_icompare( "truetype", str ) ||
+                 substr_icompare( "woff", str ) ||
+                 substr_icompare( "woff2", str ) ) {
+                skip_spaces( str );
+                if ( *str == ')' ) {
+                    str++;
+                    setResult(true);
+                }
+                else {
+                    skip_to_next( str, ')', 0 );
+                }
+            }
+            else {
+                malformed = true;
+                skip_to_next( str, 0, '{' );
+            }
+        }
+        else if ( name == "at-rule" ) {
+            // We only really support a few
+            if ( substr_icompare( "@media", str ) ||
+                 substr_icompare( "@import", str ) ||
+                 substr_icompare( "@font-face", str ) ||
+                 substr_icompare( "@supports", str ) ) {
+                skip_spaces( str );
+                if ( *str == ')' ) {
+                    str++;
+                    setResult(true);
+                }
+                else {
+                    skip_to_next( str, ')', 0 );
+                }
+            }
+            else {
+                malformed = true;
+                skip_to_next( str, 0, '{' );
+            }
+        }
+        else { // Not a known function
+            malformed = true;
+            skip_to_next( str, 0, '{' );
+        }
     }
 };
 
