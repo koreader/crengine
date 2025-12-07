@@ -1851,8 +1851,7 @@ public:
             FriBidiLevel newBidiLevel;
         #endif
         #if (USE_HARFBUZZ==1)
-            bool checkIfHarfbuzz = true;
-            bool usingHarfbuzz = false;
+            bool usingHarfbuzz = m_kerning_mode == KERNING_MODE_HARFBUZZ;
             // Unicode script change (note: hb_script_t is uint32_t)
             lUInt32 prevScript = HB_SCRIPT_COMMON;
             hb_unicode_funcs_t* _hb_unicode_funcs = hb_unicode_funcs_get_default();
@@ -1874,15 +1873,6 @@ public:
                 isObject = m_flags[i] & LCHAR_IS_OBJECT; // image, float or inline box
                 newFont = isObject ? NULL : (LVFont *)newSrc->t.font;
                 newLetterSpacing = newSrc->letter_spacing; // 0 for objects
-                #if (USE_HARFBUZZ==1)
-                    // Check if we are using Harfbuzz kerning with the first font met
-                    if ( checkIfHarfbuzz && newFont ) {
-                        if ( m_kerning_mode == KERNING_MODE_HARFBUZZ ) {
-                            usingHarfbuzz = true;
-                        }
-                        checkIfHarfbuzz = false;
-                    }
-                #endif
             }
             if (i > 0)
                 prevCharIsObject = m_flags[i-1] & LCHAR_IS_OBJECT; // image, float or inline box
