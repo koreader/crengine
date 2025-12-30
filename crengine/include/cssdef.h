@@ -426,6 +426,12 @@ enum css_generic_value_t {
 // containing it in their declaration so they get applied at the earliest.
 #define CSS_CR_HINT_NO_PRESENTATIONAL_CSS   0x00000010 // -cr-hint: no-presentational
 
+// By default, crengine will ensure an image (+its own and its containers' margins/border/padding
+// does not overflow the screen (in some cases, reducing its size more than actually needed).
+// One can use this hint on IMG to avoid any such resize, trusting the publisher's CSS to do
+// the right things to avoid any overflow.
+#define CSS_CR_HINT_NO_CAP_IMAGE_SIZE       0x00000020 // -cr-hint: no-cap-image-size
+
 // A node with these should be considered as TOC item of level N when building alternate TOC
 #define CSS_CR_HINT_TOC_LEVEL1              0x00000100 // -cr-hint: toc-level1
 #define CSS_CR_HINT_TOC_LEVEL2              0x00000200 // -cr-hint: toc-level2
