@@ -1041,8 +1041,13 @@ public:
                 // that lines of main content text (and small headings), that
                 // can't fit in what's left on a page, are pushed uncut to
                 // the next page, avoiding cutted lines of text.
-                if ( (line->getHeight() <= page_height) &&
-                     (getCurPageMaxBottom()-cur_page_bottom < doc_font_size*2) ) {
+                // if ( (line->getHeight() <= page_height) &&
+                //      (getCurPageMaxBottom()-cur_page_bottom < doc_font_size*2) )
+                // This idea didn't get good feedback:
+                // https://github.com/koreader/koreader/issues/14500#issuecomment-3662306954
+                // It feels better (and per-specs) to avoid any image truncation by
+                // pushing the image to a new page if it fits, and live with the blank.
+                if ( (line->getHeight() <= page_height) ) {
                     flushCurrentPage(false);
                     push_delayed_footnotes = true; // as done above
                     cur_page_flow = line->flow;
