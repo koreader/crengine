@@ -2257,7 +2257,8 @@ public:
                         // Ensure they are constrained to this paragraph width and page height
                         // Note: resizeImage() may do some additional scaling depending on image_scaling_options,
                         // use mode=0 scale=1 for these if this is not desirable.
-                        resizeImage(width, height, m_pbuffer->width, m_max_img_height, m_length>1);
+                        if (!STYLE_HAS_CR_HINT(node->getStyle(), NO_CAP_IMAGE_SIZE))
+                            resizeImage(width, height, m_pbuffer->width, m_max_img_height, m_length>1);
                         if ( (m_srcs[start]->flags & LTEXT_STRUT_CONFINED) && m_allow_strut_confining ) {
                             // Text with "-cr-hint: strut-confined" might just be vertically shifted,
                             // but won't change widths. But images who will change height must also

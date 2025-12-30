@@ -3551,6 +3551,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         else if ( substr_icompare("noteref-ignore", decl) )         hints |= CSS_CR_HINT_NOTEREF_IGNORE;
                         else if ( substr_icompare("footnote", decl) )               hints |= CSS_CR_HINT_FOOTNOTE;
                         else if ( substr_icompare("footnote-ignore", decl) )        hints |= CSS_CR_HINT_FOOTNOTE_IGNORE;
+                        else if ( substr_icompare("no-cap-image-size", decl) )      hints |= CSS_CR_HINT_NO_CAP_IMAGE_SIZE;
                         else if ( substr_icompare("no-presentational", decl) ) {
                             // "-cr-hint: no-presentational" can be explicitely set on a node so any presentational-hint
                             // later selector is not matching, to avoid (some) presentational hints. For this to be

@@ -2740,7 +2740,7 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
                         && (gRenderDPI > 0 || style->max_height.type < css_val_in || style->max_height.type > css_val_pc) )
         max_height = lengthToPx(enode, style->max_height, container_height);
 
-    if ( enforce_page_constraints ) {
+    if ( enforce_page_constraints && !STYLE_HAS_CR_HINT(style, NO_CAP_IMAGE_SIZE) ) {
         // lvtextfm.cpp, when drawing an image, will resize it so it does not overflow
         // the paragraph width and page height. If requested, have max_height and
         // max_width ensure that this resizing will not be needed.
