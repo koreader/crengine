@@ -343,7 +343,8 @@ bool parse_number_value( const char * & str, css_length_t & value,
                                     bool accept_unspecified=false,
                                     bool accept_contain_cover=false,
                                     bool accept_cr_special=false,
-                                    bool is_font_size=false );
+                                    bool is_font_size=false,
+                                    bool accept_fit_content=false );
 
 /// parse color value like #334455, #345 or red
 bool parse_color_value( const char * & str, css_length_t & value );

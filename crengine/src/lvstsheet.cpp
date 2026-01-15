@@ -628,7 +628,8 @@ bool parse_number_value( const char * & str, css_length_t & value,
                                     bool accept_unspecified,
                                     bool accept_contain_cover,
                                     bool accept_cr_special,
-                                    bool is_font_size )
+                                    bool is_font_size,
+                                    bool accept_fit_content )
 {
     const char * orig_pos = str;
     value.type = css_val_unspecified;
@@ -652,6 +653,11 @@ bool parse_number_value( const char * & str, css_length_t & value,
     if ( accept_cr_special && substr_icompare( "-cr-special", str ) ) {
         value.type = css_val_unspecified;
         value.value = css_generic_cr_special;
+        return true;
+    }
+    if ( accept_fit_content && substr_icompare( "fit-content", str ) ) {
+        value.type = css_val_unspecified;
+        value.value = css_generic_fit_content;
         return true;
     }
     if ( accept_contain_cover ) {
@@ -1348,7 +1354,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
         bool has_comma_separator = false;
         for ( int i=1; i<=3; i++ ) {
             css_length_t num;
-            if ( parse_number_value(str, num, true, true, false, false, false, true) ) { // accept percent, negative, unspecified
+            if ( parse_number_value(str, num, true, true, false, false, false, true, false, false, false, false) ) { // accept percent, negative, unspecified
                 // Firefox actually caps the values (-123 is considered as 0, 300 as 255)
                 int n = 0; // defaults to 0 if negative met below
                 if ( allow_unspecified && num.type == css_val_unspecified ) {
@@ -1413,7 +1419,7 @@ bool parse_color_value( const char * & str, css_length_t & value )
                 }
             }
             if ( expecting_4th_number ) {
-                if ( parse_number_value(str, num, true, true, false, false, false, true) ) {
+                if ( parse_number_value(str, num, true, true, false, false, false, true, false, false, false, false) ) {
                     int n = 0;
                     if ( num.type == css_val_unspecified ) {
                         if (num.value >= 0 ) {
@@ -2278,7 +2284,7 @@ protected:
                         break;
                     }
                     css_length_t val;
-                    if ( parse_number_value(str, val, false) ) {
+                    if ( parse_number_value(str, val, false, false, false, false, false, false, false, false, false, false) ) {
                         int size = lengthToPx(doc->getRootNode(), val, 0);
                         // This CSS length has been scaled according to gRenderDPI from CSS pixels to screen pixels,
                         // so we can compare it with the viewport or screen width/height which are in screen pixels
@@ -3734,7 +3740,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         buf<<(lUInt32) len.value;
                     }
                     else {
-                        if ( parse_number_value( decl, len, true, true ) ) { // accepts a negative value
+                        if ( parse_number_value( decl, len, true, true, false, false, false, false, false, false, false, false ) ) { // accepts a negative value
                             buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                             buf<<(lUInt32) len.type;
                             buf<<(lUInt32) len.value;
@@ -3985,7 +3991,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     // read length
                     css_length_t len;
                     const char * orig_pos = decl;
-                    if ( parse_number_value( decl, len, true, true ) ) { // accepts % and negative values
+                    if ( parse_number_value( decl, len, true, true, false, false, false, false, false, false, false, false ) ) { // accepts % and negative values
                         // Read optional "hanging" flag
                         // Note: "1em hanging" is not the same as "-1em"; the former shifts
                         // all other but first line by 1em to the right, while the latter
@@ -4097,12 +4103,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     bool is_font_size = false;
                     if ( prop_code==cssd_font_size )
                         is_font_size = true;
+                    // fit-content accepted for width, height, min-width, min-height, max-width, max-height
+                    bool accept_fit_content = false;
+                    if ( prop_code==cssd_width || prop_code==cssd_height ||
+                            prop_code==cssd_min_width || prop_code==cssd_min_height ||
+                            prop_code==cssd_max_width || prop_code==cssd_max_height )
+                        accept_fit_content = true;
                     css_length_t len;
                     // -cr-special, only accepted with padding-left and padding-right
                     bool accept_cr_special = false;
                     if ( prop_code==cssd_padding_left || prop_code==cssd_padding_right )
                         accept_cr_special = true;
-                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, accept_cr_special, is_font_size) ) {
+                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, accept_cr_special, is_font_size, accept_fit_content) ) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
@@ -4131,7 +4143,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     css_length_t len[4];
                     int i;
                     for (i = 0; i < 4; i++) {
-                        if (parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto )) {
+                        if (parse_number_value( decl, len[i], accept_percent, accept_negative, accept_auto, false, false, false, false, false, false, false )) {
                             continue;
                         }
                         if (prop_code == cssd_border_width && parse_named_border_width( decl, len[i] )) {
@@ -4272,7 +4284,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                 found_width = true;
                                 continue;
                             }
-                            if ( parse_number_value( decl, width, false ) ) { // accept_percent=false
+                            if ( parse_number_value( decl, width, false, false, false, false, false, false, false, false, false, false ) ) { // accept_percent=false
                                 found_width = true;
                                 continue;
                             }
@@ -4565,7 +4577,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     int i;
                     for (i = 0; i < 2; i++) {
                         // accept percent, auto and contain/cover
-                        if ( !parse_number_value( decl, len[i], true, false, true, false, false, false, true ) )
+                        if ( !parse_number_value( decl, len[i], true, false, true, false, false, false, true, false, false, false ) )
                             break;
                     }
                     if (i) {
@@ -4594,7 +4606,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     int i;
                     for (i = 0; i < 2; i++) {
                         // border-spacing doesn't accept values in %
-                        if ( !parse_number_value( decl, len[i], false ) )
+                        if ( !parse_number_value( decl, len[i], false, false, false, false, false, false, false, false, false, false ) )
                             break;
                     }
                     if (i) {
