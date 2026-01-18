@@ -12654,13 +12654,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                         rects.add( lineStartRect );
                     }
                     lineStartRect = curCharRect;
-                    prevBidiFlags = curBidiFlags;
                 }
                 else {
                     // Same direction: extend current segment
                     // (consecutive logical chars of same direction are visually contiguous)
                     lineStartRect.extend(curCharRect);
-                    prevBidiFlags = curBidiFlags;
                 }
             }
             else {
@@ -12669,6 +12667,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             }
             
             prevCharRect = curCharRect; // still on the line: candidate for end of line
+            prevBidiFlags = curBidiFlags;
             if (! go_on)
                 break; // we're done
         }
