@@ -12406,6 +12406,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     lvRect nodeStartRect = lvRect();
     lvRect curCharRect = lvRect();
     lvRect prevCharRect = lvRect();
+    int nodeStartBidiFlags = LVBIDI_FLAG_NONE; // Persists across iterations
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
 
     // We process range text node by text node (I thought rects' y-coordinates
@@ -12501,11 +12502,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             continue;
         }
         curPos.setOffset(startOffset);
-        int nodeStartBidiFlags = LVBIDI_FLAG_NONE;
         if (nodeStartRect.isEmpty()) { // otherwise, we re-use the one left from previous loop
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE; // Reset when getting new rect
             while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
@@ -12524,10 +12525,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRect = lvRect(); // reset
                 continue;
             }
-        } else {
-            // nodeStartRect is reused from previous loop, get its BiDi flags
-            curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags);
         }
+        // When nodeStartRect is reused from previous iteration (line break),
+        // nodeStartBidiFlags is also reused (was saved at line break)
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
         }
@@ -12637,6 +12637,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
+                nodeStartBidiFlags = curBidiFlags; // Save BiDi flags for reuse in next iteration
                 lineStartRect = lvRect(); // reset
                 prevBidiFlags = curBidiFlags;
                 inBidiLine = (curBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
