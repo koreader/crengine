@@ -12678,6 +12678,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (! go_on)
                 break; // we're done
         }
+        // If we completed the for loop without breaking (all chars processed on same line),
+        // we need to advance to next text node to avoid infinite loop
+        if (go_on) {
+            nodeStartRect = lvRect(); // reset for next node
+            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
+        }
     }
     // Add any lineStartRect not yet added
     if (! lineStartRect.isEmpty()) {
