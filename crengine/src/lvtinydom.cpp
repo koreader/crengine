@@ -12501,18 +12501,20 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             continue;
         }
         curPos.setOffset(startOffset);
+        int nodeStartBidiFlags = LVBIDI_FLAG_NONE;
         if (nodeStartRect.isEmpty()) { // otherwise, we re-use the one left from previous loop
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
-            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true)) {
+            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
                 curPos.setOffset(startOffset);
                 nodeStartRect = lvRect(); // reset
+                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             }
             // last try with the last char (startOffset = textLen-1):
-            if (!curPos.getRectEx(nodeStartRect, true)) {
+            if (!curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
                 // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
                 // getRectEx() returns false when a node is invisible, so we just
                 // go processing next text node on failure (it may fail for other
@@ -12522,6 +12524,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRect = lvRect(); // reset
                 continue;
             }
+        } else {
+            // nodeStartRect is reused from previous loop, get its BiDi flags
+            curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags);
         }
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
@@ -12542,7 +12547,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // 1) Look if text node contains end of range (probably the case
         // when only a few words are highlighted)
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
-            int startBidiFlags = LVBIDI_FLAG_NONE;
             int endBidiFlags = LVBIDI_FLAG_NONE;
             curCharRect = lvRect();
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
@@ -12552,15 +12556,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRect = lvRect(); // reset
                 continue;
             }
-            // Get BiDi flags for start position too
-            curPos.setOffset(startOffset);
-            curPos.getRectEx(nodeStartRect, true, &startBidiFlags);
-            curPos.setOffset(rangeEnd.getOffset() - 1); // restore position
             
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
                 // Check if we're in a BiDi line - if so, can't take shortcut
-                if ((startBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
+                if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
                     // BiDi line: need to iterate char by char (fall through to section 3)
                 } else {
                     // Non-BiDi: safe to take shortcut
@@ -12573,7 +12573,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         // 2) Look if the full text node is contained on the line
         // Ignore (possibly collapsed) space at end of text node
-        int startBidiFlags = LVBIDI_FLAG_NONE;
         int endBidiFlags = LVBIDI_FLAG_NONE;
         curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
         curCharRect = lvRect();
@@ -12583,14 +12582,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             nodeStartRect = lvRect(); // reset
             continue;
         }
-        // Get BiDi flags for start position too
-        curPos.setOffset(startOffset);
-        curPos.getRectEx(nodeStartRect, true, &startBidiFlags);
-        curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1); // restore
         
         if (curCharRect.top == nodeStartRect.top) {
             // Check if we're in a BiDi line - if so, can't take shortcut
-            if ((startBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
+            if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
                 // BiDi line: need to iterate char by char (fall through to section 3)
             } else {
                 // Non-BiDi: safe to take shortcut
@@ -12608,13 +12603,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
         prevCharRect = nodeStartRect;
-        int prevBidiFlags = LVBIDI_FLAG_NONE;
+        int prevBidiFlags = nodeStartBidiFlags; // Use already retrieved flags
         int curBidiFlags = LVBIDI_FLAG_NONE;
-        bool inBidiLine = false;
-        
-        // Get BiDi flags for the first char
-        curPos.getRectEx(prevCharRect, true, &prevBidiFlags);
-        inBidiLine = (prevBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
+        bool inBidiLine = (prevBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
         
         for (int i=startOffset+1; i<=textLen-1; i++) {
             // skip spaces (but let soft-hyphens in, so they are part of the
