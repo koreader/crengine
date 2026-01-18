@@ -12661,10 +12661,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     lineStartRect.extend(curCharRect);
                 }
             }
-            else {
-                // Non-BiDi line: simple extend
-                lineStartRect.extend(curCharRect);
-            }
             
             prevCharRect = curCharRect; // still on the line: candidate for end of line
             prevBidiFlags = curBidiFlags;
