@@ -12606,6 +12606,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         int prevBidiFlags = nodeStartBidiFlags; // Use already retrieved flags
         int curBidiFlags = LVBIDI_FLAG_NONE;
         bool inBidiLine = (prevBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
+        bool lineChanged = false; // Track if we broke due to line change
         
         for (int i=startOffset+1; i<=textLen-1; i++) {
             // skip spaces (but let soft-hyphens in, so they are part of the
@@ -12639,7 +12640,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 lineStartRect = lvRect(); // reset
                 prevBidiFlags = curBidiFlags;
                 inBidiLine = (curBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
-                break; // break for (i<textLen) loop
+                lineChanged = true;
+                break; // break for loop, continue while loop with same node on new line
             }
             
             // Check if we need to start a new segment in BiDi line
@@ -12669,9 +12671,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (! go_on)
                 break; // we're done
         }
-        // If we completed the for loop without breaking (all chars processed on same line),
-        // we need to advance to next text node to avoid infinite loop
-        if (go_on) {
+        // If we completed the for loop without breaking for line change (all chars on same line),
+        // we need to advance to next text node
+        if (go_on && !lineChanged) {
             nodeStartRect = lvRect(); // reset for next node
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
         }
