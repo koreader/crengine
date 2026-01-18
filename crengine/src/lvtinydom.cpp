@@ -12506,7 +12506,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE; // Reset when getting new rect
             while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
@@ -12515,7 +12514,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             }
             // last try with the last char (startOffset = textLen-1):
-            if (!curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
+            if (nodeStartRect.isEmpty() && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
                 // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
                 // getRectEx() returns false when a node is invisible, so we just
                 // go processing next text node on failure (it may fail for other
@@ -12526,8 +12525,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 continue;
             }
         }
-        // When nodeStartRect is reused from previous iteration (line break),
-        // nodeStartBidiFlags is also reused (was saved at line break)
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
         }
@@ -12562,7 +12559,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // Check if we're in a BiDi line - if so, can't take shortcut
                 if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
                     // BiDi line: need to iterate char by char (fall through to section 3)
-                } else {
+                }
+                else {
                     // Non-BiDi: safe to take shortcut
                     lineStartRect.extend(curCharRect);
                     // lineStartRect will be added after loop exit
@@ -12587,7 +12585,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Check if we're in a BiDi line - if so, can't take shortcut
             if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
                 // BiDi line: need to iterate char by char (fall through to section 3)
-            } else {
+            }
+            else {
                 // Non-BiDi: safe to take shortcut
                 // Extend line up to the end of this node, but don't add it yet,
                 // lineStartRect can still be extended with (parts of) next text nodes
@@ -12625,6 +12624,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             }
             if (curPos.compare(rangeEnd) >= 0) {
                 // should not happen, we should have dealt with it as 1)
+                // (unless BiDi and we didn't take that shortcut)
                 // printf("??????????? curPos.getRectEx(char=%d) end of range\n", i);
                 go_on = false;        // don't break yet, need to add what we met before
                 curCharRect.top = -1; // force adding prevCharRect
@@ -12637,10 +12637,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
-                nodeStartBidiFlags = curBidiFlags; // Save BiDi flags for reuse in next iteration
+                nodeStartBidiFlags = curBidiFlags;
                 lineStartRect = lvRect(); // reset
-                prevBidiFlags = curBidiFlags;
-                inBidiLine = (curBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
                 break; // break for loop, continue while loop with same node on new line
             }
             
@@ -12656,18 +12654,21 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                         rects.add( lineStartRect );
                     }
                     lineStartRect = curCharRect;
-                } else {
+                    prevBidiFlags = curBidiFlags;
+                }
+                else {
                     // Same direction: extend current segment
                     // (consecutive logical chars of same direction are visually contiguous)
                     lineStartRect.extend(curCharRect);
+                    prevBidiFlags = curBidiFlags;
                 }
-            } else {
+            }
+            else {
                 // Non-BiDi line: simple extend
                 lineStartRect.extend(curCharRect);
             }
             
             prevCharRect = curCharRect; // still on the line: candidate for end of line
-            prevBidiFlags = curBidiFlags;
             if (! go_on)
                 break; // we're done
         }
