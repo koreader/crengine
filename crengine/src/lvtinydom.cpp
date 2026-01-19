@@ -12534,6 +12534,18 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
         }
+        // Check for direction change when starting a new text node
+        // (prevCharRectCtx holds the direction of the last character from previous node)
+        else if (!prevCharRect.isEmpty() && (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE)) {
+            bool prevIsRTL = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
+            bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            if (prevIsRTL != nodeStartIsRTL) {
+                // Direction changed between text nodes: finalize current segment
+                lineStartRect.extend(prevCharRect);
+                rects.add(lineStartRect);
+                lineStartRect = nodeStartRect;
+            }
+        }
         // This would help noticing a line-feed-back-to-start-of-line:
         //   else if (nodeStartRect.left < lineStartRect.right)
         // but it makes a 2-lines-tall single segment if text-indent is larger
@@ -12677,15 +12689,18 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
             // Extend lineStartRect to include the last character processed
-            // (segment continues across text nodes on same line with same direction)
             if (!prevCharRect.isEmpty()) {
                 lineStartRect.extend(prevCharRect);
             }
-            // Don't finalize segment here - let it continue across text nodes on same line
-            // Finalization happens at: direction change, line break, or end of range
+            // Advance to next text node and get its starting context
             nodeStartRect = lvRect(); // reset for next node
             nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
+            
+            // If we advanced to a new node, check if direction changed
+            // (nodeStartRectCtx will be set when we loop back to the top)
+            // We need to finalize the current segment if direction changed
+            // This will be checked at the start of the next iteration
         }
     }
     // Add any lineStartRect not yet added
