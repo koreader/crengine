@@ -12659,16 +12659,13 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
                 if (prevIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
-                    if ( ! lineStartRect.isEmpty() ) {
+                    if ( ! prevCharRect.isEmpty() ) {
+                        lineStartRect.extend(prevCharRect);
                         rects.add( lineStartRect );
                     }
                     lineStartRect = curCharRect;
                 }
-                else {
-                    // Same direction: extend current segment
-                    // (consecutive logical chars of same direction are visually contiguous)
-                    lineStartRect.extend(curCharRect);
-                }
+                // else: same direction, do nothing (extend only when finishing segment)
             }
 
             prevCharRect = curCharRect; // still on the line: candidate for end of line
@@ -12679,6 +12676,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // If we completed the for loop naturally (i > textLen-1), all chars were on same line,
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
+            // If in BiDi line, we may have some segment pending
+            if ( ! prevCharRect.isEmpty() ) {
+                lineStartRect.extend(prevCharRect);
+                rects.add( lineStartRect );
+            }
             nodeStartRect = lvRect(); // reset for next node
             nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
