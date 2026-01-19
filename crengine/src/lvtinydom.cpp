@@ -12544,6 +12544,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 lineStartRect.extend(prevCharRect);
                 rects.add(lineStartRect);
                 lineStartRect = nodeStartRect;
+                prevCharRect = lvRect(); // Reset to avoid overlapping with next segment
             }
         }
         // This would help noticing a line-feed-back-to-start-of-line:
