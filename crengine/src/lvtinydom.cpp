@@ -12676,13 +12676,15 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                         lineStartRect.extend(prevCharRect);
                         rects.add( lineStartRect );
                     }
-                    lineStartRect = curCharRect;
+                    lineStartRect = lvRect(); // Reset for new segment
+                    prevCharRect = lvRect(); // Reset to avoid overlapping
+                }
+                // Extend lineStartRect to current character
+                if (lineStartRect.isEmpty()) {
+                    lineStartRect = curCharRect; // First character in new segment
                 }
                 else {
-                    // Same direction: extend lineStartRect if it's not empty
-                    if ( ! lineStartRect.isEmpty() ) {
-                        lineStartRect.extend(curCharRect);
-                    }
+                    lineStartRect.extend(curCharRect); // Continue building segment
                 }
             }
 
