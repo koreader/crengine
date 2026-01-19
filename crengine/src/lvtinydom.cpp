@@ -9915,7 +9915,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
     // Initialize bidiFlags if provided
     if ( bidiFlags )
         *bidiFlags = RECT_CTX_NONE;
-    
+
     if ( isNull() )
         return false;
     ldomNode * p = isElement() ? getNode() : getNode()->getParentNode();
@@ -12560,7 +12560,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
-            
+
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
                 // Check if we're in a BiDi line - if so, can't take shortcut
@@ -12588,7 +12588,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             nodeStartRectCtx = RECT_CTX_NONE;
             continue;
         }
-        
+
         if (curCharRect.top == nodeStartRect.top) {
             // Check if we're in a BiDi line - if so, can't take shortcut
             if ((nodeStartRectCtx | curCharRectCtx) & RECT_CTX_IN_BIDI_LINE) {
@@ -12650,13 +12650,13 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 lineStartRect = lvRect(); // reset
                 break; // break for loop, continue while loop with same node on new line
             }
-            
+
             // Check if we need to start a new segment in BiDi line
             if (inBidiLine) {
                 // In BiDi line: check if direction changed
                 bool prevIsRTL = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
                 bool curIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
-                
+
                 if (prevIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
                     if ( ! lineStartRect.isEmpty() ) {
@@ -12670,7 +12670,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     lineStartRect.extend(curCharRect);
                 }
             }
-            
+
             prevCharRect = curCharRect; // still on the line: candidate for end of line
             prevCharRectCtx = curCharRectCtx;
             if (! go_on)
