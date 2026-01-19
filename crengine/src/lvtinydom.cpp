@@ -12543,7 +12543,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // Direction changed between text nodes: finalize current segment
                 lineStartRect.extend(prevCharRect);
                 rects.add(lineStartRect);
-                lineStartRect = nodeStartRect;
+                lineStartRect = lvRect(); // Reset for new segment
                 prevCharRect = lvRect(); // Reset to avoid overlapping with next segment
             }
         }
