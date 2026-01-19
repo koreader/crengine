@@ -12659,13 +12659,16 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
                 if (prevIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
-                    if ( ! prevCharRect.isEmpty() ) {
-                        lineStartRect.extend(prevCharRect);
+                    if ( ! lineStartRect.isEmpty() ) {
                         rects.add( lineStartRect );
                     }
                     lineStartRect = curCharRect;
                 }
-                // else: same direction, do nothing (extend only when finishing segment)
+                else {
+                    // Same direction: extend current segment
+                    // (consecutive logical chars of same direction are visually contiguous)
+                    lineStartRect.extend(curCharRect);
+                }
             }
 
             prevCharRect = curCharRect; // still on the line: candidate for end of line
