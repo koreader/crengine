@@ -12676,6 +12676,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // If we completed the for loop naturally (i > textLen-1), all chars were on same line,
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
+            // Extend lineStartRect to include the last character processed
+            // (segment continues across text nodes on same line with same direction)
+            if (!prevCharRect.isEmpty()) {
+                lineStartRect.extend(prevCharRect);
+            }
             // Don't finalize segment here - let it continue across text nodes on same line
             // Finalization happens at: direction change, line break, or end of range
             nodeStartRect = lvRect(); // reset for next node
