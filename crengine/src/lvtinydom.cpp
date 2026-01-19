@@ -12404,11 +12404,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     bool go_on = true;
     lvRect lineStartRect = lvRect();
     lvRect nodeStartRect = lvRect();
-    lvRect curCharRect = lvRect();
     lvRect prevCharRect = lvRect();
-    int nodeStartRectCtx = RECT_CTX_NONE; // Persists across iterations
-    int prevRectCtx;
-    int curRectCtx;
+    lvRect curCharRect = lvRect();
+    int nodeStartRectCtx = RECT_CTX_NONE;
+    int prevCharRectCtx;
+    int curCharRectCtx;
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
 
     // We process range text node by text node (I thought rects' y-coordinates
@@ -12550,10 +12550,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // 1) Look if text node contains end of range (probably the case
         // when only a few words are highlighted)
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
-            int curRectCtx = RECT_CTX_NONE;
             curCharRect = lvRect();
+            curCharRectCtx = RECT_CTX_NONE;
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
-            if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
+            if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
@@ -12564,7 +12564,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
                 // Check if we're in a BiDi line - if so, can't take shortcut
-                if ((nodeStartRectCtx | curRectCtx) & RECT_CTX_IN_BIDI_LINE) {
+                if ((nodeStartRectCtx | curCharRectCtx) & RECT_CTX_IN_BIDI_LINE) {
                     // BiDi line: need to iterate char by char (fall through to section 3)
                 }
                 else {
@@ -12578,10 +12578,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         // 2) Look if the full text node is contained on the line
         // Ignore (possibly collapsed) space at end of text node
-        int curRectCtx = RECT_CTX_NONE;
         curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
         curCharRect = lvRect();
-        if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
+        curCharRectCtx = RECT_CTX_NONE;
+        if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
             nodeStartRect = lvRect(); // reset
@@ -12591,7 +12591,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         
         if (curCharRect.top == nodeStartRect.top) {
             // Check if we're in a BiDi line - if so, can't take shortcut
-            if ((nodeStartRectCtx | curRectCtx) & RECT_CTX_IN_BIDI_LINE) {
+            if ((nodeStartRectCtx | curCharRectCtx) & RECT_CTX_IN_BIDI_LINE) {
                 // BiDi line: need to iterate char by char (fall through to section 3)
             }
             else {
@@ -12611,8 +12611,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
         prevCharRect = nodeStartRect;
-        prevRectCtx = nodeStartRectCtx; // Use already retrieved flags
-        bool inBidiLine = (prevRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+        prevCharRectCtx = nodeStartRectCtx; // Use already retrieved flags
+        bool inBidiLine = (prevCharRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
 
         int i;
         for (i=startOffset+1; i<=textLen-1; i++) {
@@ -12624,8 +12624,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 continue;
             }
             curCharRect = lvRect(); // reset
-            curRectCtx = RECT_CTX_NONE;
-            if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
+            curCharRectCtx = RECT_CTX_NONE;
+            if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
                 // printf("#### curPos.getRectEx(char=%d) failed\n", i);
                 // Can happen with non-break-space and may be others,
                 // just try with next char
@@ -12646,7 +12646,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
-                nodeStartRectCtx = curRectCtx;
+                nodeStartRectCtx = curCharRectCtx;
                 lineStartRect = lvRect(); // reset
                 break; // break for loop, continue while loop with same node on new line
             }
@@ -12654,8 +12654,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Check if we need to start a new segment in BiDi line
             if (inBidiLine) {
                 // In BiDi line: check if direction changed
-                bool prevIsRTL = (prevRectCtx & RECT_CTX_IS_RTL) != 0;
-                bool curIsRTL = (curRectCtx & RECT_CTX_IS_RTL) != 0;
+                bool prevIsRTL = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                bool curIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
                 
                 if (prevIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
@@ -12672,7 +12672,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             }
             
             prevCharRect = curCharRect; // still on the line: candidate for end of line
-            prevRectCtx = curRectCtx;
+            prevCharRectCtx = curCharRectCtx;
             if (! go_on)
                 break; // we're done
         }
