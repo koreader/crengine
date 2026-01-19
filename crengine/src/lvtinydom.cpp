@@ -12472,6 +12472,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         if (startOffset == 0) { // new text node
             nodeStartRect = lvRect(); // reset
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             if (textLen == 0) { // empty text node (not sure that can happen)
                 // But it can happen when the node is an image
                 if ( includeImages && curPos.getNode()->isImage() ) {
@@ -12495,10 +12496,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         if (nodeText[startOffset] == ' ' && !is_whitespace_pre) {
             startOffset += 1;
             nodeStartRect = lvRect(); // reset
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
         }
         if (startOffset >= textLen) { // no more text in this node (or single space node)
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
             nodeStartRect = lvRect(); // reset
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             continue;
         }
         curPos.setOffset(startOffset);
@@ -12522,6 +12525,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // highlighting)
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
+                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
                 continue;
             }
         }
@@ -12551,6 +12555,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
+                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
                 continue;
             }
             
@@ -12578,6 +12583,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
             nodeStartRect = lvRect(); // reset
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             continue;
         }
         
@@ -12592,6 +12598,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // lineStartRect can still be extended with (parts of) next text nodes
                 lineStartRect.extend(curCharRect);
                 nodeStartRect  = lvRect(); // reset
+                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // go processing next text node
                 continue;
             }
@@ -12671,6 +12678,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
             nodeStartRect = lvRect(); // reset for next node
+            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
         }
     }
