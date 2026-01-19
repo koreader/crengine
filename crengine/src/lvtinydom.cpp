@@ -12676,9 +12676,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // If we completed the for loop naturally (i > textLen-1), all chars were on same line,
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
-            // Don't finalize segment here - let it continue across text nodes if they're
-            // on the same line with same direction. Direction change and line break logic
-            // will handle finalization when appropriate.
+            // If in BiDi line, we may have some segment pending
+            if ( ! prevCharRect.isEmpty() ) {
+                lineStartRect.extend(prevCharRect);
+                rects.add( lineStartRect );
+            }
             nodeStartRect = lvRect(); // reset for next node
             nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
