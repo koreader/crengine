@@ -138,10 +138,10 @@ extern const int gDOMVersionCurrent;
 #define PT_DIR_SCAN_FORWARD_LOGICAL_FIRST    2
 #define PT_DIR_SCAN_FORWARD_LOGICAL_LAST     3
 
-// BiDi flags for getRectEx()
-#define LVBIDI_FLAG_NONE           0x00  // Not in BiDi line
-#define LVBIDI_FLAG_IN_BIDI_LINE   0x01  // Character is in a BiDi line
-#define LVBIDI_FLAG_IS_RTL         0x02  // Character is in RTL word/segment
+// Rect context flags for getRectEx()
+#define RECT_CTX_NONE           0x00  // Not in BiDi line
+#define RECT_CTX_IN_BIDI_LINE   0x01  // Character is in a BiDi line
+#define RECT_CTX_IS_RTL         0x02  // Character is in RTL word/segment
 
 // Flags for setNodeStylesInvalidIfLoading(int reason_flag)
 #define NODE_STYLES_INVALID_PECULIAR_CSS_PSEUDOCLASSES                 0x01

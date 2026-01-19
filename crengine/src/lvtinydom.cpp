@@ -9914,7 +9914,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
     //CRLog::trace("ldomXPointer::getRect()");
     // Initialize bidiFlags if provided
     if ( bidiFlags )
-        *bidiFlags = LVBIDI_FLAG_NONE;
+        *bidiFlags = RECT_CTX_NONE;
     
     if ( isNull() )
         return false;
@@ -10149,9 +10149,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
                                     if ( line_is_bidi )
-                                        *bidiFlags |= LVBIDI_FLAG_IN_BIDI_LINE;
+                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
                                     if ( word_is_rtl )
-                                        *bidiFlags |= LVBIDI_FLAG_IS_RTL;
+                                        *bidiFlags |= RECT_CTX_IS_RTL;
                                 }
                                 return true;
                             }
@@ -10211,9 +10211,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                     // Populate BiDi flags if requested
                                     if ( bidiFlags ) {
                                         if ( line_is_bidi )
-                                            *bidiFlags |= LVBIDI_FLAG_IN_BIDI_LINE;
+                                            *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
                                         if ( word_is_rtl )
-                                            *bidiFlags |= LVBIDI_FLAG_IS_RTL;
+                                            *bidiFlags |= RECT_CTX_IS_RTL;
                                     }
                                     return true;
                                 }
@@ -10327,9 +10327,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
                                     if ( line_is_bidi )
-                                        *bidiFlags |= LVBIDI_FLAG_IN_BIDI_LINE;
+                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
                                     if ( word_is_rtl )
-                                        *bidiFlags |= LVBIDI_FLAG_IS_RTL;
+                                        *bidiFlags |= RECT_CTX_IS_RTL;
                                 }
                                 return true;
                             }
@@ -10341,7 +10341,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
                                     if ( line_is_bidi )
-                                        *bidiFlags |= LVBIDI_FLAG_IN_BIDI_LINE;
+                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
                                     // Note: we don't know word_is_rtl for bestBidiRect
                                 }
                                 return true;
@@ -10354,7 +10354,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                             // Populate BiDi flags if requested
                             if ( bidiFlags ) {
                                 if ( line_is_bidi )
-                                    *bidiFlags |= LVBIDI_FLAG_IN_BIDI_LINE;
+                                    *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
                                 // Note: we don't know word_is_rtl here
                             }
                             return true;
@@ -12406,7 +12406,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     lvRect nodeStartRect = lvRect();
     lvRect curCharRect = lvRect();
     lvRect prevCharRect = lvRect();
-    int nodeStartBidiFlags = LVBIDI_FLAG_NONE; // Persists across iterations
+    int nodeStartRectCtx = RECT_CTX_NONE; // Persists across iterations
+    int prevRectCtx;
+    int curRectCtx;
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
 
     // We process range text node by text node (I thought rects' y-coordinates
@@ -12472,7 +12474,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         if (startOffset == 0) { // new text node
             nodeStartRect = lvRect(); // reset
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+            nodeStartRectCtx = RECT_CTX_NONE;
             if (textLen == 0) { // empty text node (not sure that can happen)
                 // But it can happen when the node is an image
                 if ( includeImages && curPos.getNode()->isImage() ) {
@@ -12496,12 +12498,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         if (nodeText[startOffset] == ' ' && !is_whitespace_pre) {
             startOffset += 1;
             nodeStartRect = lvRect(); // reset
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+            nodeStartRectCtx = RECT_CTX_NONE;
         }
         if (startOffset >= textLen) { // no more text in this node (or single space node)
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
             nodeStartRect = lvRect(); // reset
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+            nodeStartRectCtx = RECT_CTX_NONE;
             continue;
         }
         curPos.setOffset(startOffset);
@@ -12509,15 +12511,15 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
-            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
+            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartRectCtx)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
                 curPos.setOffset(startOffset);
                 nodeStartRect = lvRect(); // reset
-                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+                nodeStartRectCtx = RECT_CTX_NONE;
             }
             // last try with the last char (startOffset = textLen-1):
-            if (nodeStartRect.isEmpty() && !curPos.getRectEx(nodeStartRect, true, &nodeStartBidiFlags)) {
+            if (nodeStartRect.isEmpty() && !curPos.getRectEx(nodeStartRect, true, &nodeStartRectCtx)) {
                 // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
                 // getRectEx() returns false when a node is invisible, so we just
                 // go processing next text node on failure (it may fail for other
@@ -12525,7 +12527,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // highlighting)
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
-                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+                nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
         }
@@ -12548,21 +12550,21 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // 1) Look if text node contains end of range (probably the case
         // when only a few words are highlighted)
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
-            int endBidiFlags = LVBIDI_FLAG_NONE;
+            int curRectCtx = RECT_CTX_NONE;
             curCharRect = lvRect();
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
-            if (!curPos.getRectEx(curCharRect, true, &endBidiFlags)) {
+            if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
-                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+                nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
             
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
                 // Check if we're in a BiDi line - if so, can't take shortcut
-                if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
+                if ((nodeStartRectCtx | curRectCtx) & RECT_CTX_IN_BIDI_LINE) {
                     // BiDi line: need to iterate char by char (fall through to section 3)
                 }
                 else {
@@ -12576,20 +12578,20 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         // 2) Look if the full text node is contained on the line
         // Ignore (possibly collapsed) space at end of text node
-        int endBidiFlags = LVBIDI_FLAG_NONE;
+        int curRectCtx = RECT_CTX_NONE;
         curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
         curCharRect = lvRect();
-        if (!curPos.getRectEx(curCharRect, true, &endBidiFlags)) {
+        if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
             // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
             nodeStartRect = lvRect(); // reset
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+            nodeStartRectCtx = RECT_CTX_NONE;
             continue;
         }
         
         if (curCharRect.top == nodeStartRect.top) {
             // Check if we're in a BiDi line - if so, can't take shortcut
-            if ((nodeStartBidiFlags | endBidiFlags) & LVBIDI_FLAG_IN_BIDI_LINE) {
+            if ((nodeStartRectCtx | curRectCtx) & RECT_CTX_IN_BIDI_LINE) {
                 // BiDi line: need to iterate char by char (fall through to section 3)
             }
             else {
@@ -12598,7 +12600,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // lineStartRect can still be extended with (parts of) next text nodes
                 lineStartRect.extend(curCharRect);
                 nodeStartRect  = lvRect(); // reset
-                nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+                nodeStartRectCtx = RECT_CTX_NONE;
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // go processing next text node
                 continue;
             }
@@ -12609,10 +12611,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
         prevCharRect = nodeStartRect;
-        int prevBidiFlags = nodeStartBidiFlags; // Use already retrieved flags
-        int curBidiFlags = LVBIDI_FLAG_NONE;
-        bool inBidiLine = (prevBidiFlags & LVBIDI_FLAG_IN_BIDI_LINE) != 0;
-        
+        prevRectCtx = nodeStartRectCtx; // Use already retrieved flags
+        bool inBidiLine = (prevRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+
         int i;
         for (i=startOffset+1; i<=textLen-1; i++) {
             // skip spaces (but let soft-hyphens in, so they are part of the
@@ -12623,7 +12624,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 continue;
             }
             curCharRect = lvRect(); // reset
-            if (!curPos.getRectEx(curCharRect, true, &curBidiFlags)) {
+            curRectCtx = RECT_CTX_NONE;
+            if (!curPos.getRectEx(curCharRect, true, &curRectCtx)) {
                 // printf("#### curPos.getRectEx(char=%d) failed\n", i);
                 // Can happen with non-break-space and may be others,
                 // just try with next char
@@ -12644,7 +12646,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
-                nodeStartBidiFlags = curBidiFlags;
+                nodeStartRectCtx = curRectCtx;
                 lineStartRect = lvRect(); // reset
                 break; // break for loop, continue while loop with same node on new line
             }
@@ -12652,8 +12654,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Check if we need to start a new segment in BiDi line
             if (inBidiLine) {
                 // In BiDi line: check if direction changed
-                bool prevIsRTL = (prevBidiFlags & LVBIDI_FLAG_IS_RTL) != 0;
-                bool curIsRTL = (curBidiFlags & LVBIDI_FLAG_IS_RTL) != 0;
+                bool prevIsRTL = (prevRectCtx & RECT_CTX_IS_RTL) != 0;
+                bool curIsRTL = (curRectCtx & RECT_CTX_IS_RTL) != 0;
                 
                 if (prevIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
@@ -12670,7 +12672,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             }
             
             prevCharRect = curCharRect; // still on the line: candidate for end of line
-            prevBidiFlags = curBidiFlags;
+            prevRectCtx = curRectCtx;
             if (! go_on)
                 break; // we're done
         }
@@ -12678,7 +12680,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
             nodeStartRect = lvRect(); // reset for next node
-            nodeStartBidiFlags = LVBIDI_FLAG_NONE;
+            nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
         }
     }
