@@ -12678,7 +12678,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     }
                     lineStartRect = curCharRect;
                 }
-                // else: same direction, do nothing (extend only when finishing segment)
+                else {
+                    // Same direction: extend lineStartRect if it's not empty
+                    if ( ! lineStartRect.isEmpty() ) {
+                        lineStartRect.extend(curCharRect);
+                    }
+                }
             }
 
             prevCharRect = curCharRect; // still on the line: candidate for end of line
@@ -12689,8 +12694,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // If we completed the for loop naturally (i > textLen-1), all chars were on same line,
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
-            // Extend lineStartRect to include the last character processed
-            if (!prevCharRect.isEmpty()) {
+            // For non-BiDi lines, extend lineStartRect to include the last character processed
+            // For BiDi lines, this was already done during the loop
+            if (!inBidiLine && !prevCharRect.isEmpty()) {
                 lineStartRect.extend(prevCharRect);
             }
             // Advance to next text node and get its starting context
