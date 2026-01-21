@@ -12410,6 +12410,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     bool lineStartRectIsRTL = false;
     bool lineIsBidi = false;
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
+    // Pending segment for BiDi gap merging
+    lvRect pendingSegment = lvRect();
+    bool hasPendingSegment = false;
 
     // We process range text node by text node (I thought rects' y-coordinates
     // comparisons were valid only for a same text node, but it seems all
@@ -12461,6 +12464,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Force a new segment if we're crossing final nodes, that is, when
             // we're no more in the same inline context (so we get a new segment
             // for each table cells that may happen to be rendered on the same line)
+            // Flush any pending segment first
+            if (hasPendingSegment) {
+                rects.add( pendingSegment );
+                pendingSegment = lvRect();
+                hasPendingSegment = false;
+            }
             if (! lineStartRect.isEmpty()) {
                 rects.add( lineStartRect );
                 lineStartRect = lvRect(); // reset
@@ -12537,6 +12546,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             lineStartRect = nodeStartRect; // re-use the one already computed
             lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
             lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+            // Initialize pending segment for BiDi lines
+            if (lineIsBidi && !hasPendingSegment) {
+                pendingSegment = nodeStartRect;
+                hasPendingSegment = true;
+            }
         }
         // This would help noticing a line-feed-back-to-start-of-line:
         //   else if (nodeStartRect.left < lineStartRect.right)
@@ -12546,20 +12560,41 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         else if (nodeStartRect.top > lineStartRect.top) {
             // We ended last node on a line, but a new node starts (or previous
             // one continues) on a different line.
-            // And we have a not-yet-added lineStartRect: add it as it is
-            rects.add( lineStartRect );
+            // Flush pending segment or line rect
+            if (hasPendingSegment) {
+                rects.add( pendingSegment );
+                pendingSegment = lvRect();
+                hasPendingSegment = false;
+            }
+            else if (! lineStartRect.isEmpty()) {
+                rects.add( lineStartRect );
+            }
             lineStartRect = nodeStartRect; // start line on current node
             lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
             lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+            // Initialize pending segment for new BiDi line
+            if (lineIsBidi) {
+                pendingSegment = nodeStartRect;
+                hasPendingSegment = true;
+            }
         }
         else {
+            // Same line - extend pending segment if BiDi
+            if (lineIsBidi && hasPendingSegment) {
+                pendingSegment.extend(nodeStartRect);
+            }
             bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
             if (lineStartRectIsRTL != nodeStartIsRTL) {
-                // Direction changed: finish current segment and start new one
-                rects.add( lineStartRect );
-                lineStartRect = nodeStartRect; // start line on current node
-                lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
-                lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+                // Direction changed: for BiDi, continue accumulating; for non-BiDi, finish segment
+                if (!lineIsBidi) {
+                    rects.add( lineStartRect );
+                    lineStartRect = nodeStartRect; // start line on current node
+                    lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+                }
+                else {
+                    // BiDi: just update direction flag, keep accumulating
+                    lineStartRectIsRTL = nodeStartIsRTL;
+                }
             }
         }
 
@@ -12655,30 +12690,37 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             }
             if (curCharRect.top != nodeStartRect.top) { // no more on the same line
                 if ( ! prevCharRect.isEmpty() ) { // (should never be empty)
-                    // We got previously a rect on this line: it's the end of line
-                    lineStartRect.extend(prevCharRect);
-                    rects.add( lineStartRect );
+                    // End of line reached
+                    if (lineIsBidi && hasPendingSegment) {
+                        // Flush BiDi pending segment with all characters accumulated
+                        pendingSegment.extend(prevCharRect);
+                        rects.add( pendingSegment );
+                        pendingSegment = lvRect();
+                        hasPendingSegment = false;
+                    }
+                    else {
+                        // Non-BiDi: extend and add
+                        lineStartRect.extend(prevCharRect);
+                        rects.add( lineStartRect );
+                    }
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
                 nodeStartRectCtx = curCharRectCtx;
                 lineStartRect = lvRect(); // reset
+                lineStartRectIsRTL = false;
+                lineIsBidi = false;
                 break; // break for loop, continue while loop with same node on new line
             }
-            // Check if we need to start a new segment in BiDi line
+            // For BiDi lines, accumulate all characters into pending segment
             if ( lineIsBidi ) {
-                // In BiDi line: check if direction changed
+                if (hasPendingSegment) {
+                    pendingSegment.extend(curCharRect);
+                }
+                // Check if direction changed (but continue accumulating)
                 bool curIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
                 if (lineStartRectIsRTL != curIsRTL) {
-                    // Direction changed: finish current segment and start new one
-                    if ( ! prevCharRect.isEmpty() ) {
-                        lineStartRect.extend(prevCharRect);
-                    }
-                    if ( ! lineStartRect.isEmpty() ) {
-                        rects.add( lineStartRect );
-                    }
-                    lineStartRect = curCharRect;
-                    lineStartRectIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                    lineStartRectIsRTL = curIsRTL; // Update direction flag
                 }
             }
             prevCharRect = curCharRect; // still on the line: candidate for end of segment
@@ -12690,16 +12732,21 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
             if ( lineIsBidi ) {
-                // Simpler to extend segment here, even if possibly not its end
-                lineStartRect.extend(curCharRect);
+                // Extend pending segment to include current character
+                if (hasPendingSegment && !curCharRect.isEmpty()) {
+                    pendingSegment.extend(curCharRect);
+                }
             }
             nodeStartRect = lvRect(); // reset for next node
             nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
         }
     }
-    // Add any lineStartRect not yet added
-    if (! lineStartRect.isEmpty()) {
+    // Flush any remaining pending segment or lineStartRect
+    if (hasPendingSegment) {
+        rects.add( pendingSegment );
+    }
+    else if (! lineStartRect.isEmpty()) {
         rects.add( lineStartRect );
     }
 }
