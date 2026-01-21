@@ -12404,11 +12404,11 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     bool go_on = true;
     lvRect lineStartRect = lvRect();
     lvRect nodeStartRect = lvRect();
-    lvRect prevCharRect = lvRect();
     lvRect curCharRect = lvRect();
     int nodeStartRectCtx = RECT_CTX_NONE;
-    int prevCharRectCtx;
     int curCharRectCtx;
+    bool lineStartRectIsRTL = false;
+    bool lineIsBidi = false;
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
 
     // We process range text node by text node (I thought rects' y-coordinates
@@ -12464,6 +12464,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (! lineStartRect.isEmpty()) {
                 rects.add( lineStartRect );
                 lineStartRect = lvRect(); // reset
+                lineStartRectIsRTL = false;
+                lineIsBidi = false;
             }
             prevFinalNode = curFinalNode;
         }
@@ -12533,19 +12535,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         }
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
-        }
-        // Check for direction change when starting a new text node
-        // (prevCharRectCtx holds the direction of the last character from previous node)
-        else if (!prevCharRect.isEmpty() && (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE)) {
-            bool prevIsRTL = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
-            bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
-            if (prevIsRTL != nodeStartIsRTL) {
-                // Direction changed between text nodes: finalize current segment
-                lineStartRect.extend(prevCharRect);
-                rects.add(lineStartRect);
-                lineStartRect = lvRect(); // Reset for new segment
-                prevCharRect = lvRect(); // Reset to avoid overlapping with next segment
-            }
+            lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
         }
         // This would help noticing a line-feed-back-to-start-of-line:
         //   else if (nodeStartRect.left < lineStartRect.right)
@@ -12558,6 +12549,18 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // And we have a not-yet-added lineStartRect: add it as it is
             rects.add( lineStartRect );
             lineStartRect = nodeStartRect; // start line on current node
+            lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+        }
+        else {
+            bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            if (lineStartRectIsRTL != nodeStartIsRTL) {
+                // Direction changed: finish current segment and start new one
+                rects.add( lineStartRect );
+                lineStartRect = nodeStartRect; // start line on current node
+                lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+                lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+            }
         }
 
         // 1) Look if text node contains end of range (probably the case
@@ -12577,7 +12580,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
                 // (Two offsets in a same text node with the same tops are on the same line)
                 // Check if we're in a BiDi line - if so, can't take shortcut
-                if ((nodeStartRectCtx | curCharRectCtx) & RECT_CTX_IN_BIDI_LINE) {
+                if ( lineIsBidi ) {
                     // BiDi line: need to iterate char by char (fall through to section 3)
                 }
                 else {
@@ -12604,7 +12607,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         if (curCharRect.top == nodeStartRect.top) {
             // Check if we're in a BiDi line - if so, can't take shortcut
-            if ((nodeStartRectCtx | curCharRectCtx) & RECT_CTX_IN_BIDI_LINE) {
+            if ( lineIsBidi ) {
                 // BiDi line: need to iterate char by char (fall through to section 3)
             }
             else {
@@ -12623,9 +12626,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // scan it char by char to see where it changes line
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
-        prevCharRect = nodeStartRect;
-        prevCharRectCtx = nodeStartRectCtx; // Use already retrieved flags
-        bool inBidiLine = (prevCharRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+        lvRect prevCharRect = nodeStartRect;
+        int prevCharRectCtx = nodeStartRectCtx;
 
         int i;
         for (i=startOffset+1; i<=textLen-1; i++) {
@@ -12663,32 +12665,23 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 lineStartRect = lvRect(); // reset
                 break; // break for loop, continue while loop with same node on new line
             }
-
             // Check if we need to start a new segment in BiDi line
-            if (inBidiLine) {
+            if ( lineIsBidi ) {
                 // In BiDi line: check if direction changed
-                bool prevIsRTL = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
                 bool curIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
-
-                if (prevIsRTL != curIsRTL) {
+                if (lineStartRectIsRTL != curIsRTL) {
                     // Direction changed: finish current segment and start new one
                     if ( ! prevCharRect.isEmpty() ) {
                         lineStartRect.extend(prevCharRect);
+                    }
+                    if ( ! lineStartRect.isEmpty() ) {
                         rects.add( lineStartRect );
                     }
-                    lineStartRect = lvRect(); // Reset for new segment
-                    prevCharRect = lvRect(); // Reset to avoid overlapping
-                }
-                // Extend lineStartRect to current character
-                if (lineStartRect.isEmpty()) {
-                    lineStartRect = curCharRect; // First character in new segment
-                }
-                else {
-                    lineStartRect.extend(curCharRect); // Continue building segment
+                    lineStartRect = curCharRect;
+                    lineStartRectIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
                 }
             }
-
-            prevCharRect = curCharRect; // still on the line: candidate for end of line
+            prevCharRect = curCharRect; // still on the line: candidate for end of segment
             prevCharRectCtx = curCharRectCtx;
             if (! go_on)
                 break; // we're done
@@ -12696,20 +12689,13 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // If we completed the for loop naturally (i > textLen-1), all chars were on same line,
         // so we need to advance to next text node
         if (go_on && i > textLen-1) {
-            // For non-BiDi lines, extend lineStartRect to include the last character processed
-            // For BiDi lines, this was already done during the loop
-            if (!inBidiLine && !prevCharRect.isEmpty()) {
-                lineStartRect.extend(prevCharRect);
+            if ( lineIsBidi ) {
+                // Simpler to extend segment here, even if possibly not its end
+                lineStartRect.extend(curCharRect);
             }
-            // Advance to next text node and get its starting context
             nodeStartRect = lvRect(); // reset for next node
             nodeStartRectCtx = RECT_CTX_NONE;
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
-            
-            // If we advanced to a new node, check if direction changed
-            // (nodeStartRectCtx will be set when we loop back to the top)
-            // We need to finalize the current segment if direction changed
-            // This will be checked at the start of the next iteration
         }
     }
     // Add any lineStartRect not yet added
