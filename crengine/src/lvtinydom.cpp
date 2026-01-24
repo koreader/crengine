@@ -10085,6 +10085,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
         for ( int l = 0; l<txtform->GetLineCount(); l++ ) {
             const formatted_line_t * frmline = txtform->GetLineInfo(l);
             bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
+            bool para_is_rtl = frmline->flags & LTEXT_LINE_PARA_IS_RTL;
             for ( int w=0; w<(int)frmline->word_count; w++ ) {
                 const formatted_word_t * word = &frmline->words[w];
                 if (word->flags & LTEXT_WORD_IS_PAD ) {
@@ -10148,8 +10149,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                     rect.right = rect.left + 1;
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
-                                    if ( line_is_bidi )
-                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    if ( para_is_rtl )
+                                        *bidiFlags |= RECT_CTX_IN_RTL_PARA;
                                     if ( word_is_rtl )
                                         *bidiFlags |= RECT_CTX_IS_RTL;
                                 }
@@ -10210,8 +10212,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                     rect.bottom = rect.top + frmline->height;
                                     // Populate BiDi flags if requested
                                     if ( bidiFlags ) {
-                                        if ( line_is_bidi )
-                                            *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                        if ( para_is_rtl )
+                                            *bidiFlags |= RECT_CTX_IN_RTL_PARA;
                                         if ( word_is_rtl )
                                             *bidiFlags |= RECT_CTX_IS_RTL;
                                     }
@@ -10326,8 +10329,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                 }
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
-                                    if ( line_is_bidi )
-                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    if ( para_is_rtl )
+                                        *bidiFlags |= RECT_CTX_IN_RTL_PARA;
                                     if ( word_is_rtl )
                                         *bidiFlags |= RECT_CTX_IS_RTL;
                                 }
@@ -10340,8 +10344,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                                 rect = bestBidiRect;
                                 // Populate BiDi flags if requested
                                 if ( bidiFlags ) {
-                                    if ( line_is_bidi )
-                                        *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                    if ( para_is_rtl )
+                                        *bidiFlags |= RECT_CTX_IN_RTL_PARA;
                                     // Note: we don't know word_is_rtl for bestBidiRect
                                 }
                                 return true;
@@ -10353,8 +10358,9 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * bi
                             rect.right = rect.left + 1;
                             // Populate BiDi flags if requested
                             if ( bidiFlags ) {
-                                if ( line_is_bidi )
-                                    *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                *bidiFlags |= RECT_CTX_IN_BIDI_LINE;
+                                if ( para_is_rtl )
+                                    *bidiFlags |= RECT_CTX_IN_RTL_PARA;
                                 // Note: we don't know word_is_rtl here
                             }
                             return true;
@@ -12409,6 +12415,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     int curCharRectCtx;
     bool lineStartRectIsRTL = false;
     bool lineIsBidi = false;
+    bool forceAddLine = false;
     lvRect pendingSegment;
     bool hasPendingSegment = false;
     ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
@@ -12436,6 +12443,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
 
     bool is_whitespace_pre = false;
+    bool check_start_bidi = true;
     while (go_on) { // new line or new/continued text node
         // We may have (empty or not if not yet pushed) from previous iteration:
         // lineStartRect : char rect for first char of line, even if from another text node
@@ -12463,6 +12471,13 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Force a new segment if we're crossing final nodes, that is, when
             // we're no more in the same inline context (so we get a new segment
             // for each table cells that may happen to be rendered on the same line)
+            if ( lineIsBidi ) {
+                if ( hasPendingSegment ) {
+                    lineStartRect.extend(pendingSegment);
+                    hasPendingSegment = false;
+                    pendingSegment = lvRect();
+                }
+            }
             if (! lineStartRect.isEmpty()) {
                 rects.add( lineStartRect );
                 lineStartRect = lvRect(); // reset
@@ -12535,6 +12550,14 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 continue;
             }
         }
+        if ( check_start_bidi ) {
+            check_start_bidi = false;
+            bool startIsRtl = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            bool paraIsRtl = (nodeStartRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
+            if ( startIsRtl != paraIsRtl ) {
+                forceAddLine = true;
+            }
+        }
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
             lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
@@ -12549,48 +12572,50 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // We ended last node on a line, but a new node starts (or previous
             // one continues) on a different line.
             // Flush pending segments and current lineStartRect
-            if ( hasPendingSegment ) {
-                pendingSegment.extend(lineStartRect);
-                rects.add( pendingSegment );
-                hasPendingSegment = false;
-                pendingSegment = lvRect();
+            if ( lineIsBidi ) {
+                if ( hasPendingSegment ) {
+                    lineStartRect.extend(pendingSegment);
+                    hasPendingSegment = false;
+                    pendingSegment = lvRect();
+                }
             }
-            else {
-                rects.add( lineStartRect );
-            }
+            rects.add( lineStartRect );
             lineStartRect = nodeStartRect; // start line on current node
             lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
             lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
         }
-        else {
+        else if ( lineIsBidi ) {
             bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
             if (lineStartRectIsRTL != nodeStartIsRTL) {
+                bool paraIsRTL = (nodeStartRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
                 // Direction changed on BiDi line
-                if ( lineIsBidi ) {
-                    // Extend lineStartRect into pendingSegment
-                    if ( hasPendingSegment ) {
-                        pendingSegment.extend(lineStartRect);
-                    }
-                    else {
-                        pendingSegment = lineStartRect;
-                        hasPendingSegment = true;
-                    }
+                // Extend lineStartRect into pendingSegment
+                if ( hasPendingSegment ) {
+                    // pendingSegment.extend(lineStartRect);
+                    lineStartRect.extend(pendingSegment);
+                    hasPendingSegment = false;
+                    pendingSegment = lvRect();
+                }
+                if ( forceAddLine ) {
+                    rects.add( lineStartRect );
+                    forceAddLine = false;
+                    lineStartRect = nodeStartRect;
+                }
+                else if (nodeStartIsRTL != paraIsRTL) {
+                    pendingSegment = lineStartRect;
+                    hasPendingSegment = true;
                     // Start new lineStartRect for new direction
                     lineStartRect = nodeStartRect;
-                    lineStartRectIsRTL = nodeStartIsRTL;
                 }
-                else {
-                    // Non-BiDi: finish current segment and start new one
-                    rects.add( lineStartRect );
-                    lineStartRect = nodeStartRect;
-                    lineStartRectIsRTL = nodeStartIsRTL;
-                    lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
-                }
+                // otherwise, we can merge and keep go on with lineStartRect
+                lineStartRectIsRTL = nodeStartIsRTL;
             }
+            // otherwise no direction change: keep accumulating in lineStartRect
         }
 
         // 1) Look if text node contains end of range (probably the case
         // when only a few words are highlighted)
+        // XXX no-op if lineIsBidi
         if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
             curCharRect = lvRect();
             curCharRectCtx = RECT_CTX_NONE;
@@ -12620,6 +12645,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         // 2) Look if the full text node is contained on the line
         // Ignore (possibly collapsed) space at end of text node
+        // XXX no-op if lineIsBidi
         curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
         curCharRect = lvRect();
         curCharRectCtx = RECT_CTX_NONE;
@@ -12676,23 +12702,38 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // should not happen, we should have dealt with it as 1)
                 // (unless BiDi and we didn't take that shortcut)
                 // printf("??????????? curPos.getRectEx(char=%d) end of range\n", i);
-                go_on = false;        // don't break yet, need to add what we met before
-                curCharRect.top = -1; // force adding prevCharRect
+                if ( ! prevCharRect.isEmpty() ) { // (should never be empty)
+                    lineStartRect.extend(prevCharRect);
+                }
+                // XXX can be removed, will be added after while loop anyway
+                if ( lineIsBidi ) {
+                    if ( hasPendingSegment ) {
+                        rects.add( pendingSegment );
+                        hasPendingSegment = false;
+                        pendingSegment = lvRect();
+                    }
+                }
+                if (! lineStartRect.isEmpty()) {
+                    rects.add( lineStartRect );
+                    lineStartRect = lvRect();
+                }
+                go_on = false;
+                break;
             }
             if (curCharRect.top != nodeStartRect.top) { // no more on the same line
                 if ( ! prevCharRect.isEmpty() ) { // (should never be empty)
                     // We got previously a rect on this line: it's the end of line
                     lineStartRect.extend(prevCharRect);
-                    if ( lineIsBidi && hasPendingSegment ) {
-                        // BiDi line ending: merge pendingSegment and lineStartRect
-                        pendingSegment.extend(lineStartRect);
-                        rects.add( pendingSegment );
+                }
+                if ( lineIsBidi ) {
+                    if ( hasPendingSegment ) {
+                        lineStartRect.extend(pendingSegment);
                         hasPendingSegment = false;
                         pendingSegment = lvRect();
                     }
-                    else {
-                        rects.add( lineStartRect );
-                    }
+                }
+                if (! lineStartRect.isEmpty()) {
+                    rects.add( lineStartRect );
                 }
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
@@ -12712,21 +12753,33 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                         lineStartRect.extend(prevCharRect);
                     }
                     if ( ! lineStartRect.isEmpty() ) {
+                        bool paraIsRTL = (curCharRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
                         if ( hasPendingSegment ) {
-                            pendingSegment.extend(lineStartRect);
+                            // pendingSegment.extend(lineStartRect);
+                            lineStartRect.extend(pendingSegment);
+                            hasPendingSegment = false;
+                            pendingSegment = lvRect();
                         }
-                        else {
+                        if ( forceAddLine ) {
+                            rects.add( lineStartRect );
+                            forceAddLine = false;
+                            lineStartRect = curCharRect;
+                        }
+                        else if (curIsRTL != paraIsRTL) {
                             pendingSegment = lineStartRect;
                             hasPendingSegment = true;
+                            // Start new lineStartRect for new direction
+                            lineStartRect = curCharRect;
                         }
+                        lineStartRectIsRTL = curIsRTL;
                     }
-                    // Start new lineStartRect for new direction
-                    lineStartRect = curCharRect;
-                    lineStartRectIsRTL = curIsRTL;
                 }
             }
             prevCharRect = curCharRect; // still on the line: candidate for end of segment
             prevCharRectCtx = curCharRectCtx;
+            lvRect zzz = lineStartRect;
+            // zzz.extend(prevCharRect);
+            // printf("i=%d  pending=%d %d  line=%d %d ( ...> %d %d)\n", i, pendingSegment.left, pendingSegment.right, lineStartRect.left, lineStartRect.right, zzz.left, zzz.right);
             if (! go_on)
                 break; // we're done
         }
@@ -12743,6 +12796,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         }
     }
     // Add any pending segments at end of range
+    // printf("END  pending=%d %d  line=%d %d\n", pendingSegment.left, pendingSegment.right, lineStartRect.left, lineStartRect.right);
     if ( hasPendingSegment ) {
         rects.add( pendingSegment );
     }
