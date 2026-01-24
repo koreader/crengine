@@ -1666,11 +1666,11 @@ public:
 	}
 //#if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
-    bool getRect(lvRect & rect, bool extended=false, bool adjusted=false, int * bidiFlags=NULL) const;
+    bool getRect(lvRect & rect, bool extended=false, bool adjusted=false, int * ctxFlags=NULL) const;
     /// returns glyph rectangle for pointer inside formatted document considering paddings and borders
     /// (with adjusted=true, adjust for left and right side bearing of the glyph, for cleaner highlighting)
-    /// (with bidiFlags, returns BiDi context: LVBIDI_FLAG_IN_BIDI_LINE | LVBIDI_FLAG_IS_RTL)
-    bool getRectEx(lvRect & rect, bool adjusted=false, int * bidiFlags=NULL) const { return getRect(rect, true, adjusted, bidiFlags); }
+    /// (with ctxFlags, returns some context info about the char Bidi and edges)
+    bool getRectEx(lvRect & rect, bool adjusted=false, int * ctxFlags=NULL) const { return getRect(rect, true, adjusted, ctxFlags); }
     /// returns coordinates of pointer inside formatted document
     lvPoint toPoint( bool extended=false ) const;
 //#endif
