@@ -628,8 +628,8 @@ bool parse_number_value( const char * & str, css_length_t & value,
                                     bool accept_unspecified,
                                     bool accept_contain_cover,
                                     bool accept_cr_special,
-                                    bool is_font_size,
-                                    bool accept_fit_content )
+                                    bool accept_fit_content,
+                                    bool is_font_size )
 {
     const char * orig_pos = str;
     value.type = css_val_unspecified;
@@ -4114,7 +4114,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     bool accept_cr_special = false;
                     if ( prop_code==cssd_padding_left || prop_code==cssd_padding_right )
                         accept_cr_special = true;
-                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, accept_cr_special, is_font_size, accept_fit_content) ) {
+                    if ( parse_number_value( decl, len, accept_percent, accept_negative, accept_auto, accept_none, accept_normal, accept_unspecified, false, accept_cr_special, accept_fit_content, is_font_size) ) {
                         buf<<(lUInt32) (prop_code | importance | parse_important(decl));
                         buf<<(lUInt32) len.type;
                         buf<<(lUInt32) len.value;
