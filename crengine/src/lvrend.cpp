@@ -7464,13 +7464,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // We always use the style height for <HR>, to actually have a height to fill
         // with its color (as some of our css files render them via height)
         css_length_t style_height = style->height;
-        // Check for fit-content in height: treat as auto (no fixed height)
-        bool height_fit_content = (style_height.type == css_val_unspecified && 
-                                   style_height.value == css_generic_fit_content);
-        // Convert fit-content to auto so normal height logic applies
-        if ( height_fit_content ) {
-            style_height.value = css_generic_auto;
-        }
+        // If css_generic_fit_content, nothing special to do
         if ( is_empty_line_elem && style_height.type == css_val_unspecified ) {
             // No height specified: default to line-height, just like
             // if it were rendered final.
@@ -7740,39 +7734,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     }
     else { // regular element (non-float)
         bool apply_style_width = false;
-        bool is_fit_content = false;  // Track if we're using fit-content
         css_length_t style_width = style->width;
-        // Check for fit-content: treat as shrink-to-content width
-        bool has_fit_content_width = (style_width.type == css_val_unspecified && 
-                                      style_width.value == css_generic_fit_content);
-		// For fit-content, we need to get the content width similar to floats
-		if ( has_fit_content_width ) {
-			int max_content_width = 0;
-			int min_content_width = 0;
-			int rend_flags = flags | BLOCK_RENDERING_ENSURE_STYLE_WIDTH | BLOCK_RENDERING_ALLOW_STYLE_W_H_ABSOLUTE_UNITS;
-			// getRenderedWidths() returns width including padding/margin of children,
-			// but we need to ignore margin of this element itself (ignoreMargin=true)
-			// Note: getRenderedWidths() already includes padding/margin/border of children
-			getRenderedWidths(enode, max_content_width, min_content_width, direction, true, rend_flags);
-			
-			// getRenderedWidths() returns the content width including padding/margin/border
-			// of children, but for fit-content we want the shrink-to-fit width.
-			// The returned max_content_width should be the width needed by the content.
-			// We need to ensure it doesn't exceed available width (container minus our margins).
-			int available_width = container_width - margin_left - margin_right;
-			
-			// Use the maximum of content width, but not exceeding available width
-			width = max_content_width;
-			if (width > available_width) {
-				width = available_width;
-			}
-			
-			auto_width = false;
-			is_fit_content = true;
-		}
+        bool is_fit_content_width = ( style_width.type == css_val_unspecified && style_width.value == css_generic_fit_content );
         // table sub-elements widths are managed by the table layout algorithm
         // (but trust width if the table sub element is one of our boxing elements)
-        else if ( style->display <= css_d_table || is_boxing_elem ) {
+        if ( style->display <= css_d_table || is_boxing_elem ) {
             // Only if ENSURE_STYLE_WIDTH as we may prefer having
             // full width text blocks to not waste reading width with blank areas.
             if ( style_width.type != css_val_unspecified ) {
@@ -7796,9 +7762,32 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // when !ENSURE_STYLE_WIDTH.)
                 table_shrink_to_fit = true;
             }
+            // Also only if ENSURE_STYLE_WIDTH as we may prefer having
+            // full width text blocks to not waste reading width with blank areas.
+            else if ( is_fit_content_width ) {
+                if ( BLOCK_RENDERING(flags, ENSURE_STYLE_WIDTH) )
+                    apply_style_width = true;
+            }
         }
         if ( apply_style_width ) {
-            width = lengthToPx( enode, style_width, container_width );
+            if ( is_fit_content_width ) {
+                int max_content_width = 0;
+                int min_content_width = 0;
+                int rend_flags = flags | BLOCK_RENDERING_ENSURE_STYLE_WIDTH |
+                                 BLOCK_RENDERING_ALLOW_STYLE_W_H_ABSOLUTE_UNITS;
+                // Compute shrink-to-fit width from rendered content, ignoring this element's
+                // own margins, and clamp it to the available container width.
+                getRenderedWidths(enode, max_content_width, min_content_width,
+                                  direction, true, rend_flags);
+                int available_width = container_width - margin_left - margin_right;
+                width = max_content_width;
+                if ( width > available_width )
+                    width = available_width;
+                auto_width = false;
+            }
+            else { // the original
+                width = lengthToPx( enode, style_width, container_width );
+            }
             // In all crengine computation, width/fmt.getWidth() is the width
             // of the border box (content box + paddings + borders).
             // If we use what we got directly, we are in the traditional
@@ -7812,7 +7801,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // should have it used - but we don't, to not complexify out table
                 // rendering algorithm
             }
-            else if ( style->box_sizing == css_bs_content_box ) {
+            else if ( style->box_sizing == css_bs_content_box && !is_fit_content_width ) {
                 // If W3C box model requested, CSS width specifies the width
                 // of the content box.
                 // In crengine, the width we deal with is the border box, so we
@@ -7821,8 +7810,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             }
             // printf("  apply_style_width => %d\n", width);
         }
-        else if ( !is_fit_content ) {
-            // Only set auto width if we're not already processing fit-content
+        else {
             width = container_width - margin_left - margin_right;
             auto_width = true; // no more width tweaks
         }
@@ -7833,10 +7821,6 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
             // this is ensured naturally by the inner content measurement)
             // We do max-width first, and then min-width (https://www.w3.org/TR/CSS2/visudet.html#min-max-widths)
             css_length_t style_max_width = style->max_width;
-            // Check for fit-content in max-width
-            if ( style_max_width.type == css_val_unspecified && style_max_width.value == css_generic_fit_content ) {
-                style_max_width.value = css_generic_auto; // treat as no max-width constraint
-            }
             if ( style_max_width.type != css_val_unspecified ) {
                 if ( BLOCK_RENDERING(flags, ALLOW_STYLE_W_H_ABSOLUTE_UNITS) ||
                      style_max_width.type == css_val_screen_px || // in case it was converted to screen_px beforehand
