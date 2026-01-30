@@ -7735,7 +7735,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     else { // regular element (non-float)
         bool apply_style_width = false;
         css_length_t style_width = style->width;
-        bool is_fit_content_width = ( style_width.type == css_val_unspecified && style_width.value == css_generic_fit_content );
+        bool is_fit_content_width = style_width.type == css_val_unspecified && style_width.value == css_generic_fit_content;
         // table sub-elements widths are managed by the table layout algorithm
         // (but trust width if the table sub element is one of our boxing elements)
         if ( style->display <= css_d_table || is_boxing_elem ) {
@@ -7762,7 +7762,6 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // when !ENSURE_STYLE_WIDTH.)
                 table_shrink_to_fit = true;
             }
-
             else if ( is_fit_content_width ) {
 				// Also only if ENSURE_STYLE_WIDTH as we may prefer having
 				// full width text blocks to not waste reading width with blank areas.
@@ -7777,8 +7776,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int rend_flags = flags | BLOCK_RENDERING_ENSURE_STYLE_WIDTH | BLOCK_RENDERING_ALLOW_STYLE_W_H_ABSOLUTE_UNITS;
                 // Compute shrink-to-fit width from rendered content, ignoring this element's
                 // own margins, and clamp it to the available container width.
-                getRenderedWidths(enode, max_content_width, min_content_width,
-                                  direction, true, rend_flags);
+                getRenderedWidths(enode, max_content_width, min_content_width, direction, true, rend_flags);
                 int available_width = container_width - margin_left - margin_right;
                 width = max_content_width;
                 if ( width > available_width )
@@ -11687,7 +11685,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         bool use_style_width = false;
         css_length_t style_width = style->width;
         // ('width: fit-content' is actually what this function returns as maxWidth)
-        bool has_fit_content_width = (style_width.type == css_val_unspecified && style_width.value == css_generic_fit_content);
+        bool has_fit_content_width = style_width.type == css_val_unspecified && style_width.value == css_generic_fit_content;
         if ( BLOCK_RENDERING(rendFlags, ENSURE_STYLE_WIDTH) && !has_fit_content_width ) {
             // Ignore width for table sub-elements - but allow it for our boxing elements, as we can set it
             // for some explicit rendering purpose (i.e. for the MathML <msqrt> mathBox root symbol)
