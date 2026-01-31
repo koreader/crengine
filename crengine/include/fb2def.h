@@ -508,6 +508,11 @@ XS_ATTR( vlink )
 XS_ATTR( vspace )
 XS_ATTR( wrap )
 
+// Misc other attributes commonly found in books (ie. with cover SVG wrappers)
+XS_ATTR( viewBox )
+XS_ATTR( preserveAspectRatio )
+XS_ATTR2( aria_hidden, "aria-hidden" )
+
 #if MATHML_SUPPORT==1
 // Various MathML attributes for internal rendering
 XS_ATTR( MT )       // MathML element or mathBox: type
