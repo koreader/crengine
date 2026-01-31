@@ -916,6 +916,15 @@ public:
     // child, creating it if needed and possible
     void ensurePseudoElement( bool is_before );
 
+    // Ensure this node has a ::first-letter pseudo element, creating it if needed and possible
+    // (initStyle: whether to call initNodeStyle() on newly created pseudoElem)
+    void ensureFirstLetter(bool initStyle=false);
+    /// Find FirstLetter pseudoElem from a text node, returns NULL if not found or display:none
+    /// (if textOffset is provided, sets it to the FirstLetter character count)
+    ldomNode * getFirstLetterPseudoElem(int * textOffset=NULL) const;
+    /// Find the text node following a FirstLetter pseudoElem, returns NULL if not found
+    ldomNode * getFirstLetterTextNode() const;
+
     /// if stylesheet file name is set, and file is found, set stylesheet to its value
     bool applyNodeStylesheet();
 
