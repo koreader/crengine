@@ -394,6 +394,7 @@ enum css_generic_value_t {
     css_generic_none = -7,         // (css_val_unspecified, css_generic_none), for "max-width: none"
     css_generic_cr_special = -8,   // (css_val_unspecified, css_generic_cr_special), for "padding-left: -cr-special"
                                              //  (could be used with other properties for other special behaviours)
+    css_generic_fit_content = -9   // (css_val_unspecified, css_generic_fit_content), for "width/height: fit-content"
 };
 
 // color 'transparent' is transparent black rgba(0,0,0,0) per specs
