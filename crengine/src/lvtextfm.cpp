@@ -924,7 +924,7 @@ public:
                 }
             }
             else {
-                pos += src->t.len;
+                pos += src->t.len - src->t.offset;
             }
         }
 
@@ -1258,8 +1258,8 @@ public:
                 lbCtx.lbpLang = src->lang_cfg->getLBProps();
                 #endif
 
-                int len = src->t.len;
-                lStr_ncpy( m_text+pos, src->t.text, len );
+                int len = src->t.len - src->t.offset;
+                lStr_ncpy( m_text+pos, src->t.text + src->t.offset, len );
                 if ( i==0 || (src->flags & LTEXT_FLAG_NEWLINE) )
                     m_flags[pos] = LCHAR_MANDATORY_NEWLINE;
 
@@ -3681,7 +3681,7 @@ public:
                                 // This is a bit hacky, but no other solution: just
                                 // replace that ignorable char with a space in the
                                 // src text
-                                *((lChar32 *) (m_srcs[wstart]->t.text + m_charindex[wstart])) = U' ';
+                                *((lChar32 *) (m_srcs[wstart]->t.text + m_srcs[wstart]->t.offset + m_charindex[wstart])) = U' ';
                             }
                             else if (m_srcs[wstart]->flags & LTEXT_SRC_IS_OBJECT && m_srcs[wstart]->o.objflags & LTEXT_OBJECT_IS_FLOAT) {
                                 // But not if what's on this line is a float (the code below don't expect floats)
@@ -3936,7 +3936,7 @@ public:
                     // Set word start and end (start+len-1) indices in the source text node
                     if ( !m_has_bidi ) {
                         // No bidi, everything is linear
-                        word->t.start = m_charindex[wstart];
+                        word->t.start = m_charindex[wstart] + srcline->t.offset;
                         word->t.len = i - wstart;
                     }
                     else if ( m_flags[wstart] & LCHAR_IS_RTL ) {
@@ -3946,7 +3946,7 @@ public:
                         // are in the same text node.
                         // charindex may have been reordered, and may not be sync'ed with wstart/i-1,
                         // but it is linearly decreasing between i-1 and wstart
-                        word->t.start = m_charindex[i-1];
+                        word->t.start = m_charindex[i-1] + srcline->t.offset;
                         word->t.len = m_charindex[wstart] - m_charindex[i-1] + 1;
                         word->flags |= LTEXT_WORD_DIRECTION_IS_RTL; // Draw glyphs in reverse order
                         #if (USE_FRIBIDI==1)
@@ -3966,12 +3966,12 @@ public:
                     else {
                         // Bidi and first char LTR. Same comments as above, except for last one:
                         // it is linearly increasing between wstart and i-1
-                        word->t.start = m_charindex[wstart];
+                        word->t.start = m_charindex[wstart] + srcline->t.offset;
                         word->t.len = m_charindex[i-1] + 1 - m_charindex[wstart];
                     }
 
                     // Flag word that are the start of a link (for in-page footnotes)
-                    if ( word->t.start==0 && srcline->flags & LTEXT_IS_LINK ) {
+                    if ( word->t.start==srcline->t.offset && srcline->flags & LTEXT_IS_LINK ) {
                         word->flags |= LTEXT_WORD_IS_LINK_START;
                         // todo: we might miss some links if the source text starts with a space
                     }

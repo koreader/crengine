@@ -9764,12 +9764,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             if ( find_first ) { // return xpointer to logical start of word
                 if ( node->isElement() ) // (see comment about <br/><br/> below)
                     return ldomXPointer(node, 0);
-                return ldomXPointer( node, src->t.offset + word->t.start );
+                return ldomXPointer( node, word->t.start );
             }
             else { // return xpointer to logical end of word
                 if ( node->isElement() )
                     return ldomXPointer(node, 0);
-                return ldomXPointer( node, src->t.offset + word->t.start + word->t.len );
+                return ldomXPointer( node, word->t.start + word->t.len );
             }
         }
 
@@ -9861,12 +9861,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         if ( x < word->x + xx ) {
                             if ( node->isElement() )
                                 return ldomXPointer(node, 0);
-                            return ldomXPointer( node, src->t.offset + word->t.start + i );
+                            return ldomXPointer( node, word->t.start + i );
                         }
                     }
                     if ( node->isElement() )
                         return ldomXPointer(node, 0);
-                    return ldomXPointer( node, src->t.offset + word->t.start );
+                    return ldomXPointer( node, word->t.start );
                 }
                 else {
                     for ( int i=0; i<word->t.len; i++ ) {
@@ -9874,12 +9874,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         if ( x < word->x + xx ) {
                             if ( node->isElement() )
                                 return ldomXPointer(node, 0);
-                            return ldomXPointer( node, src->t.offset + word->t.start + i );
+                            return ldomXPointer( node, word->t.start + i );
                         }
                     }
                     if ( node->isElement() )
                         return ldomXPointer( node, 0 );
-                    return ldomXPointer( node, src->t.offset + word->t.start + word->t.len );
+                    return ldomXPointer( node, word->t.start + word->t.len );
                 }
             }
         }
