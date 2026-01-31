@@ -93,7 +93,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.75k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.76k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0033
 
@@ -6172,8 +6172,8 @@ void ldomElementWriter::onBodyEnter()
         if ( nb_children > 0 ) {
             // The only possibility for this element being built to have children
             // is if the above initNodeStyle() has applied to this node some
-            // matching selectors that had ::before or ::after, which have then
-            // created one or two pseudoElem children. But let's be sure of that.
+            // matching selectors that had ::before or ::after or ::first-letter, which have then
+            // created one or two or three pseudoElem children. But let's be sure of that.
             for ( int i=0; i<nb_children; i++ ) {
                 ldomNode * child = _element->getChildNode(i);
                 if ( child->getNodeId() == el_pseudoElem ) {
@@ -6291,6 +6291,214 @@ void ldomNode::ensurePseudoElement( bool is_before ) {
 
 #endif
 }
+
+void ldomNode::ensureFirstLetter(bool initStyle) {
+#if BUILD_LITE!=1
+    // This method handles ::first-letter pseudo element creation in 3 contexts:
+    // 1. Initial DOM building (setNodeStyle context): sets attr_HasFirstLetter,
+    //    but doesn't create pseudoElem yet; there are no children, we would not
+    //    find any text node that could provide a first letter.
+    // 2. Initial DOM building (onBodyExit context): now that children have been
+    //    added to the DOM, finds first text node having text, and creates
+    //    the pseudoElem[FirstLetter]
+    // 3. Stylesheet re-application (setNodeStyle context after re-rendering):
+    //    if element has children and needs ::first-letter, finds first text node
+    //    and creates pseudoElem
+    // initStyle parameter:
+    //   - true: call initNodeStyle() on newly created pseudoElem (during DOM building from onBodyExit)
+    //   - false: skip initNodeStyle() as it will be called during recursive style pass (during stylesheet re-application)
+
+    // First, ensure the HasFirstLetter attribute is set
+    if ( !hasAttribute(attr_HasFirstLetter) ) {
+        setAttributeValue(LXML_NS_NONE, attr_HasFirstLetter, U"");
+    }
+
+    // If there are no children yet, we're in context 1 (setNodeStyle during initial DOM building)
+    // (we made sure any ::before pseudoElem is added *after* this is called).
+    // We'll be called again from onBodyExit, so just return
+    if ( getChildCount() == 0 ) {
+        return;
+    }
+
+    // Now, find the first visible non-empty text node and create the actual ::first-letter element
+    // Use our usual non-recursive depth-first node walker code to walk
+    // this element's children (excluding pseudo elements)
+    ldomNode * firstTextNode = NULL;
+    int firstLetterEndIndex = 0;
+    ldomNode * topNode = this;
+    ldomNode * n = topNode;
+    if ( n && n->getChildCount() > 0 ) {
+        int index = 0;
+        n = n->getChildNode(index);
+        while ( true ) {
+            // Check the node only the first time we meet it (index == 0)
+            if ( index == 0 ) {
+                if ( n->isText() ) {
+                    lString32 text = n->getText();
+                    if ( text.length() > 0 ) {
+                        // Found a non-empty text node, now find where the first letter ends, if any
+                        int len = text.length();
+                        int i = 0;
+                        // Specs: https://drafts.csswg.org/css-pseudo/#first-letter-pattern
+                        // (we do as we can with what we have easily)
+                        // Skip leading non-letter characters (spaces, punctuation, etc.)
+                        // until we find the first actual letter
+                        bool foundFirstLetter = false;
+                        while ( i < len ) {
+                            lUInt16 props = lGetCharProps(text[i]);
+                            if ( props & (CH_PROP_UPPER | CH_PROP_LOWER | CH_PROP_DIGIT | CH_PROP_SIGN) ) {
+                                // Found the start of the first letter
+                                foundFirstLetter = true;
+                                break;
+                            }
+                            i++;
+                        }
+                        // Now grab any trailing modifiers/punctuation that are part of the first letter
+                        if ( foundFirstLetter ) {
+                            i++;
+                            while ( i < len ) {
+                                lUInt16 props = lGetCharProps(text[i]);
+                                // Our CH_PROP_PUNCT being both the 2 PUNCT_OPEN and _CLOSE bits set,
+                                // we have to go with this to exclude opening punct, by specs.
+                                // Firefox properly exclude a '(', but Chrome/Edge do not.
+                                // We can't easily exclude dashes, as the specs requires.
+                                if ( (props & (CH_PROP_MODIFIER | CH_PROP_PUNCT)) &&
+                                        ((props&CH_PROP_PUNCT) != CH_PROP_PUNCT_OPEN)) {
+                                    i++;
+                                }
+                                else {
+                                    break;
+                                }
+                            }
+                            firstTextNode = n;
+                            firstLetterEndIndex = i;
+                            break;
+                        }
+                    }
+                }
+                else if ( n->getNodeId() == el_pseudoElem ) {
+                    // Skip pseudo elements: jump to next sibling
+                    index = n->getNodeIndex() + 1;
+                    n = n->getParentNode();
+                    if ( n == topNode && index >= n->getChildCount() )
+                        break;
+                    continue;
+                }
+            }
+            // Process next child
+            if ( index < n->getChildCount() ) {
+                n = n->getChildNode(index);
+                index = 0;
+                continue;
+            }
+            // No more child, get back to parent and have it process our sibling
+            index = n->getNodeIndex() + 1;
+            n = n->getParentNode();
+            if ( n == topNode && index >= n->getChildCount() )
+                break; // back to top node and all its children visited
+        }
+    }
+
+    // If we found a first letter, create the ::first-letter pseudo
+    // element if it is not already there
+    if ( firstTextNode && firstLetterEndIndex > 0 ) {
+        // We will always find or create the pseudoElem FirstLetter as
+        // an immediate preceeding sibling of this firstTextNode
+        // Note: textNodeIndex can be any value >= 0, not just 0, 1, or 2
+        // (e.g., with <p><b> </b><em> </em>text, text node would be at index 2 or more)
+        ldomNode * textNodeParent = firstTextNode->getParentNode();
+        int textNodeIndex = firstTextNode->getNodeIndex();
+        bool alreadyExists = false;
+        if ( textNodeIndex >= 1 ) { // (if 0, we are sure to not find it)
+            ldomNode * prevSibling = textNodeParent->getChildNode(textNodeIndex - 1);
+            if ( prevSibling && prevSibling->isElement() ) {
+                if ( prevSibling->getNodeId() == el_pseudoElem && prevSibling->hasAttribute(attr_FirstLetter) ) {
+                    alreadyExists = true;
+                }
+                else if ( prevSibling->isBoxingNode() ) {
+                    ldomNode * unboxed = prevSibling->getUnboxedFirstChild(true, el_pseudoElem);
+                    if ( unboxed && unboxed->getNodeId() == el_pseudoElem && unboxed->hasAttribute(attr_FirstLetter) ) {
+                        alreadyExists = true;
+                    }
+                }
+            }
+        }
+        if ( !alreadyExists ) {
+            // Insert FirstLetter at the text node's position (text node will shift forward)
+            int insertPosition = textNodeIndex;
+            ldomNode * firstLetterElem = textNodeParent->insertChildElement( insertPosition, LXML_NS_NONE, el_pseudoElem );
+            // Store the first letter end index (= its length) in the attribute value as a string
+            lString32 indexStr;
+            indexStr << fmt::decimal(firstLetterEndIndex);
+            firstLetterElem->setAttributeValue(LXML_NS_NONE, attr_FirstLetter, indexStr.c_str());
+            // Init style and rend method only if requested (during DOM building by onBodyExit)
+            // (after a re-rendering and stylesheet re-application, initNodeStyleRecursive()
+            // will meet this new element again and will do that itself)
+            if ( initStyle ) {
+                firstLetterElem->initNodeStyle();
+                firstLetterElem->initNodeRendMethod();
+            }
+        }
+    }
+#endif
+}
+
+// Find FirstLetter pseudoElem from a text node, returns NULL if not found or display:none
+// (if textOffset is provided, sets it to the FirstLetter character count)
+ldomNode * ldomNode::getFirstLetterPseudoElem(int * textOffset) const
+{
+    if ( !isText() ) // should be called on a text node
+        return NULL;
+    int nodeIndex = getNodeIndex();
+    if ( nodeIndex == 0 ) // no previous sibling, so no pseudo-element before it
+        return NULL;
+    ldomNode * parent = getParentNode();
+    if ( !parent )
+        return NULL;
+
+    // We made sure the FirstLetter pseudoElemn is just before its text node.
+    // It may be as-is, or wrapped by a boxin element (most often a floatBBox)
+    ldomNode * prevSibling = parent->getChildNode(nodeIndex - 1);
+    if ( !prevSibling || !prevSibling->isElement() )
+        return NULL;
+    ldomNode * pseudoElem = NULL;
+    if ( prevSibling->getNodeId() == el_pseudoElem && prevSibling->hasAttribute(attr_FirstLetter) ) {
+        pseudoElem = prevSibling;
+    }
+    else if ( prevSibling->isBoxingNode() ) {
+        ldomNode * unboxed = prevSibling->getUnboxedFirstChild(true, el_pseudoElem);
+        if ( unboxed && unboxed->getNodeId() == el_pseudoElem && unboxed->hasAttribute(attr_FirstLetter) ) {
+            pseudoElem = unboxed;
+        }
+    }
+    if ( !pseudoElem )
+        return NULL;
+    // If existing but display:none, it should have no effect
+    if ( pseudoElem->getStyle()->display == css_d_none ) {
+        return NULL;
+    }
+
+    // If caller wants the textOffset, extract it from the attribute
+    if ( textOffset ) {
+        *textOffset = pseudoElem->getAttributeValue(attr_FirstLetter).atoi();
+    }
+    return pseudoElem;
+}
+
+// Find the text node following a FirstLetter pseudoElem, returns NULL if not found
+ldomNode * ldomNode::getFirstLetterTextNode() const
+{
+    // This method should be called on a FirstLetter pseudoElem
+    if ( !isElement() || getNodeId() != el_pseudoElem || !hasAttribute(attr_FirstLetter) )
+        return NULL;
+    // Find the next sibling text node
+    ldomNode * nextSibling = getUnboxedNextSibling(false); // false = don't skip text nodes
+    if ( nextSibling && nextSibling->isText() ) {
+        return nextSibling;
+    }
+    return NULL;
+}
+
 
 #if BUILD_LITE!=1
 static void resetRendMethodToInline( ldomNode * node )
@@ -8490,6 +8698,14 @@ void ldomElementWriter::onBodyExit()
         child->initNodeStyle();
         child->initNodeRendMethod();
     }
+
+    // If this element has the HasFirstLetter attribute flag, now that it has gotten
+    // all its children, we can find the child text node that provides the first letter
+    // and create a pseudoElem FirstLetter as the previous sibling of that text node
+    if ( _element->hasAttribute(attr_HasFirstLetter) ) {
+        _element->ensureFirstLetter(true); // true = init style during DOM building
+    }
+
 //    if ( _element->getStyle().isNull() ) {
 //        lString32 path;
 //        ldomNode * p = _element->getParentNode();
@@ -10049,6 +10265,40 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
             if ( isObject && src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) // skip floats
                 continue;
             if ( src->object == node ) {
+                // Check and handle the case of ::first-letter
+                if ( src->t.offset > 0 && offset < src->t.offset) {
+                    // Currently, we can only get a non-0 src->t.offset if that text
+                    // node gets its first char(s) rendered as ::first-letter and
+                    // only the remainig chars are to be rendered normally.
+                    // (If we happen to need non-0 t.offset in other contexts, we'll
+                    // have to use a src->flag bit to let it be known.)
+                    // If offset < src->t.offset, we are in the first-letter part and
+                    // we won't find it in this src.
+                    // (It may be the src_text_fragment_t just before us, and we
+                    // could use: srcIndex=i-1 , but this does not handle all
+                    // cases, especially when the first-letter is a float.)
+                    // So, find the pseudoElem that carries that first-letter
+                    ldomNode * pseudoElem = node->getFirstLetterPseudoElem();
+                    if ( pseudoElem ) {
+                        // Call us again on that pseudoElem with the same offset as provided
+                        ldomXPointer xpFirstLetter(pseudoElem, offset);
+                        return xpFirstLetter.getRect(rect, extended, adjusted);
+                        // This needs the trick in the next branch to be able to process the original text
+                    }
+                    // otherwise fallback to work on that node
+                }
+                else if ( node->getNodeId() == el_pseudoElem && node->hasAttribute(attr_FirstLetter) ) {
+                    // We were called (by the xpFirstLetter.getRect() just above) on
+                    // a pseudoElem FirstLetter. For it to get access to the text,
+                    // we can just (for the code that follows) have our "node"
+                    // masquerade as the original node (we are called with the
+                    // original offset that will work on that text node).
+                    ldomNode * textNode = node->getFirstLetterTextNode();
+                    if ( textNode ) {
+                        node = textNode;
+                    }
+                }
+                // Generic text node case: we found the src that came from our node
                 srcIndex = i;
                 srcLen = isObject ? 0 : src->t.len;
                 break;
@@ -19320,7 +19570,7 @@ bool ldomNode::isBoxingNode( bool orPseudoElem, lUInt16 exceptBoxingNodeId ) con
         if( id <= EL_BOXING_END && id >= EL_BOXING_START && id != exceptBoxingNodeId ) {
             return true;
         }
-        if ( orPseudoElem && id == el_pseudoElem ) {
+        if ( orPseudoElem && id == el_pseudoElem && exceptBoxingNodeId != el_pseudoElem ) {
             return true;
         }
     }

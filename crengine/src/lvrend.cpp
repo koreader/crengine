@@ -4169,13 +4169,48 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // BiDi stuff had to be outputed first, before any pseudo element
                 // (if <q dir="rtl">...</q>, the added quote (first child pseudo element)
                 // should be inside the RTL bidi isolation.
-                if ( nodeElementId == el_pseudoElem ) {
+                if ( nodeElementId == el_pseudoElem && (enode->hasAttribute(attr_Before) || enode->hasAttribute(attr_After)) ) {
                     lString32 content = get_applied_content_property(enode);
                     if ( !content.empty() ) {
+                        switch (style->text_transform) {
+                            case css_tt_uppercase: content.uppercase(); break;
+                            case css_tt_lowercase: content.lowercase(); break;
+                            case css_tt_capitalize: content.capitalize(); break;
+                            case css_tt_full_width: break;
+                            case css_tt_none: break;
+                            case css_tt_inherit: break;
+                        }
                         int em = font->getSize();
                         int letter_spacing = lengthToPx(enode, style->letter_spacing, em);
                         txform->AddSourceLine( content.c_str(), content.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode, 0, letter_spacing);
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                    }
+                }
+                if ( nodeElementId == el_pseudoElem && enode->hasAttribute(attr_FirstLetter) ) {
+                    // Skip rendering if display:none
+                    if ( style->display != css_d_none ) {
+                        int firstLetterEnd = enode->getAttributeValue(attr_FirstLetter).atoi();
+                        // Find the next sibling text node
+                        ldomNode * textNode = enode->getFirstLetterTextNode();
+                        if ( textNode && firstLetterEnd > 0 ) {
+                            lString32 txt = textNode->getText();
+                            if ( txt.length() >= firstLetterEnd ) {
+                                // Extract first N characters for the first-letter
+                                lString32 firstLetterTxt = txt.substr(0, firstLetterEnd);
+                                switch (style->text_transform) {
+                                    case css_tt_uppercase: firstLetterTxt.uppercase(); break;
+                                    case css_tt_lowercase: firstLetterTxt.lowercase(); break;
+                                    case css_tt_capitalize: firstLetterTxt.capitalize(); break;
+                                    case css_tt_full_width: break;
+                                    case css_tt_none: break;
+                                    case css_tt_inherit: break;
+                                }
+                                int em = font->getSize();
+                                int letter_spacing = lengthToPx(enode, style->letter_spacing, em);
+                                txform->AddSourceLine( firstLetterTxt.c_str(), firstLetterTxt.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode, 0, letter_spacing);
+                                flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
+                            }
+                        }
                     }
                 }
             }
@@ -4454,9 +4489,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // legacy new line processing: set indentation for **each** new line
                 tflags |= LTEXT_LEGACY_RENDERING;
             }
-            if ( txt.length()>0 ) {
+
+            // If this text node has a preceding ::first-letter pseudo element,
+            // we should skip adding the leading text rendered by that pseudoElem
+            int textOffset = 0;
+            enode->getFirstLetterPseudoElem(&textOffset);
+
+            if ( txt.length() - textOffset > 0 ) {
                 txform->AddSourceLine( txt.c_str(), txt.length(), cl, bgcl, font.get(), lang_cfg, baseflags | tflags,
-                    line_h, valign_dy, indent, enode, 0, letter_spacing );
+                    line_h, valign_dy, indent, enode, textOffset, letter_spacing );
                 baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                 // To show the lang tag for the lang used for this text node AFTER it:
                 // lString32 lang_tag_txt = U"[" + (lang_cfg ? lang_cfg->getLangTag() : lString32("??")) + U"]";
@@ -11416,6 +11457,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // See if applying styles requires pseudo element before/after
     bool requires_pseudo_element_before = false;
     bool requires_pseudo_element_after = false;
+    bool requires_has_first_letter_attribute = false;
     if ( pstyle->pseudo_elem_before_style ) {
         if ( pstyle->pseudo_elem_before_style->display != css_d_none
                 && pstyle->pseudo_elem_before_style->content.length() > 0
@@ -11438,8 +11480,16 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         delete pstyle->pseudo_elem_after_style;
         pstyle->pseudo_elem_after_style = NULL;
     }
+    if ( pstyle->pseudo_elem_first_letter_catcher_style ) {
+        if ( pstyle->pseudo_elem_first_letter_catcher_style->display != css_d_none ) {
+            // Not "display: none": this pseudo element can be generated
+            requires_has_first_letter_attribute = true;
+        }
+        delete pstyle->pseudo_elem_first_letter_catcher_style;
+        pstyle->pseudo_elem_first_letter_catcher_style = NULL;
+    }
 
-    if ( nodeElementId == el_pseudoElem ) {
+    if ( nodeElementId == el_pseudoElem && (enode->hasAttribute(attr_Before) || enode->hasAttribute(attr_After)) ) {
         // Pseudo element ->content may need some update if it contains
         // any of the open-quote-like tokens, to account for the
         // quoting nested levels. setNodeStyle() is actually the good
@@ -11465,7 +11515,16 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     enode->initNodeFont();
 
     // Now that this node is fully styled, ensure these pseudo elements
-    // are there as children, creating them if needed and possible
+    // are there as children, creating them if needed and possible.
+    // Note: we call ensureFirstLetter before ensurePseudoElement(true) to keep things
+    // simpler in these methods and in other first-letter handling bits: if we have both
+    // a ::first-letter and a ::before, the ::before will be inserted before the ::first-letter.
+    // This is not per CSS-specs (a ::first-letter should pick the first-letter
+    // from the ::before, so logically it should come first) but supporting that
+    // would make everything more complicated.
+    if ( requires_has_first_letter_attribute ) {
+        enode->ensureFirstLetter(false); // false = skip init style during stylesheet re-application
+    }
     if ( requires_pseudo_element_before )
         enode->ensurePseudoElement(true);
     if ( requires_pseudo_element_after )
@@ -12253,10 +12312,39 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         ldomNode * parent;
         if ( node->isText() ) {
             text = node->getText();
+            len = text.length();
             parent = node->getParentNode();
+            // Check if this text node has a preceding FirstLetter pseudoElem
+            int textOffset = 0;
+            ldomNode * firstLetterNode = node->getFirstLetterPseudoElem(&textOffset);
+            if ( firstLetterNode ) {
+                // Skip the first N characters already handled by FirstLetter
+                // getFirstLetterPseudoElem already checked display:none
+                start = textOffset;
+                len = text.length() - start;
+                if ( len < 0 ) // sanity check
+                    len = 0;
+            }
         }
-        else if ( node->getNodeId() == el_pseudoElem ) {
+        else if ( node->getNodeId() == el_pseudoElem && (node->hasAttribute(attr_Before) || node->hasAttribute(attr_After)) ) {
             text = get_applied_content_property(node);
+            len = text.length();
+            parent = node; // this pseudoElem node carries the font and style of the text
+            if ( isStartNode ) {
+                lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
+            }
+        }
+        else if ( node->getNodeId() == el_pseudoElem && node->hasAttribute(attr_FirstLetter) ) {
+            // FirstLetter pseudoElem: extract first N chars from following text node
+            // Skip if display:none
+            if ( node->getStyle()->display == css_d_none )
+                return;
+            int firstLetterEnd = node->getAttributeValue(attr_FirstLetter).atoi();
+            ldomNode * textNode = node->getFirstLetterTextNode();
+            if ( !textNode )
+                return;
+            text = textNode->getText();
+            len = firstLetterEnd; // Only measure the first N characters
             parent = node; // this pseudoElem node carries the font and style of the text
             if ( isStartNode ) {
                 lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
@@ -12265,7 +12353,6 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         else {
             return;
         }
-        len = text.length();
         if ( len == 0 )
             return;
         // letter-spacing
