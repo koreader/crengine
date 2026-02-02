@@ -10125,9 +10125,13 @@ lvPoint ldomXPointer::toPoint(bool extended) const
 // So we return the char width (and no more the word width) of the char
 // pointed to by this XPointer (unlike ldomXRange::getRectEx() which deals
 // with a range between 2 XPointers).
-bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
+bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ctxFlags) const
 {
     //CRLog::trace("ldomXPointer::getRect()");
+    // Initialize ctxFlags if provided
+    if ( ctxFlags )
+        *ctxFlags = RECT_CTX_NONE;
+
     if ( isNull() )
         return false;
     ldomNode * p = isElement() ? getNode() : getNode()->getParentNode();
@@ -10326,11 +10330,13 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
         int nearestForwardSrcIndex = -1;
         int nearestForwardSrcOffset = -1;
         lvRect bestBidiRect = lvRect();
+        int bestBidiRectCtxFlags = RECT_CTX_NONE;
         bool hasBestBidiRect = false;
 
         for ( int l = 0; l<txtform->GetLineCount(); l++ ) {
             const formatted_line_t * frmline = txtform->GetLineInfo(l);
             bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
+            bool para_is_rtl = frmline->flags & LTEXT_LINE_PARA_IS_RTL;
             for ( int w=0; w<(int)frmline->word_count; w++ ) {
                 const formatted_word_t * word = &frmline->words[w];
                 if (word->flags & LTEXT_WORD_IS_PAD ) {
@@ -10343,6 +10349,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                  && w == frmline->word_count - 1);
 
                 if ( line_is_bidi ) {
+                    int ctxFlagsBase = RECT_CTX_IN_BIDI_LINE | (para_is_rtl ? RECT_CTX_IN_RTL_PARA : 0);
                     // When line is bidi, src text nodes may be shuffled, so we can't
                     // just be done when meeting a forward src in logical order.
                     // We'd better have a dedicated searching code to not mess with
@@ -10361,9 +10368,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             // get its start as a possible best result.
                             bestBidiRect.top = rc.top + frmline->y;
                             bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                            bestBidiRectCtxFlags = ctxFlagsBase;
                             if ( word_is_rtl ) {
                                 bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
                                 bestBidiRect.left = bestBidiRect.right - 1;
+                                bestBidiRectCtxFlags |= RECT_CTX_IS_RTL;
                             }
                             else {
                                 bestBidiRect.left = word->x + rc.left + frmline->x;
@@ -10392,6 +10401,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                     rect.right = rect.left + word->width; // width of image
                                 else
                                     rect.right = rect.left + 1;
+                                if ( ctxFlags ) {
+                                    *ctxFlags |= ctxFlagsBase;
+                                    if ( word_is_rtl )
+                                        *ctxFlags |= RECT_CTX_IS_RTL;
+                                }
                                 return true;
                             }
                             // Target is in this text node. We may not find it part
@@ -10402,9 +10416,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                           word->t.start <= nearestForwardSrcOffset ) {
                                     bestBidiRect.top = rc.top + frmline->y;
                                     bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                                    bestBidiRectCtxFlags = ctxFlagsBase;
                                     if ( word_is_rtl ) { // right edge of next logical word, as it is drawn on the left
                                         bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
                                         bestBidiRect.left = bestBidiRect.right - 1;
+                                        bestBidiRectCtxFlags |= RECT_CTX_IS_RTL;
                                     }
                                     else { // left edge of next logical word, as it is drawn on the right
                                         bestBidiRect.left = word->x + rc.left + frmline->x;
@@ -10423,9 +10439,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                           word->t.start+word->t.len > nearestForwardSrcOffset ) ) {
                                     bestBidiRect.top = rc.top + frmline->y;
                                     bestBidiRect.bottom = bestBidiRect.top + frmline->height;
+                                    bestBidiRectCtxFlags = ctxFlagsBase;
                                     if ( word_is_rtl ) { // left edge of previous logical word, as it is drawn on the right
                                         bestBidiRect.left = word->x + rc.left + frmline->x;
                                         bestBidiRect.right = bestBidiRect.left + 1;
+                                        bestBidiRectCtxFlags |= RECT_CTX_IS_RTL;
                                     }
                                     else { // right edge of previous logical word, as it is drawn on the left
                                         bestBidiRect.right = word->x + word->width + rc.left + frmline->x;
@@ -10447,6 +10465,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                     rect.top = rc.top + frmline->y;
                                     rect.right = rect.left + 1;
                                     rect.bottom = rect.top + frmline->height;
+                                    if ( ctxFlags ) {
+                                        *ctxFlags |= ctxFlagsBase;
+                                        if ( word_is_rtl )
+                                            *ctxFlags |= RECT_CTX_IS_RTL;
+                                    }
                                     return true;
                                 }
                                 // We need to transform the node text as it had been when
@@ -10556,6 +10579,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                                             rect.right = rect.left + 1;
                                     }
                                 }
+                                if ( ctxFlags ) {
+                                    *ctxFlags |= ctxFlagsBase;
+                                    if ( word_is_rtl )
+                                        *ctxFlags |= RECT_CTX_IS_RTL;
+                                }
                                 return true;
                             }
                         }
@@ -10563,6 +10591,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             // If no exact word found, return best candidate
                             if (hasBestBidiRect) {
                                 rect = bestBidiRect;
+                                if ( ctxFlags )
+                                    *ctxFlags = bestBidiRectCtxFlags;
                                 return true;
                             }
                             // Otherwise, return end of last word (?)
@@ -10570,6 +10600,13 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             rect.bottom = rect.top + frmline->height;
                             rect.left = word->x + rc.left + frmline->x + word->width;
                             rect.right = rect.left + 1;
+                            if ( ctxFlags ) {
+                                *ctxFlags |= ctxFlagsBase;
+                                if ( word_is_rtl )
+                                    *ctxFlags |= RECT_CTX_IS_RTL;
+                                // (Not sure if RECT_CTX_IS_RTL should really come
+                                // from word_is_rtl and not from para_is_rtl)
+                            }
                             return true;
                         }
                     }
@@ -10601,6 +10638,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             rect.right = rect.left + 1;
                         }
                         rect.bottom = rect.top + frmline->height;
+                        // No ctxFlags to set
                         return true;
                     } else if ( (word->src_text_index == srcIndex) &&
                                 ( (offset < word->t.start+word->t.len) ||
@@ -10624,6 +10662,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                             rect.top = rc.top + frmline->y;
                             rect.right = rect.left + 1;
                             rect.bottom = rect.top + frmline->height;
+                            // No ctxFlags to set
                             return true;
                         }
                         // We need to transform the node text as it had been when
@@ -10711,6 +10750,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                         else
                             rect.right = rect.left + 1;
                         rect.bottom = rect.top + frmline->height;
+                        // No ctxFlags to set
                         return true;
                     } else if (lastWord) {
                         // after last word
@@ -10722,6 +10762,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                         else
                             rect.right = rect.left + 1;
                         rect.bottom = rect.top + frmline->height;
+                        // No ctxFlags to set
                         return true;
                     }
                 }
@@ -10734,6 +10775,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted) const
                 rect.top = rc.top + frmline->y;
                 rect.right = rect.left + 1; // not the right word: no char width
                 rect.bottom = rect.top + frmline->height + 1;
+                // No ctxFlags to set
                 return true;
             }
         }
