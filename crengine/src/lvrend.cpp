@@ -4494,8 +4494,13 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // we should skip adding the leading text rendered by that pseudoElem
             int textOffset = 0;
             enode->getFirstLetterPseudoElem(&textOffset);
+            // Just below, if it happens that txt.length()=textOffset (single letter
+            // text node that got to be a first-letter, with no remaining text),
+            // we will let an empty text source be added. An empty text node seems
+            // to cause no harm to text rendering, and it helps getRect() not
+            // ignoring this single letter.
 
-            if ( txt.length() - textOffset > 0 ) {
+            if ( txt.length() > 0 ) {
                 txform->AddSourceLine( txt.c_str(), txt.length(), cl, bgcl, font.get(), lang_cfg, baseflags | tflags,
                     line_h, valign_dy, indent, enode, textOffset, letter_spacing );
                 baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
