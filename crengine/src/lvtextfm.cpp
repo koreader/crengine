@@ -3715,8 +3715,9 @@ public:
                 // This LTEXT_VALIGN_ flag is now only of use with objects (images)
                 int vertical_align_flag = srcline->flags & LTEXT_VALIGN_MASK;
                 // These will be used later to adjust the main line baseline and height:
-                int top_to_baseline; // distance from this word top to its own baseline (formerly named 'b')
-                int baseline_to_bottom; // descender below baseline for this word (formerly named 'h')
+                int top_to_baseline = 0;   // distance from this word top to its own baseline (formerly named 'b')
+                int baseline_to_bottom =0; // descender below baseline for this word (formerly named 'h')
+                    // (initialized to 0 to avoid avoid "used but uninitialized" warning, but will be set when needed)
                 // For each word, we'll have to check and adjust line height and baseline,
                 // except when LTEXT_VALIGN_TOP and LTEXT_VALIGN_BOTTOM where it has to
                 // be delayed until the full line is laid out. Until that, we store some
