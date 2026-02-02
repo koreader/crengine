@@ -10001,9 +10001,18 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
 
         for ( int w=0; w<wc; w++ ) {
             const formatted_word_t * word = &frmline->words[w];
+            /* Previously, we had:
             if ( ( !line_is_bidi && x < word->x + word->width ) ||
                  ( line_is_bidi && x >= word->x && x < word->x + word->width ) ||
-                 ( w == wc-1 ) ) {
+                 ( w == wc-1 ) )
+            */
+            // Words are in visual order, we don't need at this point to care about bidi.
+            // Also with text justification, words may have blank between them that are not part
+            // of any word: we now check x against next word start (instead of word->width) so a
+            // blank will be handled as part of the previous word (like the real space char
+            // following a word is).
+            int next_word_x = w<wc-1 ? frmline->words[w+1].x : frmline->width;
+            if ( x < next_word_x || w == wc-1 ) {
                 const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
                 // CRLog::debug(" word found [%d]: x=%d..%d, start=%d, len=%d  %08X",
                 //      w, word->x, word->x + word->width, word->t.start, word->t.len, src->object);
@@ -10071,6 +10080,65 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 // which may fail being resolved back to the br node).
                 bool word_is_rtl = word->flags & LTEXT_WORD_DIRECTION_IS_RTL;
                 if ( word_is_rtl ) {
+                    // See below (for LTR words) for the general idea, here adapted to RTL words
+                    int pos = word->t.len; // default to after this word if we don't find better
+                    if ( x >= word->x + word->width - (w==wc-1 ? 1 : 0) ) { // on the visual right of word
+                        pos = 0; // logical start of RTL word
+                    }
+                    else { // x in inside that word
+                        for ( int i=0; i<word->t.len; i++ ) {
+                            // Words (RTL as LTR) indices are in logical orders, but RTL words
+                            // get their measured cumulative widths from right to left
+                            if ( x > word->x + word->width - width[i] ) {
+                                pos = i; // We are inside that glyph
+                                break;
+                            }
+                            // Otherwise (not sure if can happen): use the default of word->t.len:
+                            // after the logical end of that RTL word
+                        }
+                    }
+                    if ( node->isElement() ) // possibly some <br> or generated text not part of a text node
+                        return ldomXPointer(node, 0);
+                    // printf("word %d/%d, len=%d indice=%d (%d > %d + %d - %d)\n", w+1, wc, word->t.len,
+                    //              pos, x, word->x, word->width, pos<word->t.len?width[pos]:-1);
+                    return ldomXPointer( node, word->t.start + pos );
+                }
+                else {
+                    int pos = word->t.len; // default to after this word if we don't find better
+                    if ( x >= word->x + word->width - (w==wc-1 ? 1 : 0) ) {
+                        // If x is after word->width (which may be smaller than the width[]
+                        // we just measured, because of space reduction by text justification,
+                        // or because it's the last word on a line whose wrapping space is
+                        // removed from its width), consider we are after that word (so,
+                        // pointing at the first char after that word).
+                        // For the last word of the line (w==wc-1), word->width may align on the right
+                        // margin, and because frontend may use windowToDocPoint(pullInPageArea=true)
+                        // and get a 'x' originally in the right margin pulled on that last word right
+                        // most pixel (at word->width), consider 'x' on that last pixel to be as
+                        // if outside.
+                        // Use the default of word->t.len
+                    }
+                    else { // x in inside that word
+                        for ( int i=0; i<word->t.len; i++ ) {
+                            if ( x < word->x + width[i] ) {
+                                pos = i; // We are inside that glyph
+                                break;
+                                // (Note: if the word has diacritics, we have the choice to return
+                                // the indice of the base char, or of the last diacritic. But we
+                                // don't know if the caller wants to use that xpointer as the start
+                                // or as the end. Be simple and return the base char.)
+                            }
+                            // Otherwise (not sure if can happen): use the default of word->t.len
+                        }
+                    }
+                    if ( node->isElement() ) // possibly some <br> or generated text not part of a text node
+                        return ldomXPointer(node, 0);
+                    // printf("word %d/%d, len=%d indice=%d (%d < %d + %d)\n", w+1, wc, word->t.len,
+                    //              pos, x, word->x, pos<word->t.len?width[pos]:-1);
+                    return ldomXPointer( node, word->t.start + pos );
+                }
+                /* Previously, we returned differently whether x was in the left or in the right half of a glyph:
+                if ( word_is_rtl ) {
                     for ( int i=word->t.len-1; i>=0; i-- ) {
                         int xx = ( i>0 ) ? (width[i-1] + width[i])/2 : width[i]/2;
                         xx = word->width - xx;
@@ -10097,6 +10165,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         return ldomXPointer( node, 0 );
                     return ldomXPointer( node, word->t.start + word->t.len );
                 }
+                */
             }
         }
     }
