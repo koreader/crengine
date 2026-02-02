@@ -12654,11 +12654,23 @@ bool ldomXRange::getRectEx( lvRect & rect, bool & isSingleLine )
 void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 {
     bool go_on = true;
+    ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
     lvRect lineStartRect = lvRect();
     lvRect nodeStartRect = lvRect();
-    lvRect curCharRect = lvRect();
-    lvRect prevCharRect = lvRect();
-    ldomNode *prevFinalNode = NULL; // to add rect when we cross final nodes
+
+    // There is some needed complexity to properly handle BiDi text
+    // where segments may not always get continuous and contiguous.
+    // (To appreciate the simpler logic, skip the lineIsBidi sections
+    // when reading and ignore the use/set of the following variables.
+    // Some comments may still relate to that simpler logic, and
+    // may have not been updated for the BiDi complexity.)
+    bool lineIsBidi = false;
+    bool lineStartRectIsRTL = false;
+    int nodeStartRectCtx = RECT_CTX_NONE;
+    // See the code handling check_start_bidi_segment below for why this pendingBidiSegment
+    lvRect pendingBidiSegment;
+    bool hasBidiPendingSegment = false;
+    bool forceAddBidiSegment = false;
 
     // We process range text node by text node (I thought rects' y-coordinates
     // comparisons were valid only for a same text node, but it seems all
@@ -12683,6 +12695,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
 
     bool is_whitespace_pre = false;
+    bool check_start_bidi_segment = true; // special care for the first directional segment
+
     while (go_on) { // new line or new/continued text node
         // We may have (empty or not if not yet pushed) from previous iteration:
         // lineStartRect : char rect for first char of line, even if from another text node
@@ -12710,9 +12724,21 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // Force a new segment if we're crossing final nodes, that is, when
             // we're no more in the same inline context (so we get a new segment
             // for each table cells that may happen to be rendered on the same line)
+            if ( lineIsBidi ) {
+                if ( hasBidiPendingSegment ) {
+                    // If the selection spans multiple paragraphs, we can merge any
+                    // pending segment on the last line of a previous paragraph as
+                    // the selection does not end there.
+                    lineStartRect.extend(pendingBidiSegment);
+                    hasBidiPendingSegment = false;
+                }
+            }
             if (! lineStartRect.isEmpty()) {
                 rects.add( lineStartRect );
+                forceAddBidiSegment = false; // no longer at play
                 lineStartRect = lvRect(); // reset
+                lineStartRectIsRTL = false;
+                lineIsBidi = false;
             }
             prevFinalNode = curFinalNode;
         }
@@ -12723,6 +12749,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
 
         if (startOffset == 0) { // new text node
             nodeStartRect = lvRect(); // reset
+            nodeStartRectCtx = RECT_CTX_NONE;
             if (textLen == 0) { // empty text node (not sure that can happen)
                 // But it can happen when the node is an image
                 if ( includeImages && curPos.getNode()->isImage() ) {
@@ -12746,10 +12773,12 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         if (nodeText[startOffset] == ' ' && !is_whitespace_pre) {
             startOffset += 1;
             nodeStartRect = lvRect(); // reset
+            nodeStartRectCtx = RECT_CTX_NONE;
         }
         if (startOffset >= textLen) { // no more text in this node (or single space node)
             go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
             nodeStartRect = lvRect(); // reset
+            nodeStartRectCtx = RECT_CTX_NONE;
             continue;
         }
         curPos.setOffset(startOffset);
@@ -12757,14 +12786,15 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             // getRectEx() seems to fail on a single no-break-space, but we
             // are not supposed to see a no-br space at start of line.
             // Anyway, try next chars if first one(s) fails
-            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true)) {
+            while (startOffset <= textLen-2 && !curPos.getRectEx(nodeStartRect, true, &nodeStartRectCtx)) {
                 // printf("#### curPos.getRectEx(nodeStartRect:%d) failed\n", startOffset);
                 startOffset++;
                 curPos.setOffset(startOffset);
                 nodeStartRect = lvRect(); // reset
+                nodeStartRectCtx = RECT_CTX_NONE;
             }
             // last try with the last char (startOffset = textLen-1):
-            if (!curPos.getRectEx(nodeStartRect, true)) {
+            if (nodeStartRect.isEmpty() && !curPos.getRectEx(nodeStartRect, true, &nodeStartRectCtx)) {
                 // printf("#### curPos.getRectEx(nodeStartRect) failed\n");
                 // getRectEx() returns false when a node is invisible, so we just
                 // go processing next text node on failure (it may fail for other
@@ -12772,11 +12802,55 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 // highlighting)
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
+                nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
         }
+        if ( check_start_bidi_segment ) {
+            check_start_bidi_segment = false;
+            // If in a BiDi RTL paragraph, the range/selection starts in the middle of a LTR segment
+            // and the selection includes more followup RTL text on that line, we will have
+            // a hole (the first part of the LTR segment between the RTL text on its left
+            // and the 2nd part of the LTR segment on its right).
+            // We should add the Rect for the first (LTR) segment as soon as we meet any RTL text.
+            bool startIsRtl = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            bool paraIsRtl = (nodeStartRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
+            if ( startIsRtl != paraIsRtl ) {
+                // We are on a BiDi line and start with a different direction:
+                // in a RTL para, a LTR segment. If that LTR segment has preceeding
+                // LTR chars (not in the selection) on that line, and we later meet
+                // RTL text, we can't merge them (or we would include these preceeding
+                // LTR chars in the rect.
+                // Look back to find a non-space char (we skip spaces as they are not
+                // included in rects at boundaries, and they could be in either segments,
+                // and it feels they should not have any say in if we merge or not).
+                forceAddBidiSegment = false;
+                ldomXPointerEx prevPos = curPos;
+                while ( prevPos.prevVisibleChar(false) ) { // look back
+                    lChar32 c = prevPos.getChar();
+                    if ( c == 0 || (lGetCharProps(c) & CH_PROP_SPACE) ) // end of text node or space
+                        continue;
+                    lvRect prevCharRect;
+                    int prevCharRectCtx;
+                    if ( prevPos.getRectEx(prevCharRect, true, &prevCharRectCtx) ) {
+                        bool prevIsRtl = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                        if ( prevIsRtl == startIsRtl && prevCharRect.top == nodeStartRect.top ) {
+                            // On a same paragraph and on a same line, and what comes before is
+                            // in the same direction: we should not merge our first segments.
+                            forceAddBidiSegment = true;
+                        }
+                    }
+                    break;
+                }
+            }
+            // Note: the whole pendingBidiSegment stuff serves the same role for the end of selection;
+            // we need to keep track of it all along as we don't know when we will meet the end
+            // of selection.
+        }
         if (lineStartRect.isEmpty()) {
             lineStartRect = nodeStartRect; // re-use the one already computed
+            lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
         }
         // This would help noticing a line-feed-back-to-start-of-line:
         //   else if (nodeStartRect.left < lineStartRect.right)
@@ -12786,20 +12860,70 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         else if (nodeStartRect.top > lineStartRect.top) {
             // We ended last node on a line, but a new node starts (or previous
             // one continues) on a different line.
-            // And we have a not-yet-added lineStartRect: add it as it is
+            if ( hasBidiPendingSegment ) {
+                // Not the end of range: we can merge back any pending
+                // segment into the current segment we will be adding
+                lineStartRect.extend(pendingBidiSegment);
+                hasBidiPendingSegment = false;
+            }
             rects.add( lineStartRect );
+            forceAddBidiSegment = false; // no longer at play
             lineStartRect = nodeStartRect; // start line on current node
+            lineStartRectIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            lineIsBidi = (nodeStartRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+        }
+        else if ( lineIsBidi ) {
+            // Next text node in a BiDi line: we need to check for a change of direction
+            bool nodeStartIsRTL = (nodeStartRectCtx & RECT_CTX_IS_RTL) != 0;
+            if (lineStartRectIsRTL == nodeStartIsRTL) {
+                // No direction change: keep accumulating in lineStartRect
+            }
+            else { // direction change
+                bool paraIsRTL = (nodeStartRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
+                if ( hasBidiPendingSegment ) {
+                    // We had a pending segment (from a non-paragraph direction),
+                    // so we're back into the paragraph direction: we can
+                    // merge it back into our current segment
+                    lineStartRect.extend(pendingBidiSegment);
+                    hasBidiPendingSegment = false;
+                }
+                if ( forceAddBidiSegment ) {
+                    // We end the first non-para-direction segment: it can't grow, add it
+                    rects.add( lineStartRect );
+                    forceAddBidiSegment = false;
+                    lineStartRect = nodeStartRect;
+                }
+                else if ( nodeStartIsRTL != paraIsRTL ) {
+                    // New segment in a non-para-direction: we may end selection on it,
+                    // keep previous rect (in the para direction) pending, we'll merge
+                    // it back if end of line or new text in the para direction is met
+                    // before end of range.
+                    pendingBidiSegment = lineStartRect;
+                    hasBidiPendingSegment = true;
+                    // And start a new segment for this non-para-direction text
+                    lineStartRect = nodeStartRect;
+                }
+                else { // nodeStartIsRTL == paraIsRTL
+                    // We can go on extending the previous non-para-direction lineStartRect
+                    // with coming up para-direction text
+                }
+                lineStartRectIsRTL = nodeStartIsRTL;
+            }
         }
 
         // 1) Look if text node contains end of range (probably the case
         // when only a few words are highlighted)
-        if (curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen) {
-            curCharRect = lvRect();
+        // (If BiDi line, we can't take that shortcut and we need to iterate
+        // char by char: fall through to section 3)
+        if ( !lineIsBidi && curPos.getNode() == rangeEnd.getNode() && rangeEnd.getOffset() <= textLen ) {
+            lvRect curCharRect;
+            int curCharRectCtx;
             curPos.setOffset(rangeEnd.getOffset() - 1); // Range end is not part of the range
-            if (!curPos.getRectEx(curCharRect, true)) {
+            if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
                 // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
                 go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
                 nodeStartRect = lvRect(); // reset
+                nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
             if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
@@ -12811,30 +12935,40 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         }
 
         // 2) Look if the full text node is contained on the line
-        // Ignore (possibly collapsed) space at end of text node
-        curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
-        curCharRect = lvRect();
-        if (!curPos.getRectEx(curCharRect, true)) {
-            // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
-            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
-            nodeStartRect = lvRect(); // reset
-            continue;
-        }
-        if (curCharRect.top == nodeStartRect.top) {
-            // Extend line up to the end of this node, but don't add it yet,
-            // lineStartRect can still be extended with (parts of) next text nodes
-            lineStartRect.extend(curCharRect);
-            nodeStartRect  = lvRect(); // reset
-            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // go processing next text node
-            continue;
+        // (If BiDi line, we can't take that shortcut and we need to iterate
+        // char by char: fall through to section 3)
+        if ( !lineIsBidi ) {
+            // Ignore (possibly collapsed) space at end of text node
+            curPos.setOffset(nodeText[textLen-1] == ' ' && !is_whitespace_pre ? textLen-2 : textLen-1);
+            lvRect curCharRect;
+            int curCharRectCtx;
+            if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
+                // printf("#### curPos.getRectEx(textLen=%d) failed\n", textLen);
+                go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // skip this text node
+                nodeStartRect = lvRect(); // reset
+                nodeStartRectCtx = RECT_CTX_NONE;
+                continue;
+            }
+            if (curCharRect.top == nodeStartRect.top) {
+                // Extend line up to the end of this node, but don't add it yet,
+                // lineStartRect can still be extended with (parts of) next text nodes
+                lineStartRect.extend(curCharRect);
+                nodeStartRect  = lvRect(); // reset
+                nodeStartRectCtx = RECT_CTX_NONE;
+                go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText(); // go processing next text node
+                continue;
+            }
         }
 
         // 3) Current text node's end is not on our line:
         // scan it char by char to see where it changes line
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
-        prevCharRect = nodeStartRect;
-        for (int i=startOffset+1; i<=textLen-1; i++) {
+        lvRect prevCharRect = nodeStartRect;
+        int prevCharRectCtx = nodeStartRectCtx;
+
+        int i;
+        for (i=startOffset+1; i<=textLen-1; i++) {
             // skip spaces (but let soft-hyphens in, so they are part of the
             // highlight when they are shown at end of line)
             lChar32 c = nodeText[i];
@@ -12842,34 +12976,152 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
             if (c == ' ' && !is_whitespace_pre) { // || c == 0x00AD)
                 continue;
             }
-            curCharRect = lvRect(); // reset
-            if (!curPos.getRectEx(curCharRect, true)) {
+            lvRect curCharRect;
+            int curCharRectCtx;
+            if (!curPos.getRectEx(curCharRect, true, &curCharRectCtx)) {
                 // printf("#### curPos.getRectEx(char=%d) failed\n", i);
                 // Can happen with non-break-space and may be others,
                 // just try with next char
                 continue;
             }
             if (curPos.compare(rangeEnd) >= 0) {
-                // should not happen, we should have dealt with it as 1)
+                // Unless BiDi and we didn't take that shortcut, it should not
+                // happen, we should have dealt with it as 1)
                 // printf("??????????? curPos.getRectEx(char=%d) end of range\n", i);
-                go_on = false;        // don't break yet, need to add what we met before
-                curCharRect.top = -1; // force adding prevCharRect
+                if ( ! prevCharRect.isEmpty() ) {
+                    lineStartRect.extend(prevCharRect);
+                }
+                // The code after the while loop will finalize it all:
+                // add any pending segment, and add the current segment
+                go_on = false;
+                break;
             }
             if (curCharRect.top != nodeStartRect.top) { // no more on the same line
-                if ( ! prevCharRect.isEmpty() ) { // (should never be empty)
+                // Unless BiDi and we didn't take that shortcut, it should not
+                // happen, we should have dealt with it as 2)
+                if ( ! prevCharRect.isEmpty() ) {
                     // We got previously a rect on this line: it's the end of line
                     lineStartRect.extend(prevCharRect);
+                }
+                if ( hasBidiPendingSegment ) {
+                    // Not the end of range: we can merge back any pending
+                    // segment into the current segment we will be adding
+                    lineStartRect.extend(pendingBidiSegment);
+                    hasBidiPendingSegment = false;
+                }
+                if (! lineStartRect.isEmpty()) {
                     rects.add( lineStartRect );
                 }
+                forceAddBidiSegment = false; // no longer at play
                 // Continue with this text node, but on a new line
                 nodeStartRect = curCharRect;
+                nodeStartRectCtx = curCharRectCtx;
                 lineStartRect = lvRect(); // reset
-                break; // break for (i<textLen) loop
+                lineStartRectIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                lineIsBidi = (curCharRectCtx & RECT_CTX_IN_BIDI_LINE) != 0;
+                break; // break for loop, continue while loop with same node on new line
             }
-            prevCharRect = curCharRect; // still on the line: candidate for end of line
+            if ( lineIsBidi ) {
+                // In BiDi line: check if direction changed
+                bool curIsRTL = (curCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                if (lineStartRectIsRTL == curIsRTL) {
+                    // No direction change: keep accumulating in lineStartRect
+                }
+                else { // direction change
+                    if ( ! prevCharRect.isEmpty() ) {
+                        // Extend lineStartRect to last previous-direction char rect
+                        lineStartRect.extend(prevCharRect);
+                    }
+                    if ( ! lineStartRect.isEmpty() ) {
+                        // We have a previous-direction segment
+                        bool paraIsRTL = (curCharRectCtx & RECT_CTX_IN_RTL_PARA) != 0;
+                        if ( hasBidiPendingSegment ) {
+                            // We had a pending segment (from a non-paragraph direction),
+                            // so we're back into the paragraph direction: we can
+                            // merge it back into our current segment
+                            lineStartRect.extend(pendingBidiSegment);
+                            hasBidiPendingSegment = false;
+                        }
+                        if ( forceAddBidiSegment ) {
+                            // We end the first non-para-direction segment: it can't grow, add it
+                            rects.add( lineStartRect );
+                            forceAddBidiSegment = false;
+                            lineStartRect = curCharRect;
+                        }
+                        else if ( curIsRTL != paraIsRTL ) {
+                            // New segment in a non-para-direction: we may end selection on it,
+                            // keep previous rect (in the para direction) pending, we'll merge
+                            // it back if end of line or new text in the para direction is met
+                            // before end of range.
+                            pendingBidiSegment = lineStartRect;
+                            hasBidiPendingSegment = true;
+                            // And start a new segment for this non-para-direction text
+                            lineStartRect = curCharRect;
+                        }
+                        else { // curIsRTL == paraIsRTL
+                            // We can go on extending the previous non-para-direction lineStartRect
+                            // with coming up para-direction text
+                        }
+                        lineStartRectIsRTL = curIsRTL;
+                    }
+                }
+            }
+            prevCharRect = curCharRect; // still on the line: candidate for end of segment
+            prevCharRectCtx = curCharRectCtx;
             if (! go_on)
                 break; // we're done
         }
+        if (go_on && i > textLen-1) {
+            // We completed the for loop naturally (i > textLen-1), all chars were on the same line
+            if ( lineIsBidi ) {
+                // Be sure we don't miss the last char if we change direction (simpler
+                // to extend it here even if possibly not its end, than tracking it)
+                lineStartRect.extend(prevCharRect);
+            }
+            // Advance to next text node
+            nodeStartRect = lvRect(); // reset for next node
+            nodeStartRectCtx = RECT_CTX_NONE;
+            go_on = includeImages ? curPos.nextTextOrImage() : curPos.nextText();
+        }
+    }
+    // Range end reached
+    if ( hasBidiPendingSegment ) {
+        // We were on a BiDi line, and have a pending segment: in a RTL paragraph,
+        // it holds a previous RTL segment, while we were building lineStartRect
+        // on a LTR segment.
+        // If the LTR segment would continue after rangeEnd, we should not merge
+        // them. But if what comes after is RTL, or we are at paragraph end
+        // or change line, we can merge them.
+        // Look ahead to find a non-space char (we skip spaces as they are not
+        // included in rects at boundaries, and they could be in either segments,
+        // and it feels they should not have any say in if we merge or not).
+        bool merge = true;
+        if ( !lineStartRect.isEmpty() ) {
+            ldomXPointerEx nextPos = rangeEnd;
+            while ( true ) {
+                lChar32 c = nextPos.getChar();
+                if ( c == 0 || (lGetCharProps(c) & CH_PROP_SPACE) ) { // end of text node or space
+                    if ( !nextPos.nextVisibleChar(false) )
+                        break; // new paragraph: we can merge
+                    continue;
+                }
+                lvRect nextCharRect;
+                int nextCharRectCtx;
+                if (nextPos.getRectEx(nextCharRect, true, &nextCharRectCtx)) {
+                    bool nextIsRtl = (nextCharRectCtx & RECT_CTX_IS_RTL) != 0;
+                    if ( nextIsRtl == lineStartRectIsRTL && nextCharRect.top <= lineStartRect.top ) {
+                        // On a same paragraph and on a same line, and what comes after is
+                        // in the same direction: we should not merge.
+                        merge = false;
+                    }
+                }
+                break;
+            }
+        }
+        if ( merge )
+            lineStartRect.extend(pendingBidiSegment);
+        else
+            rects.add( pendingBidiSegment );
     }
     // Add any lineStartRect not yet added
     if (! lineStartRect.isEmpty()) {
