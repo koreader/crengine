@@ -93,9 +93,18 @@ enum css_style_rec_important_bit {
     imp_bit_box_sizing,
     imp_bit_caption_side,
     imp_bit_content,
-    imp_bit_cr_hint
+    imp_bit_cr_hint,
+    // Border radius (per-corner, horizontal and vertical radii)
+    imp_bit_border_radius_tl_h,
+    imp_bit_border_radius_tl_v,
+    imp_bit_border_radius_tr_h,
+    imp_bit_border_radius_tr_v,
+    imp_bit_border_radius_br_h,
+    imp_bit_border_radius_br_v,
+    imp_bit_border_radius_bl_h,
+    imp_bit_border_radius_bl_v
 };
-#define NB_IMP_BITS 70 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 78 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
@@ -167,6 +176,8 @@ struct css_style_rec_tag {
     css_border_style_type_t border_style_left;
     css_length_t border_width[4]; ///< border-top-width, -right-, -bottom-, -left-
     css_length_t border_color[4]; ///< border-top-color, -right-, -bottom-, -left-
+    css_length_t border_radius_h[4]; ///< border-radius-top-left, -top-right, -bottom-right, -bottom-left (horizontal radii)
+    css_length_t border_radius_v[4]; ///< border-radius-top-left, -top-right, -bottom-right, -bottom-left (vertical radii)
     lString8 background_image;
     css_background_repeat_value_t background_repeat;
     css_background_position_value_t background_position;
@@ -274,6 +285,15 @@ struct css_style_rec_tag {
         // background-size defaults to "auto auto"
         background_size[0] = css_length_t(css_val_unspecified, css_generic_auto);
         background_size[1] = css_length_t(css_val_unspecified, css_generic_auto);
+        // border-radius
+        border_radius_h[0] = css_length_t(css_val_unspecified, 0);
+        border_radius_h[1] = css_length_t(css_val_unspecified, 0);
+        border_radius_h[2] = css_length_t(css_val_unspecified, 0);
+        border_radius_h[3] = css_length_t(css_val_unspecified, 0);
+        border_radius_v[0] = css_length_t(css_val_unspecified, 0);
+        border_radius_v[1] = css_length_t(css_val_unspecified, 0);
+        border_radius_v[2] = css_length_t(css_val_unspecified, 0);
+        border_radius_v[3] = css_length_t(css_val_unspecified, 0);
     }
     void AddRef() { refCount++; }
     int Release() { return --refCount; }
