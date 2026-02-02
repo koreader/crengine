@@ -138,6 +138,12 @@ extern const int gDOMVersionCurrent;
 #define PT_DIR_SCAN_FORWARD_LOGICAL_FIRST    2
 #define PT_DIR_SCAN_FORWARD_LOGICAL_LAST     3
 
+// Rect context flags for getRectEx()
+#define RECT_CTX_NONE           0x00  // No context
+#define RECT_CTX_IS_RTL         0x01  // Character is in RTL word/segment
+#define RECT_CTX_IN_BIDI_LINE   0x02  // Character is in a BiDi line
+#define RECT_CTX_IN_RTL_PARA    0x04  // Character is in a RTL paragraph
+
 // Flags for setNodeStylesInvalidIfLoading(int reason_flag)
 #define NODE_STYLES_INVALID_PECULIAR_CSS_PSEUDOCLASSES                 0x01
 #define NODE_STYLES_INVALID_FOSTER_PARENTING_OF_INVALID_TABLE_ELEMENT  0x02
@@ -1669,10 +1675,11 @@ public:
 	}
 //#if BUILD_LITE!=1
     /// returns caret rectangle for pointer inside formatted document
-    bool getRect(lvRect & rect, bool extended=false, bool adjusted=false) const;
+    bool getRect(lvRect & rect, bool extended=false, bool adjusted=false, int * ctxFlags=NULL) const;
     /// returns glyph rectangle for pointer inside formatted document considering paddings and borders
     /// (with adjusted=true, adjust for left and right side bearing of the glyph, for cleaner highlighting)
-    bool getRectEx(lvRect & rect, bool adjusted=false) const { return getRect(rect, true, adjusted); }
+    /// (with ctxFlags, returns some context info about the char Bidi and edges)
+    bool getRectEx(lvRect & rect, bool adjusted=false, int * ctxFlags=NULL) const { return getRect(rect, true, adjusted, ctxFlags); }
     /// returns coordinates of pointer inside formatted document
     lvPoint toPoint( bool extended=false ) const;
 //#endif
