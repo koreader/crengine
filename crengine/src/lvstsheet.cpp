@@ -6074,7 +6074,7 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
         return true; // should it be: return !node->isBoxingNode(); ?
     case cssrt_pseudoclass:   // E:pseudo-class
         {
-            int nodeId;
+            int nodeId = 0; // (will get updated when needed, but avoid "used but uninitialized" warning)
             switch (_attrid) {
                 case csspc_root:
                 {
