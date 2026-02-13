@@ -1586,7 +1586,7 @@ public:
             return false;
         bookAuthors = firstLine.substr( 0, dotPos );
         bookTitle = firstLine.substr( dotPos + 2, firstLine.length() - dotPos - 2);
-        if ( bookTitle.empty() || (lGetCharProps(bookTitle[bookTitle.length()]) & CH_PROP_PUNCT) )
+        if ( bookTitle.empty() || (lGetCharProps(bookTitle[bookTitle.length() - 1]) & CH_PROP_PUNCT) )
             return false;
         return true;
     }
