@@ -8195,7 +8195,7 @@ void ldomNode::initNodeRendMethod()
                 bool ruby_base_present = false;
                 for ( int i1=0; i1<=len1; i1++ ) {
                     ldomNode * child;
-                    lInt16 elemId;
+                    lInt16 elemId = 0; // (should always get updated, but avoid "used but uninitialized" warning)
                     bool eoc = i1 == len1; // end of children
                     if ( !eoc ) {
                         child = rbox1->getChildNode(i1);
@@ -10286,7 +10286,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                     if ( pseudoElem ) {
                         // Call us again on that pseudoElem with the same offset as provided
                         ldomXPointer xpFirstLetter(pseudoElem, offset);
-                        return xpFirstLetter.getRect(rect, extended, adjusted);
+                        return xpFirstLetter.getRect(rect, extended, adjusted, ctxFlags);
                         // This needs the trick in the next branch to be able to process the original text
                     }
                     // otherwise fallback to work on that node
@@ -12965,7 +12965,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         // (we could use binary search to reduce the number of iterations)
         curPos.setOffset(startOffset);
         lvRect prevCharRect = nodeStartRect;
-        int prevCharRectCtx = nodeStartRectCtx;
 
         int i;
         for (i=startOffset+1; i<=textLen-1; i++) {
@@ -13067,7 +13066,6 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 }
             }
             prevCharRect = curCharRect; // still on the line: candidate for end of segment
-            prevCharRectCtx = curCharRectCtx;
             if (! go_on)
                 break; // we're done
         }
