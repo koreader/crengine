@@ -95,7 +95,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 // increment to force complete reload/reparsing of old file
 #define CACHE_FILE_FORMAT_VERSION "3.05.76k"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0033
+#define FORMATTING_VERSION_ID 0x0034
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -5155,6 +5155,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->line_break = css_lb_auto;
     s->word_break = css_wb_normal;
     s->caption_side = css_cs_top;
+    s->ruby_position = css_rp_alternate;
     s->cr_hint = css_length_t(css_val_unspecified, CSS_CR_HINT_NONE);
 
     //lUInt32 defStyleHash = (((_ua_stylesheet.getHash() * 31) + calcHash(_def_style))*31 + calcHash(_def_font));

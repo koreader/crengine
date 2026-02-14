@@ -2312,10 +2312,29 @@ public:
             MathML_checkAndTweakTableElement();
         #endif
         if ( is_ruby_table && rows.length() >= 2 ) {
-            // Move 2nd row (first ruby annotation) to 1st position,
-            // so base ruby text (initially 1st row) becomes 2nd
-            rows.move(0, 1);
-            rows_rendering_reordered = true;
+            // We may have to move rows around: row 0 is the base row, and
+            // we just need to move any "over" row at position 0 (later
+            // "over" and "under" row end up farther from the base row).
+            bool prev_was_over = false; // so first "alternate" goes over
+            for ( int i=1; i<rows.length(); i++ ) {
+                CCRTableRow * row = rows[i];
+                css_ruby_position_t ruby_position = css_rp_alternate;
+                if ( row->elem ) {
+                    css_style_ref_t row_style = row->elem->getStyle();
+                    if ( !row_style.isNull() ) {
+                        ruby_position = row_style->ruby_position;
+                    }
+                }
+                if ( ruby_position <= css_rp_alternate ) {
+                    ruby_position = prev_was_over ? css_rp_under : css_rp_over;
+                }
+                bool is_over = ruby_position == css_rp_over;
+                prev_was_over = is_over;
+                if ( is_over ) {
+                    rows.move(0, i);
+                    rows_rendering_reordered = true;
+                }
+            }
         }
         PlaceCells();
         if ( enhanced_rendering && rows_rendering_reordered ) {
@@ -4627,6 +4646,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->word_break = source->word_break;
     dest->box_sizing = source->box_sizing;
     dest->caption_side = source->caption_side;
+    dest->ruby_position = source->ruby_position;
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
@@ -11062,6 +11082,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( line_break, css_lb_inherit );
     UPDATE_STYLE_FIELD( word_break, css_wb_inherit );
     UPDATE_STYLE_FIELD( caption_side, css_cs_inherit );
+    UPDATE_STYLE_FIELD( ruby_position, css_rp_inherit );
     UPDATE_STYLE_FIELD( border_collapse, css_border_c_inherit );
 
     // Firefox and Webkit/Chromium reset text-align: to 'start' for table if it originates from
