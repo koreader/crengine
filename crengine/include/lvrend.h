@@ -124,6 +124,11 @@ typedef struct {
     bool draw_body_background;
     lvRect body_background_clip;
     lvRect content_overflow_clip;
+    // Optional rounded clipping (for background images honoring border-radius)
+    bool rounded_clip_active;
+    lvRect rounded_clip_rect; // absolute coords in drawbuf space
+    int rounded_rx[4];        // per-corner horizontal radii (TL, TR, BR, BL)
+    int rounded_ry[4];        // per-corner vertical radii (TL, TR, BR, BL)
 } draw_extra_info_t;
 
 /// returns true if styles are identical

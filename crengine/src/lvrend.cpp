@@ -13,6 +13,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "../include/lvtextfm.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
@@ -59,6 +60,337 @@ int scaleForRenderDPI( int value ) {
         value = value * gRenderDPI / BASE_CSS_DPI;
     }
     return value;
+}
+
+// Compute per-corner border radii in pixels, applying CSS scaling rules
+// Order of corners: 0=TL, 1=TR, 2=BR, 3=BL
+static void computeBorderRadiiPx(ldomNode * node, css_style_rec_t * style, int box_w, int box_h, int rx[4], int ry[4]) {
+    for (int i=0; i<4; i++) {
+        rx[i] = 0; ry[i] = 0;
+        css_length_t h = style->border_radius_h[i];
+        css_length_t v = style->border_radius_v[i];
+        if (h.type != css_val_unspecified || h.value != 0)
+            rx[i] = lengthToPx(node, h, box_w);
+        if (v.type != css_val_unspecified || v.value != 0)
+            ry[i] = lengthToPx(node, v, box_h);
+        if (rx[i] < 0) rx[i] = 0;
+        if (ry[i] < 0) ry[i] = 0;
+    }
+    if (!(rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]))
+        return;
+    double fx = 1.0, fy = 1.0;
+    int sum_top = rx[0] + rx[1]; if (sum_top > 0 && box_w > 0) fx = fmin(fx, (double)box_w / sum_top);
+    int sum_bottom = rx[3] + rx[2]; if (sum_bottom > 0 && box_w > 0) fx = fmin(fx, (double)box_w / sum_bottom);
+    int sum_left = ry[0] + ry[3]; if (sum_left > 0 && box_h > 0) fy = fmin(fy, (double)box_h / sum_left);
+    int sum_right = ry[1] + ry[2]; if (sum_right > 0 && box_h > 0) fy = fmin(fy, (double)box_h / sum_right);
+    double f = fmin(fx, fy);
+    if (f < 1.0) {
+        for (int i=0; i<4; i++) { rx[i] = (int)floor(rx[i]*f + 0.5); ry[i] = (int)floor(ry[i]*f + 0.5); }
+    }
+}
+
+// Fill a rounded rectangle with potentially elliptical radii per corner
+static void fillRoundedRect(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1, const int rx[4], const int ry[4], lUInt32 color) {
+    if (!(rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3])) {
+        drawbuf.FillRect(x0, y0, x1, y1, color);
+        return;
+    }
+    int cx_tl = x0 + rx[0]; int cy_tl = y0 + ry[0];
+    int cx_tr = x1 - rx[1]; int cy_tr = y0 + ry[1];
+    int cx_br = x1 - rx[2]; int cy_br = y1 - ry[2];
+    int cx_bl = x0 + rx[3]; int cy_bl = y1 - ry[3];
+
+    for (int y = y0; y < y1; y++) {
+        int xl = x0;
+        int xr = x1;
+        if (y < y0 + ry[0] && rx[0] && ry[0]) {
+            double dy = (double)(cy_tl - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[0]*ry[0]);
+            int dx = (val <= 0.0) ? rx[0] : (int)floor((double)rx[0] * sqrt(val));
+            int cand = cx_tl - dx;
+            xl = (xl > cand ? xl : cand);
+        } else if (y >= y1 - ry[3] && rx[3] && ry[3]) {
+            double dy = (double)(y - cy_bl + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[3]*ry[3]);
+            int dx = (val <= 0.0) ? rx[3] : (int)floor((double)rx[3] * sqrt(val));
+            int cand = cx_bl - dx;
+            xl = (xl > cand ? xl : cand);
+        }
+        if (y < y0 + ry[1] && rx[1] && ry[1]) {
+            double dy = (double)(cy_tr - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[1]*ry[1]);
+            int dx = (val <= 0.0) ? rx[1] : (int)floor((double)rx[1] * sqrt(val));
+            int cand = cx_tr + dx;
+            xr = (xr < cand ? xr : cand);
+        } else if (y >= y1 - ry[2] && rx[2] && ry[2]) {
+            double dy = (double)(y - cy_br + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[2]*ry[2]);
+            int dx = (val <= 0.0) ? rx[2] : (int)floor((double)rx[2] * sqrt(val));
+            int cand = cx_br + dx;
+            xr = (xr < cand ? xr : cand);
+        }
+        if (xl < xr)
+            drawbuf.FillRect(xl, y, xr, y+1, color);
+    }
+}
+
+// Fill only the border ring between an outer and an inner rounded rectangle.
+// The inner rounded rectangle is defined by shrinking the box by 'w' on all
+// sides, and reducing each corner radius by 'w'. Assumes uniform border width
+// and a solid color.
+static void fillRoundedRectRing(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1, const int rx[4], const int ry[4], int w, lUInt32 color){
+    if (w <= 0) return;
+    if (!(rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3])) {
+        // No radii: draw as simple rectangular ring via 4 rects
+        // top
+        drawbuf.FillRect(x0, y0, x1, y0+w, color);
+        // bottom
+        drawbuf.FillRect(x0, y1-w, x1, y1, color);
+        // left
+        drawbuf.FillRect(x0, y0+w, x0+w, y1-w, color);
+        // right
+        drawbuf.FillRect(x1-w, y0+w, x1, y1-w, color);
+        return;
+    }
+    // Outer corner centers
+    int cx_tl = x0 + rx[0]; int cy_tl = y0 + ry[0];
+    int cx_tr = x1 - rx[1]; int cy_tr = y0 + ry[1];
+    int cx_br = x1 - rx[2]; int cy_br = y1 - ry[2];
+    int cx_bl = x0 + rx[3]; int cy_bl = y1 - ry[3];
+
+    // Inner box and radii (clamped to >= 0)
+    int x0i = x0 + w, y0i = y0 + w, x1i = x1 - w, y1i = y1 - w;
+    if (x0i >= x1i || y0i >= y1i)
+        return;
+    int rxi[4], ryi[4];
+    for (int i=0;i<4;i++) { rxi[i] = rx[i] > w ? rx[i] - w : 0; ryi[i] = ry[i] > w ? ry[i] - w : 0; }
+    int cxi_tl = x0i + rxi[0]; int cyi_tl = y0i + ryi[0];
+    int cxi_tr = x1i - rxi[1]; int cyi_tr = y0i + ryi[1];
+    int cxi_br = x1i - rxi[2]; int cyi_br = y1i - ryi[2];
+    int cxi_bl = x0i + rxi[3]; int cyi_bl = y1i - ryi[3];
+
+    for (int y = y0; y < y1; y++) {
+        // Outer span
+        int xl = x0;
+        int xr = x1;
+        if (y < y0 + ry[0] && rx[0] && ry[0]) {
+            double dy = (double)(cy_tl - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[0]*ry[0]);
+            int dx = (val <= 0.0) ? rx[0] : (int)floor((double)rx[0] * sqrt(val));
+            int cand = cx_tl - dx; if (xl < cand) xl = cand;
+        } else if (y >= y1 - ry[3] && rx[3] && ry[3]) {
+            double dy = (double)(y - cy_bl + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[3]*ry[3]);
+            int dx = (val <= 0.0) ? rx[3] : (int)floor((double)rx[3] * sqrt(val));
+            int cand = cx_bl - dx; if (xl < cand) xl = cand;
+        }
+        if (y < y0 + ry[1] && rx[1] && ry[1]) {
+            double dy = (double)(cy_tr - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[1]*ry[1]);
+            int dx = (val <= 0.0) ? rx[1] : (int)floor((double)rx[1] * sqrt(val));
+            int cand = cx_tr + dx; if (xr > cand) xr = cand;
+        } else if (y >= y1 - ry[2] && rx[2] && ry[2]) {
+            double dy = (double)(y - cy_br + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[2]*ry[2]);
+            int dx = (val <= 0.0) ? rx[2] : (int)floor((double)rx[2] * sqrt(val));
+            int cand = cx_br + dx; if (xr > cand) xr = cand;
+        }
+
+        // Top/bottom bands: fill full width of the ring
+        if (y < y0 + w || y >= y1 - w) {
+            if (xl < xr)
+                drawbuf.FillRect(xl, y, xr, y+1, color);
+            continue;
+        }
+
+        // Inner span (middle region)
+        int xl2 = x0i;
+        int xr2 = x1i;
+        if (y < y0i + ryi[0] && rxi[0] && ryi[0]) {
+            double dy = (double)(cyi_tl - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ryi[0]*ryi[0]);
+            int dx = (val <= 0.0) ? rxi[0] : (int)floor((double)rxi[0] * sqrt(val));
+            int cand = cxi_tl - dx; if (xl2 < cand) xl2 = cand;
+        } else if (y >= y1i - ryi[3] && rxi[3] && ryi[3]) {
+            double dy = (double)(y - cyi_bl + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ryi[3]*ryi[3]);
+            int dx = (val <= 0.0) ? rxi[3] : (int)floor((double)rxi[3] * sqrt(val));
+            int cand = cxi_bl - dx; if (xl2 < cand) xl2 = cand;
+        }
+        if (y < y0i + ryi[1] && rxi[1] && ryi[1]) {
+            double dy = (double)(cyi_tr - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ryi[1]*ryi[1]);
+            int dx = (val <= 0.0) ? rxi[1] : (int)floor((double)rxi[1] * sqrt(val));
+            int cand = cxi_tr + dx; if (xr2 > cand) xr2 = cand;
+        } else if (y >= y1i - ryi[2] && rxi[2] && ryi[2]) {
+            double dy = (double)(y - cyi_br + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ryi[2]*ryi[2]);
+            int dx = (val <= 0.0) ? rxi[2] : (int)floor((double)rxi[2] * sqrt(val));
+            int cand = cxi_br + dx; if (xr2 > cand) xr2 = cand;
+        }
+
+        // Draw left and right border segments of the ring
+        if (xl < xl2)
+            drawbuf.FillRect(xl, y, xl2, y+1, color);
+        if (xr2 < xr)
+            drawbuf.FillRect(xr2, y, xr, y+1, color);
+    }
+}
+
+// Compute the inner horizontal span [xl2, xr2) at scanline y for a rounded rectangle
+// inset per-side by w_top, w_right, w_bottom, w_left.
+static inline void computeInnerSpanPerSide(int y,
+                                           int x0, int y0, int x1, int y1,
+                                           const int rx[4], const int ry[4],
+                                           int w_top, int w_right, int w_bottom, int w_left,
+                                           int &xl2, int &xr2)
+{
+    int x0i = x0 + w_left, y0i = y0 + w_top, x1i = x1 - w_right, y1i = y1 - w_bottom;
+    if (x0i >= x1i || y0i >= y1i) { xl2 = xr2 = x0i; return; }
+    int rxi_tl = rx[0] > w_left ? rx[0] - w_left : 0;
+    int ryi_tl = ry[0] > w_top  ? ry[0] - w_top  : 0;
+    int rxi_tr = rx[1] > w_right ? rx[1] - w_right : 0;
+    int ryi_tr = ry[1] > w_top   ? ry[1] - w_top   : 0;
+    int rxi_br = rx[2] > w_right ? rx[2] - w_right : 0;
+    int ryi_br = ry[2] > w_bottom? ry[2] - w_bottom: 0;
+    int rxi_bl = rx[3] > w_left  ? rx[3] - w_left  : 0;
+    int ryi_bl = ry[3] > w_bottom? ry[3] - w_bottom: 0;
+    int cxi_tl = x0i + rxi_tl; int cyi_tl = y0i + ryi_tl;
+    int cxi_tr = x1i - rxi_tr; int cyi_tr = y0i + ryi_tr;
+    int cxi_br = x1i - rxi_br; int cyi_br = y1i - ryi_br;
+    int cxi_bl = x0i + rxi_bl; int cyi_bl = y1i - ryi_bl;
+    xl2 = x0i; xr2 = x1i;
+    if (y < y0i + ryi_tl && rxi_tl && ryi_tl) {
+        double dy = (double)(cyi_tl - y - 0.5);
+        double val = 1.0 - (dy*dy) / (double)(ryi_tl*ryi_tl);
+        int dx = (val <= 0.0) ? rxi_tl : (int)floor((double)rxi_tl * sqrt(val));
+        int cand = cxi_tl - dx; if (xl2 < cand) xl2 = cand;
+    } else if (y >= y1i - ryi_bl && rxi_bl && ryi_bl) {
+        double dy = (double)(y - cyi_bl + 0.5);
+        double val = 1.0 - (dy*dy) / (double)(ryi_bl*ryi_bl);
+        int dx = (val <= 0.0) ? rxi_bl : (int)floor((double)rxi_bl * sqrt(val));
+        int cand = cxi_bl - dx; if (xl2 < cand) xl2 = cand;
+    }
+    if (y < y0i + ryi_tr && rxi_tr && ryi_tr) {
+        double dy = (double)(cyi_tr - y - 0.5);
+        double val = 1.0 - (dy*dy) / (double)(ryi_tr*ryi_tr);
+        int dx = (val <= 0.0) ? rxi_tr : (int)floor((double)rxi_tr * sqrt(val));
+        int cand = cxi_tr + dx; if (xr2 > cand) xr2 = cand;
+    } else if (y >= y1i - ryi_br && rxi_br && ryi_br) {
+        double dy = (double)(y - cyi_br + 0.5);
+        double val = 1.0 - (dy*dy) / (double)(ryi_br*ryi_br);
+        int dx = (val <= 0.0) ? rxi_br : (int)floor((double)rxi_br * sqrt(val));
+        int cand = cxi_br + dx; if (xr2 > cand) xr2 = cand;
+    }
+}
+
+// Draw only a band of the rounded border: for each side, draw the region between
+// inner widths w0_side and w1_side (cumulative from the outer edge), with a given color.
+// Requires w1_side >= w0_side for each side; pass 0 width to skip a side.
+static void fillRoundedRectBorderSidesBand(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1,
+                                           const int rx[4], const int ry[4],
+                                           int w0_top, int w0_right, int w0_bottom, int w0_left,
+                                           int w1_top, int w1_right, int w1_bottom, int w1_left,
+                                           const lUInt32 colors[4])
+{
+    // Precompute outer corner centers (same as above)
+    int cx_tl = x0 + rx[0]; int cy_tl = y0 + ry[0];
+    int cx_tr = x1 - rx[1]; int cy_tr = y0 + ry[1];
+    int cx_br = x1 - rx[2]; int cy_br = y1 - ry[2];
+    int cx_bl = x0 + rx[3]; int cy_bl = y1 - ry[3];
+
+    for (int y = y0; y < y1; y++) {
+        // Outer span
+        int xl = x0;
+        int xr = x1;
+        if (y < y0 + ry[0] && rx[0] && ry[0]) {
+            double dy = (double)(cy_tl - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[0]*ry[0]);
+            int dx = (val <= 0.0) ? rx[0] : (int)floor((double)rx[0] * sqrt(val));
+            int cand = cx_tl - dx; if (xl < cand) xl = cand;
+        } else if (y >= y1 - ry[3] && rx[3] && ry[3]) {
+            double dy = (double)(y - cy_bl + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[3]*ry[3]);
+            int dx = (val <= 0.0) ? rx[3] : (int)floor((double)rx[3] * sqrt(val));
+            int cand = cx_bl - dx; if (xl < cand) xl = cand;
+        }
+        if (y < y0 + ry[1] && rx[1] && ry[1]) {
+            double dy = (double)(cy_tr - y - 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[1]*ry[1]);
+            int dx = (val <= 0.0) ? rx[1] : (int)floor((double)rx[1] * sqrt(val));
+            int cand = cx_tr + dx; if (xr > cand) xr = cand;
+        } else if (y >= y1 - ry[2] && rx[2] && ry[2]) {
+            double dy = (double)(y - cy_br + 0.5);
+            double val = 1.0 - (dy*dy) / (double)(ry[2]*ry[2]);
+            int dx = (val <= 0.0) ? rx[2] : (int)floor((double)rx[2] * sqrt(val));
+            int cand = cx_br + dx; if (xr > cand) xr = cand;
+        }
+        if (!(xl < xr))
+            continue;
+
+        // Left band (draw before TB; taper inner edge with top/bottom insets)
+        if (w1_left > w0_left) {
+            int xl0, xr0, xl1, xr1;
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w0_top, 0, w0_bottom, w0_left, xl0, xr0);
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w1_top, 0, w1_bottom, w1_left, xl1, xr1);
+            int xa = xl0, xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+            if (xa < xb) drawbuf.FillRect(xa, y, xb, y+1, colors[3]);
+        }
+        // Right band (draw before TB; taper inner edge with top/bottom insets)
+        if (w1_right > w0_right) {
+            int xl0, xr0, xl1, xr1;
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w0_top, w0_right, w0_bottom, 0, xl0, xr0);
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w1_top, w1_right, w1_bottom, 0, xl1, xr1);
+            int xa = xr1, xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+            if (xa < xb) drawbuf.FillRect(xa, y, xb, y+1, colors[1]);
+        }
+        // Top band: keep outer edge un-clipped by sides; morph inner edge with side insets; draw only in its vertical range
+        if (w1_top > w0_top && y >= y0 + w0_top && y < y0 + w1_top) {
+            int xl0, xr0, xl1, xr1;
+            // Outer edge at w0_top with zero side insets (prevents LR from clipping TB)
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w0_top, 0, 0, 0, xl0, xr0);
+            // Inner edge at w1_top, tapered with side insets for smooth morph
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w1_top, w1_right, 0, w1_left, xl1, xr1);
+            bool filled = false;
+            // Only draw the left corner cap if top is at least as thick as left (let thicker side dominate)
+            if (w1_top >= w1_left) {
+                int xa = xl0, xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                if (xa < xb) { drawbuf.FillRect(xa, y, xb, y+1, colors[0]); filled = true; }
+            }
+            // Only draw the right corner cap if top is at least as thick as right
+            if (w1_top >= w1_right) {
+                int xa = xr1, xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                if (xa < xb) { drawbuf.FillRect(xa, y, xb, y+1, colors[0]); filled = true; }
+            }
+            if (!filled) {
+                // Fallback to ensure visibility
+                drawbuf.FillRect(xl, y, xr, y+1, colors[0]);
+            }
+        }
+        // Bottom band: keep outer edge un-clipped by sides; morph inner edge with side insets; draw only in its vertical range
+        if (w1_bottom > w0_bottom && y >= y1 - w1_bottom && y < y1 - w0_bottom) {
+            int xl0, xr0, xl1, xr1;
+            // Outer edge at w0_bottom with zero side insets
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, 0, 0, w0_bottom, 0, xl0, xr0);
+            // Inner edge at w1_bottom, tapered with side insets
+            computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, 0, w1_right, w1_bottom, w1_left, xl1, xr1);
+            bool filled = false;
+            // Only draw the left corner cap if bottom is at least as thick as left
+            if (w1_bottom >= w1_left) {
+                int xa = xl0, xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                if (xa < xb) { drawbuf.FillRect(xa, y, xb, y+1, colors[2]); filled = true; }
+            }
+            // Only draw the right corner cap if bottom is at least as thick as right
+            if (w1_bottom >= w1_right) {
+                int xa = xr1, xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                if (xa < xb) { drawbuf.FillRect(xa, y, xb, y+1, colors[2]); filled = true; }
+            }
+            if (!filled) {
+                // Fallback to ensure visibility
+                drawbuf.FillRect(xl, y, xr, y+1, colors[2]);
+            }
+        }
+    }
 }
 
 // Uncomment for debugging enhanced block rendering
@@ -9204,6 +9536,378 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         int leftBorderwidth = lengthToPx(enode, style->border_width[3],width);
         leftBorderwidth = leftBorderwidth!=0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
         int tbw=topBorderwidth,rbw=rightBorderwidth,bbw=bottomBorderwidth,lbw=leftBorderwidth;
+
+        // Rounded borders for any style with radii: draw curved sides, then return
+        {
+            int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+            computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+            if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]) {
+                int X0 = x0 + doc_x;
+                int Y0 = y0 + doc_y;
+                int X1 = X0 + fmt.getWidth();
+                int Y1 = Y0 + fmt.getHeight();
+
+                // Handle each style by decomposing into bands (where needed)
+                lUInt32 sideColors[4] = { topBordercolor, rightBordercolor, bottomBordercolor, leftBordercolor };
+
+                // Dispatch per-side by style. If any side is dashed/dotted, we fallback to legacy for now.
+                // Treat dashed/dotted as solid for rounded rendering for now
+                bool side_is_solid[4] = {
+                    hastopBorder && (style->border_style_top==css_border_solid),
+                    hasrightBorder && (style->border_style_right==css_border_solid),
+                    hasbottomBorder && (style->border_style_bottom==css_border_solid),
+                    hasleftBorder && (style->border_style_left==css_border_solid)
+                };
+                bool side_is_dashed[4] = {
+                    hastopBorder && (style->border_style_top==css_border_dashed),
+                    hasrightBorder && (style->border_style_right==css_border_dashed),
+                    hasbottomBorder && (style->border_style_bottom==css_border_dashed),
+                    hasleftBorder && (style->border_style_left==css_border_dashed)
+                };
+                bool side_is_dotted[4] = {
+                    hastopBorder && (style->border_style_top==css_border_dotted),
+                    hasrightBorder && (style->border_style_right==css_border_dotted),
+                    hasbottomBorder && (style->border_style_bottom==css_border_dotted),
+                    hasleftBorder && (style->border_style_left==css_border_dotted)
+                };
+                bool side_is_double[4] = {
+                    hastopBorder && style->border_style_top==css_border_double,
+                    hasrightBorder && style->border_style_right==css_border_double,
+                    hasbottomBorder && style->border_style_bottom==css_border_double,
+                    hasleftBorder && style->border_style_left==css_border_double
+                };
+                bool side_is_groove[4] = {
+                    hastopBorder && style->border_style_top==css_border_groove,
+                    hasrightBorder && style->border_style_right==css_border_groove,
+                    hasbottomBorder && style->border_style_bottom==css_border_groove,
+                    hasleftBorder && style->border_style_left==css_border_groove
+                };
+                bool side_is_ridge[4] = {
+                    hastopBorder && style->border_style_top==css_border_ridge,
+                    hasrightBorder && style->border_style_right==css_border_ridge,
+                    hasbottomBorder && style->border_style_bottom==css_border_ridge,
+                    hasleftBorder && style->border_style_left==css_border_ridge
+                };
+                bool side_is_inset[4] = {
+                    hastopBorder && style->border_style_top==css_border_inset,
+                    hasrightBorder && style->border_style_right==css_border_inset,
+                    hasbottomBorder && style->border_style_bottom==css_border_inset,
+                    hasleftBorder && style->border_style_left==css_border_inset
+                };
+                bool side_is_outset[4] = {
+                    hastopBorder && style->border_style_top==css_border_outset,
+                    hasrightBorder && style->border_style_right==css_border_outset,
+                    hasbottomBorder && style->border_style_bottom==css_border_outset,
+                    hasleftBorder && style->border_style_left==css_border_outset
+                };
+
+                // Fast path: all four sides present, SOLID-like, same width and same color -> draw a uniform ring
+                bool all_present = (hastopBorder && hasrightBorder && hasbottomBorder && hasleftBorder);
+                bool all_solid_like = (side_is_solid[0] && side_is_solid[1] && side_is_solid[2] && side_is_solid[3]);
+                bool same_width = (tbw==rbw && tbw==bbw && tbw==lbw);
+                bool same_color = (topBordercolor==rightBordercolor && topBordercolor==bottomBordercolor && topBordercolor==leftBordercolor);
+                if (all_present && all_solid_like && same_width && same_color && tbw>0) {
+                    fillRoundedRectRing(drawbuf, X0, Y0, X1, Y1, rx, ry, tbw, topBordercolor);
+                    return;
+                }
+
+                // Helpers for shading
+                auto make_shade = [](lUInt32 c){ lUInt32 o=c&0xFF000000; lUInt32 r=(c>>16)&0xFF,g=(c>>8)&0xFF,b=c&0xFF; r=r*160/255; g=g*160/255; b=b*160/255; return o|(r<<16)|(g<<8)|b; };
+                auto make_light = [](lUInt32 c){ return c; };
+
+                // Helpers to draw only LR or only TB for a band [w0..w1)
+                auto draw_band_lr = [&](int w0_top,int w0_right,int w0_bottom,int w0_left,
+                                        int w1_top,int w1_right,int w1_bottom,int w1_left,
+                                        const lUInt32 colors[4]) {
+                // Disable TB by making w1==w0 for TB sides
+                fillRoundedRectBorderSidesBand(drawbuf, X0, Y0, X1, Y1, rx, ry,
+                                               w0_top, w0_right, w0_bottom, w0_left,
+                                               w0_top, w1_right, w0_bottom, w1_left,
+                                               colors);
+                };
+                auto draw_band_tb = [&](int w0_top,int w0_right,int w0_bottom,int w0_left,
+                                        int w1_top,int w1_right,int w1_bottom,int w1_left,
+                                        const lUInt32 colors[4]) {
+                // Disable LR by making w1==w0 for LR sides; keep LR widths in w1_right/left for tapering of TB
+                fillRoundedRectBorderSidesBand(drawbuf, X0, Y0, X1, Y1, rx, ry,
+                                               w0_top, 0, w0_bottom, 0,
+                                               w1_top, w1_right, w1_bottom, w1_left,
+                                               colors);
+                };
+
+                // Dashed/dotted helpers
+                auto dash_on_v = [](int y, int startY, int dash_len, int gap_len) {
+                    int per = dash_len + gap_len; if (per <= 0) return true; // safety
+                    int p = (y - startY) % per; if (p < 0) p += per; return p < dash_len;
+                };
+                auto fill_h_dash_segment = [&](int y, int xa, int xb, int startX, int dash_len, int gap_len, lUInt32 color){
+                    if (xa >= xb) return;
+                    int per = dash_len + gap_len; if (per <= 0) { drawbuf.FillRect(xa, y, xb, y+1, color); return; }
+                    int x = xa;
+                    while (x < xb) {
+                        int p = (x - startX) % per; if (p < 0) p += per;
+                        int on = dash_len - p; if (on <= 0) { int adv = per - p; if (adv <= 0) adv = 1; x += adv; continue; }
+                        int xe = x + on; if (xe > xb) xe = xb;
+                        if (xe > x) drawbuf.FillRect(x, y, xe, y+1, color);
+                        x = xe + gap_len; // skip gap
+                    }
+                };
+
+                // LR dashed bands
+                auto draw_band_lr_dashed = [&](int w0_top,int w0_right,int w0_bottom,int w0_left,
+                                               int w1_top,int w1_right,int w1_bottom,int w1_left,
+                                               const lUInt32 colors[4]) {
+                    // Precompute outer corner centers
+                    int cx_tl = X0 + rx[0]; int cy_tl = Y0 + ry[0];
+                    int cx_tr = X1 - rx[1]; int cy_tr = Y0 + ry[1];
+                    int cx_br = X1 - rx[2]; int cy_br = Y1 - ry[2];
+                    int cx_bl = X0 + rx[3]; int cy_bl = Y1 - ry[3];
+                    for (int y = Y0; y < Y1; y++) {
+                        int xl = X0, xr = X1;
+                        if (y < Y0 + ry[0] && rx[0] && ry[0]) {
+                            double dy = (double)(cy_tl - y - 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[0]*ry[0]);
+                            int dx = (val <= 0.0) ? rx[0] : (int)floor((double)rx[0] * sqrt(val));
+                            int cand = cx_tl - dx; if (xl < cand) xl = cand;
+                        } else if (y >= Y1 - ry[3] && rx[3] && ry[3]) {
+                            double dy = (double)(y - cy_bl + 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[3]*ry[3]);
+                            int dx = (val <= 0.0) ? rx[3] : (int)floor((double)rx[3] * sqrt(val));
+                            int cand = cx_bl - dx; if (xl < cand) xl = cand;
+                        }
+                        if (y < Y0 + ry[1] && rx[1] && ry[1]) {
+                            double dy = (double)(cy_tr - y - 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[1]*ry[1]);
+                            int dx = (val <= 0.0) ? rx[1] : (int)floor((double)rx[1] * sqrt(val));
+                            int cand = cx_tr + dx; if (xr > cand) xr = cand;
+                        } else if (y >= Y1 - ry[2] && rx[2] && ry[2]) {
+                            double dy = (double)(y - cy_br + 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[2]*ry[2]);
+                            int dx = (val <= 0.0) ? rx[2] : (int)floor((double)rx[2] * sqrt(val));
+                            int cand = cx_br + dx; if (xr > cand) xr = cand;
+                        }
+                        if (!(xl < xr)) continue;
+                        // Left
+                        if (w1_left > w0_left && (side_is_dashed[3] || side_is_dotted[3])) {
+                            int xl0, xr0, xl1, xr1;
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w0_top, 0, w0_bottom, w0_left, xl0, xr0);
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w1_top, 0, w1_bottom, w1_left, xl1, xr1);
+                            int xa = xl0; int xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                            if (xa < xb) {
+                                int bw = lbw; int dash = side_is_dotted[3] ? std::max(1, bw) : std::max(1, 3*bw);
+                                int gap  = dash; // same length by convention used elsewhere
+                                if (dash_on_v(y, Y0, dash, gap)) drawbuf.FillRect(xa, y, xb, y+1, colors[3]);
+                            }
+                        }
+                        // Right
+                        if (w1_right > w0_right && (side_is_dashed[1] || side_is_dotted[1])) {
+                            int xl0, xr0, xl1, xr1;
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w0_top, w0_right, w0_bottom, 0, xl0, xr0);
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w1_top, w1_right, w1_bottom, 0, xl1, xr1);
+                            int xa = xr1; int xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                            if (xa < xb) {
+                                int bw = rbw; int dash = side_is_dotted[1] ? std::max(1, bw) : std::max(1, 3*bw);
+                                int gap  = dash;
+                                if (dash_on_v(y, Y0, dash, gap)) drawbuf.FillRect(xa, y, xb, y+1, colors[1]);
+                            }
+                        }
+                    }
+                };
+
+                // TB dashed bands (with LR tapering)
+                auto draw_band_tb_dashed = [&](int w0_top,int w0_right,int w0_bottom,int w0_left,
+                                               int w1_top,int w1_right,int w1_bottom,int w1_left,
+                                               const lUInt32 colors[4]) {
+                    int cx_tl = X0 + rx[0]; int cy_tl = Y0 + ry[0];
+                    int cx_tr = X1 - rx[1]; int cy_tr = Y0 + ry[1];
+                    int cx_br = X1 - rx[2]; int cy_br = Y1 - ry[2];
+                    int cx_bl = X0 + rx[3]; int cy_bl = Y1 - ry[3];
+                    for (int y = Y0; y < Y1; y++) {
+                        int xl = X0, xr = X1;
+                        if (y < Y0 + ry[0] && rx[0] && ry[0]) {
+                            double dy = (double)(cy_tl - y - 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[0]*ry[0]);
+                            int dx = (val <= 0.0) ? rx[0] : (int)floor((double)rx[0] * sqrt(val));
+                            int cand = cx_tl - dx; if (xl < cand) xl = cand;
+                        } else if (y >= Y1 - ry[3] && rx[3] && ry[3]) {
+                            double dy = (double)(y - cy_bl + 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[3]*ry[3]);
+                            int dx = (val <= 0.0) ? rx[3] : (int)floor((double)rx[3] * sqrt(val));
+                            int cand = cx_bl - dx; if (xl < cand) xl = cand;
+                        }
+                        if (y < Y0 + ry[1] && rx[1] && ry[1]) {
+                            double dy = (double)(cy_tr - y - 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[1]*ry[1]);
+                            int dx = (val <= 0.0) ? rx[1] : (int)floor((double)rx[1] * sqrt(val));
+                            int cand = cx_tr + dx; if (xr > cand) xr = cand;
+                        } else if (y >= Y1 - ry[2] && rx[2] && ry[2]) {
+                            double dy = (double)(y - cy_br + 0.5);
+                            double val = 1.0 - (dy*dy) / (double)(ry[2]*ry[2]);
+                            int dx = (val <= 0.0) ? rx[2] : (int)floor((double)rx[2] * sqrt(val));
+                            int cand = cx_br + dx; if (xr > cand) xr = cand;
+                        }
+                        if (!(xl < xr)) continue;
+                        // Top band rows
+                        if (w1_top > w0_top && y >= Y0 + w0_top && y < Y0 + w1_top && (side_is_dashed[0] || side_is_dotted[0])) {
+                            int xl0, xr0, xl1, xr1;
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w0_top, 0, 0, 0, xl0, xr0);
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, w1_top, w1_right, 0, w1_left, xl1, xr1);
+                            int dash_len = side_is_dotted[0] ? std::max(1, tbw) : std::max(1, 3*tbw);
+                            int gap_len  = dash_len;
+                            bool drew = false;
+                            if (w1_top >= w1_left) {
+                                int xa = xl0; int xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                                if (xa < xb) { fill_h_dash_segment(y, xa, xb, X0, dash_len, gap_len, colors[0]); drew = true; }
+                            }
+                            if (w1_top >= w1_right) {
+                                int xa = xr1; int xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                                if (xa < xb) { fill_h_dash_segment(y, xa, xb, X0, dash_len, gap_len, colors[0]); drew = true; }
+                            }
+                            if (!drew) {
+                                fill_h_dash_segment(y, xl, xr, X0, dash_len, gap_len, colors[0]);
+                            }
+                        }
+                        // Bottom band rows
+                        if (w1_bottom > w0_bottom && y >= Y1 - w1_bottom && y < Y1 - w0_bottom && (side_is_dashed[2] || side_is_dotted[2])) {
+                            int xl0, xr0, xl1, xr1;
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, 0, 0, w0_bottom, 0, xl0, xr0);
+                            computeInnerSpanPerSide(y, X0, Y0, X1, Y1, rx, ry, 0, w1_right, w1_bottom, w1_left, xl1, xr1);
+                            int dash_len = side_is_dotted[2] ? std::max(1, bbw) : std::max(1, 3*bbw);
+                            int gap_len  = dash_len;
+                            bool drew = false;
+                            if (w1_bottom >= w1_left) {
+                                int xa = xl0; int xb = xl1; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                                if (xa < xb) { fill_h_dash_segment(y, xa, xb, X0, dash_len, gap_len, colors[2]); drew = true; }
+                            }
+                            if (w1_bottom >= w1_right) {
+                                int xa = xr1; int xb = xr0; if (xa < xl) xa = xl; if (xb > xr) xb = xr;
+                                if (xa < xb) { fill_h_dash_segment(y, xa, xb, X0, dash_len, gap_len, colors[2]); drew = true; }
+                            }
+                            if (!drew) {
+                                fill_h_dash_segment(y, xl, xr, X0, dash_len, gap_len, colors[2]);
+                            }
+                        }
+                    }
+                };
+
+                // Phase 1: draw all Left/Right sides for each style
+                // DASHED/DOTTED LR
+                if (side_is_dashed[1] || side_is_dotted[1] || side_is_dashed[3] || side_is_dotted[3]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    draw_band_lr_dashed(0,0,0,0, 0, side_is_dashed[1]||side_is_dotted[1]?rbw:0, 0, side_is_dashed[3]||side_is_dotted[3]?lbw:0, c);
+                }
+                // SOLID LR
+                if (side_is_solid[1] || side_is_solid[3]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    int w0t=0, w0b=0;
+                    int w1r = side_is_solid[1] ? rbw : 0;
+                    int w1l = side_is_solid[3] ? lbw : 0;
+                    draw_band_lr(0,0,0,0, w0t, w1r, w0b, w1l, c);
+                }
+                // DOUBLE LR
+                if (side_is_double[1] || side_is_double[3]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    auto thirds = [](int w){ return std::max(1, w/3); };
+                    int gap_r = thirds(rbw), gap_l = thirds(lbw);
+                    int outer_r = (rbw - gap_r)/2; int inner_r = rbw - gap_r - outer_r;
+                    int outer_l = (lbw - gap_l)/2; int inner_l = lbw - gap_l - outer_l;
+                    // Outer lines [0..outer)
+                    draw_band_lr(0,0,0,0, 0, side_is_double[1]?outer_r:0, 0, side_is_double[3]?outer_l:0, c);
+                    // Inner lines [w-inner..w]
+                    draw_band_lr(0, side_is_double[1]?(rbw-inner_r):0, 0, side_is_double[3]?(lbw-inner_l):0,
+                                 0, side_is_double[1]?rbw:0, 0, side_is_double[3]?lbw:0, c);
+                }
+                // GROOVE/RIDGE LR (outer half then inner half with opposite shading order)
+                if (side_is_groove[1] || side_is_groove[3] || side_is_ridge[1] || side_is_ridge[3]) {
+                    bool groove_r = side_is_groove[1], groove_l = side_is_groove[3];
+                    bool ridge_r = side_is_ridge[1],  ridge_l = side_is_ridge[3];
+                    int half_r = std::max(1, rbw/2), half_l = std::max(1, lbw/2);
+                    // Outer half
+                    lUInt32 c_outer[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    // groove: left shade, right light; ridge: opposite
+                    if (groove_r || ridge_r) c_outer[1] = groove_r ? make_light(c_outer[1]) : make_shade(c_outer[1]);
+                    if (groove_l || ridge_l) c_outer[3] = groove_l ? make_shade(c_outer[3]) : make_light(c_outer[3]);
+                    draw_band_lr(0,0,0,0, 0, ridge_r||groove_r?half_r:0, 0, ridge_l||groove_l?half_l:0, c_outer);
+                    // Inner half
+                    lUInt32 c_inner[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    if (groove_r || ridge_r) c_inner[1] = groove_r ? make_shade(c_inner[1]) : make_light(c_inner[1]);
+                    if (groove_l || ridge_l) c_inner[3] = groove_l ? make_light(c_inner[3]) : make_shade(c_inner[3]);
+                    draw_band_lr(0, ridge_r||groove_r?half_r:0, 0, ridge_l||groove_l?half_l:0,
+                                 0, ridge_r||groove_r?rbw:0, 0, ridge_l||groove_l?lbw:0, c_inner);
+                }
+                // INSET/OUTSET LR
+                if (side_is_inset[1] || side_is_inset[3] || side_is_outset[1] || side_is_outset[3]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    // Inset: left shade, right light. Outset: left light, right shade.
+                    if (side_is_inset[1] || side_is_outset[1]) c[1] = side_is_inset[1] ? make_light(c[1]) : make_shade(c[1]);
+                    if (side_is_inset[3] || side_is_outset[3]) c[3] = side_is_inset[3] ? make_shade(c[3]) : make_light(c[3]);
+                    draw_band_lr(0,0,0,0, 0, side_is_inset[1]||side_is_outset[1]?rbw:0, 0, side_is_inset[3]||side_is_outset[3]?lbw:0, c);
+                }
+
+                // Phase 2: draw all Top/Bottom sides for each style (TB overlay corners)
+                // For TB tapering, always pass LR widths in w1_right/left
+                int taper_r = hasrightBorder ? rbw : 0;
+                int taper_l = hasleftBorder ? lbw : 0;
+
+                // DASHED/DOTTED TB
+                if (side_is_dashed[0] || side_is_dotted[0] || side_is_dashed[2] || side_is_dotted[2]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    int w1t = side_is_dashed[0]||side_is_dotted[0] ? tbw : 0;
+                    int w1b = side_is_dashed[2]||side_is_dotted[2] ? bbw : 0;
+                    draw_band_tb_dashed(0, 0, 0, 0, w1t, taper_r, w1b, taper_l, c);
+                }
+                // SOLID TB
+                if (side_is_solid[0] || side_is_solid[2]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    int w1t = side_is_solid[0] ? tbw : 0;
+                    int w1b = side_is_solid[2] ? bbw : 0;
+                    draw_band_tb(0, 0, 0, 0, w1t, taper_r, w1b, taper_l, c);
+                }
+                // DOUBLE TB
+                if (side_is_double[0] || side_is_double[2]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    auto thirds = [](int w){ return std::max(1, w/3); };
+                    int gap_t = thirds(tbw), gap_b = thirds(bbw);
+                    int outer_t = (tbw - gap_t)/2; int inner_t = tbw - gap_t - outer_t;
+                    int outer_b = (bbw - gap_b)/2; int inner_b = bbw - gap_b - outer_b;
+                    // Outer
+                    draw_band_tb(0, 0, 0, 0, side_is_double[0]?outer_t:0, taper_r, side_is_double[2]?outer_b:0, taper_l, c);
+                    // Inner
+                    draw_band_tb(side_is_double[0]?(tbw-inner_t):0, 0, side_is_double[2]?(bbw-inner_b):0, 0,
+                                 side_is_double[0]?tbw:0, taper_r, side_is_double[2]?bbw:0, taper_l, c);
+                }
+                // GROOVE/RIDGE TB
+                if (side_is_groove[0] || side_is_groove[2] || side_is_ridge[0] || side_is_ridge[2]) {
+                    bool groove_t = side_is_groove[0], groove_b = side_is_groove[2];
+                    bool ridge_t = side_is_ridge[0],  ridge_b = side_is_ridge[2];
+                    int half_t = std::max(1, tbw/2), half_b = std::max(1, bbw/2);
+                    // Outer half
+                    lUInt32 c_outer[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    // groove: top shade, bottom light; ridge: opposite
+                    if (groove_t || ridge_t) c_outer[0] = groove_t ? make_shade(c_outer[0]) : make_light(c_outer[0]);
+                    if (groove_b || ridge_b) c_outer[2] = groove_b ? make_light(c_outer[2]) : make_shade(c_outer[2]);
+                    draw_band_tb(0, 0, 0, 0, ridge_t||groove_t?half_t:0, taper_r, ridge_b||groove_b?half_b:0, taper_l, c_outer);
+                    // Inner half
+                    lUInt32 c_inner[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    if (groove_t || ridge_t) c_inner[0] = groove_t ? make_light(c_inner[0]) : make_shade(c_inner[0]);
+                    if (groove_b || ridge_b) c_inner[2] = groove_b ? make_shade(c_inner[2]) : make_light(c_inner[2]);
+                    draw_band_tb(ridge_t||groove_t?half_t:0, 0, ridge_b||groove_b?half_b:0, 0,
+                                 ridge_t||groove_t?tbw:0, taper_r, ridge_b||groove_b?bbw:0, taper_l, c_inner);
+                }
+                // INSET/OUTSET TB
+                if (side_is_inset[0] || side_is_inset[2] || side_is_outset[0] || side_is_outset[2]) {
+                    lUInt32 c[4] = { sideColors[0], sideColors[1], sideColors[2], sideColors[3] };
+                    // Inset: top shade, bottom light. Outset: opposite.
+                    if (side_is_inset[0] || side_is_outset[0]) c[0] = side_is_inset[0] ? make_shade(c[0]) : make_light(c[0]);
+                    if (side_is_inset[2] || side_is_outset[2]) c[2] = side_is_inset[2] ? make_light(c[2]) : make_shade(c[2]);
+                    int w1t = side_is_inset[0]||side_is_outset[0] ? tbw : 0;
+                    int w1b = side_is_inset[2]||side_is_outset[2] ? bbw : 0;
+                    draw_band_tb(0, 0, 0, 0, w1t, taper_r, w1b, taper_l, c);
+                }
+
+                return; // Rounded handled; skip legacy straight-corner drawing below
+            }
+        }
         if (hastopBorder) {
             int dot=1,interval=0;//default style
             topBorderwidth=tbw;
@@ -9840,8 +10544,37 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                     target_clip.bottom = orig_clip.bottom;
                 drawbuf.SetClipRect( &target_clip );
             }
-            // Draw
+            // Draw (optionally with rounded clipping, honoring border-radius)
+            // Compute border radii and, if any, enable rounded clip via draw_extra_info
+            draw_extra_info_t * dei = (draw_extra_info_t*)drawbuf.GetDrawExtraInfo();
+            bool restore_rounded = false;
+            lvRect saved_rounded_rect;
+            int saved_rx[4] = {0,0,0,0};
+            int saved_ry[4] = {0,0,0,0};
+            bool saved_active = false;
+            if (dei) {
+                // Save prev state
+                saved_active = dei->rounded_clip_active;
+                saved_rounded_rect = dei->rounded_clip_rect;
+                for (int i=0;i<4;i++){ saved_rx[i]=dei->rounded_rx[i]; saved_ry[i]=dei->rounded_ry[i]; }
+                // Compute radii for this element
+                RenderRectAccessor fmt( enode );
+                int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+                computeBorderRadiiPx(enode, enode->getStyle().get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+                if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]) {
+                    dei->rounded_clip_active = true;
+                    dei->rounded_clip_rect = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);
+                    for (int i=0;i<4;i++){ dei->rounded_rx[i]=rx[i]; dei->rounded_ry[i]=ry[i]; }
+                    restore_rounded = true;
+                }
+            }
             drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
+            if (restore_rounded) {
+                // Restore original rounded state
+                dei->rounded_clip_active = saved_active;
+                dei->rounded_clip_rect = saved_rounded_rect;
+                for (int i=0;i<4;i++){ dei->rounded_rx[i]=saved_rx[i]; dei->rounded_ry[i]=saved_ry[i]; }
+            }
             if (clip_to_target) {
                 drawbuf.SetClipRect( &orig_clip ); // Restore the original one
             }
@@ -10147,8 +10880,14 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 }
                 else {
                     // Regular element: draw bgcolor or image inside its border box
-                    if ( draw_bg_color )
-                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                    if ( draw_bg_color ) {
+                        int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+                        computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+                        if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3])
+                            fillRoundedRect(drawbuf, x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), rx, ry, bg_color);
+                        else
+                            drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                    }
                     if ( draw_bg_image )
                         DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Commented identical calls below as they seem redundant with what was just done here)
