@@ -92,10 +92,11 @@ enum css_style_rec_important_bit {
     imp_bit_word_break,
     imp_bit_box_sizing,
     imp_bit_caption_side,
+    imp_bit_ruby_position,
     imp_bit_content,
     imp_bit_cr_hint
 };
-#define NB_IMP_BITS 70 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 71 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
@@ -183,6 +184,7 @@ struct css_style_rec_tag {
     css_word_break_t       word_break;
     css_box_sizing_t       box_sizing;
     css_caption_side_t     caption_side;
+    css_ruby_position_t    ruby_position;
     lString32              content;
     css_length_t           cr_hint;
     // The following should only be used when applying stylesheets while in lvend.cpp setNodeStyle(),
@@ -243,6 +245,7 @@ struct css_style_rec_tag {
     , word_break(css_wb_inherit)
     , box_sizing(css_bs_content_box)
     , caption_side(css_cs_inherit)
+    , ruby_position(css_rp_inherit)
     , cr_hint(css_val_inherited, 0)
     , flags(0)
     , pseudo_elem_before_style(NULL)

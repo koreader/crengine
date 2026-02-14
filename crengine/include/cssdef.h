@@ -384,6 +384,14 @@ enum css_caption_side_t {
     css_cs_bottom
 };
 
+/// ruby-position property values
+enum css_ruby_position_t {
+    css_rp_inherit,
+    css_rp_alternate,
+    css_rp_over,
+    css_rp_under
+};
+
 enum css_generic_value_t {
     css_generic_auto = -1,         // (css_val_unspecified, css_generic_auto), for "margin: auto"
     css_generic_normal = -2,       // (css_val_unspecified, css_generic_normal), for "line-height: normal"

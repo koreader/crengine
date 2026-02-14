@@ -137,6 +137,7 @@ enum css_decl_code {
     cssd_word_break,
     cssd_box_sizing,
     cssd_caption_side,
+    cssd_ruby_position,
     cssd_content,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
@@ -247,6 +248,7 @@ static const char * css_decl_name[] = {
     "word-break",
     "box-sizing",
     "caption-side",
+    "ruby-position",
     "content",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
@@ -3134,6 +3136,16 @@ static const char * css_cs_names[] =
     NULL
 };
 
+// ruby-position value names
+static const char * css_rp_names[] =
+{
+    "", // css_rp_inherit
+    "alternate",
+    "over",
+    "under",
+    NULL
+};
+
 ///border width value names
 static const char * css_bw_names[]={
     "thin",
@@ -4669,6 +4681,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 IF_g_SET_n_AND_break(true, css_cs_inherit, css_cs_top);
                 n = parse_name( decl, css_cs_names, -1 );
                 break;
+            case cssd_ruby_position:
+                IF_g_SET_n_AND_break(true, css_rp_inherit, css_rp_alternate);
+                n = parse_name( decl, css_rp_names, -1 );
+                break;
             case cssd_content:
                 {
                     if ( g >= 0 ) {
@@ -5404,6 +5420,11 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             break;
         case cssd_caption_side:
             style->Apply( (css_caption_side_t) *p++, &style->caption_side, imp_bit_caption_side, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_ruby_position:
+            style->Apply( (css_ruby_position_t) *p++, &style->ruby_position, imp_bit_ruby_position, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_cr_hint:
             {
