@@ -5982,7 +5982,8 @@ ldomElementWriter::ldomElementWriter(ldomDocument * document, lUInt16 nsid, lUIn
     _isSection = (id==el_section);
 
     #if MATHML_SUPPORT==1
-        _insideMathML = (_parent && _parent->_insideMathML) || (id==el_math);
+        _insideMathML = (_parent && _parent->_insideMathML) || (id==el_math && _document->isDefStyleSet());
+            // (Don't handle any MathML stuff when no default style set, ie. when called from getBalancedHTML())
     #endif
 
     // Default (for elements not specified in fb2def.h) is to allow text
@@ -9050,7 +9051,7 @@ ldomNode * ldomDocumentWriter::OnTagOpen( const lChar32 * nsname, const lChar32 
     lUInt16 nsid = (nsname && nsname[0]) ? _document->getNsNameIndex(nsname) : 0;
 
     #if MATHML_SUPPORT==1
-        if ( (_currNode && _currNode->_insideMathML) || (id == el_math) ) {
+        if ( (_currNode && _currNode->_insideMathML) || (id == el_math && _document->isDefStyleSet()) ) {
             // This may create a wrapping mathBox around this new element
             _mathMLHelper.handleMathMLtag(this, MATHML_STEP_BEFORE_NEW_CHILD, id);
         }
@@ -16246,7 +16247,7 @@ ldomNode * ldomDocumentWriterFilter::OnTagOpen( const lChar32 * nsname, const lC
     }
 
     #if MATHML_SUPPORT==1
-        if ( (_currNode && _currNode->_insideMathML) || (id == el_math) ) {
+        if ( (_currNode && _currNode->_insideMathML) || (id == el_math && _document->isDefStyleSet()) ) {
             // This may create a wrapping mathBox around this new element
             _mathMLHelper.handleMathMLtag(this, MATHML_STEP_BEFORE_NEW_CHILD, id);
         }
