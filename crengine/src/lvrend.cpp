@@ -12430,9 +12430,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             printf("GRW text: |%s|\n", UnicodeToLocal(text).c_str());
             printf("GRW text:  (dumb text size=%d)\n", font->getTextWidth(txt, len));
         #endif
-        #define MAX_TEXT_CHUNK_SIZE 4096
-        static lUInt16 widths[MAX_TEXT_CHUNK_SIZE+1];
-        static lUInt8 flags[MAX_TEXT_CHUNK_SIZE+1];
+        lUInt16 *widths = new lUInt16[len];
+        lUInt8 *flags = new lUInt8[len];
 
         // todo: use fribidi and split measurement at fribidi level change,
         // and beware left/right side bearing adjustments...
@@ -12684,6 +12683,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             len -= chars_measured;
             start += chars_measured;
         }
+        delete [] widths;
+        delete [] flags;
     }
     #ifdef DEBUG_GETRENDEREDWIDTHS
         printf("GRW current: max=%d word=%d (max=%d, min=%d)\n", curMaxWidth, curWordWidth, maxWidth, minWidth);
