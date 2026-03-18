@@ -5275,7 +5275,6 @@ private:
     LVFontCache _cache;
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
-    lString32 _requiredChars;
     #if (DEBUG_FONT_MAN==1)
     FILE * _log;
     #endif
@@ -5763,11 +5762,6 @@ public:
                 fprintf(_log, "=========================== LOGGING STARTED ===================\n");
             }
         #endif
-        // _requiredChars = U"azAZ09";//\x0410\x042F\x0430\x044F";
-        // Some fonts come without any of these (ie. NotoSansMyanmar.ttf), there's
-        // no reason to prevent them from being used.
-        // So, check only for the presence of the space char, hoping it's there in any font.
-        _requiredChars = U" ";
     }
 
     virtual void gc() // garbage collector
@@ -6115,17 +6109,8 @@ public:
 
     bool checkCharSet( FT_Face face )
     {
-        // TODO: check existance of required characters (e.g. cyrillic)
         if (face==NULL)
             return false; // invalid face
-        for ( int i=0; i<_requiredChars.length(); i++ ) {
-            lChar32 ch = _requiredChars[i];
-            FT_UInt ch_glyph_index = FT_Get_Char_Index( face, ch );
-            if ( ch_glyph_index==0 ) {
-                CRLog::debug("Required char not found in font: %04x", ch);
-                return false; // no required char!!!
-            }
-        }
         return true;
     }
 
