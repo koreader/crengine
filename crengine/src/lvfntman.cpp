@@ -1049,10 +1049,18 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
     FT_Bitmap*  bitmap = &slot->bitmap;
     int w = bitmap->width;
     int h = bitmap->rows;
-    LVFontGlyphCacheItem * item = LVFontGlyphCacheItem::newItem(local_cache, ch, w, h);
+    lUInt8 pixfmt = (bitmap->pixel_mode == FT_PIXEL_MODE_BGRA) ? 4 : 1;
+    int pitch = w * pixfmt;
+    LVFontGlyphCacheItem * item = LVFontGlyphCacheItem::newItem(local_cache, ch, w, h, pitch, pixfmt);
     if (!item)
         return 0;
-    if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
+    if ( bitmap->pixel_mode == FT_PIXEL_MODE_BGRA ) {
+        if (bitmap->buffer && w > 0 && h > 0) {
+            for (int y = 0; y < h; y++)
+                memcpy(item->bmp + y * pitch, bitmap->buffer + y * bitmap->pitch, w * 4);
+        }
+    }
+    else if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
         lUInt8 mask = 0x80;
         const lUInt8 * ptr = (const lUInt8 *)bitmap->buffer;
         lUInt8 * dst = item->bmp;
@@ -1109,10 +1117,18 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
     FT_Bitmap*  bitmap = &slot->bitmap;
     int w = bitmap->width;
     int h = bitmap->rows;
-    LVFontGlyphCacheItem *item = LVFontGlyphCacheItem::newItem(local_cache, index, w, h);
+    lUInt8 pixfmt = (bitmap->pixel_mode == FT_PIXEL_MODE_BGRA) ? 4 : 1;
+    int pitch = w * pixfmt;
+    LVFontGlyphCacheItem *item = LVFontGlyphCacheItem::newItem(local_cache, index, w, h, pitch, pixfmt);
     if (!item)
         return 0;
-    if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
+    if ( bitmap->pixel_mode == FT_PIXEL_MODE_BGRA ) {
+        if (bitmap->buffer && w > 0 && h > 0) {
+            for (int y = 0; y < h; y++)
+                memcpy(item->bmp + y * pitch, bitmap->buffer + y * bitmap->pitch, w * 4);
+        }
+    }
+    else if ( bitmap->pixel_mode==FT_PIXEL_MODE_MONO ) { //drawMonochrome
         lUInt8 mask = 0x80;
         const lUInt8 * ptr = (const lUInt8 *)bitmap->buffer;
         lUInt8 * dst = item->bmp;
@@ -1145,6 +1161,15 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
     return item;
 }
 #endif
+
+static inline void drawGlyphItem(LVDrawBuf * buf, int x, int y,
+        LVFontGlyphCacheItem * item, const lUInt32 * palette)
+{
+    if (item->bmp_pixelformat == 4)
+        buf->DrawColorGlyph(x, y, item->bmp, item->bmp_width, item->bmp_height, item->bmp_pitch, palette);
+    else
+        buf->Draw(x, y, item->bmp, item->bmp_width, item->bmp_height, palette);
+}
 
 // Each LVFontGlyphCacheItem is put in 2 caches:
 // - the LVFontLocalGlyphCache LVFreeTypeFace->_glyph_cache of the
@@ -1939,6 +1964,9 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
+            // Allow users to disable color font rendering by toggling hinting mode off
+            if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+                flags |= FT_LOAD_COLOR;
             hb_ft_font_set_load_flags(_hb_font, flags);
         }
         #endif
@@ -2099,6 +2127,8 @@ public:
                 else if (_hintingMode == HINTING_MODE_DISABLED) {
                     flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
                 }
+                if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+                    flags |= FT_LOAD_COLOR;
                 hb_ft_font_set_load_flags(_hb_font, flags);
             }
         }
@@ -3339,6 +3369,8 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
+            if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+                rend_flags |= FT_LOAD_COLOR;
             if (_synth_weight > 0 || _italic == 2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
                 // Also disable any hinting, as it would be wrong after embolden.
@@ -3416,6 +3448,8 @@ public:
             else if (_hintingMode == HINTING_MODE_DISABLED) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
             }
+            if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+                rend_flags |= FT_LOAD_COLOR;
 
             if (_synth_weight > 0 || _italic == 2) { // Don't render yet
                 rend_flags &= ~FT_LOAD_RENDER;
@@ -4325,12 +4359,10 @@ public:
                                     // gives x=x0+width, which is necessary to correctly draw any underline
                                     w = x0 + width - x;
                                 }
-                                buf->Draw(x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                drawGlyphItem(buf,
+                                          x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
                                           y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
-                                          item->bmp,
-                                          item->bmp_width,
-                                          item->bmp_height,
-                                          palette);
+                                          item, palette);
                                 x += w;
                             }
                         }
@@ -4364,12 +4396,9 @@ public:
                 LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
                 if (item) {
                     w = item->advance;
-                    buf->Draw( x + item->origin_x,
+                    drawGlyphItem(buf, x + item->origin_x,
                                y + _baseline - item->origin_y,
-                               item->bmp,
-                               item->bmp_width,
-                               item->bmp_height,
-                               palette);
+                               item, palette);
                     x  += w; // + letter_spacing; (let's not add any letter-spacing after hyphen)
                 }
             }
@@ -4477,12 +4506,9 @@ public:
                             x += (posInfo.width * cjk_width_scale_percent / 100 - posInfo.width) / 2;
                             cjk_dx = x0 + width - x - posInfo.width;
                         }
-                        buf->Draw(x + item->origin_x + posInfo.offset,
+                        drawGlyphItem(buf, x + item->origin_x + posInfo.offset,
                             y + _baseline - item->origin_y,
-                            item->bmp,
-                            item->bmp_width,
-                            item->bmp_height,
-                            palette);
+                            item, palette);
                         // Assume zero advance means it's a diacritic, and we should not apply
                         // any letter spacing on this char (now, and when justifying)
                         if ( posInfo.width != 0 )
@@ -4605,12 +4631,9 @@ public:
                         x += (w * cjk_width_scale_percent / 100 - w) / 2;
                         w = x0 + width - x;
                     }
-                    buf->Draw( x + FONT_METRIC_TO_PX(kerning) + item->origin_x,
+                    drawGlyphItem(buf, x + FONT_METRIC_TO_PX(kerning) + item->origin_x,
                         y + _baseline - item->origin_y,
-                        item->bmp,
-                        item->bmp_width,
-                        item->bmp_height,
-                        palette);
+                        item, palette);
 
                     // Assume zero advance means it's a diacritic, and we should not apply
                     // any letter spacing on this char (now, and when justifying)
@@ -4732,6 +4755,8 @@ public:
         else if (_hintingMode == HINTING_MODE_DISABLED) {
             rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
         }
+        if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+            rend_flags |= FT_LOAD_COLOR;
         if (_synth_weight > 0 || _italic == 2) { // Don't render yet
             rend_flags &= ~FT_LOAD_RENDER;
             // Also disable any hinting, as it would be wrong after embolden.
@@ -4775,12 +4800,12 @@ public:
         // This felt needed at some point to draw tall stretchy glyphs, but seems no longer needed
         // buf->setHidePartialGlyphs(false);
 
-        buf->Draw( x + pad_x,
-            y + pad_y,
-            bitmap->buffer,
-            bitmap->width,
-            bitmap->rows,
-            palette);
+        if (bitmap->pixel_mode == FT_PIXEL_MODE_BGRA)
+            buf->DrawColorGlyph( x + pad_x, y + pad_y,
+                bitmap->buffer, bitmap->width, bitmap->rows, bitmap->pitch, palette);
+        else
+            buf->Draw( x + pad_x, y + pad_y,
+                bitmap->buffer, bitmap->width, bitmap->rows, palette);
 
         // Restore original pixel size
         error = FT_Set_Pixel_Sizes(
@@ -5165,12 +5190,9 @@ public:
                 // avoid soft hyphens inside text string
                 w = item->advance;
                 if ( item->bmp_width && item->bmp_height && (!isHyphen || i==len) ) {
-                    buf->Draw( x + item->origin_x,
+                    drawGlyphItem(buf, x + item->origin_x,
                         y + _baseline - item->origin_y,
-                        item->bmp,
-                        item->bmp_width,
-                        item->bmp_height,
-                        palette);
+                        item, palette);
                 }
             }
             x  += w + letter_spacing;
@@ -7109,12 +7131,9 @@ int LVBaseFont::DrawTextString( LVDrawBuf * buf, int x, int y,
                 // avoid soft hyphens inside text string
                 w = item->advance;
                 if ( item->bmp_width && item->bmp_height ) {
-                    buf->Draw( x + item->origin_x,
+                    drawGlyphItem(buf, x + item->origin_x,
                         y + baseline - item->origin_y,
-                        item->bmp,
-                        item->bmp_width,
-                        item->bmp_height,
-                        palette);
+                        item, palette);
                 }
             }
             x  += w; // + letter_spacing;

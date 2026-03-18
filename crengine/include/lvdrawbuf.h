@@ -191,6 +191,10 @@ public:
     virtual void Resize( int dx, int dy ) = 0;
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette ) = 0;
+    /// draws color bitmap (premultiplied BGRA, 4 bytes per pixel)
+    virtual void DrawColorGlyph( int x, int y, const lUInt8 * bitmap, int width, int height, int pitch, const lUInt32 * __restrict palette ) {
+        CR_UNUSED7(x, y, bitmap, width, height, pitch, palette);
+    }
     /// draws image
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither=true ) = 0;
     /// draws part of source image, possible rescaled
@@ -424,6 +428,8 @@ public:
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither );
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
+    /// draws color bitmap (premultiplied BGRA, 4 bytes per pixel)
+    virtual void DrawColorGlyph( int x, int y, const lUInt8 * bitmap, int width, int height, int pitch, const lUInt32 * __restrict palette );
     /// constructor
     LVGrayDrawBuf(int dx, int dy, int bpp=2, void * auxdata = NULL );
     /// destructor
@@ -558,6 +564,8 @@ public:
     virtual void Draw( LVImageSourceRef img, int x, int y, int width, int height, bool dither );
     /// draws bitmap (1 byte per pixel) using specified palette
     virtual void Draw( int x, int y, const lUInt8 * bitmap, int width, int height, const lUInt32 * __restrict palette );
+    /// draws color bitmap (premultiplied BGRA, 4 bytes per pixel)
+    virtual void DrawColorGlyph( int x, int y, const lUInt8 * bitmap, int width, int height, int pitch, const lUInt32 * __restrict palette );
     /// returns scanline pointer
     virtual lUInt8 * GetScanLine( int y ) const;
 
