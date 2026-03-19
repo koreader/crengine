@@ -711,9 +711,10 @@ int langToCodepage( int lang )
         return 1252;
     case	0x0804	: //	Chinese China
     case	0x0004	: //	Chinese General
-    case	0x0c04	: //	Chinese Hong Kong
-    //case	0x0c04	: //	Chinese Macao
     case	0x1004	: //	Chinese Singapore
+        return 936;
+    case	0x0c04	: //	Chinese Hong Kong
+    case	0x1404	: //	Chinese Macao
     case	0x0404	: //	Chinese Taiwan
         return 950;
     case	0x041a	: //	Croatian
@@ -1253,6 +1254,10 @@ const lChar32 * GetCharsetName( int codepage )
 {
     switch ( codepage )
     {
+    case 936:
+        return U"cp936";
+    case 950:
+        return U"cp950";
     case 1251:
         return U"cp1251";
     case 1257:
