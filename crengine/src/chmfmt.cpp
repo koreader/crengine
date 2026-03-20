@@ -3,6 +3,7 @@
 //#define CHM_SUPPORT_ENABLED 1
 #if CHM_SUPPORT_ENABLED==1
 #include "../include/chmfmt.h"
+#include "../include/lvxml.h"
 #include <chm_lib.h>
 
 #define DUMP_CHM_DOC 0
@@ -481,11 +482,14 @@ public:
         }
         return lString8::empty_str;
     }
-    void getUrlList( lString32Collection & urlList ) {
+    void getUrlList( lString32Collection & urlList, const lChar32 * decTable ) {
         for ( int i=0; i<_table.length(); i++ ) {
             lString8 s = _table[i]->url;
             if ( !s.empty() ) {
-                urlList.add(Utf8ToUnicode(s));
+                if ( decTable )
+                    urlList.add(ByteToUnicode(s, decTable));
+                else
+                    urlList.add(Utf8ToUnicode(s));
             }
         }
     }
@@ -608,10 +612,10 @@ public:
         return NULL;
     }
 
-    void getUrlList( lString32Collection & urlList ) {
+    void getUrlList( lString32Collection & urlList, const lChar32 * decTable ) {
         if ( !_strings )
             return;
-        _strings->getUrlList( urlList );
+        _strings->getUrlList( urlList, decTable );
 //        for ( int i=0; i<_table.length(); i++ ) {
 //            lString8 s = _strings->findByOffset( _table[i]->urlStrOffset );
 //            if ( !s.empty() ) {
@@ -683,7 +687,11 @@ class CHMSystem {
                 _lcid = _reader.readInt32(err);
                 int codepage = langToCodepage( _lcid );
                 const lChar32 * enc_name = GetCharsetName( codepage );
-                const lChar32 * table = GetCharsetByte2UnicodeTable( codepage );
+                // CHM metadata for CJK languages may be in multibyte encodings
+                // not handled by single-byte lookup tables.
+                const lChar32 * table = NULL;
+                if ( codepage!=936 && codepage!=950 )
+                    table = GetCharsetByte2UnicodeTable( codepage );
 		_language = langToLanguage( _lcid );
                 if ( enc_name!=NULL ) {
                     _enc_table = table;
@@ -714,7 +722,7 @@ class CHMSystem {
         case 16:
             _defaultFont = _reader.readString(-1, length);
             CRLog::info("CHM default font: %s", _defaultFont.c_str());
-            if ( _enc_table==NULL ) {
+            if ( _enc_name.empty() ) {
                 for ( int i=_defaultFont.length()-1; i>0; i-- ) {
                     if ( _defaultFont[i]==',' ) {
                         int cs = _defaultFont.substr(i+1, _defaultFont.length()-i-1).atoi();
@@ -762,7 +770,7 @@ class CHMSystem {
             CRLog::error("CHM decoding error: %d blocks decoded, stream bytes left=%d", count, _reader.bytesLeft() );
             return false;
         }
-        if ( _enc_table==NULL ) {
+        if ( _enc_name.empty() ) {
             _enc_table = GetCharsetByte2UnicodeTable( 1252 );
             _enc_name = cs32("windows-1252");
         }
@@ -789,6 +797,20 @@ public:
     }
 
     lString32 decodeString( const lString8 & str ) {
+        if ( !_enc_table && (_enc_name==U"cp936" || _enc_name==U"cp950") ) {
+            LVTextParser parser( LVCreateStringStream(str), NULL, true );
+            parser.SetCharset(_enc_name.c_str());
+            parser.Reset();
+            lString32 res;
+            lUInt32 flags = 0;
+            while ( !parser.Eof() ) {
+                lString32 line = parser.ReadLine( str.length() + 1, flags );
+                if ( !res.empty() )
+                    res << U'\n';
+                res << line;
+            }
+            return res;
+        }
         return ByteToUnicode( str, _enc_table );
     }
 
@@ -841,7 +863,13 @@ public:
     void getUrlList( lString32Collection & urlList ) {
         if ( !_urlTable )
             return;
-        _urlTable->getUrlList(urlList);
+        if ( !_enc_table && (_enc_name==U"cp936" || _enc_name==U"cp950" || _enc_name==U"gbk" || _enc_name==U"gb2312") ) {
+            // Avoid adding mojibake paths from #URLSTR when only multibyte decoding is available.
+            // TOC-derived paths are still used and are generally sufficient.
+            CRLog::warn("CHM: skipping #URLSTR list for multibyte charset %s", LCSTR(_enc_name));
+            return;
+        }
+        _urlTable->getUrlList(urlList, _enc_table);
     }
 };
 
@@ -1144,8 +1172,10 @@ public:
             lString32 fname = _fileList[i];
             CRLog::trace("Import file %s", LCSTR(fname));
             LVStreamRef stream = _cont->OpenStream(fname.c_str(), LVOM_READ);
-            if ( stream.isNull() )
+            if ( stream.isNull() ) {
+                CRLog::warn("CHM: cannot open fragment %s", LCSTR(fname));
                 continue;
+            }
             _appender->setCodeBase(fname);
             LVHTMLParser parser(stream, _appender);
             parser.SetCharset(_defEncodingName.c_str());
