@@ -193,6 +193,7 @@ struct css_style_rec_tag {
     css_style_rec_t *    pseudo_elem_before_style;
     css_style_rec_t *    pseudo_elem_after_style;
     css_style_rec_t *    pseudo_elem_first_letter_catcher_style;
+    css_style_rec_t *    pseudo_elem_first_line_style;
 
     css_style_rec_tag()
     : refCount(0)
@@ -251,6 +252,7 @@ struct css_style_rec_tag {
     , pseudo_elem_before_style(NULL)
     , pseudo_elem_after_style(NULL)
     , pseudo_elem_first_letter_catcher_style(NULL)
+    , pseudo_elem_first_line_style(NULL)
     {
         // css_length_t fields are initialized by css_length_tag()
         // to (css_val_screen_px, 0)

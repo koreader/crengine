@@ -29,6 +29,12 @@
 //=====================================================
 XS_BEGIN_TAGS
 
+// Internal element created for ::first-line DOM cloning
+// (clones of source element/text nodes inside pseudoElem[FirstLine])
+// Keep this one first (so its enum value is 1 and we can use it hardcoded
+// in ldomNode::*Effective* methods in lvtinydom.h to allow inlining)
+XS_TAG1D( cloneNode, false, css_d_none, css_ws_inherit )
+
 // Boxing elements (inserted in the DOM tree between original parent and children):
 //
 // Internal element for block wrapping inline elements (without a proper parent
@@ -442,11 +448,14 @@ XS_ATTR2( required_namespace, "required-namespace" ) // <epub:case required-name
 // we explicitely set while building the DOM. So, for our internal elements
 // needs, let's use some uppercase to avoid conflicts with HTML content
 // and the risk to have them matched by publishers CSS selectors.
-XS_ATTR( T )      // to flag subtype of boxing internal elements if needed
+XS_ATTR( T )      // to flag subtype of boxing internal elements if needed (and cloneNode of text nodes)
 XS_ATTR( Before ) // for pseudoElem internal element
 XS_ATTR( After )  // for pseudoElem internal element
 XS_ATTR( FirstLetter )    // for pseudoElem internal element (the actual first-letter holder)
-XS_ATTR( HasFirstLetter ) // on elements matched by ::first-letter that will get an inner pseudoElem FirstLetter
+XS_ATTR( HasFirstLetter ) // on elements matched by ::first-letter that will get an inner pseudoElem[FirstLetter]
+XS_ATTR( FirstLine )      // for pseudoElem internal element (the ::first-line style carrier)
+XS_ATTR( HasFirstLine )   // on elements matched by ::first-line that will get an inner pseudoElem[FirstLine]
+XS_ATTR( SrcId )        // for cloneNode: stores the data index of the source node
 XS_ATTR( ParserHint )   // HTML parser hints (used for Lib.ru support)
 XS_ATTR( NonLinear )    // for non-linear items in EPUB
 XS_ATTR( Source )       // set on DocFragment to the path of the file in the EPUB, for info

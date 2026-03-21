@@ -78,11 +78,12 @@ extern "C" {
 #define LTEXT_SRC_IS_CLEAR_BOTH      0x03000000  // text follows <BR style="clear: both">
 #define LTEXT_SRC_IS_CLEAR_LAST      0x04000000  // ignorable text, added when nothing follows <BR style="clear: both">
 
-#define LTEXT_FIT_GLYPHS             0x08000000  // Avoid glyph overflows and override at line edges and between text nodes
+#define LTEXT_IS_FIRST_LINE_ENOUGH   0x04000000  // helper for renderFinalBlock (same bit as previous, no conflict the way each are used)
+#define LTEXT_IS_FIRST_LINE_CLONE    0x08000000  // text is duplicated for CSS ::first-line
 
 #define LTEXT_HAS_EXTRA              0x10000000  // Has extra properties (see below)
 #define LTEXT_MATH_TRANSFORM         0x20000000  // Text might need to be stretched or tweaked
-#define LTEXT__AVAILABLE_BIT_31__    0x40000000
+#define LTEXT_FIT_GLYPHS             0x40000000  // Avoid glyph overflows and override at line edges and between text nodes
 #define LTEXT_LEGACY_RENDERING       0x80000000  // Legacy text rendering tweaks
 
 // Object flags (used when LTEXT_SRC_IS_OBJECT is set)

@@ -93,7 +93,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.76k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.77k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0034
 
@@ -4759,6 +4759,10 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
             }
         }
         if ( WNEFLAG(SHOW_REND_METHOD) ) {
+            // For cloneNode, also show the element name of the source node
+            if ( node->getNodeId() == el_cloneNode && !node->hasAttribute(attr_T) ) {
+                *stream << " " << UnicodeToUtf8(node->getCloneNodeSource()->getNodeName());
+            }
             *stream << " ~";
             switch ( node->getRendMethod() ) {
                 case erm_invisible:          *stream << "X";     break;
@@ -6237,15 +6241,29 @@ void ldomNode::ensurePseudoElement( bool is_before ) {
     int insertChildIndex = -1;
     int nb_children = getChildCount();
     if ( is_before ) { // ::before
-        insertChildIndex = 0; // always to be inserted first, if not already there
+        // ::before should be at position 0, or at position 1 if FirstLine is at position 0.
+        insertChildIndex = 0; // default: insert first
         if ( nb_children > 0 ) {
-            ldomNode * child = getChildNode(0); // should always be found as the first node
+            ldomNode * child = getChildNode(0);
             // pseudoElem might have been wrapped by a inlineBox, autoBoxing, floatBox...
             while ( child && child->isBoxingNode() && child->getChildCount()>0 )
                 child = child->getChildNode(0);
             if ( child && child->getNodeId() == el_pseudoElem && child->hasAttribute(attr_Before) ) {
-                // Already there, no need to create it
+                // Already there at position 0, no need to create it
                 insertChildIndex = -1;
+            }
+            else if ( child && child->getNodeId() == el_pseudoElem && child->hasAttribute(attr_FirstLine) ) {
+                // FirstLine is at position 0; ::before belongs at position 1
+                insertChildIndex = 1;
+                if ( nb_children > 1 ) {
+                    ldomNode * child1 = getChildNode(1);
+                    while ( child1 && child1->isBoxingNode() && child1->getChildCount()>0 )
+                        child1 = child1->getChildNode(0);
+                    if ( child1 && child1->getNodeId() == el_pseudoElem && child1->hasAttribute(attr_Before) ) {
+                        // Already there at position 1, no need to create it
+                        insertChildIndex = -1;
+                    }
+                }
             }
         }
     }
@@ -6308,6 +6326,11 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
     // initStyle parameter:
     //   - true: call initNodeStyle() on newly created pseudoElem (during DOM building from onBodyExit)
     //   - false: skip initNodeStyle() as it will be called during recursive style pass (during stylesheet re-application)
+
+    // Do nothing on a cloneNode, this will have been done on its source
+    if ( getNodeId() == el_cloneNode ) {
+        return;
+    }
 
     // First, ensure the HasFirstLetter attribute is set
     if ( !hasAttribute(attr_HasFirstLetter) ) {
@@ -6510,6 +6533,152 @@ ldomNode * ldomNode::getFirstLetterTextNode() const
         return nextSibling;
     }
     return NULL;
+}
+
+// Helper function for ::first-line, to recursively clone a node and its children.
+// Clones only store a reference (SrcId) to the original node.
+// Queries (element name, attributes, text content...) can be delegated to the original
+// node by using the ldomNode::*Effective*() variants of the existing methods.
+static ldomNode * cloneNodeRecursively(ldomNode * source, ldomNode * parent) {
+#if BUILD_LITE!=1
+    if ( !source || !parent )
+        return NULL;
+
+    // Create a cloneNode element for both text and element nodes
+    ldomNode * clone = parent->insertChildElement( parent->getChildCount(), LXML_NS_NONE, el_cloneNode );
+    // Store a reference to the original node
+    lString32 nodeIdStr;
+    nodeIdStr << fmt::decimal(source->getDataIndex());
+    clone->setAttributeValue(LXML_NS_NONE, attr_SrcId, nodeIdStr.c_str());
+
+    if ( source->isText() ) {
+        // For text node clones, mark with empty attr_T so that setNodeStyle()
+        // can quickly set a dummy style, and for debugging visibility
+        clone->setAttributeValue(LXML_NS_NONE, attr_T, U"");
+        // These shouldn't need a style, but safer to have one to pass checks
+        // of style in various odd places without crashing
+        clone->initNodeStyle();
+    }
+    else if ( source->isElement() ) {
+        clone->initNodeStyle();
+        // Recursively clone children (including pseudoElem[Before/FirstLetter/After],
+        // which get to be styled with the ::first-line style)
+        for ( int i = 0; i < source->getChildCount(); i++ ) {
+            ldomNode * childSource = source->getChildNode(i);
+            cloneNodeRecursively(childSource, clone);
+        }
+    }
+    return clone;
+#else
+    return NULL;
+#endif
+}
+
+// Helper function for ::first-line, to recursively copy rendMethod from source nodes to cloneNodes
+static void copyRendMethodFromSources(ldomNode * node) {
+#if BUILD_LITE!=1
+    if ( !node || !node->isElement() )
+        return;
+    if ( node->getNodeId() == el_cloneNode ) {
+        ldomNode * source = node->getCloneNodeSource();
+        if ( source ) {
+            if ( source->isElement() ) {
+                node->setRendMethod( source->getRendMethod() );
+            }
+            else {
+                // Not really needed, but safer, and let's have ~i (inline)
+                // rather than ~X (invisible) in writeNodeEx() HTML output.
+                node->setRendMethod( erm_inline );
+            }
+        }
+    }
+    for ( int i = 0; i < node->getChildCount(); i++ ) {
+        copyRendMethodFromSources( node->getChildNode(i) );
+    }
+#endif
+}
+
+/// Get the original node from a cloneNode element (for ::first-line)
+/// Returns NULL if this is not a cloneNode or if the original node cannot be found
+ldomNode * ldomNode::getCloneNodeSource() const {
+#if BUILD_LITE!=1
+    if ( !isElement() || getNodeId() != el_cloneNode )
+        return NULL;
+    lString32 srcId = getAttributeValue(attr_SrcId);
+    if ( srcId.empty() )
+        return NULL;
+    int nodeDataIndex = srcId.atoi();
+    if ( nodeDataIndex <= 0 )
+        return NULL;
+    ldomDocument * doc = getDocument();
+    if ( !doc )
+        return NULL;
+    ldomNode * sourceNode = doc->getTinyNode(nodeDataIndex);
+    return sourceNode;
+#else
+    return NULL;
+#endif
+}
+
+void ldomNode::ensureFirstLine() {
+#if BUILD_LITE!=1
+    // This method handles ::first-line pseudo element creation by cloning
+    // the paragraph's inner DOM subtree into the pseudoElem[FirstLine].
+    // The clones naturally inherit from the ::first-line style, solving
+    // the measurement/layout issue.
+    //
+    // Called at the end of initNodeRendMethod() for erm_final nodes with
+    // attr_HasFirstLine, so all boxing (inlineBox, autoBox, etc.) is already
+    // done and children have their final rendMethods.
+        // Note (but a bit uncertain about this): as this is called at initRendMethod() time,
+        // in case of a re-rendering where it happens after the full DOM is styled (unlike
+        // in the initial DOM building), we may have set HasFirstLine, which will cause
+        // the pseudoElem[FirstLine] to be created below, but its initNodeStyle() won't
+        // meet the publisher stylesheets, but only the user-agent stylesheet: if we are
+        // unmasking ::first-line (ie. removing "::first-line {display: none}" from style
+        // tweaks), we may not meet the original publisher styles, so we won't see
+        // them immediately. But as an element was added, the style display hash will change,
+        // and we will be proposed to reload the document, which should make things right.
+
+    // Check if we already have a FirstLine pseudoElem child
+    // Use getUnboxedFirstChild to find it even if it's been boxed (e.g., in an inlineBox)
+    ldomNode * firstLineElem = getUnboxedFirstChild(true, el_pseudoElem);
+    if ( firstLineElem && !firstLineElem->hasAttribute(attr_FirstLine) ) {
+        firstLineElem = NULL; // Found a pseudoElem, but not FirstLine (e.g., ::before)
+    }
+    if ( !firstLineElem ) {
+        // Create the FirstLine pseudo element as the first child of this element.
+        firstLineElem = insertChildElement( 0, LXML_NS_NONE, el_pseudoElem );
+        firstLineElem->setAttributeValue(LXML_NS_NONE, attr_FirstLine, U"");
+        firstLineElem->initNodeStyle();
+    }
+
+    if ( firstLineElem->getStyle()->display == css_d_none ) {
+        firstLineElem->setRendMethod(erm_invisible);
+        // Don't create cloneNodes
+        return;
+    }
+
+    // Clone children if the pseudoElem has no cloneNodes yet.
+    // If some pseudoElem[Before] is introduced later, we won't get it among
+    // our original cloneNode, but as a new element has been added, we will
+    // get proposed to reload the document, which should make things right.
+    if ( firstLineElem->getChildCount() == 0 ) {
+        // Clone all children of this element into firstLineElem
+        // Skip the first child (i=1) since it's the firstLineElem itself (possibly boxed)
+        for ( int i = 1; i < (int)getChildCount(); i++ ) {
+            ldomNode * child = getChildNode(i);
+            cloneNodeRecursively(child, firstLineElem);
+        }
+    }
+
+    // Whether created or already existing, set it erm_inline as not display:none
+    firstLineElem->setRendMethod(erm_inline);
+    // Copy rendMethods from the original (source) nodes to their clones.
+    // Since we're called from initNodeRendMethod() after all boxing is done,
+    // the originals have their final rendMethods.
+    copyRendMethodFromSources(firstLineElem);
+#endif
 }
 
 
@@ -7280,6 +7449,12 @@ void ldomNode::initNodeRendMethod()
         return;
     if ( isRoot() ) {
         setRendMethod(erm_block);
+        return;
+    }
+    if ( getNodeId()==el_cloneNode ) {
+        // Invisible for now, these will be later updated with the value from source
+        // when we meet/create the pseudoElem[FirstLine] that contains them.
+        setRendMethod(erm_invisible);
         return;
     }
 
@@ -8676,6 +8851,14 @@ void ldomNode::initNodeRendMethod()
         }
     #endif
 
+    // If this node is erm_final and has ::first-line CSS rules, create the
+    // pseudoElem[FirstLine] and clone the children now that all boxing is done.
+    // Children have their final rendMethods, so clones will reflect the correct
+    // post-boxing DOM structure.
+    if ( getRendMethod() == erm_final && hasAttribute(attr_HasFirstLine) ) {
+        ensureFirstLine();
+    }
+
     persist();
 }
 #endif
@@ -8718,6 +8901,9 @@ void ldomElementWriter::onBodyExit()
     if ( _element->hasAttribute(attr_HasFirstLetter) ) {
         _element->ensureFirstLetter(true); // true = init style during DOM building
     }
+
+    // pseudoElem[FirstLine] creation is deferred to initNodeRendMethod()
+    // which runs after all boxing is complete (inlineBox, autoBox, etc.).
 
 //    if ( _element->getStyle().isNull() ) {
 //        lString32 path;
@@ -9886,6 +10072,12 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         finalNode->renderFinalBlock( txtform, &fmt, inner_width );
     }
 
+    // Note: pt may be on the first-line of a ::first-line paragraph,
+    // the word we will find may have as ->object a cloneNode.
+    // The xpointer we will return will reference the effective source node
+    // (too early to guarantee that, but it feels we won't ever return
+    // a xpointer to a cloneNode).
+
     // First, look if pt happens to be in some float
     // (this may not work with floats with negative margins)
     int fcount = txtform->GetFloatCount();
@@ -9896,6 +10088,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             continue;
         if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + (int)flt->height ) {
             // pt is inside this float.
+            // (For floats in ::first-line, srctext->object references the original float element,
+            // and never the clondeNode, so no need to use getEffectiveNode() here.)
             ldomNode * node = (ldomNode *) flt->srctext->object; // floatBox node
             ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
             if ( !inside_ptr.isNull() ) {
@@ -9977,6 +10171,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             // Found right word/image
             const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
             ldomNode * node = (ldomNode *)src->object;
+            // (For inline-boxes and images in ::first-line, srctext->object references the original
+            // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
             if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                 // pt is inside this inline-block inlineBox node
                 ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -9991,14 +10187,14 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             }
             // It is a word
             if ( find_first ) { // return xpointer to logical start of word
-                if ( node->isElement() ) // (see comment about <br/><br/> below)
-                    return ldomXPointer(node, 0);
-                return ldomXPointer( node, word->t.start );
+                if ( node->isEffectiveElement() ) // (see comment about <br/><br/> below)
+                    return ldomXPointer(node->getEffectiveNode(), 0);
+                return ldomXPointer( node->getEffectiveNode(), word->t.start );
             }
             else { // return xpointer to logical end of word
-                if ( node->isElement() )
-                    return ldomXPointer(node, 0);
-                return ldomXPointer( node, word->t.start + word->t.len );
+                if ( node->isEffectiveElement() )
+                    return ldomXPointer(node->getEffectiveNode(), 0);
+                return ldomXPointer( node->getEffectiveNode(), word->t.start + word->t.len );
             }
         }
 
@@ -10037,6 +10233,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 if ( word->flags & LTEXT_WORD_IS_PAD ) {
                     continue;
                 }
+                // (For inline-boxes and images in ::first-line, srctext->object references the original
+                // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
                 if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                     // pt is inside this inline-block inlineBox node
                     ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -10062,7 +10260,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 lUInt16 width[512];
                 lUInt8 flg[512];
 
-                lString32 str = node->getText();
+                lString32 str = node->getEffectiveText();
+
                 // We need to transform the node text as it had been when
                 // rendered (the transform may change chars widths) for the
                 // XPointer offset to be correct
@@ -10110,11 +10309,11 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             // after the logical end of that RTL word
                         }
                     }
-                    if ( node->isElement() ) // possibly some <br> or generated text not part of a text node
-                        return ldomXPointer(node, 0);
+                    if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
+                        return ldomXPointer(node->getEffectiveNode(), 0);
                     // printf("word %d/%d, len=%d indice=%d (%d > %d + %d - %d)\n", w+1, wc, word->t.len,
                     //              pos, x, word->x, word->width, pos<word->t.len?width[pos]:-1);
-                    return ldomXPointer( node, word->t.start + pos );
+                    return ldomXPointer( node->getEffectiveNode(), word->t.start + pos );
                 }
                 else {
                     int pos = word->t.len; // default to after this word if we don't find better
@@ -10144,11 +10343,11 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             // Otherwise (not sure if can happen): use the default of word->t.len
                         }
                     }
-                    if ( node->isElement() ) // possibly some <br> or generated text not part of a text node
-                        return ldomXPointer(node, 0);
+                    if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
+                        return ldomXPointer(node->getEffectiveNode(), 0);
                     // printf("word %d/%d, len=%d indice=%d (%d < %d + %d)\n", w+1, wc, word->t.len,
                     //              pos, x, word->x, pos<word->t.len?width[pos]:-1);
-                    return ldomXPointer( node, word->t.start + pos );
+                    return ldomXPointer( node->getEffectiveNode(), word->t.start + pos );
                 }
                 /* Previously, we returned differently whether x was in the left or in the right half of a glyph:
                 if ( word_is_rtl ) {
@@ -10344,13 +10543,27 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         int lastIndex = -1;
         int lastLen = -1;
         int lastOffset = -1;
+        // If txtform contains srclines from the cloned nodes (styled from ::first-line),
+        // we'll find two srclines, one to use when scanning the 1st line, the other when
+        // scanning the next lines
+        int firstLineSrcIndex = -1;
+        int laterLineSrcIndex = -1;
+        // It seems we are always called on a xpointer referencing a real node, and never a cloneNode.
+        // The following has not been tested when being called on a xpointer to a cloneNode.
+
         ldomXPointerEx xp(node, offset);
+        // printf("getRect(%s)\n", LCSTR(xp.toStringV1()));
         for ( int i=0; i<txtform->GetSrcCount(); i++ ) {
             const src_text_fragment_t * src = txtform->GetSrcInfo(i);
             bool isObject = (src->flags&LTEXT_SRC_IS_OBJECT)!=0;
             if ( isObject && src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) // skip floats
                 continue;
-            if ( src->object == node ) {
+            bool is_first_line_clone = src->flags & LTEXT_IS_FIRST_LINE_CLONE;
+            if ( src->object == node || (is_first_line_clone && src->object && ((ldomNode*)(src->object))->getEffectiveNode() == node)) {
+                /*
+                printf(" if (%x==%x || %x==%x)\n", src->object, node , ((ldomNode*)(src->object))->getEffectiveNode(), node);
+                printf(" %d %s %s vs. %d\n", i, LCSTR(ldomXPointer((ldomNode*)(src->object),src->t.offset).toStringV1()),
+                                    LCSTR(ldomXPointer(((ldomNode*)(src->object))->getEffectiveNode() ,src->t.offset).toStringV1()), offset); */
                 // Check and handle the case of ::first-letter
                 if ( src->t.offset > 0 && offset < src->t.offset) {
                     // Currently, we can only get a non-0 src->t.offset if that text
@@ -10364,7 +10577,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                     // could use: srcIndex=i-1 , but this does not handle all
                     // cases, especially when the first-letter is a float.)
                     // So, find the pseudoElem that carries that first-letter
-                    ldomNode * pseudoElem = node->getFirstLetterPseudoElem();
+                    ldomNode * pseudoElem = node->getEffectiveFirstLetterPseudoElem();
                     if ( pseudoElem ) {
                         // Call us again on that pseudoElem with the same offset as provided
                         ldomXPointer xpFirstLetter(pseudoElem, offset);
@@ -10382,18 +10595,34 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                     ldomNode * textNode = node->getFirstLetterTextNode();
                     if ( textNode ) {
                         node = textNode;
+                        srcIndex = i;
+                        srcLen = isObject ? 0 : src->t.len;
+                        // If we were on a ::first-line, we did resolve above the cloneNode to
+                        // its pseudoElem: no need for the first/later LineSrcIndex gathering below.
+                        break;
                     }
                 }
                 // Generic text node case: we found the src that came from our node
-                srcIndex = i;
-                srcLen = isObject ? 0 : src->t.len;
-                break;
+                if ( is_first_line_clone ) {
+                    firstLineSrcIndex = i;
+                    // srcLen should be valid for both srcIndex
+                    // Don't break, we want to find the non-first-line srcIndex
+                }
+                else {
+                    srcIndex = i;
+                    if ( firstLineSrcIndex >= 0)
+                        laterLineSrcIndex = i;
+                    srcLen = isObject ? 0 : src->t.len;
+                    break;
+                }
             }
             lastIndex = i;
             lastLen =  isObject ? 0 : src->t.len;
             lastOffset = isObject ? 0 : src->t.offset;
             ldomXPointerEx xp2((ldomNode*)src->object, lastOffset);
-            if ( xp2.compare(xp)>0 ) {
+            if ( !is_first_line_clone && xp2.compare(xp)>0 ) {
+                // (Not if we are still in the first line clones segment,
+                // we want to use the one from the normal segment.)
                 srcIndex = i;
                 srcLen = lastLen;
                 offset = lastOffset;
@@ -10416,6 +10645,14 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         bool hasBestBidiRect = false;
 
         for ( int l = 0; l<txtform->GetLineCount(); l++ ) {
+            if ( firstLineSrcIndex >= 0) {
+                if ( l == 0 )
+                    srcIndex = firstLineSrcIndex;
+                else if ( laterLineSrcIndex >= 0 )
+                    srcIndex = laterLineSrcIndex;
+                // 'node' is the original text node - below when measuring/transforming,
+                // we should be careful using the srcIndex's ->font and ->object node styles.
+            }
             const formatted_line_t * frmline = txtform->GetLineInfo(l);
             bool line_is_bidi = frmline->flags & LTEXT_LINE_IS_BIDI;
             bool para_is_rtl = frmline->flags & LTEXT_LINE_PARA_IS_RTL;
@@ -10538,10 +10775,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                             }
                             else { // exact word found
                                 // Measure word
-                                LVFont *font = (LVFont *) txtform->GetSrcInfo(srcIndex)->t.font;
+                                const src_text_fragment_t * src = txtform->GetSrcInfo(srcIndex);
+                                LVFont *font = (LVFont *)src->t.font;
                                 lUInt16 w[512];
                                 lUInt8 flg[512];
-                                lString32 str = node->getText();
+                                lString32 str = node->getEffectiveText();
                                 if (offset == word->t.start && str.empty()) {
                                     rect.left = word->x + rc.left + frmline->x;
                                     rect.top = rc.top + frmline->y;
@@ -10557,7 +10795,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                 // We need to transform the node text as it had been when
                                 // rendered (the transform may change chars widths) for the
                                 // rect to be correct
-                                switch ( node->getParentNode()->getStyle()->text_transform ) {
+                                css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
+                                switch ( text_transform ) {
                                     case css_tt_uppercase:
                                         str.uppercase();
                                         break;
@@ -10581,8 +10820,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                     flg,
                                     word->width+50,
                                     '?',
-                                    txtform->GetSrcInfo(srcIndex)->lang_cfg,
-                                    txtform->GetSrcInfo(srcIndex)->letter_spacing + word->added_letter_spacing,
+                                    src->lang_cfg,
+                                    src->letter_spacing + word->added_letter_spacing,
                                     false,
                                     hints);
                                 rect.top = rc.top + frmline->y;
@@ -10726,10 +10965,11 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                 ( (offset < word->t.start+word->t.len) ||
                                   (offset==srcLen && offset == word->t.start+word->t.len) ) ) {
                         // pointer inside this word
-                        LVFont *font = (LVFont *) txtform->GetSrcInfo(srcIndex)->t.font;
+                        const src_text_fragment_t * src = txtform->GetSrcInfo(srcIndex);
+                        LVFont *font = (LVFont *)src->t.font;
                         lUInt16 w[512];
                         lUInt8 flg[512];
-                        lString32 str = node->getText();
+                        lString32 str = node->getEffectiveText();
                         // With "|| (extended && offset < word->t.start)" added to the first if
                         // above, we may now be here with: offset = word->t.start = 0
                         // and a node->getText() returning THE lString32::empty_str:
@@ -10750,7 +10990,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         // We need to transform the node text as it had been when
                         // rendered (the transform may change chars widths) for the
                         // rect to be correct
-                        switch ( node->getParentNode()->getStyle()->text_transform ) {
+                        css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
+                        switch ( text_transform ) {
                             case css_tt_uppercase:
                                 str.uppercase();
                                 break;
@@ -10774,8 +11015,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                             flg,
                             word->width+50,
                             '?',
-                            txtform->GetSrcInfo(srcIndex)->lang_cfg,
-                            txtform->GetSrcInfo(srcIndex)->letter_spacing + word->added_letter_spacing,
+                            src->lang_cfg,
+                            src->letter_spacing + word->added_letter_spacing,
                             false,
                             hints );
                         // chx is the width of previous chars in the word
@@ -17435,10 +17676,13 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered, lUInt32 force_n
                         // elements wrapping floats when toggling BLOCK_RENDERING_ENHANCED
                         if (style.get()->float_ > css_f_none)
                             _nodeDisplayStyleHash += 123;
+                        // printf("h idx=%d id=%s d:%d w:%d\n", buf[j].getDataIndex(), LCSTR(buf[j].getNodeName()), style.get()->display, style.get()->white_space);
                     }
+                    // else { printf("h idx=%d id=%s style is null\n", buf[j].getDataIndex(), LCSTR(buf[j].getNodeName())); }
                     //printf("element %d %d style hash: %x\n", i, j, sh);
                     LVFontRef font = buf[j].getFont();
                     lUInt32 fh = calcHash( font );
+                    // printf("h idx=%d id=%s sh:%x fh:%x\n", buf[j].getDataIndex(), LCSTR(buf[j].getNodeName()), sh, fh);
                     res = res * 31 + fh;
                     //printf("element %d %d font hash: %x\n", i, j, fh);
 //                    if ( maxlog>0 && sh==0 ) {
@@ -17453,6 +17697,7 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered, lUInt32 force_n
         // because of the presence of a cache file
         if ( _boxingWishedButPreventedByCache )
             _nodeDisplayStyleHash += 79;
+        // printf("done %x %x\n", res, _nodeDisplayStyleHash);
 
         CRLog::debug("  COMPUTED _nodeStyleHash %x", res);
         _nodeStyleHash = res;
@@ -17482,6 +17727,7 @@ lUInt32 tinyNodeCollection::calcStyleHash(bool already_rendered, lUInt32 force_n
     res = (res * 31 + globalHash) * 31 + docFlags;
 //    CRLog::info("Calculated style hash = %08x", res);
     CRLog::debug("calcStyleHash done");
+    // printf("end %x %x\n", res, _nodeDisplayStyleHash);
     return res;
 }
 
