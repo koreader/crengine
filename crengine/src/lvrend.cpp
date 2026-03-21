@@ -1540,7 +1540,7 @@ public:
                             const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
                             if ( src && src->object ) {
                                 ldomNode * node = (ldomNode*)src->object;
-                                ldomNode * parent = node->getParentNode();
+                                ldomNode * parent = node->getEffectiveParentNode();
                                 while (parent && parent->getNodeId() != el_a)
                                     parent = parent->getParentNode();
                                 if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
@@ -1757,7 +1757,7 @@ public:
                                         const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
                                         if ( src && src->object ) {
                                             ldomNode * node = (ldomNode*)src->object;
-                                            ldomNode * parent = node->getParentNode();
+                                            ldomNode * parent = node->getEffectiveParentNode();
                                             while (parent && parent->getNodeId() != el_a)
                                                 parent = parent->getParentNode();
                                             if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
@@ -3272,19 +3272,36 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                        int indent, int line_h, TextLangCfg * lang_cfg, lUInt32 bgcolor, int valign_dy,
                        bool * is_link_start, lString32 running_bidi_ctrlchars )
 {
+    // In here, we use the *Effective* variants of most enode methods (except getStyle()/getFont()),
+    // to handle cloneNodes involved in the rendering of ::first-line. More details below.
+    // (cloneNodes being added for the ::first-line on a final block, we need to mostly only
+    // use them here, in a few other places dealing with erm_final block (ie. getRenderedWidths(),
+    // getRect() and createXPointer(pt)), and for footnote links in renderBlockElement().
+    // It's possible some other use of them elsewhere is needed, but has not yet been discovered.)
+    // Note that for objects (images, floats and inline-block boxes), we pass the effective/source
+    // node (which seems rather ok, web browsers don't ensure the ::first-ilne style on them) as
+    // it would otherwise get quite complicated (and need to infect renderBlockElement(), which
+    // render these, with the node->*Effective* variants).
+
+    if ( baseflags & LTEXT_IS_FIRST_LINE_ENOUGH ) {
+        // Still a children of pseudoElem[FirstLine], but we have met a <br/> and
+        // we no longer need to AddSourceLine() them.
+        return;
+    }
+
     bool legacy_rendering = !BLOCK_RENDERING_N(enode, ENHANCED);
-    if ( enode->isElement() ) {
+    if ( enode->isEffectiveElement() ) {
         lvdom_element_render_method rm = enode->getRendMethod();
         if ( rm == erm_invisible )
             return; // don't draw invisible
 
-        if ( enode->hasAttribute( attr_lang ) ) {
-            lString32 lang_tag = enode->getAttributeValue( attr_lang );
+        if ( enode->hasEffectiveAttribute( attr_lang ) ) {
+            lString32 lang_tag = enode->getEffectiveAttributeValue( attr_lang );
             if ( !lang_tag.empty() )
                 lang_cfg = TextLangMan::getTextLangCfg( lang_tag );
         }
 
-        if ( enode->isFloatingBox() && rm != erm_final ) {
+        if ( enode->isEffectiveFloatingBox() && rm != erm_final ) {
             // (A floating floatBox can't be erm_final: it is always erm_block,
             // but let's just be sure of that.)
             // If we meet a floatBox here, it's an embedded float (a float
@@ -3294,16 +3311,16 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // be guessed and renderBlockElement() called to render it
             // and get is height, so LFormattedText knows how to render
             // this erm_final text around it.
-            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode, lang_cfg );
+            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
             baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             return;
         }
 
         css_style_ref_t style = enode->getStyle();
 
-        bool is_object = enode->isImage();
+        bool is_object = enode->isEffectiveImage();
         // inline-block boxes are handled below quite just like inline images/is_object
-        bool is_inline_box = enode->isBoxingInlineBox();
+        bool is_inline_box = enode->isEffectiveBoxingInlineBox();
 
         int direction = RENDER_RECT_PTR_GET_DIRECTION(fmt);
         bool is_rtl = direction == REND_DIRECTION_RTL;
@@ -3360,6 +3377,18 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         //   for them), and should carry inherited text decoration, vertical alignment
         //   and whitespace-pre state.
 
+        // A pseudoElem[FirstLine] contains only <cloneNode>s: they will each carry the
+        // style and font as styled by the ::first-line style. But for everything else (text,
+        // attributes), we will need to fetch them from the cloneNode's source, so the use
+        // of the isEffective/getEffective* variants of many ldomNode methods above and below.
+        // We flag the fragments we will add from these cloneNodes with LTEXT_IS_FIRST_LINE_CLONE,
+        // so that lvtextfm.cpp can skip the sequence once it has added the first line, and
+        // can resume from the normal text sequence.
+        bool is_pseudoElem_FirstLine = enode->getNodeId() == el_pseudoElem && enode->hasAttribute(attr_FirstLine);
+        if ( is_pseudoElem_FirstLine ) {
+            flags |= LTEXT_IS_FIRST_LINE_CLONE;
+        }
+
         // About background-color:
         // If erm_final, the background will be drawn by DrawDocument, and should not
         // be drawn by the LFormattedText txform.
@@ -3378,6 +3407,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // Nodes with "display: run-in" are inline nodes brought at start of the final node
         bool isRunIn = style->display == css_d_run_in;
         if ( isRunIn ) {
+            // (Not modified and not tested with ::first-line.)
             // The text alignment of the paragraph should come from the following
             // sibling node. The one set from the parent final node has probably
             // not yet been consumed, so update it.
@@ -3790,6 +3820,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // Firefox has some specific behaviour with floats, which
         // is not obvious from the specs. Let's do as it does.
         // It looks like we should do the same for inline-block boxes
+        // (Not modified and not tested with ::first-line, if this can ever happen.)
         if ( parent && (parent->isFloatingBox() || parent->isBoxingInlineBox()) ) {
             if ( rm == erm_final && is_object ) {
                 // When an image is the single top final node in a float (which is
@@ -3819,6 +3850,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         }
 
         if ( style->display == css_d_list_item_legacy ) { // obsolete (used only when gDOMVersionRequested < 20180524)
+            // (Not modified and not tested with ::first-line)
             // put item number/marker to list
             lString32 marker;
             int marker_width = 0;
@@ -3868,8 +3900,16 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // list_item_block rendered as final (containing only text and inline elements)
             // (we don't draw anything when list-style-type=none)
             if ( renderAsListStylePositionInside(style, is_rtl) && style->list_style_type != css_lst_none ) {
+                // This may be emitted before a pseudoElem[FirstLine]: check if we will have one
+                lUInt32 flags_firstline = 0;
+                if (enode->getChildCount() > 0) {
+                    ldomNode * child = enode->getChildNode(0);
+                    if ( child->getNodeId() == el_pseudoElem && child->hasAttribute(attr_FirstLine) && child->getRendMethod() != erm_invisible ) {
+                        flags_firstline = LTEXT_IS_FIRST_LINE_CLONE;
+                    }
+                }
                 int marker_width;
-                lString32 marker = renderListItemMarker( enode, marker_width, NULL, txform, flags, line_h );
+                lString32 marker = renderListItemMarker( enode, marker_width, NULL, txform, flags|flags_firstline, line_h );
                 if ( marker.length() ) {
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
                 }
@@ -3887,8 +3927,16 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             int listPropNodeIndex = fmt->getListPropNodeIndex();
             if ( listPropNodeIndex ) {
                 ldomNode * list_item_block_parent = enode->getDocument()->getTinyNode( listPropNodeIndex );
+                // This may be emitted before a pseudoElem[FirstLine]: check if we will have one
+                lUInt32 flags_firstline = 0;
+                if (enode->getChildCount() > 0) {
+                    ldomNode * child = enode->getChildNode(0);
+                    if ( child->getNodeId() == el_pseudoElem && child->hasAttribute(attr_FirstLine) && child->getRendMethod() != erm_invisible ) {
+                        flags_firstline = LTEXT_IS_FIRST_LINE_CLONE;
+                    }
+                }
                 int marker_width;
-                lString32 marker = renderListItemMarker( list_item_block_parent, marker_width, NULL, txform, flags, line_h );
+                lString32 marker = renderListItemMarker( list_item_block_parent, marker_width, NULL, txform, flags|flags_firstline, line_h );
                 if ( marker.length() ) {
                     flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH;
                 }
@@ -3947,9 +3995,9 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // If block image, forget any current flags and start from baseflags (?)
                 lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
                 flags |= linkflags;
-                lString32 suptitle = enode->getAttributeValue(attr_suptitle);
-                lString32 subtitle = enode->getAttributeValue(attr_subtitle);
-                lString32 title = enode->getAttributeValue(attr_title);
+                lString32 suptitle = enode->getEffectiveAttributeValue(attr_suptitle);
+                lString32 subtitle = enode->getEffectiveAttributeValue(attr_subtitle);
+                lString32 title = enode->getEffectiveAttributeValue(attr_title);
                 if ( !suptitle.empty() || !subtitle.empty() || !title.empty() ) {
                     // If any of these exist and are not empty, we add them around the images.
                     // We can't easily ensure and adequate height to the image so they all fit
@@ -3963,7 +4011,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         for ( int i=0; i<lines.length(); i++ )
                             txform->AddSourceLine( lines[i].c_str(), lines[i].length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, 0, enode );
                     }
-                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
                     if ( !subtitle.empty() ) {
                         lString32Collection lines;
                         lines.parse(subtitle, cs32("\\n"), true);
@@ -3984,7 +4032,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         line_h = 0;
                         indent = 0;
                     }
-                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+                    txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
                 }
 
             }
@@ -4000,13 +4048,13 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // Forget any current flags and start from baseflags
                 lUInt32 flags = styleToTextFmtFlags( true, enode->getStyle(), baseflags, direction );
                 flags |= linkflags;
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
             }
             else { // inline image
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
                 flags |= linkflags;
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_IMAGE, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
@@ -4014,7 +4062,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             #ifdef DEBUG_DUMP_ENABLED
                 logfile << "+INLINEBOX ";
             #endif
-            if ( enode->isEmbeddedBlockBoxingInlineBox() ) {
+            if ( enode->isEffectiveEmbeddedBlockBoxingInlineBox() ) {
                 // If embedded-block wrapper: it should not be part of the lines
                 // made by the surrounding text/elements: we should ensure a new
                 // line before and after it.
@@ -4051,7 +4099,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // These might have no effect, but let's explicitely drop them.
                 valign_dy = 0;
                 indent = 0;
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
                 // Let flags unchanged, with their newline/alignment flag as if it
                 // hadn't been consumed, so it is reported back into baseflags below
                 // so that the next sibling (or upper followup inline node) starts
@@ -4066,7 +4114,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             else {
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
@@ -4078,11 +4126,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // Usual elements
 
             // Some elements add some generated content
-            lUInt16 nodeElementId = enode->getNodeId();
+            lUInt16 nodeElementId = enode->getEffectiveNodeId();
             // Don't handle dir= for the erm_final (<p dir="auto"), as it would "isolate"
             // the whole content from the bidi algorithm and we would get a default paragraph
             // direction of LTR. It is handled directly in lvtextfm.cpp.
-            bool hasDirAttribute = rm != erm_final && enode->hasAttribute( attr_dir );
+            bool hasDirAttribute = rm != erm_final && enode->hasEffectiveAttribute( attr_dir );
             bool addGeneratedContent = hasDirAttribute ||
                                        nodeElementId == el_bdi ||
                                        nodeElementId == el_bdo ||
@@ -4104,7 +4152,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // When meeting them, we add the equivalent unicode opening and closing chars so
                 // that fribidi (working on text only) can ensure what's specified with HTML tags.
                 // See http://unicode.org/reports/tr9/#Markup_And_Formatting
-                lString32 dir = enode->getAttributeValueLC( attr_dir );
+                lString32 dir = enode->getEffectiveAttributeValueLC( attr_dir );
                 if ( nodeElementId == el_bdo ) {
                     // <bdo> (bidirectional override): prevents the bidirectional algorithm from
                     //       rearranging the sequence of characters it encloses
@@ -4196,8 +4244,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // BiDi stuff had to be outputed first, before any pseudo element
                 // (if <q dir="rtl">...</q>, the added quote (first child pseudo element)
                 // should be inside the RTL bidi isolation.
-                if ( nodeElementId == el_pseudoElem && (enode->hasAttribute(attr_Before) || enode->hasAttribute(attr_After)) ) {
-                    lString32 content = get_applied_content_property(enode);
+                if ( nodeElementId == el_pseudoElem && (enode->hasEffectiveAttribute(attr_Before) || enode->hasEffectiveAttribute(attr_After)) ) {
+                    lString32 content = get_applied_content_property(enode->getEffectiveNode());
                     if ( !content.empty() ) {
                         switch (style->text_transform) {
                             case css_tt_uppercase: content.uppercase(); break;
@@ -4213,12 +4261,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                         flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                     }
                 }
-                if ( nodeElementId == el_pseudoElem && enode->hasAttribute(attr_FirstLetter) ) {
+                if ( nodeElementId == el_pseudoElem && enode->hasEffectiveAttribute(attr_FirstLetter) ) {
                     // Skip rendering if display:none
                     if ( style->display != css_d_none ) {
-                        int firstLetterEnd = enode->getAttributeValue(attr_FirstLetter).atoi();
+                        int firstLetterEnd = enode->getEffectiveAttributeValue(attr_FirstLetter).atoi();
                         // Find the next sibling text node
-                        ldomNode * textNode = enode->getFirstLetterTextNode();
+                        ldomNode * textNode = enode->getEffectiveFirstLetterTextNode();
                         if ( textNode && firstLetterEnd > 0 ) {
                             lString32 txt = textNode->getText();
                             if ( txt.length() >= firstLetterEnd ) {
@@ -4337,7 +4385,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         else { // newline consumed
             baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
         }
-        if ( enode->getNodeId()==el_br ) {
+        if ( enode->getEffectiveNodeId()==el_br ) {
+            if ( flags & LTEXT_IS_FIRST_LINE_CLONE ) {
+                // We meet a <br/> while emiting the text with the CSS ::first-line style,
+                // we don't need to emit any followup text with that style, as the first-line
+                // will be done.
+                baseflags |= LTEXT_IS_FIRST_LINE_ENOUGH;
+                return;
+            }
             if (baseflags & LTEXT_FLAG_NEWLINE) {
                 // We meet a <BR/>, but no text node were met before (or it
                 // would have cleared the newline flag).
@@ -4423,10 +4478,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                             baseflags | LTEXT_SRC_IS_CLEAR_LAST | LTEXT_FLAG_PREFORMATTED | LTEXT_FLAG_OWNTEXT,
                             line_h, valign_dy, 0, enode);
         }
+        // This is not needed as flags is lost when we leave that pseudoElem:
+        // if ( is_pseudoElem_FirstLine ) { flags &= ~LTEXT_IS_FIRST_LINE_CLONE|~LTEXT_IS_FIRST_LINE_ENOUGH; }
     }
-    else if ( enode->isText() ) {
+    else if ( enode->isEffectiveText() ) {
         // text nodes
-        lString32 txt = enode->getText();
+        lString32 txt = enode->getEffectiveText();
         if ( !txt.empty() ) {
             #ifdef DEBUG_DUMP_ENABLED
                 for (int i=0; i<enode->getNodeLevel(); i++)
@@ -4513,7 +4570,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // If this text node has a preceding ::first-letter pseudo element,
             // we should skip adding the leading text rendered by that pseudoElem
             int textOffset = 0;
-            enode->getFirstLetterPseudoElem(&textOffset);
+            enode->getEffectiveFirstLetterPseudoElem(&textOffset);
             // Just below, if it happens that txt.length()=textOffset (single letter
             // text node that got to be a first-letter, with no remaining text),
             // we will let an empty text source be added. An empty text node seems
@@ -5413,7 +5470,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                 const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
-                                    ldomNode * parent = node->getParentNode();
+                                    ldomNode * parent = node->getEffectiveParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
                                     if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
@@ -5449,7 +5506,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                                 const src_text_fragment_t * src = txform->GetSrcInfo( line->words[w].src_text_index );
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
-                                    ldomNode * parent = node->getParentNode();
+                                    ldomNode * parent = node->getEffectiveParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
                                     if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
@@ -9045,7 +9102,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                                 }
                                 if ( src && src->object ) {
                                     ldomNode * node = (ldomNode*)src->object;
-                                    ldomNode * parent = node->getParentNode();
+                                    ldomNode * parent = node->getEffectiveParentNode();
                                     while (parent && parent->getNodeId() != el_a)
                                         parent = parent->getParentNode();
                                     if ( parent && parent->hasAttribute(LXML_NS_ANY, attr_href)
@@ -10649,6 +10706,23 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // init default style attribute values
     const css_elem_def_props_t * type_ptr = enode->getElementTypePtr();
     bool is_object = enode->isImage();
+
+    if ( nodeElementId == el_cloneNode ) {
+        if ( enode->hasAttribute(attr_T) ) {
+            // CloneNode of a Text node: a style won't be used, but it's safer
+            // to set one, so it is not null and we don't crash in odd places
+            // that check it (ie. recursed resetRendMethodToInline())
+            enode->setStyle( style );
+            // Doing initNodeFont(), even if the font won't ever be used, avoids "style hash mismatch".
+            enode->initNodeFont();
+            return;
+        }
+        ldomNode * sourceNode = enode->getCloneNodeSource();
+        nodeElementId = sourceNode->getNodeId();
+        type_ptr = sourceNode->getElementTypePtr();
+        is_object = sourceNode->isImage();
+    }
+
     if (type_ptr) {
         pstyle->display = type_ptr->display;
         pstyle->white_space = type_ptr->white_space;
@@ -10699,9 +10773,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // Handle <epub:switch> <epub:case required-namespace="..."> <epub:default>
     if ( nodeElementId == el_case ) {
         // We only support MathML and SVG.
-        ldomNode * parent = enode->getParentNode();
+        ldomNode * parent = enode->getEffectiveParentNode();
         if ( parent && parent->getNodeId() == el_switch ) {
-            lString32 required_namespace = enode->getAttributeValue(attr_required_namespace);
+            lString32 required_namespace = enode->getEffectiveAttributeValue(attr_required_namespace);
             if ( false ) {
                 // dummy if
             }
@@ -10726,7 +10800,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
     else if (nodeElementId == el_default ) { // <epub:default>
-        ldomNode * parent = enode->getParentNode();
+        ldomNode * parent = enode->getEffectiveParentNode();
         if (parent && parent->getNodeId() == el_switch) {
             // See if there is a sibling <epub:case> with a supported namespace
             bool has_supported_namespace = false;
@@ -10775,8 +10849,8 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     //////////////////////////////////////////////////////
     // apply node style= attribute
     //////////////////////////////////////////////////////
-    if ( doc->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) && enode->hasAttribute( LXML_NS_ANY, attr_style ) ) {
-        lString32 nodeStyle = enode->getAttributeValue( LXML_NS_ANY, attr_style );
+    if ( doc->getDocFlag(DOC_FLAG_ENABLE_INTERNAL_STYLES) && enode->hasEffectiveAttribute( attr_style ) ) {
+        lString32 nodeStyle = enode->getEffectiveAttributeValue( attr_style );
         if ( !nodeStyle.empty() ) {
             nodeStyle = cs32("{") + nodeStyle + "}";
             LVCssDeclaration decl;
@@ -10908,6 +10982,24 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             // block related (width, page-break...), and shouldn't have
             // any effect.
         }
+        else if ( enode->hasAttribute(attr_FirstLine) ) {
+            // Many properties are not allowed, but we don't really want
+            // to check them all, as publishers would probably not use those
+            // that don't have any effect.
+            // There are a few (even if not provided, they could be
+            // inherited) that could cause unwanted effects:
+            // - display: avoid issues by ensuring it is either none or inline
+            if ( pstyle->display != css_d_none ) {
+                pstyle->display = css_d_inline;
+            }
+            // - float: be sure we don't get it (currently, it would have no effect)
+            pstyle->float_ = css_f_none;
+            // Most of the ones we support but that are not allowed are
+            // block related (width, page-break...), and shouldn't have
+            // any effect.
+            // A few not allowed like margin/padding/border can have some effect
+            // (which might be useful for debugging), but let's not bother.
+        }
         // The specs mention no property that would be not allowed for ::before/::after
     }
 
@@ -10997,7 +11089,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                         pstyle->display = css_d_inline; // become an inline wrapper
                         pstyle->vertical_align = child_style->vertical_align;
                     }
-                    else if ( enode->hasAttribute( attr_T ) ) { // T="EmbeddedBlock"
+                    else if ( enode->hasEffectiveAttribute( attr_T ) ) { // T="EmbeddedBlock"
                                             // (no other possible value yet, no need to compare strings)
                         pstyle->display = css_d_inline; // wrap bogus "block among inlines" in inline
                     }
@@ -11509,6 +11601,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     bool requires_pseudo_element_before = false;
     bool requires_pseudo_element_after = false;
     bool requires_has_first_letter_attribute = false;
+    bool requires_has_first_line_attribute = false;
     if ( pstyle->pseudo_elem_before_style ) {
         if ( pstyle->pseudo_elem_before_style->display != css_d_none
                 && pstyle->pseudo_elem_before_style->content.length() > 0
@@ -11539,6 +11632,14 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         delete pstyle->pseudo_elem_first_letter_catcher_style;
         pstyle->pseudo_elem_first_letter_catcher_style = NULL;
     }
+    if ( pstyle->pseudo_elem_first_line_style ) {
+        if ( pstyle->pseudo_elem_first_line_style->display != css_d_none ) {
+            // Not "display: none": the ::first-line pseudo element can be generated
+            requires_has_first_line_attribute = true;
+        }
+        delete pstyle->pseudo_elem_first_line_style;
+        pstyle->pseudo_elem_first_line_style = NULL;
+    }
 
     if ( nodeElementId == el_pseudoElem && (enode->hasAttribute(attr_Before) || enode->hasAttribute(attr_After)) ) {
         // Pseudo element ->content may need some update if it contains
@@ -11567,12 +11668,20 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     // Now that this node is fully styled, ensure these pseudo elements
     // are there as children, creating them if needed and possible.
-    // Note: we call ensureFirstLetter before ensurePseudoElement(true) to keep things
-    // simpler in these methods and in other first-letter handling bits: if we have both
-    // a ::first-letter and a ::before, the ::before will be inserted before the ::first-letter.
-    // This is not per CSS-specs (a ::first-letter should pick the first-letter
-    // from the ::before, so logically it should come first) but supporting that
-    // would make everything more complicated.
+    // DOM order: FirstLine(0), Before(1), FirstLetter(near first text), After(last).
+    // (Per-specs, FirstLetter should be before Before, and should grab the
+    // first letter from that Before - but this is quite involved and we don't
+    // support it. Having Before first may still allow for aesthetic prefixes.)
+    // FirstLine creation (with cloning) is deferred to initNodeRendMethod(),
+    // after all boxing is complete. Here we just set the attribute flag so
+    // initNodeRendMethod() knows to create the pseudoElem[FirstLine].
+    if ( requires_has_first_line_attribute ) {
+        if ( !enode->hasAttribute(attr_HasFirstLine) ) {
+            enode->setAttributeValue(LXML_NS_NONE, attr_HasFirstLine, U"");
+        }
+    }
+    // Note: we call ensureFirstLetter before ensurePseudoElement(true) to keep things simpler,
+    // but the pseudoElem[FirstLetter] will still end up after a pseudoElem[Before])
     if ( requires_has_first_letter_attribute ) {
         enode->ensureFirstLetter(false); // false = skip init style during stylesheet re-application
     }
@@ -11629,8 +11738,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         printf("GRW node: %s\n", UnicodeToLocal(ldomXPointer(node, 0).toString()).c_str());
     #endif
 
-    if ( node->isElement() && !processNodeAsText ) {
-        lUInt16 nodeElementId = node->getNodeId();
+    if ( node->isEffectiveElement() && !processNodeAsText ) {
+        lUInt16 nodeElementId = node->getEffectiveNodeId();
         int m = node->getRendMethod();
         if (m == erm_invisible)
             return;
@@ -11638,13 +11747,13 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         if ( isStartNode ) {
             lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
         }
-        else if ( node->hasAttribute( attr_lang ) ) {
-            lString32 lang_tag = node->getAttributeValue( attr_lang );
+        else if ( node->hasEffectiveAttribute( attr_lang ) ) {
+            lString32 lang_tag = node->getEffectiveAttributeValue( attr_lang );
             if ( !lang_tag.empty() )
                 lang_cfg = TextLangMan::getTextLangCfg( lang_tag );
         }
 
-        if ( isStartNode && node->isBoxingInlineBox() ) {
+        if ( isStartNode && node->isEffectiveBoxingInlineBox() ) {
             // The inlineBox is erm_inline, and we'll be measuring it below
             // as part of measuring other erm_inline in some erm_final.
             // If isStartNode, we want to measure its content, so switch
@@ -11662,14 +11771,14 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         // Get image size early
         bool is_img = false;
         int img_width = 0;
-        if ( node->isImage() ) {
+        if ( node->isEffectiveImage() ) {
             is_img = true;
             int unused_height = 0;
             // We have no container width/height to provide: CSS width and
             // height in % won't apply and default to their initial value
             // of none or auto, so as if there wasn't any.
             // https://drafts.csswg.org/css-sizing-3/#cyclic-percentage-contribution
-            getStyledImageSize( node, img_width, unused_height );
+            getStyledImageSize( node->getEffectiveNode(), img_width, unused_height );
                 // We got a single width (the normal image width, constrained
                 // between min-width and max-width if any): we use it to update
                 // both minWidth/maxWidth in here (the CSS properties with the
@@ -11704,7 +11813,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             // allowed between left/right pads and their followup/preceeding content)
             int pad_left  = lengthToPx( node, style->margin[0], 0 ) + measureBorder(node, 3) + lengthToPx( node, style->padding[0], 0 );
             int pad_right = lengthToPx( node, style->margin[1], 0 ) + measureBorder(node, 1) + lengthToPx( node, style->padding[1], 0 );
-            if ( is_img || node->isBoxingInlineBox() ) {
+            if ( is_img || node->isEffectiveBoxingInlineBox() ) {
                 if (!nowrap) {
                     // Get done with previous word
                     if (curWordWidth > minWidth)
@@ -11742,7 +11851,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             // and not to next word as it should, if a space follows), but well...
             curMaxWidth += pad_left;
             curWordWidth += pad_left;
-            if ( nodeElementId == el_pseudoElem ) {
+            if ( nodeElementId == el_pseudoElem && !node->hasAttribute(attr_FirstLine) ) {
                 // pseudoElem has no children: reprocess this same node
                 // with processNodeAsText=true, to process its text content.
                 getRenderedWidths(node, maxWidth, minWidth, direction, false, rendFlags,
@@ -11762,6 +11871,20 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             }
             curMaxWidth += pad_right;
             curWordWidth += pad_right;
+            if ( nodeElementId == el_pseudoElem && node->hasAttribute(attr_FirstLine) ) {
+                // End of ::first-line clones sequance: do exactly as above as if we met a <br/>,
+                // so we start afresh with the normal sequence
+                if (lastSpaceWidth)
+                    curMaxWidth -= lastSpaceWidth;
+                if (curMaxWidth > maxWidth)
+                    maxWidth = curMaxWidth;
+                if (curWordWidth > minWidth)
+                    minWidth = curWordWidth;
+                curMaxWidth = indent;
+                curWordWidth = indent;
+                collapseNextSpace = true;
+                lastSpaceWidth = 0;
+            }
             return;
         }
 
@@ -11871,7 +11994,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                         curMaxWidth, curWordWidth, collapseNextSpace, lastSpaceWidth, indent, nowrap_in, lang_cfg);
                     // A <BR/> can happen deep among our children, so we deal with that when erm_inline above
                 }
-                if ( nodeElementId == el_pseudoElem ) {
+                if ( nodeElementId == el_pseudoElem && !node->hasAttribute(attr_FirstLine) ) {
                     // erm_final pseudoElem (which has no children): reprocess this same
                     // node with processNodeAsText=true, to process its text content.
                     getRenderedWidths(node, _maxWidth, _minWidth, direction, false, rendFlags,
@@ -11938,7 +12061,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                             row.reserve(seen_nb_cells);
                             for (int i = 0; i < n->getChildCount(); i++) {
                                 ldomNode * child = n->getChildNode(i);
-                                if ( child->isText() ) {
+                                if ( child->isEffectiveText() ) {
                                     // Ignore text nodes among table elements (they are usually
                                     // dropped when parsing the HTML, but for <ruby>, parsed as
                                     // inline but later acquiring erm_table* rendering methods,
@@ -11978,7 +12101,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                             // Non-recursive sub tree walker (continued)
                             index = n->getChildCount(); // Skip walking/entering that row
                         }
-                        else if ( n->isElement() && n->getStyle()->display == css_d_table_caption && n->getRendMethod() != erm_invisible ) {
+                        else if ( n->isEffectiveElement() && n->getStyle()->display == css_d_table_caption && n->getRendMethod() != erm_invisible ) {
                             // Also measure caption(s)
                             int _maxw = 0;
                             int _minw = 0;
@@ -12139,7 +12262,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 int _maxw = 0;
                 int _minw = 0;
                 ldomNode * child = node->getChildNode(i);
-                if ( child->isText() ) {
+                if ( child->isEffectiveText() ) {
                     // Ignore text nodes between block nodes
                     // (we shouldn't find any, but well)
                     continue;
@@ -12361,8 +12484,8 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int start = 0;
         int len = 0;
         ldomNode * parent;
-        if ( node->isText() ) {
-            text = node->getText();
+        if ( node->isEffectiveText() ) {
+            text = node->getEffectiveText();
             len = text.length();
             parent = node->getParentNode();
             // Check if this text node has a preceding FirstLetter pseudoElem
@@ -12377,21 +12500,21 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                     len = 0;
             }
         }
-        else if ( node->getNodeId() == el_pseudoElem && (node->hasAttribute(attr_Before) || node->hasAttribute(attr_After)) ) {
-            text = get_applied_content_property(node);
+        else if ( node->getEffectiveNodeId() == el_pseudoElem && (node->hasEffectiveAttribute(attr_Before) || node->hasEffectiveAttribute(attr_After)) ) {
+            text = get_applied_content_property(node->getEffectiveNode());
             len = text.length();
             parent = node; // this pseudoElem node carries the font and style of the text
             if ( isStartNode ) {
                 lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
             }
         }
-        else if ( node->getNodeId() == el_pseudoElem && node->hasAttribute(attr_FirstLetter) ) {
+        else if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
             // FirstLetter pseudoElem: extract first N chars from following text node
             // Skip if display:none
             if ( node->getStyle()->display == css_d_none )
                 return;
-            int firstLetterEnd = node->getAttributeValue(attr_FirstLetter).atoi();
-            ldomNode * textNode = node->getFirstLetterTextNode();
+            int firstLetterEnd = node->getEffectiveAttributeValue(attr_FirstLetter).atoi();
+            ldomNode * textNode = node->getEffectiveFirstLetterTextNode();
             if ( !textNode )
                 return;
             text = textNode->getText();

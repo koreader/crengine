@@ -325,7 +325,7 @@ int getLTextExtraProperty( src_text_fragment_t * srcline, ltext_extra_t extra_pr
     if ( !srcline->object )
         return 0;
     ldomNode * node = (ldomNode *) srcline->object;
-    if ( node->isText() )
+    if ( node->isEffectiveText() )
         node = node->getParentNode();
     if ( !node || node->isNull() )
         return 0;
@@ -4721,6 +4721,9 @@ public:
 
         // split paragraph into lines, export lines
         int pos = 0;
+
+        bool is_css_first_line = m_srcs[0]->flags & LTEXT_IS_FIRST_LINE_CLONE;
+
         #if (USE_LIBUNIBREAK!=1)
         int upSkipPos = -1;
         #endif
@@ -4790,9 +4793,20 @@ public:
             // Find candidates where end of line is possible
             bool seen_non_collapsed_space = false;
             bool seen_first_rendered_char = false;
+            bool first_line_sequance_end_reached = false; // ::first-line cloned text end reached
             int i;
             for ( i=pos; i<m_length; i++ ) {
                 if ( m_text[i]=='\n' ) { // might happen in <pre>formatted only (?)
+                    lastMandatoryWrap = i;
+                    break;
+                }
+                if ( is_css_first_line && !(m_srcs[i]->flags & LTEXT_IS_FIRST_LINE_CLONE) ) {
+                    // We reached the non-first-line sequence: the first-line sequence
+                    // did fit all on the first line, don't go at appending the same
+                    // text from the non-first line sequence
+                    first_line_sequance_end_reached = true;
+                    // For the followup wrap position resolution, pretend we met a \n
+                    // after where first line sequence ended
                     lastMandatoryWrap = i;
                     break;
                 }
@@ -5306,6 +5320,63 @@ public:
             #endif
             if (endp > m_length)
                 endp = m_length;
+
+            if ( is_css_first_line ) {
+                is_css_first_line = false;
+                if ( first_line_sequance_end_reached ) {
+                    // We're done: let us be exiting this loop properly
+                    wrapPos = m_length-1;
+                }
+                else {
+                    // We had a copy of the source text with CSS first-line styling,
+                    // and we did not meet its end. We should fast forward skipping
+                    // that first-line sequence, and once in the normal text sequence
+                    // (which includes the full text since the start of the paragraph)
+                    // skip the part that has just been output as first-line to restart
+                    // on after where we wrapped.
+                    // We initially assumed we would get the same text content in the
+                    // first-line sequence as in the normal text copy we get after it,
+                    // but when a list item marker is prepended, we do not.
+                    // So, get the node (a cloneNode) and offset at which we stopped on,
+                    // get its source node, and try to find it in the normal sequence:
+                    // we can then restart on it at the same offset/charindex.
+                    lUInt16 orig_offset = 0;
+                    ldomNode * orig_node = (ldomNode *) m_srcs[wrapPos]->object;
+                    if ( orig_node ) {
+                        orig_node = orig_node->getCloneNodeSource();
+                        orig_offset = m_charindex[wrapPos];
+                    }
+                    // First, skip from here until non-first-line-clone
+                    int i = wrapPos;
+                    while (i < m_length && m_srcs[i]->flags & LTEXT_IS_FIRST_LINE_CLONE)
+                        i++;
+                    int normal_sequence_start = i; // in case !found
+                    bool found = false;
+                    if ( orig_node ) { // look for it
+                        while (i < m_length) {
+                            ldomNode * node = (ldomNode *) m_srcs[i]->object;
+                            if ( node == orig_node ) {
+                                if ( m_charindex[i] == orig_offset ) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            i++;
+                        }
+                    }
+                    if ( !found ) {
+                        // If we did not find it, go with our initial assumption:
+                        // move in the non-first-line as much as we walked until wrap
+                        // in the first-line sequence
+                        i = normal_sequence_start + wrapPos;
+                    }
+                    // And use that as wrapPos for what follows.
+                    wrapPos = i;
+                    if (wrapPos >= m_length)
+                        wrapPos = m_length-1;
+                    // printf("first line done, moving from %d to %d (found=%d)\n", endp, i, found);
+                }
+            }
 
             // Best position to end this line found.
             bool hasInlineBoxes = firstInlineBoxPos >= 0 && firstInlineBoxPos < endp;
@@ -6029,7 +6100,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         if ( srcline->flags & LTEXT_HAS_TOP_BOTTOM_BORDER ) {
                             // Find out the nearest parent node that carries some border
                             ldomNode * tmp = node;
-                            if (tmp->isText())
+                            if (tmp->isEffectiveText())
                                 tmp = tmp->getParentNode();
                             while ( tmp && tmp->getRendMethod() != erm_final ) {
                                 int border = measureBorder(tmp, side);

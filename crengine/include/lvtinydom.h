@@ -931,6 +931,67 @@ public:
     /// Find the text node following a FirstLetter pseudoElem, returns NULL if not found
     ldomNode * getFirstLetterTextNode() const;
 
+    // Ensure this node has a ::first-line pseudo element with cloned children.
+    // Called from initNodeRendMethod() after all boxing is complete.
+    void ensureFirstLine();
+
+    /// Get the original node from a cloneNode element (for ::first-line)
+    /// Returns NULL if this is not a cloneNode or if the original node cannot be found
+    ldomNode * getCloneNodeSource() const;
+
+    /// These (with *Effective*) are equivalent to the non-Effective methods, which
+    /// if called on a cloneNode will return what's asked from its source node.
+    /// (hardcoded 1 is el_clonedNode )
+    inline ldomNode * getEffectiveNode() {
+        return (getNodeId() == 1) ? getCloneNodeSource() : this;
+    }
+    inline ldomNode * getEffectiveParentNode() {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getParentNode() : getParentNode();
+    }
+    inline bool isEffectiveElement() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isElement() : isElement();
+    }
+    inline bool isEffectiveText() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isText() : isText();
+    }
+    inline lString32 getEffectiveText() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getText() : getText();
+    }
+    inline lUInt16 getEffectiveNodeId() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getNodeId() : getNodeId();
+    }
+    inline bool hasEffectiveAttribute( lUInt16 id ) const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->hasAttribute(id) : hasAttribute(id);
+    }
+    inline const lString32 & getEffectiveAttributeValue( lUInt16 id ) const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getAttributeValue(id) : getAttributeValue(id);
+    }
+    inline lString32 getEffectiveAttributeValueLC( lUInt16 id ) const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getAttributeValueLC(id) : getAttributeValueLC(id);
+    }
+    inline bool isEffectiveImage() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isImage() : isImage();
+    }
+    inline lvdom_element_render_method getEffectiveRendMethod() {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getRendMethod() : getRendMethod();
+    }
+    inline ldomNode * getEffectiveFirstLetterTextNode() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getFirstLetterTextNode() : getFirstLetterTextNode();
+    }
+    inline ldomNode * getEffectiveFirstLetterPseudoElem(int * textOffset=NULL) const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->getFirstLetterPseudoElem(textOffset) : getFirstLetterPseudoElem(textOffset);
+    }
+    inline bool isEffectiveFloatingBox() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isFloatingBox() : isFloatingBox();
+    }
+    inline bool isEffectiveBoxingInlineBox() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isBoxingInlineBox() : isBoxingInlineBox();
+    }
+    inline bool isEffectiveEmbeddedBlockBoxingInlineBox() const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isEmbeddedBlockBoxingInlineBox() : isEmbeddedBlockBoxingInlineBox();
+    }
+
+
     /// if stylesheet file name is set, and file is found, set stylesheet to its value
     bool applyNodeStylesheet();
 
