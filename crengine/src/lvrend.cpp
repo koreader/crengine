@@ -4448,6 +4448,12 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             case css_c_right:
                 baseflags |= LTEXT_SRC_IS_CLEAR_RIGHT;
                 break;
+            case css_c_inline_start:
+                baseflags |= (is_rtl ? LTEXT_SRC_IS_CLEAR_RIGHT : LTEXT_SRC_IS_CLEAR_LEFT);
+                break;
+            case css_c_inline_end:
+                baseflags |= (is_rtl ? LTEXT_SRC_IS_CLEAR_LEFT : LTEXT_SRC_IS_CLEAR_RIGHT);
+                break;
             case css_c_both:
                 baseflags |= LTEXT_SRC_IS_CLEAR_BOTH;
                 break;
@@ -6739,6 +6745,12 @@ public:
     void clearFloats( css_clear_t clear ) {
         if (clear <= css_c_none)
             return;
+        if ( clear == css_c_inline_start ) {
+            clear = direction == REND_DIRECTION_RTL ? css_c_right : css_c_left;
+        }
+        else if ( clear == css_c_inline_end ) {
+            clear = direction == REND_DIRECTION_RTL ? css_c_left : css_c_right;
+        }
         int cleared_y = c_y;
         for (int i=0; i<_floats.length(); i++) {
             BlockFloat * flt = _floats[i];
@@ -6782,6 +6794,12 @@ public:
             if ( flt->top > y )
                 y = flt->top;
             if ( clear > css_c_none) {
+                if ( clear == css_c_inline_start ) {
+                    clear = direction == REND_DIRECTION_RTL ? css_c_right : css_c_left;
+                }
+                else if ( clear == css_c_inline_end ) {
+                    clear = direction == REND_DIRECTION_RTL ? css_c_left : css_c_right;
+                }
                 if ( (clear == css_c_both) || (clear == css_c_left && !flt->is_right)
                                            || (clear == css_c_right && flt->is_right) ) {
                     if (flt->bottom > y)
@@ -8574,14 +8592,14 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     //   float on that side BUT the following non-floating blocks should
                     //   not move and continue being rendered at the current y
 
-                    // todo: if needed, implement float: and clear: inline-start / inline-end
-
                     if ( child->isFloatingBox() ) {
                         // Block floats are positioned respecting the current collapsed
                         // margin, without actually globally pushing it, and without
                         // collapsing with it.
                         int flt_vertical_margin = flow->getCurrentVerticalMargin();
-                        bool is_right = child_style->float_ == css_f_right;
+                        bool is_right = ( child_style->float_ == css_f_right ) ||
+                              ( is_rtl && child_style->float_ == css_f_inline_start ) ||
+                              (!is_rtl && child_style->float_ == css_f_inline_end );
                         // (style->clear has not been copied to the floatBox: we must
                         // get it from the floatBox single child)
                         css_clear_t child_clear = child->getChildNode(0)->getStyle()->clear;
@@ -11018,7 +11036,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         // not there yet (or just added, which will be handled by next 'if'), or has
         // not yet got its float_ from its child. So the ->display of the floatBox
         // element will have to be updated too elsewhere.
-        if ( pstyle->float_ == css_f_left || pstyle->float_ == css_f_right ) {
+        if ( pstyle->float_ > css_f_none ) {
             if ( pstyle->display <= css_d_inline ) {
                 pstyle->display = css_d_block;
             }

@@ -3062,6 +3062,8 @@ static const char * css_f_names[] =
     "none",
     "left",
     "right",
+    "inline-start",
+    "inline-end",
     NULL
 };
 
@@ -3072,6 +3074,8 @@ static const char * css_c_names[] =
     "none",
     "left",
     "right",
+    "inline-start",
+    "inline-end",
     "both",
     NULL
 };
