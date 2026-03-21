@@ -10887,6 +10887,30 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->display = css_d_none;
     }
 
+    if ( nodeElementId == el_pseudoElem ) {
+        if ( enode->hasAttribute(attr_FirstLetter) ) {
+            // Many properties are not allowed, but we don't really want
+            // to check them all, as publishers would probably not use those
+            // that don't have any effect.
+            // There are a few (even if not provided, they could be
+            // inherited) that could cause unwanted effects:
+            // - display: avoid issues by ensuring it is either none or inline
+            //   (this has to be done here before the PREPARE_FLOATBOXES block
+            //   below, which may change it to css_d_block for rendering purpose)
+            if ( pstyle->display != css_d_none ) {
+                pstyle->display = css_d_inline;
+            }
+            // - text-indent, if the FirstLetter happens to be a float: there
+            //   shouldn't be any indent in the float (checked on Firefox)
+            pstyle->text_indent.type = css_val_screen_px;
+            pstyle->text_indent.value = 0;
+            // Most of the ones we support but that are not allowed are
+            // block related (width, page-break...), and shouldn't have
+            // any effect.
+        }
+        // The specs mention no property that would be not allowed for ::before/::after
+    }
+
     if ( BLOCK_RENDERING(rend_flags, PREPARE_FLOATBOXES) ) {
         // https://developer.mozilla.org/en-US/docs/Web/CSS/float
         //  As float implies the use of the block layout, it modifies the computed value
