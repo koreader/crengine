@@ -64,7 +64,19 @@ int scaleForRenderDPI( int value ) {
 
 // Compute per-corner border radii in pixels, applying CSS scaling rules
 // Order of corners: 0=TL, 1=TR, 2=BR, 3=BL
+static inline bool styleHasBorderRadii(const css_style_rec_t * style) {
+    for (int i=0; i<4; i++) {
+        if (style->border_radius_h[i].type != css_val_unspecified || style->border_radius_h[i].value != 0)
+            return true;
+        if (style->border_radius_v[i].type != css_val_unspecified || style->border_radius_v[i].value != 0)
+            return true;
+    }
+    return false;
+}
+
 static void computeBorderRadiiPx(ldomNode * node, css_style_rec_t * style, int box_w, int box_h, int rx[4], int ry[4]) {
+    if (!styleHasBorderRadii(style))
+        return;
     for (int i=0; i<4; i++) {
         rx[i] = 0; ry[i] = 0;
         css_length_t h = style->border_radius_h[i];
@@ -9634,7 +9646,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         int tbw=topBorderwidth,rbw=rightBorderwidth,bbw=bottomBorderwidth,lbw=leftBorderwidth;
 
         // Rounded borders for any style with radii: draw curved sides, then return
-        {
+        if (styleHasBorderRadii(style.get())) {
             int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
             computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
             if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]) {
@@ -10653,15 +10665,18 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                 saved_active = dei->rounded_clip_active;
                 saved_rounded_rect = dei->rounded_clip_rect;
                 for (int i=0;i<4;i++){ saved_rx[i]=dei->rounded_rx[i]; saved_ry[i]=dei->rounded_ry[i]; }
-                // Compute radii for this element
-                RenderRectAccessor fmt( enode );
-                int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
-                computeBorderRadiiPx(enode, enode->getStyle().get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
-                if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]) {
-                    dei->rounded_clip_active = true;
-                    dei->rounded_clip_rect = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);
-                    for (int i=0;i<4;i++){ dei->rounded_rx[i]=rx[i]; dei->rounded_ry[i]=ry[i]; }
-                    restore_rounded = true;
+                css_style_rec_t * style = enode->getStyle().get();
+                if (styleHasBorderRadii(style)) {
+                    // Compute radii for this element only when rounded corners are specified
+                    RenderRectAccessor fmt( enode );
+                    int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+                    computeBorderRadiiPx(enode, style, fmt.getWidth(), fmt.getHeight(), rx, ry);
+                    if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]) {
+                        dei->rounded_clip_active = true;
+                        dei->rounded_clip_rect = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);
+                        for (int i=0;i<4;i++){ dei->rounded_rx[i]=rx[i]; dei->rounded_ry[i]=ry[i]; }
+                        restore_rounded = true;
+                    }
                 }
             }
             drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
@@ -10978,7 +10993,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                     // Regular element: draw bgcolor or image inside its border box
                     if ( draw_bg_color ) {
                         int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
-                        computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+                        if (styleHasBorderRadii(style.get())) {
+                            computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+                        }
                         if (rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3])
                             fillRoundedRect(drawbuf, x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), rx, ry, bg_color);
                         else
