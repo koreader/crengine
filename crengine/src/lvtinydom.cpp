@@ -6174,8 +6174,8 @@ void ldomElementWriter::onBodyEnter()
         if ( nb_children > 0 ) {
             // The only possibility for this element being built to have children
             // is if the above initNodeStyle() has applied to this node some
-            // matching selectors that had ::before or ::after or ::first-letter, which have then
-            // created one or two or three pseudoElem children. But let's be sure of that.
+            // matching selectors that had ::before or ::after, which have then
+            // created one or more pseudoElem children. But let's be sure of that.
             for ( int i=0; i<nb_children; i++ ) {
                 ldomNode * child = _element->getChildNode(i);
                 if ( child->getNodeId() == el_pseudoElem ) {
@@ -6230,11 +6230,10 @@ void ldomNode::ensurePseudoElement( bool is_before ) {
         // (and using pseudo elements on them feels hackish): ignore them.
         return;
     }
-    // This node should have that pseudoElement, but it might already be there,
+    // This node should get that pseudoElement, but it might already be there,
     // so check if there is already one, and if not, create it.
-    // This happens usually in the initial loading phase, but it might in
-    // a re-rendering if the pseudo element is introduced by a change in
-    // styles (we won't be able to create a node if there's a cache file).
+    // This happens usually in the initial loading phase, but it might in a
+    // re-rendering if the pseudo element is introduced by a change in styles.
     int insertChildIndex = -1;
     int nb_children = getChildCount();
     if ( is_before ) { // ::before
@@ -6385,6 +6384,18 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
                     if ( n == topNode && index >= n->getChildCount() )
                         break;
                     continue;
+                }
+                else if ( !n->getStyle().isNull() && n->getStyle()->display == css_d_none ) {
+                    // Skip display:none elements
+                    index = n->getNodeIndex() + 1;
+                    n = n->getParentNode();
+                    if ( n == topNode && index >= n->getChildCount() )
+                        break;
+                    continue;
+                }
+                else if ( n->getNodeId() == el_br ) {
+                    // A <br> before any text makes no first-letter
+                    break;
                 }
             }
             // Process next child

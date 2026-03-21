@@ -4387,6 +4387,9 @@ bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 
 	setRenderProps(0, 0); // to allow apply styles and rend method while loading
 
+	// Reset counters (quotes nesting levels...)
+	TextLangMan::resetCounters();
+
 	if (m_callback) {
 		m_callback->OnLoadFileStart(m_doc_props->getStringDef(
 				DOC_PROP_FILE_NAME, ""));
