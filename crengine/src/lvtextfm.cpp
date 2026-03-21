@@ -588,9 +588,18 @@ public:
         flt->srctext = src;
 
         ldomNode * node = (ldomNode *) src->object;
-        flt->is_right = node->getStyle()->float_ == css_f_right;
+        css_float_t float_ = node->getStyle()->float_;
+        flt->is_right = ( ( float_ == css_f_right ) ||
+                          ( m_para_dir_is_rtl && float_ == css_f_inline_start ) ||
+                          (!m_para_dir_is_rtl && float_ == css_f_inline_end ) );
         // clear was not moved to the floatBox: get it from its single child
         flt->clear = node->getChildNode(0)->getStyle()->clear;
+        if ( flt->clear == css_c_inline_start ) {
+            flt->clear = m_para_dir_is_rtl ? css_c_right : css_c_left;
+        }
+        else if ( flt->clear == css_c_inline_end ) {
+            flt->clear = m_para_dir_is_rtl ? css_c_left : css_c_right;
+        }
 
         // Thanks to the wrapping floatBox element, which has no
         // margin, we can set its RenderRectAccessor to be exactly

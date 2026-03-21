@@ -322,7 +322,9 @@ enum css_float_t {
     css_f_inherit,
     css_f_none,
     css_f_left,
-    css_f_right
+    css_f_right,
+    css_f_inline_start,
+    css_f_inline_end
 };
 
 /// clear property values
@@ -331,6 +333,8 @@ enum css_clear_t {
     css_c_none,
     css_c_left,
     css_c_right,
+    css_c_inline_start,
+    css_c_inline_end,
     css_c_both
 };
 
