@@ -1450,6 +1450,85 @@ void LVGrayDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int he
     CHECK_GUARD_BYTE;
 }
 
+/// Draw a COLR v0 color glyph (premultiplied BGRA) onto 8-bit grayscale buffer
+void LVGrayDrawBuf::DrawColorGlyph( int x, int y, const lUInt8 * bitmap, int width, int height, int pitch, const lUInt32 * __restrict /*palette*/)
+{
+    if ( _bpp != 8 )
+        return;
+    const int initial_height = height;
+    int bx = 0;
+    int by = 0;
+
+    if (x<_clip.left)
+    {
+        width += x-_clip.left;
+        bx -= x-_clip.left;
+        x = _clip.left;
+        if (width<=0)
+            return;
+    }
+    if (y<_clip.top)
+    {
+        height += y-_clip.top;
+        by -= y-_clip.top;
+        y = _clip.top;
+        if (_hidePartialGlyphs && height<=initial_height/2)
+            return;
+        if (height<=0)
+            return;
+    }
+    if (x + width > _clip.right)
+    {
+        width = _clip.right - x;
+    }
+    if (width<=0)
+        return;
+    if (y + height > _clip.bottom)
+    {
+        if (_hidePartialGlyphs && height<=initial_height/2)
+            return;
+        int clip_bottom = _clip.bottom;
+        if ( _hidePartialGlyphs )
+            clip_bottom = this->_dy;
+        if ( y+height > clip_bottom)
+            height = clip_bottom - y;
+    }
+    if (height<=0)
+        return;
+
+    bitmap += bx * 4 + by * pitch;
+
+    lUInt8 * dstline = _data + _rowsize*y + x;
+    while (height--)
+    {
+        const lUInt8 * __restrict src = bitmap;
+        lUInt8 * __restrict dst = dstline;
+        size_t px_count = width;
+        while (px_count--)
+        {
+            lUInt8 b = src[0], g = src[1], r = src[2], a = src[3];
+            // Pre invert colored pixels so night mode page inversion preserves them
+            if (_invertImages && (r != g || r != b)) {
+                b = a - b; g = a - g; r = a - r;
+            }
+            // Premultiplied BGRA source-over: converts to luminance, blends onto grayscale dest
+            if (a == 255) {
+                *dst = (lUInt8)((r * 77 + g * 150 + b * 29) >> 8);
+            } else if (a > 0) {
+                lUInt8 lum = (lUInt8)((r * 77 + g * 150 + b * 29) >> 8);
+                lUInt8 inv_a = 255 - a;
+                int val = lum + ((*dst * inv_a + 127) / 255);
+                *dst = (lUInt8)(val > 255 ? 255 : val);
+            }
+            src += 4;
+            dst++;
+        }
+        bitmap += pitch;
+        dstline += _rowsize;
+    }
+    CHECK_GUARD_BYTE;
+}
+
 void LVBaseDrawBuf::SetClipRect( const lvRect * clipRect )
 {
     if (clipRect)
@@ -2084,6 +2163,86 @@ void LVColorDrawBuf::Draw( int x, int y, const lUInt8 * bitmap, int width, int h
             }
             bitmap += bmp_width;
         }
+    }
+}
+
+/// Draw a COLR v0 color glyph (premultiplied BGRA) onto 32-bit color buffer
+void LVColorDrawBuf::DrawColorGlyph( int x, int y, const lUInt8 * bitmap, int width, int height, int pitch, const lUInt32 * __restrict /*palette*/)
+{
+    if ( !_data || _bpp != 32 )
+        return;
+    const int initial_height = height;
+    int bx = 0;
+    int by = 0;
+
+    if (x<_clip.left)
+    {
+        width += x-_clip.left;
+        bx -= x-_clip.left;
+        x = _clip.left;
+        if (width<=0)
+            return;
+    }
+    if (y<_clip.top)
+    {
+        height += y-_clip.top;
+        by -= y-_clip.top;
+        y = _clip.top;
+        if (_hidePartialGlyphs && height<=initial_height/2)
+            return;
+        if (height<=0)
+            return;
+    }
+    if (x + width > _clip.right)
+    {
+        width = _clip.right - x;
+    }
+    if (width<=0)
+        return;
+    if (y + height > _clip.bottom)
+    {
+        if (_hidePartialGlyphs && height<=initial_height/2)
+            return;
+        int clip_bottom = _clip.bottom;
+        if (_hidePartialGlyphs )
+            clip_bottom = this->_dy;
+        if ( y+height > clip_bottom)
+            height = clip_bottom - y;
+    }
+    if (height<=0)
+        return;
+
+    bitmap += bx * 4 + by * pitch;
+
+    while (height--)
+    {
+        const lUInt8 * __restrict src = bitmap;
+        lUInt32 * __restrict dst = ((lUInt32*)GetScanLine(y++)) + x;
+        size_t px_count = width;
+        while (px_count--)
+        {
+            lUInt8 b = src[0], g = src[1], r = src[2], a = src[3];
+            // Pre invert colored pixels so night mode page inversion preserves them
+            if (_invertImages && (r != g || r != b)) {
+                b = a - b; g = a - g; r = a - r;
+            }
+            // Premultiplied BGRA source-over compositing
+            if (a == 255) {
+                *dst = (r << 16) | (g << 8) | b;
+            } else if (a > 0) {
+                lUInt8 inv_a = 255 - a;
+                lUInt32 bg = *dst;
+                int out_r = r + (((bg >> 16 & 0xFF) * inv_a + 127) / 255);
+                int out_g = g + (((bg >> 8 & 0xFF) * inv_a + 127) / 255);
+                int out_b = b + (((bg & 0xFF) * inv_a + 127) / 255);
+                *dst = ((out_r > 255 ? 255 : out_r) << 16)
+                     | ((out_g > 255 ? 255 : out_g) << 8)
+                     |  (out_b > 255 ? 255 : out_b);
+            }
+            src += 4;
+            dst++;
+        }
+        bitmap += pitch;
     }
 }
 

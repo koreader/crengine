@@ -131,6 +131,8 @@ struct LVFontGlyphCacheItem
     GlyphCacheItemData data;
     lUInt16 bmp_width;
     lUInt16 bmp_height;
+    lUInt16 bmp_pitch;
+    lUInt8  bmp_pixelformat; // 1=grayscale, 4=BGRA
     lInt16  origin_x;
     lInt16  origin_y;
     lUInt16 advance;
@@ -145,16 +147,19 @@ struct LVFontGlyphCacheItem
         // NOTE: Again, we stash the data *in place of* the bmp array, so, the effective size of our object is:
         //       LVFontGlyphCacheItem-up-to-bmp + the glyph storage size.
         //       Given the alignment constraints on bmp, the only sane way to compute that is via offsetof.
-        return offsetof(LVFontGlyphCacheItem, bmp) + ((bmp_width * bmp_height) * sizeof(*bmp));
+        return offsetof(LVFontGlyphCacheItem, bmp) + (bmp_pitch * bmp_height);
     }
-    static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lChar32 ch, int w, int h )
+    static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lChar32 ch, int w, int h, int pitch = 0, lUInt8 pixfmt = 1 )
     {
+        if (!pitch) pitch = w * pixfmt;
         LVFontGlyphCacheItem * item = (LVFontGlyphCacheItem *)malloc( offsetof(LVFontGlyphCacheItem, bmp)
-                                                                        + ((w*h) * sizeof(*bmp)) );
+                                                                        + (pitch * h) );
 	if (item) {
 	    item->data.ch = ch;
 	    item->bmp_width = (lUInt16)w;
 	    item->bmp_height = (lUInt16)h;
+	    item->bmp_pitch = (lUInt16)pitch;
+	    item->bmp_pixelformat = pixfmt;
 	    item->origin_x =   0;
 	    item->origin_y =   0;
 	    item->advance =    0;
@@ -167,14 +172,17 @@ struct LVFontGlyphCacheItem
         return item;
     }
     #if USE_HARFBUZZ==1
-    static LVFontGlyphCacheItem *newItem(LVFontLocalGlyphCache* local_cache, lUInt32 glyph_index, int w, int h)
+    static LVFontGlyphCacheItem *newItem(LVFontLocalGlyphCache* local_cache, lUInt32 glyph_index, int w, int h, int pitch = 0, lUInt8 pixfmt = 1)
     {
+        if (!pitch) pitch = w * pixfmt;
         LVFontGlyphCacheItem * item = (LVFontGlyphCacheItem *)malloc( offsetof(LVFontGlyphCacheItem, bmp)
-                                                                        + ((w*h) * sizeof(*bmp)) );
+                                                                        + (pitch * h) );
         if (item) {
             item->data.gindex = glyph_index;
             item->bmp_width = (lUInt16) w;
             item->bmp_height = (lUInt16) h;
+            item->bmp_pitch = (lUInt16) pitch;
+            item->bmp_pixelformat = pixfmt;
             item->origin_x = 0;
             item->origin_y = 0;
             item->advance = 0;
