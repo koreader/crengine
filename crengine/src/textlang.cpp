@@ -1417,6 +1417,48 @@ int TextLangCfg::getHangingPercent( bool right_hanging, bool rtl_line, bool & ch
         case 0x007D: // }
             ratio  = 5;
             break;
+        // CJK closing/comma punctuation: hang 50% for full-width one-sided glyphs; see a0d0d1f7 (#355).
+        case 0x3001: // 、 ideographic comma
+        case 0x3002: // 。 ideographic full stop
+        case 0x3009: // 〉 right angle bracket
+        case 0x300B: // 》 right double angle bracket
+        case 0x300D: // 」 right corner bracket
+        case 0x300F: // 』 right white corner bracket
+        case 0x3011: // 】 right black lenticular bracket
+        case 0x3015: // 〕 right tortoise shell bracket
+        case 0x3017: // 〗 right white lenticular bracket
+        case 0x3019: // 〙 right white tortoise shell bracket
+        case 0x301B: // 〛 right white square bracket
+        case 0xFF01: // ！ fullwidth exclamation mark
+        case 0xFF09: // ） fullwidth right parenthesis
+        case 0xFF0C: // ， fullwidth comma
+        case 0xFF0E: // ． fullwidth full stop
+        case 0xFF1A: // ： fullwidth colon
+        case 0xFF1B: // ； fullwidth semicolon
+        case 0xFF1F: // ？ fullwidth question mark
+        case 0xFF3D: // ］ fullwidth right square bracket
+        case 0xFF5D: // ｝ fullwidth right curly bracket
+            if ( line_end_hanging ) {
+                ratio = 50;
+            }
+            break;
+        // CJK opening punctuation that should hang at start of line
+        case 0x3008: // 〈 left angle bracket
+        case 0x300A: // 《 left double angle bracket
+        case 0x300C: // 「 left corner bracket
+        case 0x300E: // 『 left white corner bracket
+        case 0x3010: // 【 left black lenticular bracket
+        case 0x3014: // 〔 left tortoise shell bracket
+        case 0x3016: // 〖 left white lenticular bracket
+        case 0x3018: // 〘 left white tortoise shell bracket
+        case 0x301A: // 〚 left white square bracket
+        case 0xFF08: // （ fullwidth left parenthesis
+        case 0xFF3B: // ［ fullwidth left square bracket
+        case 0xFF5B: // ｛ fullwidth left curly bracket
+            if ( !line_end_hanging ) {
+                ratio = 50;
+            }
+            break;
         default:
             break;
     }

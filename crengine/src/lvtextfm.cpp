@@ -4113,7 +4113,10 @@ public:
                                     // (0.9 * font size, in case HarfBuzz has reduced the advance)
                                     // and it has a lot of positive left side bearing (left half
                                     // of the glyph blank) - see above.
-                                    if ( first_char_width > 0.9 * font->getSize() && lsb > 0.4 * first_char_width ) {
+                                    // But don't cancel for known CJK punctuation: their blank half
+                                    // is exactly what we want to hang into the margin.
+                                    if ( first_char_width > 0.9 * font->getSize() && lsb > 0.4 * first_char_width
+                                            && getCJKCharType(m_text[wstart]) == cjkt_other ) {
                                         shift_x = 0;
                                     }
                                 }
@@ -4371,7 +4374,10 @@ public:
                                         // (0.9 * font size, in case HarfBuzz has reduced the advance)
                                         // and it has a lot of positive right side bearing (right half
                                         // of the glyph blank) - see comment above in 'firstWord' handling.
-                                        if ( last_char_width > 0.9 * font->getSize() && rsb > 0.4 * last_char_width ) {
+                                        // But don't cancel for known CJK punctuation: their blank half
+                                        // is exactly what we want to hang into the margin.
+                                        if ( last_char_width > 0.9 * font->getSize() && rsb > 0.4 * last_char_width
+                                                && getCJKCharType(m_text[lastnonspace]) == cjkt_other ) {
                                             shift_w = 0;
                                         }
                                     }
