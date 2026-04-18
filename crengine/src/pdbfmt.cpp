@@ -1217,12 +1217,12 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
     contentFormat = doc_format_none;
     PDBFile * pdb = new PDBFile();
     LVPDBContainer * container = new LVPDBContainer();
+    pdb->getDocProps()->set(doc->getProps());
     if ( !pdb->open(stream, container, true, contentFormat) ) {
         delete container;
         delete pdb;
         return false;
     }
-    pdb->getDocProps()->set(doc->getProps());
     stream = LVStreamRef(pdb);
     container->setStream(stream);
     doc->setContainer(LVContainerRef(container));
