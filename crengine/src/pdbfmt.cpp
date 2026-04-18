@@ -805,6 +805,7 @@ public:
             _recordCount = preamble.firstNonBookIndex - 1;
             lUInt32 coverOffset = (lUInt32)-1;
             lUInt32 thumbOffset = 0;
+            bool title_set = false;
             if (preamble.mobiFlags & 0x40) {
                 // EXTH present
                 stream->SetPos(_records[0].offset + 16 + preamble.hederLength);
@@ -895,6 +896,7 @@ public:
                                     lString8 s((const char *)buf2.get(), recLen - 8);
                                     CRLog::trace("MOBI updated title: %s", s.c_str());
                                     m_doc_props->setString(DOC_PROP_TITLE, Utf8ToUnicode(s));
+                                    title_set = true;
                                 } else if (recType == 524) {
                                     lString8 s((const char *)buf2.get(), recLen - 8);
                                     CRLog::trace("MOBI language: %s", s.c_str());
@@ -914,6 +916,16 @@ public:
                     if (keywords_set) {
                         m_doc_props->setString(DOC_PROP_KEYWORDS, keywords);
                     }
+                }
+            }
+            if (!title_set) {
+                LVArray<lUInt8> buf3;
+                buf3.addSpace(preamble.fullNameLength);
+                stream->SetPos(_records[0].offset + preamble.fullNameOffset);
+                if (stream->Read(buf3.get(), preamble.fullNameLength, NULL) == LVERR_OK) {
+                    lString8 s((const char *)buf3.get(), preamble.fullNameLength);
+                    CRLog::trace("MOBI title: %s", s.c_str());
+                    m_doc_props->setString(DOC_PROP_TITLE, Utf8ToUnicode(s));
                 }
             }
             if (container) {
