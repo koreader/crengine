@@ -822,6 +822,12 @@ public:
                         cnv.rev(&recCount);
                     }
                     LVArray<lUInt8> buf2;
+                    lString32 authors;
+                    lString32 identifiers;
+                    lString32 keywords;
+                    bool authors_set = false;
+                    bool identifiers_set = false;
+                    bool keywords_set = false;
                     for (lUInt32 i=0; i<recCount; i++) {
                         lUInt32 recType = 0;
                         lUInt32 recLen = 0;
@@ -846,18 +852,67 @@ public:
                                 if (stream->Read(buf2.get(), recLen - 8, NULL) != LVERR_OK)
                                     break;
                                 if (recType == 100) {
-                                    lString8 author((const char *)buf2.get(), recLen - 8);
-                                    CRLog::trace("MOBI author: %s", author.c_str());
-                                    m_doc_props->setString(DOC_PROP_AUTHORS, Utf8ToUnicode(author));
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI author: %s", s.c_str());
+                                    if (authors_set) {
+                                        authors << "\n" << Utf8ToUnicode(s);
+                                    } else {
+                                        authors << Utf8ToUnicode(s);
+                                        authors_set = true;
+                                    }
+                                } else if (recType == 103) {
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI description: %s", s.c_str());
+                                    m_doc_props->setString(DOC_PROP_DESCRIPTION, Utf8ToUnicode(s));
+                                } else if (recType == 104) {
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI ISBN: %s", s.c_str());
+                                    if (identifiers_set) {
+                                        identifiers << "\nISBN:" << Utf8ToUnicode(s);
+                                    } else {
+                                        identifiers << "ISBN:" << Utf8ToUnicode(s);
+                                        identifiers_set = true;
+                                    }
                                 } else if (recType == 105) {
                                     lString8 s((const char *)buf2.get(), recLen - 8);
                                     CRLog::trace("MOBI subject: %s", s.c_str());
+                                    if (keywords_set) {
+                                        keywords << "\n" << Utf8ToUnicode(s);
+                                    } else {
+                                        keywords << Utf8ToUnicode(s);
+                                        keywords_set = true;
+                                    }
+                                } else if (recType == 113) {
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI ASIN: %s", s.c_str());
+                                    if (identifiers_set) {
+                                        identifiers << "\nASIN:" << Utf8ToUnicode(s);
+                                    } else {
+                                        identifiers << "ASIN:" << Utf8ToUnicode(s);
+                                        identifiers_set = true;
+                                    }
+                                } else if (recType == 503) {
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI updated title: %s", s.c_str());
                                     m_doc_props->setString(DOC_PROP_TITLE, Utf8ToUnicode(s));
+                                } else if (recType == 524) {
+                                    lString8 s((const char *)buf2.get(), recLen - 8);
+                                    CRLog::trace("MOBI language: %s", s.c_str());
+                                    m_doc_props->setString(DOC_PROP_LANGUAGE, Utf8ToUnicode(s));
                                 }
                             }
                             //================================
                             stream->SetPos(nextPos);
                         }
+                    }
+                    if (authors_set) {
+                        m_doc_props->setString(DOC_PROP_AUTHORS, authors);
+                    }
+                    if (identifiers_set) {
+                        m_doc_props->setString(DOC_PROP_IDENTIFIERS, identifiers);
+                    }
+                    if (keywords_set) {
+                        m_doc_props->setString(DOC_PROP_KEYWORDS, keywords);
                     }
                 }
             }
