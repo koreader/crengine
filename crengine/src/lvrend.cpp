@@ -7941,7 +7941,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // should have it used - but we don't, to not complexify out table
                 // rendering algorithm
             }
-            else if ( style->box_sizing == css_bs_content_box && !is_fit_content_width ) {
+            else if ( style->box_sizing == css_bs_content_box || is_fit_content_width ) {
                 // If W3C box model requested, CSS width specifies the width
                 // of the content box.
                 // In crengine, the width we deal with is the border box, so we
