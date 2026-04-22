@@ -2810,6 +2810,33 @@ ldomXPointer LVDocView::getNodeByPoint(lvPoint pt, bool strictBounds, bool forTe
 					direction = -direction;
 				}
 				ptr = m_doc->createXPointer(pt, direction, strictBounds);
+				// If this ptr is null or not on the screen. we may find a better one looking in the other direction
+				bool try_other_dir = false;
+				if ( ptr.isNull() ) {
+					try_other_dir = true;
+				}
+				else if ( ptr.isText() && ptr.getRect(rc) ) {
+					lvRect page_rect;
+					GetPos(page_rect);
+					if ( rc.bottom <= page_rect.top || rc.top >= page_rect.bottom ) { // Not in the current page
+						try_other_dir = true;
+					}
+				}
+				if ( try_other_dir ) {
+					ldomXPointer ptr2 = m_doc->createXPointer(pt, -direction, strictBounds);
+					if ( ptr.isNull() ) {
+						// Use it instead
+						ptr = ptr2;
+					}
+					else if ( !ptr2.isNull() && ptr2.isText() && ptr2.getRect(rc) ) {
+						lvRect page_rect;
+						GetPos(page_rect);
+						if ( !(rc.bottom <= page_rect.top || rc.top >= page_rect.bottom) ) {
+							// It is in current page: use it instead of previous one
+							ptr = ptr2;
+						}
+					}
+				}
 			}
 		}
 		return ptr;
