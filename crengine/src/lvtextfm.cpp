@@ -4731,7 +4731,7 @@ public:
         // split paragraph into lines, export lines
         int pos = 0;
 
-        bool is_css_first_line = m_srcs[0]->flags & LTEXT_IS_FIRST_LINE_CLONE;
+        bool is_css_first_line = m_srcs[0] ? (m_srcs[0]->flags & LTEXT_IS_FIRST_LINE_CLONE) : false;
 
         #if (USE_LIBUNIBREAK!=1)
         int upSkipPos = -1;
