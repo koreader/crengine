@@ -7322,8 +7322,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
     }
     LVCssSelector * selector = NULL;
     LVCssSelector * prev_selector;
-    int err_count = 0;
-    int rule_count = 0;
     for (;*str;)
     {
         // new rule
@@ -7360,7 +7358,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             if ( !decl->parse( str, useragent_sheet, _doc, codeBase ) )
             {
                 err = true;
-                err_count++;
             }
             else
             {
@@ -7374,7 +7371,6 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
                     if ( decl->isPresentationalHint() )
                         p->setIsPresentationalHint(true);
                 }
-                rule_count++;
             }
             break;
         }

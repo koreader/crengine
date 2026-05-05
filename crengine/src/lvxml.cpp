@@ -5531,9 +5531,7 @@ static bool PreProcessXmlString(const lChar32 *str, const lChar32 *end, const lC
                         int left = 0;
                         int right = sizeof(def_entity_table) / sizeof((def_entity_table)[0]) - 1; // ignore last NULL
                         int middle;
-                        int iters = 0;
                         while ( left < right ) {
-                            iters++;
                             middle = (left + right) / 2;
                             int res = lStr_cmp( entname, def_entity_table[middle].name );
                             if ( res == 0 ) {
