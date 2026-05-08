@@ -50,6 +50,13 @@
 #include <freetype/ftsynth.h>    // for FT_GlyphSlot_Oblique()
 #include <freetype/ftglyph.h>    // for FT_Matrix_Multiply()
 #include <freetype/tttables.h>   // for FT_Get_Sfnt_Table()
+#include <freetype/ftmm.h>       // for FT_Get_MM_Var() / FT_Set_Var_Design_Coordinates()
+// FT_Done_MM_Var was added in FreeType 2.9; fall back to free() on older versions
+#if FREETYPE_MINOR >= 9 || FREETYPE_MAJOR > 2
+#  define FT_DONE_MM_VAR(lib, p) FT_Done_MM_Var(lib, p)
+#else
+#  define FT_DONE_MM_VAR(lib, p) free(p)
+#endif
 
 // Use Freetype embolden API instead of LVFontBoldTransform to
 // make fake bold (for fonts that do not provide a bold face).
@@ -591,6 +598,13 @@ private:
     // Store some info we can know about a font at registration time
     bool _has_ot_math;
     bool _has_emojis;
+    // Variable font axis values for this instance (empty = default/static)
+    LVArray<LVFontVariation> _variations;
+    // Variable font axis ranges detected at registration time
+    bool  _has_wght_axis;
+    float _wght_axis_min, _wght_axis_max;
+    bool  _has_opsz_axis;
+    float _opsz_axis_min, _opsz_axis_max;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
@@ -608,6 +622,10 @@ public:
         , _real_weight(true)
         , _has_ot_math(false)
         , _has_emojis(false)
+        , _has_wght_axis(false)
+        , _wght_axis_min(400.0f), _wght_axis_max(400.0f)
+        , _has_opsz_axis(false)
+        , _opsz_axis_min(12.0f), _opsz_axis_max(12.0f)
         {
         }
     LVFontDef(const LVFontDef & def)
@@ -625,12 +643,22 @@ public:
         , _real_weight(def._real_weight)
         , _has_ot_math(def._has_ot_math)
         , _has_emojis(def._has_emojis)
+        , _variations(def._variations)
+        , _has_wght_axis(def._has_wght_axis)
+        , _wght_axis_min(def._wght_axis_min), _wght_axis_max(def._wght_axis_max)
+        , _has_opsz_axis(def._has_opsz_axis)
+        , _opsz_axis_min(def._opsz_axis_min), _opsz_axis_max(def._opsz_axis_max)
         {
         }
 
     /// returns true if definitions are equal
     bool operator == ( const LVFontDef & def ) const
     {
+        if (_variations.length() != def._variations.length())
+            return false;
+        for (int i = 0; i < _variations.length(); i++)
+            if (!(_variations[i] == def._variations[i]))
+                return false;
         return ( _size == def._size || _size == -1 || def._size == -1 )
             && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
             && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
@@ -646,6 +674,14 @@ public:
 
     lUInt32 getHash() const {
         lUInt32 h =  (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
+        // Mix in variation axis values so different instances of the same file are distinct
+        for (int i = 0; i < _variations.length(); i++) {
+            h = h * 31 + _variations[i].tag;
+            float fval = _variations[i].value; // copy to lvalue for memcpy
+            lUInt32 vbits;
+            memcpy(&vbits, &fval, sizeof(vbits));
+            h = h * 31 + vbits;
+        }
         // _bias is not a static property, and can be set/unset on these definitions.
         // If a same _bias value is moved from one font to another, *adding* _bias
         // to this hash may result in a final identical GetFontListHash() value
@@ -679,6 +715,18 @@ public:
     void setHasOTMath(bool has_ot_math) { _has_ot_math = has_ot_math; }
     bool hasEmojis() const { return _has_emojis; }
     void setHasEmojis(bool has_emojis) { _has_emojis = has_emojis; }
+    const LVArray<LVFontVariation>& getVariations() const { return _variations; }
+    void setVariations(const LVArray<LVFontVariation>& v) { _variations = v; }
+    bool hasWghtAxis() const { return _has_wght_axis; }
+    float getWghtAxisMin() const { return _wght_axis_min; }
+    float getWghtAxisMax() const { return _wght_axis_max; }
+    bool hasOpszAxis() const { return _has_opsz_axis; }
+    float getOpszAxisMin() const { return _opsz_axis_min; }
+    float getOpszAxisMax() const { return _opsz_axis_max; }
+    void setAxisInfo(bool hasWght, float wMin, float wMax, bool hasOpsz, float oMin, float oMax) {
+        _has_wght_axis = hasWght; _wght_axis_min = wMin; _wght_axis_max = wMax;
+        _has_opsz_axis = hasOpsz; _opsz_axis_min = oMin; _opsz_axis_max = oMax;
+    }
     int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() const { return _buf; }
@@ -1520,6 +1568,7 @@ protected:
     FT_Pos         _synth_weight_strength; // for emboldening with FT_Outline_Embolden()
     FT_Pos         _synth_weight_half_strength;
     int            _features; // requested OpenType features bitmap
+    LVArray<LVFontVariation> _variations; // variable font axis values applied to this instance
 #if USE_HARFBUZZ==1
     hb_font_t* _hb_font;
     hb_buffer_t* _hb_buffer;
@@ -1923,6 +1972,9 @@ public:
     virtual int getFeatures() const {
         return _features;
     }
+    void setVariations( const LVArray<LVFontVariation>& variations ) {
+        _variations = variations;
+    }
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
         _kerningMode = kerningMode;
@@ -2106,6 +2158,45 @@ public:
             0,        /* pixel_width           */
             _face_size );  /* pixel_height          */
 
+        // Apply variable font axis coordinates (wght, opsz, ...) if any were requested
+        if (!_variations.empty())
+            CRLog::info("Variable font setupFace: %s variations=%d ft_error=%d",
+                _fileName.c_str(), _variations.length(), error);
+        if (!_variations.empty() && FT_Err_Ok == error) {
+            FT_MM_Var* mm_var = NULL;
+            if (FT_Get_MM_Var(_face, &mm_var) == FT_Err_Ok && mm_var) {
+                // Build axis coord array (FT_Fixed = 16.16) starting from defaults
+                FT_Fixed * coords = new FT_Fixed[mm_var->num_axis];
+                for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
+                    coords[ai] = mm_var->axis[ai].def; // start at default
+                    lUInt32 axTag = (lUInt32)mm_var->axis[ai].tag;
+                    for (int vi = 0; vi < _variations.length(); vi++) {
+                        if (_variations[vi].tag == axTag) {
+                            coords[ai] = (FT_Fixed)(_variations[vi].value * 65536.0f);
+                            break;
+                        }
+                    }
+                }
+                FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
+                delete[] coords;
+                {
+                    char axisBuf[256] = "";
+                    int pos = 0;
+                    for (int vi = 0; vi < _variations.length() && pos < (int)sizeof(axisBuf) - 20; vi++) {
+                        lUInt32 t = _variations[vi].tag;
+                        pos += snprintf(axisBuf + pos, sizeof(axisBuf) - pos,
+                                        "%s%c%c%c%c=%.1f",
+                                        vi ? ", " : "",
+                                        (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
+                                        (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
+                                        _variations[vi].value);
+                    }
+                    CRLog::info("Variable font %s: axes [%s]", _fileName.c_str(), axisBuf);
+                }
+                FT_DONE_MM_VAR(_library, mm_var);
+            }
+        }
+
         #if USE_HARFBUZZ==1
         if (FT_Err_Ok == error) {
             if (_hb_font)
@@ -2130,6 +2221,16 @@ public:
                 if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
                     flags |= FT_LOAD_COLOR;
                 hb_ft_font_set_load_flags(_hb_font, flags);
+                // Apply variable font variations to the HarfBuzz font as well
+                if (!_variations.empty()) {
+                    hb_variation_t * hbvars = new hb_variation_t[_variations.length()];
+                    for (int vi = 0; vi < _variations.length(); vi++) {
+                        hbvars[vi].tag   = _variations[vi].tag;
+                        hbvars[vi].value = _variations[vi].value;
+                    }
+                    hb_font_set_variations(_hb_font, hbvars, (unsigned int)_variations.length());
+                    delete[] hbvars;
+                }
             }
         }
         #endif
@@ -5925,6 +6026,28 @@ public:
                 hb_face_destroy(hb_face);
             #endif
 
+            // Detect variable font axes (wght, opsz) for smarter weight matching
+            {
+                FT_MM_Var* mm_var = NULL;
+                if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+                    bool hasWght = false, hasOpsz = false;
+                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
+                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
+                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
+                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
+                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                    }
+                    def2.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
+                        def2.getName().c_str(),
+                        hasWght ? "yes" : "no", wMin, wMax,
+                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    FT_DONE_MM_VAR(_library, mm_var);
+                }
+            }
+
             if ( face ) {
                 FT_Done_Face( face );
                 face = NULL;
@@ -5954,7 +6077,8 @@ public:
     }
 
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
-                                int features, int documentId, bool useBias=false)
+                                int features, int documentId, bool useBias=false,
+                                const LVArray<LVFontVariation>* variations=NULL)
     {
         FONT_MAN_GUARD
         #if (DEBUG_FONT_MAN==1)
@@ -5963,6 +6087,11 @@ public:
                     size, weight, italic?1:0, (int)family, typeface.c_str() );
             }
         #endif
+        // Build effective variations: start from caller-supplied list
+        LVArray<LVFontVariation> effectiveVariations;
+        if (variations)
+            effectiveVariations = *variations;
+
         lString8 fontname;
         LVFontDef def(
             fontname,
@@ -5975,6 +6104,8 @@ public:
             -1,
             documentId
         );
+        // Pass variations to cache query so instantiated variable fonts are found exactly
+        def.setVariations(effectiveVariations);
         #if (DEBUG_FONT_MAN==1)
             if ( _log )
                 fprintf( _log, "GetFont: %s %d %s %s\n",
@@ -6002,6 +6133,36 @@ public:
             return LVFontRef(NULL);
         }
 
+        // If the best-matched font has a wght axis and no explicit wght variation was
+        // supplied, inject one so the face is set to exactly the requested weight instead
+        // of using FT_Outline_Embolden synthesis.
+        bool hasExplicitWght = false;
+        for (int vi = 0; vi < effectiveVariations.length(); vi++)
+            if (effectiveVariations[vi].tag == LVFONT_TAG_WGHT) { hasExplicitWght = true; break; }
+        if (item->getDef()->hasWghtAxis() && !hasExplicitWght) {
+            LVFontVariation wghtVar; wghtVar.tag = LVFONT_TAG_WGHT; wghtVar.value = (float)weight;
+            effectiveVariations.add(wghtVar);
+            CRLog::info("Variable font GetFont: injecting wght=%.0f for %s size=%d",
+                (float)weight, typeface.c_str(), size);
+            // Redo cache lookup with the fully-resolved variation set so we can
+            // find any already-instantiated variable font instance.
+            def.setVariations(effectiveVariations);
+            LVFontCacheItem * item2 = _cache.find(&def, useBias);
+            if (item2 != NULL && !item2->getFont().isNull()
+                    && item2->getDef()->getFeatures() == features) {
+                // Verify variations match exactly
+                const LVArray<LVFontVariation>& cachedVars2 = item2->getDef()->getVariations();
+                if (cachedVars2.length() == effectiveVariations.length()) {
+                    bool varMatch2 = true;
+                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                        if (!(cachedVars2[vi] == effectiveVariations[vi])) { varMatch2 = false; break; }
+                    if (varMatch2)
+                        return item2->getFont();
+                }
+            }
+            // Keep using item (registered font) for instantiation below
+        }
+
         bool italicize = false;
 
         LVFontDef newDef(*item->getDef());
@@ -6012,17 +6173,30 @@ public:
                 // Be sure we ignore any instantiated font found in cache that
                 // has features different than the ones requested.
             }
+            else if (item->getDef()->getVariations().length() != effectiveVariations.length()) {
+                // Variations mismatch: ignore this cached instance
+            }
             else {
+                bool varMatch = true;
+                const LVArray<LVFontVariation>& cachedVars = item->getDef()->getVariations();
+                for (int vi = 0; vi < effectiveVariations.length(); vi++) {
+                    if (!(cachedVars[vi] == effectiveVariations[vi])) { varMatch = false; break; }
+                }
+                if (!varMatch) {
+                    // Variations mismatch: ignore this cached instance
+                }
+                else {
             #ifdef USE_FT_EMBOLDEN
                 int deltaWeight = myabs(weight - item->getDef()->getWeight());
-                if (deltaWeight >= 25) {
+                if (deltaWeight >= 25 && !item->getDef()->hasWghtAxis()) {
                     // This instantiated cached font has a too different weight
                     // when USE_FT_EMBOLDEN, ignore this other-weight cached font instance
                     // and go loading from the font file again to apply embolden.
+                    // (Skip this check when wght axis is used — weight is controlled by variation)
                 }
             #else
                 int deltaWeight = weight - item->getDef()->getWeight();
-                if ( deltaWeight >= 200 ) {
+                if ( deltaWeight >= 200 && !item->getDef()->hasWghtAxis() ) {
                     // This instantiated cached font has a too low weight
                         // embolden using LVFontBoldTransform
                         CRLog::debug("font: apply Embolding to increase weight from %d to %d",
@@ -6036,6 +6210,7 @@ public:
                 else {
                     //fprintf(_log, "    : fount existing\n");
                     return item->getFont();
+                }
                 }
             }
         }
@@ -6075,6 +6250,8 @@ public:
         if ( family == css_ff_monospace && GetMonospaceSizeScale() != 100 ) {
             face_size = size * GetMonospaceSizeScale() / 100;
         }
+        // Set variations before loadFromFile so that setupFace() can apply them
+        font->setVariations(effectiveVariations);
         if (item->getDef()->getBuf().isNull())
             loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         else
@@ -6083,17 +6260,27 @@ public:
             //fprintf(_log, "    : loading from file %s : %s %d\n", item->getDef()->getName().c_str(),
             //    item->getDef()->getTypeFace().c_str(), item->getDef()->getSize() );
             LVFontRef ref(font);
-            // Instantiate this font with the requested OpenType features
+            // Instantiate this font with the requested OpenType features and variations
             newDef.setFeatures( features );
             font->setFeatures( features ); // followup setKerningMode() will create/update hb_features if needed
             font->setKerningMode( GetKerningMode() );
             font->setFaceName( item->getDef()->getTypeFace() );
             newDef.setSize( size );
+            newDef.setVariations( effectiveVariations );
+            // Copy axis info from the registered def so the instantiated def also exposes it
+            newDef.setAxisInfo(item->getDef()->hasWghtAxis(),
+                               item->getDef()->getWghtAxisMin(), item->getDef()->getWghtAxisMax(),
+                               item->getDef()->hasOpszAxis(),
+                               item->getDef()->getOpszAxisMin(), item->getDef()->getOpszAxisMax());
             //item->setFont( ref );
             //_cache.update( def, ref );
+            // Check whether weight variation handles weight; if not, fall back to synthesis
+            bool usingWghtAxis = false;
+            for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                if (effectiveVariations[vi].tag == LVFONT_TAG_WGHT) { usingWghtAxis = true; break; }
         #ifdef USE_FT_EMBOLDEN
             int deltaWeight = myabs(weight - newDef.getWeight());
-            if (deltaWeight >= 25) {
+            if (deltaWeight >= 25 && !usingWghtAxis) {
                 // embolden
                 // Will make some of this font's methods do embolden the glyphs and widths
                 font->setSynthWeight(weight);
@@ -6102,7 +6289,7 @@ public:
             }
         #else
             int deltaWeight = weight - newDef.getWeight();
-            if ( deltaWeight >= 200 ) {
+            if ( deltaWeight >= 200 && !usingWghtAxis ) {
                 CRLog::debug("font: apply Embolding to increase weight from %d to %d",
                                     newDef.getWeight(), newDef.getWeight() + 200 );
                 // Create a wrapper with LVFontBoldTransform which will bolden the glyphs
@@ -6291,6 +6478,27 @@ public:
                     def.setHasOTMath(true);
                 hb_face_destroy(hb_face);
             #endif
+            // Detect variable font axes for smarter weight matching
+            {
+                FT_MM_Var* mm_var = NULL;
+                if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+                    bool hasWght = false, hasOpsz = false;
+                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
+                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
+                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
+                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
+                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                    }
+                    def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
+                        def.getName().c_str(),
+                        hasWght ? "yes" : "no", wMin, wMax,
+                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    FT_DONE_MM_VAR(_library, mm_var);
+                }
+            }
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -6510,6 +6718,27 @@ public:
                     def.setHasOTMath(true);
                 hb_face_destroy(hb_face);
             #endif
+            // Detect variable font axes (wght, opsz) for smarter weight matching
+            {
+                FT_MM_Var* mm_var = NULL;
+                if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+                    bool hasWght = false, hasOpsz = false;
+                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
+                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
+                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
+                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
+                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                    }
+                    def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
+                        def.getName().c_str(),
+                        hasWght ? "yes" : "no", wMin, wMax,
+                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    FT_DONE_MM_VAR(_library, mm_var);
+                }
+            }
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -6593,7 +6822,8 @@ public:
         return filename;
     }
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
-                                int features, int documentId, bool useBias=false)
+                                int features, int documentId, bool useBias=false,
+                                const LVArray<LVFontVariation>* /*variations*/=NULL)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
@@ -6967,23 +7197,51 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
                     : def._size*256/_size );
 
     // weight
+    // Variable fonts with a wght axis that covers the requested weight get a
+    // perfect score (257) — slightly above the 256 cap for a static font match
+    // so they are preferred over synthesis from a static weight.
     int weight_diff = def._weight - _weight;
     if ( weight_diff < 0 )
         weight_diff = -weight_diff;
     if ( weight_diff > 800 )
         weight_diff = 800;
-    int weight_match = (_weight==-1 || def._weight==-1) ?
-                256
-            : ( 256 - weight_diff * 256 / 800 );
-    // It might happen that 2 fonts with different weights can get the same
-    // score, e.g. with def._weight=550, a font with _weight=400 and an other
-    // with _weight=700. Any could then be picked depending on their random
-    // ordering in the cache, which may mess a book on re-openings.
-    // To avoid this inconsistency, we give arbitrarily a small increase to
-    // the score of the smaller weight font (mostly so that with the above
-    // case, we keep synthesizing the 550 from the 400)
-    if ( _weight < def._weight )
-        weight_match += 1;
+    int weight_match;
+    if ( _has_wght_axis && def._weight != -1 && _weight != -1
+            && def._weight >= (int)_wght_axis_min && def._weight <= (int)_wght_axis_max ) {
+        weight_match = 257; // variable font can hit exact requested weight
+    } else {
+        weight_match = (_weight==-1 || def._weight==-1) ?
+                    256
+                : ( 256 - weight_diff * 256 / 800 );
+        // It might happen that 2 fonts with different weights can get the same
+        // score, e.g. with def._weight=550, a font with _weight=400 and an other
+        // with _weight=700. Any could then be picked depending on their random
+        // ordering in the cache, which may mess a book on re-openings.
+        // To avoid this inconsistency, we give arbitrarily a small increase to
+        // the score of the smaller weight font (mostly so that with the above
+        // case, we keep synthesizing the 550 from the 400)
+        if ( _weight < def._weight )
+            weight_match += 1;
+    }
+
+    // variations: registered fonts have an empty _variations array (wildcard).
+    // Instantiated fonts must match the requested variations exactly.
+    // The requested def also has an empty array when no variations were requested,
+    // in which case any instance matches.
+    int variations_match = 256;
+    if (!_variations.empty() && !def._variations.empty()) {
+        // Both have explicit variations — require exact match
+        if (_variations.length() != def._variations.length()) {
+            variations_match = 0;
+        } else {
+            for (int vi = 0; vi < _variations.length(); vi++) {
+                if (!(_variations[vi] == def._variations[vi])) {
+                    variations_match = 0;
+                    break;
+                }
+            }
+        }
+    }
 
     // italic
     int italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1) ?
@@ -7066,12 +7324,13 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
 
     // final score
     int score = bias
-        + (size_match     * 100)
-        + (weight_match   * 5)
-        + (italic_match   * 5)
-        + (features_match * 1000)
-        + (family_match   * 100)
-        + (typeface_match * 10000);
+        + (size_match       * 100)
+        + (weight_match     * 5)
+        + (italic_match     * 5)
+        + (features_match   * 1000)
+        + (variations_match * 1000)
+        + (family_match     * 100)
+        + (typeface_match   * 10000);
 
 //    printf("### %s (%d) vs %s (%d): size=%d weight=%d italic=%d family=%d typeface=%d bias=%d => %d\n",
 //        _typeface.c_str(), _family, def._typeface.c_str(), def._family,

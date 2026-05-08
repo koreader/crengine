@@ -2428,6 +2428,24 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         fw = 1;
     else if ( fw>999 )
         fw = 999;
+    // Build variation axes list from CSS font-variation-settings and auto optical sizing
+    LVArray<LVFontVariation> variations;
+    if (!style->font_variations.empty())
+        variations = style->font_variations;
+
+    // Auto optical sizing: inject opsz unless disabled or already explicitly set
+    bool hasExplicitOpsz = false;
+    for (int vi = 0; vi < variations.length(); vi++)
+        if (variations[vi].tag == LVFONT_TAG_OPSZ) { hasExplicitOpsz = true; break; }
+    if (!hasExplicitOpsz && style->font_optical_sizing != css_fos_none) {
+        // Convert screen pixels to typographic points using the actual render DPI
+        float opsz = (gRenderDPI > 0) ? sz * 72.0f / (float)gRenderDPI : sz * 72.0f / 96.0f;
+        LVFontVariation opszVar;
+        opszVar.tag = LVFONT_TAG_OPSZ;
+        opszVar.value = opsz;
+        variations.add(opszVar);
+    }
+
     // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
     LVFontRef fnt = fontMan->GetFont(
         sz,
@@ -2436,7 +2454,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         style->font_family,
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
-        documentId, true); // useBias=true, so that our preferred font gets used
+        documentId, true, // useBias=true, so that our preferred font gets used
+        variations.empty() ? NULL : &variations);
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }
@@ -11361,6 +11380,15 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     case css_fw_900:
         break;
     }
+
+    // font-optical-sizing (inherited; initial = auto)
+    if (pstyle->font_optical_sizing == css_fos_inherit)
+        pstyle->font_optical_sizing = parent_style->font_optical_sizing;
+
+    // font-variation-settings (inherited; initial = empty)
+    // If child has no explicit setting, inherit parent's variations
+    if (pstyle->font_variations.empty() && !parent_style->font_variations.empty())
+        pstyle->font_variations = parent_style->font_variations;
 
     // font-size
     switch( pstyle->font_size.type )

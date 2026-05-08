@@ -189,6 +189,13 @@ enum css_font_weight_t {
     css_fw_900
 };
 
+/// font-optical-sizing property values
+enum css_font_optical_sizing_t {
+    css_fos_inherit,
+    css_fos_auto,   // set opsz axis from font-size in typographic points (CSS default)
+    css_fos_none    // do not adjust the opsz axis
+};
+
 /// font-family property values
 enum css_font_family_t {
     css_ff_inherit,

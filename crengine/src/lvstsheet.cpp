@@ -64,6 +64,8 @@ enum css_decl_code {
     cssd_font_style,
     cssd_font_weight,
     cssd_font_features,           // font-feature-settings (not yet parsed)
+    cssd_font_optical_sizing,     // font-optical-sizing: auto | none
+    cssd_font_variation_settings, // font-variation-settings: "axis" value, ...
     cssd_font_variant,            // all these are parsed specifically and mapped into
     cssd_font_variant_ligatures,  // the same style->font_features 31 bits bitmap
     cssd_font_variant_ligatures2, // -webkit-font-variant-ligatures (former Webkit property)
@@ -175,6 +177,8 @@ static const char * css_decl_name[] = {
     "font-style",
     "font-weight",
     "font-feature-settings",
+    "font-optical-sizing",
+    "font-variation-settings",
     "font-variant",
     "font-variant-ligatures",
     "-webkit-font-variant-ligatures",
@@ -3911,6 +3915,74 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // often, publishers will include both font-variant and font-feature-settings
                 // in a same declaration, so we should be fine).
                 break;
+            case cssd_font_optical_sizing: // font-optical-sizing: auto | none
+                // font-optical-sizing is inherited; initial value is "auto"
+                IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
+                if (substr_icompare("auto", decl))       n = css_fos_auto;
+                else if (substr_icompare("none", decl))  n = css_fos_none;
+                break;
+            case cssd_font_variation_settings: // font-variation-settings: "wght" 700, "opsz" 14
+                // Parse comma-separated list of "tag" value pairs.
+                // Stored as: count, then for each: packed_tag (uint32), float_bits (uint32)
+                {
+                    skip_spaces(decl);
+                    if (substr_icompare("normal", decl)) {
+                        // "normal" resets all variations
+                        buf<<(lUInt32)(prop_code | importance | parse_important(decl));
+                        buf<<(lUInt32)0; // count = 0 means "clear"
+                        // n stays -1 to prevent default enum push below
+                        break;
+                    }
+                    // Collect tag-value pairs
+                    lUInt32 tags[16];
+                    lUInt32 vals[16]; // float bits
+                    int count = 0;
+                    const char * restore_pos = decl;
+                    while (*decl && *decl != ';' && *decl != stop_char && count < 16) {
+                        skip_spaces(decl);
+                        // Expect a quoted 4-char tag
+                        if (*decl != '"' && *decl != '\'') break;
+                        char qchar = *decl++;
+                        if (!*decl || !*(decl+1) || !*(decl+2) || !*(decl+3)) break;
+                        lUInt32 tag = LVFONT_TAG((lUInt8)decl[0], (lUInt8)decl[1],
+                                                  (lUInt8)decl[2], (lUInt8)decl[3]);
+                        decl += 4;
+                        if (*decl != qchar) break;
+                        decl++;
+                        skip_spaces(decl);
+                        // Expect a number
+                        double val = 0.0;
+                        const char * vstart = decl;
+                        bool neg = (*decl == '-');
+                        if (neg) decl++;
+                        if (!*decl || (*decl < '0' || *decl > '9') ) { decl = vstart; break; }
+                        while (*decl >= '0' && *decl <= '9') val = val*10 + (*decl++ - '0');
+                        if (*decl == '.') {
+                            decl++;
+                            double frac = 0.1;
+                            while (*decl >= '0' && *decl <= '9') { val += (*decl++ - '0') * frac; frac *= 0.1; }
+                        }
+                        if (neg) val = -val;
+                        tags[count] = tag;
+                        float fval = (float)val;
+                        memcpy(&vals[count], &fval, sizeof(lUInt32));
+                        count++;
+                        restore_pos = decl;
+                        skip_spaces(decl);
+                        if (*decl == ',') decl++;
+                        else break;
+                    }
+                    if (count > 0) {
+                        buf<<(lUInt32)(prop_code | importance | parse_important(restore_pos));
+                        buf<<(lUInt32)count;
+                        for (int vi = 0; vi < count; vi++) {
+                            buf<<tags[vi];
+                            buf<<vals[vi];
+                        }
+                    }
+                    n = -1; // signal that we handled buf ourselves
+                }
+                break;
             case cssd_font_variant:
             case cssd_font_variant_ligatures:
             case cssd_font_variant_ligatures2:
@@ -5232,6 +5304,37 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                 }
                 else {
                     style->ApplyAsBitmapOr( font_features, &style->font_features, imp_bit_font_features, is_important );
+                }
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            }
+            break;
+        case cssd_font_optical_sizing:
+            style->Apply( (css_font_optical_sizing_t) *p++, &style->font_optical_sizing, imp_bit_font_optical_sizing, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_font_variation_settings:
+            {
+                int count = (int)*p++;
+                if (count == 0) {
+                    // "normal" — clear all variations
+                    style->font_variations.clear();
+                } else {
+                    for (int vi = 0; vi < count; vi++) {
+                        LVFontVariation var;
+                        var.tag = *p++;
+                        lUInt32 bits = *p++;
+                        memcpy(&var.value, &bits, sizeof(float));
+                        // Replace existing entry for this tag, or append
+                        bool found = false;
+                        for (int ei = 0; ei < style->font_variations.length(); ei++) {
+                            if (style->font_variations[ei].tag == var.tag) {
+                                style->font_variations[ei].value = var.value;
+                                found = true; break;
+                            }
+                        }
+                        if (!found)
+                            style->font_variations.add(var);
+                    }
                 }
                 style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             }

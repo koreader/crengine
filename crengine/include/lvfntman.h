@@ -571,6 +571,23 @@ enum font_antialiasing_t
     font_aa_all
 };
 
+// 4-char axis tags used in variable font variation axes
+#ifndef LVFONT_TAG
+#define LVFONT_TAG(a,b,c,d) ((lUInt32)((lUInt8)(a))<<24 | (lUInt32)((lUInt8)(b))<<16 \
+                             | (lUInt32)((lUInt8)(c))<<8  | (lUInt32)((lUInt8)(d)))
+#endif
+#define LVFONT_TAG_WGHT  LVFONT_TAG('w','g','h','t')  // weight axis
+#define LVFONT_TAG_OPSZ  LVFONT_TAG('o','p','s','z')  // optical size axis
+
+/// A single variable-font axis value (design-space coordinates)
+struct LVFontVariation {
+    lUInt32 tag;   // 4-char axis tag packed as uint32
+    float   value; // design-space value (e.g. 100..900 for wght)
+    bool operator==(const LVFontVariation& o) const {
+        return tag == o.tag && value == o.value;
+    }
+};
+
 class LVEmbeddedFontDef {
     lString32 _url;
     lString8 _face;
@@ -621,7 +638,8 @@ public:
     virtual void gc() = 0;
     /// returns most similar font
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
-                                int features=0, int documentId = -1, bool useBias=false) = 0;
+                                int features=0, int documentId = -1, bool useBias=false,
+                                const LVArray<LVFontVariation>* variations=NULL) = 0;
 
     /// return available font weight values
     virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) = 0;
