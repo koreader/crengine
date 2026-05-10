@@ -6139,6 +6139,18 @@ public:
             return LVFontRef(NULL);
         }
 
+        // Strip variations for axes the matched font doesn't actually have, so they don't
+        // pollute the cache key (FreeType ignores them silently, but different values would
+        // create redundant cache entries with identical rendering output).
+        if (!effectiveVariations.empty()) {
+            for (int vi = effectiveVariations.length() - 1; vi >= 0; vi--) {
+                lUInt32 tag = effectiveVariations[vi].tag;
+                if ((tag == LVFONT_TAG_OPSZ && !item->getDef()->hasOpszAxis()) ||
+                    (tag == LVFONT_TAG_WGHT && !item->getDef()->hasWghtAxis()))
+                    effectiveVariations.remove(vi);
+            }
+        }
+
         // If the best-matched font has a wght axis and no explicit wght variation was
         // supplied, inject one so the face is set to exactly the requested weight instead
         // of using FT_Outline_Embolden synthesis.
