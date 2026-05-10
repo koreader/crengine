@@ -2159,9 +2159,6 @@ public:
             _face_size );  /* pixel_height          */
 
         // Apply variable font axis coordinates (wght, opsz, ...) if any were requested
-        if (!_variations.empty())
-            CRLog::info("Variable font setupFace: %s variations=%d ft_error=%d",
-                _fileName.c_str(), _variations.length(), error);
         if (!_variations.empty() && FT_Err_Ok == error) {
             FT_MM_Var* mm_var = NULL;
             if (FT_Get_MM_Var(_face, &mm_var) == FT_Err_Ok && mm_var) {
@@ -6032,18 +6029,27 @@ public:
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     bool hasWght = false, hasOpsz = false;
                     float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    char axisBuf[512] = "";
+                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
                         float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float defVal = mm_var->axis[ai].def     / 65536.0f;
                         float maxVal = mm_var->axis[ai].maximum / 65536.0f;
                         if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
                         if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
+                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
+                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
+                                                   ai ? ", " : "",
+                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
+                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
+                                                   minVal, defVal, maxVal);
+                        }
                     }
                     def2.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
-                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
-                        def2.getName().c_str(),
-                        hasWght ? "yes" : "no", wMin, wMax,
-                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    CRLog::info("Variable font found: \"%s\"  axes: %s",
+                        def2.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6142,8 +6148,12 @@ public:
         if (item->getDef()->hasWghtAxis() && !hasExplicitWght) {
             LVFontVariation wghtVar; wghtVar.tag = LVFONT_TAG_WGHT; wghtVar.value = (float)weight;
             effectiveVariations.add(wghtVar);
-            CRLog::info("Variable font GetFont: injecting wght=%.0f for %s size=%d",
-                (float)weight, typeface.c_str(), size);
+            static lString8 s_last_tf; static int s_last_sz = -1, s_last_wt = -1;
+            if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
+                CRLog::info("Variable font GetFont: injecting wght=%.0f for %s size=%d",
+                    (float)weight, typeface.c_str(), size);
+                s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
+            }
             // Redo cache lookup with the fully-resolved variation set so we can
             // find any already-instantiated variable font instance.
             def.setVariations(effectiveVariations);
@@ -6252,6 +6262,21 @@ public:
         }
         // Set variations before loadFromFile so that setupFace() can apply them
         font->setVariations(effectiveVariations);
+        if (!effectiveVariations.empty()) {
+            char varBuf[256] = "";
+            int varBufPos = 0;
+            for (int vi = 0; vi < effectiveVariations.length() && varBufPos < (int)sizeof(varBuf) - 20; vi++) {
+                lUInt32 t = effectiveVariations[vi].tag;
+                varBufPos += snprintf(varBuf + varBufPos, sizeof(varBuf) - varBufPos,
+                                      "%s%c%c%c%c=%.1f",
+                                      vi ? ", " : "",
+                                      (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
+                                      (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
+                                      effectiveVariations[vi].value);
+            }
+            CRLog::info("Variable font new instance: \"%s\" size=%d  [%s]",
+                item->getDef()->getTypeFace().c_str(), size, varBuf);
+        }
         if (item->getDef()->getBuf().isNull())
             loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         else
@@ -6484,18 +6509,27 @@ public:
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     bool hasWght = false, hasOpsz = false;
                     float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    char axisBuf[512] = "";
+                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
                         float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float defVal = mm_var->axis[ai].def     / 65536.0f;
                         float maxVal = mm_var->axis[ai].maximum / 65536.0f;
                         if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
                         if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
+                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
+                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
+                                                   ai ? ", " : "",
+                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
+                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
+                                                   minVal, defVal, maxVal);
+                        }
                     }
                     def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
-                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
-                        def.getName().c_str(),
-                        hasWght ? "yes" : "no", wMin, wMax,
-                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    CRLog::info("Variable font found: \"%s\"  axes: %s",
+                        def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6724,18 +6758,27 @@ public:
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     bool hasWght = false, hasOpsz = false;
                     float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    char axisBuf[512] = "";
+                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
                         float minVal = mm_var->axis[ai].minimum / 65536.0f;
+                        float defVal = mm_var->axis[ai].def     / 65536.0f;
                         float maxVal = mm_var->axis[ai].maximum / 65536.0f;
                         if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
                         if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
+                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
+                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
+                                                   ai ? ", " : "",
+                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
+                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
+                                                   minVal, defVal, maxVal);
+                        }
                     }
                     def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
-                    CRLog::info("Variable font registered: %s  wght=%s [%.0f..%.0f]  opsz=%s [%.0f..%.0f]",
-                        def.getName().c_str(),
-                        hasWght ? "yes" : "no", wMin, wMax,
-                        hasOpsz ? "yes" : "no", oMin, oMax);
+                    CRLog::info("Variable font found: \"%s\"  axes: %s",
+                        def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
