@@ -6110,6 +6110,20 @@ public:
         if (variations)
             effectiveVariations = *variations;
 
+        // Sort helper: canonical tag order so cache keys are insertion-order-independent.
+        // Insertion sort is fine — arrays are at most ~16 elements.
+        auto sortVariations = [](LVArray<LVFontVariation> & arr) {
+            for (int i = 1; i < arr.length(); i++) {
+                LVFontVariation key = arr[i];
+                int j = i - 1;
+                while (j >= 0 && arr[j].tag > key.tag) {
+                    arr[j + 1] = arr[j];
+                    j--;
+                }
+                arr[j + 1] = key;
+            }
+        };
+
         lString8 fontname;
         LVFontDef def(
             fontname,
@@ -6161,9 +6175,10 @@ public:
             }
         }
 
-        // Sync def with the stripped set. The first _cache.find used the unstripped
-        // variations; now that we know which axes are supported, update def so any
-        // subsequent lookup uses the correct (shorter) key.
+        // Sort into canonical tag order and sync def. The first _cache.find used the
+        // unstripped variations; now that we know which axes are supported, update def
+        // so any subsequent lookup uses the correct (shorter, sorted) key.
+        sortVariations(effectiveVariations);
         def.setVariations(effectiveVariations);
 
         // Check whether an already-instantiated font with these exact stripped
@@ -6212,8 +6227,9 @@ public:
                     (float)weight, typeface.c_str(), size);
                 s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
             }
-            // Redo cache lookup with the fully-resolved variation set so we can
-            // find any already-instantiated variable font instance.
+            // Sort into canonical order then redo cache lookup with the fully-resolved
+            // variation set to find any already-instantiated variable font instance.
+            sortVariations(effectiveVariations);
             def.setVariations(effectiveVariations);
             LVFontCacheItem * item2 = _cache.find(&def, useBias);
             if (item2 != NULL && !item2->getFont().isNull()
