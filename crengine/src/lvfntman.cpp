@@ -1974,6 +1974,18 @@ public:
     }
     void setVariations( const LVArray<LVFontVariation>& variations ) {
         _variations = variations;
+        _hash = 0; // force calcHash(font_ref_t) to recompute
+    }
+    virtual lUInt32 getVariationHash() const {
+        lUInt32 h = 0;
+        for (int i = 0; i < _variations.length(); i++) {
+            h = h * 31 + _variations[i].tag;
+            lUInt32 vbits;
+            float fval = _variations[i].value;
+            memcpy(&vbits, &fval, sizeof(vbits));
+            h = h * 31 + vbits;
+        }
+        return h;
     }
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
@@ -6162,7 +6174,7 @@ public:
             effectiveVariations.add(wghtVar);
             static lString8 s_last_tf; static int s_last_sz = -1, s_last_wt = -1;
             if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
-                CRLog::info("Variable font GetFont: injecting wght=%.0f for %s size=%d",
+                CRLog::info("Variable font GetFont: injecting wght=%.0f for \"%s\" size=%d",
                     (float)weight, typeface.c_str(), size);
                 s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
             }
@@ -8486,6 +8498,7 @@ bool operator == (const LVFont & r1, const LVFont & r2)
             && r1.getTypeFace() == r2.getTypeFace()
             && r1.getKerningMode() == r2.getKerningMode()
             && r1.getHintingMode() == r2.getHintingMode()
+            && r1.getVariationHash() == r2.getVariationHash()
             ;
 }
 

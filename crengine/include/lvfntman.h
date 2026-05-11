@@ -520,6 +520,9 @@ public:
     /// set OpenType features (bitmap)
     virtual void setFeatures( int features ) { }
 
+    /// hash of the active variable-font axis values; 0 for static fonts or no variations
+    virtual lUInt32 getVariationHash() const { return 0; }
+
     /// sets current kerning mode
     virtual void setKerningMode( kerning_mode_t /*mode*/ ) { }
     /// returns current kerning mode

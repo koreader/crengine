@@ -2444,12 +2444,6 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         // gRenderDPI is 0 (the legacy "off" mode where no DPI scaling is applied at all).
         int opszDPI = (gRenderDPI > 0) ? gRenderDPI : 96;
         float opsz = sz * 72.0f / (float)opszDPI;
-        static int s_last_sz = -1, s_last_dpi = -1;
-        if (sz != s_last_sz || opszDPI != s_last_dpi) {
-            CRLog::info("opsz auto: sz=%dpx / %ddpi * 72 = %.1fpt  (type=%d scaleFontWithDPI=%d gRenderDPI=%d)",
-                sz, opszDPI, opsz, (int)style->font_size.type, (int)gRenderScaleFontWithDPI, gRenderDPI);
-            s_last_sz = sz; s_last_dpi = opszDPI;
-        }
         LVFontVariation opszVar;
         opszVar.tag = LVFONT_TAG_OPSZ;
         opszVar.value = opsz;

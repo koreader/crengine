@@ -37,6 +37,7 @@ lUInt32 calcHash(font_ref_t & f)
     v = v * 31 + (lUInt32)f->getBitmapMode();
     v = v * 31 + (lUInt32)f->getTypeFace().getHash();
     v = v * 31 + (lUInt32)f->getBaseline();
+    v = v * 31 + f->getVariationHash();
     f->_hash = v;
     return v;
 }
