@@ -582,6 +582,14 @@ enum font_antialiasing_t
 #define LVFONT_TAG_WGHT  LVFONT_TAG('w','g','h','t')  // weight axis
 #define LVFONT_TAG_OPSZ  LVFONT_TAG('o','p','s','z')  // optical size axis
 
+/// Metadata for one variable-font axis as reported by FreeType at registration time
+struct LVFontAxisInfo {
+    lUInt32 tag;       // 4-char axis tag packed as uint32
+    float   minValue;  // minimum design-space value
+    float   defValue;  // default design-space value
+    float   maxValue;  // maximum design-space value
+};
+
 /// A single variable-font axis value (design-space coordinates)
 struct LVFontVariation {
     lUInt32 tag;   // 4-char axis tag packed as uint32

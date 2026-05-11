@@ -600,11 +600,8 @@ private:
     bool _has_emojis;
     // Variable font axis values for this instance (empty = default/static)
     LVArray<LVFontVariation> _variations;
-    // Variable font axis ranges detected at registration time
-    bool  _has_wght_axis;
-    float _wght_axis_min, _wght_axis_max;
-    bool  _has_opsz_axis;
-    float _opsz_axis_min, _opsz_axis_max;
+    // All variable font axes supported by this font, detected at registration time
+    LVArray<LVFontAxisInfo> _axes;
 public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
@@ -622,10 +619,6 @@ public:
         , _real_weight(true)
         , _has_ot_math(false)
         , _has_emojis(false)
-        , _has_wght_axis(false)
-        , _wght_axis_min(400.0f), _wght_axis_max(400.0f)
-        , _has_opsz_axis(false)
-        , _opsz_axis_min(12.0f), _opsz_axis_max(12.0f)
         {
         }
     LVFontDef(const LVFontDef & def)
@@ -644,10 +637,7 @@ public:
         , _has_ot_math(def._has_ot_math)
         , _has_emojis(def._has_emojis)
         , _variations(def._variations)
-        , _has_wght_axis(def._has_wght_axis)
-        , _wght_axis_min(def._wght_axis_min), _wght_axis_max(def._wght_axis_max)
-        , _has_opsz_axis(def._has_opsz_axis)
-        , _opsz_axis_min(def._opsz_axis_min), _opsz_axis_max(def._opsz_axis_max)
+        , _axes(def._axes)
         {
         }
 
@@ -717,16 +707,28 @@ public:
     void setHasEmojis(bool has_emojis) { _has_emojis = has_emojis; }
     const LVArray<LVFontVariation>& getVariations() const { return _variations; }
     void setVariations(const LVArray<LVFontVariation>& v) { _variations = v; }
-    bool hasWghtAxis() const { return _has_wght_axis; }
-    float getWghtAxisMin() const { return _wght_axis_min; }
-    float getWghtAxisMax() const { return _wght_axis_max; }
-    bool hasOpszAxis() const { return _has_opsz_axis; }
-    float getOpszAxisMin() const { return _opsz_axis_min; }
-    float getOpszAxisMax() const { return _opsz_axis_max; }
-    void setAxisInfo(bool hasWght, float wMin, float wMax, bool hasOpsz, float oMin, float oMax) {
-        _has_wght_axis = hasWght; _wght_axis_min = wMin; _wght_axis_max = wMax;
-        _has_opsz_axis = hasOpsz; _opsz_axis_min = oMin; _opsz_axis_max = oMax;
+    const LVArray<LVFontAxisInfo>& getAxes() const { return _axes; }
+    void setAxes(const LVArray<LVFontAxisInfo>& axes) { _axes = axes; }
+    bool hasAxis(lUInt32 tag) const {
+        for (int i = 0; i < _axes.length(); i++)
+            if (_axes[i].tag == tag) return true;
+        return false;
     }
+    // Returns the min/max for a named axis, or the fallback if not present
+    float getAxisMin(lUInt32 tag, float fallback = 0.0f) const {
+        for (int i = 0; i < _axes.length(); i++)
+            if (_axes[i].tag == tag) return _axes[i].minValue;
+        return fallback;
+    }
+    float getAxisMax(lUInt32 tag, float fallback = 0.0f) const {
+        for (int i = 0; i < _axes.length(); i++)
+            if (_axes[i].tag == tag) return _axes[i].maxValue;
+        return fallback;
+    }
+    bool hasWghtAxis() const { return hasAxis(LVFONT_TAG_WGHT); }
+    float getWghtAxisMin() const { return getAxisMin(LVFONT_TAG_WGHT, 400.0f); }
+    float getWghtAxisMax() const { return getAxisMax(LVFONT_TAG_WGHT, 400.0f); }
+    bool hasOpszAxis() const { return hasAxis(LVFONT_TAG_OPSZ); }
     int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() const { return _buf; }
@@ -6039,27 +6041,26 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
-                    bool hasWght = false, hasOpsz = false;
-                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    LVArray<LVFontAxisInfo> axes;
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
-                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
-                        float defVal = mm_var->axis[ai].def     / 65536.0f;
-                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
-                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
-                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        LVFontAxisInfo axinfo;
+                        axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
+                        axinfo.minValue = mm_var->axis[ai].minimum / 65536.0f;
+                        axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
+                        axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
+                        axes.add(axinfo);
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
                                                    ai ? ", " : "",
-                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
-                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
-                                                   minVal, defVal, maxVal);
+                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
+                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
+                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
                         }
                     }
-                    def2.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    def2.setAxes(axes);
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def2.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
@@ -6156,9 +6157,7 @@ public:
         // create redundant cache entries with identical rendering output).
         if (!effectiveVariations.empty()) {
             for (int vi = effectiveVariations.length() - 1; vi >= 0; vi--) {
-                lUInt32 tag = effectiveVariations[vi].tag;
-                if ((tag == LVFONT_TAG_OPSZ && !item->getDef()->hasOpszAxis()) ||
-                    (tag == LVFONT_TAG_WGHT && !item->getDef()->hasWghtAxis()))
+                if (!item->getDef()->hasAxis(effectiveVariations[vi].tag))
                     effectiveVariations.remove(vi);
             }
         }
@@ -6317,10 +6316,7 @@ public:
             newDef.setSize( size );
             newDef.setVariations( effectiveVariations );
             // Copy axis info from the registered def so the instantiated def also exposes it
-            newDef.setAxisInfo(item->getDef()->hasWghtAxis(),
-                               item->getDef()->getWghtAxisMin(), item->getDef()->getWghtAxisMax(),
-                               item->getDef()->hasOpszAxis(),
-                               item->getDef()->getOpszAxisMin(), item->getDef()->getOpszAxisMax());
+            newDef.setAxes(item->getDef()->getAxes());
             //item->setFont( ref );
             //_cache.update( def, ref );
             // Check whether weight variation handles weight; if not, fall back to synthesis
@@ -6531,27 +6527,26 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
-                    bool hasWght = false, hasOpsz = false;
-                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    LVArray<LVFontAxisInfo> axes;
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
-                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
-                        float defVal = mm_var->axis[ai].def     / 65536.0f;
-                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
-                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
-                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        LVFontAxisInfo axinfo;
+                        axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
+                        axinfo.minValue = mm_var->axis[ai].minimum / 65536.0f;
+                        axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
+                        axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
+                        axes.add(axinfo);
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
                                                    ai ? ", " : "",
-                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
-                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
-                                                   minVal, defVal, maxVal);
+                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
+                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
+                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
                         }
                     }
-                    def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    def.setAxes(axes);
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
@@ -6780,27 +6775,26 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
-                    bool hasWght = false, hasOpsz = false;
-                    float wMin = 400.0f, wMax = 400.0f, oMin = 12.0f, oMax = 12.0f;
+                    LVArray<LVFontAxisInfo> axes;
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                        lUInt32 tag = (lUInt32)mm_var->axis[ai].tag;
-                        float minVal = mm_var->axis[ai].minimum / 65536.0f;
-                        float defVal = mm_var->axis[ai].def     / 65536.0f;
-                        float maxVal = mm_var->axis[ai].maximum / 65536.0f;
-                        if (tag == LVFONT_TAG_WGHT) { hasWght = true; wMin = minVal; wMax = maxVal; }
-                        if (tag == LVFONT_TAG_OPSZ) { hasOpsz = true; oMin = minVal; oMax = maxVal; }
+                        LVFontAxisInfo axinfo;
+                        axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
+                        axinfo.minValue = mm_var->axis[ai].minimum / 65536.0f;
+                        axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
+                        axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
+                        axes.add(axinfo);
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
                                                    ai ? ", " : "",
-                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
-                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
-                                                   minVal, defVal, maxVal);
+                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
+                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
+                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
                         }
                     }
-                    def.setAxisInfo(hasWght, wMin, wMax, hasOpsz, oMin, oMax);
+                    def.setAxes(axes);
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
@@ -7273,8 +7267,8 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     if ( weight_diff > 800 )
         weight_diff = 800;
     int weight_match;
-    if ( _has_wght_axis && def._weight != -1 && _weight != -1
-            && def._weight >= (int)_wght_axis_min && def._weight <= (int)_wght_axis_max ) {
+    if ( hasWghtAxis() && def._weight != -1 && _weight != -1
+            && def._weight >= (int)getWghtAxisMin() && def._weight <= (int)getWghtAxisMax() ) {
         weight_match = 257; // variable font can hit exact requested weight
     } else {
         weight_match = (_weight==-1 || def._weight==-1) ?
