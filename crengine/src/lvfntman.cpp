@@ -728,7 +728,6 @@ public:
     bool hasWghtAxis() const { return hasAxis(LVFONT_TAG_WGHT); }
     float getWghtAxisMin() const { return getAxisMin(LVFONT_TAG_WGHT, 400.0f); }
     float getWghtAxisMax() const { return getAxisMax(LVFONT_TAG_WGHT, 400.0f); }
-    bool hasOpszAxis() const { return hasAxis(LVFONT_TAG_OPSZ); }
     int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() const { return _buf; }
@@ -6179,8 +6178,21 @@ public:
                     bool varMatch = true;
                     for (int vi = 0; vi < effectiveVariations.length(); vi++)
                         if (!(sv[vi] == effectiveVariations[vi])) { varMatch = false; break; }
-                    if (varMatch)
-                        return strippedItem->getFont();
+                    if (varMatch) {
+                        // Mirror the synthesis guard in the instantiated-instance block:
+                        // don't return this cached instance if weight synthesis would
+                        // be needed but the font has no wght axis to handle it.
+                        bool needsSynth = false;
+                    #ifdef USE_FT_EMBOLDEN
+                        needsSynth = (myabs(weight - strippedItem->getDef()->getWeight()) >= 25
+                                      && !strippedItem->getDef()->hasWghtAxis());
+                    #else
+                        needsSynth = (weight - strippedItem->getDef()->getWeight() >= 200
+                                      && !strippedItem->getDef()->hasWghtAxis());
+                    #endif
+                        if (!needsSynth)
+                            return strippedItem->getFont();
+                    }
                 }
             }
         }

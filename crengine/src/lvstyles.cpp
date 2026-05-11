@@ -45,7 +45,17 @@ lUInt32 calcHash(font_ref_t & f)
 
 lUInt32 calcHash(css_style_rec_t & rec)
 {
-    if ( !rec.hash )
+    if ( !rec.hash ) {
+        // Mix variation axis tag+value pairs into a single word before the main chain,
+        // since a loop can't be embedded directly in the nested expression below.
+        lUInt32 variations_hash = 0;
+        for (int i = 0; i < rec.font_variations.length(); i++) {
+            variations_hash = variations_hash * 31 + rec.font_variations[i].tag;
+            lUInt32 vbits;
+            float fval = rec.font_variations[i].value;
+            memcpy(&vbits, &fval, sizeof(vbits));
+            variations_hash = variations_hash * 31 + vbits;
+        }
         rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
@@ -71,7 +81,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_weight) * 31
          + (lUInt32)rec.font_features.pack()) * 31
          + (lUInt32)rec.font_optical_sizing) * 31
-         + (lUInt32)rec.font_variations.length()) * 31
+         + variations_hash) * 31
          + (lUInt32)rec.line_height.pack()) * 31
          + (lUInt32)rec.color.pack()) * 31
          + (lUInt32)rec.background_color.pack()) * 31
@@ -125,6 +135,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash()
          + (lUInt32)rec.content.getHash());
+    } // if (!rec.hash)
     return rec.hash;
 }
 
@@ -174,7 +185,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.font_features == r2.font_features&&
            r1.font_optical_sizing == r2.font_optical_sizing&&
            r1.font_variations.length() == r2.font_variations.length() &&
-           [&]() { for (int i=0; i<r1.font_variations.length(); i++) if (!(r1.font_variations[i]==r2.font_variations[i])) return false; return true; }()&&
+           [&]() -> bool { for (int i = 0; i < r1.font_variations.length(); i++) if (!(r1.font_variations[i] == r2.font_variations[i])) return false; return true; }() &&
            r1.border_style_top==r2.border_style_top&&
            r1.border_style_right==r2.border_style_right&&
            r1.border_style_bottom==r2.border_style_bottom&&
