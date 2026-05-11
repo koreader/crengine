@@ -6162,6 +6162,29 @@ public:
             }
         }
 
+        // Sync def with the stripped set. The first _cache.find used the unstripped
+        // variations; now that we know which axes are supported, update def so any
+        // subsequent lookup uses the correct (shorter) key.
+        def.setVariations(effectiveVariations);
+
+        // Check whether an already-instantiated font with these exact stripped
+        // variations exists. With def now matching the stripped key, find() will
+        // prefer the instance over the registered entry on a tie (>= comparison).
+        if (!effectiveVariations.empty()) {
+            LVFontCacheItem * strippedItem = _cache.find(&def, useBias);
+            if (strippedItem != NULL && !strippedItem->getFont().isNull()
+                    && strippedItem->getDef()->getFeatures() == features) {
+                const LVArray<LVFontVariation>& sv = strippedItem->getDef()->getVariations();
+                if (sv.length() == effectiveVariations.length()) {
+                    bool varMatch = true;
+                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                        if (!(sv[vi] == effectiveVariations[vi])) { varMatch = false; break; }
+                    if (varMatch)
+                        return strippedItem->getFont();
+                }
+            }
+        }
+
         // If the best-matched font has a wght axis and no explicit wght variation was
         // supplied, inject one so the face is set to exactly the requested weight instead
         // of using FT_Outline_Embolden synthesis.
