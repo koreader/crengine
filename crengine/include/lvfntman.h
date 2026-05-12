@@ -581,6 +581,8 @@ enum font_antialiasing_t
 #endif
 #define LVFONT_TAG_WGHT  LVFONT_TAG('w','g','h','t')  // weight axis
 #define LVFONT_TAG_OPSZ  LVFONT_TAG('o','p','s','z')  // optical size axis
+#define LVFONT_TAG_ITAL  LVFONT_TAG('i','t','a','l')  // italic axis
+#define LVFONT_TAG_SLNT  LVFONT_TAG('s','l','n','t')  // slant axis
 
 /// Metadata for one variable-font axis as reported by FreeType at registration time
 struct LVFontAxisInfo {

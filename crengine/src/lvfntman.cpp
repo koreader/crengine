@@ -728,6 +728,12 @@ public:
     bool hasWghtAxis() const { return hasAxis(LVFONT_TAG_WGHT); }
     float getWghtAxisMin() const { return getAxisMin(LVFONT_TAG_WGHT, 400.0f); }
     float getWghtAxisMax() const { return getAxisMax(LVFONT_TAG_WGHT, 400.0f); }
+    bool hasItalAxis() const { return hasAxis(LVFONT_TAG_ITAL); }
+    float getItalAxisMin() const { return getAxisMin(LVFONT_TAG_ITAL, 0.0f); }
+    float getItalAxisMax() const { return getAxisMax(LVFONT_TAG_ITAL, 1.0f); }
+    bool hasSlntAxis() const { return hasAxis(LVFONT_TAG_SLNT); }
+    float getSlntAxisMin() const { return getAxisMin(LVFONT_TAG_SLNT, 0.0f); }
+    float getSlntAxisMax() const { return getAxisMax(LVFONT_TAG_SLNT, 0.0f); }
     int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() const { return _buf; }
@@ -6247,6 +6253,73 @@ public:
             // Keep using item (registered font) for instantiation below
         }
 
+        // If the best-matched font has an ital axis and italic is requested but no explicit ital variation was supplied, inject ital=1
+        bool hasExplicitItal = false;
+        for (int vi = 0; vi < effectiveVariations.length(); vi++)
+            if (effectiveVariations[vi].tag == LVFONT_TAG_ITAL) { hasExplicitItal = true; break; }
+        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis() && !hasExplicitItal) {
+            LVFontVariation italVar; italVar.tag = LVFONT_TAG_ITAL; italVar.value = 1.0f;
+            effectiveVariations.add(italVar);
+            static lString8 s_last_tf_ital; static int s_last_sz_ital = -1;
+            if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
+                CRLog::info("Variable font GetFont: injecting ital=1 for \"%s\" size=%d",
+                    typeface.c_str(), size);
+                s_last_tf_ital = typeface; s_last_sz_ital = size;
+            }
+            // Sort into canonical order then redo cache lookup with the fully-resolved
+            // variation set to find any already-instantiated variable font instance.
+            sortVariations(effectiveVariations);
+            def.setVariations(effectiveVariations);
+            LVFontCacheItem * item3 = _cache.find(&def, useBias);
+            if (item3 != NULL && !item3->getFont().isNull()
+                    && item3->getDef()->getFeatures() == features) {
+                // Verify variations match exactly
+                const LVArray<LVFontVariation>& cachedVars3 = item3->getDef()->getVariations();
+                if (cachedVars3.length() == effectiveVariations.length()) {
+                    bool varMatch3 = true;
+                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                        if (!(cachedVars3[vi] == effectiveVariations[vi])) { varMatch3 = false; break; }
+                    if (varMatch3)
+                        return item3->getFont();
+                }
+            }
+            // Keep using item (registered font) for instantiation below
+        }
+        // If still no italic font and has slnt axis, inject slnt=-12
+        else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis() && !hasExplicitItal) {
+            bool hasExplicitSlnt = false;
+            for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                if (effectiveVariations[vi].tag == LVFONT_TAG_SLNT) { hasExplicitSlnt = true; break; }
+            if (!hasExplicitSlnt) {
+                LVFontVariation slntVar; slntVar.tag = LVFONT_TAG_SLNT; slntVar.value = -12.0f; // typical slant value
+                effectiveVariations.add(slntVar);
+                static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
+                if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
+                    CRLog::info("Variable font GetFont: injecting slnt=-12 for \"%s\" size=%d",
+                        typeface.c_str(), size);
+                    s_last_tf_slnt = typeface; s_last_sz_slnt = size;
+                }
+                // Sort into canonical order then redo cache lookup with the fully-resolved
+                // variation set to find any already-instantiated variable font instance.
+                sortVariations(effectiveVariations);
+                def.setVariations(effectiveVariations);
+                LVFontCacheItem * item4 = _cache.find(&def, useBias);
+                if (item4 != NULL && !item4->getFont().isNull()
+                        && item4->getDef()->getFeatures() == features) {
+                    // Verify variations match exactly
+                    const LVArray<LVFontVariation>& cachedVars4 = item4->getDef()->getVariations();
+                    if (cachedVars4.length() == effectiveVariations.length()) {
+                        bool varMatch4 = true;
+                        for (int vi = 0; vi < effectiveVariations.length(); vi++)
+                            if (!(cachedVars4[vi] == effectiveVariations[vi])) { varMatch4 = false; break; }
+                        if (varMatch4)
+                            return item4->getFont();
+                    }
+                }
+                // Keep using item (registered font) for instantiation below
+            }
+        }
+
         bool italicize = false;
 
         LVFontDef newDef(*item->getDef());
@@ -7356,11 +7429,25 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     }
 
     // italic
-    int italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1) ?
+    int this_italic = _italic;
+    if (_italic == 0) {
+        for (int i = 0; i < _variations.length(); i++) {
+            if (_variations[i].tag == LVFONT_TAG_ITAL && _variations[i].value == 1.0f) { this_italic = 1; break; }
+            else if (_variations[i].tag == LVFONT_TAG_SLNT && _variations[i].value != 0.0f) { this_italic = 2; break; }
+        }
+    }
+    int def_italic = def._italic;
+    if (def._italic == 0) {
+        for (int i = 0; i < def._variations.length(); i++) {
+            if (def._variations[i].tag == LVFONT_TAG_ITAL && def._variations[i].value == 1.0f) { def_italic = 1; break; }
+            else if (def._variations[i].tag == LVFONT_TAG_SLNT && def._variations[i].value != 0.0f) { def_italic = 2; break; }
+        }
+    }
+    int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
               256
             :   0;
     // lower the score if any is fake italic
-    if ( (_italic==2 || def._italic==2) && _italic>0 && def._italic>0 )
+    if ( (this_italic==2 || def_italic==2) && this_italic>0 && def_italic>0 )
         italic_match = 128;
 
     // OpenType features
