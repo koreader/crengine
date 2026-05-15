@@ -2437,13 +2437,12 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     bool hasExplicitOpsz = false;
     for (int vi = 0; vi < variations.length(); vi++)
         if (variations[vi].tag == LVFONT_TAG_OPSZ) { hasExplicitOpsz = true; break; }
-    if (!hasExplicitOpsz && style->font_optical_sizing != css_fos_none) {
+    // Only apply auto optical sizing if the user has explicitly set a screen DPI
+    if (!hasExplicitOpsz && style->font_optical_sizing != css_fos_none && gRenderDPI > 100) {
         // Convert sz (screen pixels) to typographic points.
         // sz arrives already scaled to physical screen pixels by Screen:scaleBySize() on the
-        // Lua side, so gRenderDPI is the correct divisor. Fall back to 96 only when
-        // gRenderDPI is 0 (the legacy "off" mode where no DPI scaling is applied at all).
-        int opszDPI = (gRenderDPI > 0) ? gRenderDPI : 96;
-        float opsz = sz * 72.0f / (float)opszDPI;
+        // Lua side, so gRenderDPI is the correct divisor.
+        float opsz = sz * 72.0f / (float)gRenderDPI;
         LVFontVariation opszVar;
         opszVar.tag = LVFONT_TAG_OPSZ;
         opszVar.value = opsz;
