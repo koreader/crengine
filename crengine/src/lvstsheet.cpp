@@ -5317,23 +5317,13 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                 int count = (int)*p++;
                 if (count == 0) {
                     // "normal" — clear all variations
-                    style->font_variations.clear();
+                    style->font_variations = LVFontVariations();
                 } else {
                     for (int vi = 0; vi < count; vi++) {
-                        LVFontVariation var;
-                        var.tag = *p++;
+                        lUInt32 tag  = *p++;
                         lUInt32 bits = *p++;
-                        memcpy(&var.value, &bits, sizeof(float));
-                        // Replace existing entry for this tag, or append
-                        bool found = false;
-                        for (int ei = 0; ei < style->font_variations.length(); ei++) {
-                            if (style->font_variations[ei].tag == var.tag) {
-                                style->font_variations[ei].value = var.value;
-                                found = true; break;
-                            }
-                        }
-                        if (!found)
-                            style->font_variations.add(var);
+                        float val; memcpy(&val, &bits, sizeof(float));
+                        style->font_variations.set(tag, val);
                     }
                 }
                 style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;

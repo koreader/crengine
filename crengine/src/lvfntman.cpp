@@ -598,8 +598,8 @@ private:
     // Store some info we can know about a font at registration time
     bool _has_ot_math;
     bool _has_emojis;
-    // Variable font axis values for this instance (empty = default/static)
-    LVArray<LVFontVariation> _variations;
+    // Variable font axis values for this instance (all unset = default/static)
+    LVFontVariations _variations;
     // The five registered variable-font axes, detected at registration time.
     // Non-standard axes are not tracked.
     bool  _has_wght; float _wght_min, _wght_def, _wght_max;
@@ -658,11 +658,8 @@ public:
     /// returns true if definitions are equal
     bool operator == ( const LVFontDef & def ) const
     {
-        if (_variations.length() != def._variations.length())
+        if (_variations != def._variations)
             return false;
-        for (int i = 0; i < _variations.length(); i++)
-            if (!(_variations[i] == def._variations[i]))
-                return false;
         return ( _size == def._size || _size == -1 || def._size == -1 )
             && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
             && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
@@ -678,14 +675,7 @@ public:
 
     lUInt32 getHash() const {
         lUInt32 h =  (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
-        // Mix in variation axis values so different instances of the same file are distinct
-        for (int i = 0; i < _variations.length(); i++) {
-            h = h * 31 + _variations[i].tag;
-            float fval = _variations[i].value; // copy to lvalue for memcpy
-            lUInt32 vbits;
-            memcpy(&vbits, &fval, sizeof(vbits));
-            h = h * 31 + vbits;
-        }
+        h = h * 31 + _variations.hash();
         // _bias is not a static property, and can be set/unset on these definitions.
         // If a same _bias value is moved from one font to another, *adding* _bias
         // to this hash may result in a final identical GetFontListHash() value
@@ -719,8 +709,8 @@ public:
     void setHasOTMath(bool has_ot_math) { _has_ot_math = has_ot_math; }
     bool hasEmojis() const { return _has_emojis; }
     void setHasEmojis(bool has_emojis) { _has_emojis = has_emojis; }
-    const LVArray<LVFontVariation>& getVariations() const { return _variations; }
-    void setVariations(const LVArray<LVFontVariation>& v) { _variations = v; }
+    const LVFontVariations& getVariations() const { return _variations; }
+    void setVariations(const LVFontVariations& v) { _variations = v; }
     // Store axis info for a single standard axis; non-standard tags are silently ignored.
     void setAxisInfo(lUInt32 tag, float minVal, float defVal, float maxVal) {
         switch (tag) {
@@ -1612,7 +1602,7 @@ protected:
     FT_Pos         _synth_weight_strength; // for emboldening with FT_Outline_Embolden()
     FT_Pos         _synth_weight_half_strength;
     int            _features; // requested OpenType features bitmap
-    LVArray<LVFontVariation> _variations; // variable font axis values applied to this instance
+    LVFontVariations _variations; // variable font axis values applied to this instance
 #if USE_HARFBUZZ==1
     hb_font_t* _hb_font;
     hb_buffer_t* _hb_buffer;
@@ -2016,20 +2006,12 @@ public:
     virtual int getFeatures() const {
         return _features;
     }
-    void setVariations( const LVArray<LVFontVariation>& variations ) {
+    void setVariations( const LVFontVariations& variations ) {
         _variations = variations;
         _hash = 0; // force calcHash(font_ref_t) to recompute
     }
     virtual lUInt32 getVariationHash() const {
-        lUInt32 h = 0;
-        for (int i = 0; i < _variations.length(); i++) {
-            h = h * 31 + _variations[i].tag;
-            lUInt32 vbits;
-            float fval = _variations[i].value;
-            memcpy(&vbits, &fval, sizeof(vbits));
-            h = h * 31 + vbits;
-        }
-        return h;
+        return _variations.hash();
     }
 
     virtual void setKerningMode( kerning_mode_t kerningMode ) {
@@ -2221,28 +2203,26 @@ public:
                 // Build axis coord array (FT_Fixed = 16.16) starting from defaults
                 FT_Fixed * coords = new FT_Fixed[mm_var->num_axis];
                 for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                    coords[ai] = mm_var->axis[ai].def; // start at default
                     lUInt32 axTag = (lUInt32)mm_var->axis[ai].tag;
-                    for (int vi = 0; vi < _variations.length(); vi++) {
-                        if (_variations[vi].tag == axTag) {
-                            coords[ai] = (FT_Fixed)(_variations[vi].value * 65536.0f);
-                            break;
-                        }
-                    }
+                    coords[ai] = _variations.has(axTag)
+                        ? (FT_Fixed)(_variations.get(axTag) * 65536.0f)
+                        : mm_var->axis[ai].def;
                 }
                 FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
                 delete[] coords;
                 {
+                    // Log the set axes in font order
                     char axisBuf[256] = "";
                     int pos = 0;
-                    for (int vi = 0; vi < _variations.length() && pos < (int)sizeof(axisBuf) - 20; vi++) {
-                        lUInt32 t = _variations[vi].tag;
-                        pos += snprintf(axisBuf + pos, sizeof(axisBuf) - pos,
-                                        "%s%c%c%c%c=%.1f",
-                                        vi ? ", " : "",
-                                        (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
-                                        (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
-                                        _variations[vi].value);
+                    for (FT_UInt ai = 0; ai < mm_var->num_axis && pos < (int)sizeof(axisBuf) - 20; ai++) {
+                        lUInt32 t = (lUInt32)mm_var->axis[ai].tag;
+                        if (_variations.has(t))
+                            pos += snprintf(axisBuf + pos, sizeof(axisBuf) - pos,
+                                            "%s%c%c%c%c=%.1f",
+                                            pos ? ", " : "",
+                                            (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
+                                            (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
+                                            _variations.get(t));
                     }
                     CRLog::info("Variable font %s: axes [%s]", _fileName.c_str(), axisBuf);
                 }
@@ -2276,13 +2256,14 @@ public:
                 hb_ft_font_set_load_flags(_hb_font, flags);
                 // Apply variable font variations to the HarfBuzz font as well
                 if (!_variations.empty()) {
-                    hb_variation_t * hbvars = new hb_variation_t[_variations.length()];
-                    for (int vi = 0; vi < _variations.length(); vi++) {
-                        hbvars[vi].tag   = _variations[vi].tag;
-                        hbvars[vi].value = _variations[vi].value;
-                    }
-                    hb_font_set_variations(_hb_font, hbvars, (unsigned int)_variations.length());
-                    delete[] hbvars;
+                    hb_variation_t hbvars[5]; // at most 5 standard axes
+                    unsigned int nvar = 0;
+                    if (_variations.wght_set) { hbvars[nvar].tag = LVFONT_TAG_WGHT; hbvars[nvar++].value = _variations.wght; }
+                    if (_variations.opsz_set) { hbvars[nvar].tag = LVFONT_TAG_OPSZ; hbvars[nvar++].value = _variations.opsz; }
+                    if (_variations.ital_set) { hbvars[nvar].tag = LVFONT_TAG_ITAL; hbvars[nvar++].value = _variations.ital; }
+                    if (_variations.slnt_set) { hbvars[nvar].tag = LVFONT_TAG_SLNT; hbvars[nvar++].value = _variations.slnt; }
+                    if (_variations.wdth_set) { hbvars[nvar].tag = LVFONT_TAG_WDTH; hbvars[nvar++].value = _variations.wdth; }
+                    hb_font_set_variations(_hb_font, hbvars, nvar);
                 }
             }
         }
@@ -6136,7 +6117,7 @@ public:
 
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features, int documentId, bool useBias=false,
-                                const LVArray<LVFontVariation>* variations=NULL)
+                                const LVFontVariations* variations=NULL)
     {
         FONT_MAN_GUARD
         #if (DEBUG_FONT_MAN==1)
@@ -6146,23 +6127,9 @@ public:
             }
         #endif
         // Build effective variations: start from caller-supplied list
-        LVArray<LVFontVariation> effectiveVariations;
+        LVFontVariations effectiveVariations;
         if (variations)
             effectiveVariations = *variations;
-
-        // Sort helper: canonical tag order so cache keys are insertion-order-independent.
-        // Insertion sort is fine — arrays are at most ~16 elements.
-        auto sortVariations = [](LVArray<LVFontVariation> & arr) {
-            for (int i = 1; i < arr.length(); i++) {
-                LVFontVariation key = arr[i];
-                int j = i - 1;
-                while (j >= 0 && arr[j].tag > key.tag) {
-                    arr[j + 1] = arr[j];
-                    j--;
-                }
-                arr[j + 1] = key;
-            }
-        };
 
         lString8 fontname;
         LVFontDef def(
@@ -6205,20 +6172,14 @@ public:
             return LVFontRef(NULL);
         }
 
-        // Strip variations for axes the matched font doesn't actually have, so they don't
-        // pollute the cache key (FreeType ignores them silently, but different values would
-        // create redundant cache entries with identical rendering output).
-        if (!effectiveVariations.empty()) {
-            for (int vi = effectiveVariations.length() - 1; vi >= 0; vi--) {
-                if (!item->getDef()->hasAxis(effectiveVariations[vi].tag))
-                    effectiveVariations.remove(vi);
-            }
-        }
+        // Strip variations for axes the matched font doesn't actually have.
+        if (effectiveVariations.wght_set && !item->getDef()->hasAxis(LVFONT_TAG_WGHT)) effectiveVariations.wght_set = false;
+        if (effectiveVariations.opsz_set && !item->getDef()->hasAxis(LVFONT_TAG_OPSZ)) effectiveVariations.opsz_set = false;
+        if (effectiveVariations.ital_set && !item->getDef()->hasAxis(LVFONT_TAG_ITAL)) effectiveVariations.ital_set = false;
+        if (effectiveVariations.slnt_set && !item->getDef()->hasAxis(LVFONT_TAG_SLNT)) effectiveVariations.slnt_set = false;
+        if (effectiveVariations.wdth_set && !item->getDef()->hasAxis(LVFONT_TAG_WDTH)) effectiveVariations.wdth_set = false;
 
-        // Sort into canonical tag order and sync def. The first _cache.find used the
-        // unstripped variations; now that we know which axes are supported, update def
-        // so any subsequent lookup uses the correct (shorter, sorted) key.
-        sortVariations(effectiveVariations);
+        // Sync def with the stripped set for all subsequent lookups.
         def.setVariations(effectiveVariations);
 
         // Check whether an already-instantiated font with these exact stripped
@@ -6227,131 +6188,70 @@ public:
         if (!effectiveVariations.empty()) {
             LVFontCacheItem * strippedItem = _cache.find(&def, useBias);
             if (strippedItem != NULL && !strippedItem->getFont().isNull()
-                    && strippedItem->getDef()->getFeatures() == features) {
-                const LVArray<LVFontVariation>& sv = strippedItem->getDef()->getVariations();
-                if (sv.length() == effectiveVariations.length()) {
-                    bool varMatch = true;
-                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                        if (!(sv[vi] == effectiveVariations[vi])) { varMatch = false; break; }
-                    if (varMatch) {
-                        // Mirror the synthesis guard in the instantiated-instance block:
-                        // don't return this cached instance if weight synthesis would
-                        // be needed but the font has no wght axis to handle it.
-                        bool needsSynth = false;
-                    #ifdef USE_FT_EMBOLDEN
-                        needsSynth = (myabs(weight - strippedItem->getDef()->getWeight()) >= 25
-                                      && !strippedItem->getDef()->hasWghtAxis());
-                    #else
-                        needsSynth = (weight - strippedItem->getDef()->getWeight() >= 200
-                                      && !strippedItem->getDef()->hasWghtAxis());
-                    #endif
-                        if (!needsSynth)
-                            return strippedItem->getFont();
-                    }
-                }
+                    && strippedItem->getDef()->getFeatures() == features
+                    && strippedItem->getDef()->getVariations() == effectiveVariations) {
+                bool needsSynth = false;
+            #ifdef USE_FT_EMBOLDEN
+                needsSynth = (myabs(weight - strippedItem->getDef()->getWeight()) >= 25
+                              && !strippedItem->getDef()->hasWghtAxis());
+            #else
+                needsSynth = (weight - strippedItem->getDef()->getWeight() >= 200
+                              && !strippedItem->getDef()->hasWghtAxis());
+            #endif
+                if (!needsSynth)
+                    return strippedItem->getFont();
             }
         }
 
         // If the best-matched font has a wght axis and no explicit wght variation was
         // supplied, inject one so the face is set to exactly the requested weight instead
         // of using FT_Outline_Embolden synthesis.
-        bool hasExplicitWght = false;
-        for (int vi = 0; vi < effectiveVariations.length(); vi++)
-            if (effectiveVariations[vi].tag == LVFONT_TAG_WGHT) { hasExplicitWght = true; break; }
-        if (item->getDef()->hasWghtAxis() && !hasExplicitWght) {
-            LVFontVariation wghtVar; wghtVar.tag = LVFONT_TAG_WGHT; wghtVar.value = (float)weight;
-            effectiveVariations.add(wghtVar);
+        if (item->getDef()->hasWghtAxis() && !effectiveVariations.wght_set) {
+            effectiveVariations.set(LVFONT_TAG_WGHT, (float)weight);
             static lString8 s_last_tf; static int s_last_sz = -1, s_last_wt = -1;
             if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
                 CRLog::info("Variable font GetFont: injecting wght=%.0f for \"%s\" size=%d",
                     (float)weight, typeface.c_str(), size);
                 s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
             }
-            // Sort into canonical order then redo cache lookup with the fully-resolved
-            // variation set to find any already-instantiated variable font instance.
-            sortVariations(effectiveVariations);
             def.setVariations(effectiveVariations);
             LVFontCacheItem * item2 = _cache.find(&def, useBias);
             if (item2 != NULL && !item2->getFont().isNull()
-                    && item2->getDef()->getFeatures() == features) {
-                // Verify variations match exactly
-                const LVArray<LVFontVariation>& cachedVars2 = item2->getDef()->getVariations();
-                if (cachedVars2.length() == effectiveVariations.length()) {
-                    bool varMatch2 = true;
-                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                        if (!(cachedVars2[vi] == effectiveVariations[vi])) { varMatch2 = false; break; }
-                    if (varMatch2)
-                        return item2->getFont();
-                }
-            }
-            // Keep using item (registered font) for instantiation below
+                    && item2->getDef()->getFeatures() == features
+                    && item2->getDef()->getVariations() == effectiveVariations)
+                return item2->getFont();
         }
 
-        // If the best-matched font has an ital axis and italic is requested but no explicit ital variation was supplied, inject ital=1
-        bool hasExplicitItal = false;
-        for (int vi = 0; vi < effectiveVariations.length(); vi++)
-            if (effectiveVariations[vi].tag == LVFONT_TAG_ITAL) { hasExplicitItal = true; break; }
-        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis() && !hasExplicitItal) {
-            LVFontVariation italVar; italVar.tag = LVFONT_TAG_ITAL; italVar.value = 1.0f;
-            effectiveVariations.add(italVar);
+        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()
+                && !effectiveVariations.ital_set) {
+            effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
             static lString8 s_last_tf_ital; static int s_last_sz_ital = -1;
             if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
                 CRLog::info("Variable font GetFont: injecting ital=1 for \"%s\" size=%d",
                     typeface.c_str(), size);
                 s_last_tf_ital = typeface; s_last_sz_ital = size;
             }
-            // Sort into canonical order then redo cache lookup with the fully-resolved
-            // variation set to find any already-instantiated variable font instance.
-            sortVariations(effectiveVariations);
             def.setVariations(effectiveVariations);
             LVFontCacheItem * item3 = _cache.find(&def, useBias);
             if (item3 != NULL && !item3->getFont().isNull()
-                    && item3->getDef()->getFeatures() == features) {
-                // Verify variations match exactly
-                const LVArray<LVFontVariation>& cachedVars3 = item3->getDef()->getVariations();
-                if (cachedVars3.length() == effectiveVariations.length()) {
-                    bool varMatch3 = true;
-                    for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                        if (!(cachedVars3[vi] == effectiveVariations[vi])) { varMatch3 = false; break; }
-                    if (varMatch3)
-                        return item3->getFont();
-                }
+                    && item3->getDef()->getFeatures() == features
+                    && item3->getDef()->getVariations() == effectiveVariations)
+                return item3->getFont();
+        } else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()
+                   && !effectiveVariations.slnt_set) {
+            effectiveVariations.set(LVFONT_TAG_SLNT, -12.0f);
+            static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
+            if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
+                CRLog::info("Variable font GetFont: injecting slnt=-12 for \"%s\" size=%d",
+                    typeface.c_str(), size);
+                s_last_tf_slnt = typeface; s_last_sz_slnt = size;
             }
-            // Keep using item (registered font) for instantiation below
-        }
-        // If still no italic font and has slnt axis, inject slnt=-12
-        else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis() && !hasExplicitItal) {
-            bool hasExplicitSlnt = false;
-            for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                if (effectiveVariations[vi].tag == LVFONT_TAG_SLNT) { hasExplicitSlnt = true; break; }
-            if (!hasExplicitSlnt) {
-                LVFontVariation slntVar; slntVar.tag = LVFONT_TAG_SLNT; slntVar.value = -12.0f; // typical slant value
-                effectiveVariations.add(slntVar);
-                static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
-                if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
-                    CRLog::info("Variable font GetFont: injecting slnt=-12 for \"%s\" size=%d",
-                        typeface.c_str(), size);
-                    s_last_tf_slnt = typeface; s_last_sz_slnt = size;
-                }
-                // Sort into canonical order then redo cache lookup with the fully-resolved
-                // variation set to find any already-instantiated variable font instance.
-                sortVariations(effectiveVariations);
-                def.setVariations(effectiveVariations);
-                LVFontCacheItem * item4 = _cache.find(&def, useBias);
-                if (item4 != NULL && !item4->getFont().isNull()
-                        && item4->getDef()->getFeatures() == features) {
-                    // Verify variations match exactly
-                    const LVArray<LVFontVariation>& cachedVars4 = item4->getDef()->getVariations();
-                    if (cachedVars4.length() == effectiveVariations.length()) {
-                        bool varMatch4 = true;
-                        for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                            if (!(cachedVars4[vi] == effectiveVariations[vi])) { varMatch4 = false; break; }
-                        if (varMatch4)
-                            return item4->getFont();
-                    }
-                }
-                // Keep using item (registered font) for instantiation below
-            }
+            def.setVariations(effectiveVariations);
+            LVFontCacheItem * item4 = _cache.find(&def, useBias);
+            if (item4 != NULL && !item4->getFont().isNull()
+                    && item4->getDef()->getFeatures() == features
+                    && item4->getDef()->getVariations() == effectiveVariations)
+                return item4->getFont();
         }
 
         bool italicize = false;
@@ -6364,19 +6264,11 @@ public:
                 // Be sure we ignore any instantiated font found in cache that
                 // has features different than the ones requested.
             }
-            else if (item->getDef()->getVariations().length() != effectiveVariations.length()) {
+            else if (item->getDef()->getVariations() != effectiveVariations) {
                 // Variations mismatch: ignore this cached instance
             }
             else {
-                bool varMatch = true;
-                const LVArray<LVFontVariation>& cachedVars = item->getDef()->getVariations();
-                for (int vi = 0; vi < effectiveVariations.length(); vi++) {
-                    if (!(cachedVars[vi] == effectiveVariations[vi])) { varMatch = false; break; }
-                }
-                if (!varMatch) {
-                    // Variations mismatch: ignore this cached instance
-                }
-                else {
+                {
             #ifdef USE_FT_EMBOLDEN
                 int deltaWeight = myabs(weight - item->getDef()->getWeight());
                 if (deltaWeight >= 25 && !item->getDef()->hasWghtAxis()) {
@@ -6445,16 +6337,19 @@ public:
         font->setVariations(effectiveVariations);
         if (!effectiveVariations.empty()) {
             char varBuf[256] = "";
-            int varBufPos = 0;
-            for (int vi = 0; vi < effectiveVariations.length() && varBufPos < (int)sizeof(varBuf) - 20; vi++) {
-                lUInt32 t = effectiveVariations[vi].tag;
-                varBufPos += snprintf(varBuf + varBufPos, sizeof(varBuf) - varBufPos,
-                                      "%s%c%c%c%c=%.1f",
-                                      vi ? ", " : "",
-                                      (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
-                                      (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
-                                      effectiveVariations[vi].value);
-            }
+            int pos = 0;
+            auto logAxis = [&](bool set, lUInt32 tag, float val) {
+                if (!set || pos >= (int)sizeof(varBuf) - 20) return;
+                pos += snprintf(varBuf + pos, sizeof(varBuf) - pos, "%s%c%c%c%c=%.1f",
+                                pos ? ", " : "",
+                                (char)((tag>>24)&0xFF),(char)((tag>>16)&0xFF),
+                                (char)((tag>> 8)&0xFF),(char)(tag&0xFF), val);
+            };
+            logAxis(effectiveVariations.wght_set, LVFONT_TAG_WGHT, effectiveVariations.wght);
+            logAxis(effectiveVariations.opsz_set, LVFONT_TAG_OPSZ, effectiveVariations.opsz);
+            logAxis(effectiveVariations.ital_set, LVFONT_TAG_ITAL, effectiveVariations.ital);
+            logAxis(effectiveVariations.slnt_set, LVFONT_TAG_SLNT, effectiveVariations.slnt);
+            logAxis(effectiveVariations.wdth_set, LVFONT_TAG_WDTH, effectiveVariations.wdth);
             CRLog::info("Variable font new instance: \"%s\" size=%d  [%s]",
                 item->getDef()->getTypeFace().c_str(), size, varBuf);
         }
@@ -6477,9 +6372,7 @@ public:
             //item->setFont( ref );
             //_cache.update( def, ref );
             // Check whether weight variation handles weight; if not, fall back to synthesis
-            bool usingWghtAxis = false;
-            for (int vi = 0; vi < effectiveVariations.length(); vi++)
-                if (effectiveVariations[vi].tag == LVFONT_TAG_WGHT) { usingWghtAxis = true; break; }
+            bool usingWghtAxis = effectiveVariations.wght_set;
         #ifdef USE_FT_EMBOLDEN
             int deltaWeight = myabs(weight - newDef.getWeight());
             if (deltaWeight >= 25 && !usingWghtAxis) {
@@ -7035,7 +6928,7 @@ public:
     }
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features, int documentId, bool useBias=false,
-                                const LVArray<LVFontVariation>* /*variations*/=NULL)
+                                const LVFontVariations* /*variations*/=NULL)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
@@ -7443,32 +7336,19 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     int variations_match = 256;
     if (!_variations.empty() && !def._variations.empty()) {
         // Both have explicit variations — require exact match
-        if (_variations.length() != def._variations.length()) {
-            variations_match = 0;
-        } else {
-            for (int vi = 0; vi < _variations.length(); vi++) {
-                if (!(_variations[vi] == def._variations[vi])) {
-                    variations_match = 0;
-                    break;
-                }
-            }
-        }
+        variations_match = (_variations == def._variations) ? 256 : 0;
     }
 
     // italic
     int this_italic = _italic;
     if (_italic == 0) {
-        for (int i = 0; i < _variations.length(); i++) {
-            if (_variations[i].tag == LVFONT_TAG_ITAL && _variations[i].value == 1.0f) { this_italic = 1; break; }
-            else if (_variations[i].tag == LVFONT_TAG_SLNT && _variations[i].value != 0.0f) { this_italic = 2; break; }
-        }
+        if (_variations.ital_set && _variations.ital == 1.0f)       this_italic = 1;
+        else if (_variations.slnt_set && _variations.slnt != 0.0f)  this_italic = 2;
     }
     int def_italic = def._italic;
     if (def._italic == 0) {
-        for (int i = 0; i < def._variations.length(); i++) {
-            if (def._variations[i].tag == LVFONT_TAG_ITAL && def._variations[i].value == 1.0f) { def_italic = 1; break; }
-            else if (def._variations[i].tag == LVFONT_TAG_SLNT && def._variations[i].value != 0.0f) { def_italic = 2; break; }
-        }
+        if (def._variations.ital_set && def._variations.ital == 1.0f)      def_italic = 1;
+        else if (def._variations.slnt_set && def._variations.slnt != 0.0f) def_italic = 2;
     }
     int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
               256

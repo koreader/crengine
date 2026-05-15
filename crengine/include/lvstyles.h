@@ -146,7 +146,7 @@ struct css_style_rec_tag {
     css_font_weight_t          font_weight;
     css_length_t               font_features;
     css_font_optical_sizing_t  font_optical_sizing;
-    LVArray<LVFontVariation>   font_variations; // from font-variation-settings
+    LVFontVariations           font_variations; // from font-variation-settings
     css_length_t         text_indent;
     css_length_t         line_height;
     css_length_t         width;
