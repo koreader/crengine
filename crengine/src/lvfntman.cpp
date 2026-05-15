@@ -2195,20 +2195,6 @@ public:
                 }
                 FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
                 delete[] coords;
-                {
-                    char axisBuf[256] = "";
-                    int pos = 0;
-                    for (int vi = 0; vi < _variations.length() && pos < (int)sizeof(axisBuf) - 20; vi++) {
-                        lUInt32 t = _variations[vi].tag;
-                        pos += snprintf(axisBuf + pos, sizeof(axisBuf) - pos,
-                                        "%s%c%c%c%c=%.1f",
-                                        vi ? ", " : "",
-                                        (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
-                                        (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
-                                        _variations[vi].value);
-                    }
-                    CRLog::info("Variable font %s: axes [%s]", _fileName.c_str(), axisBuf);
-                }
                 FT_DONE_MM_VAR(_library, mm_var);
             }
         }
@@ -6047,8 +6033,6 @@ public:
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     LVArray<LVFontAxisInfo> axes;
-                    char axisBuf[512] = "";
-                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         LVFontAxisInfo axinfo;
                         axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
@@ -6056,18 +6040,8 @@ public:
                         axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
                         axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         axes.add(axinfo);
-                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
-                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
-                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
-                                                   ai ? ", " : "",
-                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
-                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
-                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
-                        }
                     }
                     def2.setAxes(axes);
-                    CRLog::info("Variable font found: \"%s\"  axes: %s",
-                        def2.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6409,21 +6383,6 @@ public:
         }
         // Set variations before loadFromFile so that setupFace() can apply them
         font->setVariations(effectiveVariations);
-        if (!effectiveVariations.empty()) {
-            char varBuf[256] = "";
-            int varBufPos = 0;
-            for (int vi = 0; vi < effectiveVariations.length() && varBufPos < (int)sizeof(varBuf) - 20; vi++) {
-                lUInt32 t = effectiveVariations[vi].tag;
-                varBufPos += snprintf(varBuf + varBufPos, sizeof(varBuf) - varBufPos,
-                                      "%s%c%c%c%c=%.1f",
-                                      vi ? ", " : "",
-                                      (char)((t >> 24) & 0xFF), (char)((t >> 16) & 0xFF),
-                                      (char)((t >>  8) & 0xFF), (char)(t & 0xFF),
-                                      effectiveVariations[vi].value);
-            }
-            CRLog::info("Variable font new instance: \"%s\" size=%d  [%s]",
-                item->getDef()->getTypeFace().c_str(), size, varBuf);
-        }
         if (item->getDef()->getBuf().isNull())
             loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         else
@@ -6652,8 +6611,6 @@ public:
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     LVArray<LVFontAxisInfo> axes;
-                    char axisBuf[512] = "";
-                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         LVFontAxisInfo axinfo;
                         axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
@@ -6661,18 +6618,8 @@ public:
                         axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
                         axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         axes.add(axinfo);
-                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
-                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
-                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
-                                                   ai ? ", " : "",
-                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
-                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
-                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
-                        }
                     }
                     def.setAxes(axes);
-                    CRLog::info("Variable font found: \"%s\"  axes: %s",
-                        def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6900,8 +6847,6 @@ public:
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
                     LVArray<LVFontAxisInfo> axes;
-                    char axisBuf[512] = "";
-                    int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         LVFontAxisInfo axinfo;
                         axinfo.tag      = (lUInt32)mm_var->axis[ai].tag;
@@ -6909,18 +6854,8 @@ public:
                         axinfo.defValue = mm_var->axis[ai].def     / 65536.0f;
                         axinfo.maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         axes.add(axinfo);
-                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
-                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
-                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
-                                                   ai ? ", " : "",
-                                                   (char)((axinfo.tag >> 24) & 0xFF), (char)((axinfo.tag >> 16) & 0xFF),
-                                                   (char)((axinfo.tag >>  8) & 0xFF), (char)(axinfo.tag & 0xFF),
-                                                   axinfo.minValue, axinfo.defValue, axinfo.maxValue);
-                        }
                     }
                     def.setAxes(axes);
-                    CRLog::info("Variable font found: \"%s\"  axes: %s",
-                        def.getName().c_str(), axisBuf);
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
