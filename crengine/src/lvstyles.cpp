@@ -46,7 +46,6 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash ) {
-        lUInt32 variations_hash = rec.font_variations.hash();
         rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
@@ -72,7 +71,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_weight) * 31
          + (lUInt32)rec.font_features.pack()) * 31
          + (lUInt32)rec.font_optical_sizing) * 31
-         + variations_hash) * 31
+         + (lUInt32)rec.font_variations.hash()) * 31
          + (lUInt32)rec.line_height.pack()) * 31
          + (lUInt32)rec.color.pack()) * 31
          + (lUInt32)rec.background_color.pack()) * 31
