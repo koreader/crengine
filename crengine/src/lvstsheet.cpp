@@ -73,6 +73,8 @@ enum css_decl_code {
     cssd_font_variant_east_asian,
     cssd_font_variant_alternates,
     cssd_text_indent,
+    cssd_initial_letter,
+    cssd_initial_letter2, // -webkit-initial-letter
     cssd_line_height,
     cssd_letter_spacing,
     cssd_width,
@@ -184,6 +186,8 @@ static const char * css_decl_name[] = {
     "font-variant-east-asian",
     "font-variant-alternates",
     "text-indent",
+    "initial-letter",
+    "-webkit-initial-letter",
     "line-height",
     "letter-spacing",
     "width",
@@ -4044,6 +4048,104 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     }
                 }
                 break;
+            case cssd_initial_letter:
+            case cssd_initial_letter2:
+                {
+                    css_length_t initial_letter(css_val_unspecified, css_generic_normal);
+                    if ( g >= 0 ) {
+                        if ( g == css_g_inherit ) {
+                            initial_letter = css_length_t(css_val_inherited, 0);
+                        }
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        buf<<(lUInt32)initial_letter.type;
+                        buf<<initial_letter.value;
+                        break;
+                    }
+                    css_length_t size_num;
+                    const char * orig_pos = decl;
+                    enum initial_letter_keyword_t {
+                        initial_letter_keyword_none,
+                        initial_letter_keyword_drop,
+                        initial_letter_keyword_raise
+                    };
+                    initial_letter_keyword_t keyword = initial_letter_keyword_none;
+                    int sink = 0;
+                    skip_spaces( decl );
+                    if ( substr_icompare( "drop", decl ) ) {
+                        keyword = initial_letter_keyword_drop;
+                        skip_spaces( decl );
+                    }
+                    else if ( substr_icompare( "raise", decl ) ) {
+                        keyword = initial_letter_keyword_raise;
+                        skip_spaces( decl );
+                    }
+                    if ( parse_number_value( decl, size_num, false, false, false, false, true, true ) ) {
+                        if ( size_num.type == css_val_unspecified && size_num.value == css_generic_normal ) {
+                            initial_letter = css_length_t(css_val_unspecified, css_generic_normal);
+                        }
+                        else if ( size_num.type == css_val_unspecified
+                                && size_num.value >= 256
+                                && size_num.value <= 0x007FFFFF ) {
+                            // Normalize omitted sink to Edge's effective ceil(size) behavior
+                            // so layout code only needs to handle one packed size/sink form.
+                            int default_sink = (size_num.value + 255) >> 8;
+                            if ( default_sink > 255 ) {
+                                decl = orig_pos;
+                                break;
+                            }
+                            const char * before_sink = decl;
+                            skip_spaces( decl );
+                            if ( keyword == initial_letter_keyword_none ) {
+                                if ( substr_icompare( "drop", decl ) ) {
+                                    keyword = initial_letter_keyword_drop;
+                                }
+                                else if ( substr_icompare( "raise", decl ) ) {
+                                    keyword = initial_letter_keyword_raise;
+                                }
+                                else {
+                                    css_length_t sink_num;
+                                    if ( parse_number_value( decl, sink_num, false, false, false, false, false, true ) ) {
+                                        if ( sink_num.type == css_val_unspecified
+                                                && sink_num.value >= 256
+                                                && sink_num.value <= (255 << 8)
+                                                && (sink_num.value & 0xFF) == 0 ) {
+                                            sink = sink_num.value >> 8;
+                                        }
+                                        else {
+                                            decl = orig_pos;
+                                            break;
+                                        }
+                                    }
+                                    else {
+                                        decl = before_sink;
+                                    }
+                                }
+                            }
+                            else if ( *decl && *decl != ';' && *decl != '}' && *decl != '!' ) {
+                                decl = orig_pos;
+                                break;
+                            }
+                            if ( sink == 0 ) {
+                                sink = keyword == initial_letter_keyword_raise ? 1 : default_sink;
+                            }
+                        }
+                        else {
+                            decl = orig_pos;
+                            break;
+                        }
+                        if ( size_num.type != css_val_unspecified || size_num.value != css_generic_normal ) {
+                            initial_letter = css_length_t(css_val_unspecified,
+                                    (size_num.value << 8) | (sink & 0xFF));
+                        }
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        buf<<(lUInt32)initial_letter.type;
+                        buf<<initial_letter.value;
+                    }
+                    else {
+                        decl = orig_pos;
+                    }
+                }
+                break;
 
             // Next ones accept 1 length value (with possibly named values for borders
             // that we map to a length)
@@ -5239,6 +5341,10 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
         case cssd_text_indent:
             style->Apply( read_length(p), &style->text_indent, imp_bit_text_indent, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_initial_letter:
+        case cssd_initial_letter2:
+            style->Apply( read_length(p), &style->initial_letter, imp_bit_initial_letter, is_important );
             break;
         case cssd_line_height:
             style->Apply( read_length(p), &style->line_height, imp_bit_line_height, is_important );
