@@ -2428,11 +2428,9 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         fw = 1;
     else if ( fw>999 )
         fw = 999;
-    // Build variation set from CSS font-variation-settings and auto optical sizing
-    LVFontVariations variations = style->font_variations;
-
-    // Auto optical sizing: inject opsz unless disabled or already explicitly set
-    if (!variations.opsz_set && style->font_optical_sizing != css_fos_none && gRenderDPI >= 100) {
+    // Auto optical sizing: inject opsz from font-size in typographic points
+    LVFontVariations variations;
+    if (gRenderDPI >= 100) {
         // Convert sz (screen pixels) to typographic points.
         // sz arrives already scaled to physical screen pixels by Screen:scaleBySize() on the
         // Lua side, so gRenderDPI is the correct divisor.
@@ -11373,15 +11371,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     case css_fw_900:
         break;
     }
-
-    // font-optical-sizing (inherited; initial = auto)
-    if (pstyle->font_optical_sizing == css_fos_inherit)
-        pstyle->font_optical_sizing = parent_style->font_optical_sizing;
-
-    // font-variation-settings (inherited; initial = empty)
-    // If child has no explicit setting, inherit parent's variations
-    if (pstyle->font_variations.empty() && !parent_style->font_variations.empty())
-        pstyle->font_variations = parent_style->font_variations;
 
     // font-size
     switch( pstyle->font_size.type )

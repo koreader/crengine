@@ -735,26 +735,6 @@ public:
             default: return false;
         }
     }
-    float getAxisMin(lUInt32 tag, float fallback = 0.0f) const {
-        switch (tag) {
-            case LVFONT_TAG_WGHT: return _has_wght ? _wght_min : fallback;
-            case LVFONT_TAG_OPSZ: return _has_opsz ? _opsz_min : fallback;
-            case LVFONT_TAG_ITAL: return _has_ital ? _ital_min : fallback;
-            case LVFONT_TAG_SLNT: return _has_slnt ? _slnt_min : fallback;
-            case LVFONT_TAG_WDTH: return _has_wdth ? _wdth_min : fallback;
-            default: return fallback;
-        }
-    }
-    float getAxisMax(lUInt32 tag, float fallback = 0.0f) const {
-        switch (tag) {
-            case LVFONT_TAG_WGHT: return _has_wght ? _wght_max : fallback;
-            case LVFONT_TAG_OPSZ: return _has_opsz ? _opsz_max : fallback;
-            case LVFONT_TAG_ITAL: return _has_ital ? _ital_max : fallback;
-            case LVFONT_TAG_SLNT: return _has_slnt ? _slnt_max : fallback;
-            case LVFONT_TAG_WDTH: return _has_wdth ? _wdth_max : fallback;
-            default: return fallback;
-        }
-    }
     bool hasWghtAxis() const { return _has_wght; }
     float getWghtAxisMin() const { return _wght_min; }
     float getWghtAxisMax() const { return _wght_max; }

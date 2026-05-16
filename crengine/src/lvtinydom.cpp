@@ -5146,7 +5146,6 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_weight = css_fw_400;
     s->font_style = css_fs_normal;
     s->font_features = css_length_t(css_val_unspecified, 0);
-    s->font_optical_sizing = css_fos_auto; // CSS initial value; enables opsz auto-injection
     s->text_indent = css_length_t(css_val_screen_px, 0);
     s->line_height = css_length_t(css_val_unspecified, css_generic_normal); // line-height: normal
     s->letter_spacing = css_length_t(css_val_unspecified, css_generic_normal); // letter-spacing: normal

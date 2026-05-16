@@ -11,7 +11,6 @@
 
 *******************************************************/
 
-#include <string.h>
 #include "../include/lvstyles.h"
 
 // #include <stdio.h>
@@ -45,8 +44,8 @@ lUInt32 calcHash(font_ref_t & f)
 
 lUInt32 calcHash(css_style_rec_t & rec)
 {
-    if ( !rec.hash ) {
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+    if ( !rec.hash )
+        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
          + (lUInt32)rec.important[2]) * 31
@@ -70,8 +69,6 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_style) * 31
          + (lUInt32)rec.font_weight) * 31
          + (lUInt32)rec.font_features.pack()) * 31
-         + (lUInt32)rec.font_optical_sizing) * 31
-         + (lUInt32)rec.font_variations.hash()) * 31
          + (lUInt32)rec.line_height.pack()) * 31
          + (lUInt32)rec.color.pack()) * 31
          + (lUInt32)rec.background_color.pack()) * 31
@@ -125,7 +122,6 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash()
          + (lUInt32)rec.content.getHash());
-    } // if (!rec.hash)
     return rec.hash;
 }
 
@@ -173,8 +169,6 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.font_name == r2.font_name &&
            r1.font_family == r2.font_family&&
            r1.font_features == r2.font_features&&
-           r1.font_optical_sizing == r2.font_optical_sizing&&
-           r1.font_variations == r2.font_variations &&
            r1.border_style_top==r2.border_style_top&&
            r1.border_style_right==r2.border_style_right&&
            r1.border_style_bottom==r2.border_style_bottom&&
@@ -365,19 +359,6 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(font_style);        //    css_font_style_t     font_style;
     ST_PUT_ENUM(font_weight);       //    css_font_weight_t    font_weight;
     ST_PUT_LEN(font_features);      //    css_length_t         font_features;
-    ST_PUT_ENUM(font_optical_sizing); //  css_font_optical_sizing_t  font_optical_sizing;
-    {   // font_variations: LVFontVariations (serialised as count + tag/value pairs)
-        lUInt32 vcnt = (font_variations.wght_set ? 1 : 0) + (font_variations.opsz_set ? 1 : 0)
-                     + (font_variations.ital_set ? 1 : 0) + (font_variations.slnt_set ? 1 : 0)
-                     + (font_variations.wdth_set ? 1 : 0);
-        buf << vcnt;
-        lUInt32 vbits;
-        if (font_variations.wght_set) { memcpy(&vbits, &font_variations.wght, 4); buf << (lUInt32)LVFONT_TAG_WGHT; buf << vbits; }
-        if (font_variations.opsz_set) { memcpy(&vbits, &font_variations.opsz, 4); buf << (lUInt32)LVFONT_TAG_OPSZ; buf << vbits; }
-        if (font_variations.ital_set) { memcpy(&vbits, &font_variations.ital, 4); buf << (lUInt32)LVFONT_TAG_ITAL; buf << vbits; }
-        if (font_variations.slnt_set) { memcpy(&vbits, &font_variations.slnt, 4); buf << (lUInt32)LVFONT_TAG_SLNT; buf << vbits; }
-        if (font_variations.wdth_set) { memcpy(&vbits, &font_variations.wdth, 4); buf << (lUInt32)LVFONT_TAG_WDTH; buf << vbits; }
-    }
     ST_PUT_LEN(text_indent);        //    css_length_t         text_indent;
     ST_PUT_LEN(line_height);        //    css_length_t         line_height;
     ST_PUT_LEN(width);              //    css_length_t         width;
@@ -453,18 +434,6 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_font_style_t, font_style);              //    css_font_style_t     font_style;
     ST_GET_ENUM(css_font_weight_t, font_weight);            //    css_font_weight_t    font_weight;
     ST_GET_LEN(font_features);                              //    css_length_t         font_features;
-    ST_GET_ENUM(css_font_optical_sizing_t, font_optical_sizing); // css_font_optical_sizing_t  font_optical_sizing;
-    {   // font_variations: LVFontVariations (count + tag/value pairs)
-        lUInt32 vcnt = 0;
-        buf >> vcnt;
-        font_variations = LVFontVariations();
-        for (lUInt32 vi = 0; vi < vcnt; vi++) {
-            lUInt32 tag = 0, vbits = 0;
-            buf >> tag; buf >> vbits;
-            float val; memcpy(&val, &vbits, sizeof(float));
-            font_variations.set(tag, val);
-        }
-    }
     ST_GET_LEN(text_indent);                                //    css_length_t         text_indent;
     ST_GET_LEN(line_height);                                //    css_length_t         line_height;
     ST_GET_LEN(width);                                      //    css_length_t         width;
