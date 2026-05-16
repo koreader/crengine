@@ -44,7 +44,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
          + (lUInt32)rec.important[2]) * 31
@@ -59,8 +59,9 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.text_transform) * 31
          + (lUInt32)rec.hyphenate) * 31
          + (lUInt32)rec.list_style_type) * 31
-         + (lUInt32)rec.letter_spacing.pack()) * 31
          + (lUInt32)rec.list_style_position) * 31
+         + (lUInt32)rec.letter_spacing.pack()) * 31
+         + (lUInt32)rec.initial_letter.pack()) * 31
          + (lUInt32)(rec.page_break_before | (rec.page_break_after<<4) | (rec.page_break_inside<<8))) * 31
          + (lUInt32)rec.vertical_align.pack()) * 31
          + (lUInt32)rec.font_size.type) * 31
@@ -144,6 +145,11 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.hyphenate == r2.hyphenate &&
            r1.vertical_align == r2.vertical_align &&
            r1.line_height == r2.line_height &&
+           r1.letter_spacing == r2.letter_spacing &&
+           r1.initial_letter == r2.initial_letter &&
+           r1.page_break_before == r2.page_break_before &&
+           r1.page_break_after == r2.page_break_after &&
+           r1.page_break_inside == r2.page_break_inside &&
            r1.width == r2.width &&
            r1.height == r2.height &&
            r1.min_width == r2.min_width &&
@@ -371,6 +377,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_LEN(color);              //    css_length_t         color;
     ST_PUT_LEN(background_color);   //    css_length_t         background_color;
     ST_PUT_LEN(letter_spacing);     //    css_length_t         letter_spacing;
+    ST_PUT_LEN(initial_letter);     //    css_length_t         initial_letter;
     ST_PUT_ENUM(page_break_before); //    css_page_break_t     page_break_before;
     ST_PUT_ENUM(page_break_after);  //    css_page_break_t     page_break_after;
     ST_PUT_ENUM(page_break_inside); //    css_page_break_t     page_break_inside;
@@ -446,6 +453,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_LEN(color);                                      //    css_length_t         color;
     ST_GET_LEN(background_color);                           //    css_length_t         background_color;
     ST_GET_LEN(letter_spacing);                             //    css_length_t         letter_spacing;
+    ST_GET_LEN(initial_letter);                             //    css_length_t         initial_letter;
     ST_GET_ENUM(css_page_break_t, page_break_before);       //    css_page_break_t     page_break_before;
     ST_GET_ENUM(css_page_break_t, page_break_after);        //    css_page_break_t     page_break_after;
     ST_GET_ENUM(css_page_break_t, page_break_inside);       //    css_page_break_t     page_break_inside;
