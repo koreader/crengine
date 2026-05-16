@@ -28,6 +28,9 @@
 // #define DEBUG_MEASURE_TEXT
 // #define DEBUG_DRAW_TEXT
 
+// Uncomment for debugging variable fonts loading and use
+//#define DEBUG_VAR_FONT 1
+
 // define to filter out all fonts except .ttf
 //#define LOAD_TTF_FONTS_ONLY
 // DEBUG ONLY
@@ -2210,6 +2213,7 @@ public:
                 }
                 FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
                 delete[] coords;
+#ifdef DEBUG_VAR_FONT
                 {
                     // Log the set axes in font order
                     char axisBuf[256] = "";
@@ -2226,6 +2230,7 @@ public:
                     }
                     CRLog::info("Variable font %s: axes [%s]", _fileName.c_str(), axisBuf);
                 }
+#endif
                 FT_DONE_MM_VAR(_library, mm_var);
             }
         }
@@ -6064,6 +6069,7 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+#ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
@@ -6083,6 +6089,7 @@ public:
                     }
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def2.getName().c_str(), axisBuf);
+#endif
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6210,8 +6217,10 @@ public:
             effectiveVariations.set(LVFONT_TAG_WGHT, (float)weight);
             static lString8 s_last_tf; static int s_last_sz = -1, s_last_wt = -1;
             if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
+#ifdef DEBUG_VAR_FONT
                 CRLog::info("Variable font GetFont: injecting wght=%.0f for \"%s\" size=%d",
                     (float)weight, typeface.c_str(), size);
+#endif
                 s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
             }
             def.setVariations(effectiveVariations);
@@ -6227,8 +6236,10 @@ public:
             effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
             static lString8 s_last_tf_ital; static int s_last_sz_ital = -1;
             if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
+#ifdef DEBUG_VAR_FONT
                 CRLog::info("Variable font GetFont: injecting ital=1 for \"%s\" size=%d",
                     typeface.c_str(), size);
+#endif  
                 s_last_tf_ital = typeface; s_last_sz_ital = size;
             }
             def.setVariations(effectiveVariations);
@@ -6242,8 +6253,10 @@ public:
             effectiveVariations.set(LVFONT_TAG_SLNT, -12.0f);
             static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
             if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
+#ifdef DEBUG_VAR_FONT
                 CRLog::info("Variable font GetFont: injecting slnt=-12 for \"%s\" size=%d",
                     typeface.c_str(), size);
+#endif
                 s_last_tf_slnt = typeface; s_last_sz_slnt = size;
             }
             def.setVariations(effectiveVariations);
@@ -6335,6 +6348,7 @@ public:
         }
         // Set variations before loadFromFile so that setupFace() can apply them
         font->setVariations(effectiveVariations);
+#ifdef DEBUG_VAR_FONT
         if (!effectiveVariations.empty()) {
             char varBuf[256] = "";
             int pos = 0;
@@ -6350,9 +6364,11 @@ public:
             logAxis(effectiveVariations.ital_set, LVFONT_TAG_ITAL, effectiveVariations.ital);
             logAxis(effectiveVariations.slnt_set, LVFONT_TAG_SLNT, effectiveVariations.slnt);
             logAxis(effectiveVariations.wdth_set, LVFONT_TAG_WDTH, effectiveVariations.wdth);
+            
             CRLog::info("Variable font new instance: \"%s\" size=%d  [%s]",
                 item->getDef()->getTypeFace().c_str(), size, varBuf);
         }
+#endif
         if (item->getDef()->getBuf().isNull())
             loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
         else
@@ -6577,6 +6593,7 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+#ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
@@ -6596,6 +6613,7 @@ public:
                     }
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
+#endif
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
@@ -6822,6 +6840,7 @@ public:
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+#ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
@@ -6841,6 +6860,7 @@ public:
                     }
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
+#endif
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
