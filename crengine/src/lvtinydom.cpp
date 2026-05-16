@@ -10260,27 +10260,10 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 lUInt16 width[512];
                 lUInt8 flg[512];
 
-                lString32 str = node->getEffectiveText();
-
-                // We need to transform the node text as it had been when
-                // rendered (the transform may change chars widths) for the
-                // XPointer offset to be correct
-                switch ( node->getParentNode()->getStyle()->text_transform ) {
-                    case css_tt_uppercase:
-                        str.uppercase();
-                        break;
-                    case css_tt_lowercase:
-                        str.lowercase();
-                        break;
-                    case css_tt_capitalize:
-                        str.capitalize();
-                        break;
-                    case css_tt_full_width:
-                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                        break;
-                    default:
-                        break;
-                }
+                // (We measure the exact text fragment that was handed to AddSourceLine(),
+                // it already reflects text-transform and any ::first-letter split/substringing
+                // performed at renderFinalBlock time.)
+                lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
 
                 lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                 font->measureText( str.c_str()+word->t.start, word->t.len, width, flg, word->width+50, '?',
@@ -10779,7 +10762,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                 LVFont *font = (LVFont *)src->t.font;
                                 lUInt16 w[512];
                                 lUInt8 flg[512];
-                                lString32 str = node->getEffectiveText();
+                                lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
                                 if (offset == word->t.start && str.empty()) {
                                     rect.left = word->x + rc.left + frmline->x;
                                     rect.top = rc.top + frmline->y;
@@ -10791,26 +10774,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                             *ctxFlags |= RECT_CTX_IS_RTL;
                                     }
                                     return true;
-                                }
-                                // We need to transform the node text as it had been when
-                                // rendered (the transform may change chars widths) for the
-                                // rect to be correct
-                                css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
-                                switch ( text_transform ) {
-                                    case css_tt_uppercase:
-                                        str.uppercase();
-                                        break;
-                                    case css_tt_lowercase:
-                                        str.lowercase();
-                                        break;
-                                    case css_tt_capitalize:
-                                        str.capitalize();
-                                        break;
-                                    case css_tt_full_width:
-                                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                                        break;
-                                    default:
-                                        break;
                                 }
                                 lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                                 font->measureText(
@@ -10969,7 +10932,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         LVFont *font = (LVFont *)src->t.font;
                         lUInt16 w[512];
                         lUInt8 flg[512];
-                        lString32 str = node->getEffectiveText();
+                        lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
                         // With "|| (extended && offset < word->t.start)" added to the first if
                         // above, we may now be here with: offset = word->t.start = 0
                         // and a node->getText() returning THE lString32::empty_str:
@@ -10986,26 +10949,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                             rect.bottom = rect.top + frmline->height;
                             // No ctxFlags to set
                             return true;
-                        }
-                        // We need to transform the node text as it had been when
-                        // rendered (the transform may change chars widths) for the
-                        // rect to be correct
-                        css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
-                        switch ( text_transform ) {
-                            case css_tt_uppercase:
-                                str.uppercase();
-                                break;
-                            case css_tt_lowercase:
-                                str.lowercase();
-                                break;
-                            case css_tt_capitalize:
-                                str.capitalize();
-                                break;
-                            case css_tt_full_width:
-                                // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                                break;
-                            default:
-                                break;
                         }
                         lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                         font->measureText(
