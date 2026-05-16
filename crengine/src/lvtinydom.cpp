@@ -93,7 +93,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.77k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.78k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0034
 
@@ -241,6 +241,8 @@ enum CacheFileBlockType {
 #include <xxhash.h>
 #include <lvtextfm.h>
 #include "../include/lvdocviewprops.h"
+#include "../include/renderutil.h"
+
 
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
@@ -4975,6 +4977,10 @@ ldomDocument::~ldomDocument()
 {
 #if BUILD_LITE!=1
     updateMap(); // NOLINT: Call to virtual function during destruction
+    // Our cache of LFormattedTextRefs may have some with a non-null LVFontRef
+    // keeping alive some font instances (eg. for initial-letter).
+    // Drop them before unregistering document fonts.
+    clearRendBlockCache();
 #endif
     _def_font.Clear();
     _fonts.clear();
@@ -6368,6 +6374,7 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
                         // Skip leading non-letter characters (spaces, punctuation, etc.)
                         // until we find the first actual letter
                         bool foundFirstLetter = false;
+                        int foundNonLetterIndex = -1;
                         while ( i < len ) {
                             lUInt16 props = lGetCharProps(text[i]);
                             if ( props & (CH_PROP_UPPER | CH_PROP_LOWER | CH_PROP_DIGIT | CH_PROP_SIGN) ) {
@@ -6375,7 +6382,28 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
                                 foundFirstLetter = true;
                                 break;
                             }
+                            else if ( !(props & CH_PROP_SPACE) ) {
+                                // Found another kind of char that is visible
+                                // if we happen to not get foundFirstLetter in this text node,
+                                // we will have to use it as first letter, even if some letters
+                                // are found in a sibling element (ie. <p>(<em>Letter</em>) as
+                                // we can't wrap across text nodes.
+                                // This is as Firefox and Edge do.
+                                foundNonLetterIndex = i;
+                                // We could either add or not "&& foundNonLetterIndex < 0" to the check
+                                // above to start grabbing below from the first non-space or the last one,
+                                // which would give different results.
+                                // Not adding it does as Firefox.
+                                // Adding it would do more as Edge (except that Edge would stop
+                                // depending on other conditions).
+                                // Let's do simple, as Firefox.
+                            }
                             i++;
+                        }
+                        if ( !foundFirstLetter && foundNonLetterIndex >= 0 ) {
+                            // This first non-letter non-space should act as our first letter.
+                            foundFirstLetter = true;
+                            i = foundNonLetterIndex;
                         }
                         // Now grab any trailing modifiers/punctuation that are part of the first letter
                         if ( foundFirstLetter ) {
@@ -9975,7 +10003,63 @@ bool ldomXPointer::isFinalNode() const
     return false;
 }
 
+static ldomNode * findCloneNodeBySource(ldomNode * root, ldomNode * source)
+{
+    if ( !root || !source )
+        return NULL;
+    ldomNode * n = root;
+    int index = 0;
+    while ( true ) {
+        if ( index == 0 && n->getNodeId() == el_cloneNode && n->getCloneNodeSource() == source ) {
+            return n;
+        }
+        if ( index < n->getChildCount() ) {
+            n = n->getChildNode(index);
+            index = 0;
+            continue;
+        }
+        index = n->getNodeIndex() + 1;
+        if ( n == root ) {
+            break;
+        }
+        n = n->getParentNode();
+    }
+    return NULL;
+}
+
+static ldomNode * findFirstLineCloneForNode(ldomNode * node)
+{
+    if ( !node )
+        return NULL;
+    ldomNode * current = node;
+    ldomNode * ancestor = node;
+    while ( ancestor ) {
+        if ( !ancestor->hasAttribute(attr_HasFirstLine) ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        ldomNode * firstLineElem = ancestor->getUnboxedFirstChild(true, el_pseudoElem);
+        if ( !firstLineElem || !firstLineElem->hasAttribute(attr_FirstLine) ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        ldomNode * clone = findCloneNodeBySource(firstLineElem, current);
+        if ( !clone ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        // Continue from the clone we just found so outer ::first-line ancestors
+        // can resolve clone-of-clone chains for nested first-line content.
+        current = clone;
+        ancestor = current->getParentNode();
+    }
+    return current != node ? current : NULL;
+}
+
 /// create xpointer from doc point
+// (This should always returns a xpointer to the source node: when around a ::first-line,
+// whether we are on the first line and actually on a cloneNode or a second line and on
+// the original source node, it would return the source node.)
 ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool strictBounds, ldomNode * fromNode )
 {
     //
@@ -10089,7 +10173,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + (int)flt->height ) {
             // pt is inside this float.
             // (For floats in ::first-line, srctext->object references the original float element,
-            // and never the clondeNode, so no need to use getEffectiveNode() here.)
+            // and never the cloneNode, so no need to use getEffectiveNode() here.)
             ldomNode * node = (ldomNode *) flt->srctext->object; // floatBox node
             ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
             if ( !inside_ptr.isNull() ) {
@@ -10100,6 +10184,30 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             // (Or should we let just go on looking only at the text in the original final node?)
         }
         // If no containing float, go on looking at the text of the original final node
+    }
+
+    // Then, look in oversized inlineBoxes (such as an initial-letter), which can extend
+    // over later line boxes (no need to do this when !PT_DIR_EXACT).
+    if ( direction == PT_DIR_EXACT ) {
+        int icount = txtform->GetOversizedInlineBoxCount();
+        for ( int i = 0; i < icount; i++ ) {
+            const src_text_fragment_t * src = txtform->GetSrcInfo(txtform->GetOversizedInlineBoxSrcIndex(i));
+            ldomNode * node = src ? (ldomNode *)src->object : NULL;
+            if ( !node ) {
+                continue;
+            }
+            lvRect boxRect;
+            if ( !getInitialLetterInlineBoxInkRect(node, boxRect) ) {
+                node->getAbsRect( boxRect );
+            }
+            if ( boxRect.isPointInside(orig_pt) ) {
+                ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
+                if ( !inside_ptr.isNull() ) {
+                    return inside_ptr;
+                }
+                return ldomXPointer(node->getEffectiveNode(), 0);
+            }
+        }
     }
 
     // Look at words in the rendered final node (whether it's the original
@@ -10171,8 +10279,6 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             // Found right word/image
             const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
             ldomNode * node = (ldomNode *)src->object;
-            // (For inline-boxes and images in ::first-line, srctext->object references the original
-            // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
             if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                 // pt is inside this inline-block inlineBox node
                 ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -10180,18 +10286,29 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                     return inside_ptr;
                 }
                 // Otherwise, return xpointer to the inlineBox itself
-                return ldomXPointer(node, 0);
+                return ldomXPointer(node->getEffectiveNode(), 0);
             }
             if ( word->flags & LTEXT_WORD_IS_IMAGE ) {
-                return ldomXPointer(node, 0);
+                // (We don't pass images as cloneNode, but be consistent)
+                return ldomXPointer(node->getEffectiveNode(), 0);
             }
             // It is a word
+            // If it happens to be a pseudoElem[FirstLetter], we will want to return a xpointer
+            // to the original source text node (as if there was no ::first-letter)
+            ldomNode * firstLetterTextNode = NULL;
+            if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
+                firstLetterTextNode = node->getEffectiveFirstLetterTextNode();
+            }
             if ( find_first ) { // return xpointer to logical start of word
+                if ( firstLetterTextNode )
+                    return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start );
                 if ( node->isEffectiveElement() ) // (see comment about <br/><br/> below)
                     return ldomXPointer(node->getEffectiveNode(), 0);
                 return ldomXPointer( node->getEffectiveNode(), word->t.start );
             }
             else { // return xpointer to logical end of word
+                if ( firstLetterTextNode )
+                    return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + word->t.len );
                 if ( node->isEffectiveElement() )
                     return ldomXPointer(node->getEffectiveNode(), 0);
                 return ldomXPointer( node->getEffectiveNode(), word->t.start + word->t.len );
@@ -10234,7 +10351,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                     continue;
                 }
                 // (For inline-boxes and images in ::first-line, srctext->object references the original
-                // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
+                // element or image, and never the cloneNode, so no need to use getEffectiveNode() here.)
                 if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                     // pt is inside this inline-block inlineBox node
                     ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -10242,17 +10359,24 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         return inside_ptr;
                     }
                     // Otherwise, return xpointer to the inlineBox itself
-                    return ldomXPointer(node, 0);
+                    return ldomXPointer(node->getEffectiveNode(), 0);
                 }
                 if ( word->flags & LTEXT_WORD_IS_IMAGE ) {
                     // Object (image)
                     #if 1
                     // return image object itself
-                    return ldomXPointer(node, 0);
+                    return ldomXPointer(node->getEffectiveNode(), 0);
                     #else
                     return ldomXPointer( node->getParentNode(),
                         node->getNodeIndex() + (( x < word->x + word->width/2 ) ? 0 : 1) );
                     #endif
+                }
+
+                // If it happens to be a pseudoElem[FirstLetter], we will want to return a xpointer
+                // to the original source text node (as if there was no ::first-letter)
+                ldomNode * firstLetterTextNode = NULL;
+                if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
+                    firstLetterTextNode = node->getEffectiveFirstLetterTextNode();
                 }
 
                 // Found word, searching for letters
@@ -10260,27 +10384,10 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 lUInt16 width[512];
                 lUInt8 flg[512];
 
-                lString32 str = node->getEffectiveText();
-
-                // We need to transform the node text as it had been when
-                // rendered (the transform may change chars widths) for the
-                // XPointer offset to be correct
-                switch ( node->getParentNode()->getStyle()->text_transform ) {
-                    case css_tt_uppercase:
-                        str.uppercase();
-                        break;
-                    case css_tt_lowercase:
-                        str.lowercase();
-                        break;
-                    case css_tt_capitalize:
-                        str.capitalize();
-                        break;
-                    case css_tt_full_width:
-                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                        break;
-                    default:
-                        break;
-                }
+                // (We measure the exact text fragment that was handed to AddSourceLine(),
+                // it already reflects text-transform and any ::first-letter split/substringing
+                // performed at renderFinalBlock time.)
+                lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
 
                 lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                 font->measureText( str.c_str()+word->t.start, word->t.len, width, flg, word->width+50, '?',
@@ -10309,6 +10416,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             // after the logical end of that RTL word
                         }
                     }
+                    if ( firstLetterTextNode )
+                        return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + pos );
                     if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
                         return ldomXPointer(node->getEffectiveNode(), 0);
                     // printf("word %d/%d, len=%d indice=%d (%d > %d + %d - %d)\n", w+1, wc, word->t.len,
@@ -10342,6 +10451,9 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             }
                             // Otherwise (not sure if can happen): use the default of word->t.len
                         }
+                    }
+                    if ( firstLetterTextNode ) {
+                        return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + pos );
                     }
                     if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
                         return ldomXPointer(node->getEffectiveNode(), 0);
@@ -10415,7 +10527,12 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
 
     if ( isNull() )
         return false;
-    ldomNode * p = isElement() ? getNode() : getNode()->getParentNode();
+    ldomNode * node = getNode();
+    // If provided a cloneNode, we should return the same rect as if call on its source.
+    // So, get the source node: we will jump to the cloneNode if it happens to be the one
+    // renderered and we should return its rect.
+    node = node->getEffectiveNode();
+    ldomNode * p = node->isText() ? node->getParentNode() : node;
     ldomNode * p0 = p;
     ldomNode * finalNode = NULL;
     if ( !p ) {
@@ -10429,7 +10546,23 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         return false;
     }
     ldomNode * mainNode = doc->getRootNode();
-    for ( ; p; p = p->getParentNode() ) {
+    while ( p ) {
+        if ( p->isEffectiveBoxingInlineBox() || p->isEffectiveFloatingBox() ) {
+            RenderRectAccessor fmt( p );
+            if ( RENDER_RECT_HAS_FLAG(fmt, BOX_IS_DISCARDED) ) {
+                // Our inlineBox/floatBox got a clone, and it is that clone that ended up
+                // being rendered (because ::first-line and actually on the first line)
+                // and flagged our source with BOX_IS_DISCARDED.
+                // Jump to that clone, and go on looking for its parent erm_final.
+                ldomNode * cloneNode = findFirstLineCloneForNode(node);
+                if ( cloneNode && cloneNode != p ) {
+                    p = cloneNode->isEffectiveText() ? cloneNode->getParentNode() : cloneNode;
+                    p0 = p;
+                    finalNode = NULL;
+                    continue;
+                }
+            }
+        }
         int rm = p->getRendMethod();
         if ( rm == erm_final ) {
             if ( doc->getDOMVersionRequested() < 20180524 && p->getStyle()->display == css_d_list_item_legacy ) {
@@ -10454,6 +10587,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         }
         if ( p==mainNode )
             break;
+        p = p->getParentNode();
     }
 
     if ( finalNode==NULL ) {
@@ -10501,7 +10635,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         LFormattedTextRef txtform;
         finalNode->renderFinalBlock( txtform, &fmt, inner_width );
 
-        ldomNode *node = getNode();
         int offset = getOffset();
 ////        ldomXPointerEx xp(node, offset);
 ////        if ( !node->isText() ) {
@@ -10548,9 +10681,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         // scanning the next lines
         int firstLineSrcIndex = -1;
         int laterLineSrcIndex = -1;
-        // It seems we are always called on a xpointer referencing a real node, and never a cloneNode.
-        // The following has not been tested when being called on a xpointer to a cloneNode.
-
         ldomXPointerEx xp(node, offset);
         // printf("getRect(%s)\n", LCSTR(xp.toStringV1()));
         for ( int i=0; i<txtform->GetSrcCount(); i++ ) {
@@ -10559,7 +10689,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
             if ( isObject && src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) // skip floats
                 continue;
             bool is_first_line_clone = src->flags & LTEXT_IS_FIRST_LINE_CLONE;
-            if ( src->object == node || (is_first_line_clone && src->object && ((ldomNode*)(src->object))->getEffectiveNode() == node)) {
+            if ( src->object && ((ldomNode*)(src->object))->getEffectiveNode() == node ) {
                 /*
                 printf(" if (%x==%x || %x==%x)\n", src->object, node , ((ldomNode*)(src->object))->getEffectiveNode(), node);
                 printf(" %d %s %s vs. %d\n", i, LCSTR(ldomXPointer((ldomNode*)(src->object),src->t.offset).toStringV1()),
@@ -10586,7 +10716,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                     }
                     // otherwise fallback to work on that node
                 }
-                else if ( node->getNodeId() == el_pseudoElem && node->hasAttribute(attr_FirstLetter) ) {
+                else if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
                     // We were called (by the xpFirstLetter.getRect() just above) on
                     // a pseudoElem FirstLetter. For it to get access to the text,
                     // we can just (for the code that follows) have our "node"
@@ -10712,7 +10842,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         else if (word->src_text_index == srcIndex) {
                             // Found word in that exact source text node
                             if ( word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX) ) {
-                                // An image is the single thing in its srcIndex
+                                // An image or inline-box is the single thing in its srcIndex
                                 rect.top = rc.top + frmline->y;
                                 rect.bottom = rect.top + frmline->height;
                                 rect.left = word->x + rc.left + frmline->x;
@@ -10779,7 +10909,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                 LVFont *font = (LVFont *)src->t.font;
                                 lUInt16 w[512];
                                 lUInt8 flg[512];
-                                lString32 str = node->getEffectiveText();
+                                lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
                                 if (offset == word->t.start && str.empty()) {
                                     rect.left = word->x + rc.left + frmline->x;
                                     rect.top = rc.top + frmline->y;
@@ -10791,26 +10921,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                             *ctxFlags |= RECT_CTX_IS_RTL;
                                     }
                                     return true;
-                                }
-                                // We need to transform the node text as it had been when
-                                // rendered (the transform may change chars widths) for the
-                                // rect to be correct
-                                css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
-                                switch ( text_transform ) {
-                                    case css_tt_uppercase:
-                                        str.uppercase();
-                                        break;
-                                    case css_tt_lowercase:
-                                        str.lowercase();
-                                        break;
-                                    case css_tt_capitalize:
-                                        str.capitalize();
-                                        break;
-                                    case css_tt_full_width:
-                                        // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                                        break;
-                                    default:
-                                        break;
                                 }
                                 lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                                 font->measureText(
@@ -10837,58 +10947,48 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                     rect.right = rect.left + 1;
                                 }
                                 if (extended) { // get width of char at offset
-                                    if (offset == word->t.start && word->t.len == 1) {
-                                        // With CJK chars, the measured width seems
-                                        // less correct than the one measured while
-                                        // making words. So use the calculated word
-                                        // width for one-char-long words instead
-                                        if ( word_is_rtl )
-                                            rect.left = rect.right - word->width;
-                                        else
-                                            rect.right = rect.left + word->width;
+                                    // With one-char-long words, the measured width seems less correct than the one
+                                    // measured while making words (noticed with CJK words). Use it instead.
+                                    int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
+                                    bool hyphen_added = false;
+                                    if ( offset == word->t.start + word->t.len - 1
+                                            && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                        // if offset is the end of word, and this word has
+                                        // been hyphenated, includes the hyphen width
+                                        chw += font->getHyphenWidth();
+                                        // We then should not account for the right side
+                                        // bearing below
+                                        hyphen_added = true;
+                                    }
+                                    if ( word_is_rtl ) {
+                                        rect.left = rect.right - chw;
+                                        if ( !hyphen_added ) {
+                                            // Also remove our added letter spacing for justification
+                                            // from the left, to have cleaner highlights.
+                                            rect.left += word->added_letter_spacing;
+                                        }
                                     }
                                     else {
-                                        int chw = w[ offset - word->t.start ] - chx;
-                                        bool hyphen_added = false;
-                                        if ( offset == word->t.start + word->t.len - 1
-                                                && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
-                                            // if offset is the end of word, and this word has
-                                            // been hyphenated, includes the hyphen width
-                                            chw += font->getHyphenWidth();
-                                            // We then should not account for the right side
-                                            // bearing below
-                                            hyphen_added = true;
+                                        rect.right = rect.left + chw;
+                                        if ( !hyphen_added ) {
+                                            // Also remove our added letter spacing for justification
+                                            // from the right, to have cleaner highlights.
+                                            rect.right -= word->added_letter_spacing;
                                         }
-                                        if ( word_is_rtl ) {
-                                            rect.left = rect.right - chw;
-                                            if ( !hyphen_added ) {
-                                                // Also remove our added letter spacing for justification
-                                                // from the left, to have cleaner highlights.
-                                                rect.left += word->added_letter_spacing;
-                                            }
-                                        }
-                                        else {
-                                            rect.right = rect.left + chw;
-                                            if ( !hyphen_added ) {
-                                                // Also remove our added letter spacing for justification
-                                                // from the right, to have cleaner highlights.
-                                                rect.right -= word->added_letter_spacing;
-                                            }
-                                        }
-                                        if (adjusted) {
-                                            // Extend left or right if this glyph overflows its
-                                            // origin/advance box (can happen with an italic font,
-                                            // or with a regular font on the right of the letter 'f'
-                                            // or on the left of the letter 'J').
-                                            // Only when negative (overflow) and not when positive
-                                            // (which are more frequent), mostly to keep some good
-                                            // looking rectangles on the sides when highlighting
-                                            // multiple lines.
-                                            rect.left += font->getLeftSideBearing(str[offset], true);
-                                            if ( !hyphen_added )
-                                                rect.right -= font->getRightSideBearing(str[offset], true);
-                                            // Should work wheter rtl or ltr
-                                        }
+                                    }
+                                    if (adjusted) {
+                                        // Extend left or right if this glyph overflows its
+                                        // origin/advance box (can happen with an italic font,
+                                        // or with a regular font on the right of the letter 'f'
+                                        // or on the left of the letter 'J').
+                                        // Only when negative (overflow) and not when positive
+                                        // (which are more frequent), mostly to keep some good
+                                        // looking rectangles on the sides when highlighting
+                                        // multiple lines.
+                                        rect.left += font->getLeftSideBearing(str[offset], true);
+                                        if ( !hyphen_added )
+                                            rect.right -= font->getRightSideBearing(str[offset], true);
+                                        // Should work whether rtl or ltr
                                     }
                                     // Ensure we always return a non-zero width, even for zero-width
                                     // chars or collapsed spaces (to avoid isEmpty() returning true
@@ -10969,7 +11069,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         LVFont *font = (LVFont *)src->t.font;
                         lUInt16 w[512];
                         lUInt8 flg[512];
-                        lString32 str = node->getEffectiveText();
+                        lString32 str = src->t.text ? lString32(src->t.text, src->t.len) : lString32();
                         // With "|| (extended && offset < word->t.start)" added to the first if
                         // above, we may now be here with: offset = word->t.start = 0
                         // and a node->getText() returning THE lString32::empty_str:
@@ -10986,26 +11086,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                             rect.bottom = rect.top + frmline->height;
                             // No ctxFlags to set
                             return true;
-                        }
-                        // We need to transform the node text as it had been when
-                        // rendered (the transform may change chars widths) for the
-                        // rect to be correct
-                        css_text_transform_t text_transform = src->object ?  ((ldomNode*)(src->object))->getParentNode()->getStyle()->text_transform : css_tt_none;
-                        switch ( text_transform ) {
-                            case css_tt_uppercase:
-                                str.uppercase();
-                                break;
-                            case css_tt_lowercase:
-                                str.lowercase();
-                                break;
-                            case css_tt_capitalize:
-                                str.capitalize();
-                                break;
-                            case css_tt_full_width:
-                                // str.fullWidthChars(); // disabled for now in lvrend.cpp
-                                break;
-                            default:
-                                break;
                         }
                         lUInt32 hints = WORD_FLAGS_TO_FNT_FLAGS(word->flags);
                         font->measureText(
@@ -11025,44 +11105,37 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended) { // get width of char at offset
-                            if (offset == word->t.start && word->t.len == 1) {
-                                // With CJK chars, the measured width seems
-                                // less correct than the one measured while
-                                // making words. So use the calculated word
-                                // width for one-char-long words instead
-                                rect.right = rect.left + word->width;
+                            // With one-char-long words, the measured width seems less correct than the one
+                            // measured while making words (noticed with CJK words). Use it instead.
+                            int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
+                            bool hyphen_added = false;
+                            if ( offset == word->t.start + word->t.len - 1
+                                    && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                // if offset is the end of word, and this word has
+                                // been hyphenated, includes the hyphen width
+                                chw += font->getHyphenWidth();
+                                // We then should not account for the right side
+                                // bearing below
+                                hyphen_added = true;
                             }
-                            else {
-                                int chw = w[ offset - word->t.start ] - chx;
-                                bool hyphen_added = false;
-                                if ( offset == word->t.start + word->t.len - 1
-                                        && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
-                                    // if offset is the end of word, and this word has
-                                    // been hyphenated, includes the hyphen width
-                                    chw += font->getHyphenWidth();
-                                    // We then should not account for the right side
-                                    // bearing below
-                                    hyphen_added = true;
-                                }
-                                rect.right = rect.left + chw;
-                                if ( !hyphen_added ) {
-                                    // Also remove our added letter spacing for justification
-                                    // from the right, to have cleaner highlights.
-                                    rect.right -= word->added_letter_spacing;
-                                }
-                                if (adjusted) {
-                                    // Extend left or right if this glyph overflows its
-                                    // origin/advance box (can happen with an italic font,
-                                    // or with a regular font on the right of the letter 'f'
-                                    // or on the left of the letter 'J').
-                                    // Only when negative (overflow) and not when positive
-                                    // (which are more frequent), mostly to keep some good
-                                    // looking rectangles on the sides when highlighting
-                                    // multiple lines.
-                                    rect.left += font->getLeftSideBearing(str[offset], true);
-                                    if ( !hyphen_added )
-                                        rect.right -= font->getRightSideBearing(str[offset], true);
-                                }
+                            rect.right = rect.left + chw;
+                            if ( !hyphen_added ) {
+                                // Also remove our added letter spacing for justification
+                                // from the right, to have cleaner highlights.
+                                rect.right -= word->added_letter_spacing;
+                            }
+                            if (adjusted) {
+                                // Extend left or right if this glyph overflows its
+                                // origin/advance box (can happen with an italic font,
+                                // or with a regular font on the right of the letter 'f'
+                                // or on the left of the letter 'J').
+                                // Only when negative (overflow) and not when positive
+                                // (which are more frequent), mostly to keep some good
+                                // looking rectangles on the sides when highlighting
+                                // multiple lines.
+                                rect.left += font->getLeftSideBearing(str[offset], true);
+                                if ( !hyphen_added )
+                                    rect.right -= font->getRightSideBearing(str[offset], true);
                             }
                             // Ensure we always return a non-zero width, even for zero-width
                             // chars or collapsed spaces (to avoid isEmpty() returning true
@@ -13003,6 +13076,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     // Note: this has been updated to also grab inline images (the comments
     // may all still mention "text nodes", which should read ok as we
     // masquerade an image as a single char text node in this processing).
+    // Note: with the added support for initial-letter, whose rect can extend
+    // below the current line height (and that we want as an individual segments),
+    // all .top comparisons below have been updated to also compare .bottom.
 
     // Note: someRect.extend(someOtherRect) and !someRect.isEmpty() expect
     // a rect to have both width and height non-zero. So, make sure
@@ -13157,7 +13233,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     int prevCharRectCtx;
                     if ( prevPos.getRectEx(prevCharRect, true, &prevCharRectCtx) ) {
                         bool prevIsRtl = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
-                        if ( prevIsRtl == startIsRtl && prevCharRect.top == nodeStartRect.top ) {
+                        if ( prevIsRtl == startIsRtl && prevCharRect.top == nodeStartRect.top
+                                && prevCharRect.bottom == nodeStartRect.bottom ) {
                             // On a same paragraph and on a same line, and what comes before is
                             // in the same direction: we should not merge our first segments.
                             forceAddBidiSegment = true;
@@ -13179,8 +13256,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         //   else if (nodeStartRect.left < lineStartRect.right)
         // but it makes a 2-lines-tall single segment if text-indent is larger
         // than previous line end.
-        // So, use .top comparison
-        else if (nodeStartRect.top > lineStartRect.top) {
+        // So, use .top comparison, but also split if a different height starts
+        // on the same top (currently, this can happen only with initial-letter)
+        else if (nodeStartRect.top > lineStartRect.top
+                || (nodeStartRect.top == lineStartRect.top && nodeStartRect.bottom != lineStartRect.bottom)) {
             // We ended last node on a line, but a new node starts (or previous
             // one continues) on a different line.
             if ( hasBidiPendingSegment ) {
@@ -13249,8 +13328,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
-            if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
-                // (Two offsets in a same text node with the same tops are on the same line)
+            if (curCharRect.top == nodeStartRect.top && curCharRect.bottom == nodeStartRect.bottom) { // end of range is on current line
+                // (Two offsets in a same text node with the same top/bottom are on the same line)
                 lineStartRect.extend(curCharRect);
                 // lineStartRect will be added after loop exit
                 break; // we're done
@@ -13272,7 +13351,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
-            if (curCharRect.top == nodeStartRect.top) {
+            if (curCharRect.top == nodeStartRect.top && curCharRect.bottom == nodeStartRect.bottom) {
                 // Extend line up to the end of this node, but don't add it yet,
                 // lineStartRect can still be extended with (parts of) next text nodes
                 lineStartRect.extend(curCharRect);
@@ -13318,7 +13397,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 go_on = false;
                 break;
             }
-            if (curCharRect.top != nodeStartRect.top) { // no more on the same line
+            if (curCharRect.top != nodeStartRect.top || curCharRect.bottom != nodeStartRect.bottom) { // no longer on the same line
                 // Unless BiDi and we didn't take that shortcut, it should not
                 // happen, we should have dealt with it as 2)
                 if ( ! prevCharRect.isEmpty() ) {
@@ -15237,6 +15316,9 @@ public:
             newBlock = false;
         }
         else if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_BLOCK) ) {
+            newBlock = true;
+        }
+        else if ( elem->getNodeId() == el_br ) {
             newBlock = true;
         }
         else if ( rm == erm_inline ) {
@@ -21207,6 +21289,9 @@ void ldomDocument::registerEmbeddedFonts()
 /// unregister embedded document fonts in font manager, if any exist in document
 void ldomDocument::unregisterEmbeddedFonts()
 {
+#if BUILD_LITE!=1
+    clearRendBlockCache();
+#endif
     fontMan->UnregisterDocumentFonts(_docIndex);
 }
 

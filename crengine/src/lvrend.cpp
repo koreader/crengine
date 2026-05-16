@@ -17,6 +17,7 @@
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
+#include "../include/renderutil.h"
 
 // Note about box model/sizing in crengine:
 // https://quirksmode.org/css/user-interface/boxsizing.html says:
@@ -3278,10 +3279,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
     // use them here, in a few other places dealing with erm_final block (ie. getRenderedWidths(),
     // getRect() and createXPointer(pt)), and for footnote links in renderBlockElement().
     // It's possible some other use of them elsewhere is needed, but has not yet been discovered.)
-    // Note that for objects (images, floats and inline-block boxes), we pass the effective/source
-    // node (which seems rather ok, web browsers don't ensure the ::first-ilne style on them) as
-    // it would otherwise get quite complicated (and need to infect renderBlockElement(), which
-    // render these, with the node->*Effective* variants).
+    // Note: we now also pass cloneNodes for objects (floats and inline-block boxes, but not images),
+    // which needs renderBlockElementEnhanced() to also use a few *Effective* variants.
 
     if ( baseflags & LTEXT_IS_FIRST_LINE_ENOUGH ) {
         // Still a children of pseudoElem[FirstLine], but we have met a <br/> and
@@ -3311,7 +3310,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // be guessed and renderBlockElement() called to render it
             // and get is height, so LFormattedText knows how to render
             // this erm_final text around it.
-            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode, lang_cfg );
             baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             return;
         }
@@ -3388,7 +3387,6 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         if ( is_pseudoElem_FirstLine ) {
             flags |= LTEXT_IS_FIRST_LINE_CLONE;
         }
-
         // About background-color:
         // If erm_final, the background will be drawn by DrawDocument, and should not
         // be drawn by the LFormattedText txform.
@@ -3509,6 +3507,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             }
         }
 
+        // Applied initial-letter uses a dedicated rendering layout bundle containing:
+        // the enlarged font, the line-height for the drawn run, and, when possible,
+        // a tighter ink-based inner band for the pseudo final block itself.
+        InitialLetterTextLayout initial_letter_layout;
+        bool has_initial_letter_layout = getInitialLetterTextLayout(enode, line_h, initial_letter_layout);
+        if ( has_initial_letter_layout && initial_letter_layout.tightened ) {
+            line_h = initial_letter_layout.line_height;
+        }
+
         if ( (flags & LTEXT_FLAG_NEWLINE) && ( rm == erm_final || ( legacy_rendering && is_block ) ) ) {
             // Top and single 'final' node (unless in the degenerate case
             // of obsolete css_d_list_item_legacy):
@@ -3605,7 +3612,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 int fh = enode->getFont()->getHeight();
                 int fb = enode->getFont()->getBaseline();
                 int f_half_leading = (line_h - fh) / 2;
-                txform->setStrut(line_h, fb + f_half_leading);
+                int strut_baseline = fb + f_half_leading;
+                if ( has_initial_letter_layout ) {
+                    strut_baseline = initial_letter_layout.strut_baseline;
+                }
+                txform->setStrut(line_h, strut_baseline);
             }
         }
         else if ( STYLE_HAS_CR_HINT(style, STRUT_CONFINED) ) {
@@ -3821,7 +3832,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // is not obvious from the specs. Let's do as it does.
         // It looks like we should do the same for inline-block boxes
         // (Not modified and not tested with ::first-line, if this can ever happen.)
-        if ( parent && (parent->isFloatingBox() || parent->isBoxingInlineBox()) ) {
+        if ( parent && (parent->isEffectiveFloatingBox() || parent->isEffectiveBoxingInlineBox()) ) {
             if ( rm == erm_final && is_object ) {
                 // When an image is the single top final node in a float (which is
                 // the case for individual floating images (<IMG style="float: left">),
@@ -4099,7 +4110,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // These might have no effect, but let's explicitely drop them.
                 valign_dy = 0;
                 indent = 0;
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode, lang_cfg );
                 // Let flags unchanged, with their newline/alignment flag as if it
                 // hadn't been consumed, so it is reported back into baseflags below
                 // so that the next sibling (or upper followup inline node) starts
@@ -4114,7 +4125,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             else {
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
@@ -4280,9 +4291,23 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                                     case css_tt_none: break;
                                     case css_tt_inherit: break;
                                 }
-                                int em = font->getSize();
+                                int first_letter_line_h = line_h;
+                                LVFontRef initial_letter_font;
+                                if ( has_initial_letter_layout ) {
+                                    first_letter_line_h = initial_letter_layout.first_letter_line_height;
+                                    initial_letter_font = initial_letter_layout.font;
+                                    if ( !initial_letter_font.isNull() ) {
+                                        font = initial_letter_font;
+                                    }
+                                }
+                                int em = enode->getFont()->getSize();
                                 int letter_spacing = lengthToPx(enode, style->letter_spacing, em);
-                                txform->AddSourceLine( firstLetterTxt.c_str(), firstLetterTxt.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode, 0, letter_spacing);
+                                // This is currently the only case where we pass to AddSourceLine()
+                                // a 'LVFontRef retained_font' with our initial_letter_font. It is actually
+                                // the same font as passed as 'font', but its LVFontRef must additionally
+                                // be passed for our here-local initial_letter_font to be kept alive for
+                                // later drawing after we have left this scope.
+                                txform->AddSourceLine( firstLetterTxt.c_str(), firstLetterTxt.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, first_letter_line_h, valign_dy, indent, enode, 0, letter_spacing, initial_letter_font );
                                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                             }
                         }
@@ -7347,7 +7372,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         return;
 
     css_style_ref_t style = enode->getStyle();
-    lUInt16 nodeElementId = enode->getNodeId();
+    lUInt16 nodeElementId = enode->getEffectiveNodeId();
+    ldomNode * parent = enode->getParentNode();
 
     // <DocFragment NonLinear> in EPUBs are set "-cr-hint: non-linear", and so are 2nd++ <body> in FB2,
     // so they can start a new non-linear sequence/flow, that can be hidden from the normal paging flow.
@@ -7380,8 +7406,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if dir= attribute or CSS specified direction
     int direction = flow->getDirection();
-    if ( enode->hasAttribute( attr_dir ) ) {
-        lString32 dir = enode->getAttributeValueLC( attr_dir );
+    if ( enode->hasEffectiveAttribute( attr_dir ) ) {
+        lString32 dir = enode->getEffectiveAttributeValueLC( attr_dir );
         if ( dir == "rtl" ) {
             direction = REND_DIRECTION_RTL;
         }
@@ -7407,7 +7433,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if lang= attribute
     bool has_lang_attribute = false;
-    if ( enode->hasAttribute( attr_lang ) && !enode->getAttributeValue( attr_lang ).empty() ) {
+    if ( enode->hasEffectiveAttribute( attr_lang ) && !enode->getEffectiveAttributeValue( attr_lang ).empty() ) {
         // We'll probably have to check it is a valid lang specification
         // before overriding the upper one.
         //   lString32 lang = enode->getAttributeValue( attr_lang );
@@ -7478,21 +7504,20 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     */
 
     // is this a floating float container (floatBox)?
-    bool is_floating = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && enode->isFloatingBox();
-    bool is_floatbox_child = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES)
-            && enode->getParentNode() && enode->getParentNode()->isFloatingBox();
+    bool is_floating = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && enode->isEffectiveFloatingBox();
+    bool is_floatbox_child = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && parent && parent->isEffectiveFloatingBox();
     // is this a inline block container (inlineBox)?
-    bool is_inline_box = enode->isBoxingInlineBox();
-    bool is_inline_box_child = enode->getParentNode() && enode->getParentNode()->isBoxingInlineBox();
+    bool is_inline_box = enode->isEffectiveBoxingInlineBox();
+    bool is_inline_box_child = parent && parent->isEffectiveBoxingInlineBox();
 
     // In the business of computing width and height, we should handle a bogus
     // embedded block (<inlineBox T="EmbeddedBlock">) (and its child) just
     // like any normal block element (taking the full width of its container
     // if no specified width, without the need to get its rendered width).
-    if ( is_inline_box && enode->isEmbeddedBlockBoxingInlineBox(true) ) {
+    if ( is_inline_box && enode->isEffectiveEmbeddedBlockBoxingInlineBox() ) {
         is_inline_box = false;
     }
-    if ( is_inline_box_child && enode->getParentNode()->isEmbeddedBlockBoxingInlineBox(true) ) {
+    if ( is_inline_box_child && parent->isEffectiveEmbeddedBlockBoxingInlineBox(true) ) {
         is_inline_box_child = false;
     }
 
@@ -7581,7 +7606,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // element wheree it is usually ignored
     bool is_boxing_elem = nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START;
     // Images needs some specific handling
-    bool is_image = enode->isImage();
+    bool is_image = enode->isEffectiveImage();
     // <HR> gets its style width, height and margin:auto no matter flags
     bool is_hr = nodeElementId == el_hr;
     // <EMPTY-LINE> block element with height added for empty lines in txt document
@@ -7905,8 +7930,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 table_shrink_to_fit = true;
             }
             else if ( is_fit_content_width ) {
-				// Also only if ENSURE_STYLE_WIDTH as we may prefer having
-				// full width text blocks to not waste reading width with blank areas.
+                // Also only if ENSURE_STYLE_WIDTH as we may prefer having
+                // full width text blocks to not waste reading width with blank areas.
                 if ( BLOCK_RENDERING(flags, ENSURE_STYLE_WIDTH) )
                     apply_style_width = true;
             }
@@ -8174,8 +8199,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // https://html.spec.whatwg.org/multipage/rendering.html#align-descendants
                     // An align= should not impact the positionning of its node, only of its
                     // descendants, so we here need to look at the style of the parent.
-                    if ( enode->getParentNode() ) {
-                        css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                    if ( parent ) {
+                        css_style_ref_t pstyle = parent->getStyle();
                         if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
                             // Our parent is, or is a descendant of, a <center> or a <div align="left/center/right">
                             // (and had not had this fact overridden by any classic text-align. In Firefox and
@@ -8260,8 +8285,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // We'll push it immediately below
         no_margin_collapse = true;
     }
-    else if ( flow->getCurrentLevel() == 1 && (enode->getParentNode()->isFloatingBox() ||
-                                               enode->getParentNode()->isBoxingInlineBox()) ) {
+    else if ( flow->getCurrentLevel() == 1 && parent && (parent->isEffectiveFloatingBox() ||
+                                               parent->isEffectiveBoxingInlineBox()) ) {
         // The inner margin of the real float element (the single child of a floatBox)
         // have to be pushed and not collapse with outer margins so they can
         // get accounted in the float height.
@@ -8394,8 +8419,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int table_width = width;
                 int fitted_width = -1;
                 bool is_ruby_table = false;
-                if ( enode->getParentNode()->isBoxingInlineBox() && enode->getParentNode()->getParentNode()
-                        && enode->getParentNode()->getParentNode()->getStyle()->display == css_d_ruby ) {
+                if ( parent && parent->isEffectiveBoxingInlineBox() && parent->getEffectiveParentNode()
+                        && parent->getEffectiveParentNode()->getStyle()->display == css_d_ruby ) {
                     is_ruby_table = true;
                 }
                 // renderTable has not been updated to use 'flow', and it looks
@@ -8433,8 +8458,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     }
                     else {
                         // No margin auto, see if any HTML align=left/right/center (as done above)
-                        if ( enode->getParentNode() ) {
-                            css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                        if ( parent ) {
+                            css_style_ref_t pstyle = parent->getStyle();
                             if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
                                 if ( pstyle->text_align == css_ta_html_align_center )
                                     shift_x = (width - table_width)/2;
@@ -10264,7 +10289,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         int m = enode->getRendMethod();
         // We should not get erm_inline, except for inlineBox elements, that
         // we must draw as erm_block
-        if ( m == erm_inline && enode->isBoxingInlineBox() ) {
+        if ( m == erm_inline && enode->isEffectiveBoxingInlineBox() ) {
             m = erm_block;
         }
         switch( m )
@@ -10700,7 +10725,6 @@ inline bool inheritLength( css_length_t & val, css_length_t & parent_val, int pa
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
 {
-    CR_UNUSED(parent_font);
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();
@@ -10991,9 +11015,16 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             //   below, which may change it to css_d_block for rendering purpose)
             if ( pstyle->display != css_d_none ) {
                 pstyle->display = css_d_inline;
+                if ( hasAppliedInitialLetter(pstyle) ) {
+                    // But with CSS initial-letter, our support for that
+                    // is done with inline-block: force disable any float.
+                    pstyle->display = css_d_inline_block;
+                    pstyle->float_ = css_f_none;
+                }
             }
-            // - text-indent, if the FirstLetter happens to be a float: there
-            //   shouldn't be any indent in the float (checked on Firefox)
+            // - text-indent: it should apply to the paragraph, not to the
+            //   generated first-letter pseudo-element itself. This is valid
+            //   whether float (checked on Firefox) or not.
             pstyle->text_indent.type = css_val_screen_px;
             pstyle->text_indent.value = 0;
             // Most of the ones we support but that are not allowed are
@@ -11856,6 +11887,13 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 _minw += pad_left + pad_right; // these pads should be 0 on an inlineBox
                 _maxw += pad_left + pad_right;
                 curMaxWidth += _maxw;
+                if ( !nowrap && node->isEffectiveBoxingInlineBox() ) {
+                    // Avoid a wrap after, if this inlineBox wraps a pseudoElem[FirstLetter]
+                    ldomNode * child = node->getEffectiveNode()->getChildNode(0);
+                    if ( child && child->getEffectiveNodeId() == el_pseudoElem && child->hasEffectiveAttribute(attr_FirstLetter) ) {
+                        nowrap = true;
+                    }
+                }
                 if (nowrap) {
                     curWordWidth += _minw;
                 }
@@ -12502,6 +12540,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int start = 0;
         int len = 0;
         ldomNode * parent;
+        bool is_first_letter_pseudo = false;
         if ( node->isEffectiveText() ) {
             text = node->getEffectiveText();
             len = text.length();
@@ -12538,6 +12577,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             text = textNode->getText();
             len = firstLetterEnd; // Only measure the first N characters
             parent = node; // this pseudoElem node carries the font and style of the text
+            is_first_letter_pseudo = true;
             if ( isStartNode ) {
                 lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
             }
@@ -12551,6 +12591,16 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         LVFontRef font = parent->getFont();
         int em = font->getSize();
         css_style_ref_t parent_style = parent->getStyle();
+        if ( is_first_letter_pseudo ) {
+            // initial-letter keeps the CSS 'computed font' for em-based properties such as
+            // letter-spacing, but the text rendered width must be measured with the same
+            // initial-letter layout bundle used by rendering.
+            InitialLetterTextLayout initial_letter_layout;
+            if ( getInitialLetterTextLayout(parent, font->getHeight(), initial_letter_layout)
+                    && !initial_letter_layout.font.isNull() ) {
+                font = initial_letter_layout.font;
+            }
+        }
         int letter_spacing = lengthToPx(parent, parent_style->letter_spacing, em);
         // text-transform
         switch (parent_style->text_transform) {
