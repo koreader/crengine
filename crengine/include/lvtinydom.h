@@ -987,8 +987,8 @@ public:
     inline bool isEffectiveBoxingInlineBox() const {
         return (getNodeId() == 1) ? getCloneNodeSource()->isBoxingInlineBox() : isBoxingInlineBox();
     }
-    inline bool isEffectiveEmbeddedBlockBoxingInlineBox() const {
-        return (getNodeId() == 1) ? getCloneNodeSource()->isEmbeddedBlockBoxingInlineBox() : isEmbeddedBlockBoxingInlineBox();
+    inline bool isEffectiveEmbeddedBlockBoxingInlineBox(bool inline_box_checks_done=false) const {
+        return (getNodeId() == 1) ? getCloneNodeSource()->isEmbeddedBlockBoxingInlineBox(inline_box_checks_done) : isEmbeddedBlockBoxingInlineBox(inline_box_checks_done);
     }
 
 

@@ -9997,7 +9997,63 @@ bool ldomXPointer::isFinalNode() const
     return false;
 }
 
+static ldomNode * findCloneNodeBySource(ldomNode * root, ldomNode * source)
+{
+    if ( !root || !source )
+        return NULL;
+    ldomNode * n = root;
+    int index = 0;
+    while ( true ) {
+        if ( index == 0 && n->getNodeId() == el_cloneNode && n->getCloneNodeSource() == source ) {
+            return n;
+        }
+        if ( index < n->getChildCount() ) {
+            n = n->getChildNode(index);
+            index = 0;
+            continue;
+        }
+        index = n->getNodeIndex() + 1;
+        if ( n == root ) {
+            break;
+        }
+        n = n->getParentNode();
+    }
+    return NULL;
+}
+
+static ldomNode * findFirstLineCloneForNode(ldomNode * node)
+{
+    if ( !node )
+        return NULL;
+    ldomNode * current = node;
+    ldomNode * ancestor = node;
+    while ( ancestor ) {
+        if ( !ancestor->hasAttribute(attr_HasFirstLine) ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        ldomNode * firstLineElem = ancestor->getUnboxedFirstChild(true, el_pseudoElem);
+        if ( !firstLineElem || !firstLineElem->hasAttribute(attr_FirstLine) ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        ldomNode * clone = findCloneNodeBySource(firstLineElem, current);
+        if ( !clone ) {
+            ancestor = ancestor->getParentNode();
+            continue;
+        }
+        // Continue from the clone we just found so outer ::first-line ancestors
+        // can resolve clone-of-clone chains for nested first-line content.
+        current = clone;
+        ancestor = current->getParentNode();
+    }
+    return current != node ? current : NULL;
+}
+
 /// create xpointer from doc point
+// (This should always returns a xpointer to the source node: when around a ::first-line,
+// whether we are on the first line and actually on a cloneNode or a second line and on
+// the original source node, it would return the source node.)
 ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool strictBounds, ldomNode * fromNode )
 {
     //
@@ -10111,7 +10167,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
         if (pt.x >= flt->x && pt.x < flt->x + flt->width && pt.y >= flt->y && pt.y < flt->y + (int)flt->height ) {
             // pt is inside this float.
             // (For floats in ::first-line, srctext->object references the original float element,
-            // and never the clondeNode, so no need to use getEffectiveNode() here.)
+            // and never the cloneNode, so no need to use getEffectiveNode() here.)
             ldomNode * node = (ldomNode *) flt->srctext->object; // floatBox node
             ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
             if ( !inside_ptr.isNull() ) {
@@ -10193,8 +10249,6 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             // Found right word/image
             const src_text_fragment_t * src = txtform->GetSrcInfo(word->src_text_index);
             ldomNode * node = (ldomNode *)src->object;
-            // (For inline-boxes and images in ::first-line, srctext->object references the original
-            // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
             if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                 // pt is inside this inline-block inlineBox node
                 ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -10202,10 +10256,11 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                     return inside_ptr;
                 }
                 // Otherwise, return xpointer to the inlineBox itself
-                return ldomXPointer(node, 0);
+                return ldomXPointer(node->getEffectiveNode(), 0);
             }
             if ( word->flags & LTEXT_WORD_IS_IMAGE ) {
-                return ldomXPointer(node, 0);
+                // (We don't pass images as cloneNode, but be consistent)
+                return ldomXPointer(node->getEffectiveNode(), 0);
             }
             // It is a word
             if ( find_first ) { // return xpointer to logical start of word
@@ -10256,7 +10311,7 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                     continue;
                 }
                 // (For inline-boxes and images in ::first-line, srctext->object references the original
-                // element or image, and never the clondeNode, so no need to use getEffectiveNode() here.)
+                // element or image, and never the cloneNode, so no need to use getEffectiveNode() here.)
                 if ( word->flags & LTEXT_WORD_IS_INLINE_BOX ) {
                     // pt is inside this inline-block inlineBox node
                     ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
@@ -10264,13 +10319,13 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                         return inside_ptr;
                     }
                     // Otherwise, return xpointer to the inlineBox itself
-                    return ldomXPointer(node, 0);
+                    return ldomXPointer(node->getEffectiveNode(), 0);
                 }
                 if ( word->flags & LTEXT_WORD_IS_IMAGE ) {
                     // Object (image)
                     #if 1
                     // return image object itself
-                    return ldomXPointer(node, 0);
+                    return ldomXPointer(node->getEffectiveNode(), 0);
                     #else
                     return ldomXPointer( node->getParentNode(),
                         node->getNodeIndex() + (( x < word->x + word->width/2 ) ? 0 : 1) );
@@ -10420,7 +10475,12 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
 
     if ( isNull() )
         return false;
-    ldomNode * p = isElement() ? getNode() : getNode()->getParentNode();
+    ldomNode * node = getNode();
+    // If provided a cloneNode, we should return the same rect as if call on its source.
+    // So, get the source node: we will jump to the cloneNode if it happens to be the one
+    // renderered and we should return its rect.
+    node = node->getEffectiveNode();
+    ldomNode * p = node->isText() ? node->getParentNode() : node;
     ldomNode * p0 = p;
     ldomNode * finalNode = NULL;
     if ( !p ) {
@@ -10434,7 +10494,23 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         return false;
     }
     ldomNode * mainNode = doc->getRootNode();
-    for ( ; p; p = p->getParentNode() ) {
+    while ( p ) {
+        if ( p->isEffectiveBoxingInlineBox() || p->isEffectiveFloatingBox() ) {
+            RenderRectAccessor fmt( p );
+            if ( RENDER_RECT_HAS_FLAG(fmt, BOX_IS_DISCARDED) ) {
+                // Our inlineBox/floatBox got a clone, and it is that clone that ended up
+                // being rendered (because ::first-line and actually on the first line)
+                // and flagged our source with BOX_IS_DISCARDED.
+                // Jump to that clone, and go on looking for its parent erm_final.
+                ldomNode * cloneNode = findFirstLineCloneForNode(node);
+                if ( cloneNode && cloneNode != p ) {
+                    p = cloneNode->isEffectiveText() ? cloneNode->getParentNode() : cloneNode;
+                    p0 = p;
+                    finalNode = NULL;
+                    continue;
+                }
+            }
+        }
         int rm = p->getRendMethod();
         if ( rm == erm_final ) {
             if ( doc->getDOMVersionRequested() < 20180524 && p->getStyle()->display == css_d_list_item_legacy ) {
@@ -10459,6 +10535,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         }
         if ( p==mainNode )
             break;
+        p = p->getParentNode();
     }
 
     if ( finalNode==NULL ) {
@@ -10506,7 +10583,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         LFormattedTextRef txtform;
         finalNode->renderFinalBlock( txtform, &fmt, inner_width );
 
-        ldomNode *node = getNode();
         int offset = getOffset();
 ////        ldomXPointerEx xp(node, offset);
 ////        if ( !node->isText() ) {
@@ -10553,9 +10629,6 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
         // scanning the next lines
         int firstLineSrcIndex = -1;
         int laterLineSrcIndex = -1;
-        // It seems we are always called on a xpointer referencing a real node, and never a cloneNode.
-        // The following has not been tested when being called on a xpointer to a cloneNode.
-
         ldomXPointerEx xp(node, offset);
         // printf("getRect(%s)\n", LCSTR(xp.toStringV1()));
         for ( int i=0; i<txtform->GetSrcCount(); i++ ) {
@@ -10564,7 +10637,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
             if ( isObject && src->o.objflags & LTEXT_OBJECT_IS_FLOAT ) // skip floats
                 continue;
             bool is_first_line_clone = src->flags & LTEXT_IS_FIRST_LINE_CLONE;
-            if ( src->object == node || (is_first_line_clone && src->object && ((ldomNode*)(src->object))->getEffectiveNode() == node)) {
+            if ( src->object && ((ldomNode*)(src->object))->getEffectiveNode() == node ) {
                 /*
                 printf(" if (%x==%x || %x==%x)\n", src->object, node , ((ldomNode*)(src->object))->getEffectiveNode(), node);
                 printf(" %d %s %s vs. %d\n", i, LCSTR(ldomXPointer((ldomNode*)(src->object),src->t.offset).toStringV1()),
@@ -10591,7 +10664,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                     }
                     // otherwise fallback to work on that node
                 }
-                else if ( node->getNodeId() == el_pseudoElem && node->hasAttribute(attr_FirstLetter) ) {
+                else if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
                     // We were called (by the xpFirstLetter.getRect() just above) on
                     // a pseudoElem FirstLetter. For it to get access to the text,
                     // we can just (for the code that follows) have our "node"
@@ -10717,7 +10790,7 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         else if (word->src_text_index == srcIndex) {
                             // Found word in that exact source text node
                             if ( word->flags & (LTEXT_WORD_IS_IMAGE|LTEXT_WORD_IS_INLINE_BOX) ) {
-                                // An image is the single thing in its srcIndex
+                                // An image or inline-box is the single thing in its srcIndex
                                 rect.top = rc.top + frmline->y;
                                 rect.bottom = rect.top + frmline->height;
                                 rect.left = word->x + rc.left + frmline->x;
