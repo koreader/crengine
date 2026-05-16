@@ -1630,6 +1630,28 @@ public:
         return x_height;
     }
 
+    int getCapHeight() {
+        int cap_height = 0;
+        int glyph_index = getCharIndex( 'H', 0 );
+        if ( glyph_index ) {
+            int error = FT_Load_Glyph( _face, glyph_index, FT_LOAD_DEFAULT );
+            if ( !error ) {
+                cap_height = _slot->metrics.horiBearingY;
+            }
+        }
+        if ( cap_height <= 0 ) {
+            TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(_face, FT_SFNT_OS2);
+            if ( os2 && os2->sCapHeight > 0 ) {
+                // The OS/2 values are unscaled font units; convert them to pixels.
+                cap_height = FT_MulFix(os2->sCapHeight, _face->size->metrics.y_scale);
+            }
+        }
+        if ( cap_height <= 0 ) {
+            cap_height = _size*64 * 7/10; // 0.7em
+        }
+        return cap_height;
+    }
+
     virtual LVFontRef getDecimalListItemFont() {
         if ( !_DecimalListItemFont.isNull() )
             return _DecimalListItemFont;
@@ -3656,6 +3678,10 @@ public:
                 if ( !value_set ) {
                     value = _size*64 / 2; // 0.5em
                 }
+                break;
+            }
+            case font_metric_cap_height: {
+                value = getCapHeight();
                 break;
             }
             case font_metric_ch_width: {
@@ -8174,4 +8200,3 @@ bool operator == (const LVFont & r1, const LVFont & r2)
             && r1.getHintingMode() == r2.getHintingMode()
             ;
 }
-
