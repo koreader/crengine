@@ -686,6 +686,17 @@ public:
                         flt->x = x;
                         flt->y = y;
                         flt->to_position = false;
+                        ldomNode * source_node = node->getEffectiveNode();
+                        if ( source_node != node ) {
+                            // We ended up positionning the cloneNode for an floatBox on
+                            // the ::first-line of the paragraph, which means the original
+                            // floatBox has not been positionned and won't be shown.
+                            // Flag that original node as not-rendered/discarded, so that
+                            // getRect(), when called on a xpointer to the original source,
+                            // know it has to climb to its clondeNode and use its rect.
+                            RenderRectAccessor source_fmt( source_node );
+                            RENDER_RECT_SET_FLAG(source_fmt, BOX_IS_DISCARDED);
+                        }
                         fmt.setX(flt->x);
                         fmt.setY(flt->y);
                         if (flt->is_right)
@@ -725,6 +736,17 @@ public:
             flt->y = y;
             flt->to_position = false;
             ldomNode * node = (ldomNode *) flt->srctext->object;
+            ldomNode * source_node = node->getEffectiveNode();
+            if ( source_node != node ) {
+                // We ended up positionning the cloneNode for an floatBox on
+                // the ::first-line of the paragraph, which means the original
+                // floatBox has not been positionned and won't be shown.
+                // Flag that original node as not-rendered/discarded, so that
+                // getRect(), when called on a xpointer to the original source,
+                // know it has to climb to its clondeNode and use its rect.
+                RenderRectAccessor source_fmt( source_node );
+                RENDER_RECT_SET_FLAG(source_fmt, BOX_IS_DISCARDED);
+            }
             RenderRectAccessor fmt( node );
             fmt.setX(flt->x);
             fmt.setY(flt->y);
@@ -3070,6 +3092,17 @@ public:
                     formatted_word_t * word = &frmline->words[i];
                     src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
                     ldomNode * node = (ldomNode *) srcline->object;
+                    ldomNode * source_node = node->getEffectiveNode();
+                    if ( source_node != node ) {
+                        // We ended up positionning the cloneNode for an inlineBox on
+                        // the ::first-line of the paragraph, which means the original
+                        // inlineBox has not been positionned and won't be shown.
+                        // Flag that original node as not-rendered/discarded, so that
+                        // getRect(), when called on a xpointer to the original source,
+                        // know it has to climb to its clondeNode and use its rect.
+                        RenderRectAccessor source_fmt( source_node );
+                        RENDER_RECT_SET_FLAG(source_fmt, BOX_IS_DISCARDED);
+                    }
                     RenderRectAccessor fmt( node );
                     if ( RENDER_RECT_HAS_FLAG(fmt, BOX_IS_POSITIONNED) )
                         continue;

@@ -3278,10 +3278,8 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
     // use them here, in a few other places dealing with erm_final block (ie. getRenderedWidths(),
     // getRect() and createXPointer(pt)), and for footnote links in renderBlockElement().
     // It's possible some other use of them elsewhere is needed, but has not yet been discovered.)
-    // Note that for objects (images, floats and inline-block boxes), we pass the effective/source
-    // node (which seems rather ok, web browsers don't ensure the ::first-ilne style on them) as
-    // it would otherwise get quite complicated (and need to infect renderBlockElement(), which
-    // render these, with the node->*Effective* variants).
+    // Note: we now also pass cloneNodes for objects (floats and inline-block boxes, but not images),
+    // which needs renderBlockElementEnhanced() to also use a few *Effective* variants.
 
     if ( baseflags & LTEXT_IS_FIRST_LINE_ENOUGH ) {
         // Still a children of pseudoElem[FirstLine], but we have met a <br/> and
@@ -3311,7 +3309,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             // be guessed and renderBlockElement() called to render it
             // and get is height, so LFormattedText knows how to render
             // this erm_final text around it.
-            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+            txform->AddSourceObject(baseflags, LTEXT_OBJECT_IS_FLOAT, line_h, valign_dy, indent, enode, lang_cfg );
             baseflags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             return;
         }
@@ -3388,7 +3386,6 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         if ( is_pseudoElem_FirstLine ) {
             flags |= LTEXT_IS_FIRST_LINE_CLONE;
         }
-
         // About background-color:
         // If erm_final, the background will be drawn by DrawDocument, and should not
         // be drawn by the LFormattedText txform.
@@ -3821,7 +3818,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
         // is not obvious from the specs. Let's do as it does.
         // It looks like we should do the same for inline-block boxes
         // (Not modified and not tested with ::first-line, if this can ever happen.)
-        if ( parent && (parent->isFloatingBox() || parent->isBoxingInlineBox()) ) {
+        if ( parent && (parent->isEffectiveFloatingBox() || parent->isEffectiveBoxingInlineBox()) ) {
             if ( rm == erm_final && is_object ) {
                 // When an image is the single top final node in a float (which is
                 // the case for individual floating images (<IMG style="float: left">),
@@ -4099,7 +4096,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 // These might have no effect, but let's explicitely drop them.
                 valign_dy = 0;
                 indent = 0;
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX|LTEXT_OBJECT_IS_EMBEDDED_BLOCK, line_h, valign_dy, indent, enode, lang_cfg );
                 // Let flags unchanged, with their newline/alignment flag as if it
                 // hadn't been consumed, so it is reported back into baseflags below
                 // so that the next sibling (or upper followup inline node) starts
@@ -4114,7 +4111,7 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             else {
                 // We use the flags computed previously (and not baseflags) as they
                 // carry vertical alignment
-                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode->getEffectiveNode(), lang_cfg );
+                txform->AddSourceObject(flags, LTEXT_OBJECT_IS_INLINE_BOX, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
             }
         }
@@ -7347,7 +7344,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         return;
 
     css_style_ref_t style = enode->getStyle();
-    lUInt16 nodeElementId = enode->getNodeId();
+    lUInt16 nodeElementId = enode->getEffectiveNodeId();
+    ldomNode * parent = enode->getParentNode();
 
     // <DocFragment NonLinear> in EPUBs are set "-cr-hint: non-linear", and so are 2nd++ <body> in FB2,
     // so they can start a new non-linear sequence/flow, that can be hidden from the normal paging flow.
@@ -7380,8 +7378,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if dir= attribute or CSS specified direction
     int direction = flow->getDirection();
-    if ( enode->hasAttribute( attr_dir ) ) {
-        lString32 dir = enode->getAttributeValueLC( attr_dir );
+    if ( enode->hasEffectiveAttribute( attr_dir ) ) {
+        lString32 dir = enode->getEffectiveAttributeValueLC( attr_dir );
         if ( dir == "rtl" ) {
             direction = REND_DIRECTION_RTL;
         }
@@ -7407,7 +7405,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
 
     // See if lang= attribute
     bool has_lang_attribute = false;
-    if ( enode->hasAttribute( attr_lang ) && !enode->getAttributeValue( attr_lang ).empty() ) {
+    if ( enode->hasEffectiveAttribute( attr_lang ) && !enode->getEffectiveAttributeValue( attr_lang ).empty() ) {
         // We'll probably have to check it is a valid lang specification
         // before overriding the upper one.
         //   lString32 lang = enode->getAttributeValue( attr_lang );
@@ -7478,21 +7476,20 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     */
 
     // is this a floating float container (floatBox)?
-    bool is_floating = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && enode->isFloatingBox();
-    bool is_floatbox_child = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES)
-            && enode->getParentNode() && enode->getParentNode()->isFloatingBox();
+    bool is_floating = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && enode->isEffectiveFloatingBox();
+    bool is_floatbox_child = BLOCK_RENDERING(flags, FLOAT_FLOATBOXES) && parent && parent->isEffectiveFloatingBox();
     // is this a inline block container (inlineBox)?
-    bool is_inline_box = enode->isBoxingInlineBox();
-    bool is_inline_box_child = enode->getParentNode() && enode->getParentNode()->isBoxingInlineBox();
+    bool is_inline_box = enode->isEffectiveBoxingInlineBox();
+    bool is_inline_box_child = parent && parent->isEffectiveBoxingInlineBox();
 
     // In the business of computing width and height, we should handle a bogus
     // embedded block (<inlineBox T="EmbeddedBlock">) (and its child) just
     // like any normal block element (taking the full width of its container
     // if no specified width, without the need to get its rendered width).
-    if ( is_inline_box && enode->isEmbeddedBlockBoxingInlineBox(true) ) {
+    if ( is_inline_box && enode->isEffectiveEmbeddedBlockBoxingInlineBox() ) {
         is_inline_box = false;
     }
-    if ( is_inline_box_child && enode->getParentNode()->isEmbeddedBlockBoxingInlineBox(true) ) {
+    if ( is_inline_box_child && parent->isEffectiveEmbeddedBlockBoxingInlineBox(true) ) {
         is_inline_box_child = false;
     }
 
@@ -7581,7 +7578,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // element wheree it is usually ignored
     bool is_boxing_elem = nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START;
     // Images needs some specific handling
-    bool is_image = enode->isImage();
+    bool is_image = enode->isEffectiveImage();
     // <HR> gets its style width, height and margin:auto no matter flags
     bool is_hr = nodeElementId == el_hr;
     // <EMPTY-LINE> block element with height added for empty lines in txt document
@@ -8174,8 +8171,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     // https://html.spec.whatwg.org/multipage/rendering.html#align-descendants
                     // An align= should not impact the positionning of its node, only of its
                     // descendants, so we here need to look at the style of the parent.
-                    if ( enode->getParentNode() ) {
-                        css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                    if ( parent ) {
+                        css_style_ref_t pstyle = parent->getStyle();
                         if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
                             // Our parent is, or is a descendant of, a <center> or a <div align="left/center/right">
                             // (and had not had this fact overridden by any classic text-align. In Firefox and
@@ -8260,8 +8257,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         // We'll push it immediately below
         no_margin_collapse = true;
     }
-    else if ( flow->getCurrentLevel() == 1 && (enode->getParentNode()->isFloatingBox() ||
-                                               enode->getParentNode()->isBoxingInlineBox()) ) {
+    else if ( flow->getCurrentLevel() == 1 && parent && (parent->isEffectiveFloatingBox() ||
+                                               parent->isEffectiveBoxingInlineBox()) ) {
         // The inner margin of the real float element (the single child of a floatBox)
         // have to be pushed and not collapse with outer margins so they can
         // get accounted in the float height.
@@ -8394,8 +8391,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int table_width = width;
                 int fitted_width = -1;
                 bool is_ruby_table = false;
-                if ( enode->getParentNode()->isBoxingInlineBox() && enode->getParentNode()->getParentNode()
-                        && enode->getParentNode()->getParentNode()->getStyle()->display == css_d_ruby ) {
+                if ( parent && parent->isEffectiveBoxingInlineBox() && parent->getEffectiveParentNode()
+                        && parent->getEffectiveParentNode()->getStyle()->display == css_d_ruby ) {
                     is_ruby_table = true;
                 }
                 // renderTable has not been updated to use 'flow', and it looks
@@ -8433,8 +8430,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     }
                     else {
                         // No margin auto, see if any HTML align=left/right/center (as done above)
-                        if ( enode->getParentNode() ) {
-                            css_style_ref_t pstyle = enode->getParentNode()->getStyle();
+                        if ( parent ) {
+                            css_style_ref_t pstyle = parent->getStyle();
                             if (pstyle->text_align >= css_ta_html_align_left && pstyle->text_align <= css_ta_html_align_center) {
                                 if ( pstyle->text_align == css_ta_html_align_center )
                                     shift_x = (width - table_width)/2;
@@ -10264,7 +10261,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         int m = enode->getRendMethod();
         // We should not get erm_inline, except for inlineBox elements, that
         // we must draw as erm_block
-        if ( m == erm_inline && enode->isBoxingInlineBox() ) {
+        if ( m == erm_inline && enode->isEffectiveBoxingInlineBox() ) {
             m = erm_block;
         }
         switch( m )
