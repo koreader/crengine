@@ -396,6 +396,14 @@ enum css_ruby_position_t {
     css_rp_under
 };
 
+/// position property values
+enum css_position_t {
+    css_pos_inherit,
+    css_pos_static,
+    css_pos_absolute,
+    css_pos_fixed
+};
+
 enum css_generic_value_t {
     css_generic_auto = -1,         // (css_val_unspecified, css_generic_auto), for "margin: auto"
     css_generic_normal = -2,       // (css_val_unspecified, css_generic_normal), for "line-height: normal"

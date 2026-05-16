@@ -7568,6 +7568,16 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     bool margin_left_auto = css_margin_left.type == css_val_unspecified && css_margin_left.value == css_generic_auto;
     bool margin_right_auto = css_margin_right.type == css_val_unspecified && css_margin_right.value == css_generic_auto;
 
+    bool is_positioned = style->position == css_pos_absolute || style->position == css_pos_fixed;
+    bool has_left = style->left.type != css_val_unspecified;
+    bool has_right = style->right.type != css_val_unspecified;
+    bool has_top = style->top.type != css_val_unspecified;
+    bool has_bottom = style->bottom.type != css_val_unspecified;
+    int positioned_left = has_left ? lengthToPx(enode, style->left, container_width) : 0;
+    int positioned_right = has_right ? lengthToPx(enode, style->right, container_width) : 0;
+    int positioned_top = has_top ? lengthToPx(enode, style->top, flow->getPageHeight()) : 0;
+    int positioned_bottom = has_bottom ? lengthToPx(enode, style->bottom, flow->getPageHeight()) : 0;
+
     if ( style->display == css_d_table_cell ) {
         // https://www.w3.org/TR/CSS2/tables.html#table-layout:
         // "Internal table elements do not have margins."
@@ -8288,13 +8298,14 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         break_before = RN_SPLIT_ALWAYS;
     }
 
-    if ( no_margin_collapse ) {
+    if ( no_margin_collapse && !is_positioned ) {
         // Push any earlier margin so it does not get collapsed with this one
         flow->pushVerticalMargin();
     }
     // We don't shift y yet. We accumulate margin, and, after ensuring
     // collapsing, emit it on the first non-margin real content added.
-    flow->addVerticalMargin( enode, margin_top, break_before, true ); // is_top_margin=true
+    if (!is_positioned)
+        flow->addVerticalMargin( enode, margin_top, break_before, true ); // is_top_margin=true
 
     LFormattedTextRef txform;
 
@@ -8311,8 +8322,20 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         else
             fmt.setLangNodeIndex( flow->getLangNodeIndex() );
     }
+    int absolute_y = flow->getCurrentRelativeY();
+    if ( is_positioned ) {
+        if ( has_left ) {
+            x = positioned_left + margin_left;
+        }
+        else if ( has_right ) {
+            x = container_width - width - positioned_right - margin_right;
+        }
+        if ( has_top ) {
+            absolute_y = positioned_top + margin_top;
+        }
+    }
     fmt.setX( x );
-    fmt.setY( flow->getCurrentRelativeY() );
+    fmt.setY( absolute_y );
     fmt.setWidth( width );
     if ( width < 0) {
         // We might be fine with a negative width when recursively rendering
@@ -8323,7 +8346,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     fmt.setHeight( 0 ); // will be updated below
     fmt.push();
     // This has to be delayed till now: it may adjust the Y we just setY() above
-    if ( no_margin_collapse ) {
+    if ( no_margin_collapse && !is_positioned ) {
         flow->pushVerticalMargin();
     }
 
@@ -8456,7 +8479,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 if ( isFootNoteBody )
                     flow->getPageContext()->leaveFootNote();
 
-                flow->addVerticalMargin( enode, margin_bottom, break_after );
+                if (!is_positioned)
+                    flow->addVerticalMargin( enode, margin_bottom, break_after );
                 return;
             }
             break;
@@ -8780,6 +8804,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // Original fmt.setY() might have been updated by collapsing margins,
                 // but we got the real final height.
                 fmt.setHeight( h );
+                if ( is_positioned && has_bottom && !has_top ) {
+                    int bottom_y = flow->getPageHeight() - h - positioned_bottom - margin_bottom;
+                    if (bottom_y < 0) bottom_y = 0;
+                    fmt.setY( bottom_y );
+                }
                 fmt.setTopOverflow( top_overflow );
                 fmt.setBottomOverflow( bottom_overflow );
                 fmt.push();
@@ -8805,8 +8834,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     }
                 }
 
-                flow->addVerticalMargin( enode, margin_bottom, break_after );
-                if ( no_margin_collapse ) {
+                if (!is_positioned)
+                    flow->addVerticalMargin( enode, margin_bottom, break_after );
+                if ( no_margin_collapse && !is_positioned ) {
                     // Push our margin so it does not get collapsed with some later one
                     flow->pushVerticalMargin();
                 }
@@ -9192,8 +9222,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     }
                 }
 
-                flow->addVerticalMargin( enode, margin_bottom, break_after );
-                if ( no_margin_collapse ) {
+                if (!is_positioned)
+                    flow->addVerticalMargin( enode, margin_bottom, break_after );
+                if ( no_margin_collapse && !is_positioned ) {
                     // Push our margin so it does not get collapsed with some later one
                     flow->pushVerticalMargin();
                 }

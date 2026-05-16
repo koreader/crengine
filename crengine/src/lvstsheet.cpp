@@ -138,6 +138,11 @@ enum css_decl_code {
     cssd_box_sizing,
     cssd_caption_side,
     cssd_ruby_position,
+    cssd_position,
+    cssd_top,
+    cssd_right,
+    cssd_bottom,
+    cssd_left,
     cssd_content,
     cssd_cr_ignore_if_dom_version_greater_or_equal,
     cssd_cr_hint,
@@ -249,6 +254,11 @@ static const char * css_decl_name[] = {
     "box-sizing",
     "caption-side",
     "ruby-position",
+    "position",
+    "top",
+    "right",
+    "bottom",
+    "left",
     "content",
     "-cr-ignore-if-dom-version-greater-or-equal",
     "-cr-hint",
@@ -3152,6 +3162,16 @@ static const char * css_rp_names[] =
     NULL
 };
 
+// position value names
+static const char * css_pos_names[] =
+{
+    "", // css_pos_inherit
+    "static",
+    "absolute",
+    "fixed",
+    NULL
+};
+
 ///border width value names
 static const char * css_bw_names[]={
     "thin",
@@ -4691,6 +4711,24 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 IF_g_SET_n_AND_break(true, css_rp_inherit, css_rp_alternate);
                 n = parse_name( decl, css_rp_names, -1 );
                 break;
+            case cssd_position:
+                IF_g_SET_n_AND_break(false, css_pos_inherit, css_pos_static);
+                n = parse_name( decl, css_pos_names, -1 );
+                break;
+            case cssd_top:
+            case cssd_right:
+            case cssd_bottom:
+            case cssd_left:
+                IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_auto);
+                {
+                    css_length_t len;
+                    if ( parse_number_value( decl, len, true, true, true ) ) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        buf<<(lUInt32) len.type;
+                        buf<<(lUInt32) len.value;
+                    }
+                }
+                break;
             case cssd_content:
                 {
                     if ( g >= 0 ) {
@@ -5431,6 +5469,21 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
         case cssd_ruby_position:
             style->Apply( (css_ruby_position_t) *p++, &style->ruby_position, imp_bit_ruby_position, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_position:
+            style->Apply( (css_position_t) *p++, &style->position, imp_bit_position, is_important );
+            break;
+        case cssd_top:
+            style->Apply( read_length(p), &style->top, imp_bit_top, is_important );
+            break;
+        case cssd_right:
+            style->Apply( read_length(p), &style->right, imp_bit_right, is_important );
+            break;
+        case cssd_bottom:
+            style->Apply( read_length(p), &style->bottom, imp_bit_bottom, is_important );
+            break;
+        case cssd_left:
+            style->Apply( read_length(p), &style->left, imp_bit_left, is_important );
             break;
         case cssd_cr_hint:
             {
