@@ -120,6 +120,7 @@ enum ltext_extra_t {
 typedef struct
 {
     void *          object;   /**< \brief pointer to object which represents source */
+    void *          retained_font_ref; /**< \brief optional LVFontRef* retaining t.font lifetime */
     TextLangCfg *   lang_cfg;
     lInt16          indent;   /**< \brief first line indent (or all but first, when negative) */
     lInt16          valign_dy; /* drift y from baseline */
@@ -142,7 +143,7 @@ typedef struct
             lUInt16        objflags; /**< \brief object flags */
             lInt16         width;    /**< \brief width of image or inline-block-box */
             lInt16         height;   /**< \brief height of image or inline-block box */
-            lUInt16        baseline; /**< \brief baseline of inline-block box */
+            lInt16         baseline; /**< \brief baseline of inline-block box */
         } o;
     };
 } src_text_fragment_t;
@@ -168,7 +169,7 @@ typedef struct
        /// for object
        struct {
            lUInt16  height;          /**< \brief height of image or inline-block box */
-           lUInt16  baseline;        /**< \brief baseline of inline-block box */
+           lInt16   baseline;        /**< \brief baseline of inline-block box */
        } o;
    };
    lInt16   added_letter_spacing;    /* letter-spacing (to reduce spacing when justified) to add when drawing this word */
@@ -285,6 +286,8 @@ typedef struct
    lInt32                frmlinecount;  /**< formatted lines count*/
    embedded_float_t   ** floats;        /**< embedded floats */
    lInt32                floatcount;    /**< embedded floats count*/
+   lInt32              * oversized_inlineboxes; /**< src_text_index of oversized inline boxes (typically initial-letter) */
+   lInt32                oversized_inlinebox_count; /**< oversized inline boxes count */
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
@@ -362,7 +365,8 @@ void lvtextAddSourceLine(
    lInt16          indent,   /* first line indent (or all but first, when negative) */
    void *          object,   /* pointer to custom object */
    lUInt16         offset,    /* offset from node/object start to start of line */
-   lInt16          letter_spacing
+   lInt16          letter_spacing,
+   void *          retained_font_ref /* optional LVFontRef* retaining font lifetime */
                          );
 
 /** Add source object
@@ -462,14 +466,19 @@ public:
            lInt16          indent=0,    /* first line indent (or all but first, when negative) */
            void *          object=NULL,
            lUInt32         offset=0,
-           lInt16          letter_spacing=0
+           lInt16          letter_spacing=0,
+           LVFontRef       retained_font=LVFontRef() /* optional owning ref for temporary used font */
+                             // Pass it only when the passed 'font' instance is not being kept alive by any
+                             // node's style (eg. for initial-letter, it is a local'y computed font instance
+                             // that would soon disappear, causing issues/crashes when t.font is used)
         )
     {
         lvtextAddSourceLine(m_pbuffer,
             font,  //font->GetHandle()
             lang_cfg,
             text, len, color, bgcolor,
-            flags, interval, valign_dy, indent, object, (lUInt16)offset, letter_spacing );
+            flags, interval, valign_dy, indent, object, (lUInt16)offset, letter_spacing,
+            retained_font.isNull() ? NULL : new LVFontRef(retained_font) );
     }
 
     lUInt32 Format(lUInt16 width, lUInt16 page_height,
@@ -511,6 +520,16 @@ public:
     const embedded_float_t * GetFloatInfo(int index)
     {
         return m_pbuffer->floats[index];
+    }
+
+    int GetOversizedInlineBoxCount()
+    {
+        return m_pbuffer->oversized_inlinebox_count;
+    }
+
+    int GetOversizedInlineBoxSrcIndex(int index)
+    {
+        return m_pbuffer->oversized_inlineboxes[index];
     }
 
     lString32Collection * GetInlineBoxLinks( ldomNode * node );

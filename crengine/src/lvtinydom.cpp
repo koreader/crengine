@@ -241,6 +241,8 @@ enum CacheFileBlockType {
 #include <xxhash.h>
 #include <lvtextfm.h>
 #include "../include/lvdocviewprops.h"
+#include "../include/renderutil.h"
+
 
 // define to store new text nodes as persistent text, instead of mutable
 #define USE_PERSISTENT_TEXT 1
@@ -4975,6 +4977,10 @@ ldomDocument::~ldomDocument()
 {
 #if BUILD_LITE!=1
     updateMap(); // NOLINT: Call to virtual function during destruction
+    // Our cache of LFormattedTextRefs may have some with a non-null LVFontRef
+    // keeping alive some font instances (eg. for initial-letter).
+    // Drop them before unregistering document fonts.
+    clearRendBlockCache();
 #endif
     _def_font.Clear();
     _fonts.clear();
@@ -10178,6 +10184,30 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
             // (Or should we let just go on looking only at the text in the original final node?)
         }
         // If no containing float, go on looking at the text of the original final node
+    }
+
+    // Then, look in oversized inlineBoxes (such as an initial-letter), which can extend
+    // over later line boxes (no need to do this when !PT_DIR_EXACT).
+    if ( direction == PT_DIR_EXACT ) {
+        int icount = txtform->GetOversizedInlineBoxCount();
+        for ( int i = 0; i < icount; i++ ) {
+            const src_text_fragment_t * src = txtform->GetSrcInfo(txtform->GetOversizedInlineBoxSrcIndex(i));
+            ldomNode * node = src ? (ldomNode *)src->object : NULL;
+            if ( !node ) {
+                continue;
+            }
+            lvRect boxRect;
+            if ( !getInitialLetterInlineBoxInkRect(node, boxRect) ) {
+                node->getAbsRect( boxRect );
+            }
+            if ( boxRect.isPointInside(orig_pt) ) {
+                ldomXPointer inside_ptr = createXPointer( orig_pt, direction, strictBounds, node );
+                if ( !inside_ptr.isNull() ) {
+                    return inside_ptr;
+                }
+                return ldomXPointer(node->getEffectiveNode(), 0);
+            }
+        }
     }
 
     // Look at words in the rendered final node (whether it's the original
@@ -21259,6 +21289,9 @@ void ldomDocument::registerEmbeddedFonts()
 /// unregister embedded document fonts in font manager, if any exist in document
 void ldomDocument::unregisterEmbeddedFonts()
 {
+#if BUILD_LITE!=1
+    clearRendBlockCache();
+#endif
     fontMan->UnregisterDocumentFonts(_docIndex);
 }
 
