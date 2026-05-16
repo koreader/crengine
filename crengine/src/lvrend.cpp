@@ -17,6 +17,7 @@
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
+#include "../include/renderutil.h"
 
 // Note about box model/sizing in crengine:
 // https://quirksmode.org/css/user-interface/boxsizing.html says:
@@ -3506,6 +3507,15 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             }
         }
 
+        // Applied initial-letter uses a dedicated rendering layout bundle containing:
+        // the enlarged font, the line-height for the drawn run, and, when possible,
+        // a tighter ink-based inner band for the pseudo final block itself.
+        InitialLetterTextLayout initial_letter_layout;
+        bool has_initial_letter_layout = getInitialLetterTextLayout(enode, line_h, initial_letter_layout);
+        if ( has_initial_letter_layout && initial_letter_layout.tightened ) {
+            line_h = initial_letter_layout.line_height;
+        }
+
         if ( (flags & LTEXT_FLAG_NEWLINE) && ( rm == erm_final || ( legacy_rendering && is_block ) ) ) {
             // Top and single 'final' node (unless in the degenerate case
             // of obsolete css_d_list_item_legacy):
@@ -3602,7 +3612,11 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 int fh = enode->getFont()->getHeight();
                 int fb = enode->getFont()->getBaseline();
                 int f_half_leading = (line_h - fh) / 2;
-                txform->setStrut(line_h, fb + f_half_leading);
+                int strut_baseline = fb + f_half_leading;
+                if ( has_initial_letter_layout ) {
+                    strut_baseline = initial_letter_layout.strut_baseline;
+                }
+                txform->setStrut(line_h, strut_baseline);
             }
         }
         else if ( STYLE_HAS_CR_HINT(style, STRUT_CONFINED) ) {
@@ -4277,9 +4291,23 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                                     case css_tt_none: break;
                                     case css_tt_inherit: break;
                                 }
-                                int em = font->getSize();
+                                int first_letter_line_h = line_h;
+                                LVFontRef initial_letter_font;
+                                if ( has_initial_letter_layout ) {
+                                    first_letter_line_h = initial_letter_layout.first_letter_line_height;
+                                    initial_letter_font = initial_letter_layout.font;
+                                    if ( !initial_letter_font.isNull() ) {
+                                        font = initial_letter_font;
+                                    }
+                                }
+                                int em = enode->getFont()->getSize();
                                 int letter_spacing = lengthToPx(enode, style->letter_spacing, em);
-                                txform->AddSourceLine( firstLetterTxt.c_str(), firstLetterTxt.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, line_h, valign_dy, indent, enode, 0, letter_spacing);
+                                // This is currently the only case where we pass to AddSourceLine()
+                                // a 'LVFontRef retained_font' with our initial_letter_font. It is actually
+                                // the same font as passed as 'font', but its LVFontRef must additionally
+                                // be passed for our here-local initial_letter_font to be kept alive for
+                                // later drawing after we have left this scope.
+                                txform->AddSourceLine( firstLetterTxt.c_str(), firstLetterTxt.length(), cl, bgcl, font.get(), lang_cfg, flags|LTEXT_FLAG_OWNTEXT, first_letter_line_h, valign_dy, indent, enode, 0, letter_spacing, initial_letter_font );
                                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                             }
                         }
@@ -7902,8 +7930,8 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 table_shrink_to_fit = true;
             }
             else if ( is_fit_content_width ) {
-				// Also only if ENSURE_STYLE_WIDTH as we may prefer having
-				// full width text blocks to not waste reading width with blank areas.
+                // Also only if ENSURE_STYLE_WIDTH as we may prefer having
+                // full width text blocks to not waste reading width with blank areas.
                 if ( BLOCK_RENDERING(flags, ENSURE_STYLE_WIDTH) )
                     apply_style_width = true;
             }
@@ -10697,7 +10725,6 @@ inline bool inheritLength( css_length_t & val, css_length_t & parent_val, int pa
 
 void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
 {
-    CR_UNUSED(parent_font);
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
     css_style_rec_t * pstyle = style.get();
@@ -10988,9 +11015,16 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             //   below, which may change it to css_d_block for rendering purpose)
             if ( pstyle->display != css_d_none ) {
                 pstyle->display = css_d_inline;
+                if ( hasAppliedInitialLetter(pstyle) ) {
+                    // But with CSS initial-letter, our support for that
+                    // is done with inline-block: force disable any float.
+                    pstyle->display = css_d_inline_block;
+                    pstyle->float_ = css_f_none;
+                }
             }
-            // - text-indent, if the FirstLetter happens to be a float: there
-            //   shouldn't be any indent in the float (checked on Firefox)
+            // - text-indent: it should apply to the paragraph, not to the
+            //   generated first-letter pseudo-element itself. This is valid
+            //   whether float (checked on Firefox) or not.
             pstyle->text_indent.type = css_val_screen_px;
             pstyle->text_indent.value = 0;
             // Most of the ones we support but that are not allowed are
@@ -11853,6 +11887,13 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
                 _minw += pad_left + pad_right; // these pads should be 0 on an inlineBox
                 _maxw += pad_left + pad_right;
                 curMaxWidth += _maxw;
+                if ( !nowrap && node->isEffectiveBoxingInlineBox() ) {
+                    // Avoid a wrap after, if this inlineBox wraps a pseudoElem[FirstLetter]
+                    ldomNode * child = node->getEffectiveNode()->getChildNode(0);
+                    if ( child && child->getEffectiveNodeId() == el_pseudoElem && child->hasEffectiveAttribute(attr_FirstLetter) ) {
+                        nowrap = true;
+                    }
+                }
                 if (nowrap) {
                     curWordWidth += _minw;
                 }
@@ -12499,6 +12540,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         int start = 0;
         int len = 0;
         ldomNode * parent;
+        bool is_first_letter_pseudo = false;
         if ( node->isEffectiveText() ) {
             text = node->getEffectiveText();
             len = text.length();
@@ -12535,6 +12577,7 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
             text = textNode->getText();
             len = firstLetterEnd; // Only measure the first N characters
             parent = node; // this pseudoElem node carries the font and style of the text
+            is_first_letter_pseudo = true;
             if ( isStartNode ) {
                 lang_cfg = TextLangMan::getTextLangCfg( node ); // Fetch it from node or its parents
             }
@@ -12548,6 +12591,16 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         LVFontRef font = parent->getFont();
         int em = font->getSize();
         css_style_ref_t parent_style = parent->getStyle();
+        if ( is_first_letter_pseudo ) {
+            // initial-letter keeps the CSS 'computed font' for em-based properties such as
+            // letter-spacing, but the text rendered width must be measured with the same
+            // initial-letter layout bundle used by rendering.
+            InitialLetterTextLayout initial_letter_layout;
+            if ( getInitialLetterTextLayout(parent, font->getHeight(), initial_letter_layout)
+                    && !initial_letter_layout.font.isNull() ) {
+                font = initial_letter_layout.font;
+            }
+        }
         int letter_spacing = lengthToPx(parent, parent_style->letter_spacing, em);
         // text-transform
         switch (parent_style->text_transform) {
