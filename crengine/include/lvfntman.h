@@ -314,6 +314,7 @@ enum kerning_mode_t {
 enum font_extra_metric_t
 {
     font_metric_x_height = 0,
+    font_metric_cap_height,
     font_metric_ch_width,
     font_metric_y_superscript_y_offset,
     font_metric_y_subscript_y_offset,
