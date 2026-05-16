@@ -10800,58 +10800,48 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                     rect.right = rect.left + 1;
                                 }
                                 if (extended) { // get width of char at offset
-                                    if (offset == word->t.start && word->t.len == 1) {
-                                        // With CJK chars, the measured width seems
-                                        // less correct than the one measured while
-                                        // making words. So use the calculated word
-                                        // width for one-char-long words instead
-                                        if ( word_is_rtl )
-                                            rect.left = rect.right - word->width;
-                                        else
-                                            rect.right = rect.left + word->width;
+                                    // With one-char-long words, the measured width seems less correct than the one
+                                    // measured while making words (noticed with CJK words). Use it instead.
+                                    int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
+                                    bool hyphen_added = false;
+                                    if ( offset == word->t.start + word->t.len - 1
+                                            && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                        // if offset is the end of word, and this word has
+                                        // been hyphenated, includes the hyphen width
+                                        chw += font->getHyphenWidth();
+                                        // We then should not account for the right side
+                                        // bearing below
+                                        hyphen_added = true;
+                                    }
+                                    if ( word_is_rtl ) {
+                                        rect.left = rect.right - chw;
+                                        if ( !hyphen_added ) {
+                                            // Also remove our added letter spacing for justification
+                                            // from the left, to have cleaner highlights.
+                                            rect.left += word->added_letter_spacing;
+                                        }
                                     }
                                     else {
-                                        int chw = w[ offset - word->t.start ] - chx;
-                                        bool hyphen_added = false;
-                                        if ( offset == word->t.start + word->t.len - 1
-                                                && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
-                                            // if offset is the end of word, and this word has
-                                            // been hyphenated, includes the hyphen width
-                                            chw += font->getHyphenWidth();
-                                            // We then should not account for the right side
-                                            // bearing below
-                                            hyphen_added = true;
+                                        rect.right = rect.left + chw;
+                                        if ( !hyphen_added ) {
+                                            // Also remove our added letter spacing for justification
+                                            // from the right, to have cleaner highlights.
+                                            rect.right -= word->added_letter_spacing;
                                         }
-                                        if ( word_is_rtl ) {
-                                            rect.left = rect.right - chw;
-                                            if ( !hyphen_added ) {
-                                                // Also remove our added letter spacing for justification
-                                                // from the left, to have cleaner highlights.
-                                                rect.left += word->added_letter_spacing;
-                                            }
-                                        }
-                                        else {
-                                            rect.right = rect.left + chw;
-                                            if ( !hyphen_added ) {
-                                                // Also remove our added letter spacing for justification
-                                                // from the right, to have cleaner highlights.
-                                                rect.right -= word->added_letter_spacing;
-                                            }
-                                        }
-                                        if (adjusted) {
-                                            // Extend left or right if this glyph overflows its
-                                            // origin/advance box (can happen with an italic font,
-                                            // or with a regular font on the right of the letter 'f'
-                                            // or on the left of the letter 'J').
-                                            // Only when negative (overflow) and not when positive
-                                            // (which are more frequent), mostly to keep some good
-                                            // looking rectangles on the sides when highlighting
-                                            // multiple lines.
-                                            rect.left += font->getLeftSideBearing(str[offset], true);
-                                            if ( !hyphen_added )
-                                                rect.right -= font->getRightSideBearing(str[offset], true);
-                                            // Should work wheter rtl or ltr
-                                        }
+                                    }
+                                    if (adjusted) {
+                                        // Extend left or right if this glyph overflows its
+                                        // origin/advance box (can happen with an italic font,
+                                        // or with a regular font on the right of the letter 'f'
+                                        // or on the left of the letter 'J').
+                                        // Only when negative (overflow) and not when positive
+                                        // (which are more frequent), mostly to keep some good
+                                        // looking rectangles on the sides when highlighting
+                                        // multiple lines.
+                                        rect.left += font->getLeftSideBearing(str[offset], true);
+                                        if ( !hyphen_added )
+                                            rect.right -= font->getRightSideBearing(str[offset], true);
+                                        // Should work whether rtl or ltr
                                     }
                                     // Ensure we always return a non-zero width, even for zero-width
                                     // chars or collapsed spaces (to avoid isEmpty() returning true
@@ -10968,44 +10958,37 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                         //rect.top = word->y + rc.top + frmline->y + frmline->baseline;
                         rect.top = rc.top + frmline->y;
                         if (extended) { // get width of char at offset
-                            if (offset == word->t.start && word->t.len == 1) {
-                                // With CJK chars, the measured width seems
-                                // less correct than the one measured while
-                                // making words. So use the calculated word
-                                // width for one-char-long words instead
-                                rect.right = rect.left + word->width;
+                            // With one-char-long words, the measured width seems less correct than the one
+                            // measured while making words (noticed with CJK words). Use it instead.
+                            int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
+                            bool hyphen_added = false;
+                            if ( offset == word->t.start + word->t.len - 1
+                                    && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                // if offset is the end of word, and this word has
+                                // been hyphenated, includes the hyphen width
+                                chw += font->getHyphenWidth();
+                                // We then should not account for the right side
+                                // bearing below
+                                hyphen_added = true;
                             }
-                            else {
-                                int chw = w[ offset - word->t.start ] - chx;
-                                bool hyphen_added = false;
-                                if ( offset == word->t.start + word->t.len - 1
-                                        && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
-                                    // if offset is the end of word, and this word has
-                                    // been hyphenated, includes the hyphen width
-                                    chw += font->getHyphenWidth();
-                                    // We then should not account for the right side
-                                    // bearing below
-                                    hyphen_added = true;
-                                }
-                                rect.right = rect.left + chw;
-                                if ( !hyphen_added ) {
-                                    // Also remove our added letter spacing for justification
-                                    // from the right, to have cleaner highlights.
-                                    rect.right -= word->added_letter_spacing;
-                                }
-                                if (adjusted) {
-                                    // Extend left or right if this glyph overflows its
-                                    // origin/advance box (can happen with an italic font,
-                                    // or with a regular font on the right of the letter 'f'
-                                    // or on the left of the letter 'J').
-                                    // Only when negative (overflow) and not when positive
-                                    // (which are more frequent), mostly to keep some good
-                                    // looking rectangles on the sides when highlighting
-                                    // multiple lines.
-                                    rect.left += font->getLeftSideBearing(str[offset], true);
-                                    if ( !hyphen_added )
-                                        rect.right -= font->getRightSideBearing(str[offset], true);
-                                }
+                            rect.right = rect.left + chw;
+                            if ( !hyphen_added ) {
+                                // Also remove our added letter spacing for justification
+                                // from the right, to have cleaner highlights.
+                                rect.right -= word->added_letter_spacing;
+                            }
+                            if (adjusted) {
+                                // Extend left or right if this glyph overflows its
+                                // origin/advance box (can happen with an italic font,
+                                // or with a regular font on the right of the letter 'f'
+                                // or on the left of the letter 'J').
+                                // Only when negative (overflow) and not when positive
+                                // (which are more frequent), mostly to keep some good
+                                // looking rectangles on the sides when highlighting
+                                // multiple lines.
+                                rect.left += font->getLeftSideBearing(str[offset], true);
+                                if ( !hyphen_added )
+                                    rect.right -= font->getRightSideBearing(str[offset], true);
                             }
                             // Ensure we always return a non-zero width, even for zero-width
                             // chars or collapsed spaces (to avoid isEmpty() returning true
