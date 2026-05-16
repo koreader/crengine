@@ -44,7 +44,7 @@ lUInt32 calcHash(font_ref_t & f)
 lUInt32 calcHash(css_style_rec_t & rec)
 {
     if ( !rec.hash )
-        rec.hash = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
+        rec.hash = (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
          + (lUInt32)rec.important[0]) * 31
          + (lUInt32)rec.important[1]) * 31
          + (lUInt32)rec.important[2]) * 31
@@ -117,6 +117,11 @@ lUInt32 calcHash(css_style_rec_t & rec)
          + (lUInt32)rec.box_sizing) * 31
          + (lUInt32)rec.caption_side) * 31
          + (lUInt32)rec.ruby_position) * 31
+         + (lUInt32)rec.position) * 31
+         + (lUInt32)rec.top.pack()) * 31
+         + (lUInt32)rec.right.pack()) * 31
+         + (lUInt32)rec.bottom.pack()) * 31
+         + (lUInt32)rec.left.pack()) * 31
          + (lUInt32)rec.cr_hint.pack()) * 31
          + (lUInt32)rec.font_name.getHash()
          + (lUInt32)rec.background_image.getHash()
@@ -199,6 +204,11 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.box_sizing == r2.box_sizing&&
            r1.caption_side == r2.caption_side&&
            r1.ruby_position == r2.ruby_position&&
+           r1.position == r2.position&&
+           r1.top == r2.top&&
+           r1.right == r2.right&&
+           r1.bottom == r2.bottom&&
+           r1.left == r2.left&&
            r1.content == r2.content&&
            r1.cr_hint==r2.cr_hint;
 }
