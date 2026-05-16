@@ -6368,6 +6368,7 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
                         // Skip leading non-letter characters (spaces, punctuation, etc.)
                         // until we find the first actual letter
                         bool foundFirstLetter = false;
+                        int foundNonLetterIndex = -1;
                         while ( i < len ) {
                             lUInt16 props = lGetCharProps(text[i]);
                             if ( props & (CH_PROP_UPPER | CH_PROP_LOWER | CH_PROP_DIGIT | CH_PROP_SIGN) ) {
@@ -6375,7 +6376,28 @@ void ldomNode::ensureFirstLetter(bool initStyle) {
                                 foundFirstLetter = true;
                                 break;
                             }
+                            else if ( !(props & CH_PROP_SPACE) ) {
+                                // Found another kind of char that is visible
+                                // if we happen to not get foundFirstLetter in this text node,
+                                // we will have to use it as first letter, even if some letters
+                                // are found in a sibling element (ie. <p>(<em>Letter</em>) as
+                                // we can't wrap across text nodes.
+                                // This is as Firefox and Edge do.
+                                foundNonLetterIndex = i;
+                                // We could either add or not "&& foundNonLetterIndex < 0" to the check
+                                // above to start grabbing below from the first non-space or the last one,
+                                // which would give different results.
+                                // Not adding it does as Firefox.
+                                // Adding it would do more as Edge (except that Edge would stop
+                                // depending on other conditions).
+                                // Let's do simple, as Firefox.
+                            }
                             i++;
+                        }
+                        if ( !foundFirstLetter && foundNonLetterIndex >= 0 ) {
+                            // This first non-letter non-space should act as our first letter.
+                            foundFirstLetter = true;
+                            i = foundNonLetterIndex;
                         }
                         // Now grab any trailing modifiers/punctuation that are part of the first letter
                         if ( foundFirstLetter ) {
