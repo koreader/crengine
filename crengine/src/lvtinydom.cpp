@@ -13046,6 +13046,9 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
     // Note: this has been updated to also grab inline images (the comments
     // may all still mention "text nodes", which should read ok as we
     // masquerade an image as a single char text node in this processing).
+    // Note: with the added support for initial-letter, whose rect can extend
+    // below the current line height (and that we want as an individual segments),
+    // all .top comparisons below have been updated to also compare .bottom.
 
     // Note: someRect.extend(someOtherRect) and !someRect.isEmpty() expect
     // a rect to have both width and height non-zero. So, make sure
@@ -13200,7 +13203,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                     int prevCharRectCtx;
                     if ( prevPos.getRectEx(prevCharRect, true, &prevCharRectCtx) ) {
                         bool prevIsRtl = (prevCharRectCtx & RECT_CTX_IS_RTL) != 0;
-                        if ( prevIsRtl == startIsRtl && prevCharRect.top == nodeStartRect.top ) {
+                        if ( prevIsRtl == startIsRtl && prevCharRect.top == nodeStartRect.top
+                                && prevCharRect.bottom == nodeStartRect.bottom ) {
                             // On a same paragraph and on a same line, and what comes before is
                             // in the same direction: we should not merge our first segments.
                             forceAddBidiSegment = true;
@@ -13222,8 +13226,10 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
         //   else if (nodeStartRect.left < lineStartRect.right)
         // but it makes a 2-lines-tall single segment if text-indent is larger
         // than previous line end.
-        // So, use .top comparison
-        else if (nodeStartRect.top > lineStartRect.top) {
+        // So, use .top comparison, but also split if a different height starts
+        // on the same top (currently, this can happen only with initial-letter)
+        else if (nodeStartRect.top > lineStartRect.top
+                || (nodeStartRect.top == lineStartRect.top && nodeStartRect.bottom != lineStartRect.bottom)) {
             // We ended last node on a line, but a new node starts (or previous
             // one continues) on a different line.
             if ( hasBidiPendingSegment ) {
@@ -13292,8 +13298,8 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
-            if (curCharRect.top == nodeStartRect.top) { // end of range is on current line
-                // (Two offsets in a same text node with the same tops are on the same line)
+            if (curCharRect.top == nodeStartRect.top && curCharRect.bottom == nodeStartRect.bottom) { // end of range is on current line
+                // (Two offsets in a same text node with the same top/bottom are on the same line)
                 lineStartRect.extend(curCharRect);
                 // lineStartRect will be added after loop exit
                 break; // we're done
@@ -13315,7 +13321,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 nodeStartRectCtx = RECT_CTX_NONE;
                 continue;
             }
-            if (curCharRect.top == nodeStartRect.top) {
+            if (curCharRect.top == nodeStartRect.top && curCharRect.bottom == nodeStartRect.bottom) {
                 // Extend line up to the end of this node, but don't add it yet,
                 // lineStartRect can still be extended with (parts of) next text nodes
                 lineStartRect.extend(curCharRect);
@@ -13361,7 +13367,7 @@ void ldomXRange::getSegmentRects( LVArray<lvRect> & rects, bool includeImages )
                 go_on = false;
                 break;
             }
-            if (curCharRect.top != nodeStartRect.top) { // no more on the same line
+            if (curCharRect.top != nodeStartRect.top || curCharRect.bottom != nodeStartRect.bottom) { // no longer on the same line
                 // Unless BiDi and we didn't take that shortcut, it should not
                 // happen, we should have dealt with it as 2)
                 if ( ! prevCharRect.isEmpty() ) {
