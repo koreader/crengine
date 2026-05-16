@@ -15239,6 +15239,9 @@ public:
         else if ( STYLE_HAS_CR_HINT(style, TEXT_SELECTION_BLOCK) ) {
             newBlock = true;
         }
+        else if ( elem->getNodeId() == el_br ) {
+            newBlock = true;
+        }
         else if ( rm == erm_inline ) {
             // Don't set newBlock if rendering method is erm_inline,
             // no matter the original CSS display.
