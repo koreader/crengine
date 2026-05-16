@@ -10263,12 +10263,22 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                 return ldomXPointer(node->getEffectiveNode(), 0);
             }
             // It is a word
+            // If it happens to be a pseudoElem[FirstLetter], we will want to return a xpointer
+            // to the original source text node (as if there was no ::first-letter)
+            ldomNode * firstLetterTextNode = NULL;
+            if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
+                firstLetterTextNode = node->getEffectiveFirstLetterTextNode();
+            }
             if ( find_first ) { // return xpointer to logical start of word
+                if ( firstLetterTextNode )
+                    return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start );
                 if ( node->isEffectiveElement() ) // (see comment about <br/><br/> below)
                     return ldomXPointer(node->getEffectiveNode(), 0);
                 return ldomXPointer( node->getEffectiveNode(), word->t.start );
             }
             else { // return xpointer to logical end of word
+                if ( firstLetterTextNode )
+                    return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + word->t.len );
                 if ( node->isEffectiveElement() )
                     return ldomXPointer(node->getEffectiveNode(), 0);
                 return ldomXPointer( node->getEffectiveNode(), word->t.start + word->t.len );
@@ -10332,6 +10342,13 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                     #endif
                 }
 
+                // If it happens to be a pseudoElem[FirstLetter], we will want to return a xpointer
+                // to the original source text node (as if there was no ::first-letter)
+                ldomNode * firstLetterTextNode = NULL;
+                if ( node->getEffectiveNodeId() == el_pseudoElem && node->hasEffectiveAttribute(attr_FirstLetter) ) {
+                    firstLetterTextNode = node->getEffectiveFirstLetterTextNode();
+                }
+
                 // Found word, searching for letters
                 LVFont * font = (LVFont *) src->t.font;
                 lUInt16 width[512];
@@ -10369,6 +10386,8 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             // after the logical end of that RTL word
                         }
                     }
+                    if ( firstLetterTextNode )
+                        return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + pos );
                     if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
                         return ldomXPointer(node->getEffectiveNode(), 0);
                     // printf("word %d/%d, len=%d indice=%d (%d > %d + %d - %d)\n", w+1, wc, word->t.len,
@@ -10402,6 +10421,9 @@ ldomXPointer ldomDocument::createXPointer( lvPoint pt, int direction, bool stric
                             }
                             // Otherwise (not sure if can happen): use the default of word->t.len
                         }
+                    }
+                    if ( firstLetterTextNode ) {
+                        return ldomXPointer( firstLetterTextNode->getEffectiveNode(), word->t.start + pos );
                     }
                     if ( node->isEffectiveElement() ) // possibly some <br> or generated text not part of a text node
                         return ldomXPointer(node->getEffectiveNode(), 0);
