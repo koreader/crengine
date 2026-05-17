@@ -735,6 +735,26 @@ public:
             default: return false;
         }
     }
+    float getAxisMin(lUInt32 tag, float fallback = 0.0f) const {
+        switch (tag) {
+            case LVFONT_TAG_WGHT: return _has_wght ? _wght_min : fallback;
+            case LVFONT_TAG_OPSZ: return _has_opsz ? _opsz_min : fallback;
+            case LVFONT_TAG_ITAL: return _has_ital ? _ital_min : fallback;
+            case LVFONT_TAG_SLNT: return _has_slnt ? _slnt_min : fallback;
+            case LVFONT_TAG_WDTH: return _has_wdth ? _wdth_min : fallback;
+            default: return fallback;
+        }
+    }
+    float getAxisMax(lUInt32 tag, float fallback = 0.0f) const {
+        switch (tag) {
+            case LVFONT_TAG_WGHT: return _has_wght ? _wght_max : fallback;
+            case LVFONT_TAG_OPSZ: return _has_opsz ? _opsz_max : fallback;
+            case LVFONT_TAG_ITAL: return _has_ital ? _ital_max : fallback;
+            case LVFONT_TAG_SLNT: return _has_slnt ? _slnt_max : fallback;
+            case LVFONT_TAG_WDTH: return _has_wdth ? _wdth_max : fallback;
+            default: return fallback;
+        }
+    }
     bool hasWghtAxis() const { return _has_wght; }
     float getWghtAxisMin() const { return _wght_min; }
     float getWghtAxisMax() const { return _wght_max; }
@@ -6052,12 +6072,14 @@ public:
 #ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
+#endif
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
                         float   minValue = mm_var->axis[ai].minimum / 65536.0f;
                         float   defValue = mm_var->axis[ai].def     / 65536.0f;
                         float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         def2.setAxisInfo(tag, minValue, defValue, maxValue);
+#ifdef DEBUG_VAR_FONT
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
@@ -6066,7 +6088,9 @@ public:
                                                    (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
                                                    minValue, defValue, maxValue);
                         }
+#endif
                     }
+#ifdef DEBUG_VAR_FONT
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def2.getName().c_str(), axisBuf);
 #endif
@@ -6576,12 +6600,14 @@ public:
 #ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
+#endif
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
                         float   minValue = mm_var->axis[ai].minimum / 65536.0f;
                         float   defValue = mm_var->axis[ai].def     / 65536.0f;
                         float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         def.setAxisInfo(tag, minValue, defValue, maxValue);
+#ifdef DEBUG_VAR_FONT
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
@@ -6590,7 +6616,9 @@ public:
                                                    (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
                                                    minValue, defValue, maxValue);
                         }
+#endif
                     }
+#ifdef DEBUG_VAR_FONT
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
 #endif
@@ -6823,12 +6851,14 @@ public:
 #ifdef DEBUG_VAR_FONT
                     char axisBuf[512] = "";
                     int axisBufPos = 0;
+#endif
                     for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
                         lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
                         float   minValue = mm_var->axis[ai].minimum / 65536.0f;
                         float   defValue = mm_var->axis[ai].def     / 65536.0f;
                         float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
                         def.setAxisInfo(tag, minValue, defValue, maxValue);
+#ifdef DEBUG_VAR_FONT
                         if (axisBufPos < (int)sizeof(axisBuf) - 40) {
                             axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
                                                    "%s%c%c%c%c [%.0f..%.0f..%.0f]",
@@ -6837,7 +6867,9 @@ public:
                                                    (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
                                                    minValue, defValue, maxValue);
                         }
+#endif
                     }
+#ifdef DEBUG_VAR_FONT
                     CRLog::info("Variable font found: \"%s\"  axes: %s",
                         def.getName().c_str(), axisBuf);
 #endif
