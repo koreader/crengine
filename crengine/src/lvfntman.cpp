@@ -6219,14 +6219,15 @@ public:
         // of using FT_Outline_Embolden synthesis.
         if (item->getDef()->hasWghtAxis() && !effectiveVariations.wght_set) {
             effectiveVariations.set(LVFONT_TAG_WGHT, (float)weight);
-            static lString8 s_last_tf; static int s_last_sz = -1, s_last_wt = -1;
-            if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
 #ifdef DEBUG_VAR_FONT
+            static lString8 s_last_tf;
+            static int s_last_sz = -1, s_last_wt = -1;
+            if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
                 CRLog::info("Variable font GetFont: injecting wght=%.0f for \"%s\" size=%d",
                     (float)weight, typeface.c_str(), size);
-#endif
                 s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
             }
+#endif
             def.setVariations(effectiveVariations);
             LVFontCacheItem * item2 = _cache.find(&def, useBias);
             if (item2 != NULL && !item2->getFont().isNull()
@@ -6238,14 +6239,15 @@ public:
         if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()
                 && !effectiveVariations.ital_set) {
             effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
-            static lString8 s_last_tf_ital; static int s_last_sz_ital = -1;
-            if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
 #ifdef DEBUG_VAR_FONT
+            static lString8 s_last_tf_ital;
+            static int s_last_sz_ital = -1;
+            if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
                 CRLog::info("Variable font GetFont: injecting ital=1 for \"%s\" size=%d",
                     typeface.c_str(), size);
-#endif  
                 s_last_tf_ital = typeface; s_last_sz_ital = size;
             }
+#endif  
             def.setVariations(effectiveVariations);
             LVFontCacheItem * item3 = _cache.find(&def, useBias);
             if (item3 != NULL && !item3->getFont().isNull()
@@ -6285,7 +6287,6 @@ public:
                 // Variations mismatch: ignore this cached instance
             }
             else {
-                {
             #ifdef USE_FT_EMBOLDEN
                 int deltaWeight = myabs(weight - item->getDef()->getWeight());
                 if (deltaWeight >= 25 && !item->getDef()->hasWghtAxis()) {
@@ -6310,7 +6311,6 @@ public:
                 else {
                     //fprintf(_log, "    : fount existing\n");
                     return item->getFont();
-                }
                 }
             }
         }

@@ -37,6 +37,7 @@ enum css_style_rec_important_bit {
     imp_bit_font_style,
     imp_bit_font_weight,
     imp_bit_font_features,
+    imp_bit_font_optical_sizing,
     imp_bit_text_indent,
     imp_bit_line_height,
     imp_bit_width,
@@ -94,8 +95,7 @@ enum css_style_rec_important_bit {
     imp_bit_caption_side,
     imp_bit_ruby_position,
     imp_bit_content,
-    imp_bit_cr_hint,
-    imp_bit_font_optical_sizing
+    imp_bit_cr_hint
 };
 #define NB_IMP_BITS 72 // The number of lines in the enum above: KEEP IT UPDATED.
 
