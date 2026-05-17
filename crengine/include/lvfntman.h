@@ -520,6 +520,9 @@ public:
     /// set OpenType features (bitmap)
     virtual void setFeatures( int features ) { }
 
+    /// hash of the active variable-font axis values; 0 for static fonts or no variations
+    virtual lUInt32 getVariationHash() const { return 0; }
+
     /// sets current kerning mode
     virtual void setKerningMode( kerning_mode_t /*mode*/ ) { }
     /// returns current kerning mode
@@ -569,6 +572,87 @@ enum font_antialiasing_t
     font_aa_none,
     font_aa_big,
     font_aa_all
+};
+
+// 4-char axis tags used in variable font variation axes
+#ifndef LVFONT_TAG
+#define LVFONT_TAG(a,b,c,d) ((lUInt32)((lUInt8)(a))<<24 | (lUInt32)((lUInt8)(b))<<16 \
+                             | (lUInt32)((lUInt8)(c))<<8  | (lUInt32)((lUInt8)(d)))
+#endif
+#define LVFONT_TAG_WGHT  LVFONT_TAG('w','g','h','t')  // weight axis
+#define LVFONT_TAG_OPSZ  LVFONT_TAG('o','p','s','z')  // optical size axis
+#define LVFONT_TAG_ITAL  LVFONT_TAG('i','t','a','l')  // italic axis
+#define LVFONT_TAG_SLNT  LVFONT_TAG('s','l','n','t')  // slant axis
+#define LVFONT_TAG_WDTH  LVFONT_TAG('w','d','t','h')  // width axis
+
+/// Active design-space values for the five registered variable-font axes.
+/// Axes not explicitly set carry no value and do not affect the cache key.
+struct LVFontVariations {
+    bool  wght_set; float wght;
+    bool  opsz_set; float opsz;
+    bool  ital_set; float ital;
+    bool  slnt_set; float slnt;
+    bool  wdth_set; float wdth;
+
+    LVFontVariations()
+        : wght_set(false), wght(0.0f)
+        , opsz_set(false), opsz(0.0f)
+        , ital_set(false), ital(0.0f)
+        , slnt_set(false), slnt(0.0f)
+        , wdth_set(false), wdth(0.0f)
+    {}
+
+    bool empty() const { return !wght_set && !opsz_set && !ital_set && !slnt_set && !wdth_set; }
+
+    bool has(lUInt32 tag) const {
+        switch (tag) {
+            case LVFONT_TAG_WGHT: return wght_set;
+            case LVFONT_TAG_OPSZ: return opsz_set;
+            case LVFONT_TAG_ITAL: return ital_set;
+            case LVFONT_TAG_SLNT: return slnt_set;
+            case LVFONT_TAG_WDTH: return wdth_set;
+            default: return false;
+        }
+    }
+    float get(lUInt32 tag, float fallback = 0.0f) const {
+        switch (tag) {
+            case LVFONT_TAG_WGHT: return wght_set ? wght : fallback;
+            case LVFONT_TAG_OPSZ: return opsz_set ? opsz : fallback;
+            case LVFONT_TAG_ITAL: return ital_set ? ital : fallback;
+            case LVFONT_TAG_SLNT: return slnt_set ? slnt : fallback;
+            case LVFONT_TAG_WDTH: return wdth_set ? wdth : fallback;
+            default: return fallback;
+        }
+    }
+    void set(lUInt32 tag, float value) {
+        switch (tag) {
+            case LVFONT_TAG_WGHT: wght_set = true; wght = value; break;
+            case LVFONT_TAG_OPSZ: opsz_set = true; opsz = value; break;
+            case LVFONT_TAG_ITAL: ital_set = true; ital = value; break;
+            case LVFONT_TAG_SLNT: slnt_set = true; slnt = value; break;
+            case LVFONT_TAG_WDTH: wdth_set = true; wdth = value; break;
+            default: break;
+        }
+    }
+
+    bool operator==(const LVFontVariations& o) const {
+        return wght_set == o.wght_set && (!wght_set || wght == o.wght)
+            && opsz_set == o.opsz_set && (!opsz_set || opsz == o.opsz)
+            && ital_set == o.ital_set && (!ital_set || ital == o.ital)
+            && slnt_set == o.slnt_set && (!slnt_set || slnt == o.slnt)
+            && wdth_set == o.wdth_set && (!wdth_set || wdth == o.wdth);
+    }
+    bool operator!=(const LVFontVariations& o) const { return !(*this == o); }
+
+    lUInt32 hash() const {
+        lUInt32 h = 0, b;
+        if (wght_set) { memcpy(&b, &wght, 4); h = h*31 + LVFONT_TAG_WGHT; h = h*31 + b; }
+        if (opsz_set) { memcpy(&b, &opsz, 4); h = h*31 + LVFONT_TAG_OPSZ; h = h*31 + b; }
+        if (ital_set) { memcpy(&b, &ital, 4); h = h*31 + LVFONT_TAG_ITAL; h = h*31 + b; }
+        if (slnt_set) { memcpy(&b, &slnt, 4); h = h*31 + LVFONT_TAG_SLNT; h = h*31 + b; }
+        if (wdth_set) { memcpy(&b, &wdth, 4); h = h*31 + LVFONT_TAG_WDTH; h = h*31 + b; }
+        return h;
+    }
 };
 
 class LVEmbeddedFontDef {
@@ -621,7 +705,8 @@ public:
     virtual void gc() = 0;
     /// returns most similar font
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
-                                int features=0, int documentId = -1, bool useBias=false) = 0;
+                                int features=0, int documentId = -1, bool useBias=false,
+                                const LVFontVariations* variations=NULL) = 0;
 
     /// return available font weight values
     virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) = 0;
