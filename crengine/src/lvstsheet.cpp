@@ -64,6 +64,7 @@ enum css_decl_code {
     cssd_font_style,
     cssd_font_weight,
     cssd_font_features,           // font-feature-settings (not yet parsed)
+    cssd_font_optical_sizing,     // font-optical-sizing: auto | none
     cssd_font_variant,            // all these are parsed specifically and mapped into
     cssd_font_variant_ligatures,  // the same style->font_features 31 bits bitmap
     cssd_font_variant_ligatures2, // -webkit-font-variant-ligatures (former Webkit property)
@@ -175,6 +176,7 @@ static const char * css_decl_name[] = {
     "font-style",
     "font-weight",
     "font-feature-settings",
+    "font-optical-sizing",
     "font-variant",
     "font-variant-ligatures",
     "-webkit-font-variant-ligatures",
@@ -3911,6 +3913,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // often, publishers will include both font-variant and font-feature-settings
                 // in a same declaration, so we should be fine).
                 break;
+            case cssd_font_optical_sizing: // font-optical-sizing: auto | none
+                // font-optical-sizing is inherited; initial value is "auto"
+                IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
+                if (substr_icompare("auto", decl))       n = css_fos_auto;
+                else if (substr_icompare("none", decl))  n = css_fos_none;
+                break;
             case cssd_font_variant:
             case cssd_font_variant_ligatures:
             case cssd_font_variant_ligatures2:
@@ -5235,6 +5243,10 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                 }
                 style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             }
+            break;
+        case cssd_font_optical_sizing:
+            style->Apply( (css_font_optical_sizing_t) *p++, &style->font_optical_sizing, imp_bit_font_optical_sizing, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_indent:
             style->Apply( read_length(p), &style->text_indent, imp_bit_text_indent, is_important );
