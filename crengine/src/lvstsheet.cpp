@@ -2906,22 +2906,13 @@ static const char * css_fs_names[] =
     NULL
 };
 
-static const char * css_fw_names[] = 
+static const char * css_fw_names[] =
 {
     "", // css_fw_inherit
     "normal",
     "bold",
     "bolder",
     "lighter",
-    "100",
-    "200",
-    "300",
-    "400",
-    "500",
-    "600",
-    "700",
-    "800",
-    "900",
     NULL
 };
 static const char * css_va_names[] = 
@@ -3897,6 +3888,16 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_font_weight:
                 IF_g_SET_n_AND_break(true, css_fw_inherit, css_fw_400)
                 n = parse_name( decl, css_fw_names, -1 );
+                if ( n == -1 ) {
+                    // CSS Fonts Level 4 allows arbitrary numeric weights; round to nearest 100
+                    unsigned w = 0;
+                    if ( parse_integer( decl, w ) && w > 0 ) {
+                        w = ( w + 50 ) / 100 * 100;
+                        if ( w < 100 ) w = 100;
+                        if ( w > 900 ) w = 900;
+                        n = css_fw_100 + ( (int)w / 100 - 1 );
+                    }
+                }
                 break;
             case cssd_font_features: // font-feature-settings
                 // Not (yet) implemented.
