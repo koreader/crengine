@@ -646,11 +646,11 @@ struct LVFontVariations {
 
     lUInt32 hash() const {
         lUInt32 h = 0, b;
-        if (wght_set) { memcpy(&b, &wght, 4); h = h*31 + LVFONT_TAG_WGHT; h = h*31 + b; }
-        if (opsz_set) { memcpy(&b, &opsz, 4); h = h*31 + LVFONT_TAG_OPSZ; h = h*31 + b; }
-        if (ital_set) { memcpy(&b, &ital, 4); h = h*31 + LVFONT_TAG_ITAL; h = h*31 + b; }
-        if (slnt_set) { memcpy(&b, &slnt, 4); h = h*31 + LVFONT_TAG_SLNT; h = h*31 + b; }
-        if (wdth_set) { memcpy(&b, &wdth, 4); h = h*31 + LVFONT_TAG_WDTH; h = h*31 + b; }
+        if (wght_set) { memcpy(&b, &wght, sizeof(b)); h = h*31 + LVFONT_TAG_WGHT; h = h*31 + b; }
+        if (opsz_set) { memcpy(&b, &opsz, sizeof(b)); h = h*31 + LVFONT_TAG_OPSZ; h = h*31 + b; }
+        if (ital_set) { memcpy(&b, &ital, sizeof(b)); h = h*31 + LVFONT_TAG_ITAL; h = h*31 + b; }
+        if (slnt_set) { memcpy(&b, &slnt, sizeof(b)); h = h*31 + LVFONT_TAG_SLNT; h = h*31 + b; }
+        if (wdth_set) { memcpy(&b, &wdth, sizeof(b)); h = h*31 + LVFONT_TAG_WDTH; h = h*31 + b; }
         return h;
     }
 };
