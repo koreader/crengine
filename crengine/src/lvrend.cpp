@@ -2429,8 +2429,12 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         fw = 1;
     else if ( fw>999 )
         fw = 999;
-    // Inject opsz for auto optical sizing, unless disabled or on a low-DPI screen.
     LVFontVariations variations;
+    // Weight and italic always provided so GetFont() can use a unified axis-based cache key.
+    variations.set(LVFONT_TAG_WGHT, (float)fw);
+    if (style->font_style >= css_fs_italic)
+        variations.set(LVFONT_TAG_ITAL, 1.0f);
+    // Inject opsz for auto optical sizing, unless disabled or on a low-DPI screen.
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100) {
         // Assume that if 96, as no device has such low DPI, it has not been set by the user, and don't do opsz as
         // we don't know the real DPI. If above 100 assume it's close to the real DPI.

@@ -738,9 +738,11 @@ public:
         }
     }
     bool hasWghtAxis() const { return _has_wght; }
+    bool isVariableWghtAxis() const { return _has_wght && _wght_min < _wght_max; }
     float getWghtAxisMin() const { return _wght_min; }
     float getWghtAxisMax() const { return _wght_max; }
     bool hasItalAxis() const { return _has_ital; }
+    bool isVariableItalAxis() const { return _has_ital && _ital_min < _ital_max; }
     float getItalAxisMin() const { return _ital_min; }
     float getItalAxisMax() const { return _ital_max; }
     bool hasSlntAxis() const { return _has_slnt; }
@@ -6104,6 +6106,15 @@ public:
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
             }
+            // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
+            if (!def2.hasAxis(LVFONT_TAG_WGHT)) {
+                float w = (float)def2.getWeight();
+                def2.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
+            }
+            if (!def2.hasAxis(LVFONT_TAG_ITAL)) {
+                float iv = def2.getItalic() > 0 ? 1.0f : 0.0f;
+                def2.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
+            }
 
             if ( face ) {
                 FT_Done_Face( face );
@@ -6190,27 +6201,33 @@ public:
             return LVFontRef(NULL);
         }
 
-        // Strip variations for axes the matched font doesn't actually have.
-        if (effectiveVariations.wght_set && !item->getDef()->hasAxis(LVFONT_TAG_WGHT)) effectiveVariations.wght_set = false;
+        // All fonts have wght and ital axis info (variable or fixed-point), so those are
+        // never stripped. Strip axes the font genuinely lacks (opsz, slnt, wdth).
         if (effectiveVariations.opsz_set && !item->getDef()->hasAxis(LVFONT_TAG_OPSZ)) effectiveVariations.opsz_set = false;
-        if (effectiveVariations.ital_set && !item->getDef()->hasAxis(LVFONT_TAG_ITAL)) effectiveVariations.ital_set = false;
         if (effectiveVariations.slnt_set && !item->getDef()->hasAxis(LVFONT_TAG_SLNT)) effectiveVariations.slnt_set = false;
         if (effectiveVariations.wdth_set && !item->getDef()->hasAxis(LVFONT_TAG_WDTH)) effectiveVariations.wdth_set = false;
 
-        // Sync def with the stripped set for all subsequent lookups.
+        // Snap wght/ital to the font's fixed value for non-variable fonts, so the cache
+        // key reflects what the font actually renders (any requested wght maps to the
+        // single weight the font provides).
+        if (effectiveVariations.wght_set && !item->getDef()->isVariableWghtAxis())
+            effectiveVariations.set(LVFONT_TAG_WGHT, item->getDef()->getWghtAxisMin());
+        // For ital: snap only if requested value matches font's fixed value; otherwise
+        // clear ital_set so the slnt-translation or software-italic path handles it.
+        if (effectiveVariations.ital_set && !item->getDef()->isVariableItalAxis()) {
+            if (effectiveVariations.ital == item->getDef()->getItalAxisMin())
+                effectiveVariations.set(LVFONT_TAG_ITAL, item->getDef()->getItalAxisMin());
+            else
+                effectiveVariations.ital_set = false;
+        }
+
+        // Sync def with the adjusted set for all subsequent lookups.
         def.setVariations(effectiveVariations);
 
-        // The three blocks below are independent of each other:
-        // (1) is gated on effectiveVariations being non-empty — it returns early if an
-        //     exact cached instance already exists for the stripped variation set.
-        // (2) and (3) inject wght/ital/slnt based on what axes the matched font exposes,
-        //     and can fire even when effectiveVariations is empty after stripping above
-        //     (e.g. a variable font with only a wght axis and optical sizing disabled).
-
-        // (1) Check whether an already-instantiated font with these exact stripped
-        // variations exists. With def now matching the stripped key, find() will
-        // prefer the instance over the registered entry on a tie (>= comparison).
-        if (!effectiveVariations.empty()) {
+        // (1) Return early if an already-instantiated font with these exact variations
+        // exists. CalcMatch's italic scoring distinguishes roman/italic/fake-italic
+        // instances that share the same variation key (e.g. wght+opsz but no ital).
+        {
             LVFontCacheItem * strippedItem = _cache.find(&def, useBias);
             if (strippedItem != NULL && !strippedItem->getFont().isNull()
                     && strippedItem->getDef()->getFeatures() == features
@@ -6218,56 +6235,20 @@ public:
                 bool needsSynth = false;
             #ifdef USE_FT_EMBOLDEN
                 needsSynth = (myabs(weight - strippedItem->getDef()->getWeight()) >= 25
-                              && !strippedItem->getDef()->hasWghtAxis());
+                              && !strippedItem->getDef()->isVariableWghtAxis());
             #else
                 needsSynth = (weight - strippedItem->getDef()->getWeight() >= 200
-                              && !strippedItem->getDef()->hasWghtAxis());
+                              && !strippedItem->getDef()->isVariableWghtAxis());
             #endif
                 if (!needsSynth)
                     return strippedItem->getFont();
             }
         }
 
-        // (2) If the best-matched font has a wght axis, inject wght set to the requested
-        // weight so the face renders at exactly that weight instead of using synthesis.
-        if (item->getDef()->hasWghtAxis()) {
-            effectiveVariations.set(LVFONT_TAG_WGHT, (float)weight);
-#ifdef DEBUG_VAR_FONT
-            static lString8 s_last_tf;
-            static int s_last_sz = -1, s_last_wt = -1;
-            if (typeface != s_last_tf || size != s_last_sz || weight != s_last_wt) {
-                CRLog::info("Variable font GetFont: injecting wght=%.0f for \"%s\" size=%d",
-                    (float)weight, typeface.c_str(), size);
-                s_last_tf = typeface; s_last_sz = size; s_last_wt = weight;
-            }
-#endif
-            def.setVariations(effectiveVariations);
-            LVFontCacheItem * item2 = _cache.find(&def, useBias);
-            if (item2 != NULL && !item2->getFont().isNull()
-                    && item2->getDef()->getFeatures() == features
-                    && item2->getDef()->getVariations() == effectiveVariations)
-                return item2->getFont();
-        }
-
-        // (3) If italic was requested but the font has no italic face, inject ital or slnt.
-        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()) {
-            effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
-#ifdef DEBUG_VAR_FONT
-            static lString8 s_last_tf_ital;
-            static int s_last_sz_ital = -1;
-            if (typeface != s_last_tf_ital || size != s_last_sz_ital) {
-                CRLog::info("Variable font GetFont: injecting ital=1 for \"%s\" size=%d",
-                    typeface.c_str(), size);
-                s_last_tf_ital = typeface; s_last_sz_ital = size;
-            }
-#endif  
-            def.setVariations(effectiveVariations);
-            LVFontCacheItem * item3 = _cache.find(&def, useBias);
-            if (item3 != NULL && !item3->getFont().isNull()
-                    && item3->getDef()->getFeatures() == features
-                    && item3->getDef()->getVariations() == effectiveVariations)
-                return item3->getFont();
-        } else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()) {
+        // (2) For fonts with a slant axis: ital=1 was cleared above for non-variable-ital
+        // fonts; translate it to slnt=-12 as a slant-based italic approximation.
+        if (italic && !effectiveVariations.ital_set
+                && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()) {
             effectiveVariations.set(LVFONT_TAG_SLNT, -12.0f);
             static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
             if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
@@ -6278,11 +6259,11 @@ public:
                 s_last_tf_slnt = typeface; s_last_sz_slnt = size;
             }
             def.setVariations(effectiveVariations);
-            LVFontCacheItem * item4 = _cache.find(&def, useBias);
-            if (item4 != NULL && !item4->getFont().isNull()
-                    && item4->getDef()->getFeatures() == features
-                    && item4->getDef()->getVariations() == effectiveVariations)
-                return item4->getFont();
+            LVFontCacheItem * item2 = _cache.find(&def, useBias);
+            if (item2 != NULL && !item2->getFont().isNull()
+                    && item2->getDef()->getFeatures() == features
+                    && item2->getDef()->getVariations() == effectiveVariations)
+                return item2->getFont();
         }
 
         bool italicize = false;
@@ -6301,7 +6282,7 @@ public:
             else {
             #ifdef USE_FT_EMBOLDEN
                 int deltaWeight = myabs(weight - item->getDef()->getWeight());
-                if (deltaWeight >= 25 && !item->getDef()->hasWghtAxis()) {
+                if (deltaWeight >= 25 && !item->getDef()->isVariableWghtAxis()) {
                     // This instantiated cached font has a too different weight
                     // when USE_FT_EMBOLDEN, ignore this other-weight cached font instance
                     // and go loading from the font file again to apply embolden.
@@ -6309,7 +6290,7 @@ public:
                 }
             #else
                 int deltaWeight = weight - item->getDef()->getWeight();
-                if ( deltaWeight >= 200 && !item->getDef()->hasWghtAxis() ) {
+                if ( deltaWeight >= 200 && !item->getDef()->isVariableWghtAxis() ) {
                     // This instantiated cached font has a too low weight
                         // embolden using LVFontBoldTransform
                         CRLog::debug("font: apply Embolding to increase weight from %d to %d",
@@ -6410,8 +6391,9 @@ public:
             // Axis info was already copied when newDef was constructed from *item->getDef()
             //item->setFont( ref );
             //_cache.update( def, ref );
-            // Check whether weight variation handles weight; if not, fall back to synthesis
-            bool usingWghtAxis = effectiveVariations.wght_set;
+            // Check whether weight variation handles weight; if not, fall back to synthesis.
+            // Non-variable fonts have wght_set but no actual axis to move — treat as not using axis.
+            bool usingWghtAxis = effectiveVariations.wght_set && item->getDef()->isVariableWghtAxis();
         #ifdef USE_FT_EMBOLDEN
             int deltaWeight = myabs(weight - newDef.getWeight());
             if (deltaWeight >= 25 && !usingWghtAxis) {
@@ -6642,6 +6624,15 @@ public:
 #endif
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
+            }
+            // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
+            if (!def.hasAxis(LVFONT_TAG_WGHT)) {
+                float w = (float)weight;
+                def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
+            }
+            if (!def.hasAxis(LVFONT_TAG_ITAL)) {
+                float iv = italicFlag ? 1.0f : 0.0f;
+                def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
             }
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
@@ -6892,6 +6883,15 @@ public:
 #endif
                     FT_DONE_MM_VAR(_library, mm_var);
                 }
+            }
+            // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
+            if (!def.hasAxis(LVFONT_TAG_WGHT)) {
+                float w = (float)def.getWeight();
+                def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
+            }
+            if (!def.hasAxis(LVFONT_TAG_ITAL)) {
+                float iv = def.getItalic() > 0 ? 1.0f : 0.0f;
+                def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
             }
             #if (DEBUG_FONT_MAN==1)
                 if ( _log ) {
@@ -7360,7 +7360,7 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     if ( weight_diff > 800 )
         weight_diff = 800;
     int weight_match;
-    if ( hasWghtAxis() && def._weight != -1 && _weight != -1
+    if ( isVariableWghtAxis() && def._weight != -1 && _weight != -1
             && def._weight >= (int)getWghtAxisMin() && def._weight <= (int)getWghtAxisMax() ) {
         weight_match = 257; // variable font can hit exact requested weight
     } else {
