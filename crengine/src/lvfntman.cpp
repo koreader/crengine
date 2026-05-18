@@ -6343,7 +6343,8 @@ public:
         //    pathname = lString8("arial.ttf");
         //}
 
-        if ( !item->getDef()->isRealItalic() && italic ) {
+        if ( !item->getDef()->isRealItalic() && italic
+                && !effectiveVariations.ital_set && !effectiveVariations.slnt_set ) {
             //CRLog::debug("font: fake italic");
             newDef.setItalic(2);
             italicize = true;
@@ -6400,6 +6401,12 @@ public:
             font->setFaceName( item->getDef()->getTypeFace() );
             newDef.setSize( size );
             newDef.setVariations( effectiveVariations );
+            // Reflect the effective italic state in newDef so CalcMatch can score it
+            // correctly without peeking into variations.
+            if (effectiveVariations.ital_set && effectiveVariations.ital == 1.0f)
+                newDef.setItalic(1); // ital axis: real italic design
+            else if (effectiveVariations.slnt_set && effectiveVariations.slnt != 0.0f)
+                newDef.setItalic(2); // slnt axis: synthesised italic
             // Axis info was already copied when newDef was constructed from *item->getDef()
             //item->setFont( ref );
             //_cache.update( def, ref );
@@ -7388,17 +7395,10 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             variations_match = (_variations == def._variations) ? 256 : 0;
     }
 
-    // italic
+    // italic: _italic is set correctly on both registered and instantiated entries
+    // (instantiated ital/slnt axis fonts have _italic set at cache time, not inferred here)
     int this_italic = _italic;
-    if (_italic == 0) {
-        if (_variations.ital_set && _variations.ital == 1.0f)       this_italic = 1;
-        else if (_variations.slnt_set && _variations.slnt != 0.0f)  this_italic = 2;
-    }
     int def_italic = def._italic;
-    if (def._italic == 0) {
-        if (def._variations.ital_set && def._variations.ital == 1.0f)      def_italic = 1;
-        else if (def._variations.slnt_set && def._variations.slnt != 0.0f) def_italic = 2;
-    }
     int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
               256
             :   0;
