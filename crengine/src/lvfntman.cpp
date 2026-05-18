@@ -7374,14 +7374,17 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             weight_match += 1;
     }
 
-    // variations: registered fonts always have empty _variations and therefore
-    // match any variation request. Instantiated fonts must match exactly.
-    // If no variations are requested, an instantiated font with variations is
-    // deprioritised so the registered font is always preferred on the initial
-    // lookup — GetFont() needs that registered entry to inspect the font's axes
-    // and decide which variations to inject before instantiating.
+    // variations scoring covers three cases for 'this':
+    // - Registered fonts always have empty _variations and score 256, matching any request.
+    // - Instantiated non-variable fonts also have empty _variations (no axes were injected)
+    //   and score 256 too; they are distinguished from registered fonts by size, weight,
+    //   features, etc., not by variations.
+    // - Instantiated variable fonts have non-empty _variations:
+    //   if no variations are requested, they are deprioritised (128) so the registered font
+    //   wins the initial lookup — GetFont() needs that entry to inspect axes and decide which
+    //   variations to inject; if variations are requested, they must match exactly (256 or 0).
     int variations_match = 256; // registered fonts (empty _variations) always score 256
-    if (!_variations.empty()) { // 'this' is an instantiated font
+    if (!_variations.empty()) { // 'this' is an instantiated variable font
         if (def._variations.empty())
             variations_match = 128; // none requested: deprioritise so registered font wins
         else
