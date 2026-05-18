@@ -65,8 +65,6 @@ enum css_decl_code {
     cssd_font_weight,
     cssd_font_features,           // font-feature-settings (not yet parsed)
     cssd_font_optical_sizing,     // font-optical-sizing: auto | none
-    cssd_font_stretch,            // font-stretch (CSS3)
-    cssd_font_width,              // font-width   (CSS4 alias for font-stretch)
     cssd_font_variant,            // all these are parsed specifically and mapped into
     cssd_font_variant_ligatures,  // the same style->font_features 31 bits bitmap
     cssd_font_variant_ligatures2, // -webkit-font-variant-ligatures (former Webkit property)
@@ -181,8 +179,6 @@ static const char * css_decl_name[] = {
     "font-weight",
     "font-feature-settings",
     "font-optical-sizing",
-    "font-stretch",
-    "font-width",
     "font-variant",
     "font-variant-ligatures",
     "-webkit-font-variant-ligatures",
@@ -3076,21 +3072,6 @@ static const char * css_fos_names[] =
     NULL
 };
 
-static const char * css_fstretch_names[] =
-{
-    "",                  // css_fstretch_inherit
-    "ultra-condensed",
-    "extra-condensed",
-    "condensed",
-    "semi-condensed",
-    "normal",
-    "semi-expanded",
-    "expanded",
-    "extra-expanded",
-    "ultra-expanded",
-    NULL
-};
-
 // clear value names
 static const char * css_c_names[] =
 {
@@ -3949,30 +3930,6 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // font-optical-sizing is inherited; initial value is "auto"
                 IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
                 n = parse_name( decl, css_fos_names, -1 );
-                break;
-            case cssd_font_width: // CSS4 alias for font-stretch
-            case cssd_font_stretch: // font-stretch: ultra-condensed | condensed | ... | percentage
-                // font-stretch is inherited; initial value is "normal" (100%)
-                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_percent, 100*256)
-                {
-                    // Keywords map to their wdth percentage values (stored * 256 as fixed-point)
-                    static const int kw_pct[] = { 0, 50*256, 16000, 75*256, 22400,
-                                                  100*256, 28800, 125*256, 150*256, 200*256 };
-                    int kw = parse_name( decl, css_fstretch_names, -1 );
-                    if (kw > 0) { // kw==0 is inherit sentinel, not a real keyword
-                        buf<<(lUInt32)(prop_code | importance | parse_important(decl));
-                        buf<<(lUInt32)css_val_percent;
-                        buf<<(lUInt32)kw_pct[kw];
-                    } else {
-                        css_length_t len;
-                        if (parse_number_value(decl, len, true)) // percentages only
-                            if (len.type == css_val_percent) {
-                                buf<<(lUInt32)(prop_code | importance | parse_important(decl));
-                                buf<<(lUInt32)len.type;
-                                buf<<(lUInt32)len.value;
-                            }
-                    }
-                }
                 break;
             case cssd_font_variant:
             case cssd_font_variant_ligatures:
@@ -5399,11 +5356,6 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             break;
         case cssd_font_optical_sizing:
             style->Apply( (css_font_optical_sizing_t) *p++, &style->font_optical_sizing, imp_bit_font_optical_sizing, is_important );
-            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
-            break;
-        case cssd_font_width: // CSS4 alias for font-stretch
-        case cssd_font_stretch:
-            style->Apply( read_length(p), &style->font_stretch, imp_bit_font_stretch, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_text_indent:
