@@ -38,6 +38,7 @@ enum css_style_rec_important_bit {
     imp_bit_font_weight,
     imp_bit_font_features,
     imp_bit_font_optical_sizing,
+    imp_bit_font_stretch,
     imp_bit_text_indent,
     imp_bit_line_height,
     imp_bit_width,
@@ -145,6 +146,7 @@ struct css_style_rec_tag {
     css_font_weight_t    font_weight;
     css_length_t         font_features;
     css_font_optical_sizing_t  font_optical_sizing;
+    css_length_t               font_stretch; // percentage (wdth); css_val_inherited when not set
     css_length_t         text_indent;
     css_length_t         line_height;
     css_length_t         width;
@@ -215,6 +217,7 @@ struct css_style_rec_tag {
     , font_weight(css_fw_inherit)
     , font_features(css_val_inherited, 0)
     , font_optical_sizing(css_fos_inherit)
+    , font_stretch(css_val_inherited, 0)
     , text_indent(css_val_inherited, 0)
     , line_height(css_val_inherited, 0)
     , width(css_val_unspecified, css_generic_auto)

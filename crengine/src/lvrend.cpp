@@ -2435,6 +2435,9 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         // we don't know the real DPI. If above 100 assume it's close to the real DPI.
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
     }
+    // Inject wdth from font-stretch / font-width if a non-normal value was specified.
+    if (style->font_stretch.type == css_val_percent && style->font_stretch.value != 100*256)
+        variations.set(LVFONT_TAG_WDTH, style->font_stretch.value / 256.0f);
 
     // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
     LVFontRef fnt = fontMan->GetFont(
