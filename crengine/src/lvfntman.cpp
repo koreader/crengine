@@ -6194,7 +6194,14 @@ public:
         // Sync def with the stripped set for all subsequent lookups.
         def.setVariations(effectiveVariations);
 
-        // Check whether an already-instantiated font with these exact stripped
+        // The three blocks below are independent of each other:
+        // (1) is gated on effectiveVariations being non-empty — it returns early if an
+        //     exact cached instance already exists for the stripped variation set.
+        // (2) and (3) inject wght/ital/slnt based on what axes the matched font exposes,
+        //     and can fire even when effectiveVariations is empty after stripping above
+        //     (e.g. a variable font with only a wght axis and optical sizing disabled).
+
+        // (1) Check whether an already-instantiated font with these exact stripped
         // variations exists. With def now matching the stripped key, find() will
         // prefer the instance over the registered entry on a tie (>= comparison).
         if (!effectiveVariations.empty()) {
@@ -6215,7 +6222,7 @@ public:
             }
         }
 
-        // If the best-matched font has a wght axis and no explicit wght variation was
+        // (2) If the best-matched font has a wght axis and no explicit wght variation was
         // supplied, inject one so the face is set to exactly the requested weight instead
         // of using FT_Outline_Embolden synthesis.
         if (item->getDef()->hasWghtAxis() && !effectiveVariations.wght_set) {
@@ -6237,6 +6244,7 @@ public:
                 return item2->getFont();
         }
 
+        // (3) If italic was requested but the font has no italic face, inject ital or slnt.
         if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()
                 && !effectiveVariations.ital_set) {
             effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
