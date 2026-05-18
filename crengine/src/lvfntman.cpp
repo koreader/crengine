@@ -6228,10 +6228,9 @@ public:
             }
         }
 
-        // (2) If the best-matched font has a wght axis and no explicit wght variation was
-        // supplied, inject one so the face is set to exactly the requested weight instead
-        // of using FT_Outline_Embolden synthesis.
-        if (item->getDef()->hasWghtAxis() && !effectiveVariations.wght_set) {
+        // (2) If the best-matched font has a wght axis, inject wght set to the requested
+        // weight so the face renders at exactly that weight instead of using synthesis.
+        if (item->getDef()->hasWghtAxis()) {
             effectiveVariations.set(LVFONT_TAG_WGHT, (float)weight);
 #ifdef DEBUG_VAR_FONT
             static lString8 s_last_tf;
@@ -6251,8 +6250,7 @@ public:
         }
 
         // (3) If italic was requested but the font has no italic face, inject ital or slnt.
-        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()
-                && !effectiveVariations.ital_set) {
+        if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasItalAxis()) {
             effectiveVariations.set(LVFONT_TAG_ITAL, 1.0f);
 #ifdef DEBUG_VAR_FONT
             static lString8 s_last_tf_ital;
@@ -6269,8 +6267,7 @@ public:
                     && item3->getDef()->getFeatures() == features
                     && item3->getDef()->getVariations() == effectiveVariations)
                 return item3->getFont();
-        } else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()
-                   && !effectiveVariations.slnt_set) {
+        } else if (italic && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()) {
             effectiveVariations.set(LVFONT_TAG_SLNT, -12.0f);
             static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
             if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
