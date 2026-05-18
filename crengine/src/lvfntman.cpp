@@ -6067,7 +6067,6 @@ public:
                 hb_face_destroy(hb_face);
             #endif
 
-            // Detect variable font axes (wght, opsz) for smarter weight matching
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
@@ -6595,7 +6594,6 @@ public:
                     def.setHasOTMath(true);
                 hb_face_destroy(hb_face);
             #endif
-            // Detect variable font axes for smarter weight matching
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
@@ -6846,7 +6844,6 @@ public:
                     def.setHasOTMath(true);
                 hb_face_destroy(hb_face);
             #endif
-            // Detect variable font axes (wght, opsz) for smarter weight matching
             {
                 FT_MM_Var* mm_var = NULL;
                 if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
