@@ -7374,10 +7374,10 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     // deprioritised so the registered font is always preferred on the initial
     // lookup — GetFont() needs that registered entry to inspect the font's axes
     // and decide which variations to inject before instantiating.
-    int variations_match = 256;
-    if (!_variations.empty()) {
+    int variations_match = 256; // registered fonts (empty _variations) always score 256
+    if (!_variations.empty()) { // 'this' is an instantiated font
         if (def._variations.empty())
-            variations_match = 128; // instance with variations, but none requested: deprioritise
+            variations_match = 128; // none requested: deprioritise so registered font wins
         else
             variations_match = (_variations == def._variations) ? 256 : 0;
     }
