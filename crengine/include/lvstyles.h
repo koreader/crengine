@@ -98,7 +98,7 @@ enum css_style_rec_important_bit {
     imp_bit_content,
     imp_bit_cr_hint
 };
-#define NB_IMP_BITS 74 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 73 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
