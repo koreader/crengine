@@ -7368,10 +7368,12 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             weight_match += 1;
     }
 
-    // variations: registered fonts have an empty _variations array (wildcard).
-    // Instantiated fonts must match the requested variations exactly.
-    // If no variations are requested, instances with variations are deprioritised
-    // so the first cache lookup reliably returns the registered font.
+    // variations: registered fonts always have empty _variations and therefore
+    // match any variation request. Instantiated fonts must match exactly.
+    // If no variations are requested, an instantiated font with variations is
+    // deprioritised so the registered font is always preferred on the initial
+    // lookup — GetFont() needs that registered entry to inspect the font's axes
+    // and decide which variations to inject before instantiating.
     int variations_match = 256;
     if (!_variations.empty()) {
         if (def._variations.empty())
