@@ -2428,12 +2428,11 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         fw = 1;
     else if ( fw>999 )
         fw = 999;
-    // Auto optical sizing: inject opsz unless disabled or already handled by wght axis
+    // Inject opsz for auto optical sizing, unless disabled or on a low-DPI screen.
     LVFontVariations variations;
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100) {
-        // Convert sz (screen pixels) to typographic points.
-        // sz arrives already scaled to physical screen pixels by Screen:scaleBySize() on the
-        // Lua side, so gRenderDPI is the correct divisor.
+        // Assume that if 96, as no device has such low DPI, it has not been set by the user, and don't do opsz as
+        // we don't know the real DPI. If above 100 assume it's close to the real DPI.
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
     }
 
