@@ -7378,6 +7378,22 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             weight_match += 1;
     }
 
+    // italic: _italic is set correctly on both registered and instantiated entries
+    // (instantiated ital/slnt axis fonts have _italic set at cache time, not inferred here)
+    int this_italic = _italic;
+    int def_italic = def._italic;
+    int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
+              256
+            :   0;
+    // lower the score if any is fake italic
+    if ( (this_italic==2 || def_italic==2) && this_italic>0 && def_italic>0 )
+        italic_match = 128;
+
+    // OpenType features
+    int features_match = (_features == def._features || _features==-1 || def._features==-1) ?
+              256
+            :   0;
+
     // variations scoring covers three cases for 'this':
     // - Registered fonts always have empty _variations and score 256, matching any request.
     // - Instantiated non-variable fonts also have empty _variations (no axes were injected)
@@ -7394,22 +7410,6 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
         else
             variations_match = (_variations == def._variations) ? 256 : 0;
     }
-
-    // italic: _italic is set correctly on both registered and instantiated entries
-    // (instantiated ital/slnt axis fonts have _italic set at cache time, not inferred here)
-    int this_italic = _italic;
-    int def_italic = def._italic;
-    int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
-              256
-            :   0;
-    // lower the score if any is fake italic
-    if ( (this_italic==2 || def_italic==2) && this_italic>0 && def_italic>0 )
-        italic_match = 128;
-
-    // OpenType features
-    int features_match = (_features == def._features || _features==-1 || def._features==-1) ?
-              256
-            :   0;
 
     // family
     int family_match = (_family==css_ff_inherit || def._family==css_ff_inherit || def._family == _family) ?
