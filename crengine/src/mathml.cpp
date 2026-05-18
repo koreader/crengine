@@ -742,9 +742,9 @@ static bool getOperatorProperties(const lChar32 * op, const mathml_operator_dict
     // (takes around 6 iterations for these, 11 otherwise vs.
     // mostly always 10 when starting from the middle)
     int middle = nb/20;
-    int iters = 0;
+    // int iters = 0;
     while ( left < right ) {
-        iters++;
+        // iters++;
         int res = lStr_cmp( mathml_operators[middle].op, op );
         if ( res >= 0 ) {
             right = middle;

@@ -58,6 +58,7 @@ enum css_style_rec_important_bit {
     imp_bit_color,
     imp_bit_background_color,
     imp_bit_letter_spacing,
+    imp_bit_initial_letter,
     imp_bit_page_break_before,
     imp_bit_page_break_after,
     imp_bit_page_break_inside,
@@ -160,6 +161,7 @@ struct css_style_rec_tag {
     css_length_t         color;
     css_length_t         background_color;
     css_length_t         letter_spacing;
+    css_length_t         initial_letter; // css_val_unspecified + (css_generic_normal or packed size/sink in value)
     css_page_break_t     page_break_before;
     css_page_break_t     page_break_after;
     css_page_break_t     page_break_inside;
@@ -229,6 +231,7 @@ struct css_style_rec_tag {
     , color(css_val_inherited, 0)
     , background_color(css_val_color, CSS_COLOR_TRANSPARENT)
     , letter_spacing(css_val_inherited, 0)
+    , initial_letter(css_val_unspecified, css_generic_normal)
     , page_break_before(css_pb_auto)
     , page_break_after(css_pb_auto)
     , page_break_inside(css_pb_auto)
