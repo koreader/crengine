@@ -586,8 +586,8 @@ class LVFontDef
 {
 private:
     int               _size;
-    int               _weight;
-    int               _italic;
+    int               _synth_weight;   // synthesised weight override; 0 = use _wght_def
+    bool              _is_fake_italic; // true when software italic was applied to a roman face
     int               _features; // OpenType features requested
     css_font_family_t _family;
     lString8          _typeface;
@@ -614,8 +614,8 @@ public:
     LVFontDef(const lString8 & name, int size, int weight, int italic, int features, css_font_family_t family,
                 const lString8 & typeface, int index=-1, int documentId=-1, LVByteArrayRef buf = LVByteArrayRef())
         : _size(size)
-        , _weight(weight)
-        , _italic(italic)
+        , _synth_weight(0)
+        , _is_fake_italic(italic == 2)
         , _features(features)
         , _family(family)
         , _typeface(typeface)
@@ -638,8 +638,8 @@ public:
         }
     LVFontDef(const LVFontDef & def)
         : _size(def._size)
-        , _weight(def._weight)
-        , _italic(def._italic)
+        , _synth_weight(def._synth_weight)
+        , _is_fake_italic(def._is_fake_italic)
         , _features(def._features)
         , _family(def._family)
         , _typeface(def._typeface)
@@ -664,8 +664,9 @@ public:
     bool operator == ( const LVFontDef & def ) const
     {
         return ( _size == def._size || _size == -1 || def._size == -1 )
-            && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
-            && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
+            && getWeight() == def.getWeight()
+            && _is_fake_italic == def._is_fake_italic
+            && _ital_def == def._ital_def
             && _real_weight == def._real_weight
             && _features == def._features
             && _family == def._family
@@ -679,7 +680,7 @@ public:
     }
 
     lUInt32 getHash() const {
-        lUInt32 h =  (((((_size * 31) + _weight)*31  + _italic)*31 + _features)*31+ _family)*31 + _name.getHash();
+        lUInt32 h =  (((((_size * 31) + getWeight())*31  + (_is_fake_italic ? 2 : (_ital_def > 0.5f ? 1 : 0)))*31 + _features)*31+ _family)*31 + _name.getHash();
         h = h * 31 + _variations.hash();
         // _bias is not a static property, and can be set/unset on these definitions.
         // If a same _bias value is moved from one font to another, *adding* _bias
@@ -698,12 +699,21 @@ public:
     void setIndex( int index ) { _index = index; }
     int getSize() const { return _size; }
     void setSize( int size ) { _size = size; }
-    int getWeight() const { return _weight; }
-    void setWeight(int weight, bool real = true) { _weight = weight; _real_weight = real; }
-    bool isRealWeight() const { return _real_weight; }
-    bool getItalic() const { return _italic!=0; }
-    bool isRealItalic() const { return _italic==1; }
-    void setItalic( int italic ) { _italic=italic; }
+    int  getWeight() const { return _synth_weight > 0 ? _synth_weight : (int)_wght_def; }
+    void setWeight(int weight, bool real = true) {
+        _real_weight = real;
+        if (real) { _wght_def = (float)weight; _synth_weight = 0; }
+        else        _synth_weight = weight;
+    }
+    bool isRealWeight() const { return _synth_weight == 0; }
+    bool getItalic() const { return _ital_def > 0.5f || _is_fake_italic; }
+    bool isRealItalic() const { return _ital_def > 0.5f && !_is_fake_italic; }
+    void setItalic(int italic) {
+        _is_fake_italic = (italic == 2);
+        if      (italic == 1) _ital_def = 1.0f;
+        else if (italic == 0) _ital_def = 0.0f;
+        // italic==2: _ital_def stays 0 (roman face, software italic applied on top)
+    }
     css_font_family_t getFamily() const { return _family; }
     void getFamily( css_font_family_t family ) { _family = family; }
     lString8 getTypeFace() const { return _typeface; }
@@ -6174,6 +6184,11 @@ public:
         );
         // Pass variations to cache query so instantiated variable fonts are found exactly
         def.setVariations(effectiveVariations);
+        // Give the lookup def axis info for weight and italic so getWeight()/getItalic()
+        // return correct values in CalcMatch (fixed range: min==max==def).
+        def.setAxisInfo(LVFONT_TAG_WGHT, (float)weight, (float)weight, (float)weight);
+        if (italic)
+            def.setAxisInfo(LVFONT_TAG_ITAL, 1.0f, 1.0f, 1.0f);
         #if (DEBUG_FONT_MAN==1)
             if ( _log )
                 fprintf( _log, "GetFont: %s %d %s %s\n",
@@ -7323,11 +7338,9 @@ int LVFontDef::CalcDuplicateMatch( const LVFontDef & def ) const
               true
             : (def._size == _size);
 
-    bool weight_match = (_weight==-1 || def._weight==-1) ?
-              true
-            : (def._weight == _weight);
+    bool weight_match = (getWeight() == def.getWeight());
 
-    bool italic_match = (_italic == def._italic || _italic==-1 || def._italic==-1);
+    bool italic_match = (getItalic() == def.getItalic());
 
     bool features_match = (_features == def._features || _features==-1 || def._features==-1);
 
@@ -7354,27 +7367,27 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     // Variable fonts with a wght axis that covers the requested weight get a
     // perfect score (257) — slightly above the 256 cap for a static font match
     // so they are preferred over synthesis from a static weight.
-    int weight_diff = def._weight - _weight;
+    int this_weight = getWeight();
+    int def_weight  = def.getWeight();
+    int weight_diff = def_weight - this_weight;
     if ( weight_diff < 0 )
         weight_diff = -weight_diff;
     if ( weight_diff > 800 )
         weight_diff = 800;
     int weight_match;
-    if ( isVariableWghtAxis() && def._weight != -1 && _weight != -1
-            && def._weight >= (int)getWghtAxisMin() && def._weight <= (int)getWghtAxisMax() ) {
+    if ( isVariableWghtAxis()
+            && def_weight >= (int)getWghtAxisMin() && def_weight <= (int)getWghtAxisMax() ) {
         weight_match = 257; // variable font can hit exact requested weight
     } else {
-        weight_match = (_weight==-1 || def._weight==-1) ?
-                    256
-                : ( 256 - weight_diff * 256 / 800 );
+        weight_match = 256 - weight_diff * 256 / 800;
         // It might happen that 2 fonts with different weights can get the same
-        // score, e.g. with def._weight=550, a font with _weight=400 and an other
-        // with _weight=700. Any could then be picked depending on their random
+        // score, e.g. with def_weight=550, a font with this_weight=400 and another
+        // with this_weight=700. Any could then be picked depending on their random
         // ordering in the cache, which may mess a book on re-openings.
         // To avoid this inconsistency, we give arbitrarily a small increase to
         // the score of the smaller weight font (mostly so that with the above
         // case, we keep synthesizing the 550 from the 400)
-        if ( _weight < def._weight )
+        if ( this_weight < def_weight )
             weight_match += 1;
     }
 
@@ -7395,13 +7408,10 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             variations_match = (_variations == def._variations) ? 256 : 0;
     }
 
-    // italic: _italic is set correctly on both registered and instantiated entries
-    // (instantiated ital/slnt axis fonts have _italic set at cache time, not inferred here)
-    int this_italic = _italic;
-    int def_italic = def._italic;
-    int italic_match = (this_italic == def_italic || this_italic==-1 || def_italic==-1) ?
-              256
-            :   0;
+    // italic: 0=roman, 1=real italic, 2=fake italic
+    int this_italic = _is_fake_italic ? 2 : (_ital_def > 0.5f ? 1 : 0);
+    int def_italic  = def._is_fake_italic ? 2 : (def._ital_def > 0.5f ? 1 : 0);
+    int italic_match = (this_italic == def_italic) ? 256 : 0;
     // lower the score if any is fake italic
     if ( (this_italic==2 || def_italic==2) && this_italic>0 && def_italic>0 )
         italic_match = 128;
@@ -7452,9 +7462,9 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
     // be re-synthesized. Otherwise, we'll get some italic when not wanting
     // italic (or vice versa), depending on which has been instantiated first...
     //
-    if ( !_real_weight ) {        // 'this' is an instantiated fake weight font
-        if ( def._italic > 0 ) {  // italic requested
-            if ( _italic == 0 ) { // 'this' is fake bold but non-italic
+    if ( !_real_weight ) {           // 'this' is an instantiated fake weight font
+        if ( def_italic > 0 ) {      // italic requested
+            if ( this_italic == 0 ) { // 'this' is fake bold but non-italic
                 weight_match = 0; // => drop score
                 italic_match = 0;
                 // The regular (italic or fake italic) is available
@@ -7462,8 +7472,8 @@ int LVFontDef::CalcMatch( const LVFontDef & def, bool useBias ) const
             }
             // otherwise, 'this' is a fake bold italic, and it can match
         }
-        else {                    // non-italic requested
-            if ( _italic > 0 ) {  // 'this' is fake bold of (real or fake) italic
+        else {                        // non-italic requested
+            if ( this_italic > 0 ) {  // 'this' is fake bold of (real or fake) italic
                 weight_match = 0; // => drop score
                 italic_match = 0;
                 // The regular is available and will get a better score
@@ -7504,11 +7514,9 @@ int LVFontDef::CalcFallbackMatch( lString8 face, int size ) const
               256
             :   0;
 
-    int weight_match = (_weight==-1) ?
-              256
-            : ( 256 - _weight * 256 / 800 );
+    int weight_match = ( 256 - getWeight() * 256 / 800 );
 
-    int italic_match = _italic == 0 ?
+    int italic_match = !getItalic() ?
               256
             :   0;
 
