@@ -663,8 +663,6 @@ public:
     /// returns true if definitions are equal
     bool operator == ( const LVFontDef & def ) const
     {
-        if (_variations != def._variations)
-            return false;
         return ( _size == def._size || _size == -1 || def._size == -1 )
             && ( _weight == def._weight || _weight==-1 || def._weight==-1 )
             && ( _italic == def._italic || _italic==-1 || def._italic==-1 )
@@ -676,6 +674,8 @@ public:
             && ( _index == def._index || def._index == -1 )
             && (_documentId == def._documentId || _documentId == -1)
             ;
+        if (_variations != def._variations)
+            return false;
     }
 
     lUInt32 getHash() const {
