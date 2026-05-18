@@ -627,11 +627,13 @@ public:
         , _real_weight(true)
         , _has_ot_math(false)
         , _has_emojis(false)
-        , _has_wght(false), _wght_min(100.0f), _wght_def(400.0f), _wght_max(900.0f)
-        , _has_opsz(false), _opsz_min(6.0f),   _opsz_def(12.0f),  _opsz_max(72.0f)
-        , _has_ital(false), _ital_min(0.0f),   _ital_def(0.0f),   _ital_max(1.0f)
-        , _has_slnt(false), _slnt_min(-90.0f), _slnt_def(0.0f),   _slnt_max(90.0f)
-        , _has_wdth(false), _wdth_min(50.0f),  _wdth_def(100.0f), _wdth_max(200.0f)
+        // Variable font axes are all unset by default, and their min/def/max values are 0 until registration time,
+        // when they will be updated if the font is a variable font and has these registered axes.
+        , _has_wght(false), _wght_min(0.0f), _wght_def(0.0f), _wght_max(0.0f)  // Weight in CSS weight values (100-900)
+        , _has_opsz(false), _opsz_min(0.0f), _opsz_def(0.0f), _opsz_max(0.0f)  // Optical size in pt
+        , _has_ital(false), _ital_min(0.0f), _ital_def(0.0f), _ital_max(0.0f)  // Flag - 0.0 indicates non-italic, 0.0 italic
+        , _has_slnt(false), _slnt_min(0.0f), _slnt_def(0.0f), _slnt_max(0.0f)  // Slant in degrees, with negative values for italic slant
+        , _has_wdth(false), _wdth_min(0.0f), _wdth_def(0.0f), _wdth_max(0.0f)  // Width in CSS percentage values (50-200, with 100 as normal width)
         {
         }
     LVFontDef(const LVFontDef & def)
