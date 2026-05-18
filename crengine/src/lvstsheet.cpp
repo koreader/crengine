@@ -3060,6 +3060,14 @@ static const char * css_f_names[] =
     NULL
 };
 
+static const char * css_fos_names[] =
+{
+    "", // css_fos_inherit
+    "auto",
+    "none",
+    NULL
+};
+
 // clear value names
 static const char * css_c_names[] =
 {
@@ -3917,8 +3925,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_font_optical_sizing: // font-optical-sizing: auto | none
                 // font-optical-sizing is inherited; initial value is "auto"
                 IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
-                if (substr_icompare("auto", decl))       n = css_fos_auto;
-                else if (substr_icompare("none", decl))  n = css_fos_none;
+                n = parse_name( decl, css_fos_names, -1 );
                 break;
             case cssd_font_variant:
             case cssd_font_variant_ligatures:
