@@ -515,11 +515,41 @@ and sans-serif.
   Full removal requires either migrating these APIs to the registry or determining
   they can be dropped.
 
-### Step 6 — Remove LVFontDef and CalcMatch
+### Step 6 — Remove LVFontDef and CalcMatch ✓ DONE
 
 - Delete `LVFontDef`, `LVFontCacheItem`, `LVFontCache`.
 - Delete `CalcMatch()`, `CalcDuplicateMatch()`, `CalcFallbackMatch()`.
 - Clean up any remaining references.
+
+**As-built notes:**
+
+- `LVFontDef` is replaced by `LVFontRegistrationData` — a minimal ~80-line class
+  (vs the original ~500 lines) that accumulates FreeType face data during
+  `RegisterFont()` before `faceFromDef()` converts it to an `LVFontFace`. All
+  CalcMatch scoring, bias, real_weight tracking, and size fields are removed.
+  The rename makes its purpose explicit and avoids confusion with the full old class.
+
+- `LVFontCache`, `LVFontCacheItem`, `CalcMatch()`, `CalcDuplicateMatch()`,
+  `CalcFallbackMatch()`, and their ~600 lines of out-of-class method definitions
+  are deleted entirely.
+
+- `LVFontCache._cache` member removed from `LVFreeTypeFontManager`. The destructor,
+  `gc()`, `SetFallbackFontFaces()`, `SetAsPreferredFontWithBias()`,
+  `UnregisterDocumentFonts()`, and `loadAndCache()` are all cleaned up.
+
+- Registration duplicate detection now uses `LVFontRegistry::hasFaceId()` (a hash
+  of file + face_index + documentId) instead of `CalcDuplicateMatch()`.
+
+- `SetAlias()` rewritten to ~10 lines: find source family in registry, copy faces
+  under the alias name, register the alias mapping.
+
+- `RegularizeRegisteredFontsWeights()` converted to a no-op — the selector handles
+  weight synthesis explicitly via `computeSynthesis()`.
+
+- `LVBitmapFontManager` and `LVWin32FontManager` still reference `LVFontCache` and
+  `LVFontCacheItem`, but both are inside platform-conditional blocks
+  (`#if USE_FREETYPE==1` / `#ifdef _WIN32`) that are not compiled on this platform.
+  They are left as-is for now and should be migrated or removed separately.
 
 ### Step 7 — OpenType features (separate, future)
 
