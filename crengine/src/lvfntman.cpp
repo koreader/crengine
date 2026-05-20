@@ -5768,6 +5768,82 @@ public:
     }
 };
 
+/// Cache key identifying one specific loaded font instance.
+/// Synthesis is not yet part of this key — it will be added in Step 4 once
+/// the selector is the authoritative path.  Until then, synthesis differences
+/// are handled by the existing _cache via LVFontDef fields.
+struct LVFontInstanceKey {
+    lUInt32 face_id;           // stable hash of (file, face_index, documentId)
+    int     size;              // requested pixel size
+    int     face_size;         // actual loaded size (may differ for monospace)
+    int     features;          // OpenType features bitmap
+    int     requested_weight;  // original requested weight, pre-snapping;
+                               // distinguishes synthesised-bold from non-synthesised
+                               // requests that resolve to the same face.
+                               // Will be superseded by a LVFontSynthesis field in Step 4.
+    lUInt32 variations_hash;   // LVFontVariations::hash() after snapping
+
+    bool operator==(const LVFontInstanceKey& o) const {
+        return face_id         == o.face_id
+            && size            == o.size
+            && face_size       == o.face_size
+            && features        == o.features
+            && requested_weight == o.requested_weight
+            && variations_hash == o.variations_hash;
+    }
+    lUInt32 hash() const {
+        lUInt32 h = face_id;
+        h = h * 31 + (lUInt32)(unsigned)size;
+        h = h * 31 + (lUInt32)(unsigned)face_size;
+        h = h * 31 + (lUInt32)(unsigned)features;
+        h = h * 31 + (lUInt32)(unsigned)requested_weight;
+        h = h * 31 + variations_hash;
+        return h;
+    }
+};
+
+/// Derive the face_id component of LVFontInstanceKey from a LVFontDef.
+static lUInt32 makeFaceId(const LVFontDef* def) {
+    lUInt32 h = def->getName().getHash();
+    h = h * 31 + (lUInt32)def->getIndex();
+    h = h * 31 + (lUInt32)(def->getDocumentId() == -1 ? 0 : def->getDocumentId());
+    return h;
+}
+
+/// Exact-match instance cache.  Populated alongside _cache (Step 3) and will
+/// become the authoritative source in Step 4 once the selector drives selection.
+class LVFontInstanceCache {
+    struct Entry {
+        LVFontInstanceKey key;
+        LVFontRef         font;
+    };
+    LVArray<Entry> _entries;
+public:
+    LVFontRef get(const LVFontInstanceKey& key) const {
+        for (int i = 0; i < _entries.length(); i++)
+            if (_entries[i].key == key && !_entries[i].font.isNull())
+                return _entries[i].font;
+        return LVFontRef();
+    }
+    void put(const LVFontInstanceKey& key, LVFontRef font) {
+        for (int i = 0; i < _entries.length(); i++) {
+            if (_entries[i].key == key) {
+                _entries[i].font = font;
+                return;
+            }
+        }
+        Entry e;
+        e.key  = key;
+        e.font = font;
+        _entries.add(e);
+    }
+    void clear() {
+        while (_entries.length() > 0)
+            _entries.remove(_entries.length() - 1);
+    }
+    int length() const { return _entries.length(); }
+};
+
 /// Build an LVFontFace from a registered LVFontDef.
 static LVFontFace faceFromDef(const LVFontDef& def) {
     LVFontFace f;
@@ -5810,10 +5886,11 @@ private:
     lString8    _path;
     lString8    _fallbackFontFacesString; // comma separated list of fallback fonts
     lString8Collection _fallbackFontFaces;  // splitted from previous
-    LVFontCache    _cache;
-    LVFontRegistry _registry;       // physical face registry (Step 1+)
-    LVFontSelector _selector;       // CSS Fonts Level 4 §9 selection (Step 2+)
-    lString8       _preferred_family; // replaces useBias in future steps
+    LVFontCache         _cache;
+    LVFontRegistry      _registry;        // physical face registry (Step 1+)
+    LVFontSelector      _selector;        // CSS Fonts Level 4 §9 selection (Step 2+)
+    LVFontInstanceCache _instance_cache;  // exact-match instance cache (Step 3+)
+    lString8            _preferred_family; // replaces useBias in future steps
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
     lString32 _requiredChars;
@@ -6748,6 +6825,23 @@ public:
         if ( family == css_ff_monospace && GetMonospaceSizeScale() != 100 ) {
             face_size = size * GetMonospaceSizeScale() / 100;
         }
+
+        // Step 3: check the instance cache now that we have all key components.
+        {
+            LVFontInstanceKey ikey;
+            ikey.face_id         = makeFaceId(item->getDef());
+            ikey.size            = size;
+            ikey.face_size       = face_size;
+            ikey.features        = features;
+            ikey.requested_weight = weight;
+            ikey.variations_hash = effectiveVariations.hash();
+            LVFontRef cached = _instance_cache.get(ikey);
+            if (!cached.isNull()) {
+                delete font;
+                return cached;
+            }
+        }
+
         // Set variations before loadFromFile so that setupFace() can apply them
         font->setVariations(effectiveVariations);
 #ifdef DEBUG_VAR_FONT
@@ -6823,11 +6917,17 @@ public:
                         italic?" i":"", italicize?", fake italic":""); // font->getWeight());
                 */
             _cache.update( &newDef, ref );
-            // int rsz = ref->getSize();
-            // if ( rsz!=size ) {
-            //     size++;
-            // }
-            //delete def;
+            // Step 3: populate the instance cache alongside _cache.
+            {
+                LVFontInstanceKey ikey;
+                ikey.face_id          = makeFaceId(item->getDef());
+                ikey.size             = size;
+                ikey.face_size        = face_size;
+                ikey.features         = features;
+                ikey.requested_weight = weight;
+                ikey.variations_hash  = effectiveVariations.hash();
+                _instance_cache.put(ikey, ref);
+            }
             return ref;
         }
         else {
@@ -7073,6 +7173,8 @@ public:
     /// unregisters all document fonts
     virtual void UnregisterDocumentFonts(int documentId) {
         _cache.removeDocumentFonts(documentId);
+        _registry.removeFonts(documentId);
+        _instance_cache.clear(); // evict by document not yet implemented; clear all
     }
 
     virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, bool bold, bool italic) {

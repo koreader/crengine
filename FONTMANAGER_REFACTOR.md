@@ -396,12 +396,44 @@ final page confirm default roman/sans/mono rendering is unchanged.
 **Test:** Open `tests/font-manager-test.epub` and check the KOReader log for any
 `FontSelector mismatch` warnings. Expected: zero warnings for standard system fonts.
 
-### Step 3 — Introduce LVFontSynthesis and LVFontInstanceCache
+### Step 3 — Introduce LVFontSynthesis and LVFontInstanceCache ✓ DONE
 
 - Add `LVFontSynthesis` and `LVFontInstanceKey`.
 - Add `LVFontInstanceCache` populated alongside the existing cache.
 - In `GetFont()`, check the new cache first; fall back to existing path if missed.
 - Verify: hit rates are as expected; no stale instances returned.
+
+**As-built notes:**
+
+- `LVFontSynthesis` was already added in Step 2; Step 3 adds `LVFontInstanceKey`
+  and `LVFontInstanceCache`.
+
+- `LVFontInstanceKey` includes `requested_weight` (the original pre-snapping weight)
+  alongside the snapped `variations_hash`. This is necessary because wght snapping
+  maps both a w=400 and a w=700 request to the same 400-weight face, producing
+  identical `variations_hash` values — but the w=700 request requires bold synthesis
+  while the w=400 does not. Without `requested_weight` in the key, the instance cache
+  would return the non-synthesised entry for the synthesised request (confirmed bug).
+  `requested_weight` is a temporary stand-in; it will be replaced by a proper
+  `LVFontSynthesis` field in Step 4.
+
+- The instance cache check is placed AFTER all existing early-return paths (block 1,
+  slnt translation, existing-instance return). Those paths are fast already (they
+  hit `_cache` directly). The instance cache speeds up the main load path — the
+  one that would otherwise call `loadFromFile`/`loadFromBuffer`. This placement will
+  move earlier in Step 4.
+
+- `LVFontInstanceCache::clear()` is called from `UnregisterDocumentFonts()` since
+  per-face eviction is not yet implemented. This is conservative but correct; it
+  also clears global font instances (wasteful but safe). Per-face eviction using
+  `face_id` will be wired up in Step 4 or 5.
+
+- `makeFaceId()` is a free static helper that produces a stable hash of
+  (file, face_index, documentId) from a `LVFontDef*`, matching `LVFontFace::id()`.
+
+**Test:** Open `tests/font-manager-test.epub`. With debug logging, verify that
+repeated font requests within the document produce instance-cache hits (log
+`FontSelector mismatch` count should remain zero).
 
 ### Step 4 — Switch GetFont() to the new path
 
