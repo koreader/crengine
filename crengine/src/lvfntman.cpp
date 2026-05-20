@@ -5101,28 +5101,25 @@ public:
 
 /// Synthesis to apply when instantiating a face that doesn't natively provide
 /// the requested style.  Part of the instance cache key in future steps.
+/// Synthesis properties that cannot be expressed as the requested weight or
+/// italic (which live in the cache key directly).  Bold and italic synthesis
+/// are therefore absent — the requested weight/italic already distinguish those
+/// instances in the cache key.
 struct LVFontSynthesis {
-    bool  bold;         // apply FT_EMBOLDEN or LVFontBoldTransform
-    bool  italic;       // apply FreeType slant transform
-    float width_scale;  // 1.0 = none
+    float width_scale;  // 1.0 = none; placeholder for future font-stretch synthesis
 
-    LVFontSynthesis() : bold(false), italic(false), width_scale(1.0f) {}
-    bool none() const { return !bold && !italic && width_scale == 1.0f; }
-    bool operator==(const LVFontSynthesis& o) const {
-        return bold == o.bold && italic == o.italic && width_scale == o.width_scale;
-    }
+    LVFontSynthesis() : width_scale(1.0f) {}
+    bool none() const { return width_scale == 1.0f; }
+    bool operator==(const LVFontSynthesis& o) const { return width_scale == o.width_scale; }
     lUInt32 hash() const {
-        lUInt32 h = ((lUInt32)bold << 1) | (lUInt32)italic;
         lUInt32 ws; memcpy(&ws, &width_scale, sizeof(ws));
-        return h * 31 + ws;
+        return ws;
     }
 };
 
-/// Result of a font selection: the chosen physical face, synthesis flags, and
-/// the effective axis values to apply when instantiating it.
+/// Result of a font selection: the chosen physical face and effective axis values.
 struct LVFontMatch {
     const LVFontFace*  face;
-    LVFontSynthesis    synthesis;
     LVFontVariations   variations;
 
     LVFontMatch() : face(nullptr) {}
@@ -5180,30 +5177,6 @@ class LVFontSelector {
         return best;
     }
 
-    LVFontSynthesis computeSynthesis(const LVFontFace& f,
-                                      int weight, bool italic) const
-    {
-        LVFontSynthesis s;
-        // Bold synthesis: only for static fonts where the wght axis cannot satisfy
-        // the requested weight.  Variable fonts (min < max) always handle weight
-        // through the axis — computeVariations() clamps out-of-range values to the
-        // nearest boundary, so synthesis would only over-darken an already-maxed face.
-        bool wghtByAxis = f._has_wght && f._wght_min < f._wght_max;
-        if (!wghtByAxis) {
-        #ifdef USE_FT_EMBOLDEN
-            if (myabs(weight - f.weight) >= 25) s.bold = true;
-        #else
-            if (weight - f.weight >= 200)       s.bold = true;
-        #endif
-        }
-        // Italic synthesis: italic requested, face is roman, no variable axis covers it.
-        bool italByAxis = (f._has_ital && f._ital_max > 0.5f) ||
-                          (f._has_slnt && f._slnt_min < 0.0f);
-        if (italic && !f.is_italic && !italByAxis)
-            s.italic = true;
-        return s;
-    }
-
     LVFontVariations computeVariations(const LVFontFace& f,
                                         const LVFontVariations& requested,
                                         int weight, bool italic) const
@@ -5249,7 +5222,6 @@ class LVFontSelector {
         if (!face) return m;
 
         m.face       = face;
-        m.synthesis  = computeSynthesis(*face, weight, italic);
         m.variations = computeVariations(*face, requested, weight, italic);
         return m;
     }
@@ -5302,16 +5274,18 @@ struct LVFontInstanceKey {
     lUInt32 face_id;           // stable hash of (file, face_index, documentId)
     int     size;              // requested pixel size
     int     face_size;         // actual loaded size (may differ for monospace)
-    int              features;         // OpenType features bitmap
-    LVFontSynthesis  synthesis;        // bold/italic/width synthesis to apply
-    lUInt32          variations_hash;  // LVFontVariations::hash()
+    int     features;          // OpenType features bitmap
+    int     requested_weight;  // distinguishes synthesised-bold instances naturally
+    bool    requested_italic;  // distinguishes synthesised-italic instances naturally
+    lUInt32 variations_hash;   // LVFontVariations::hash()
 
     bool operator==(const LVFontInstanceKey& o) const {
-        return face_id        == o.face_id
-            && size           == o.size
-            && face_size      == o.face_size
-            && features       == o.features
-            && synthesis      == o.synthesis
+        return face_id         == o.face_id
+            && size            == o.size
+            && face_size       == o.face_size
+            && features        == o.features
+            && requested_weight == o.requested_weight
+            && requested_italic == o.requested_italic
             && variations_hash == o.variations_hash;
     }
     lUInt32 hash() const {
@@ -5319,7 +5293,8 @@ struct LVFontInstanceKey {
         h = h * 31 + (lUInt32)(unsigned)size;
         h = h * 31 + (lUInt32)(unsigned)face_size;
         h = h * 31 + (lUInt32)(unsigned)features;
-        h = h * 31 + synthesis.hash();
+        h = h * 31 + (lUInt32)(unsigned)requested_weight;
+        h = h * 31 + ((lUInt32)requested_italic);
         h = h * 31 + variations_hash;
         return h;
     }
@@ -6204,10 +6179,24 @@ public:
 
     /// Load a font face, apply synthesis, write to both caches, and return.
     LVFontRef loadAndCache(const LVFontFace& face, int size, int face_size,
-                            int weight, const LVFontSynthesis& synth,
+                            int weight, bool italic,
                             int features, const LVFontVariations& vars,
                             const LVFontInstanceKey& key)
     {
+        // Determine whether bold/italic synthesis is needed from the face and request.
+        bool wghtByAxis = face._has_wght && face._wght_min < face._wght_max;
+        bool needsBold = false;
+        if (!wghtByAxis) {
+        #ifdef USE_FT_EMBOLDEN
+            needsBold = myabs(weight - face.weight) >= 25;
+        #else
+            needsBold = weight - face.weight >= 200;
+        #endif
+        }
+        bool italByAxis = (face._has_ital && face._ital_max > 0.5f) ||
+                          (face._has_slnt && face._slnt_min < 0.0f);
+        bool italicize = italic && !face.is_italic && !italByAxis;
+
         LVFreeTypeFace* font = new LVFreeTypeFace(_lock, _library, &_globalCache);
         font->setVariations(vars);
 
@@ -6215,10 +6204,10 @@ public:
         bool loaded = face.buf.isNull()
             ? font->loadFromFile(pathname.c_str(), face.face_index, size,
                                  face.family, isBitmapModeForSize(size),
-                                 synth.italic, face.weight, face_size)
+                                 italicize, face.weight, face_size)
             : font->loadFromBuffer(face.buf, face.face_index, size,
                                    face.family, isBitmapModeForSize(size),
-                                   synth.italic, face.weight, face_size);
+                                   italicize, face.weight, face_size);
         if (!loaded) {
             delete font;
             return LVFontRef(NULL);
@@ -6229,8 +6218,7 @@ public:
         font->setKerningMode(GetKerningMode());
         font->setFaceName(face.typeface);
 
-        // Apply bold synthesis.
-        if (synth.bold) {
+        if (needsBold) {
         #ifdef USE_FT_EMBOLDEN
             font->setSynthWeight(weight);
         #else
@@ -6267,18 +6255,19 @@ public:
             face_size = size * GetMonospaceSizeScale() / 100;
 
         LVFontInstanceKey key;
-        key.face_id        = m.face->id();
-        key.size           = size;
-        key.face_size      = face_size;
-        key.features       = features;
-        key.synthesis      = m.synthesis;
-        key.variations_hash = m.variations.hash();
+        key.face_id          = m.face->id();
+        key.size             = size;
+        key.face_size        = face_size;
+        key.features         = features;
+        key.requested_weight = weight;
+        key.requested_italic = italic;
+        key.variations_hash  = m.variations.hash();
 
         // 3. Return cached instance if available; otherwise load and cache.
         LVFontRef cached = _instance_cache.get(key);
         if (!cached.isNull()) return cached;
 
-        return loadAndCache(*m.face, size, face_size, weight, m.synthesis,
+        return loadAndCache(*m.face, size, face_size, weight, italic,
                             features, m.variations, key);
     }
 
