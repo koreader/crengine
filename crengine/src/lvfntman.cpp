@@ -5201,10 +5201,11 @@ class LVFontSelector {
                                       int weight, bool italic) const
     {
         LVFontSynthesis s;
-        // Bold synthesis: static font weight too far from requested.
-        // Thresholds mirror the existing FT_EMBOLDEN / LVFontBoldTransform paths.
-        bool wghtByAxis = f._has_wght &&
-                weight >= (int)f._wght_min && weight <= (int)f._wght_max;
+        // Bold synthesis: only for static fonts where the wght axis cannot satisfy
+        // the requested weight.  Variable fonts (min < max) always handle weight
+        // through the axis — computeVariations() clamps out-of-range values to the
+        // nearest boundary, so synthesis would only over-darken an already-maxed face.
+        bool wghtByAxis = f._has_wght && f._wght_min < f._wght_max;
         if (!wghtByAxis) {
         #ifdef USE_FT_EMBOLDEN
             if (myabs(weight - f.weight) >= 25) s.bold = true;
