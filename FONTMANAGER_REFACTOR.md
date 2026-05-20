@@ -351,8 +351,10 @@ Each step leaves the codebase in a working state.
   registration time but not currently stored separately in `LVFontDef`). This can be
   improved in a later step by reading `mm_var->axis[i].def` directly.
 
-- The FontConfig registration path (Linux) was also wired up alongside the file-based
-  and in-memory paths.
+- Four registration paths exist, not three as originally assumed: (1) FontConfig
+  (Linux/Android), (2) SetAlias, (3) file-based with explicit faceName parameter,
+  (4) file-based without faceName (the primary path KOReader uses). Path 4 was
+  missed in Step 1 and discovered in Step 4 when the registry was empty at runtime.
 
 - `_preferred_family` (lString8) was added to `LVFreeTypeFontManager` alongside
   `_registry` as a placeholder for the `useBias` replacement in Step 5.
@@ -435,11 +437,47 @@ final page confirm default roman/sans/mono rendering is unchanged.
 repeated font requests within the document produce instance-cache hits (log
 `FontSelector mismatch` count should remain zero).
 
-### Step 4 — Switch GetFont() to the new path
+### Step 4 — Switch GetFont() to the new path ✓ DONE
 
 - Replace `GetFont()` body with the three-step select → lookup → load flow.
 - Remove the multi-phase lookup blocks.
 - Keep `LVFontCache` alive temporarily for `GetFallbackFont()` and `GetFontList()`.
+
+**As-built notes:**
+
+- `loadAndCache()` is a new private method on `LVFreeTypeFontManager` that loads a
+  face, applies synthesis, writes to both `_cache` (for backward compat) and
+  `_instance_cache`, and returns the font ref.
+
+- `LVFontSynthesis` gained `operator==` and `hash()` so it can be part of
+  `LVFontInstanceKey`. `requested_weight` (the Step 3 workaround) is replaced by
+  `LVFontSynthesis synthesis`.
+
+- `computeSynthesis()` in `LVFontSelector` now uses the correct platform thresholds:
+  `myabs(weight - face.weight) >= 25` for `USE_FT_EMBOLDEN`, and
+  `weight - face.weight >= 200` for `LVFontBoldTransform`.
+
+- `SetAsPreferredFontWithBias()` now also sets `_preferred_family` so the selector
+  uses it as the Step 2 preferred-name fallback.
+
+- The old ~320-line `GetFont()` body is deleted entirely. `_cache` remains populated
+  (via `loadAndCache()` calling `_cache.update()`) so `GetFallbackFont()`,
+  `GetFontList()`, and `GetAvailableFontWeights()` continue to work.
+
+- The Step 2 parallel verification block was removed with the old body. Any remaining
+  disagreements between `_selector` and `_cache` are now irrelevant since `_selector`
+  is the sole authority.
+
+- CSS font-family names may arrive with surrounding double-quotes preserved (e.g.
+  `'"Literata"'` rather than `'Literata'`). Quote stripping was added to `findFamily()`
+  as a workaround, but the correct fix is to strip quotes in the CSS parser at the
+  point where `font-family` values are resolved to `style->font_name` — before they
+  ever reach the font manager. The workaround in `findFamily()` should be removed
+  once the CSS layer is fixed.
+
+**Test:** Open `tests/font-manager-test.epub`. Chapter 1 should show weight progression;
+Chapter 2 should show correct bold-italic (distinct from normal italic) for both serif
+and sans-serif.
 
 ### Step 5 — Migrate fallback font and font list APIs
 

@@ -5494,24 +5494,26 @@ struct LVFontFace {
 
 /// All faces registered under one family name.
 class LVFontFamily {
-    lString8             _name;
-    LVArray<LVFontFace>  _faces;
+    lString8                     _name;
+    LVPtrVector<LVFontFace, true> _faces; // heap-allocated; LVArray<LVFontFace> is
+                                          // unsafe since LVFontFace contains lString8
 public:
     LVFontFamily() {}
     explicit LVFontFamily(lString8 name) : _name(name) {}
-    void addFace(const LVFontFace& face) { _faces.add(face); }
+    void addFace(const LVFontFace& face) { _faces.add(new LVFontFace(face)); }
     const lString8& getName() const { return _name; }
-    const LVArray<LVFontFace>& faces() const { return _faces; }
+    const LVFontFace& faceAt(int i) const { return *_faces[i]; }
     int faceCount() const { return _faces.length(); }
 };
 
 /// Registry of physical font faces, keyed by family name.
 /// Holds only registered faces — no loaded instances.
 class LVFontRegistry {
-    LVPtrVector<LVFontFamily, true>  _families;
-    // Alias pairs: alias -> canonical family name
-    LVArray<lString8>  _alias_from;
-    LVArray<lString8>  _alias_to;
+    LVPtrVector<LVFontFamily, true>   _families;
+    // Alias pairs: alias -> canonical family name.
+    // lString8 is non-POD so LVArray is unsafe; use LVPtrVector of heap strings.
+    LVPtrVector<lString8, true>  _alias_from;
+    LVPtrVector<lString8, true>  _alias_to;
 
     LVFontFamily* findOrCreateFamily(lString8 name) {
         lString8 lower = name;
@@ -5534,29 +5536,32 @@ public:
         lString8 a = alias;    a.lowercase();
         lString8 c = canonical; c.lowercase();
         for (int i = 0; i < _alias_from.length(); i++)
-            if (_alias_from[i] == a) { _alias_to[i] = c; return; }
-        _alias_from.add(a);
-        _alias_to.add(c);
+            if (*_alias_from[i] == a) { *_alias_to[i] = c; return; }
+        _alias_from.add(new lString8(a));
+        _alias_to.add(new lString8(c));
     }
 
     lString8 resolveAlias(lString8 name) const {
         lString8 lower = name; lower.lowercase();
         for (int i = 0; i < _alias_from.length(); i++)
-            if (_alias_from[i] == lower) return _alias_to[i];
+            if (*_alias_from[i] == lower) return *_alias_to[i];
         return lower;
     }
 
-    const LVFontFamily* findFamily(lString8 name, int documentId = -1) const {
-        lString8 key = resolveAlias(name);
-        for (int i = 0; i < _families.length(); i++) {
-            const LVFontFamily* f = _families[i];
-            if (f->getName() != key) continue;
-            if (documentId == -1) return f;
-            // For document-scoped lookup, prefer a family that has at least
-            // one face for this document; fall back to the global family.
-            for (int j = 0; j < f->faceCount(); j++)
-                if (f->faces()[j].documentId == documentId) return f;
-        }
+    const LVFontFamily* findFamily(lString8 name, int /*documentId*/ = -1) const {
+        // Return the family by name regardless of documentId — global fonts have
+        // documentId=-1 and must be reachable from any document.  Face-level
+        // document scoping (preferring embedded faces over global ones) is handled
+        // in LVFontSelector::tryFamily().
+        //
+        // Strip surrounding double-quotes: CSS font-family values may arrive as
+        // '"Literata"' (the CSS syntax quotes preserved) rather than 'Literata'.
+        lString8 stripped = name;
+        if (stripped.length() >= 2 && stripped[0] == '"' && stripped[stripped.length()-1] == '"')
+            stripped = stripped.substr(1, stripped.length() - 2);
+        lString8 key = resolveAlias(stripped);
+        for (int i = 0; i < _families.length(); i++)
+            if (_families[i]->getName() == key) return _families[i];
         return nullptr;
     }
 
@@ -5565,16 +5570,17 @@ public:
         // remove any family that becomes empty.
         for (int i = _families.length() - 1; i >= 0; i--) {
             LVFontFamily* f = _families[i];
-            LVArray<LVFontFace> kept;
+            // Collect faces to keep (those NOT belonging to this document).
+            LVPtrVector<LVFontFace, false> kept; // non-owning view
             for (int j = 0; j < f->faceCount(); j++)
-                if (f->faces()[j].documentId != documentId)
-                    kept.add(f->faces()[j]);
+                if (f->faceAt(j).documentId != documentId)
+                    kept.add(const_cast<LVFontFace*>(&f->faceAt(j)));
             if (kept.length() == 0) {
                 delete _families.remove(i);
             } else if (kept.length() != f->faceCount()) {
                 LVFontFamily* replacement = new LVFontFamily(f->getName());
                 for (int j = 0; j < kept.length(); j++)
-                    replacement->addFace(kept[j]);
+                    replacement->addFace(*kept[j]);
                 delete _families.remove(i);
                 _families.add(replacement);
             }
@@ -5594,6 +5600,14 @@ struct LVFontSynthesis {
 
     LVFontSynthesis() : bold(false), italic(false), width_scale(1.0f) {}
     bool none() const { return !bold && !italic && width_scale == 1.0f; }
+    bool operator==(const LVFontSynthesis& o) const {
+        return bold == o.bold && italic == o.italic && width_scale == o.width_scale;
+    }
+    lUInt32 hash() const {
+        lUInt32 h = ((lUInt32)bold << 1) | (lUInt32)italic;
+        lUInt32 ws; memcpy(&ws, &width_scale, sizeof(ws));
+        return h * 31 + ws;
+    }
 };
 
 /// Result of a font selection: the chosen physical face, synthesis flags, and
@@ -5662,11 +5676,17 @@ class LVFontSelector {
                                       int weight, bool italic) const
     {
         LVFontSynthesis s;
-        // Bold synthesis: static font significantly lighter than requested.
+        // Bold synthesis: static font weight too far from requested.
+        // Thresholds mirror the existing FT_EMBOLDEN / LVFontBoldTransform paths.
         bool wghtByAxis = f._has_wght &&
                 weight >= (int)f._wght_min && weight <= (int)f._wght_max;
-        if (!wghtByAxis && weight > f.weight + 200)
-            s.bold = true;
+        if (!wghtByAxis) {
+        #ifdef USE_FT_EMBOLDEN
+            if (myabs(weight - f.weight) >= 25) s.bold = true;
+        #else
+            if (weight - f.weight >= 200)       s.bold = true;
+        #endif
+        }
         // Italic synthesis: italic requested, face is roman, no variable axis covers it.
         bool italByAxis = (f._has_ital && f._ital_max > 0.5f) ||
                           (f._has_slnt && f._slnt_min < 0.0f);
@@ -5707,7 +5727,7 @@ class LVFontSelector {
         // Build style-filtered candidate list (§9.2).
         LVArray<const LVFontFace*> preferred, fallback;
         for (int i = 0; i < family->faceCount(); i++) {
-            const LVFontFace& face = family->faces()[i];
+            const LVFontFace& face = family->faceAt(i);
             bool coversItalic = face.is_italic ||
                     (face._has_ital && face._ital_max > 0.5f) ||
                     (face._has_slnt && face._slnt_min < 0.0f);
@@ -5734,7 +5754,7 @@ public:
                         const LVFontRegistry& registry,
                         const lString8& preferred_family) const
     {
-        // 1. Try the requested typeface name.
+        // 1. Try the requested typeface name (findFamily strips CSS quotes internally).
         LVFontMatch m = tryFamily(
                 registry.findFamily(typeface, documentId), weight, italic, requested);
         if (m.valid()) return m;
@@ -5748,14 +5768,46 @@ public:
 
         // 3. Generic family fallback: any registered family whose faces match
         //    the requested generic type (monospace, serif, sans-serif).
-        for (int i = 0; i < registry.familyCount(); i++) {
-            const LVFontFamily* fam = registry.familyAt(i);
-            for (int j = 0; j < fam->faceCount(); j++) {
-                if (fam->faces()[j].family == family) {
-                    m = tryFamily(fam, weight, italic, requested);
-                    if (m.valid()) return m;
-                    break;
+        {
+            bool step3matched = false;
+            for (int i = 0; i < registry.familyCount(); i++) {
+                const LVFontFamily* fam = registry.familyAt(i);
+                for (int j = 0; j < fam->faceCount(); j++) {
+                    if (fam->faceAt(j).family == family) {
+                        m = tryFamily(fam, weight, italic, requested);
+                        if (m.valid()) { step3matched = true; return m; }
+                        break;
+                    }
                 }
+            }
+            if (!step3matched) {
+                // Log step3 miss: show registered families and their face.family values.
+                CRLog::warn("FontSelector step3 miss: req='%s' fam=%d — no registered face matches. Registry:",
+                            typeface.c_str(), (int)family);
+                for (int i = 0; i < registry.familyCount() && i < 12; i++) {
+                    const LVFontFamily* f = registry.familyAt(i);
+                    lString8 fams;
+                    for (int j = 0; j < f->faceCount(); j++) {
+                        if (j) fams << ",";
+                        char buf[8]; snprintf(buf, sizeof(buf), "%d", (int)f->faceAt(j).family);
+                        fams << buf;
+                    }
+                    CRLog::warn("  [%d] '%s' faces=%d fam_values=[%s]",
+                                i, f->getName().c_str(), f->faceCount(), fams.c_str());
+                }
+            }
+        }
+
+        // Diagnostic: log why we fell through to last resort.
+        {
+            CRLog::warn("FontSelector step4 fallback: req='%s' fam=%d pref='%s' registry=%d families",
+                        typeface.c_str(), (int)family, preferred_family.c_str(),
+                        registry.familyCount());
+            for (int i = 0; i < registry.familyCount() && i < 8; i++) {
+                const LVFontFamily* f = registry.familyAt(i);
+                CRLog::warn("  family[%d]='%s' faces=%d fam0=%d",
+                            i, f->getName().c_str(), f->faceCount(),
+                            f->faceCount() > 0 ? (int)f->faceAt(0).family : -1);
             }
         }
 
@@ -5776,19 +5828,16 @@ struct LVFontInstanceKey {
     lUInt32 face_id;           // stable hash of (file, face_index, documentId)
     int     size;              // requested pixel size
     int     face_size;         // actual loaded size (may differ for monospace)
-    int     features;          // OpenType features bitmap
-    int     requested_weight;  // original requested weight, pre-snapping;
-                               // distinguishes synthesised-bold from non-synthesised
-                               // requests that resolve to the same face.
-                               // Will be superseded by a LVFontSynthesis field in Step 4.
-    lUInt32 variations_hash;   // LVFontVariations::hash() after snapping
+    int              features;         // OpenType features bitmap
+    LVFontSynthesis  synthesis;        // bold/italic/width synthesis to apply
+    lUInt32          variations_hash;  // LVFontVariations::hash()
 
     bool operator==(const LVFontInstanceKey& o) const {
-        return face_id         == o.face_id
-            && size            == o.size
-            && face_size       == o.face_size
-            && features        == o.features
-            && requested_weight == o.requested_weight
+        return face_id        == o.face_id
+            && size           == o.size
+            && face_size      == o.face_size
+            && features       == o.features
+            && synthesis      == o.synthesis
             && variations_hash == o.variations_hash;
     }
     lUInt32 hash() const {
@@ -5796,19 +5845,11 @@ struct LVFontInstanceKey {
         h = h * 31 + (lUInt32)(unsigned)size;
         h = h * 31 + (lUInt32)(unsigned)face_size;
         h = h * 31 + (lUInt32)(unsigned)features;
-        h = h * 31 + (lUInt32)(unsigned)requested_weight;
+        h = h * 31 + synthesis.hash();
         h = h * 31 + variations_hash;
         return h;
     }
 };
-
-/// Derive the face_id component of LVFontInstanceKey from a LVFontDef.
-static lUInt32 makeFaceId(const LVFontDef* def) {
-    lUInt32 h = def->getName().getHash();
-    h = h * 31 + (lUInt32)def->getIndex();
-    h = h * 31 + (lUInt32)(def->getDocumentId() == -1 ? 0 : def->getDocumentId());
-    return h;
-}
 
 /// Exact-match instance cache.  Populated alongside _cache (Step 3) and will
 /// become the authoritative source in Step 4 once the selector drives selection.
@@ -5957,6 +5998,21 @@ public:
     /// set as preferred font with the given bias to add in CalcMatch algorithm
     virtual bool SetAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias ) {
         FONT_MAN_GUARD
+        CRLog::info("SetAsPreferredFontWithBias: face='%s' bias=%d clear=%d (was '%s')",
+                    face.c_str(), bias, (int)clearOthersBias, _preferred_family.c_str());
+        // Only update the single preferred-family string when this call
+        // exclusively replaces all other preferences (clear=true).  When
+        // clear=false, a second font is being added alongside the primary
+        // (e.g. monospace alongside the reading font); leaving _preferred_family
+        // as the primary ensures generic-family fallback uses the right font.
+        if (clearOthersBias) {
+            if (_preferred_family != face) {
+                // Preferred font changed — discard cached instances so the new
+                // font is loaded fresh on the next render.
+                _instance_cache.clear();
+            }
+            _preferred_family = face;
+        }
         return _cache.setAsPreferredFontWithBias(face, bias, clearOthersBias);
     }
 
@@ -6593,349 +6649,132 @@ public:
         }
     }
 
+    /// Load a font face, apply synthesis, write to both caches, and return.
+    LVFontRef loadAndCache(const LVFontFace& face, int size, int face_size,
+                            int weight, const LVFontSynthesis& synth,
+                            int features, const LVFontVariations& vars,
+                            const LVFontInstanceKey& key)
+    {
+        LVFreeTypeFace* font = new LVFreeTypeFace(_lock, _library, &_globalCache);
+        font->setVariations(vars);
+
+        lString8 pathname = makeFontFileName(face.name);
+        bool loaded = face.buf.isNull()
+            ? font->loadFromFile(pathname.c_str(), face.face_index, size,
+                                 face.family, isBitmapModeForSize(size),
+                                 synth.italic, face.weight, face_size)
+            : font->loadFromBuffer(face.buf, face.face_index, size,
+                                   face.family, isBitmapModeForSize(size),
+                                   synth.italic, face.weight, face_size);
+        if (!loaded) {
+            delete font;
+            return LVFontRef(NULL);
+        }
+
+        LVFontRef ref(font);
+        font->setFeatures(features);
+        font->setKerningMode(GetKerningMode());
+        font->setFaceName(face.typeface);
+
+        // Apply bold synthesis.
+        if (synth.bold) {
+        #ifdef USE_FT_EMBOLDEN
+            font->setSynthWeight(weight);
+        #else
+            ref = LVFontRef(new LVFontBoldTransform(ref, &_globalCache));
+        #endif
+        }
+
+        // Build LVFontDef for _cache so GetFallbackFont/GetFontList continue to work.
+        LVFontDef newDef(face.name, size,
+                         face.weight, face.is_italic ? 1 : 0,
+                         features, face.family, face.typeface,
+                         face.face_index, face.documentId, face.buf);
+        newDef.setVariations(vars);
+        if (face._has_wght) newDef.setAxisInfo(LVFONT_TAG_WGHT, face._wght_min, face._wght_def, face._wght_max);
+        if (face._has_opsz) newDef.setAxisInfo(LVFONT_TAG_OPSZ, face._opsz_min, face._opsz_def, face._opsz_max);
+        if (face._has_ital) newDef.setAxisInfo(LVFONT_TAG_ITAL, face._ital_min, face._ital_def, face._ital_max);
+        if (face._has_slnt) newDef.setAxisInfo(LVFONT_TAG_SLNT, face._slnt_min, face._slnt_def, face._slnt_max);
+        if (face._has_wdth) newDef.setAxisInfo(LVFONT_TAG_WDTH, face._wdth_min, face._wdth_def, face._wdth_max);
+        if (vars.ital_set && vars.ital == 1.0f)      newDef.setItalic(1);
+        else if (vars.slnt_set && vars.slnt != 0.0f) newDef.setItalic(2);
+        else if (synth.italic)                       newDef.setItalic(2);
+        if (synth.bold) newDef.setWeight(face.weight, false);
+        _cache.update(&newDef, ref);
+
+        _instance_cache.put(key, ref);
+        return ref;
+    }
+
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features, int documentId, bool useBias=false,
                                 const LVFontVariations* variations=NULL)
     {
         FONT_MAN_GUARD
-        #if (DEBUG_FONT_MAN==1)
-            if ( _log ) {
-                 fprintf(_log, "GetFont(size=%d, weight=%d, italic=%d, family=%d, typeface='%s')\n",
-                    size, weight, italic?1:0, (int)family, typeface.c_str() );
-            }
-        #endif
-        // Build effective variations: start from caller-supplied list
-        LVFontVariations effectiveVariations;
-        if (variations)
-            effectiveVariations = *variations;
 
-        lString8 fontname;
-        LVFontDef def(
-            fontname,
-            size,
-            weight,
-            italic,
-            features,
-            family,
-            typeface,
-            -1,
-            documentId
-        );
-        // Pass variations to cache query so instantiated variable fonts are found exactly
-        def.setVariations(effectiveVariations);
-        // Give the lookup def axis info for weight and italic so getWeight()/getItalic()
-        // return correct values in CalcMatch (fixed range: min==max==def).
-        def.setAxisInfo(LVFONT_TAG_WGHT, (float)weight, (float)weight, (float)weight);
-        if (italic)
-            def.setAxisInfo(LVFONT_TAG_ITAL, 1.0f, 1.0f, 1.0f);
-        #if (DEBUG_FONT_MAN==1)
-            if ( _log )
-                fprintf( _log, "GetFont: %s %d %s %s\n",
-                    typeface.c_str(),
-                    size,
-                    weight>400?"bold":"",
-                    italic?"italic":"" );
-        #endif
-
-        LVFontCacheItem * item = _cache.find( &def, useBias );
-
-        // Step 2: run the new selector in parallel and warn on disagreement.
-        // Both paths should resolve to the same physical face (file + index).
-        // Mismatches logged here are candidates for investigation before Step 4.
-        {
-            LVFontVariations req_var = variations ? *variations : LVFontVariations();
-            LVFontMatch m = _selector.select(weight, italic, family, typeface,
-                                             documentId, req_var,
-                                             _registry, _preferred_family);
-            if (item && item->getFont().isNull() && m.valid()) {
-                // Compare only when cache returned a registered (not yet instantiated) entry.
-                bool nameMatch  = (m.face->name       == item->getDef()->getName());
-                bool indexMatch = (m.face->face_index == item->getDef()->getIndex());
-                if (!nameMatch || !indexMatch) {
-                    CRLog::warn("FontSelector mismatch: typeface='%s' w=%d italic=%d"
-                                " | cache=%s[%d] | selector=%s[%d]",
-                                typeface.c_str(), weight, (int)italic,
-                                item->getDef()->getName().c_str(),
-                                item->getDef()->getIndex(),
-                                m.face->name.c_str(), m.face->face_index);
+        // One-time registry dump at first GetFont call.
+        static bool s_registry_dumped = false;
+        if (!s_registry_dumped) {
+            s_registry_dumped = true;
+            CRLog::info("FontRegistry dump: %d families", _registry.familyCount());
+            for (int i = 0; i < _registry.familyCount(); i++) {
+                const LVFontFamily* f = _registry.familyAt(i);
+                lString8 info;
+                for (int j = 0; j < f->faceCount(); j++) {
+                    const LVFontFace& fc = f->faceAt(j);
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), " [w=%d i=%d fam=%d]",
+                             fc.weight, (int)fc.is_italic, (int)fc.family);
+                    info << fc.name << buf;
+                    if (j + 1 < f->faceCount()) info << "; ";
                 }
-            } else if (!m.valid() && item && item->getFont().isNull()) {
-                CRLog::warn("FontSelector: no match for typeface='%s' w=%d italic=%d",
-                            typeface.c_str(), weight, (int)italic);
+                CRLog::info("  '%s': %s", f->getName().c_str(), info.c_str());
             }
         }
 
-        #if (DEBUG_FONT_MAN==1)
-            if ( item && _log ) { //_log &&
-                fprintf(_log, "   found item: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s, weightDelta=%d) FontRef=%d\n",
-                    item->getDef()->getName().c_str(), item->getDef()->getIndex(), item->getDef()->getSize(),
-                    item->getDef()->getWeight(), item->getDef()->getItalic()?1:0,
-                    (int)item->getDef()->getFamily(), item->getDef()->getTypeFace().c_str(),
-                    weight - item->getDef()->getWeight(), item->getFont().isNull()?0:item->getFont()->getHeight()
-                );
-            }
-        #endif
-
-        if (NULL == item) {
-            CRLog::error("_cache.find() return NULL: size=%d, weight=%d, italic=%d, family=%d, typeface=%s", size, weight, italic, family, typeface.c_str());
-            CRLog::error("possible font cache cleared!");
+        // 1. Select face + synthesis via CSS Fonts Level 4 §9 logic.
+        LVFontVariations req_var = variations ? *variations : LVFontVariations();
+        lString8 preferred = useBias ? _preferred_family : lString8();
+        LVFontMatch m = _selector.select(weight, italic, family, typeface,
+                                         documentId, req_var, _registry, preferred);
+        if (!m.valid()) {
+            CRLog::error("GetFont: no match for typeface='%s' w=%d italic=%d family=%d",
+                         typeface.c_str(), weight, (int)italic, (int)family);
             return LVFontRef(NULL);
         }
 
-        // All fonts have wght and ital axis info (variable or fixed-point), so those are
-        // never stripped. Strip axes the font genuinely lacks (opsz, slnt, wdth).
-        if (effectiveVariations.opsz_set && !item->getDef()->hasAxis(LVFONT_TAG_OPSZ)) effectiveVariations.opsz_set = false;
-        if (effectiveVariations.slnt_set && !item->getDef()->hasAxis(LVFONT_TAG_SLNT)) effectiveVariations.slnt_set = false;
-        if (effectiveVariations.wdth_set && !item->getDef()->hasAxis(LVFONT_TAG_WDTH)) effectiveVariations.wdth_set = false;
-
-        // Snap wght/ital to the font's fixed value for non-variable fonts, so the cache
-        // key reflects what the font actually renders (any requested wght maps to the
-        // single weight the font provides).
-        if (effectiveVariations.wght_set && !item->getDef()->isVariableWghtAxis())
-            effectiveVariations.set(LVFONT_TAG_WGHT, item->getDef()->getWghtAxisMin());
-        // For ital: snap only if requested value matches font's fixed value; otherwise
-        // clear ital_set so the slnt-translation or software-italic path handles it.
-        if (effectiveVariations.ital_set && !item->getDef()->isVariableItalAxis()) {
-            if (effectiveVariations.ital == item->getDef()->getItalAxisMin())
-                effectiveVariations.set(LVFONT_TAG_ITAL, item->getDef()->getItalAxisMin());
-            else
-                effectiveVariations.ital_set = false;
+        // Diagnostic logging — remove once font selection is confirmed correct.
+        static lString8 s_last_face; static int s_last_w = -1; static bool s_last_i = false;
+        if (m.face->typeface != s_last_face || m.face->weight != s_last_w || m.synthesis.italic != s_last_i) {
+            CRLog::info("FontSelector: req='%s' w=%d i=%d fam=%d → face='%s'[%d] w=%d i=%d fam=%d synth(b=%d,i=%d)",
+                        typeface.c_str(), weight, (int)italic, (int)family,
+                        m.face->typeface.c_str(), m.face->face_index,
+                        m.face->weight, (int)m.face->is_italic, (int)m.face->family,
+                        (int)m.synthesis.bold, (int)m.synthesis.italic);
+            s_last_face = m.face->typeface; s_last_w = m.face->weight; s_last_i = m.synthesis.italic;
         }
 
-        // Sync def with the adjusted set for all subsequent lookups.
-        def.setVariations(effectiveVariations);
-
-        // (1) Return early if an already-instantiated font with these exact variations
-        // exists. CalcMatch's italic scoring distinguishes roman/italic/fake-italic
-        // instances that share the same variation key (e.g. wght+opsz but no ital).
-        {
-            LVFontCacheItem * strippedItem = _cache.find(&def, useBias);
-            if (strippedItem != NULL && !strippedItem->getFont().isNull()
-                    && strippedItem->getDef()->getFeatures() == features
-                    && strippedItem->getDef()->getVariations() == effectiveVariations) {
-                bool needsSynth = false;
-            #ifdef USE_FT_EMBOLDEN
-                needsSynth = (myabs(weight - strippedItem->getDef()->getWeight()) >= 25
-                              && !strippedItem->getDef()->isVariableWghtAxis());
-            #else
-                needsSynth = (weight - strippedItem->getDef()->getWeight() >= 200
-                              && !strippedItem->getDef()->isVariableWghtAxis());
-            #endif
-                if (!needsSynth)
-                    return strippedItem->getFont();
-            }
-        }
-
-        // (2) For fonts with a slant axis: ital=1 was cleared above for non-variable-ital
-        // fonts; translate it to slnt=-12 as a slant-based italic approximation.
-        if (italic && !effectiveVariations.ital_set
-                && item->getDef()->getItalic() == 0 && item->getDef()->hasSlntAxis()) {
-            effectiveVariations.set(LVFONT_TAG_SLNT, -12.0f);
-            static lString8 s_last_tf_slnt; static int s_last_sz_slnt = -1;
-            if (typeface != s_last_tf_slnt || size != s_last_sz_slnt) {
-#ifdef DEBUG_VAR_FONT
-                CRLog::info("Variable font GetFont: injecting slnt=-12 for \"%s\" size=%d",
-                    typeface.c_str(), size);
-#endif
-                s_last_tf_slnt = typeface; s_last_sz_slnt = size;
-            }
-            def.setVariations(effectiveVariations);
-            LVFontCacheItem * item2 = _cache.find(&def, useBias);
-            if (item2 != NULL && !item2->getFont().isNull()
-                    && item2->getDef()->getFeatures() == features
-                    && item2->getDef()->getVariations() == effectiveVariations)
-                return item2->getFont();
-        }
-
-        bool italicize = false;
-
-        LVFontDef newDef(*item->getDef());
-        // printf("  got %s\n", newDef.getTypeFace().c_str());
-
-        if (!item->getFont().isNull()) {
-            if ( item->getDef()->getFeatures() != features ) {
-                // Be sure we ignore any instantiated font found in cache that
-                // has features different than the ones requested.
-            }
-            else if (item->getDef()->getVariations() != effectiveVariations) {
-                // Variations mismatch: ignore this cached instance
-            }
-            else {
-            #ifdef USE_FT_EMBOLDEN
-                int deltaWeight = myabs(weight - item->getDef()->getWeight());
-                if (deltaWeight >= 25 && !item->getDef()->isVariableWghtAxis()) {
-                    // This instantiated cached font has a too different weight
-                    // when USE_FT_EMBOLDEN, ignore this other-weight cached font instance
-                    // and go loading from the font file again to apply embolden.
-                    // (Skip this check when wght axis is used — weight is controlled by variation)
-                }
-            #else
-                int deltaWeight = weight - item->getDef()->getWeight();
-                if ( deltaWeight >= 200 && !item->getDef()->isVariableWghtAxis() ) {
-                    // This instantiated cached font has a too low weight
-                        // embolden using LVFontBoldTransform
-                        CRLog::debug("font: apply Embolding to increase weight from %d to %d",
-                                            newDef.getWeight(), newDef.getWeight() + 200 );
-                        newDef.setWeight( newDef.getWeight() + 200 );
-                        LVFontRef ref = LVFontRef( new LVFontBoldTransform( item->getFont(), &_globalCache ) );
-                        _cache.update( &newDef, ref );
-                        return ref;
-                }
-            #endif
-                else {
-                    //fprintf(_log, "    : fount existing\n");
-                    return item->getFont();
-                }
-            }
-        }
-
-        lString8 fname = item->getDef()->getName();
-        #if (DEBUG_FONT_MAN==1)
-            if ( _log ) {
-                int index = item->getDef()->getIndex();
-                fprintf(_log, "   no instance: adding new one for filename=%s, index = %d\n", fname.c_str(), index );
-            }
-        #endif
-        LVFreeTypeFace * font = new LVFreeTypeFace(_lock, _library, &_globalCache);
-        lString8 pathname = makeFontFileName( fname );
-
-        //def.setName( fname );
-        //def.setIndex( index );
-        //if ( fname.empty() || pathname.empty() ) {
-        //    pathname = lString8("arial.ttf");
-        //}
-
-        if ( !item->getDef()->isRealItalic() && italic
-                && !effectiveVariations.ital_set && !effectiveVariations.slnt_set ) {
-            //CRLog::debug("font: fake italic");
-            newDef.setItalic(2);
-            italicize = true;
-        }
-
-        // Use the family of the font we found in the cache (it may be different
-        // from the requested family).
-        // Assigning the requested familly to this new font could be wrong, and
-        // may cause a style or font mismatch when loading from cache, forcing a
-        // full re-rendering).
-        family = item->getDef()->getFamily();
-
-        //printf("going to load font file %s\n", fname.c_str());
-        bool loaded = false;
+        // 2. Build instance cache key.
         int face_size = size;
-        if ( family == css_ff_monospace && GetMonospaceSizeScale() != 100 ) {
+        if (m.face->family == css_ff_monospace && GetMonospaceSizeScale() != 100)
             face_size = size * GetMonospaceSizeScale() / 100;
-        }
 
-        // Step 3: check the instance cache now that we have all key components.
-        {
-            LVFontInstanceKey ikey;
-            ikey.face_id         = makeFaceId(item->getDef());
-            ikey.size            = size;
-            ikey.face_size       = face_size;
-            ikey.features        = features;
-            ikey.requested_weight = weight;
-            ikey.variations_hash = effectiveVariations.hash();
-            LVFontRef cached = _instance_cache.get(ikey);
-            if (!cached.isNull()) {
-                delete font;
-                return cached;
-            }
-        }
+        LVFontInstanceKey key;
+        key.face_id        = m.face->id();
+        key.size           = size;
+        key.face_size      = face_size;
+        key.features       = features;
+        key.synthesis      = m.synthesis;
+        key.variations_hash = m.variations.hash();
 
-        // Set variations before loadFromFile so that setupFace() can apply them
-        font->setVariations(effectiveVariations);
-#ifdef DEBUG_VAR_FONT
-        if (!effectiveVariations.empty()) {
-            char varBuf[256] = "";
-            int pos = 0;
-            auto logAxis = [&](bool set, lUInt32 tag, float val) {
-                if (!set || pos >= (int)sizeof(varBuf) - 20) return;
-                pos += snprintf(varBuf + pos, sizeof(varBuf) - pos, "%s%c%c%c%c=%.1f",
-                                pos ? ", " : "",
-                                (char)((tag>>24)&0xFF),(char)((tag>>16)&0xFF),
-                                (char)((tag>> 8)&0xFF),(char)(tag&0xFF), val);
-            };
-            logAxis(effectiveVariations.wght_set, LVFONT_TAG_WGHT, effectiveVariations.wght);
-            logAxis(effectiveVariations.opsz_set, LVFONT_TAG_OPSZ, effectiveVariations.opsz);
-            logAxis(effectiveVariations.ital_set, LVFONT_TAG_ITAL, effectiveVariations.ital);
-            logAxis(effectiveVariations.slnt_set, LVFONT_TAG_SLNT, effectiveVariations.slnt);
-            logAxis(effectiveVariations.wdth_set, LVFONT_TAG_WDTH, effectiveVariations.wdth);
-            
-            CRLog::info("Variable font new instance: \"%s\" size=%d  [%s]",
-                item->getDef()->getTypeFace().c_str(), size, varBuf);
-        }
-#endif
-        if (item->getDef()->getBuf().isNull())
-            loaded = font->loadFromFile( pathname.c_str(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
-        else
-            loaded = font->loadFromBuffer(item->getDef()->getBuf(), item->getDef()->getIndex(), size, family, isBitmapModeForSize(size), italicize, item->getDef()->getWeight(), face_size );
-        if (loaded) {
-            //fprintf(_log, "    : loading from file %s : %s %d\n", item->getDef()->getName().c_str(),
-            //    item->getDef()->getTypeFace().c_str(), item->getDef()->getSize() );
-            LVFontRef ref(font);
-            // Instantiate this font with the requested OpenType features and variations
-            newDef.setFeatures( features );
-            font->setFeatures( features ); // followup setKerningMode() will create/update hb_features if needed
-            font->setKerningMode( GetKerningMode() );
-            font->setFaceName( item->getDef()->getTypeFace() );
-            newDef.setSize( size );
-            newDef.setVariations( effectiveVariations );
-            // Reflect the effective italic state in newDef so CalcMatch can score it
-            // correctly without peeking into variations.
-            if (effectiveVariations.ital_set && effectiveVariations.ital == 1.0f)
-                newDef.setItalic(1); // ital axis: real italic design
-            else if (effectiveVariations.slnt_set && effectiveVariations.slnt != 0.0f)
-                newDef.setItalic(2); // slnt axis: synthesised italic
-            // Axis info was already copied when newDef was constructed from *item->getDef()
-            //item->setFont( ref );
-            //_cache.update( def, ref );
-            // Check whether weight variation handles weight; if not, fall back to synthesis.
-            // Non-variable fonts have wght_set but no actual axis to move — treat as not using axis.
-            bool usingWghtAxis = effectiveVariations.wght_set && item->getDef()->isVariableWghtAxis();
-        #ifdef USE_FT_EMBOLDEN
-            int deltaWeight = myabs(weight - newDef.getWeight());
-            if (deltaWeight >= 25 && !usingWghtAxis) {
-                // embolden
-                // Will make some of this font's methods do embolden the glyphs and widths
-                font->setSynthWeight(weight);
-                newDef.setWeight( weight, false );
-                // Now newDef contains fake/synthetic weight
-            }
-        #else
-            int deltaWeight = weight - newDef.getWeight();
-            if ( deltaWeight >= 200 && !usingWghtAxis ) {
-                CRLog::debug("font: apply Embolding to increase weight from %d to %d",
-                                    newDef.getWeight(), newDef.getWeight() + 200 );
-                // Create a wrapper with LVFontBoldTransform which will bolden the glyphs
-                newDef.setWeight( newDef.getWeight() + 200 );
-                ref = LVFontRef( new LVFontBoldTransform( ref, &_globalCache ) );
-            }
-        #endif
-                /*
-                printf("CRE: %s:%d [%s %d%s]: fake bold%s\n", fname.c_str(), item->getDef()->getIndex(),
-                        font->getFaceName().c_str(), font->getSize(),
-                        italic?" i":"", italicize?", fake italic":""); // font->getWeight());
-                */
-            _cache.update( &newDef, ref );
-            // Step 3: populate the instance cache alongside _cache.
-            {
-                LVFontInstanceKey ikey;
-                ikey.face_id          = makeFaceId(item->getDef());
-                ikey.size             = size;
-                ikey.face_size        = face_size;
-                ikey.features         = features;
-                ikey.requested_weight = weight;
-                ikey.variations_hash  = effectiveVariations.hash();
-                _instance_cache.put(ikey, ref);
-            }
-            return ref;
-        }
-        else {
-            //printf("    not found!\n");
-        }
-        //delete def;
-        delete font;
-        return LVFontRef(NULL);
+        // 3. Return cached instance if available; otherwise load and cache.
+        LVFontRef cached = _instance_cache.get(key);
+        if (!cached.isNull()) return cached;
+
+        return loadAndCache(*m.face, size, face_size, weight, m.synthesis,
+                            features, m.variations, key);
+
+        // (old body removed in Step 4)
     }
 
     void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {
@@ -7421,6 +7260,7 @@ public:
                 return false;
             }
             _cache.update( &def, LVFontRef(NULL) );
+            _registry.registerFace(faceFromDef(def));
             if ( scal && !def.getItalic() ) {
                 // If this font is not italic, create another definition
                 // with italic=2 (=fake italic) as we can italicize it.
