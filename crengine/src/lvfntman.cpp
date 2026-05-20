@@ -6135,6 +6135,77 @@ public:
         getRegisteredDocumentFontList(document_id, list);
     }
 
+    // -----------------------------------------------------------------------
+    // Registration helpers — shared across SetAlias, RegisterDocumentFont,
+    // and RegisterFont to avoid duplicating the inspection and tail logic.
+    // -----------------------------------------------------------------------
+
+    /// Inspect an open FT_Face and populate all capability/axis fields on def.
+    /// Called after the def constructor so that HarfBuzz and FreeType queries
+    /// only happen once per face regardless of which registration path is used.
+    void inspectFTFace(FT_Face face, LVFontRegistrationData& def)
+    {
+        def.setHasEmojis(checkForEmojis(face));
+        #if USE_HARFBUZZ==1
+        {
+            hb_face_t* hb_face = hb_ft_face_create(face, NULL);
+            if (hb_ot_math_has_data(hb_face))
+                def.setHasOTMath(true);
+            hb_face_destroy(hb_face);
+        }
+        #endif
+        // Detect variable-font axes from FreeType's MM_Var table.
+        {
+            FT_MM_Var* mm_var = NULL;
+            if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
+#ifdef DEBUG_VAR_FONT
+                char axisBuf[512] = ""; int axisBufPos = 0;
+#endif
+                for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
+                    lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
+                    float   minValue = mm_var->axis[ai].minimum / 65536.0f;
+                    float   defValue = mm_var->axis[ai].def     / 65536.0f;
+                    float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
+                    def.setAxisInfo(tag, minValue, defValue, maxValue);
+#ifdef DEBUG_VAR_FONT
+                    if (axisBufPos < (int)sizeof(axisBuf) - 40)
+                        axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
+                                               "%s%c%c%c%c [%.0f..%.0f..%.0f]", ai ? ", " : "",
+                                               (char)((tag>>24)&0xFF),(char)((tag>>16)&0xFF),
+                                               (char)((tag>> 8)&0xFF),(char)(tag&0xFF),
+                                               minValue, defValue, maxValue);
+#endif
+                }
+#ifdef DEBUG_VAR_FONT
+                CRLog::info("Variable font found: \"%s\"  axes: %s",
+                            def.getName().c_str(), axisBuf);
+#endif
+                FT_DONE_MM_VAR(_library, mm_var);
+            }
+        }
+        // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
+        if (!def.hasAxis(LVFONT_TAG_WGHT)) {
+            float w = (float)def.getWeight();
+            def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
+        }
+        if (!def.hasAxis(LVFONT_TAG_ITAL)) {
+            float iv = def.getItalic() ? 1.0f : 0.0f;
+            def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
+        }
+    }
+
+    /// Deduplicate, register, and return true; or log and return false if duplicate.
+    bool tryRegisterFace(LVFontRegistrationData& def)
+    {
+        LVFontFace newFace = faceFromDef(def);
+        if (_registry.hasFaceId(newFace.id())) {
+            CRLog::trace("font definition is duplicate");
+            return false;
+        }
+        _registry.registerFace(newFace);
+        return true;
+    }
+
     bool SetAlias(lString8 alias, lString8 facename, int id, bool bold, bool italic)
     {
         FONT_MAN_GUARD
@@ -6398,75 +6469,17 @@ public:
                 documentId,
                 buf
             );
-            def.setHasEmojis( checkForEmojis(face) );
-            #if USE_HARFBUZZ==1
-                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
-                if ( hb_ot_math_has_data(hb_face) )
-                    def.setHasOTMath(true);
-                hb_face_destroy(hb_face);
-            #endif
-            {
-                FT_MM_Var* mm_var = NULL;
-                if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
-#ifdef DEBUG_VAR_FONT
-                    char axisBuf[512] = "";
-                    int axisBufPos = 0;
-#endif
-                    for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                        lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
-                        float   minValue = mm_var->axis[ai].minimum / 65536.0f;
-                        float   defValue = mm_var->axis[ai].def     / 65536.0f;
-                        float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
-                        def.setAxisInfo(tag, minValue, defValue, maxValue);
-#ifdef DEBUG_VAR_FONT
-                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
-                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
-                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
-                                                   ai ? ", " : "",
-                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
-                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
-                                                   minValue, defValue, maxValue);
-                        }
-#endif
-                    }
-#ifdef DEBUG_VAR_FONT
-                    CRLog::info("Variable font found: \"%s\"  axes: %s",
-                        def.getName().c_str(), axisBuf);
-#endif
-                    FT_DONE_MM_VAR(_library, mm_var);
-                }
-            }
-            // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
-            if (!def.hasAxis(LVFONT_TAG_WGHT)) {
-                float w = (float)weight;
-                def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
-            }
-            if (!def.hasAxis(LVFONT_TAG_ITAL)) {
-                float iv = italicFlag ? 1.0f : 0.0f;
-                def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
-            }
+            inspectFTFace(face, def);
             #if (DEBUG_FONT_MAN==1)
-                if ( _log ) {
+                if ( _log )
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
                         def.getName().c_str(), def.getIndex(), def.getSize(), def.getWeight(),
-                        def.getItalic()?1:0, (int)def.getFamily(), def.getTypeFace().c_str() );
-                }
+                        def.getItalic()?1:0, (int)def.getFamily(), def.getTypeFace().c_str());
             #endif
-            if ( face ) {
-                FT_Done_Face( face );
-                face = NULL;
-            }
-
-            LVFontFace newFace = faceFromDef(def);
-            if ( _registry.hasFaceId(newFace.id()) ) {
-                CRLog::trace("font definition is duplicate");
-                return false;
-            }
-            _registry.registerFace(newFace);
+            if ( face ) { FT_Done_Face( face ); face = NULL; }
+            if (!tryRegisterFace(def)) return false;
             res = true;
-
-            if ( index>=num_faces-1 )
-                break;
+            if ( index>=num_faces-1 ) break;
         }
         return res;
     }
@@ -6543,44 +6556,17 @@ public:
                 index,
                 documentId
             );
-            def.setHasEmojis( checkForEmojis(face) );
-            #if USE_HARFBUZZ==1
-                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
-                if ( hb_ot_math_has_data(hb_face) )
-                    def.setHasOTMath(true);
-                hb_face_destroy(hb_face);
-            #endif
-            #if (DEBUG_FONT_MAN==1)
-                if ( _log ) {
-                    fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
-                        def.getName().c_str(), def.getIndex(), def.getSize(), def.getWeight(),
-                        def.getItalic()?1:0, (int)def.getFamily(), def.getTypeFace().c_str()
-                    );
-                }
-            #endif
-
-            FT_Done_Face( face );
-            face = NULL;
-
-            LVFontFace newFace = faceFromDef(def);
-            if ( _registry.hasFaceId(newFace.id()) ) {
-                CRLog::trace("font definition is duplicate");
-                return false;
-            }
-            _registry.registerFace(newFace);
+            inspectFTFace(face, def);
+            FT_Done_Face( face ); face = NULL;
+            if (!tryRegisterFace(def)) return false;
             res = true;
-
-            if ( index>=num_faces-1 )
-                break;
+            if ( index>=num_faces-1 ) break;
         }
         return res;
     }
 
-    // RegisterFont (and the 2 similar functions above) adds to the cache
-    // definitions for all the fonts in their font file.
-    // Font instances will be created as need from the LVFontRegistrationData name or buf.
-    // (The similar functions do most of the same work, and some code
-    // could be factorized between them.)
+    // RegisterFont uses the same inspectFTFace / tryRegisterFace helpers as the
+    // two functions above.
     virtual bool RegisterFont( lString8 name )
     {
         FONT_MAN_GUARD
@@ -6652,77 +6638,17 @@ public:
                 familyName,
                 index
             );
-            def.setHasEmojis( checkForEmojis(face) );
-            #if USE_HARFBUZZ==1
-                hb_face_t * hb_face = hb_ft_face_create(face, NULL);
-                if ( hb_ot_math_has_data(hb_face) )
-                    def.setHasOTMath(true);
-                hb_face_destroy(hb_face);
-            #endif
-            {
-                FT_MM_Var* mm_var = NULL;
-                if (FT_Get_MM_Var(face, &mm_var) == FT_Err_Ok && mm_var) {
-#ifdef DEBUG_VAR_FONT
-                    char axisBuf[512] = "";
-                    int axisBufPos = 0;
-#endif
-                    for (FT_UInt ai = 0; ai < mm_var->num_axis; ai++) {
-                        lUInt32 tag      = (lUInt32)mm_var->axis[ai].tag;
-                        float   minValue = mm_var->axis[ai].minimum / 65536.0f;
-                        float   defValue = mm_var->axis[ai].def     / 65536.0f;
-                        float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
-                        def.setAxisInfo(tag, minValue, defValue, maxValue);
-#ifdef DEBUG_VAR_FONT
-                        if (axisBufPos < (int)sizeof(axisBuf) - 40) {
-                            axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
-                                                   "%s%c%c%c%c [%.0f..%.0f..%.0f]",
-                                                   ai ? ", " : "",
-                                                   (char)((tag >> 24) & 0xFF), (char)((tag >> 16) & 0xFF),
-                                                   (char)((tag >>  8) & 0xFF), (char)(tag & 0xFF),
-                                                   minValue, defValue, maxValue);
-                        }
-#endif
-                    }
-#ifdef DEBUG_VAR_FONT
-                    CRLog::info("Variable font found: \"%s\"  axes: %s",
-                        def.getName().c_str(), axisBuf);
-#endif
-                    FT_DONE_MM_VAR(_library, mm_var);
-                }
-            }
-            // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
-            if (!def.hasAxis(LVFONT_TAG_WGHT)) {
-                float w = (float)weight;
-                def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
-            }
-            if (!def.hasAxis(LVFONT_TAG_ITAL)) {
-                float iv = italicFlag ? 1.0f : 0.0f;
-                def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
-            }
+            inspectFTFace(face, def);
             #if (DEBUG_FONT_MAN==1)
-                if ( _log ) {
+                if ( _log )
                     fprintf(_log, "registering font: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s)\n",
                         def.getName().c_str(), def.getIndex(), def.getSize(), def.getWeight(),
-                        def.getItalic()?1:0, (int)def.getFamily(), def.getTypeFace().c_str()
-                    );
-                }
+                        def.getItalic()?1:0, (int)def.getFamily(), def.getTypeFace().c_str());
             #endif
-
-            if ( face ) {
-                FT_Done_Face( face );
-                face = NULL;
-            }
-
-            LVFontFace newFace = faceFromDef(def);
-            if ( _registry.hasFaceId(newFace.id()) ) {
-                CRLog::trace("font definition is duplicate");
-                return false;
-            }
-            _registry.registerFace(newFace);
+            if ( face ) { FT_Done_Face( face ); face = NULL; }
+            if (!tryRegisterFace(def)) return false;
             res = true;
-
-            if ( index>=num_faces-1 )
-                break;
+            if ( index>=num_faces-1 ) break;
         }
         return res;
     }
