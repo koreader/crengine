@@ -4534,40 +4534,95 @@ public:
 
 };
 
-class LVFontBoldTransform : public LVFont
+/// Transparent proxy that forwards every LVFont pure virtual to a wrapped font.
+/// Inherit from this instead of LVFont when only a subset of methods differ;
+/// override just those — the rest are handled here.
+class LVFontProxy : public LVFont
 {
-    LVFontRef _baseFontRef;
-    LVFont * _baseFont;
+    LVFontRef  _wrappedRef;
+protected:
+    LVFont * _font; // fast pointer; matches _wrappedRef throughout lifetime
+public:
+    explicit LVFontProxy(LVFontRef f) : _wrappedRef(f), _font(f.get()) {}
+
+    virtual bool getGlyphInfo(lUInt32 c, glyph_info_t* g, lChar32 d=0, bool gi=false, bool fb=false)
+        { return _font->getGlyphInfo(c, g, d, gi, fb); }
+    virtual bool getGlyphExtraMetric(glyph_extra_metric_t m, lUInt32 c, int& v,
+                                      bool s=true, lChar32 d=0, bool fb=false)
+        { return _font->getGlyphExtraMetric(m, c, v, s, d, fb); }
+    virtual lUInt16 measureText(const lChar32* t, int len, lUInt16* w, lUInt8* f,
+                                 int mw, lChar32 d, TextLangCfg* lc=NULL,
+                                 int ls=0, bool ah=true, lUInt32 h=0)
+        { return _font->measureText(t, len, w, f, mw, d, lc, ls, ah, h); }
+    virtual lUInt32 getTextWidth(const lChar32* t, int len, TextLangCfg* lc=NULL)
+        { return _font->getTextWidth(t, len, lc); }
+    virtual LVFontGlyphCacheItem* getGlyph(lUInt32 c, lChar32 d=0, bool fb=false)
+        { return _font->getGlyph(c, d, fb); }
+    virtual int  getBaseline()         { return _font->getBaseline(); }
+    virtual int  getHeight()     const { return _font->getHeight(); }
+    virtual int  getSize()       const { return _font->getSize(); }
+    virtual int  getWeight()     const { return _font->getWeight(); }
+    virtual int  getItalic()     const { return _font->getItalic(); }
+    virtual int  getCharWidth(lChar32 c, lChar32 d=0) { return _font->getCharWidth(c, d); }
+    virtual int  getLeftSideBearing(lChar32 c, bool n=false, bool i=false)
+        { return _font->getLeftSideBearing(c, n, i); }
+    virtual int  getRightSideBearing(lChar32 c, bool n=false, bool i=false)
+        { return _font->getRightSideBearing(c, n, i); }
+    virtual int  getExtraMetric(font_extra_metric_t m, bool s=true)
+        { return _font->getExtraMetric(m, s); }
+    virtual bool hasOTMathSupport() const { return _font->hasOTMathSupport(); }
+    virtual void* GetHandle()          { return _font->GetHandle(); }
+    virtual lString8 getTypeFace() const { return _font->getTypeFace(); }
+    virtual css_font_family_t getFontFamily() const { return _font->getFontFamily(); }
+    virtual int DrawTextString(LVDrawBuf* buf, int x, int y,
+                                const lChar32* text, int len,
+                                lChar32 d, lUInt32* pal, bool hyp,
+                                TextLangCfg* lc, lUInt32 fl, int ls, int w,
+                                int tbg, int tw, int th, SVGGlyphsCollector* svg)
+        { return _font->DrawTextString(buf, x, y, text, len, d, pal, hyp,
+                                       lc, fl, ls, w, tbg, tw, th, svg); }
+    virtual bool getBitmapMode()              { return _font->getBitmapMode(); }
+    virtual void setBitmapMode(bool m)        { _font->setBitmapMode(m); }
+    virtual int  getFeatures() const          { return _font->getFeatures(); }
+    virtual void setFeatures(int f)           { _font->setFeatures(f); }
+    virtual lUInt32 getVariationHash() const  { return _font->getVariationHash(); }
+    virtual void setKerningMode(kerning_mode_t m)  { _font->setKerningMode(m); }
+    virtual kerning_mode_t getKerningMode() const  { return _font->getKerningMode(); }
+    virtual void setHintingMode(hinting_mode_t m)  { _font->setHintingMode(m); }
+    virtual hinting_mode_t getHintingMode() const  { return _font->getHintingMode(); }
+    virtual void clearCache()      { _font->clearCache(); }
+    virtual bool kerningEnabled()  { return _font->kerningEnabled(); }
+    virtual bool IsNull()  const   { return _font->IsNull(); }
+    virtual bool operator!() const { return !_font; }
+    virtual void Clear()           { _wrappedRef.Clear(); }
+    virtual ~LVFontProxy() {}
+};
+
+class LVFontBoldTransform : public LVFontProxy
+{
     int _hyphWidth;
     int _hShift;
     int _vShift;
-    int           _size;   // glyph height in pixels
-    int           _height; // line height in pixels
-    //int           _hyphen_width;
-    int           _baseline;
+    int _size;
+    int _height;
+    int _baseline;
     LVFontLocalGlyphCache _glyph_cache;
 public:
     /// returns font weight
     virtual int getWeight() const
     {
-        int w = _baseFont->getWeight() + 200;
-        if ( w>900 )
-            w = 900;
+        int w = _font->getWeight() + 200;
+        if ( w>900 ) w = 900;
         return w;
     }
-    /// returns italic flag
-    virtual int getItalic() const
-    {
-        return _baseFont->getItalic();
-    }
     LVFontBoldTransform( LVFontRef baseFont, LVFontGlobalGlyphCache * globalCache )
-        : _baseFontRef( baseFont ), _baseFont( baseFont.get() ), _hyphWidth(-1), _glyph_cache(globalCache)
+        : LVFontProxy(baseFont), _hyphWidth(-1), _glyph_cache(globalCache)
     {
-        _size = _baseFont->getSize();
-        _height = _baseFont->getHeight();
-        _hShift = _size <= 36 ? 1 : 2;
-        _vShift = _size <= 36 ? 0 : 1;
-        _baseline = _baseFont->getBaseline();
+        _size     = _font->getSize();
+        _height   = _font->getHeight();
+        _hShift   = _size <= 36 ? 1 : 2;
+        _vShift   = _size <= 36 ? 0 : 1;
+        _baseline = _font->getBaseline();
     }
 
     /// hyphenation character
@@ -4590,7 +4645,7 @@ public:
     */
     virtual bool getGlyphInfo( lUInt32 code, glyph_info_t * glyph, lChar32 def_char=0, bool code_is_glyph_index=false, bool is_fallback=false  )
     {
-        bool res = _baseFont->getGlyphInfo( code, glyph, def_char, is_fallback );
+        bool res = _font->getGlyphInfo( code, glyph, def_char, is_fallback );
         if ( !res )
             return res;
         glyph->blackBoxX += glyph->blackBoxX>0 ? _hShift : 0;
@@ -4621,7 +4676,7 @@ public:
                      )
     {
         CR_UNUSED(allow_hyphenation);
-        lUInt16 res = _baseFont->measureText(
+        lUInt16 res = _font->measureText(
                         text, len,
                         widths,
                         flags,
@@ -4675,7 +4730,7 @@ public:
         if ( item )
             return item;
 
-        LVFontGlyphCacheItem * olditem = _baseFont->getGlyph( ch, def_char, is_fallback );
+        LVFontGlyphCacheItem * olditem = _font->getGlyph( ch, def_char, is_fallback );
         if ( !olditem )
             return NULL;
 
@@ -4791,39 +4846,9 @@ public:
     /// returns char glyph advance width
     virtual int getCharWidth( lChar32 ch, lChar32 def_char=0 )
     {
-        int w = _baseFont->getCharWidth( ch, def_char ) + _hShift;
-        return w;
+        return _font->getCharWidth( ch, def_char ) + _hShift;
     }
-
-    /// returns char glyph left side bearing
-    virtual int getLeftSideBearing( lChar32 ch, bool negative_only=false, bool italic_only=false )
-    {
-        return _baseFont->getLeftSideBearing( ch, negative_only, italic_only );
-    }
-
-    /// returns char glyph right side bearing
-    virtual int getRightSideBearing( lChar32 ch, bool negative_only=false, bool italic_only=false )
-    {
-        return _baseFont->getRightSideBearing( ch, negative_only, italic_only );
-    }
-
-    /// retrieves font handle
-    virtual void * GetHandle()
-    {
-        return NULL;
-    }
-
-    /// returns font typeface name
-    virtual lString8 getTypeFace() const
-    {
-        return _baseFont->getTypeFace();
-    }
-
-    /// returns font family id
-    virtual css_font_family_t getFontFamily() const
-    {
-        return _baseFont->getFontFamily();
-    }
+    virtual void * GetHandle() { return NULL; }
 
     /// draws text string (returns x advance)
     virtual int DrawTextString( LVDrawBuf * buf, int x, int y,
@@ -4911,49 +4936,7 @@ public:
         return advance;
     }
 
-    /// get bitmap mode (true=monochrome bitmap, false=antialiased)
-    virtual bool getBitmapMode()
-    {
-        return _baseFont->getBitmapMode();
-    }
-
-    /// set bitmap mode (true=monochrome bitmap, false=antialiased)
-    virtual void setBitmapMode( bool m )
-    {
-        _baseFont->setBitmapMode( m );
-    }
-
-    /// sets current hinting mode
-    virtual void setHintingMode(hinting_mode_t mode) { _baseFont->setHintingMode(mode); }
-    /// returns current hinting mode
-    virtual hinting_mode_t  getHintingMode() const { return _baseFont->getHintingMode(); }
-
-    /// get kerning mode
-    virtual kerning_mode_t getKerningMode() const { return _baseFont->getKerningMode(); }
-
-    /// get kerning mode
-    virtual void setKerningMode( kerning_mode_t mode ) { _baseFont->setKerningMode( mode ); }
-
-    /// clear cache
-    virtual void clearCache() { _baseFont->clearCache(); }
-
-    /// returns true if font is empty
-    virtual bool IsNull() const
-    {
-        return _baseFont->IsNull();
-    }
-
-    virtual bool operator ! () const
-    {
-        return !(*_baseFont);
-    }
-    virtual void Clear()
-    {
-        _baseFont->Clear();
-    }
-    virtual ~LVFontBoldTransform()
-    {
-    }
+    virtual ~LVFontBoldTransform() {}
 };
 
 /// create transform for font
