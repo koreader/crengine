@@ -6118,11 +6118,11 @@ public:
             }
             // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
             if (!def2.hasAxis(LVFONT_TAG_WGHT)) {
-                float w = (float)def2.getWeight();
+                float w = (float)weight;
                 def2.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
             }
             if (!def2.hasAxis(LVFONT_TAG_ITAL)) {
-                float iv = def2.getItalic() > 0 ? 1.0f : 0.0f;
+                float iv = italicFlag ? 1.0f : 0.0f;
                 def2.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
             }
 
@@ -6851,11 +6851,13 @@ public:
                 fontFamily = css_ff_serif;
             */
 
+            int weight = getFontWeight(face);
+            bool italicFlag = ( face->style_flags & FT_STYLE_FLAG_ITALIC ) ? true : false;
             LVFontDef def(
                 name,
                 -1, // height==-1 for scalable fonts
-                getFontWeight(face),
-                ( face->style_flags & FT_STYLE_FLAG_ITALIC ) ? true : false,
+                weight,
+                italicFlag,
                 -1, // OpenType features = -1 for not yet instantiated fonts
                 fontFamily,
                 familyName,
@@ -6901,11 +6903,11 @@ public:
             }
             // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
             if (!def.hasAxis(LVFONT_TAG_WGHT)) {
-                float w = (float)def.getWeight();
+                float w = (float)weight;
                 def.setAxisInfo(LVFONT_TAG_WGHT, w, w, w);
             }
             if (!def.hasAxis(LVFONT_TAG_ITAL)) {
-                float iv = def.getItalic() > 0 ? 1.0f : 0.0f;
+                float iv = italicFlag ? 1.0f : 0.0f;
                 def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv, iv);
             }
             #if (DEBUG_FONT_MAN==1)
