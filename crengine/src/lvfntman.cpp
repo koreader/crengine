@@ -5479,7 +5479,9 @@ private:
     LVFontRegistry      _registry;        // physical face registry
     LVFontSelector      _selector;        // CSS Fonts Level 4 §9 selection
     LVFontInstanceCache _instance_cache;  // exact-match instance cache
-    lString8            _preferred_family; // used as fallback when typeface name has no exact match
+    lString8 _preferred_family;           // primary reading font — step-2 fallback for any generic family
+    lString8 _preferred_by_family[9];     // per-family overrides (e.g. monospace, sans-serif);
+                                          // indexed by css_font_family_t (css_ff_fangsong=8 is the max)
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
     lString32 _requiredChars;
@@ -5556,22 +5558,23 @@ public:
         return !_fallbackFontFacesString.empty();
     }
 
-    /// set as preferred font; the bias value itself is ignored — _preferred_family
-    /// is used instead as the step-2 fallback in LVFontSelector::select().
+    /// set as preferred font; the bias value itself is ignored — _preferred_family and
+    /// _preferred_by_family[] are used as the step-2 fallback in LVFontSelector::select().
     virtual bool SetAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias ) {
         FONT_MAN_GUARD
-        // Only update the single preferred-family string when this call
-        // exclusively replaces all other preferences (clear=true).  When
-        // clear=false, a second font is being added alongside the primary
-        // (e.g. monospace alongside the reading font); leaving _preferred_family
-        // as the primary ensures generic-family fallback uses the right font.
         if (clearOthersBias) {
+            // Primary reading font: replaces all preferences.
             if (_preferred_family != face) {
-                // Preferred font changed — discard cached instances so the new
-                // font is loaded fresh on the next render.
                 _instance_cache.clear();
             }
             _preferred_family = face;
+            for (int i = 0; i < 9; i++) _preferred_by_family[i].clear();
+        } else {
+            // Secondary font (e.g. sans-serif or monospace companion).
+            // Look up its generic family in the registry so it overrides the right slot.
+            const LVFontFamily* fam = _registry.findFamily(face);
+            if (fam && fam->faceCount() > 0)
+                _preferred_by_family[(int)fam->faceAt(0).family] = face;
         }
         return true;
     }
@@ -6240,7 +6243,12 @@ public:
 
         // 1. Select face + synthesis via CSS Fonts Level 4 §9 logic.
         LVFontVariations req_var = variations ? *variations : LVFontVariations();
-        lString8 preferred = useBias ? _preferred_family : lString8();
+        lString8 preferred;
+        if (useBias) {
+            preferred = _preferred_by_family[(int)family];
+            if (preferred.empty())
+                preferred = _preferred_family;
+        }
         LVFontMatch m = _selector.select(weight, italic, family, typeface,
                                          documentId, req_var, _registry, preferred);
         if (!m.valid()) {
