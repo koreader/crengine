@@ -5293,46 +5293,14 @@ public:
 
         // 3. Generic family fallback: any registered family whose faces match
         //    the requested generic type (monospace, serif, sans-serif).
-        {
-            bool step3matched = false;
-            for (int i = 0; i < registry.familyCount(); i++) {
-                const LVFontFamily* fam = registry.familyAt(i);
-                for (int j = 0; j < fam->faceCount(); j++) {
-                    if (fam->faceAt(j).family == family) {
-                        m = tryFamily(fam, weight, italic, requested);
-                        if (m.valid()) { step3matched = true; return m; }
-                        break;
-                    }
+        for (int i = 0; i < registry.familyCount(); i++) {
+            const LVFontFamily* fam = registry.familyAt(i);
+            for (int j = 0; j < fam->faceCount(); j++) {
+                if (fam->faceAt(j).family == family) {
+                    m = tryFamily(fam, weight, italic, requested);
+                    if (m.valid()) return m;
+                    break;
                 }
-            }
-            if (!step3matched) {
-                // Log step3 miss: show registered families and their face.family values.
-                CRLog::warn("FontSelector step3 miss: req='%s' fam=%d — no registered face matches. Registry:",
-                            typeface.c_str(), (int)family);
-                for (int i = 0; i < registry.familyCount() && i < 12; i++) {
-                    const LVFontFamily* f = registry.familyAt(i);
-                    lString8 fams;
-                    for (int j = 0; j < f->faceCount(); j++) {
-                        if (j) fams << ",";
-                        char buf[8]; snprintf(buf, sizeof(buf), "%d", (int)f->faceAt(j).family);
-                        fams << buf;
-                    }
-                    CRLog::warn("  [%d] '%s' faces=%d fam_values=[%s]",
-                                i, f->getName().c_str(), f->faceCount(), fams.c_str());
-                }
-            }
-        }
-
-        // Diagnostic: log why we fell through to last resort.
-        {
-            CRLog::warn("FontSelector step4 fallback: req='%s' fam=%d pref='%s' registry=%d families",
-                        typeface.c_str(), (int)family, preferred_family.c_str(),
-                        registry.familyCount());
-            for (int i = 0; i < registry.familyCount() && i < 8; i++) {
-                const LVFontFamily* f = registry.familyAt(i);
-                CRLog::warn("  family[%d]='%s' faces=%d fam0=%d",
-                            i, f->getName().c_str(), f->faceCount(),
-                            f->faceCount() > 0 ? (int)f->faceAt(0).family : -1);
             }
         }
 
@@ -5346,9 +5314,6 @@ public:
 };
 
 /// Cache key identifying one specific loaded font instance.
-/// Synthesis is not yet part of this key — it will be added in Step 4 once
-/// the selector is the authoritative path.  Until then, synthesis differences
-/// (synthesis is tracked in LVFontSynthesis, not via LVFontRegistrationData).
 struct LVFontInstanceKey {
     lUInt32 face_id;           // stable hash of (file, face_index, documentId)
     int     size;              // requested pixel size
@@ -5552,10 +5517,10 @@ private:
     lString8    _path;
     lString8    _fallbackFontFacesString; // comma separated list of fallback fonts
     lString8Collection _fallbackFontFaces;  // splitted from previous
-    LVFontRegistry      _registry;        // physical face registry (Step 1+)
-    LVFontSelector      _selector;        // CSS Fonts Level 4 §9 selection (Step 2+)
-    LVFontInstanceCache _instance_cache;  // exact-match instance cache (Step 3+)
-    lString8            _preferred_family; // replaces useBias in future steps
+    LVFontRegistry      _registry;        // physical face registry
+    LVFontSelector      _selector;        // CSS Fonts Level 4 §9 selection
+    LVFontInstanceCache _instance_cache;  // exact-match instance cache
+    lString8            _preferred_family; // used as fallback when typeface name has no exact match
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
     lString32 _requiredChars;
@@ -5632,11 +5597,10 @@ public:
         return !_fallbackFontFacesString.empty();
     }
 
-    /// set as preferred font with the given bias (bias is ignored; _preferred_family drives selection)
+    /// set as preferred font; the bias value itself is ignored — _preferred_family
+    /// is used instead as the step-2 fallback in LVFontSelector::select().
     virtual bool SetAsPreferredFontWithBias( lString8 face, int bias, bool clearOthersBias ) {
         FONT_MAN_GUARD
-        CRLog::info("SetAsPreferredFontWithBias: face='%s' bias=%d clear=%d (was '%s')",
-                    face.c_str(), bias, (int)clearOthersBias, _preferred_family.c_str());
         // Only update the single preferred-family string when this call
         // exclusively replaces all other preferences (clear=true).  When
         // clear=false, a second font is being added alongside the primary
@@ -6222,7 +6186,7 @@ public:
         #endif
         }
 
-        // No _cache write needed — all consumers migrated to _registry / _instance_cache.
+        // No legacy LVFontCache write — registry and instance cache are authoritative.
 
         _instance_cache.put(key, ref);
         return ref;
@@ -6234,26 +6198,6 @@ public:
     {
         FONT_MAN_GUARD
 
-        // One-time registry dump at first GetFont call.
-        static bool s_registry_dumped = false;
-        if (!s_registry_dumped) {
-            s_registry_dumped = true;
-            CRLog::info("FontRegistry dump: %d families", _registry.familyCount());
-            for (int i = 0; i < _registry.familyCount(); i++) {
-                const LVFontFamily* f = _registry.familyAt(i);
-                lString8 info;
-                for (int j = 0; j < f->faceCount(); j++) {
-                    const LVFontFace& fc = f->faceAt(j);
-                    char buf[64];
-                    snprintf(buf, sizeof(buf), " [w=%d i=%d fam=%d]",
-                             fc.weight, (int)fc.is_italic, (int)fc.family);
-                    info << fc.name << buf;
-                    if (j + 1 < f->faceCount()) info << "; ";
-                }
-                CRLog::info("  '%s': %s", f->getName().c_str(), info.c_str());
-            }
-        }
-
         // 1. Select face + synthesis via CSS Fonts Level 4 §9 logic.
         LVFontVariations req_var = variations ? *variations : LVFontVariations();
         lString8 preferred = useBias ? _preferred_family : lString8();
@@ -6263,17 +6207,6 @@ public:
             CRLog::error("GetFont: no match for typeface='%s' w=%d italic=%d family=%d",
                          typeface.c_str(), weight, (int)italic, (int)family);
             return LVFontRef(NULL);
-        }
-
-        // Diagnostic logging — remove once font selection is confirmed correct.
-        static lString8 s_last_face; static int s_last_w = -1; static bool s_last_i = false;
-        if (m.face->typeface != s_last_face || m.face->weight != s_last_w || m.synthesis.italic != s_last_i) {
-            CRLog::info("FontSelector: req='%s' w=%d i=%d fam=%d → face='%s'[%d] w=%d i=%d fam=%d synth(b=%d,i=%d)",
-                        typeface.c_str(), weight, (int)italic, (int)family,
-                        m.face->typeface.c_str(), m.face->face_index,
-                        m.face->weight, (int)m.face->is_italic, (int)m.face->family,
-                        (int)m.synthesis.bold, (int)m.synthesis.italic);
-            s_last_face = m.face->typeface; s_last_w = m.face->weight; s_last_i = m.synthesis.italic;
         }
 
         // 2. Build instance cache key.
@@ -6295,8 +6228,6 @@ public:
 
         return loadAndCache(*m.face, size, face_size, weight, m.synthesis,
                             features, m.variations, key);
-
-        // (old body removed in Step 4)
     }
 
     void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {
