@@ -5582,6 +5582,190 @@ public:
     }
 
     int familyCount() const { return _families.length(); }
+    const LVFontFamily* familyAt(int i) const { return _families[i]; }
+};
+
+/// Synthesis to apply when instantiating a face that doesn't natively provide
+/// the requested style.  Part of the instance cache key in future steps.
+struct LVFontSynthesis {
+    bool  bold;         // apply FT_EMBOLDEN or LVFontBoldTransform
+    bool  italic;       // apply FreeType slant transform
+    float width_scale;  // 1.0 = none
+
+    LVFontSynthesis() : bold(false), italic(false), width_scale(1.0f) {}
+    bool none() const { return !bold && !italic && width_scale == 1.0f; }
+};
+
+/// Result of a font selection: the chosen physical face, synthesis flags, and
+/// the effective axis values to apply when instantiating it.
+struct LVFontMatch {
+    const LVFontFace*  face;
+    LVFontSynthesis    synthesis;
+    LVFontVariations   variations;
+
+    LVFontMatch() : face(nullptr) {}
+    bool valid() const { return face != nullptr; }
+};
+
+/// CSS Fonts Level 4 §9 font selection.  Pure function — no cache or loading.
+class LVFontSelector {
+
+    // §9.3 weight matching: variable font covering the range wins outright;
+    // otherwise nearest static weight with directional preference.
+    const LVFontFace* pickBestWeight(
+            const LVArray<const LVFontFace*>& cands, int weight) const
+    {
+        if (cands.length() == 0) return nullptr;
+        if (cands.length() == 1) return cands[0];
+
+        // Variable font that covers the requested weight — exact, no synthesis.
+        for (int i = 0; i < cands.length(); i++) {
+            const LVFontFace* f = cands[i];
+            if (f->isVariable() &&
+                    weight >= (int)f->_wght_min && weight <= (int)f->_wght_max)
+                return f;
+        }
+
+        // Exact static match.
+        for (int i = 0; i < cands.length(); i++)
+            if (cands[i]->weight == weight) return cands[i];
+
+        // CSS §9.3 special cases: 400↔500 preference.
+        if (weight == 400) {
+            for (int i = 0; i < cands.length(); i++)
+                if (cands[i]->weight == 500) return cands[i];
+        } else if (weight == 500) {
+            for (int i = 0; i < cands.length(); i++)
+                if (cands[i]->weight == 400) return cands[i];
+        }
+
+        // Nearest by distance; ≥600 prefers heavier, <600 prefers lighter.
+        bool preferHigher = (weight >= 600);
+        const LVFontFace* best = nullptr;
+        int bestDist = 1000000;
+        for (int i = 0; i < cands.length(); i++) {
+            int dist = cands[i]->weight - weight;
+            int absDist = dist < 0 ? -dist : dist;
+            if (absDist < bestDist ||
+                    (absDist == bestDist && best &&
+                     preferHigher && dist > 0 && (best->weight - weight) < 0) ||
+                    (absDist == bestDist && best &&
+                     !preferHigher && dist < 0 && (best->weight - weight) > 0)) {
+                best = cands[i];
+                bestDist = absDist;
+            }
+        }
+        return best;
+    }
+
+    LVFontSynthesis computeSynthesis(const LVFontFace& f,
+                                      int weight, bool italic) const
+    {
+        LVFontSynthesis s;
+        // Bold synthesis: static font significantly lighter than requested.
+        bool wghtByAxis = f._has_wght &&
+                weight >= (int)f._wght_min && weight <= (int)f._wght_max;
+        if (!wghtByAxis && weight > f.weight + 200)
+            s.bold = true;
+        // Italic synthesis: italic requested, face is roman, no variable axis covers it.
+        bool italByAxis = (f._has_ital && f._ital_max > 0.5f) ||
+                          (f._has_slnt && f._slnt_min < 0.0f);
+        if (italic && !f.is_italic && !italByAxis)
+            s.italic = true;
+        return s;
+    }
+
+    LVFontVariations computeVariations(const LVFontFace& f,
+                                        const LVFontVariations& requested,
+                                        int weight, bool italic) const
+    {
+        LVFontVariations vars;
+        if (f._has_wght) {
+            float w = (float)weight;
+            if (w < f._wght_min) w = f._wght_min;
+            if (w > f._wght_max) w = f._wght_max;
+            vars.set(LVFONT_TAG_WGHT, w);
+        }
+        if (requested.opsz_set && f._has_opsz)
+            vars.set(LVFONT_TAG_OPSZ, requested.opsz);
+        if (italic && f._has_ital && f._ital_max > 0.5f)
+            vars.set(LVFONT_TAG_ITAL, 1.0f);
+        else if (italic && !f.is_italic && f._has_slnt && f._slnt_min < 0.0f)
+            vars.set(LVFONT_TAG_SLNT, -12.0f);
+        if (requested.wdth_set && f._has_wdth)
+            vars.set(LVFONT_TAG_WDTH, requested.wdth);
+        return vars;
+    }
+
+    LVFontMatch tryFamily(const LVFontFamily* family,
+                           int weight, bool italic,
+                           const LVFontVariations& requested) const
+    {
+        LVFontMatch m;
+        if (!family) return m;
+
+        // Build style-filtered candidate list (§9.2).
+        LVArray<const LVFontFace*> preferred, fallback;
+        for (int i = 0; i < family->faceCount(); i++) {
+            const LVFontFace& face = family->faces()[i];
+            bool coversItalic = face.is_italic ||
+                    (face._has_ital && face._ital_max > 0.5f) ||
+                    (face._has_slnt && face._slnt_min < 0.0f);
+            (italic ? coversItalic : !face.is_italic)
+                    ? preferred.add(&face) : fallback.add(&face);
+        }
+
+        const LVFontFace* face = pickBestWeight(
+                preferred.length() > 0 ? preferred : fallback, weight);
+        if (!face) return m;
+
+        m.face       = face;
+        m.synthesis  = computeSynthesis(*face, weight, italic);
+        m.variations = computeVariations(*face, requested, weight, italic);
+        return m;
+    }
+
+public:
+    LVFontMatch select(int weight, bool italic,
+                        css_font_family_t family,
+                        const lString8& typeface,
+                        int documentId,
+                        const LVFontVariations& requested,
+                        const LVFontRegistry& registry,
+                        const lString8& preferred_family) const
+    {
+        // 1. Try the requested typeface name.
+        LVFontMatch m = tryFamily(
+                registry.findFamily(typeface, documentId), weight, italic, requested);
+        if (m.valid()) return m;
+
+        // 2. User's preferred family (replaces the useBias scoring trick).
+        if (!preferred_family.empty()) {
+            m = tryFamily(registry.findFamily(preferred_family),
+                          weight, italic, requested);
+            if (m.valid()) return m;
+        }
+
+        // 3. Generic family fallback: any registered family whose faces match
+        //    the requested generic type (monospace, serif, sans-serif).
+        for (int i = 0; i < registry.familyCount(); i++) {
+            const LVFontFamily* fam = registry.familyAt(i);
+            for (int j = 0; j < fam->faceCount(); j++) {
+                if (fam->faces()[j].family == family) {
+                    m = tryFamily(fam, weight, italic, requested);
+                    if (m.valid()) return m;
+                    break;
+                }
+            }
+        }
+
+        // 4. Last resort: any registered face at all.
+        if (registry.familyCount() > 0) {
+            m = tryFamily(registry.familyAt(0), weight, italic, requested);
+        }
+
+        return m;
+    }
 };
 
 /// Build an LVFontFace from a registered LVFontDef.
@@ -5627,7 +5811,8 @@ private:
     lString8    _fallbackFontFacesString; // comma separated list of fallback fonts
     lString8Collection _fallbackFontFaces;  // splitted from previous
     LVFontCache    _cache;
-    LVFontRegistry _registry;  // Step 1: populated alongside _cache, not yet used for selection
+    LVFontRegistry _registry;       // physical face registry (Step 1+)
+    LVFontSelector _selector;       // CSS Fonts Level 4 §9 selection (Step 2+)
     lString8       _preferred_family; // replaces useBias in future steps
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
@@ -6376,6 +6561,33 @@ public:
         #endif
 
         LVFontCacheItem * item = _cache.find( &def, useBias );
+
+        // Step 2: run the new selector in parallel and warn on disagreement.
+        // Both paths should resolve to the same physical face (file + index).
+        // Mismatches logged here are candidates for investigation before Step 4.
+        {
+            LVFontVariations req_var = variations ? *variations : LVFontVariations();
+            LVFontMatch m = _selector.select(weight, italic, family, typeface,
+                                             documentId, req_var,
+                                             _registry, _preferred_family);
+            if (item && item->getFont().isNull() && m.valid()) {
+                // Compare only when cache returned a registered (not yet instantiated) entry.
+                bool nameMatch  = (m.face->name       == item->getDef()->getName());
+                bool indexMatch = (m.face->face_index == item->getDef()->getIndex());
+                if (!nameMatch || !indexMatch) {
+                    CRLog::warn("FontSelector mismatch: typeface='%s' w=%d italic=%d"
+                                " | cache=%s[%d] | selector=%s[%d]",
+                                typeface.c_str(), weight, (int)italic,
+                                item->getDef()->getName().c_str(),
+                                item->getDef()->getIndex(),
+                                m.face->name.c_str(), m.face->face_index);
+                }
+            } else if (!m.valid() && item && item->getFont().isNull()) {
+                CRLog::warn("FontSelector: no match for typeface='%s' w=%d italic=%d",
+                            typeface.c_str(), weight, (int)italic);
+            }
+        }
+
         #if (DEBUG_FONT_MAN==1)
             if ( item && _log ) { //_log &&
                 fprintf(_log, "   found item: (file=%s[%d], size=%d, weight=%d, italic=%d, family=%d, typeface=%s, weightDelta=%d) FontRef=%d\n",

@@ -362,12 +362,39 @@ CSS4 intermediates 550/650), italic/bold-italic, font-synthesis, optical sizing
 (auto vs none), and font-stretch keywords. Baseline regression samples on the
 final page confirm default roman/sans/mono rendering is unchanged.
 
-### Step 2 — Implement LVFontSelector as a standalone function
+### Step 2 — Implement LVFontSelector as a standalone function ✓ DONE
 
 - Add `LVFontSelector` with `select()` using CSS Fonts Level 4 §9 logic.
 - Wire up a parallel path in `GetFont()` that calls the selector and logs its result
   alongside the existing CalcMatch result. Assert they agree.
 - Fix any discrepancies; this surfaces edge cases safely.
+
+**As-built notes:**
+
+- `familyAt(int i)` added to `LVFontRegistry` to support generic-family fallback
+  iteration in the selector.
+
+- `LVFontSynthesis` was defined here (not in a separate step as originally planned),
+  immediately before `LVFontMatch` which depends on it. It holds `bold` (bool),
+  `italic` (bool), and `width_scale` (float, 1.0 = none).
+
+- `LVFontMatch` carries the selected face, a `LVFontSynthesis`, and the effective
+  `LVFontVariations` (axes to apply at instantiation time).
+
+- The selector's four-tier fallback mirrors the current CalcMatch priority:
+  (1) exact typeface name → (2) user preferred family → (3) generic family type
+  (monospace/serif/sans-serif) → (4) any registered face.
+
+- Parallel verification logs `CRLog::warn()` mismatches unconditionally (no special
+  build flag needed). The comparison is skipped for instantiated cache entries since
+  only registered entries have a directly comparable file+index. Any mismatch printed
+  during `tests/font-manager-test.epub` review should be investigated before Step 4.
+
+- `LVFontVariations` default constructor leaves all axes unset, so the `LVFontMatch`
+  default constructor correctly produces an empty variations set.
+
+**Test:** Open `tests/font-manager-test.epub` and check the KOReader log for any
+`FontSelector mismatch` warnings. Expected: zero warnings for standard system fonts.
 
 ### Step 3 — Introduce LVFontSynthesis and LVFontInstanceCache
 
