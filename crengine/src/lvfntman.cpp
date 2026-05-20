@@ -5883,6 +5883,15 @@ public:
             _entries.remove(_entries.length() - 1);
     }
     int length() const { return _entries.length(); }
+
+    /// Call f(font) for every live instance.  Used by mode-change methods
+    /// (SetAntialiasMode, SetHintingMode, SetKerningMode, clearGlyphCache).
+    template<typename Fn>
+    void forEachFont(Fn f) {
+        for (int i = 0; i < _entries.length(); i++)
+            if (!_entries[i].font.isNull())
+                f(_entries[i].font);
+    }
 };
 
 /// Build an LVFontFace from a registered LVFontDef.
@@ -5944,7 +5953,21 @@ public:
     /// get hash of installed fonts and fallback font
     virtual lUInt32 GetFontListHash(int documentId) {
         FONT_MAN_GUARD
-        return _cache.GetFontListHash(documentId) * 75 + _fallbackFontFacesString.getHash();
+        lUInt32 h = 0;
+        for (int i = 0; i < _registry.familyCount(); i++) {
+            const LVFontFamily* f = _registry.familyAt(i);
+            for (int j = 0; j < f->faceCount(); j++) {
+                const LVFontFace& face = f->faceAt(j);
+                // Include global faces and faces belonging to this document.
+                if (documentId != -1 && face.documentId != -1 && face.documentId != documentId)
+                    continue;
+                h = h * 31 + face.name.getHash();
+                h = h * 31 + (lUInt32)face.face_index;
+                h = h * 31 + (lUInt32)(unsigned)face.weight;
+                h = h * 31 + (lUInt32)face.is_italic;
+            }
+        }
+        return h * 75 + _fallbackFontFacesString.getHash();
     }
 
     /// set fallback fonts
@@ -5957,8 +5980,7 @@ public:
             for (int i = 0; i < faces.length(); i++) {
                 lString8 face = faces[i];
                 CRLog::trace("Looking for fallback font %s", face.c_str());
-                LVFontCacheItem * item = _cache.findFallback( face, -1 );
-                if ( !item ) { // not found
+                if ( !_registry.findFamily(face) ) { // not registered
                     continue;
                 }
                 if ( !has_valid_face ) {
@@ -6032,9 +6054,7 @@ public:
             size &= 0xFFFC;
         else if ( size>16 )
             size &= 0xFFFE;
-        LVFontCacheItem * item = _cache.findFallback( _fallbackFontFaces[0], size );
-        if ( !item->getFont().isNull() )
-            return item->getFont();
+        // GetFont() uses the selector + instance cache — no need for findFallback().
         return GetFont(size, 400, false, css_ff_sans_serif, _fallbackFontFaces[0], 0, -1);
     }
 
@@ -6098,10 +6118,9 @@ public:
         gc();
         clearGlyphCache();
         FONT_MAN_GUARD
-        LVPtrVector< LVFontCacheItem > * fonts = _cache.getInstances();
-        for ( int i=0; i<fonts->length(); i++ ) {
-            fonts->get(i)->getFont()->setBitmapMode( isBitmapModeForSize( fonts->get(i)->getFont()->getHeight() ) );
-        }
+        _instance_cache.forEachFont([this](LVFontRef& f) {
+            f->setBitmapMode(isBitmapModeForSize(f->getHeight()));
+        });
     }
 
     /// sets current gamma level
@@ -6113,10 +6132,9 @@ public:
         _hintingMode = mode;
         gc();
         clearGlyphCache();
-        LVPtrVector< LVFontCacheItem > * fonts = _cache.getInstances();
-        for ( int i=0; i<fonts->length(); i++ ) {
-            fonts->get(i)->getFont()->setHintingMode(mode);
-        }
+        _instance_cache.forEachFont([mode](LVFontRef& f) {
+            f->setHintingMode(mode);
+        });
     }
 
     /// sets current gamma level
@@ -6131,10 +6149,9 @@ public:
         _kerningMode = mode;
         gc();
         clearGlyphCache();
-        LVPtrVector< LVFontCacheItem > * fonts = _cache.getInstances();
-        for ( int i=0; i<fonts->length(); i++ ) {
-            fonts->get(i)->getFont()->setKerningMode( mode );
-        }
+        _instance_cache.forEachFont([mode](LVFontRef& f) {
+            f->setKerningMode(mode);
+        });
     }
 
     /// set monospace size scale percent
@@ -6159,7 +6176,8 @@ public:
     {
         FONT_MAN_GUARD
         _fallbackFontSizesAdjusted = adjusted;
-        _cache.clearFallbackFonts();
+        // No separate fallback instance cache to clear — instance_cache holds all
+        // instances; a gc() pass releases any unreferenced ones.
         gc();
     }
 
@@ -6169,18 +6187,16 @@ public:
         FONT_MAN_GUARD
         _globalCache.clear();
         #if USE_HARFBUZZ==1
-        // needs to clear each font _glyph_cache2 (for Gamma change, which
-        // does not call any individual font method)
-        LVPtrVector< LVFontCacheItem > * fonts = _cache.getInstances();
-        for ( int i=0; i<fonts->length(); i++ ) {
-            fonts->get(i)->getFont()->clearCache();
-        }
+        // Clear per-font glyph caches (e.g. after a gamma change).
+        _instance_cache.forEachFont([](LVFontRef& f) {
+            f->clearCache();
+        });
         #endif
     }
 
     virtual int GetFontCount()
     {
-        return _cache.length();
+        return _registry.familyCount();
     }
 
     bool initSystemFonts()
@@ -6464,7 +6480,11 @@ public:
     virtual void getFaceList( lString32Collection & list )
     {
         FONT_MAN_GUARD
-        _cache.getFaceList( list );
+        list.clear();
+        // Registry names are unique by construction — no duplicate check needed.
+        for (int i = 0; i < _registry.familyCount(); i++)
+            list.add(Utf8ToUnicode(_registry.familyAt(i)->getName()));
+        list.sort();
     }
 
     /// returns registered font files
@@ -6685,7 +6705,8 @@ public:
         #endif
         }
 
-        // Build LVFontDef for _cache so GetFallbackFont/GetFontList continue to work.
+        // Build LVFontDef for _cache — still needed for getFontFileNameList,
+        // regularizeRegisteredFontsWeights, and document font tracking.
         LVFontDef newDef(face.name, size,
                          face.weight, face.is_italic ? 1 : 0,
                          features, face.family, face.typeface,
@@ -6778,7 +6799,17 @@ public:
     }
 
     void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) {
-        _cache.getAvailableFontWeights(weights, typeface);
+        FONT_MAN_GUARD
+        weights.clear();
+        const LVFontFamily* f = _registry.findFamily(typeface);
+        if (!f) return;
+        for (int i = 0; i < f->faceCount(); i++) {
+            int w = f->faceAt(i).weight;
+            bool found = false;
+            for (int j = 0; j < weights.length(); j++)
+                if (weights[j] == w) { found = true; break; }
+            if (!found) weights.add(w);
+        }
     }
 
     bool checkCharSet( FT_Face face )

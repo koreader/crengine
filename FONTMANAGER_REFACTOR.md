@@ -479,11 +479,41 @@ repeated font requests within the document produce instance-cache hits (log
 Chapter 2 should show correct bold-italic (distinct from normal italic) for both serif
 and sans-serif.
 
-### Step 5 — Migrate fallback font and font list APIs
+### Step 5 — Migrate fallback font and font list APIs ✓ DONE
 
 - Replace `GetFallbackFont()` with a selector call over the fallback family list.
 - Replace `GetFontList()` / `GetFontListHash()` with registry-based equivalents.
 - Remove `LVFontCache`.
+
+**As-built notes:**
+
+- `GetFallbackFont(size)` — removed `_cache.findFallback()` call; delegates directly
+  to `GetFont()` which uses the selector. The validity check for fallback font names
+  in `SetFallbackFontFaces()` now uses `_registry.findFamily()` instead.
+
+- `GetFontListHash()` — rebuilt from `_registry`: hash of (file, face_index, weight,
+  is_italic) per face. Multiplied by 75 and combined with `_fallbackFontFacesString`
+  hash, matching the old formula's structure.
+
+- `getFaceList()` — rebuilt from `_registry`: unique family names, sorted.
+
+- `GetFontCount()` — now returns `_registry.familyCount()`.
+
+- `GetAvailableFontWeights()` — rebuilt from `_registry` for the given typeface.
+
+- `SetAntialiasMode/SetHintingMode/SetKerningMode/clearGlyphCache` — migrated from
+  `_cache.getInstances()` to `_instance_cache.forEachFont()` (a new template method).
+
+- `SetFallbackFontSizesAdjusted()` — `_cache.clearFallbackFonts()` removed; a `gc()`
+  call releases any unreferenced instances instead.
+
+- **`LVFontCache` not fully removed.** The following still use it and are deferred to
+  Step 6: `getFontFileNameList()`, `regularizeRegisteredFontsWeights()`,
+  `findDocumentFontDuplicate()`, `getRegisteredDocumentFontList()`,
+  `getInstantiatedDocumentFontList()`, `SetAlias()` (uses `_cache.find()`), and the
+  destructor. The `loadAndCache()` function still writes to `_cache` for these users.
+  Full removal requires either migrating these APIs to the registry or determining
+  they can be dropped.
 
 ### Step 6 — Remove LVFontDef and CalcMatch
 

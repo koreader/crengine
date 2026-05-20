@@ -38,12 +38,14 @@ CONTENT_OPF = """\
     <item id="ch02"    href="ch02.html"    media-type="application/xhtml+xml"/>
     <item id="ch03"    href="ch03.html"    media-type="application/xhtml+xml"/>
     <item id="ch04"    href="ch04.html"    media-type="application/xhtml+xml"/>
+    <item id="ch05"    href="ch05.html"    media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="ncx">
     <itemref idref="ch01"/>
     <itemref idref="ch02"/>
     <itemref idref="ch03"/>
     <itemref idref="ch04"/>
+    <itemref idref="ch05"/>
   </spine>
 </package>
 """
@@ -71,6 +73,10 @@ TOC_NCX = """\
     <navPoint id="ch04" playOrder="4">
       <navLabel><text>4. Font Stretch</text></navLabel>
       <content src="ch04.html"/>
+    </navPoint>
+    <navPoint id="ch05" playOrder="5">
+      <navLabel><text>5. Fallback Fonts</text></navLabel>
+      <content src="ch05.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -310,6 +316,72 @@ transform (if enabled) or the normal face is used unchanged.</p>
 </html>
 """
 
+CH05 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>Fallback Fonts</title>
+<link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+<h1>Chapter 5 &#x2014; Fallback Fonts</h1>
+<p>This chapter contains characters outside the coverage of most primary fonts,
+requiring the fallback font mechanism (GetFallbackFont) to be exercised.
+Each block should render legibly in an appropriate fallback font rather than
+showing missing-glyph boxes.</p>
+
+<h2>CJK Unified Ideographs</h2>
+<p class="label">Simplified Chinese sample</p>
+<p class="sample">&#x6C49;&#x5B57;&#x6D4B;&#x8BD5;&#xFF1A;&#x8FD9;&#x662F;&#x4E00;&#x6BB5;&#x4E2D;&#x6587;&#x6587;&#x672C;&#x3002;
+The quick brown fox. &#x6C49;&#x5B57; mixed with Latin.</p>
+<p class="label">Traditional Chinese sample</p>
+<p class="sample">&#x6F22;&#x5B57;&#x6E2C;&#x8A66;&#xFF1A;&#x9019;&#x662F;&#x4E00;&#x6BB5;&#x4E2D;&#x6587;&#x6587;&#x672C;&#x3002;</p>
+<p class="label">Japanese hiragana and katakana</p>
+<p class="sample">&#x3053;&#x3093;&#x306B;&#x3061;&#x306F;&#x3002;&#x30B3;&#x30F3;&#x30CB;&#x30C1;&#x30CF;&#x3002;
+Hello in Japanese: &#x3053;&#x3093;&#x306B;&#x3061;&#x306F;&#x4E16;&#x754C;&#x3002;</p>
+<p class="label">Korean hangul</p>
+<p class="sample">&#xC548;&#xB155;&#xD558;&#xC138;&#xC694;. &#xD55C;&#xAE00; &#xD14C;&#xC2A4;&#xD2B8;.</p>
+
+<h2>Arabic</h2>
+<p class="label">Arabic text (right-to-left)</p>
+<p class="sample">&#x0645;&#x0631;&#x062D;&#x0628;&#x0627;&#x064B; &#x0628;&#x0627;&#x0644;&#x0639;&#x0627;&#x0644;&#x0645;.
+&#x0647;&#x0630;&#x0627; &#x0627;&#x062E;&#x062A;&#x0628;&#x0627;&#x0631; &#x0627;&#x0644;&#x062E;&#x0637;&#x0648;&#x0637;.
+Mixed: Hello &#x0645;&#x0631;&#x062D;&#x0628;&#x0627;&#x064B; world.</p>
+
+<h2>Devanagari</h2>
+<p class="label">Hindi sample</p>
+<p class="sample">&#x0928;&#x092E;&#x0938;&#x094D;&#x0924;&#x0947; &#x0926;&#x0941;&#x0928;&#x093F;&#x092F;&#x093E;&#x0964;
+&#x092F;&#x0939; &#x090F;&#x0915; &#x092B;&#x093E;&#x0928;&#x094D;&#x091F; &#x092A;&#x0930;&#x0940;&#x0915;&#x094D;&#x0937;&#x093E; &#x0939;&#x0948;&#x0964;
+Mixed: Hello &#x0928;&#x092E;&#x0938;&#x094D;&#x0924;&#x0947; world.</p>
+
+<h2>Bengali</h2>
+<p class="label">Bengali sample</p>
+<p class="sample">&#x09B9;&#x09CD;&#x09AF;&#x09BE;&#x09B2;&#x09CB; &#x09AC;&#x09BF;&#x09B6;&#x09CD;&#x09AC;&#x0964;
+&#x098F;&#x099F;&#x09BF; &#x098F;&#x0995;&#x099F;&#x09BF; &#x09AB;&#x09A8;&#x09CD;&#x099F; &#x09AA;&#x09B0;&#x09C0;&#x0995;&#x09CD;&#x09B7;&#x09BE;&#x0964;</p>
+
+<h2>Greek and Cyrillic</h2>
+<p class="label">Greek (usually in primary font coverage)</p>
+<p class="sample">&#x03B1;&#x03B2;&#x03B3;&#x03B4;&#x03B5; &#x0391;&#x0392;&#x0393;&#x0394;&#x0395;.
+&#x03BA;&#x03B1;&#x03BB;&#x03B7;&#x03BC;&#x03AD;&#x03C1;&#x03B1; &#x03BA;&#x03CC;&#x03C3;&#x03BC;&#x03B5;.</p>
+<p class="label">Cyrillic (usually in primary font coverage)</p>
+<p class="sample">&#x041F;&#x0440;&#x0438;&#x0432;&#x0435;&#x0442; &#x043C;&#x0438;&#x0440;.
+&#x042D;&#x0442;&#x043E; &#x0442;&#x0435;&#x0441;&#x0442; &#x0448;&#x0440;&#x0438;&#x0444;&#x0442;&#x0430;.</p>
+
+<h2>Mixed-script paragraph</h2>
+<p class="sample">English, &#x4E2D;&#x6587;, &#x65E5;&#x672C;&#x8A9E;, &#xD55C;&#xAD6D;&#xC5B4;,
+&#x0645;&#x0631;&#x062D;&#x0628;&#x0627;&#x064B;, &#x0928;&#x092E;&#x0938;&#x094D;&#x0924;&#x0947; &#x2014;
+all in one paragraph. Each non-Latin run should use an appropriate fallback font
+while the Latin text uses the primary font.</p>
+
+<h2>Expected behaviour</h2>
+<p>All characters above should render as recognisable glyphs, not as empty boxes.
+Missing boxes indicate the fallback font mechanism failed or the required fallback
+font is not installed. Mixing scripts within one paragraph tests the per-character
+fallback chain (GetFallbackFont with forFaceName).</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Build the EPUB
 # ---------------------------------------------------------------------------
@@ -328,6 +400,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch02.html",        CH02)
         zf.writestr("OEBPS/ch03.html",        CH03)
         zf.writestr("OEBPS/ch04.html",        CH04)
+        zf.writestr("OEBPS/ch05.html",        CH05)
     with open(path, "wb") as f:
         f.write(buf.getvalue())
     print(f"Written: {path}  ({os.path.getsize(path)} bytes)")
