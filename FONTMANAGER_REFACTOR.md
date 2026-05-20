@@ -329,13 +329,38 @@ as `int` in the cache key.
 
 Each step leaves the codebase in a working state.
 
-### Step 1 — Introduce LVFontFace and LVFontRegistry alongside existing cache
+### Step 1 — Introduce LVFontFace and LVFontRegistry alongside existing cache ✓ DONE
 
 - Add `LVFontFace`, `LVFontFamily`, `LVFontRegistry` as new types in `lvfntman.cpp`.
 - Make `RegisterFont()` and `SetAlias()` write to both `_registry` and the existing
   `_cache`. The cache remains the authoritative path for `GetFont()`.
 - Verify: all existing font registration tests pass; both structures contain the same
   fonts.
+
+**As-built notes:**
+
+- Three additional typed axis accessors were added to `LVFontDef`
+  (`hasOpszAxis/getOpszAxisMin/Max`, `hasWdthAxis/getWdthAxisMin/Max`) to support
+  `faceFromDef()`. The generic `getAxisMin(tag)` / `getAxisMax(tag)` were previously
+  removed as unused; the typed variants are consistent with the existing
+  `getWghtAxisMin/Max` pattern.
+
+- `faceFromDef()` sets `_opsz_def = _opsz_min` (and similarly for ital, slnt, wdth)
+  as a placeholder. For non-variable fonts min==max==def so this is correct; for
+  variable fonts the real def comes from the FreeType axis descriptor (accessible at
+  registration time but not currently stored separately in `LVFontDef`). This can be
+  improved in a later step by reading `mm_var->axis[i].def` directly.
+
+- The FontConfig registration path (Linux) was also wired up alongside the file-based
+  and in-memory paths.
+
+- `_preferred_family` (lString8) was added to `LVFreeTypeFontManager` alongside
+  `_registry` as a placeholder for the `useBias` replacement in Step 5.
+
+**Test EPUB:** `tests/font-manager-test.epub` — covers weight progression (100–900,
+CSS4 intermediates 550/650), italic/bold-italic, font-synthesis, optical sizing
+(auto vs none), and font-stretch keywords. Baseline regression samples on the
+final page confirm default roman/sans/mono rendering is unchanged.
 
 ### Step 2 — Implement LVFontSelector as a standalone function
 

@@ -755,9 +755,15 @@ public:
     bool isVariableItalAxis() const { return _has_ital && _ital_min < _ital_max; }
     float getItalAxisMin() const { return _ital_min; }
     float getItalAxisMax() const { return _ital_max; }
+    bool hasOpszAxis() const { return _has_opsz; }
+    float getOpszAxisMin() const { return _opsz_min; }
+    float getOpszAxisMax() const { return _opsz_max; }
     bool hasSlntAxis() const { return _has_slnt; }
     float getSlntAxisMin() const { return _slnt_min; }
     float getSlntAxisMax() const { return _slnt_max; }
+    bool hasWdthAxis() const { return _has_wdth; }
+    float getWdthAxisMin() const { return _wdth_min; }
+    float getWdthAxisMax() const { return _wdth_max; }
     int getDocumentId() const { return _documentId; }
     void setDocumentId(int id) { _documentId = id; }
     LVByteArrayRef getBuf() const { return _buf; }
@@ -5448,13 +5454,181 @@ static LVFontRef dumpFontRef( LVFontRef fnt ) {
 }
 #endif
 
+// ============================================================================
+// LVFontFace / LVFontFamily / LVFontRegistry
+//
+// Step 1 of the font manager refactor: a clean registry of physical font faces
+// separate from the instance cache.  Currently populated alongside _cache but
+// not yet used for font selection — that comes in Step 2.
+// ============================================================================
+
+/// One physical font face as registered from a file or in-memory buffer.
+struct LVFontFace {
+    lString8           name;         // file path (or empty for in-memory)
+    int                face_index;
+    int                weight;       // design weight (100-1000)
+    bool               is_italic;
+    css_font_family_t  family;
+    lString8           typeface;     // family name used for lookup
+    bool               has_emojis;
+    bool               has_ot_math;
+    int                documentId;   // -1 for global fonts
+    LVByteArrayRef     buf;          // non-null for in-memory fonts
+    // Variable-font axis ranges; for static fonts min==max==def.
+    bool  _has_wght; float _wght_min, _wght_def, _wght_max;
+    bool  _has_opsz; float _opsz_min, _opsz_def, _opsz_max;
+    bool  _has_ital; float _ital_min, _ital_def, _ital_max;
+    bool  _has_slnt; float _slnt_min, _slnt_def, _slnt_max;
+    bool  _has_wdth; float _wdth_min, _wdth_def, _wdth_max;
+
+    bool isVariable() const { return _has_wght && _wght_min < _wght_max; }
+
+    /// Stable identity hash: (file, face_index, documentId).
+    lUInt32 id() const {
+        lUInt32 h = name.getHash();
+        h = h * 31 + (lUInt32)face_index;
+        h = h * 31 + (lUInt32)(documentId == -1 ? 0 : documentId);
+        return h;
+    }
+};
+
+/// All faces registered under one family name.
+class LVFontFamily {
+    lString8             _name;
+    LVArray<LVFontFace>  _faces;
+public:
+    LVFontFamily() {}
+    explicit LVFontFamily(lString8 name) : _name(name) {}
+    void addFace(const LVFontFace& face) { _faces.add(face); }
+    const lString8& getName() const { return _name; }
+    const LVArray<LVFontFace>& faces() const { return _faces; }
+    int faceCount() const { return _faces.length(); }
+};
+
+/// Registry of physical font faces, keyed by family name.
+/// Holds only registered faces — no loaded instances.
+class LVFontRegistry {
+    LVPtrVector<LVFontFamily, true>  _families;
+    // Alias pairs: alias -> canonical family name
+    LVArray<lString8>  _alias_from;
+    LVArray<lString8>  _alias_to;
+
+    LVFontFamily* findOrCreateFamily(lString8 name) {
+        lString8 lower = name;
+        lower.lowercase();
+        for (int i = 0; i < _families.length(); i++)
+            if (_families[i]->getName() == lower)
+                return _families[i];
+        LVFontFamily* f = new LVFontFamily(lower);
+        _families.add(f);
+        return f;
+    }
+public:
+    void registerFace(const LVFontFace& face) {
+        lString8 key = face.typeface;
+        key.lowercase();
+        findOrCreateFamily(key)->addFace(face);
+    }
+
+    void registerAlias(lString8 alias, lString8 canonical) {
+        lString8 a = alias;    a.lowercase();
+        lString8 c = canonical; c.lowercase();
+        for (int i = 0; i < _alias_from.length(); i++)
+            if (_alias_from[i] == a) { _alias_to[i] = c; return; }
+        _alias_from.add(a);
+        _alias_to.add(c);
+    }
+
+    lString8 resolveAlias(lString8 name) const {
+        lString8 lower = name; lower.lowercase();
+        for (int i = 0; i < _alias_from.length(); i++)
+            if (_alias_from[i] == lower) return _alias_to[i];
+        return lower;
+    }
+
+    const LVFontFamily* findFamily(lString8 name, int documentId = -1) const {
+        lString8 key = resolveAlias(name);
+        for (int i = 0; i < _families.length(); i++) {
+            const LVFontFamily* f = _families[i];
+            if (f->getName() != key) continue;
+            if (documentId == -1) return f;
+            // For document-scoped lookup, prefer a family that has at least
+            // one face for this document; fall back to the global family.
+            for (int j = 0; j < f->faceCount(); j++)
+                if (f->faces()[j].documentId == documentId) return f;
+        }
+        return nullptr;
+    }
+
+    void removeFonts(int documentId) {
+        // Remove faces belonging to this document from every family;
+        // remove any family that becomes empty.
+        for (int i = _families.length() - 1; i >= 0; i--) {
+            LVFontFamily* f = _families[i];
+            LVArray<LVFontFace> kept;
+            for (int j = 0; j < f->faceCount(); j++)
+                if (f->faces()[j].documentId != documentId)
+                    kept.add(f->faces()[j]);
+            if (kept.length() == 0) {
+                delete _families.remove(i);
+            } else if (kept.length() != f->faceCount()) {
+                LVFontFamily* replacement = new LVFontFamily(f->getName());
+                for (int j = 0; j < kept.length(); j++)
+                    replacement->addFace(kept[j]);
+                delete _families.remove(i);
+                _families.add(replacement);
+            }
+        }
+    }
+
+    int familyCount() const { return _families.length(); }
+};
+
+/// Build an LVFontFace from a registered LVFontDef.
+static LVFontFace faceFromDef(const LVFontDef& def) {
+    LVFontFace f;
+    f.name        = def.getName();
+    f.face_index  = def.getIndex();
+    f.weight      = def.getWeight();
+    f.is_italic   = def.isRealItalic();
+    f.family      = def.getFamily();
+    f.typeface    = def.getTypeFace();
+    f.has_emojis  = def.hasEmojis();
+    f.has_ot_math = def.hasOTMath();
+    f.documentId  = def.getDocumentId();
+    f.buf         = def.getBuf();
+    f._has_wght   = def.hasWghtAxis();
+    f._wght_min   = def.getWghtAxisMin();
+    f._wght_def   = (float)def.getWeight();
+    f._wght_max   = def.getWghtAxisMax();
+    f._has_opsz   = def.hasOpszAxis();
+    f._opsz_min   = def.getOpszAxisMin();
+    f._opsz_def   = def.getOpszAxisMin(); // def == min for fixed-range fonts
+    f._opsz_max   = def.getOpszAxisMax();
+    f._has_ital   = def.hasItalAxis();
+    f._ital_min   = def.getItalAxisMin();
+    f._ital_def   = def.getItalAxisMin();
+    f._ital_max   = def.getItalAxisMax();
+    f._has_slnt   = def.hasSlntAxis();
+    f._slnt_min   = def.getSlntAxisMin();
+    f._slnt_def   = def.getSlntAxisMin();
+    f._slnt_max   = def.getSlntAxisMax();
+    f._has_wdth   = def.hasWdthAxis();
+    f._wdth_min   = def.getWdthAxisMin();
+    f._wdth_def   = def.getWdthAxisMin();
+    f._wdth_max   = def.getWdthAxisMax();
+    return f;
+}
+
 class LVFreeTypeFontManager : public LVFontManager
 {
 private:
     lString8    _path;
     lString8    _fallbackFontFacesString; // comma separated list of fallback fonts
     lString8Collection _fallbackFontFaces;  // splitted from previous
-    LVFontCache _cache;
+    LVFontCache    _cache;
+    LVFontRegistry _registry;  // Step 1: populated alongside _cache, not yet used for selection
+    lString8       _preferred_family; // replaces useBias in future steps
     FT_Library  _library;
     LVFontGlobalGlyphCache _globalCache;
     lString32 _requiredChars;
@@ -5889,6 +6063,7 @@ public:
                     continue;
                 }
                 _cache.update( &def, LVFontRef(NULL) );
+                _registry.registerFace(faceFromDef(def));
 
                 if ( scalable != FcFalse && !def.getItalic() ) {
                     LVFontDef newDef( def );
@@ -6136,6 +6311,7 @@ public:
                 return false;
             }
             _cache.update( &def2, LVFontRef(NULL) );
+            _registry.registerFace(faceFromDef(def2));
             if (!def.getItalic()) {
                 LVFontDef newDef( def2 );
                 newDef.setItalic(2); // can italicize
@@ -6147,6 +6323,7 @@ public:
         }
         item = _cache.find( &def1);
         if (item->getDef()->getTypeFace()==alias ) {
+            _registry.registerAlias(alias, facename);
             return true;
         }
         else {
@@ -6666,6 +6843,7 @@ public:
                 return false;
             }
             _cache.update( &def, LVFontRef(NULL) );
+            _registry.registerFace(faceFromDef(def));
             if (!def.getItalic()) {
                 LVFontDef newDef( def );
                 newDef.setItalic(2); // can italicize
