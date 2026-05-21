@@ -5327,8 +5327,7 @@ public:
         _entries.add(e);
     }
     void clear() {
-        while (_entries.length() > 0)
-            _entries.remove(_entries.length() - 1);
+        _entries.clear();
     }
     int length() const { return _entries.length(); }
 
@@ -5956,6 +5955,10 @@ public:
     virtual ~LVFreeTypeFontManager()
     {
         FONT_MAN_GUARD
+        // Release all cached font instances before touching the glyph cache or
+        // library: LVFreeTypeFace destructors call FT_Done_Face and flush their
+        // local glyph cache, both of which require these to still be alive.
+        _instance_cache.clear();
         _globalCache.clear();
         if ( _library )
             FT_Done_FreeType( _library );
