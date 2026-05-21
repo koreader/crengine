@@ -730,6 +730,106 @@ and sans-serif.
 
 ---
 
+## Significant Assumptions
+
+These assumptions were made during the refactor. If any prove incorrect they will
+require targeted fixes but do not require re-doing the overall architecture.
+
+### Caller behaviour
+
+**`SetAsPreferredFontWithBias` is called at most twice per session change.**
+KOReader calls it once with `clearOthersBias=true` (the reading font) and once
+with `clearOthersBias=false` (the monospace companion). The refactor stores
+exactly two preferred-family strings keyed on that flag. If a third call with
+`clearOthersBias=false` were added for a different purpose (e.g. a cursive
+companion), it would silently overwrite the monospace preference.
+
+**The `bias` integer is unused.**
+The historical bias value was a `CalcMatch` scoring weight; the new selector
+does not score. The parameter is retained for API compatibility but ignored.
+If a caller passes a meaningful non-zero bias expecting it to influence
+selection, that influence will be silently lost.
+
+**Per-CSS-family preferred fonts are resolved in the CSS layer, not here.**
+When a user configures a preferred font for `font-family: serif`, KOReader's
+`getFontForFamily()` substitutes the configured name into the CSS font-family
+list before `GetFont` is called. The font manager never sees the generic
+`css_ff_serif` tag for those requests — step 1 (exact typeface name) matches
+directly. The `_preferred_family`/`_preferred_monospace_family` mechanism only
+handles the case where no specific name is given at all.
+
+### Font classification
+
+**Only `css_ff_monospace` is meaningful for font selection.**
+After removing name-based serif/sans detection, all non-monospace fonts are
+registered as `css_ff_sans_serif`. The distinction between serif, sans-serif,
+cursive, and fantasy has no effect on selection or synthesis. If OS/2
+`sFamilyClass` detection is added in future, step 3 of `select()` will
+naturally start using the classification without any other changes.
+
+**Monospace detection via `FT_FACE_FLAG_FIXED_WIDTH` is reliable.**
+The fixed-width flag is set by FreeType from the font's `post` table
+`isFixedPitch` field, which is standardised and consistently populated. No
+known monospace font omits it.
+
+### Instance cache
+
+**`LVArray<Entry>` calls element destructors correctly.**
+`LVFontInstanceCache` uses `LVArray<Entry>` where `Entry` holds a
+`LVFontRef`. The cache relies on `LVArray::clear()` calling `delete[]` which
+runs `~Entry()` (and thus `~LVFontRef()`) for every allocated slot, not just
+the live ones. If `LVArray` ever changed to a non-destructing allocator this
+would become a resource leak.
+
+**Clearing the full instance cache on reading-font change is acceptable.**
+When `SetAsPreferredFontWithBias(face, bias, true)` detects a font change it
+calls `_instance_cache.clear()`. This discards all loaded instances, including
+fallback and UI fonts unrelated to the reading font. The cost (reloading on
+next render) is considered acceptable compared to the complexity of selective
+eviction.
+
+### Destruction order
+
+**`_instance_cache.clear()` must be called before `_globalCache.clear()` and
+`FT_Done_FreeType`.**
+`LVFreeTypeFace` destructors call `FT_Done_Face` (requires a live `FT_Library`)
+and flush their local glyph cache (requires a live `LVFontGlobalGlyphCache`).
+This ordering is enforced explicitly in the destructor body rather than by
+member declaration order, because member declaration order also governs
+initialisation and reordering would create other hazards.
+
+### Known pre-existing limitations not addressed by this refactor
+
+**CSS `font-family` lists are not searched sequentially.**
+`style->font_name` may contain a comma-separated list such as `"Georgia, Times
+New Roman"`. `select()` step 1 treats the whole string as a single typeface
+name, which fails to match either face. Step 2 (preferred family) then wins.
+This means only single-name `font-family` declarations reliably select the
+named font. Multi-name lists are effectively reduced to the preferred reading
+font. This was also the case before the refactor.
+
+**Missing-glyph fallback does not consult the CSS font-family list.**
+When a glyph is absent from the selected font, the fallback chain goes directly
+to the global fallback font list (`_fallbackFontFaces`). The remaining names in
+the CSS `font-family:` list (B, C in `font-family: A, B, C`) are never tried
+for individual missing glyphs. Fixing this requires per-instance fallback chains
+which would conflict with instance cache sharing.
+
+**`@font-face` numeric `font-weight` is coerced to 400/700.**
+`epubfmt.cpp`'s `@font-face` parser only recognises the keyword `"bold"`;
+numeric weights (`100`–`900`) are discarded. `RegisterDocumentFont` then
+receives a boolean and registers the face at weight 400 or 700. A face declared
+`font-weight: 100` in an EPUB stylesheet is registered as regular weight,
+causing it to compete incorrectly in weight matching. This is a pre-existing bug
+in `epubfmt.cpp` outside the scope of this refactor.
+
+**`@font-face` is only parsed from EPUB content, not from styletweaks.**
+`lvstsheet.cpp` skips `@font-face` blocks; parsing is done exclusively by
+`epubfmt.cpp` at EPUB load time. CSS files processed after that point
+(styletweaks, external user CSS) cannot register document fonts.
+
+---
+
 ## Files Changed
 
 | File | Change |
