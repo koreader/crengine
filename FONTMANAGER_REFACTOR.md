@@ -32,6 +32,177 @@ with readable CSS Fonts Level 4 selection logic.
 └─────────────────────┘     └──────────────────┘     └───────────────────────┘
 ```
 
+### Class diagram
+
+```mermaid
+classDiagram
+    direction TB
+
+    class LVFreeTypeFontManager {
+        -LVFontRegistry _registry
+        -LVFontSelector _selector
+        -LVFontInstanceCache _instance_cache
+        -LVFontGlobalGlyphCache _globalCache
+        -FT_Library _library
+        -lString8 _preferred_family
+        -lString8 _preferred_by_family[9]
+        +GetFont(size, weight, italic, ...) LVFontRef
+        +RegisterFont(file) bool
+        +SetAsPreferredFontWithBias(face, bias, clear)
+        +GetFallbackFont(size) LVFontRef
+    }
+
+    class LVFontRegistry {
+        +registerFace(LVFontFace)
+        +registerAlias(alias, canonical)
+        +findFamily(name, documentId) LVFontFamily
+        +familyAt(i) LVFontFamily
+        +familyCount() int
+        +hasFaceId(id) bool
+        +removeFonts(documentId)
+    }
+
+    class LVFontFamily {
+        -lString8 _name
+        +faceAt(i) LVFontFace
+        +faceCount() int
+    }
+
+    class LVFontFace {
+        +lString8 name
+        +lString8 typeface
+        +int weight
+        +bool is_italic
+        +css_font_family_t family
+        +bool has_emojis
+        +bool has_ot_math
+        +int documentId
+        +LVByteArrayRef buf
+        +bool _has_wght; float _wght_min, _wght_def, _wght_max
+        +bool _has_opsz; float _opsz_min, _opsz_def, _opsz_max
+        +bool _has_ital; float _ital_min, _ital_def, _ital_max
+        +bool _has_slnt; float _slnt_min, _slnt_def, _slnt_max
+        +bool _has_wdth; float _wdth_min, _wdth_def, _wdth_max
+        +isVariable() bool
+        +id() lUInt32
+    }
+
+    class LVFontRegistrationData {
+        +lString8 name, typeface
+        +int weight, index, documentId
+        +css_font_family_t family
+        +bool is_italic
+        +LVByteArrayRef buf
+        +setAxisInfo(tag, val, min, max)
+        +hasWghtAxis() bool
+    }
+
+    class LVFontSelector {
+        +select(weight, italic, family, typeface, ...) LVFontMatch
+        -tryFamily(family, weight, italic, ...) LVFontMatch
+        -pickBestWeight(candidates, weight) LVFontFace
+        -computeVariations(face, requested, ...) LVFontVariations
+    }
+
+    class LVFontMatch {
+        +LVFontFace* face
+        +LVFontVariations variations
+        +valid() bool
+    }
+
+    class LVFontSynthesis {
+        +float width_scale
+        +none() bool
+        +hash() lUInt32
+    }
+
+    class LVFontVariations {
+        +bool wght_set; float wght
+        +bool opsz_set; float opsz
+        +bool ital_set; float ital
+        +bool slnt_set; float slnt
+        +bool wdth_set; float wdth
+        +set(tag, value)
+        +get(tag, fallback) float
+        +empty() bool
+        +hash() lUInt32
+    }
+
+    class LVFontInstanceCache {
+        -LVArray _entries
+        +get(key) LVFontRef
+        +put(key, LVFontRef)
+        +clear()
+        +gc()
+        +forEachFont(fn)
+    }
+
+    class LVFontInstanceKey {
+        +lUInt32 face_id
+        +int size
+        +int face_size
+        +int features
+        +int requested_weight
+        +bool requested_italic
+        +lUInt32 variations_hash
+        +hash() lUInt32
+        +operator==() bool
+    }
+
+    class LVFont {
+        <<abstract>>
+        +DrawTextString(...) int
+        +measureText(...) lUInt16
+        +getGlyphInfo(...) bool
+        +getHeight() int
+        +getBaseline() int
+        +getSize() int
+        +getWeight() int
+        +getItalic() bool
+    }
+
+    class LVFontProxy {
+        #LVFontRef _wrappedRef
+        #LVFont* _font
+    }
+
+    class LVFreeTypeFace {
+        -FT_Face _face
+        -LVFontLocalGlyphCache _glyph_cache
+        -LVFontVariations _variations
+        +loadFromFile(...) bool
+        +loadFromBuffer(...) bool
+        +setSynthWeight(weight)
+    }
+
+    class LVFontBoldTransform {
+        -int _hShift, _vShift
+        -int _size, _height, _baseline
+        -LVFontLocalGlyphCache _glyph_cache
+    }
+
+    %% Ownership / composition
+    LVFreeTypeFontManager *-- LVFontRegistry
+    LVFreeTypeFontManager *-- LVFontSelector
+    LVFreeTypeFontManager *-- LVFontInstanceCache
+    LVFontRegistry *-- "0..*" LVFontFamily
+    LVFontFamily *-- "1..*" LVFontFace
+    LVFontInstanceCache *-- "0..*" LVFontInstanceKey
+
+    %% Data flow
+    LVFontRegistrationData ..> LVFontFace : faceFromDef()
+    LVFontSelector ..> LVFontRegistry : reads
+    LVFontSelector ..> LVFontMatch : returns
+    LVFontMatch --> LVFontFace : face*
+    LVFontMatch *-- LVFontVariations
+    note for LVFontSynthesis "Computed inline in loadAndCache();\nnot a member of LVFontMatch or LVFontInstanceKey"
+
+    %% Font class hierarchy
+    LVFont <|-- LVFreeTypeFace
+    LVFont <|-- LVFontProxy
+    LVFontProxy <|-- LVFontBoldTransform
+```
+
 ### LVFontFace
 
 One instance per physical font face. Replaces the registered-font role of `LVFontDef`.
