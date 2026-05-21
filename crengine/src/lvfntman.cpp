@@ -5893,14 +5893,8 @@ public:
                 //     default: cr_weight=300; break;
                 // }
                 css_font_family_t fontFamily = css_ff_sans_serif;
-                lString32 face32((const char *)family);
-                face32.lowercase();
                 if ( spacing==FC_MONO )
                     fontFamily = css_ff_monospace;
-                else if (face32.pos("sans") >= 0)
-                    fontFamily = css_ff_sans_serif;
-                else if (face32.pos("serif") >= 0)
-                    fontFamily = css_ff_serif;
 
                 //css_ff_inherit,
                 //css_ff_serif,
@@ -6428,8 +6422,6 @@ public:
             lString8 familyName(!faceName.empty() ? faceName : ::familyName(face));
             css_font_family_t fontFamily = css_ff_sans_serif;
             if (face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) fontFamily = css_ff_monospace;
-            else { lString8 fn = familyName; fn.lowercase();
-                   if (fn.pos("serif") >= 0 && fn.pos("sans") < 0) fontFamily = css_ff_serif; }
 
             int weight = !faceName.empty() ? (bold ? 700 : 400) : getFontWeight(face);
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
@@ -6516,8 +6508,6 @@ public:
             lString8 familyName( ::familyName(face) );
             css_font_family_t fontFamily = css_ff_sans_serif;
             if (face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) fontFamily = css_ff_monospace;
-            else { lString8 fn = familyName; fn.lowercase();
-                   if (fn.pos("serif") >= 0 && fn.pos("sans") < 0) fontFamily = css_ff_serif; }
 
             LVFontRegistrationData def(
                 fname,
@@ -6591,8 +6581,6 @@ public:
             lString8 familyName( ::familyName(face) );
             css_font_family_t fontFamily = css_ff_sans_serif;
             if (face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) fontFamily = css_ff_monospace;
-            else { lString8 fn = familyName; fn.lowercase();
-                   if (fn.pos("serif") >= 0 && fn.pos("sans") < 0) fontFamily = css_ff_serif; }
 
             int weight = getFontWeight(face);
             bool italicFlag = ( face->style_flags & FT_STYLE_FLAG_ITALIC ) ? true : false;
