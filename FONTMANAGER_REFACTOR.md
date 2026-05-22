@@ -798,22 +798,21 @@ This ordering is enforced explicitly in the destructor body rather than by
 member declaration order, because member declaration order also governs
 initialisation and reordering would create other hazards.
 
+**CSS `font-family` lists are searched sequentially.**
+`style->font_name` may contain a comma-separated list such as `"Georgia, Times
+New Roman"`. `select()` step 1 splits the list using `splitPropertyValueList`
+and tries each name in order, returning the first match. This matches the
+behaviour of the pre-refactor `LVFontCache::find()`.
+
 ### Known pre-existing limitations not addressed by this refactor
 
-**CSS `font-family` lists are not searched sequentially.**
-`style->font_name` may contain a comma-separated list such as `"Georgia, Times
-New Roman"`. `select()` step 1 treats the whole string as a single typeface
-name, which fails to match either face. Step 2 (preferred family) then wins.
-This means only single-name `font-family` declarations reliably select the
-named font. Multi-name lists are effectively reduced to the preferred reading
-font. This was also the case before the refactor.
-
 **Missing-glyph fallback does not consult the CSS font-family list.**
-When a glyph is absent from the selected font, the fallback chain goes directly
-to the global fallback font list (`_fallbackFontFaces`). The remaining names in
-the CSS `font-family:` list (B, C in `font-family: A, B, C`) are never tried
-for individual missing glyphs. Fixing this requires per-instance fallback chains
-which would conflict with instance cache sharing.
+Font *selection* (which font to use for a run of text) correctly tries each
+name in the CSS `font-family:` list in order. However, when a glyph is absent
+from the selected font, the fallback chain goes directly to the global fallback
+font list (`_fallbackFontFaces`). The remaining names in the CSS list are not
+tried for individual missing glyphs. Fixing this requires per-instance fallback
+chains which would conflict with instance cache sharing.
 
 **`@font-face` numeric `font-weight` is coerced to 400/700.**
 `epubfmt.cpp`'s `@font-face` parser only recognises the keyword `"bold"`;

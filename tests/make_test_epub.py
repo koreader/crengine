@@ -39,6 +39,7 @@ CONTENT_OPF = """\
     <item id="ch03"    href="ch03.html"    media-type="application/xhtml+xml"/>
     <item id="ch04"    href="ch04.html"    media-type="application/xhtml+xml"/>
     <item id="ch05"    href="ch05.html"    media-type="application/xhtml+xml"/>
+    <item id="ch06"    href="ch06.html"    media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="ncx">
     <itemref idref="ch01"/>
@@ -46,6 +47,7 @@ CONTENT_OPF = """\
     <itemref idref="ch03"/>
     <itemref idref="ch04"/>
     <itemref idref="ch05"/>
+    <itemref idref="ch06"/>
   </spine>
 </package>
 """
@@ -77,6 +79,10 @@ TOC_NCX = """\
     <navPoint id="ch05" playOrder="5">
       <navLabel><text>5. Fallback Fonts</text></navLabel>
       <content src="ch05.html"/>
+    </navPoint>
+    <navPoint id="ch06" playOrder="6">
+      <navLabel><text>6. Font-Family List</text></navLabel>
+      <content src="ch06.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -151,11 +157,11 @@ CH01 = """\
 <p class="sample serif w400">The quick brown fox jumps over the lazy dog. (400)</p>
 <p class="label">weight: 500</p>
 <p class="sample serif w500">The quick brown fox jumps over the lazy dog. (500)</p>
-<p class="label">weight: 550 (CSS4 arbitrary)</p>
+<p class="label">weight: 550 (CSS4 arbitrary — not yet implemented; rounds to 600)</p>
 <p class="sample serif w550">The quick brown fox jumps over the lazy dog. (550)</p>
 <p class="label">weight: 600</p>
 <p class="sample serif w600">The quick brown fox jumps over the lazy dog. (600)</p>
-<p class="label">weight: 650 (CSS4 arbitrary)</p>
+<p class="label">weight: 650 (CSS4 arbitrary — not yet implemented; rounds to 700)</p>
 <p class="sample serif w650">The quick brown fox jumps over the lazy dog. (650)</p>
 <p class="label">weight: 700 (bold)</p>
 <p class="sample serif w700">The quick brown fox jumps over the lazy dog. (700)</p>
@@ -172,8 +178,9 @@ CH01 = """\
 
 <h2>Expected behaviour</h2>
 <p>Weights 100–900 should show a visual progression from thin to heavy.
-CSS4 intermediate values (550, 650) should be handled by the nearest
-available face for static fonts, or rendered precisely by variable fonts.</p>
+CSS4 intermediate values (550, 650) are not yet implemented: the CSS parser
+rounds them to the nearest 100, so 550 renders identically to 600 and 650
+renders identically to 700.</p>
 </body>
 </html>
 """
@@ -199,9 +206,11 @@ CH02 = """\
 <p class="sample serif italic w700">The quick brown fox jumps over the lazy dog.</p>
 
 <h2>Italic + arbitrary weight (CSS4)</h2>
-<p class="label">weight: 550, italic</p>
+<p class="label">&#x26A0; Arbitrary weights not yet implemented. Weights round to
+the nearest 100: 550 renders as 600, 650 renders as 700.</p>
+<p class="label">weight: 550, italic (rounds to 600)</p>
 <p class="sample serif italic w550">The quick brown fox — medium italic (550).</p>
-<p class="label">weight: 650, italic</p>
+<p class="label">weight: 650, italic (rounds to 700)</p>
 <p class="sample serif italic w650">The quick brown fox — semi-bold italic (650).</p>
 
 <h2>Sans-serif italic</h2>
@@ -211,6 +220,8 @@ CH02 = """\
 <p class="sample sans italic w700">Sans bold italic (700).</p>
 
 <h2>font-synthesis</h2>
+<p class="label">&#x26A0; font-synthesis is not yet implemented. Both lines below
+will render identically regardless of the font-synthesis value.</p>
 <p class="label">font-synthesis: weight style (default — synthesis allowed)</p>
 <p class="sample serif italic w700 synth-all">Bold italic with synthesis allowed.</p>
 <p class="label">font-synthesis: none — synthesis suppressed; may appear roman/light</p>
@@ -218,8 +229,8 @@ CH02 = """\
 
 <h2>Expected behaviour</h2>
 <p>Italic text should be visually slanted or use a distinct italic face.
-With font-synthesis:none and no native face, the text may appear
-indistinguishable from roman — that is correct behaviour.</p>
+font-synthesis is not yet implemented: the synthesis-allowed and
+synthesis-none samples render identically.</p>
 </body>
 </html>
 """
@@ -275,6 +286,9 @@ CH04 = """\
 <link rel="stylesheet" type="text/css" href="style.css"/></head>
 <body>
 <h1>Chapter 4 — Font Stretch</h1>
+
+<p class="label">&#x26A0; Not yet implemented. The font-stretch CSS property is not
+parsed. All lines in this chapter will render at normal width.</p>
 
 <h2>CSS keyword values (serif)</h2>
 <p class="label">font-stretch: condensed (75%)</p>
@@ -382,6 +396,53 @@ fallback chain (GetFallbackFont with forFaceName).</p>
 </html>
 """
 
+CH06 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>Font-Family List</title>
+<link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+<h1>Chapter 6 &#x2014; CSS font-family List Selection</h1>
+
+<p>This chapter verifies that a comma-separated CSS font-family list is
+searched in order. Monospace text is visually distinctive regardless of
+which specific fonts are installed, making it an unambiguous reference.</p>
+
+<h2>Reference lines</h2>
+<p class="label">A. font-family: monospace &#x2014; baseline monospace rendering</p>
+<p class="sample mono">The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<p class="label">B. font-family: serif &#x2014; baseline proportional rendering</p>
+<p class="sample serif">The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<h2>List with existing first entry</h2>
+<p class="label">C. font-family: "Droid Sans Mono", serif &#x2014; first font exists;
+must look identical to line A</p>
+<p class="sample" style="font-family: 'Droid Sans Mono', serif;">
+The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<h2>List with missing first entry</h2>
+<p class="label">D. font-family: "ZZZNotInstalled", "Droid Sans Mono", serif &#x2014;
+first font absent, second exists; must look identical to lines A and C</p>
+<p class="sample" style="font-family: 'ZZZNotInstalled', 'Droid Sans Mono', serif;">
+The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<p class="label">E. font-family: "ZZZNotInstalled1", "ZZZNotInstalled2", serif &#x2014;
+both absent; must fall back to proportional reading font, matching line B</p>
+<p class="sample" style="font-family: 'ZZZNotInstalled1', 'ZZZNotInstalled2', serif;">
+The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<h2>Expected behaviour</h2>
+<p>Lines A, C, and D must be rendered in a monospace face and look
+identical to each other. Lines B and E must be rendered in the proportional
+reading font and look identical to each other. If D looks like B/E instead
+of A/C, the font-family list is not being searched sequentially.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Build the EPUB
 # ---------------------------------------------------------------------------
@@ -401,6 +462,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch03.html",        CH03)
         zf.writestr("OEBPS/ch04.html",        CH04)
         zf.writestr("OEBPS/ch05.html",        CH05)
+        zf.writestr("OEBPS/ch06.html",        CH06)
     with open(path, "wb") as f:
         f.write(buf.getvalue())
     print(f"Written: {path}  ({os.path.getsize(path)} bytes)")

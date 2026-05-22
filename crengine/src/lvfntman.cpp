@@ -5235,10 +5235,16 @@ public:
                         const LVFontRegistry& registry,
                         const lString8& preferred_family) const
     {
-        // 1. Try the requested typeface name (findFamily strips CSS quotes internally).
-        LVFontMatch m = tryFamily(
-                registry.findFamily(typeface, documentId), weight, italic, requested);
-        if (m.valid()) return m;
+        // 1. Try each name in the CSS font-family list in order.
+        //    font_name may be a comma-separated list e.g. "Georgia, Times New Roman".
+        //    splitPropertyValueList handles quoted names and strips whitespace.
+        LVFontMatch m;
+        lString8Collection names;
+        splitPropertyValueList(typeface.c_str(), names);
+        for (int i = 0; i < names.length(); i++) {
+            m = tryFamily(registry.findFamily(names[i], documentId), weight, italic, requested);
+            if (m.valid()) return m;
+        }
 
         // 2. User's preferred family (replaces the useBias scoring trick).
         if (!preferred_family.empty()) {
