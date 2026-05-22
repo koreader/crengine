@@ -40,6 +40,7 @@ CONTENT_OPF = """\
     <item id="ch04"    href="ch04.html"    media-type="application/xhtml+xml"/>
     <item id="ch05"    href="ch05.html"    media-type="application/xhtml+xml"/>
     <item id="ch06"    href="ch06.html"    media-type="application/xhtml+xml"/>
+    <item id="ch07"    href="ch07.html"    media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="ncx">
     <itemref idref="ch01"/>
@@ -48,6 +49,7 @@ CONTENT_OPF = """\
     <itemref idref="ch04"/>
     <itemref idref="ch05"/>
     <itemref idref="ch06"/>
+    <itemref idref="ch07"/>
   </spine>
 </package>
 """
@@ -83,6 +85,10 @@ TOC_NCX = """\
     <navPoint id="ch06" playOrder="6">
       <navLabel><text>6. Font-Family List</text></navLabel>
       <content src="ch06.html"/>
+    </navPoint>
+    <navPoint id="ch07" playOrder="7">
+      <navLabel><text>7. Issue Regressions</text></navLabel>
+      <content src="ch07.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -443,6 +449,71 @@ of A/C, the font-family list is not being searched sequentially.</p>
 </html>
 """
 
+CH07 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>Issue Regressions</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+<style type="text/css">
+.italic-body { font-style: italic; }
+</style>
+</head>
+<body>
+<h1>Chapter 7 &#x2014; Issue Regressions</h1>
+<p>Each section documents a specific past bug. All items should render
+correctly; any failure indicates a regression.</p>
+
+<h2>koreader#8791 &#x2014; Spurious document-wide italic</h2>
+<p class="label">A CSS rule with font-style:italic scoped to a class must not
+affect unstyled body text. The two lines below must look different.</p>
+<p class="sample serif">This line is unstyled body text &#x2014; must be roman (upright).</p>
+<p class="sample serif italic">This line has class="italic" &#x2014; must be italic (slanted).</p>
+<p class="label">If both lines appear italic the document-wide italic bug has
+regressed.</p>
+
+<h2>koreader#10040 / koreader#12525 &#x2014; @font-face numeric font-weight ignored</h2>
+<p class="label">&#x26A0; Depends on embedded fonts fix (not yet implemented).
+When @font-face font-weight numeric values are correctly parsed, an embedded
+font declared at weight 900 must render heavier than one declared at weight
+400. Currently both will render at the same weight because only the keyword
+"bold" is recognised.</p>
+<p class="sample w400">This text uses font-weight: 400 &#x2014; normal weight.</p>
+<p class="sample w900">This text uses font-weight: 900 &#x2014; must be heavier than the line above once the fix is applied.</p>
+
+<h2>koreader#11771 &#x2014; Ruby annotation alignment</h2>
+<p class="label">Ruby annotations must sit directly above their base
+characters and must not shift left or overlap adjacent characters.</p>
+<p class="sample">
+  Base text with ruby:
+  <ruby>&#x6F22;&#x5B57;<rt>&#x304B;&#x3093;&#x3058;</rt></ruby>
+  must have the annotation centred above the two base characters.
+  Adjacent text must not shift.
+</p>
+
+<h2>koreader#8306 &#x2014; Unicode smart quotes</h2>
+<p class="label">Unicode quotation marks must render as the correct glyph and
+must not corrupt the surrounding characters.</p>
+<p class="sample serif">Straight: "quoted text" and 'single quoted'.</p>
+<p class="sample serif">Smart double: &#x201C;quoted text&#x201D; &#x2014; opening and closing curly quotes.</p>
+<p class="sample serif">Smart single: &#x2018;quoted text&#x2019; &#x2014; opening and closing curly apostrophes.</p>
+<p class="label">If any characters above appear as sequences like
+&#xC3;&#xA2;&#xE2;&#x80;&#x9C; the Unicode encoding regression has
+returned.</p>
+
+<h2>Expected behaviour</h2>
+<p>koreader#8791: body text is roman; only the classed line is italic.</p>
+<p>koreader#10040/#12525: once embedded fonts are fixed, weight 900 renders
+visibly heavier than weight 400.</p>
+<p>koreader#11771: ruby annotation is centred above base characters with no
+horizontal shift.</p>
+<p>koreader#8306: all quotation mark characters render correctly with no
+mojibake.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Build the EPUB
 # ---------------------------------------------------------------------------
@@ -463,6 +534,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch04.html",        CH04)
         zf.writestr("OEBPS/ch05.html",        CH05)
         zf.writestr("OEBPS/ch06.html",        CH06)
+        zf.writestr("OEBPS/ch07.html",        CH07)
     with open(path, "wb") as f:
         f.write(buf.getvalue())
     print(f"Written: {path}  ({os.path.getsize(path)} bytes)")

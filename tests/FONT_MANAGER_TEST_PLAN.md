@@ -19,7 +19,7 @@ The test EPUB is at `tests/font-manager-test.epub`.  Regenerate it with
 | # | Action | Expected |
 |---|--------|----------|
 | 1.1 | Open any existing book in KOReader | Text renders without crashes or blank pages |
-| 1.2 | Open `font-manager-test.epub` | All six chapters display with visible text |
+| 1.2 | Open `font-manager-test.epub` | All seven chapters display with visible text |
 | 1.3 | Scroll through all chapters | No missing-glyph boxes on Latin text |
 
 ---
@@ -190,20 +190,33 @@ correctly across sessions.
 
 ---
 
-## 14. Regression — known past issues
+## 14. Issue regressions (Chapter 7)
+
+**Goal:** Verify fixed bugs from issue history do not regress.
+
+| # | Issue | Regression | Verification |
+|---|-------|-----------|--------------|
+| 14.1 | koreader#8791 | Spurious document-wide italic | Body text line must be roman; classed italic line must be slanted — they must look different |
+| 14.2 | koreader#8306 | Unicode smart quotes corrupt surrounding text | Smart quote characters in Chapter 7 must render correctly with no mojibake |
+| 14.3 | koreader#11771 | Ruby annotation alignment broken by epub-text-align-last | Ruby annotation must be centred above base characters; no horizontal shift |
+| 14.4 | koreader#10040 / koreader#12525 | @font-face numeric font-weight ignored | **Pending embedded fonts fix** — weight 900 must render heavier than weight 400 once fix is applied |
+
+---
+
+## 15. Regression — font manager refactor
 
 These were bugs found during the refactor; verify they do not regress.
 
 | # | Regression | Verification |
 |---|-----------|--------------|
-| 14.1 | Literata displays as italic by default | Open a book using Literata; roman text should not be slanted |
-| 14.2 | Noto Sans displays as bold by default | Open a book using Noto Sans; normal weight text should not be emboldened |
-| 14.3 | All text uses monospace font | Open any book; confirm proportional fonts render proportionally |
-| 14.4 | Font change mid-session has no effect | Change font, verify new font applies |
-| 14.5 | Font names in picker are all lowercase | Open picker; names should be correctly cased |
-| 14.6 | Variable font weight 700 gets synthetic bold | View Chapter 1 with Literata at weight 700; should not appear heavier than the axis max |
-| 14.7 | Bold italic on Noto Sans shows as normal italic | View Chapter 2; bold italic should be visually heavier than normal italic |
-| 14.8 | CSS font-family list second entry never used | View Chapter 6; lines C and D must render identically in monospace |
+| 15.1 | Literata displays as italic by default | Open a book using Literata; roman text should not be slanted |
+| 15.2 | Noto Sans displays as bold by default | Open a book using Noto Sans; normal weight text should not be emboldened |
+| 15.3 | All text uses monospace font | Open any book; confirm proportional fonts render proportionally |
+| 15.4 | Font change mid-session has no effect | Change font, verify new font applies |
+| 15.5 | Font names in picker are all lowercase | Open picker; names should be correctly cased |
+| 15.6 | Variable font weight 700 gets synthetic bold | View Chapter 1 with Literata at weight 700; should not appear heavier than the axis max |
+| 15.7 | Bold italic on Noto Sans shows as normal italic | View Chapter 2; bold italic should be visually heavier than normal italic |
+| 15.8 | CSS font-family list second entry never used | View Chapter 6; lines C and D must render identically in monospace |
 
 ---
 
