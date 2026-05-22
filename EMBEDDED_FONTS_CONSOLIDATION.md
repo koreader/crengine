@@ -168,8 +168,12 @@ by the current pre-scan.
 
 - `LVEmbeddedFontList` struct and serialisation — unchanged; populated
   incrementally rather than in bulk.
-- `registerEmbeddedFonts()` / `unregisterEmbeddedFonts()` — unchanged; still
-  called on document open/close.
+- `registerEmbeddedFonts()` — preserved for the cache re-open path; when a
+  document is restored from cache, `LVEmbeddedFontList` is deserialised and
+  this function re-registers fonts without re-parsing any CSS.  On a fresh
+  load, fonts are registered inline by `RegisterDocumentFont` and
+  `registerEmbeddedFonts()` is not called.
+- `unregisterEmbeddedFonts()` — unchanged; called when the document is closed.
 - Cache re-open path — unchanged; deserialise font list, call
   `registerEmbeddedFonts()`.
 - `RegisterDocumentFont` — unchanged in signature; gains `LVEmbeddedFontList`
@@ -259,5 +263,5 @@ serialised and deserialised correctly.
 |------|--------|
 | `crengine/src/lvstsheet.cpp` | Parse `@font-face` blocks; call `RegisterDocumentFont` |
 | `crengine/src/epubfmt.cpp` | Manifest font-file discovery; remove pre/post-scan and `EmbeddedFontStyleParser` |
-| `crengine/src/lvtinydom.cpp` | `RegisterDocumentFont` appends to `LVEmbeddedFontList`; `registerEmbeddedFonts()` unchanged |
+| `crengine/src/lvtinydom.cpp` | `RegisterDocumentFont` appends to `LVEmbeddedFontList`; `registerEmbeddedFonts()` retained for cache re-open only |
 | `crengine/src/lvfntman.cpp` | `RegisterDocumentFont` — no signature change; minor side-effect addition |
