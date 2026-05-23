@@ -16,6 +16,7 @@
 #define __LV_FNT_MAN_H_INCLUDED__
 
 #include <stdlib.h>
+#include <math.h>
 #include "crsetup.h"
 #include "lvtypes.h"
 #include "lvplatform.h"
@@ -626,6 +627,10 @@ struct LVFontVariations {
         }
     }
     void set(lUInt32 tag, float value) {
+        if (!isfinite(value)) {
+            CRLog::error("LVFontVariations::set: non-finite value for axis 0x%08x — ignoring", tag);
+            return;
+        }
         switch (tag) {
             case LVFONT_TAG_WGHT: wght_set = true; wght = value; break;
             case LVFONT_TAG_OPSZ: opsz_set = true; opsz = value; break;
