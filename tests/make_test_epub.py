@@ -474,17 +474,21 @@ affect unstyled body text. The two lines below must look different.</p>
 regressed.</p>
 
 <h2>koreader#10040 / koreader#12525 &#x2014; @font-face numeric font-weight ignored</h2>
-<p class="label">&#x26A0; Depends on embedded fonts fix (not yet implemented).
-When @font-face font-weight numeric values are correctly parsed, an embedded
-font declared at weight 900 must render heavier than one declared at weight
-400. Currently both will render at the same weight because only the keyword
-"bold" is recognised.</p>
-<p class="sample w400">This text uses font-weight: 400 &#x2014; normal weight.</p>
-<p class="sample w900">This text uses font-weight: 900 &#x2014; must be heavier than the line above once the fix is applied.</p>
+<p class="label">&#x26A0; This bug cannot be tested from a static EPUB without
+embedded fonts. The bug is in @font-face registration: when an EPUB declares
+@font-face with a numeric font-weight (e.g. font-weight: 900), the weight is
+ignored and the face is registered at 400. The two lines below use CSS
+font-weight on regular elements, which works correctly and is unrelated to the
+bug. Both lines will differ visually regardless of the fix.</p>
+<p class="sample w400">CSS font-weight: 400 on an element &#x2014; normal weight (working correctly).</p>
+<p class="sample w900">CSS font-weight: 900 on an element &#x2014; heavy weight (working correctly).</p>
 
-<h2>koreader#11771 &#x2014; Ruby annotation alignment</h2>
-<p class="label">Ruby annotations must sit directly above their base
-characters and must not shift left or overlap adjacent characters.</p>
+<h2>koreader#11771 &#x2014; Ruby annotation horizontal alignment</h2>
+<p class="label">The regression in #11771 was horizontal: annotations shifted
+left when -epub-text-align-last was set. Check that the annotation is centred
+horizontally above its base characters and that adjacent text has not shifted.
+A vertical gap between annotation and base text is a known characteristic of
+crengine's table-based ruby rendering and is not related to this regression.</p>
 <p class="sample">
   Base text with ruby:
   <ruby>&#x6F22;&#x5B57;<rt>&#x304B;&#x3093;&#x3058;</rt></ruby>

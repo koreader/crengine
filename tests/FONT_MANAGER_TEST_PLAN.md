@@ -198,8 +198,8 @@ correctly across sessions.
 |---|-------|-----------|--------------|
 | 14.1 | koreader#8791 | Spurious document-wide italic | Body text line must be roman; classed italic line must be slanted — they must look different |
 | 14.2 | koreader#8306 | Unicode smart quotes corrupt surrounding text | Smart quote characters in Chapter 7 must render correctly with no mojibake |
-| 14.3 | koreader#11771 | Ruby annotation alignment broken by epub-text-align-last | Ruby annotation must be centred above base characters; no horizontal shift |
-| 14.4 | koreader#10040 / koreader#12525 | @font-face numeric font-weight ignored | **Pending embedded fonts fix** — weight 900 must render heavier than weight 400 once fix is applied |
+| 14.3 | koreader#11771 | Ruby annotation shifted left by epub-text-align-last | Annotation must be centred horizontally above base characters; adjacent text must not shift. A vertical gap between annotation and base is a known crengine rendering characteristic and is not part of this regression. |
+| 14.4 | koreader#10040 / koreader#12525 | @font-face numeric font-weight ignored | **Cannot be tested from a static EPUB** — the bug affects @font-face registration of embedded fonts, not CSS font-weight on elements. Requires an EPUB with embedded fonts declaring numeric font-weight in @font-face. |
 
 ---
 
