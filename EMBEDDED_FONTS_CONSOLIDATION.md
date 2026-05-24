@@ -190,6 +190,146 @@ by the current pre-scan.
 | `forceReinitStyles()` on EPUBs with `<head><style>` fonts | Post-scan needed to catch late-registered fonts | Eliminated — fonts registered before body styling |
 | `@font-face` in `@import`-only files missed by pre-scan | Pre-scan limited to OPF manifest entries | `parseStyleSheet` follows `@import` recursively |
 
+### Background: koreader#10040 and the `useBias` mechanism
+
+koreader#10040 presents as embedded fonts being ignored at some weights, but
+the underlying story is more involved.  poire-z's analysis traces the history
+of the `_bias` / `useBias` scoring mechanism in the old `CalcMatch`-based font
+selector:
+
+- `useBias` was introduced to make the font manager aware of the "preferred"
+  document font (the reading font chosen in the UI).  The font manager has no
+  direct access to the KOReader preference layer, so the document-level call to
+  `SetAsPreferredFontWithBias()` injected a scoring bonus (`_bias`, initially 1)
+  to nudge the selector toward the preferred face when no CSS `font-family` was
+  specified.
+- The bias was later increased to 1921 to handle FreeSerif, a font with no bold
+  or italic variants.  Without a large enough bias the selector would fall
+  through to a different family when bold or italic was requested; with the bias
+  it stayed on FreeSerif and triggered synthesis instead.
+- The same bias was eventually extended to the monospace font as well.
+- The problem reported in #10040 is that the bias was unconditional: even when
+  CSS specified an explicit `font-family` that matched an embedded font, the
+  bias on the system/preferred font was large enough to beat the embedded font
+  at some weights.  The embedded font was registered at its declared weight but
+  the preferred font won the `CalcMatch` race because of the accumulated bias.
+
+  The fix added a `typeface_match` guard:
+  ```cpp
+  int bias = (useBias && !typeface_match) ? _bias : 0;
+  ```
+  This zeroes the bias when the CSS-requested typeface name actually matches a
+  registered face, so an explicitly named embedded font always beats the
+  preferred-font bias.
+
+**Status in the refactored font manager:** The `CalcMatch` scoring function and
+the `useBias` mechanism are both removed in the refactored architecture.
+`LVFontSelector` resolves CSS `font-family` names through an explicit
+`preferred_family` string rather than a scoring bias, and family name lookup is
+a hard filter rather than a soft score.  A CSS-named embedded font will always
+be selected over the document preferred font when the name matches — the
+architectural equivalent of the `!typeface_match` fix, without requiring the
+fix.  The `useBias` history is documented here because it explains why the
+`RegisterDocumentFont` path matters: if numeric weights had been threaded
+through correctly, the embedded font would have been registered at the right
+weight and the bias issue would have been less visible.
+
+---
+
+## Risks and Open Questions
+
+The following concerns were raised during design review.  They do not block the
+proposal but each requires a decision or careful verification during
+implementation.
+
+### 1. Hash consistency on cache re-open
+
+When a document is opened from the serialised cache, the stored DOM is
+deserialised without re-running `parseStyleSheet`.  Style hashes (`calcHash`)
+are serialised and compared on re-open to detect stale cache entries.
+
+**Risk:** If the consolidation changes the order or completeness of font
+registration relative to the old pre-scan, the hash of the registered font set
+could differ between a fresh load and a cache re-open.  A mismatch would either
+force an unnecessary full re-render (if hash checking is strict) or silently
+produce mismatched rendering (if not).
+
+**Mitigation:** `LVEmbeddedFontList` serialisation and `GetFontListHash()` must
+be verified to produce identical values after a fresh load and after a cache
+re-open of the same document.  Run the comparison on at least one EPUB with
+external CSS fonts and one with `<head><style>` fonts before landing Step 2.
+
+### 2. `@font-face` is not a stylesheet rule in the usual sense
+
+In `lvstsheet.cpp`, parsing a stylesheet populates a list of `css_style_rec_t`
+rule objects that are later applied to DOM nodes.  `@font-face` does not produce
+a rule object — it produces a side-effect (font registration) and no style
+application.  The consolidation must not attempt to represent `@font-face` as a
+style rule.
+
+**Implication:** The implementation in Step 1 is a special case inside the
+`@font-face` block handler: parse descriptors, call `RegisterDocumentFont`,
+discard the block.  This is architecturally clean (all CSS text flows through
+one parser) but the implementation must be careful not to push a half-formed
+`css_style_rec_t` onto the rule list.  The stylesheet cache also caches rule
+lists — if `@font-face` registration is a side-effect during parsing, the cache
+must ensure registration is replayed (or skipped idempotently via `hasFaceId()`)
+on subsequent DocFragments that hit the cached rule list.
+
+### 3. Cross-DocFragment family name collisions
+
+Different spine items (DocFragments) may embed different font files that declare
+the same CSS family name (e.g., two EPUBs each embed a font called `"BookFont"`
+but with different glyph designs).  The font manager's `hasFaceId()` check uses
+the font file's face identity (derived from the binary), not the CSS family name,
+so two distinct binaries with the same declared family name will both be
+registered.
+
+**Risk:** If two DocFragments declare `font-family: "BookFont"` referencing
+different files, both registrations succeed, but CSS name lookup will return
+whichever was registered first.  The second DocFragment's declared font will be
+silently ignored for that family name.
+
+**Mitigation:** This is also a risk in the current pre-scan architecture.  The
+consolidation does not make this worse.  For correctness, font registration
+should be scoped to the DocFragment that declared it — this is a pre-existing
+limitation of the shared font registry, not introduced by the consolidation.
+Document the risk; a full per-DocFragment scope is a separate future improvement.
+
+### 4. Bold-only `@font-face` and the CSS matching algorithm
+
+CSS `@font-face` allows registering a face at only a bold weight:
+
+```css
+@font-face {
+  font-family: "MyFont";
+  font-weight: bold;
+  src: url("MyFont-Bold.woff2");
+}
+```
+
+If a document element requests `font-family: "MyFont"; font-weight: normal`, the
+CSS font matching algorithm specifies that the browser should try the next family
+name in the list (not synthesise from the bold face), because no normal-weight
+face is declared for that family.
+
+**Risk:** crengine's font selector does not currently implement this CSS
+behaviour.  When a named family is found in the registry, the selector searches
+for the best-weight match within that family; it does not fall through to the
+next `font-family` list entry when no suitable weight is available.
+
+**Decision required:** Should the consolidation implement the CSS-specified
+fall-through behaviour, or preserve crengine's current behaviour (select the
+nearest weight within the matched family)?  The CSS-specified behaviour is more
+correct but is a larger change.  This question should be resolved before Step 1
+is finalised.
+
+**Note:** `RegisterDocumentFont` currently receives `bool bold` (not `int weight`),
+so numeric `font-weight` values in `@font-face` are still lost between the CSS
+layer and the font manager even after this consolidation's Step 1.  Threading
+`int weight` through `LVEmbeddedFontDef` is a prerequisite for the full fix to
+koreader#10040 and for correct bold-only matching.
+
 ---
 
 ## Significant Assumptions
@@ -234,13 +374,18 @@ occurs after rendering, by which point all DocFragments have been processed.
   tokeniser.
 - Call `document->RegisterDocumentFont(...)` with the parsed values.  The
   document reference is already available to the CSS parser.
+- Thread `int weight` (not `bool bold`) through `LVEmbeddedFontDef` →
+  `RegisterDocumentFont` so numeric `font-weight` values in `@font-face`
+  are preserved — this is a prerequisite for the full fix to koreader#10040.
 - `RegisterDocumentFont` appends to `LVEmbeddedFontList` as a new side-effect.
 - Remove the `"font-face" // already quickly parsed` skip in `lvstsheet.cpp`.
 
-**Verify:** #10604 is fixed — a `@font-face` rule in a KOReader styletweak
-applies correctly.  Existing EPUBs with embedded fonts continue to render
-correctly.  `EmbeddedFontStyleParser` and the new path agree on which fonts
-are registered (run both in parallel temporarily if needed).
+**Verify:** koreader#10604 is fixed — a `@font-face` rule in a KOReader
+styletweak applies correctly.  Existing EPUBs with embedded fonts continue to
+render correctly.  `EmbeddedFontStyleParser` and the new path agree on which
+fonts are registered (run both in parallel temporarily if needed).  Verify hash
+consistency: fresh load and cache re-open of the same EPUB produce the same
+`GetFontListHash()` value.
 
 ### Step 2 — Remove `EmbeddedFontStyleParser` and the pre/post-scan
 
@@ -253,7 +398,9 @@ are registered (run both in parallel temporarily if needed).
 in external CSS, in `<head><style>`, and in styletweaks.  Open an EPUB with
 embedded fonts, close it, and reopen from cache — fonts must render correctly
 on re-open without re-parsing CSS, confirming `LVEmbeddedFontList` is
-serialised and deserialised correctly.
+serialised and deserialised correctly.  Confirm that the bold-only `@font-face`
+behaviour decision from the open question above has been resolved and implemented
+before removing the pre-scan.
 
 ---
 
@@ -264,4 +411,4 @@ serialised and deserialised correctly.
 | `crengine/src/lvstsheet.cpp` | Parse `@font-face` blocks; call `RegisterDocumentFont` |
 | `crengine/src/epubfmt.cpp` | Manifest font-file discovery; remove pre/post-scan and `EmbeddedFontStyleParser` |
 | `crengine/src/lvtinydom.cpp` | `RegisterDocumentFont` appends to `LVEmbeddedFontList`; `registerEmbeddedFonts()` retained for cache re-open only |
-| `crengine/src/lvfntman.cpp` | `RegisterDocumentFont` — no signature change; minor side-effect addition |
+| `crengine/src/lvfntman.cpp` | `RegisterDocumentFont` — thread `int weight` through `LVEmbeddedFontDef`; no signature change otherwise |
