@@ -2434,6 +2434,13 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     variations.set(LVFONT_TAG_WGHT, (float)fw);
     if (style->font_style >= css_fs_italic)
         variations.set(LVFONT_TAG_ITAL, 1.0f);
+    // Inject opsz for auto optical sizing, unless disabled or on a low-DPI screen.
+    if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100) {
+        // Assume that if 96, as no device has such low DPI, it has not been set by the user, and don't do opsz as
+        // we don't know the real DPI. If above 100 assume it's close to the real DPI.
+        variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    }
+
     // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
     LVFontRef fnt = fontMan->GetFont(
         sz,
@@ -11398,6 +11405,10 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     case css_fw_900:
         break;
     }
+
+    // font-optical-sizing (inherited; initial = auto)
+    if (pstyle->font_optical_sizing == css_fos_inherit)
+        pstyle->font_optical_sizing = parent_style->font_optical_sizing;
 
     // font-size
     switch( pstyle->font_size.type )
