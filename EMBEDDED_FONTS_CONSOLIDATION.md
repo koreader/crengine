@@ -366,6 +366,17 @@ occurs after rendering, by which point all DocFragments have been processed.
 
 ## Implementation Plan (Incremental)
 
+**Coupling note:** Threading `int weight` through `LVEmbeddedFontDef` is
+logically distinct from the consolidation (it is a correctness fix to the
+registration interface, not a structural move of the parser), but the two are
+practically coupled and should be undertaken together.  The consolidation
+creates a new code path — `lvstsheet.cpp` parsing `@font-face` and calling
+`RegisterDocumentFont` — and building that path with a `bool bold` interface
+would mean deliberately wiring a known deficiency into new code.  Separating
+them into different PRs would require either shipping new code with a known bug
+or immediately following the consolidation with a one-line fix.  They are
+therefore included together in Step 1.
+
 ### Step 1 — Add `@font-face` parsing to `lvstsheet.cpp`
 
 - Parse `@font-face { }` blocks in `lvstsheet.cpp` instead of skipping them.
