@@ -5158,8 +5158,8 @@ class LVFontSelector {
                 if (cands[i]->weight == 400) return cands[i];
         }
 
-        // Nearest by distance; ≥600 prefers heavier, <600 prefers lighter.
-        bool preferHigher = (weight >= 600);
+        // Nearest by distance; always prefer heavier on a tie.
+        bool preferHigher = true;
         const LVFontFace* best = nullptr;
         int bestDist = 1000000;
         for (int i = 0; i < cands.length(); i++) {
@@ -6192,7 +6192,9 @@ public:
         // Determine whether bold/italic synthesis is needed from the face and request.
         bool wghtByAxis = face._has_wght && face._wght_min < face._wght_max;
         bool needsBold = false;
-        if (!wghtByAxis) {
+        // Skip synthesis for the two standard document weights (400=regular,
+        // 700=bold) — use the nearest real face as-is.
+        if (!wghtByAxis && weight != 400 && weight != 700) {
         #ifdef USE_FT_EMBOLDEN
             needsBold = myabs(weight - face.weight) >= 25;
         #else
@@ -6226,7 +6228,7 @@ public:
 
         if (needsBold) {
         #ifdef USE_FT_EMBOLDEN
-            font->setSynthWeight(weight);
+            font->setSynthWeight(weight < 200 ? 200 : weight);
         #else
             ref = LVFontRef(new LVFontBoldTransform(ref, &_globalCache));
         #endif
