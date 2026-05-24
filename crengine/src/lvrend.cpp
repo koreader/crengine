@@ -2429,6 +2429,11 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         fw = 1;
     else if ( fw>999 )
         fw = 999;
+    LVFontVariations variations;
+    // Weight and italic always provided so GetFont() can use a unified axis-based cache key.
+    variations.set(LVFONT_TAG_WGHT, (float)fw);
+    if (style->font_style >= css_fs_italic)
+        variations.set(LVFONT_TAG_ITAL, 1.0f);
     // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
     LVFontRef fnt = fontMan->GetFont(
         sz,
@@ -2437,7 +2442,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         style->font_family,
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
-        documentId, true); // useBias=true, so that our preferred font gets used
+        documentId, true, // useBias=true, so that our preferred font gets used
+        variations.empty() ? NULL : &variations);
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }
