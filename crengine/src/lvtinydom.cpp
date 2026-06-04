@@ -4193,19 +4193,15 @@ static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_
                 lString8 s;
                 if ( style->font_weight != css_fw_normal ) {
                     switch ( style->font_weight ) {
-                        case css_fw_bold:      s << "bold";    break;
-                        case css_fw_bolder:    s << "bolder";  break;
-                        case css_fw_lighter:   s << "lighter"; break;
-                        case css_fw_100:       s << "100";     break;
-                        case css_fw_200:       s << "200";     break;
-                        case css_fw_300:       s << "300";     break;
-                        case css_fw_400:       s << "400";     break;
-                        case css_fw_500:       s << "500";     break;
-                        case css_fw_600:       s << "600";     break;
-                        case css_fw_700:       s << "700";     break;
-                        case css_fw_800:       s << "800";     break;
-                        case css_fw_900:       s << "900";     break;
-                        default:               s << "normal";  break;
+                        case css_fw_bold:    s << "bold";    break;
+                        case css_fw_bolder:  s << "bolder";  break;
+                        case css_fw_lighter: s << "lighter"; break;
+                        default:
+                            if ( style->font_weight >= 1 && style->font_weight <= 1000 )
+                                s << lString8::itoa((int)style->font_weight);
+                            else
+                                s << "normal";
+                            break;
                     }
                 }
                 else if ( !is_top_node || style->isImportant(imp_bit_font_weight) )
@@ -5152,7 +5148,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_family = def_font->getFontFamily();
     s->font_size = css_length_t(css_val_screen_px, def_font->getSize()); // we use screen_px, as we got the real font size from FontManager
     s->font_name = def_font->getTypeFace();
-    s->font_weight = css_fw_400;
+    s->font_weight = 400;
     s->font_style = css_fs_normal;
     s->font_features = css_length_t(css_val_unspecified, 0);
     s->font_optical_sizing = css_fos_auto; // CSS initial value; enables opsz auto-injection
@@ -22966,7 +22962,7 @@ void runBasicTinyDomUnitTests()
         style1->font_size.type = css_val_px;
         style1->font_size.value = 24 << 8;
         style1->font_name = cs8("Arial");
-        style1->font_weight = css_fw_400;
+        style1->font_weight = 400;
         style1->font_style = css_fs_normal;
         style1->font_features.type = css_val_unspecified;
         style1->font_features.value = 0;
@@ -22999,7 +22995,7 @@ void runBasicTinyDomUnitTests()
         style2->font_size.type = css_val_px;
         style2->font_size.value = 24 << 8;
         style2->font_name = cs8("Arial");
-        style2->font_weight = css_fw_400;
+        style2->font_weight = 400;
         style2->font_style = css_fs_normal;
         style2->font_features.type = css_val_unspecified;
         style2->font_features.value = 0;
@@ -23032,7 +23028,7 @@ void runBasicTinyDomUnitTests()
         style3->font_size.type = css_val_px;
         style3->font_size.value = 24 << 8;
         style3->font_name = cs8("Arial");
-        style3->font_weight = css_fw_400;
+        style3->font_weight = 400;
         style3->font_style = css_fs_normal;
         style3->font_features.type = css_val_unspecified;
         style3->font_features.value = 0;

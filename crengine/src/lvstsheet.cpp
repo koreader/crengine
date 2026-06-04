@@ -2910,26 +2910,25 @@ static const char * css_fs_names[] =
     NULL
 };
 
-static const char * css_fw_names[] = 
+static const char * css_fw_kw_names[] =
 {
-    "", // css_fw_inherit
     "normal",
     "bold",
     "bolder",
     "lighter",
-    "100",
-    "200",
-    "300",
-    "400",
-    "500",
-    "600",
-    "700",
-    "800",
-    "900",
     NULL
 };
-static const char * css_fos_names[] = {
-    "", // css_fos_inherit
+static const css_font_weight_t css_fw_kw_vals[] =
+{
+    css_fw_normal,
+    css_fw_bold,
+    css_fw_bolder,
+    css_fw_lighter
+};
+
+static const char * css_fos_names[] =
+{
+    "",
     "auto",
     "none",
     NULL
@@ -3906,8 +3905,33 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 n = parse_name( decl, css_fs_names, -1 );
                 break;
             case cssd_font_weight:
-                IF_g_SET_n_AND_break(true, css_fw_inherit, css_fw_400)
-                n = parse_name( decl, css_fw_names, -1 );
+                {
+                    css_font_weight_t fw_val;
+                    if ( g >= 0 ) {
+                        fw_val = (g != css_g_initial) ? css_fw_inherit : 400;
+                    } else {
+                        int kw = parse_name( decl, css_fw_kw_names, -1 );
+                        if ( kw >= 0 ) {
+                            fw_val = css_fw_kw_vals[kw];
+                        } else {
+                            // Plain <number>, no unit: accept_unspecified=true lets parse_number_value()
+                            // parse a bare number, but it will also happily attach a unit suffix (em, px...)
+                            // if one follows, so we must check value.type is still css_val_unspecified.
+                            css_length_t num_val;
+                            if ( !parse_number_value( decl, num_val, false, false, false, false, false, true ) )
+                                break;
+                            if ( num_val.type != css_val_unspecified )
+                                break;
+                            int num = (num_val.value + 128) >> 8; // round to nearest integer
+                            if ( num < 1 )    num = 1;
+                            if ( num > 1000 ) num = 1000;
+                            fw_val = (css_font_weight_t)num;
+                        }
+                    }
+                    buf << (lUInt32)(prop_code | importance | parsed_important | parse_important(decl));
+                    buf << (lUInt32)fw_val;
+                    // don't set n — skip generic n!=-1 push
+                }
                 break;
             case cssd_font_optical_sizing:
                 IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
