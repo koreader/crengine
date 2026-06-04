@@ -144,6 +144,20 @@ p    { margin: 0.2em 0; }
 .w800 { font-weight: 800; }
 .w900 { font-weight: 900; }
 
+/* Relative weights */
+.bolder-on-100 { font-weight: 100; }
+.bolder-on-100 .rel { font-weight: bolder; }
+.bolder-on-500 { font-weight: 500; }
+.bolder-on-500 .rel { font-weight: bolder; }
+.bolder-on-700 { font-weight: 700; }
+.bolder-on-700 .rel { font-weight: bolder; }
+.lighter-on-300 { font-weight: 300; }
+.lighter-on-300 .rel { font-weight: lighter; }
+.lighter-on-500 { font-weight: 500; }
+.lighter-on-500 .rel { font-weight: lighter; }
+.lighter-on-900 { font-weight: 900; }
+.lighter-on-900 .rel { font-weight: lighter; }
+
 /* Italic */
 .roman     { font-style: normal; }
 .italic    { font-style: italic; }
@@ -206,11 +220,11 @@ CH01 = """\
 <p class="sample serif w400">The quick brown fox jumps over the lazy dog. (400)</p>
 <p class="label">weight: 500</p>
 <p class="sample serif w500">The quick brown fox jumps over the lazy dog. (500)</p>
-<p class="label">weight: 550 (CSS4 arbitrary — not yet implemented; declaration ignored, renders as 400/normal)</p>
+<p class="label">weight: 550 (CSS4 arbitrary)</p>
 <p class="sample serif w550">The quick brown fox jumps over the lazy dog. (550)</p>
 <p class="label">weight: 600</p>
 <p class="sample serif w600">The quick brown fox jumps over the lazy dog. (600)</p>
-<p class="label">weight: 650 (CSS4 arbitrary — not yet implemented; declaration ignored, renders as 400/normal)</p>
+<p class="label">weight: 650 (CSS4 arbitrary)</p>
 <p class="sample serif w650">The quick brown fox jumps over the lazy dog. (650)</p>
 <p class="label">weight: 700 (bold)</p>
 <p class="sample serif w700">The quick brown fox jumps over the lazy dog. (700)</p>
@@ -225,13 +239,29 @@ CH01 = """\
 <p class="sample sans w700">Bold sans-serif (700). The quick brown fox.</p>
 <p class="sample sans w900">Black sans-serif (900). The quick brown fox.</p>
 
+<h2>Relative weights: bolder</h2>
+<p class="label">parent weight: 100 — bolder should resolve to 400</p>
+<p class="sample serif bolder-on-100">The quick brown fox <span class="rel">jumps over (bolder)</span> the lazy dog.</p>
+<p class="label">parent weight: 500 — bolder should resolve to 700</p>
+<p class="sample serif bolder-on-500">The quick brown fox <span class="rel">jumps over (bolder)</span> the lazy dog.</p>
+<p class="label">parent weight: 700 — bolder should resolve to 900</p>
+<p class="sample serif bolder-on-700">The quick brown fox <span class="rel">jumps over (bolder)</span> the lazy dog.</p>
+
+<h2>Relative weights: lighter</h2>
+<p class="label">parent weight: 300 — lighter should resolve to 100</p>
+<p class="sample serif lighter-on-300">The quick brown fox <span class="rel">jumps over (lighter)</span> the lazy dog.</p>
+<p class="label">parent weight: 500 — lighter should resolve to 300</p>
+<p class="sample serif lighter-on-500">The quick brown fox <span class="rel">jumps over (lighter)</span> the lazy dog.</p>
+<p class="label">parent weight: 900 — lighter should resolve to 700</p>
+<p class="sample serif lighter-on-900">The quick brown fox <span class="rel">jumps over (lighter)</span> the lazy dog.</p>
+
 <h2>Expected behaviour</h2>
 <p>Weights 100–900 should show a visual progression from thin to heavy.
-CSS4 intermediate values (550, 650) are not yet implemented: the CSS parser
-only recognises the literal "100".."900" keywords, so a `font-weight: 550` or
-`font-weight: 650` declaration is ignored entirely (not rounded) and the
-element falls back to its inherited weight — 400/normal here, so 550 and 650
-render identically to 400.</p>
+CSS4 intermediate values (550, 650) should render as their own distinct
+weights, between 500/600 and 600/700 respectively. The "bolder" and "lighter"
+samples above test the relative-weight keyword resolution against the
+inherited weight; the highlighted span in each line should visibly differ
+from the surrounding text by the amount noted in its label.</p>
 </body>
 </html>
 """
@@ -257,12 +287,9 @@ CH02 = """\
 <p class="sample serif italic w700">The quick brown fox jumps over the lazy dog.</p>
 
 <h2>Italic + arbitrary weight (CSS4)</h2>
-<p class="label">&#x26A0; Arbitrary weights not yet implemented. The
-`font-weight: 550`/`650` declarations below are ignored entirely (not
-rounded), so both render at the inherited weight (400/normal), just italic.</p>
-<p class="label">weight: 550, italic (declaration ignored, renders as 400/normal italic)</p>
+<p class="label">weight: 550, italic</p>
 <p class="sample serif italic w550">The quick brown fox — medium italic (550).</p>
-<p class="label">weight: 650, italic (declaration ignored, renders as 400/normal italic)</p>
+<p class="label">weight: 650, italic</p>
 <p class="sample serif italic w650">The quick brown fox — semi-bold italic (650).</p>
 
 <h2>Sans-serif italic</h2>

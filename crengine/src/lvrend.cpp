@@ -2415,8 +2415,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     if ( sz > 340 )
         sz = 340;
     int fw;
-    if (style->font_weight>=css_fw_100 && style->font_weight<=css_fw_900)
-        fw = ((style->font_weight - css_fw_100)+1) * 100;
+    if (style->font_weight >= 1 && style->font_weight <= 1000)
+        fw = (int)style->font_weight;
     else
         fw = 400;
     fw += (rend_font_base_weight - 400);
@@ -11368,36 +11368,28 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->font_weight = parent_style->font_weight;
         break;
     case css_fw_normal:
-        pstyle->font_weight = css_fw_400;
+        pstyle->font_weight = 400;
         break;
     case css_fw_bold:
-        pstyle->font_weight = css_fw_700;
+        pstyle->font_weight = 700;
         break;
     case css_fw_bolder:
-        if (parent_style->font_weight < css_fw_400)
-            pstyle->font_weight = css_fw_400;
-        else if (parent_style->font_weight < css_fw_600)
-            pstyle->font_weight = css_fw_700;
+        if (parent_style->font_weight < 400)
+            pstyle->font_weight = 400;
+        else if (parent_style->font_weight < 600)
+            pstyle->font_weight = 700;
         else
-            pstyle->font_weight = css_fw_900;
+            pstyle->font_weight = 900;
         break;
     case css_fw_lighter:
-        if (parent_style->font_weight < css_fw_400)
-            pstyle->font_weight = css_fw_100;
-        else if (parent_style->font_weight < css_fw_600)
-            pstyle->font_weight = css_fw_300;
+        if (parent_style->font_weight < 400)
+            pstyle->font_weight = 100;
+        else if (parent_style->font_weight < 600)
+            pstyle->font_weight = 300;
         else
-            pstyle->font_weight = css_fw_700;
+            pstyle->font_weight = 700;
         break;
-    case css_fw_100:
-    case css_fw_200:
-    case css_fw_300:
-    case css_fw_400:
-    case css_fw_500:
-    case css_fw_600:
-    case css_fw_700:
-    case css_fw_800:
-    case css_fw_900:
+    default: // already a resolved numeric weight [1, 1000]
         break;
     }
 
