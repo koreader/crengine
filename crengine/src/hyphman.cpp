@@ -1522,10 +1522,14 @@ bool UserHyphDict::hyphenate( const lChar32 * str, int len, const lUInt16 * widt
         return false;
     }
 
-    for ( int i = 0 ; i<len ; ++i ) {
+    for ( int i = 0, soft_hyphen_offset = 0; i<len ; ++i ) {
+        if ( str[i] == UNICODE_SOFT_HYPHEN_CODE ) {
+             soft_hyphen_offset++;
+             continue;
+        }
         if ( widths[i] + hyphCharWidth > maxWidth )
             break;
-        if ( mask[i] == '1' ) {
+        if ( mask[i-soft_hyphen_offset] == '1' ) {
             if ( flagSize == 2 ) {
                 lUInt16* flags16 = (lUInt16*) flags;
                 flags16[i] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
