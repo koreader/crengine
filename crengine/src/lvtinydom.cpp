@@ -242,6 +242,9 @@ enum CacheFileBlockType {
 #include <lvtextfm.h>
 #include "../include/lvdocviewprops.h"
 #include "../include/renderutil.h"
+#if USE_UTF8PROC == 1
+#include <utf8proc.h>
+#endif
 
 
 // define to store new text nodes as persistent text, instead of mutable
@@ -12340,7 +12343,7 @@ void ldomXRangeList::split( ldomXRange * r )
 
 #if BUILD_LITE!=1
 
-bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex )
+bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex, lUInt32 searchFlags )
 {
     if ( minY<0 )
         minY = 0;
@@ -12408,7 +12411,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
         CRLog::debug("No text found: Range is empty");
         return false;
     }
-    return range.findText( pattern, caseInsensitive, reverse, ranges, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
+    return range.findText( pattern, caseInsensitive, reverse, ranges, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex, searchFlags );
 }
 
 #if USE_SRELL_REGEX ==1
@@ -12779,10 +12782,641 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
     return false;
 }
 
-/// searches for specified text inside range
-bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
+// findTextEnhanced() helpers
+static inline bool isSearchSpaceFoldChar(lChar32 ch)
 {
-    if ( caseInsensitive ) {
+    switch (ch) {
+        case 0x0009: // CHARACTER TABULATION
+        case 0x0020: // SPACE
+        case 0x00A0: // NO-BREAK SPACE
+        case 0x1680: // OGHAM SPACE MARK
+        case 0x2000: // EN QUAD
+        case 0x2001: // EM QUAD
+        case 0x2002: // EN SPACE
+        case 0x2003: // EM SPACE
+        case 0x2004: // THREE-PER-EM SPACE
+        case 0x2005: // FOUR-PER-EM SPACE
+        case 0x2006: // SIX-PER-EM SPACE
+        case 0x2007: // FIGURE SPACE
+        case 0x2008: // PUNCTUATION SPACE
+        case 0x2009: // THIN SPACE
+        case 0x200A: // HAIR SPACE
+        case 0x202F: // NARROW NO-BREAK SPACE
+        case 0x205F: // MEDIUM MATHEMATICAL SPACE
+        case 0x3000: // IDEOGRAPHIC SPACE
+            return true;
+    }
+    return false;
+}
+
+static inline bool isSearchApostropheFoldChar(lChar32 ch)
+{
+    switch (ch) {
+        case 0x0027: // APOSTROPHE
+        case 0x02BC: // MODIFIER LETTER APOSTROPHE
+        case 0x055A: // ARMENIAN APOSTROPHE
+        case 0x05F3: // HEBREW PUNCTUATION GERESH
+        case 0x2018: // LEFT SINGLE QUOTATION MARK
+        case 0x2019: // RIGHT SINGLE QUOTATION MARK
+        case 0xFF07: // FULLWIDTH APOSTROPHE
+            return true;
+    }
+    return false;
+}
+
+static inline bool isSearchHyphenFoldChar(lChar32 ch)
+{
+    if (ch == 0x2212) // MINUS SIGN
+        return true;
+#if USE_UTF8PROC == 1
+    return utf8proc_category((utf8proc_int32_t)ch) == UTF8PROC_CATEGORY_PD;
+#else
+    switch (ch) {
+        case 0x002D: // HYPHEN-MINUS
+        case 0x058A: // ARMENIAN HYPHEN
+        case 0x05BE: // HEBREW PUNCTUATION MAQAF
+        case 0x1400: // CANADIAN SYLLABICS HYPHEN
+        case 0x1806: // MONGOLIAN TODO SOFT HYPHEN
+        case 0x2010: // HYPHEN
+        case 0x2011: // NON-BREAKING HYPHEN
+        case 0x2012: // FIGURE DASH
+        case 0x2013: // EN DASH
+        case 0x2014: // EM DASH
+        case 0x2015: // HORIZONTAL BAR
+        case 0x2E17: // DOUBLE OBLIQUE HYPHEN
+        case 0x2E1A: // HYPHEN WITH DIAERESIS
+        case 0x2E3A: // TWO-EM DASH
+        case 0x2E3B: // THREE-EM DASH
+        case 0x2E40: // DOUBLE HYPHEN
+        case 0x2E5D: // OBLIQUE HYPHEN
+        case 0x301C: // WAVE DASH
+        case 0x3030: // WAVY DASH
+        case 0x30A0: // KATAKANA-HIRAGANA DOUBLE HYPHEN
+        case 0xFE31: // PRESENTATION FORM FOR VERTICAL EM DASH
+        case 0xFE32: // PRESENTATION FORM FOR VERTICAL EN DASH
+        case 0xFE58: // SMALL EM DASH
+        case 0xFE63: // SMALL HYPHEN-MINUS
+        case 0xFF0D: // FULLWIDTH HYPHEN-MINUS
+            return true;
+    }
+    return false;
+#endif
+}
+
+static inline bool isSearchIgnorableFormatControlChar(lChar32 ch)
+{
+    switch (ch) {
+        case 0x061C: // ARABIC LETTER MARK
+        case 0x0640: // ARABIC TATWEEL
+        case 0x1806: // MONGOLIAN TODO SOFT HYPHEN
+        case 0x200B: // ZERO WIDTH SPACE
+        case 0x200C: // ZERO WIDTH NON-JOINER
+        case 0x200D: // ZERO WIDTH JOINER
+        case 0x200E: // LEFT-TO-RIGHT MARK
+        case 0x200F: // RIGHT-TO-LEFT MARK
+        case 0x202A: // LEFT-TO-RIGHT EMBEDDING
+        case 0x202B: // RIGHT-TO-LEFT EMBEDDING
+        case 0x202C: // POP DIRECTIONAL FORMATTING
+        case 0x202D: // LEFT-TO-RIGHT OVERRIDE
+        case 0x202E: // RIGHT-TO-LEFT OVERRIDE
+        case 0x2060: // WORD JOINER
+        case 0x2066: // LEFT-TO-RIGHT ISOLATE
+        case 0x2067: // RIGHT-TO-LEFT ISOLATE
+        case 0x2068: // FIRST STRONG ISOLATE
+        case 0x2069: // POP DIRECTIONAL ISOLATE
+        case 0xFEFF: // ZERO WIDTH NO-BREAK SPACE
+            return true;
+    }
+    return false;
+}
+
+static inline lChar32 foldFindTextChar(lChar32 ch, lUInt32 searchFlags)
+{
+    // Handle explicit punctuation/space folds and optional format/control chars.
+    // These have a narrower notion of equivalence than a general Unicode normalizer.
+    // (We intentionally fold only a small, explicit set of characters that are common
+    // in book text search and cheap to map back to original DOM offsets. Web browsers
+    // often go further thanks to larger search buffers or ICU-powered matchers)
+    //
+    // Also note that punctuation folding is not Unicode canonical normalization:
+    // canonical equivalence is about different encodings of the same text
+    // (for example precomposed U+00E9 "é" versus "e" + COMBINING ACUTE ACCENT).
+    // That work, when enabled with its own flag, happens in the decomposition
+    // helpers below; keep this helper limited to one-codepoint folds.
+    //
+    // Soft hyphen stays unconditionally ignored for historical search behavior.
+    // IGNORE_FORMAT_CONTROL_CHARS extends that idea to other discretionary format
+    // characters (tatweel, zero-width spaces/word joiners, BiDi controls). This
+    // also includes ZWNJ/ZWJ, which is intentionally more aggressive and may hide
+    // orthographic distinctions in some scripts.
+    if (ch == UNICODE_SOFT_HYPHEN_CODE)
+        return 0;
+    if ((searchFlags & LDOM_FIND_TEXT_IGNORE_FORMAT_CONTROL_CHARS)
+            && isSearchIgnorableFormatControlChar(ch))
+        return 0;
+    if ((searchFlags & (LDOM_FIND_TEXT_FOLD_SPACES | LDOM_FIND_TEXT_COLLAPSE_CONSECUTIVE_SPACES)) && isSearchSpaceFoldChar(ch))
+        return U' ';
+    if ((searchFlags & LDOM_FIND_TEXT_FOLD_APOSTROPHES) && isSearchApostropheFoldChar(ch))
+        return U'\'';
+    if ((searchFlags & LDOM_FIND_TEXT_FOLD_HYPHENS) && isSearchHyphenFoldChar(ch))
+        return U'-';
+    return ch;
+}
+
+static inline int getFindTextCombiningClass(lChar32 ch)
+{
+#if USE_UTF8PROC == 1
+    const utf8proc_property_t * prop = utf8proc_get_property(ch);
+    return prop ? prop->combining_class : 0;
+#else
+    (void)ch;
+    return 0;
+#endif
+}
+
+static inline bool isFindTextDiacriticMark(lChar32 ch)
+{
+#if USE_UTF8PROC == 1
+    utf8proc_category_t category = utf8proc_category((utf8proc_int32_t)ch);
+    return category == UTF8PROC_CATEGORY_MN
+        || category == UTF8PROC_CATEGORY_MC
+        || category == UTF8PROC_CATEGORY_ME;
+#else
+    (void)ch;
+    return false;
+#endif
+}
+
+// Current worst-case compatibility decomposition with utf8proc is U+FDFA,
+// which expands to 18 codepoints. Keep enough room for the full expanded form
+// so normalization does not silently fall back to the original character.
+static const int FIND_TEXT_MAX_DECOMPOSED_CODEPOINTS = 18;
+
+static int decomposeFindTextChar(lChar32 ch, lUInt32 searchFlags, lChar32 * decomposed, int capacity)
+{
+#if USE_UTF8PROC == 1
+    utf8proc_int32_t codepoints[FIND_TEXT_MAX_DECOMPOSED_CODEPOINTS];
+    utf8proc_option_t options = UTF8PROC_DECOMPOSE;
+    if ((searchFlags & LDOM_FIND_TEXT_NORMALIZE_COMPATIBILITY) != 0)
+        options = (utf8proc_option_t)(options | UTF8PROC_COMPAT);
+    utf8proc_ssize_t count = utf8proc_decompose_char((utf8proc_int32_t)ch, codepoints,
+            FIND_TEXT_MAX_DECOMPOSED_CODEPOINTS, options, NULL);
+    if (count > 0 && count <= capacity) {
+        for (int i = 0; i < count; i++)
+            decomposed[i] = (lChar32)codepoints[i];
+        return (int)count;
+    }
+#else
+    (void)searchFlags;
+#endif
+    decomposed[0] = ch;
+    return 1;
+}
+
+// Enhanced search works on a transient per-block buffer rather than matching
+// directly on DOM text nodes. These tiny structs keep the transformed search
+// text tied back to original node/offset pairs so a match can still become a
+// precise ldomXRange afterwards.
+struct EnhancedSearchCharOrigin {
+    ldomNode * node;
+    int offset;
+
+    EnhancedSearchCharOrigin()
+        : node(NULL), offset(0) {}
+    EnhancedSearchCharOrigin(ldomNode * node_, int offset_)
+        : node(node_), offset(offset_) {}
+};
+
+// One normalized search unit waiting to be flushed to the folded buffer.
+// When canonical/compatibility normalization is enabled, one source codepoint
+// may become multiple output codepoints, and combining marks may need to be
+// reordered before they are appended to the searchable text buffer.
+struct EnhancedSearchCanonicalUnit {
+    lChar32 ch;
+    EnhancedSearchCharOrigin origin;
+    int combiningClass;
+
+    EnhancedSearchCanonicalUnit()
+        : ch(0), origin(), combiningClass(0) {}
+    EnhancedSearchCanonicalUnit(lChar32 ch_, const EnhancedSearchCharOrigin & origin_, int combiningClass_)
+        : ch(ch_), origin(origin_), combiningClass(combiningClass_) {}
+};
+
+// Folded text for one rendered block, plus enough bookkeeping to map match
+// indices in that folded text back to DOM node/offset pairs.
+struct EnhancedSearchBlockBuffer {
+    lString32 text;
+    LVArray<EnhancedSearchCharOrigin> origins;
+    ldomXPointerEx firstNode;
+    ldomXPointerEx lastNode;
+    bool hasNodes;
+    LVArray<EnhancedSearchCanonicalUnit> pendingCanonicalUnits;
+
+    EnhancedSearchBlockBuffer()
+        : hasNodes(false) {}
+
+    void clear() {
+        text.clear();
+        origins.clear();
+        firstNode.clear();
+        lastNode.clear();
+        hasNodes = false;
+        pendingCanonicalUnits.clear();
+    }
+};
+
+static void appendFindTextOutputChar(lChar32 ch, const EnhancedSearchCharOrigin & origin, lUInt32 searchFlags, lString32 & output, LVArray<EnhancedSearchCharOrigin> * origins)
+{
+    // Collapse runs of spaces in the folded output when requested.
+    if ((searchFlags & LDOM_FIND_TEXT_COLLAPSE_CONSECUTIVE_SPACES)
+            && ch == U' '
+            && !output.empty()
+            && output[output.length() - 1] == U' ')
+        return;
+    output += ch;
+    if (origins)
+        origins->add(origin);
+}
+
+// Canonical equivalence is about Unicode strings that should compare equal
+// after canonical normalization, such as precomposed U+00E9 "é" and the
+// decomposed sequence "e" + COMBINING ACUTE ACCENT. We decompose each source
+// codepoint, then order the following combining marks by canonical combining
+// class so canonically equivalent sequences build the same search buffer.
+//
+// Doing this on a small pending segment keeps every normalized output unit tied
+// back to its original DOM node/offset. Browser find-in-page implementations
+// often work on larger flattened buffers and can postpone that mapping problem;
+// here we keep it explicit so one match can still become a precise ldomXRange.
+//
+// Compatibility normalization is a broader, more permissive decomposition layer:
+// it also accepts matches like ligatures or fullwidth forms. Ignore-diacritics
+// is intentionally separate because it drops mark characters after
+// decomposition, while canonical/compatibility normalization keep them
+// significant.
+static void sortFindTextCanonicalUnits(LVArray<EnhancedSearchCanonicalUnit> & units, int start)
+{
+    for (int i = start + 1; i < units.length(); i++) {
+        EnhancedSearchCanonicalUnit current = units[i];
+        int j = i - 1;
+        while (j >= start && units[j].combiningClass > current.combiningClass) {
+            units[j + 1] = units[j];
+            j--;
+        }
+        units[j + 1] = current;
+    }
+}
+
+static void flushFindTextCanonicalUnits(LVArray<EnhancedSearchCanonicalUnit> & units, lUInt32 searchFlags, lString32 & output, LVArray<EnhancedSearchCharOrigin> * origins)
+{
+    if (units.empty())
+        return;
+    int markStart = units[0].combiningClass == 0 ? 1 : 0;
+    sortFindTextCanonicalUnits(units, markStart);
+    for (int i = 0; i < units.length(); i++)
+        appendFindTextOutputChar(units[i].ch, units[i].origin, searchFlags, output, origins);
+    units.clear();
+}
+
+class FindTextFoldContext {
+private:
+    bool _caseInsensitive;
+    lUInt32 _searchFlags;
+    bool _decompose;
+    bool _ignoreDiacritics;
+    bool _reorderCanonicalUnits;
+public:
+    FindTextFoldContext(bool caseInsensitive, lUInt32 searchFlags)
+        : _caseInsensitive(caseInsensitive),
+          _searchFlags(searchFlags),
+          _decompose((searchFlags & (LDOM_FIND_TEXT_NORMALIZE_CANONICAL | LDOM_FIND_TEXT_NORMALIZE_COMPATIBILITY | LDOM_FIND_TEXT_IGNORE_DIACRITICS)) != 0),
+          _ignoreDiacritics((searchFlags & LDOM_FIND_TEXT_IGNORE_DIACRITICS) != 0),
+          // Decomposition may emit multiple starter/base codepoints (for example
+          // ligatures or Hangul Jamo), but canonical reordering only affects the
+          // following combining marks, never the starter/base characters.
+          // So, we don't need _reorderCanonicalUnits when ignoring diacritics.
+          _reorderCanonicalUnits((searchFlags & (LDOM_FIND_TEXT_NORMALIZE_CANONICAL | LDOM_FIND_TEXT_NORMALIZE_COMPATIBILITY)) != 0
+                  && (searchFlags & LDOM_FIND_TEXT_IGNORE_DIACRITICS) == 0) {}
+
+    // Apply the enabled search transforms for one source codepoint and append
+    // the resulting searchable units either directly to the folded buffer or
+    // temporarily to pendingCanonicalUnits when canonical reordering is needed.
+    // 'origin' is the DOM/pattern location of that one input codepoint; 'origins'
+    // is the parallel array for the whole folded output buffer, with one entry
+    // per emitted output codepoint. One input codepoint may emit 0, 1 or many
+    // output codepoints after folding/decomposition, all inheriting that origin.
+    void appendSourceChar(lChar32 sourceChar, const EnhancedSearchCharOrigin & origin, lString32 & output,
+            LVArray<EnhancedSearchCharOrigin> * origins, LVArray<EnhancedSearchCanonicalUnit> & pendingCanonicalUnits) const
+    {
+        lChar32 decomposed[FIND_TEXT_MAX_DECOMPOSED_CODEPOINTS];
+        int count;
+        if ( _decompose ) {
+            count = decomposeFindTextChar(sourceChar, _searchFlags, decomposed, FIND_TEXT_MAX_DECOMPOSED_CODEPOINTS);
+        }
+        else {
+            decomposed[0] = sourceChar;
+            count = 1;
+        }
+        for (int i = 0; i < count; i++) {
+            lChar32 ch = decomposed[i];
+            if (_caseInsensitive)
+                lStr_lowercase(&ch, 1);
+            ch = foldFindTextChar(ch, _searchFlags); // explicit space/apostrophe/hyphen 1->1 folding
+            if (ch == 0) // soft-hyphens
+                continue;
+            if (_ignoreDiacritics && isFindTextDiacriticMark(ch))
+                continue;
+            if (_reorderCanonicalUnits) {
+                int combiningClass = getFindTextCombiningClass(ch);
+                if (combiningClass == 0 && !pendingCanonicalUnits.empty()) {
+                    // A new starter/base char ends the previous canonical segment:
+                    // reorder its pending combining marks and flush that segment.
+                    flushFindTextCanonicalUnits(pendingCanonicalUnits, _searchFlags, output, origins);
+                }
+                pendingCanonicalUnits.add(EnhancedSearchCanonicalUnit(ch, origin, combiningClass));
+            }
+            else { // no reordering needed, append as they come
+                appendFindTextOutputChar(ch, origin, _searchFlags, output, origins);
+            }
+        }
+    }
+
+};
+
+static lString32 buildFoldedFindTextPattern(const lString32 & pattern, bool caseInsensitive, lUInt32 searchFlags)
+{
+    lString32 folded;
+    folded.reserve(pattern.length());
+    FindTextFoldContext foldContext(caseInsensitive, searchFlags);
+    LVArray<EnhancedSearchCanonicalUnit> pendingCanonicalUnits;
+    for (int i = 0; i < pattern.length(); i++) {
+        // Pattern folding needs the same text transform pipeline, but not the
+        // DOM back-mapping array used for document text, so origins is NULL.
+        EnhancedSearchCharOrigin origin(NULL, i);
+        foldContext.appendSourceChar(pattern[i], origin, folded, NULL, pendingCanonicalUnits);
+    }
+    // appendSourceChar() only queues canonical units when reordering is actually
+    // enabled, so this unconditional flush is just a final no-op otherwise.
+    flushFindTextCanonicalUnits(pendingCanonicalUnits, searchFlags, folded, NULL);
+    return folded;
+}
+
+static void appendFoldedNodeTextToSearchBuffer(ldomNode * node, int from, int to, bool caseInsensitive, lUInt32 searchFlags, EnhancedSearchBlockBuffer & buffer)
+{
+    lString32 text = node->getText();
+    FindTextFoldContext foldContext(caseInsensitive, searchFlags);
+    if (from < 0)
+        from = 0;
+    if (to > text.length())
+        to = text.length();
+    for (int i = from; i < to; i++) {
+        EnhancedSearchCharOrigin origin(node, i);
+        foldContext.appendSourceChar(text[i], origin, buffer.text, &buffer.origins, buffer.pendingCanonicalUnits);
+    }
+}
+
+static void appendFindTextMatchRange(const EnhancedSearchBlockBuffer & buffer, int start, int end, ldomXRangeList & ranges)
+{
+    if (start < 0 || end > buffer.origins.length() || start >= end)
+        return;
+    // The folded buffer may cover multiple text nodes, but a search result is one
+    // logical DOM range delimited by the first and last character that survived
+    // folding and took part in the match.
+    EnhancedSearchCharOrigin first = buffer.origins[start];
+    EnhancedSearchCharOrigin last = buffer.origins[end - 1];
+    ranges.add(new ldomXRange(ldomXPointer(first.node, first.offset), ldomXPointer(last.node, last.offset + 1), 1) );
+}
+
+static bool buildForwardEnhancedSearchBlock(const ldomXPointerEx & start, const ldomXPointerEx & rangeEnd, bool caseInsensitive, lUInt32 searchFlags, EnhancedSearchBlockBuffer & buffer)
+{
+    buffer.clear();
+    if (start.isNull() || !start.isText())
+        return false;
+
+    ldomXPointerEx pos(start);
+    ldomNode * block = pos.getThisBlockNode();
+    bool allowAcrossTextNodes = (searchFlags & LDOM_FIND_TEXT_MATCH_ACROSS_TEXT_NODES) != 0;
+    bool firstNode = true;
+    // Buffer only the current rendered block. Even when callers search the whole
+    // document (minY=maxY=-1 in ldomDocument::findText()), the enhanced path walks
+    // block by block: it never concatenates the full book into one giant buffer.
+    while (!pos.isNull() && pos.isText() && pos.getThisBlockNode() == block) {
+        if (pos.compare(rangeEnd) > 0 && pos.getNode() != rangeEnd.getNode())
+            break;
+        if (!buffer.hasNodes)
+            buffer.firstNode = pos;
+        buffer.lastNode = pos;
+        buffer.hasNodes = true;
+        int from = firstNode ? start.getOffset() : 0;
+        int to = pos.getNode() == rangeEnd.getNode() ? rangeEnd.getOffset() : pos.getNode()->getText().length();
+        appendFoldedNodeTextToSearchBuffer(pos.getNode(), from, to, caseInsensitive, searchFlags, buffer);
+        firstNode = false;
+        if (pos.getNode() == rangeEnd.getNode())
+            break;
+        if (!allowAcrossTextNodes)
+            break;
+        ldomXPointerEx next(pos);
+        if (!next.nextVisibleText(true))
+            break;
+        pos = next;
+    }
+    flushFindTextCanonicalUnits(buffer.pendingCanonicalUnits, searchFlags, buffer.text, &buffer.origins);
+    return buffer.hasNodes;
+}
+
+static bool buildReverseEnhancedSearchBlock(const ldomXPointerEx & end, const ldomXPointerEx & rangeStart, bool caseInsensitive, lUInt32 searchFlags, EnhancedSearchBlockBuffer & buffer)
+{
+    buffer.clear();
+    if (end.isNull() || !end.isText())
+        return false;
+
+    ldomXPointerEx first(end);
+    ldomXPointerEx endBlockPos(end);
+    ldomNode * block = endBlockPos.getThisBlockNode();
+    if ((searchFlags & LDOM_FIND_TEXT_MATCH_ACROSS_TEXT_NODES) != 0) {
+        // Reverse search needs the same block-sized folded buffer as forward search,
+        // but it starts from the block tail and first rewinds to the earliest visible
+        // text node in that block that still belongs to the caller-provided range.
+        while (true) {
+            ldomXPointerEx prev(first);
+            if (!prev.prevVisibleText(true))
+                break;
+            if (prev.getThisBlockNode() != block)
+                break;
+            if (prev.getNode() == rangeStart.getNode()) {
+                first = prev;
+                break;
+            }
+            if (prev.compare(rangeStart) < 0)
+                break;
+            first = prev;
+        }
+    }
+
+    ldomXPointerEx pos(first);
+    bool firstNode = true;
+    while (!pos.isNull() && pos.isText() && pos.getThisBlockNode() == block) {
+        if (!buffer.hasNodes)
+            buffer.firstNode = pos;
+        buffer.lastNode = pos;
+        buffer.hasNodes = true;
+        int from = firstNode && pos.getNode() == rangeStart.getNode() ? rangeStart.getOffset() : 0;
+        int to = pos.getNode() == end.getNode() ? end.getOffset() : pos.getNode()->getText().length();
+        appendFoldedNodeTextToSearchBuffer(pos.getNode(), from, to, caseInsensitive, searchFlags, buffer);
+        firstNode = false;
+        if (pos.getNode() == end.getNode())
+            break;
+        if (!pos.nextVisibleText(true))
+            break;
+    }
+    flushFindTextCanonicalUnits(buffer.pendingCanonicalUnits, searchFlags, buffer.text, &buffer.origins);
+    return buffer.hasNodes;
+}
+
+static bool findTextEnhanced(const lString32 & pattern, bool caseInsensitive, bool reverse, ldomXPointerEx & start, ldomXPointerEx & end, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex, lUInt32 searchFlags)
+{
+    ranges.clear();
+    if (pattern.empty())
+        return false;
+
+    if (reverse) {
+        if (!end.isText()) {
+            end.prevVisibleText();
+            lString32 txt = end.getNode()->getText();
+            end.setOffset(txt.length());
+        }
+        int firstFoundTextY = -1;
+        while (!start.isNull() && !end.isNull() && start.compare(end) <= 0) {
+            if (firstFoundTextY != -1 && maxHeight > 0) {
+                ldomXPointer p(end.getNode(), end.getOffset());
+                int currentTextY = p.toPoint().y;
+                if (currentTextY < firstFoundTextY - maxHeight)
+                    return ranges.length() > 0;
+            }
+
+            EnhancedSearchBlockBuffer block;
+            if (!buildReverseEnhancedSearchBlock(end, start, caseInsensitive, searchFlags, block))
+                break;
+
+            if (!block.text.empty()) {
+                int offs = block.text.length();
+                int endpos;
+                while (::findTextRev(block.text, offs, endpos, pattern, patternIsRegex)) {
+                    appendFindTextMatchRange(block, offs, endpos, ranges);
+                    if (firstFoundTextY == -1 && maxHeight > 0 && ranges.length() > 0) {
+                        ldomXRange * firstRange = ranges[ranges.length() - 1];
+                        ldomXPointer p(firstRange->getStart().getNode(), firstRange->getStart().getOffset());
+                        int currentTextY = p.toPoint().y;
+                        if (maxHeightCheckStartY == -1 || currentTextY <= maxHeightCheckStartY)
+                            firstFoundTextY = currentTextY;
+                    }
+                    offs--;
+                    if (ranges.length() >= maxCount)
+                        return true;
+                }
+            }
+
+            end = block.firstNode;
+            if (!end.prevVisibleText())
+                break;
+            lString32 txt = end.getNode()->getText();
+            end.setOffset(txt.length());
+        }
+    } else {
+        if (!start.isText())
+            start.nextVisibleText();
+        int firstFoundTextY = -1;
+        if (checkMaxFromStart) {
+            ldomXPointer p(start.getNode(), start.getOffset());
+            firstFoundTextY = p.toPoint().y;
+        }
+        while (!start.isNull() && !end.isNull() && start.compare(end) <= 0) {
+            if (firstFoundTextY != -1 && maxHeight > 0) {
+                ldomXPointer p(start.getNode(), start.getOffset());
+                int currentTextY = p.toPoint().y;
+                if ((checkMaxFromStart && currentTextY >= firstFoundTextY + maxHeight) ||
+                        currentTextY > firstFoundTextY + maxHeight)
+                    return ranges.length() > 0;
+            }
+
+            // We work block by block: build a searchable buffer for the current
+            // rendered block, pre-processed according to searchFlags, then run
+            // the existing matcher on that buffer. For plain search, pattern has
+            // already been pre-processed the same way and it will be a plain exact
+            // string search (::findText() below); for regex search, the buffer
+            // stays raw apart from cross-text-node concatenation.
+            EnhancedSearchBlockBuffer block;
+            if (!buildForwardEnhancedSearchBlock(start, end, caseInsensitive, searchFlags, block))
+                break;
+
+            if (!block.text.empty()) {
+                int offs = 0;
+                int endpos;
+                while (::findText(block.text, offs, endpos, pattern, patternIsRegex)) {
+                    // Convert match indices in the transient block buffer back to
+                    // a DOM range using the per-codepoint origin mapping.
+                    appendFindTextMatchRange(block, offs, endpos, ranges);
+                    if (firstFoundTextY == -1 && maxHeight > 0 && ranges.length() > 0) {
+                        ldomXRange * firstRange = ranges[ranges.length() - 1];
+                        ldomXPointer p(firstRange->getStart().getNode(), firstRange->getStart().getOffset());
+                        int currentTextY = p.toPoint().y;
+                        if (checkMaxFromStart) {
+                            if (currentTextY >= firstFoundTextY + maxHeight)
+                                return ranges.length() > 0;
+                        } else if (maxHeightCheckStartY == -1 || currentTextY >= maxHeightCheckStartY) {
+                            firstFoundTextY = currentTextY;
+                        }
+                    }
+                    offs++;
+                    if (ranges.length() >= maxCount)
+                        return true;
+                }
+            }
+
+            start = block.lastNode;
+            if (!start.nextVisibleText())
+                break;
+        }
+    }
+    return ranges.length() > 0;
+}
+// findTextEnhanced() helpers end
+
+/// searches for specified text inside range
+bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex, lUInt32 searchFlags )
+{
+    #if USE_UTF8PROC != 1
+        // In non-utf8proc builds, some flags can't be used: strip them out.
+        searchFlags &= ~(LDOM_FIND_TEXT_NORMALIZE_CANONICAL | LDOM_FIND_TEXT_NORMALIZE_COMPATIBILITY | LDOM_FIND_TEXT_IGNORE_DIACRITICS);
+    #endif
+    bool useEnhancedPlainSearch = !patternIsRegex && searchFlags != LDOM_FIND_TEXT_NONE;
+    bool useEnhancedRegexSearch = patternIsRegex && (searchFlags & LDOM_FIND_TEXT_MATCH_ACROSS_TEXT_NODES) != 0;
+    if (useEnhancedPlainSearch) {
+        // This enhanced path stays deliberately narrower than a generic Unicode
+        // search engine. It supports only the equivalences we can map back to
+        // exact DOM offsets at low cost: cross-text-node matching inside one
+        // rendered block, a few explicit punctuation/space folds, and optional
+        // canonical or compatibility decomposition/reordering so differently
+        // encoded Unicode text can compare equal. Optional ignore-diacritics
+        // remains a separate flag because it deliberately drops Unicode mark
+        // characters after decomposition: it changes which marks are treated as
+        // significant, not just how the same text can be encoded.
+        // Process pattern the same way block text will be processed later so
+        // the plain matcher can compare two strings that went through the same
+        // folding/normalization pipeline.
+        pattern = buildFoldedFindTextPattern(pattern, caseInsensitive, searchFlags);
+    } else if (useEnhancedRegexSearch) {
+        // Regex can also search across visible text nodes when explicitly asked
+        // to do so with MATCH_ACROSS_TEXT_NODES, but it always runs on the raw
+        // per-block text buffer. We intentionally ignore the other enhancement
+        // flags here so regexp syntax still means exactly what the regexp user
+        // wrote, instead of acting on a folded/normalized shadow string.
+        searchFlags = LDOM_FIND_TEXT_MATCH_ACROSS_TEXT_NODES;
+        #if USE_SRELL_REGEX == 1
+            if ( caseInsensitive )
+                lowercasePattern( pattern );
+        #endif
+    } else if ( caseInsensitive ) {
         #if USE_SRELL_REGEX != 1
             pattern.lowercase();
         #else
@@ -12795,6 +13429,10 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
     ranges.clear();
     if ( pattern.empty() )
         return false;
+    if ( useEnhancedPlainSearch || useEnhancedRegexSearch ) {
+        // Enhanced search needs the block buffer/origin mapping path.
+        return findTextEnhanced(pattern, caseInsensitive, reverse, _start, _end, ranges, maxCount, maxHeight, maxHeightCheckStartY, checkMaxFromStart, patternIsRegex, searchFlags);
+    }
     if ( reverse ) {
         // reverse search
         if ( !_end.isText() ) {
