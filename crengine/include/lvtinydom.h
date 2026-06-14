@@ -1983,6 +1983,7 @@ public:
 };
 
 class ldomXRange;
+class ldomXRangeList;
 
 /// callback for DOM tree iteration interface
 class ldomNodeCallback {
@@ -2161,7 +2162,7 @@ public:
     };
 
     /// searches for specified text inside range
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false );
 };
 
 class ldomMarkedText
@@ -2872,7 +2873,7 @@ public:
     /// get rendered block cache object
     CVRendBlockCache & getRendBlockCache() { return _renderedBlockCache; }
 
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false );
 #endif
 };
 
