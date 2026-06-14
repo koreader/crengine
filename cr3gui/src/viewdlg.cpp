@@ -256,7 +256,7 @@ bool CRViewDialog::findText( lString16 pattern, int origin, int direction )
 {
     if ( pattern.empty() )
         return false;
-    LVArray<ldomWord> words;
+    ldomXRangeList ranges;
     showWaitIcon();
     lvRect rc;
     _docview->GetPos( rc );
@@ -291,10 +291,10 @@ bool CRViewDialog::findText( lString16 pattern, int origin, int direction )
     }
     CRLog::debug("CRViewDialog::findText: Current page: %d .. %d", rc.top, rc.bottom);
     CRLog::debug("CRViewDialog::findText: searching for text '%s' from %d to %d origin %d", LCSTR(pattern), start, end, origin );
-    if ( _docview->getDocument()->findText( pattern, true, reverse, start, end, words, 200, pageHeight ) ) {
+    if ( _docview->getDocument()->findText( pattern, true, reverse, start, end, ranges, 200, pageHeight ) ) {
         CRLog::debug("CRViewDialog::findText: pattern found");
         _docview->clearSelection();
-        _docview->selectWords( words );
+        _docview->selectRanges( ranges );
         return true;
     }
     CRLog::debug("CRViewDialog::findText: pattern not found");
@@ -328,15 +328,15 @@ int CRViewDialog::findPagesText( lString16 pattern, int origin, int direction )
 			end = _docview->getCurPage();
 		}
 	}
-	LVArray<ldomWord> words;
+	ldomXRangeList ranges;
 	for (int i = start; i != end; i += direction) {
 		LVRef<ldomXRange> range = _docview->getPageDocumentRange( i );
 		if (!range.isNull()) {
-			if (range->findText(pattern, true, false, words, 200, _docview->getPageHeight(i), true)) {
+			if (range->findText(pattern, true, false, ranges, 200, _docview->getPageHeight(i), true)) {
 				CRLog::debug("CRViewDialog::findPagesText: pattern found");
 				_docview->clearSelection();
 				_docview->goToPage(i);
-				_docview->selectWords( words );
+				_docview->selectRanges( ranges );
 				return i;
 			}
 		}

@@ -508,7 +508,7 @@ bool DocViewNative::findText( lString16 pattern, int origin, bool reverse, bool 
     if ( pattern!=_lastPattern && origin==1 )
         origin = 0;
     _lastPattern = pattern;
-    LVArray<ldomWord> words;
+    ldomXRangeList ranges;
     lvRect rc;
     _docview->GetPos( rc );
     int pageHeight = rc.height();
@@ -541,14 +541,14 @@ bool DocViewNative::findText( lString16 pattern, int origin, bool reverse, bool 
     }
     CRLog::debug("CRViewDialog::findText: Current page: %d .. %d", rc.top, rc.bottom);
     CRLog::debug("CRViewDialog::findText: searching for text '%s' from %d to %d origin %d", LCSTR(pattern), start, end, origin );
-    if ( _docview->getDocument()->findText( pattern, caseInsensitive, reverse, start, end, words, 200, pageHeight ) ) {
+    if ( _docview->getDocument()->findText( pattern, caseInsensitive, reverse, start, end, ranges, 200, pageHeight ) ) {
         CRLog::debug("CRViewDialog::findText: pattern found");
         _docview->clearSelection();
-        _docview->selectWords( words );
-        ldomMarkedRangeList * ranges = _docview->getMarkedRanges();
-        if ( ranges ) {
-            if ( ranges->length()>0 ) {
-                int pos = ranges->get(0)->start.y;
+        _docview->selectRanges( ranges );
+        ldomMarkedRangeList * markedRanges = _docview->getMarkedRanges();
+        if ( markedRanges ) {
+            if ( markedRanges->length()>0 ) {
+                int pos = markedRanges->get(0)->start.y;
                 _docview->SetPos(pos);
             }
         }
@@ -1693,4 +1693,3 @@ JNIEXPORT void JNICALL Java_org_coolreader_crengine_DocView_hilightBookmarksInte
     }
     p->_docview->setBookmarkList(bookmarks);
 }
-

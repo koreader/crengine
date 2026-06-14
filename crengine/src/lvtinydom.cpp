@@ -12340,7 +12340,7 @@ void ldomXRangeList::split( ldomXRange * r )
 
 #if BUILD_LITE!=1
 
-bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex )
+bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool patternIsRegex )
 {
     if ( minY<0 )
         minY = 0;
@@ -12408,7 +12408,7 @@ bool ldomDocument::findText( lString32 pattern, bool caseInsensitive, bool rever
         CRLog::debug("No text found: Range is empty");
         return false;
     }
-    return range.findText( pattern, caseInsensitive, reverse, words, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
+    return range.findText( pattern, caseInsensitive, reverse, ranges, maxCount, maxHeight, maxHeightCheckStartY, false, patternIsRegex );
 }
 
 #if USE_SRELL_REGEX ==1
@@ -12780,7 +12780,7 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
 }
 
 /// searches for specified text inside range
-bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, LVArray<ldomWord> & words, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
+bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY, bool checkMaxFromStart, bool patternIsRegex )
 {
     if ( caseInsensitive ) {
         #if USE_SRELL_REGEX != 1
@@ -12792,7 +12792,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                 lowercasePattern( pattern );
         #endif
     }
-    words.clear();
+    ranges.clear();
     if ( pattern.empty() )
         return false;
     if ( reverse ) {
@@ -12813,7 +12813,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                 ldomXPointer p( _end.getNode(), offs );
                 int currentTextY = p.toPoint().y;
                 if ( currentTextY<firstFoundTextY-maxHeight )
-                    return words.length()>0;
+                    return ranges.length()>0;
             }
 
             if ( caseInsensitive )
@@ -12826,14 +12826,14 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                     if (maxHeightCheckStartY == -1 || currentTextY <= maxHeightCheckStartY)
                         firstFoundTextY = currentTextY;
                 }
-                words.add( ldomWord(_end.getNode(), offs, endpos ) );
+                ranges.add( new ldomXRange(ldomXPointerEx(_end.getNode(), offs), ldomXPointerEx(_end.getNode(), endpos), 1) );
                 offs--;
             }
             if ( !_end.prevVisibleText() )
                 break;
             txt = _end.getNode()->getText();
             _end.setOffset(txt.length());
-            if ( words.length() >= maxCount )
+            if ( ranges.length() >= maxCount )
                 break;
         }
     } else {
@@ -12854,7 +12854,7 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                 int currentTextY = p.toPoint().y;
                 if ( (checkMaxFromStart && currentTextY>=firstFoundTextY+maxHeight) ||
 					currentTextY>firstFoundTextY+maxHeight )
-                    return words.length()>0;
+                    return ranges.length()>0;
             }
 
             lString32 txt = _start.getNode()->getText();
@@ -12867,22 +12867,22 @@ bool ldomXRange::findText( lString32 pattern, bool caseInsensitive, bool reverse
                     int currentTextY = p.toPoint().y;
                     if (checkMaxFromStart) {
                         if ( currentTextY>=firstFoundTextY+maxHeight )
-                            return words.length()>0;
+                            return ranges.length()>0;
                     } else {
                         if (maxHeightCheckStartY == -1 || currentTextY >= maxHeightCheckStartY)
                             firstFoundTextY = currentTextY;
                     }
                 }
-                words.add( ldomWord(_start.getNode(), offs, endpos ) );
+                ranges.add( new ldomXRange(ldomXPointerEx(_start.getNode(), offs), ldomXPointerEx(_start.getNode(), endpos), 1) );
                 offs++;
             }
             if ( !_start.nextVisibleText() )
                 break;
-            if ( words.length() >= maxCount )
+            if ( ranges.length() >= maxCount )
                 break;
         }
     }
-    return words.length() > 0;
+    return ranges.length() > 0;
 }
 
 /// fill marked ranges list

@@ -49,7 +49,7 @@ bool SearchDialog::findText( lString16 pattern, int origin, bool reverse, bool c
     if ( pattern!=_lastPattern && origin==1 )
         origin = 0;
     _lastPattern = pattern;
-    LVArray<ldomWord> words;
+    ldomXRangeList ranges;
     lvRect rc;
     _docview->getDocView()->GetPos( rc );
     int pageHeight = rc.height();
@@ -82,14 +82,14 @@ bool SearchDialog::findText( lString16 pattern, int origin, bool reverse, bool c
     }
     CRLog::debug("CRViewDialog::findText: Current page: %d .. %d", rc.top, rc.bottom);
     CRLog::debug("CRViewDialog::findText: searching for text '%s' from %d to %d origin %d", LCSTR(pattern), start, end, origin );
-    if ( _docview->getDocView()->getDocument()->findText( pattern, caseInsensitive, reverse, start, end, words, 200, pageHeight ) ) {
+    if ( _docview->getDocView()->getDocument()->findText( pattern, caseInsensitive, reverse, start, end, ranges, 200, pageHeight ) ) {
         CRLog::debug("CRViewDialog::findText: pattern found");
         _docview->getDocView()->clearSelection();
-        _docview->getDocView()->selectWords( words );
-        ldomMarkedRangeList * ranges = _docview->getDocView()->getMarkedRanges();
-        if ( ranges ) {
-            if ( ranges->length()>0 ) {
-                int pos = ranges->get(0)->start.y;
+        _docview->getDocView()->selectRanges( ranges );
+        ldomMarkedRangeList * markedRanges = _docview->getDocView()->getMarkedRanges();
+        if ( markedRanges ) {
+            if ( markedRanges->length()>0 ) {
+                int pos = markedRanges->get(0)->start.y;
                 _docview->getDocView()->SetPos(pos);
             }
         }
