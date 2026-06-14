@@ -150,6 +150,60 @@ extern const int gDOMVersionCurrent;
 #define NODE_STYLES_INVALID_INHERITED_PROPERTY_SET_ON_BOXING_ELEMENT   0x04
 #define NODE_STYLES_INVALID_PECULIAR_CSS_INNER_CONTENT_CHECK           0x08
 
+/// Optional search features for ldomDocument::findText() / ldomXRange::findText().
+///
+/// These flags are intentionally explicit instead of being folded into a few booleans:
+/// frontends may want to pilot or expose them independently.
+///
+/// Summary:
+/// - MATCH_ACROSS_TEXT_NODES lets one logical match cross inline DOM text-node boundaries
+///   inside a single rendered block: "fo<b>ob</b>ar" matches "foobar".
+/// - COLLAPSE_CONSECUTIVE_SPACES collapses runs of folded spaces to a single separator:
+///   "many  spaces", "many&nbsp; spaces", "many  spaces".
+/// - NORMALIZE_CANONICAL handles canonically equivalent Unicode text:
+///   "café" matches "café".
+/// - NORMALIZE_COMPATIBILITY is broader and accepts compatibility forms:
+///   "office" matches "oﬃce", "ABC" matches "ＡＢＣ".
+/// - IGNORE_FORMAT_CONTROL_CHARS ignores discretionary formatting/control characters
+///   that often should not block a match, such as TATWEEL, zero-width spaces,
+///   word joiners, and BiDi controls. It also ignores ZWNJ/ZWJ, which is more
+///   aggressive and may hide orthographic distinctions in some scripts.
+/// - FOLD_SPACES makes common Unicode spaces equivalent to SPACE: "New York",
+///   "New York", "New York".
+/// - FOLD_APOSTROPHES makes apostrophe-like characters equivalent: "don't", "don’t",
+///   "donʼt".
+/// - FOLD_HYPHENS makes hyphen/dash/minus variants equivalent to ASCII '-':
+///   "co-operate", "co‐operate", "co−operate".
+/// - IGNORE_DIACRITICS ignores combining-mark distinctions after decomposition:
+///   "замок", "за́мок", "замо́к" can match by base letters.
+///
+/// Regex search ignores all folding/normalization/format-control flags, but when
+/// MATCH_ACROSS_TEXT_NODES is set it can still search the raw text of a whole rendered
+/// block across inline node boundaries.
+///
+/// In the current implementation, the order of processing is roughly:
+///    1. optional decomposition/normalization (CANONICAL or COMPATIBILITY)
+///       (NORMALIZE_COMPATIBILITY includes and supersedes NORMALIZE_CANONICAL)
+///    2. optional case-folding (caseInsensitive)
+///    3. explicit FOLD_APOSTROPHES, FOLD_HYPHENS, FOLD_SPACES,
+///       and optional IGNORE_FORMAT_CONTROL_CHARS
+///    4. optional IGNORE_DIACRITICS
+///    5. optional COLLAPSE_CONSECUTIVE_SPACES
+///
+enum ldomFindTextFlag : lUInt32 {
+    LDOM_FIND_TEXT_NONE                        = 0x0000,
+    LDOM_FIND_TEXT_MATCH_ACROSS_TEXT_NODES     = 0x0001,
+    LDOM_FIND_TEXT_COLLAPSE_CONSECUTIVE_SPACES = 0x0002,
+    LDOM_FIND_TEXT_NORMALIZE_CANONICAL         = 0x0004,
+    LDOM_FIND_TEXT_NORMALIZE_COMPATIBILITY     = 0x0008,
+    LDOM_FIND_TEXT_IGNORE_FORMAT_CONTROL_CHARS = 0x0010,
+    LDOM_FIND_TEXT_FOLD_SPACES                 = 0x0020,
+    LDOM_FIND_TEXT_FOLD_APOSTROPHES            = 0x0040,
+    LDOM_FIND_TEXT_FOLD_HYPHENS                = 0x0080,
+    LDOM_FIND_TEXT_IGNORE_DIACRITICS           = 0x0100,
+};
+
+
 //#if BUILD_LITE!=1
 /// final block cache
 typedef LVRef<LFormattedText> LFormattedTextRef;
@@ -2162,7 +2216,7 @@ public:
     };
 
     /// searches for specified text inside range
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool checkMaxFromStart = false, bool patternIsRegex = false, lUInt32 searchFlags = LDOM_FIND_TEXT_NONE );
 };
 
 class ldomMarkedText
@@ -2873,7 +2927,7 @@ public:
     /// get rendered block cache object
     CVRendBlockCache & getRendBlockCache() { return _renderedBlockCache; }
 
-    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false );
+    bool findText( lString32 pattern, bool caseInsensitive, bool reverse, int minY, int maxY, ldomXRangeList & ranges, int maxCount, int maxHeight, int maxHeightCheckStartY = -1, bool patternIsRegex = false, lUInt32 searchFlags = LDOM_FIND_TEXT_NONE );
 #endif
 };
 
