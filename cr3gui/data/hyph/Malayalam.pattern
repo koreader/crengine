@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf8"?>
+<!--
+  Hyphenation for Malayalam
+  Copyright (C) 2008-2010 Santhosh Thottingal <santhosh.thottingal@gmail.com>
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation;
+  version 3 or later version of the License.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
+
+  Converted from TeX patterns to KOReader .pattern XML format.
+  https://github.com/santhoshtr/hyphenation/blob/master/ml_IN/hyph_ml_IN.dic
+-->
+<HyphenationDescription>
+<pattern>2‍2</pattern>
+<pattern>1‌1</pattern>
+<pattern>1അ1</pattern>
+<pattern>1ആ1</pattern>
+<pattern>1ഇ1</pattern>
+<pattern>1ഈ1</pattern>
+<pattern>1ഉ1</pattern>
+<pattern>1ഊ1</pattern>
+<pattern>1ഋ1</pattern>
+<pattern>1ൠ1</pattern>
+<pattern>1ഌ1</pattern>
+<pattern>1ൡ1</pattern>
+<pattern>1എ1</pattern>
+<pattern>1ഏ1</pattern>
+<pattern>1ഐ1</pattern>
+<pattern>1ഒ1</pattern>
+<pattern>1ഓ1</pattern>
+<pattern>1ഔ1</pattern>
+<pattern>ാ1</pattern>
+<pattern>ി1</pattern>
+<pattern>ീ1</pattern>
+<pattern>ു1</pattern>
+<pattern>ൂ1</pattern>
+<pattern>ൃ1</pattern>
+<pattern>െ1</pattern>
+<pattern>േ1</pattern>
+<pattern>ൈ1</pattern>
+<pattern>ൊ1</pattern>
+<pattern>ോ1</pattern>
+<pattern>ൌ1</pattern>
+<pattern>ൗ1</pattern>
+<pattern>1ക</pattern>
+<pattern>1ഖ</pattern>
+<pattern>1ഗ</pattern>
+<pattern>1ഘ</pattern>
+<pattern>1ങ</pattern>
+<pattern>1ച</pattern>
+<pattern>1ഛ</pattern>
+<pattern>1ജ</pattern>
+<pattern>1ഝ</pattern>
+<pattern>1ഞ</pattern>
+<pattern>1ട</pattern>
+<pattern>1ഠ</pattern>
+<pattern>1ഡ</pattern>
+<pattern>1ഢ</pattern>
+<pattern>1ണ</pattern>
+<pattern>1ത</pattern>
+<pattern>1ഥ</pattern>
+<pattern>1ദ</pattern>
+<pattern>1ധ</pattern>
+<pattern>1ന</pattern>
+<pattern>1പ</pattern>
+<pattern>1ഫ</pattern>
+<pattern>1ബ</pattern>
+<pattern>1ഭ</pattern>
+<pattern>1മ</pattern>
+<pattern>1യ</pattern>
+<pattern>1ര</pattern>
+<pattern>1റ</pattern>
+<pattern>1ല</pattern>
+<pattern>1ള</pattern>
+<pattern>1ഴ</pattern>
+<pattern>1വ</pattern>
+<pattern>1ശ</pattern>
+<pattern>1ഷ</pattern>
+<pattern>1സ</pattern>
+<pattern>1ഹ</pattern>
+<pattern>2ഃ1</pattern>
+<pattern>2ം1</pattern>
+<pattern>2്2</pattern>
+<pattern>ന്2</pattern>
+<pattern>ര്2</pattern>
+<pattern>ള്2</pattern>
+<pattern>ല്2</pattern>
+<pattern>ക്2</pattern>
+<pattern>ണ്2</pattern>
+<pattern>2ന്‍</pattern>
+<pattern>2ല്‍</pattern>
+<pattern>2ള്‍</pattern>
+<pattern>2ണ്‍</pattern>
+<pattern>2ര്‍</pattern>
+<pattern>2ക്‍</pattern>
+<pattern>2ൺ</pattern>
+<pattern>2ൻ</pattern>
+<pattern>2ർ</pattern>
+<pattern>2ൽ</pattern>
+<pattern>2ൾ</pattern>
+<pattern>2ൿ</pattern>
+</HyphenationDescription>

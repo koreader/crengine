@@ -214,6 +214,14 @@
         "right_hyphen_min": 2
     },
     {
+        "name": "Malayalam",
+        "filename": "Malayalam.pattern",
+        "language": "ml",
+        "left_hyphen_min": 2,
+        "right_hyphen_min": 3,
+        "aliases": ["mal"]
+    },
+    {
         "name": "Norwegian",
         "filename": "Norwegian.pattern",
         "language": "no",
