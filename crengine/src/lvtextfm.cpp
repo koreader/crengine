@@ -6303,7 +6303,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                             if ( lastWordStart!=-1 && lastWordColor!=bgcl ) {
                                 // Draw the background of a different color for previous words
                                 if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
-                                    buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                    buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, buf->applyNightModeToBackgroundColor( lastWordColor ) );
                                 lastWordStart = -1;
                             }
                             // Draw the background for this pad up to its padding+border, but not its margin
@@ -6313,7 +6313,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                             lastWordEnd = x + frmline->x + word->x + word->o.height; // padding+border-right
                             lastWordColor = bgcl;
                             if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
-                                buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, buf->applyNightModeToBackgroundColor( lastWordColor ) );
                             lastWordStart = -1;
                             lastWordEnd = -1;
                             lastWordColor = LTEXT_COLOR_CURRENT;
@@ -6323,7 +6323,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                                 // Draw the background of a different color for previous words
                                 if ( lastWordStart!=-1 )
                                     if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
-                                        buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                        buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, buf->applyNightModeToBackgroundColor( lastWordColor ) );
                                 // Next drawing will include this pad's padding+border-left
                                 lastWordColor=bgcl;
                                 lastWordStart = x + frmline->x + word->x + word->width - word->o.height;
@@ -6341,7 +6341,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     if ( lastWordColor!=bgcl || lastWordStart==-1 ) {
                         if ( lastWordStart!=-1 )
                             if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
-                                buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                                buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, buf->applyNightModeToBackgroundColor( lastWordColor ) );
                         lastWordColor=bgcl;
                         lastWordStart = x+frmline->x+word->x;
                     }
@@ -6350,7 +6350,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
             }
             if ( lastWordStart!=-1 ) {
                 if ( ((lastWordColor>>24) & 0xFF) != 0xFF )
-                    buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, lastWordColor );
+                    buf->FillRect( lastWordStart, y + frmline->y, lastWordEnd, y + frmline->y + frmline->height, buf->applyNightModeToBackgroundColor( lastWordColor ) );
             }
 
             // Draw borders if we noticed there could be some
@@ -6624,10 +6624,10 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                         // Otherwise, LTEXT_COLOR_CURRENT: keep current buffer color
                     }
                     else {
-                        buf->SetTextColor( cl );
+                        buf->SetTextColor( buf->applyNightModeToTextColor( cl ) );
                     }
                     if ( !LTEXT_COLOR_IS_RESERVED(bgcl) )
-                        buf->SetBackgroundColor( bgcl );
+                        buf->SetBackgroundColor( buf->applyNightModeToBackgroundColor( bgcl ) );
                     // Add drawing flags: text decoration (underline...)
                     lUInt32 drawFlags = srcline->flags & LTEXT_TD_MASK;
                     // and chars direction, and if word begins or ends paragraph (for Harfbuzz)

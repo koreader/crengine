@@ -108,6 +108,36 @@ public:
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) = 0;
     virtual bool getInvertImages() const = 0;
+    /// set to true to invert background colors only (so they get inverted back to normal by nightmode)
+    virtual void setInvertBackgroundColors( bool invert ) = 0;
+    virtual bool getInvertBackgroundColors() const = 0;
+    /// set to true to invert text colors only (so they get inverted back to normal by nightmode)
+    virtual void setInvertTextColors( bool invert ) = 0;
+    virtual bool getInvertTextColors() const = 0;
+    lUInt32 applyNightModeToBackgroundColor( lUInt32 cl ) const {
+        if ( !getInvertBackgroundColors() )
+            return cl;
+        if ( (cl & 0xFF000000) == 0xFF000000 )
+            return cl;
+        lUInt32 r = (cl >> 16) & 0xFF;
+        lUInt32 g = (cl >> 8) & 0xFF;
+        lUInt32 b = cl & 0xFF;
+        if ( r == g && r == b )
+            return cl;
+        return (cl & 0xFF000000) | ((255-r) << 16) | ((255-g) << 8) | (255-b);
+    }
+    lUInt32 applyNightModeToTextColor( lUInt32 cl ) const {
+        if ( !getInvertTextColors() )
+            return cl;
+        if ( (cl & 0xFF000000) == 0xFF000000 )
+            return cl;
+        lUInt32 r = (cl >> 16) & 0xFF;
+        lUInt32 g = (cl >> 8) & 0xFF;
+        lUInt32 b = cl & 0xFF;
+        if ( r == g && r == b )
+            return cl;
+        return (cl & 0xFF000000) | ((255-r) << 16) | ((255-g) << 8) | (255-b);
+    }
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) = 0;
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
@@ -259,6 +289,8 @@ protected:
     lUInt32 _textColor;
     bool _hidePartialGlyphs;
     bool _invertImages;
+    bool _invertBackgroundColors;
+    bool _invertTextColors;
     bool _ditherImages;
     bool _smoothImages;
     int _drawnImagesCount;
@@ -269,6 +301,12 @@ public:
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
     virtual bool getInvertImages() const { return _invertImages; }
+    /// set to true to invert background colors only (so they get inverted back to normal by nightmode)
+    virtual void setInvertBackgroundColors( bool invert ) { _invertBackgroundColors = invert; }
+    virtual bool getInvertBackgroundColors() const { return _invertBackgroundColors; }
+    /// set to true to invert text colors only (so they get inverted back to normal by nightmode)
+    virtual void setInvertTextColors( bool invert ) { _invertTextColors = invert; }
+    virtual bool getInvertTextColors() const { return _invertTextColors; }
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
@@ -316,7 +354,8 @@ public:
     int getDrawnImagesSurface() const { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _drawExtraInfo(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _ditherImages(false), _smoothImages(false),
+                        _invertImages(false), _invertBackgroundColors(false), _invertTextColors(false),
+                        _ditherImages(false), _smoothImages(false),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };

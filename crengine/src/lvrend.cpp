@@ -10249,7 +10249,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 // 2-steps drawing), we may need to drawbuf.SetBackgroundColor()
                 // for the text to be correctly drawn over this background color.
                 oldColor = drawbuf.GetBackgroundColor();
-                drawbuf.SetBackgroundColor( bg_color );
+                drawbuf.SetBackgroundColor( enode->getNodeId() == el_body ? bg_color : drawbuf.applyNightModeToBackgroundColor( bg_color ) );
                 restoreBackgroundColor = true;
             }
             bool draw_bg_image = draw_background && !style->background_image.empty();
@@ -10269,7 +10269,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 else {
                     // Regular element: draw bgcolor or image inside its border box
                     if ( draw_bg_color )
-                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), drawbuf.applyNightModeToBackgroundColor( bg_color ) );
                     if ( draw_bg_image )
                         DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Commented identical calls below as they seem redundant with what was just done here)
