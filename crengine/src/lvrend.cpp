@@ -11636,6 +11636,28 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         }
     }
 
+    // -cr-hint: invert-colors: pre-invert non-grayscale colors so KOReader night mode's
+    // global framebuffer inversion cancels it out and preserves the intended hue.
+    if ( STYLE_HAS_CR_HINT(pstyle, INVERT_COLORS) ) {
+        if ( pstyle->color.type == css_val_color ) {
+            lUInt32 cl = pstyle->color.value;
+            lUInt32 r = (cl >> 16) & 0xFF;
+            lUInt32 g = (cl >> 8) & 0xFF;
+            lUInt32 b = cl & 0xFF;
+            if ( r != g || r != b ) // non-grayscale only
+                pstyle->color.value = cl ^ 0x00FFFFFF;
+        }
+        if ( pstyle->background_color.type == css_val_color
+             && !IS_COLOR_FULLY_TRANSPARENT(pstyle->background_color.value) ) {
+            lUInt32 cl = pstyle->background_color.value;
+            lUInt32 r = (cl >> 16) & 0xFF;
+            lUInt32 g = (cl >> 8) & 0xFF;
+            lUInt32 b = cl & 0xFF;
+            if ( r != g || r != b ) // non-grayscale only
+                pstyle->background_color.value = cl ^ 0x00FFFFFF;
+        }
+    }
+
     // background-image
     // We have put "\x01" when meeting "background-image: inherit"
     if ( pstyle->background_image.length() == 1 && pstyle->background_image[0] == '\x01' )

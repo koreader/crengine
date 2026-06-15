@@ -444,6 +444,7 @@ enum css_generic_value_t {
 // One can use this hint on IMG to avoid any such resize, trusting the publisher's CSS to do
 // the right things to avoid any overflow.
 #define CSS_CR_HINT_NO_CAP_IMAGE_SIZE       0x00000020 // -cr-hint: no-cap-image-size
+#define CSS_CR_HINT_INVERT_COLORS           0x00000040 // -cr-hint: invert-colors
 
 // A node with these should be considered as TOC item of level N when building alternate TOC
 #define CSS_CR_HINT_TOC_LEVEL1              0x00000100 // -cr-hint: toc-level1
