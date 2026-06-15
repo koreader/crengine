@@ -119,6 +119,15 @@ enum css_style_rec_important_bit {
 // so they get the same consistent style they would get after a re-rendering.
 #define STYLE_REC_FLAG_INHERITABLE_APPLIED  0x02
 
+// Tracks color values already pre-inverted by -cr-hint: invert-colors, so
+// descendants inheriting them don't invert them a second time.
+#define STYLE_REC_INVERTED_COLOR                    0x01
+#define STYLE_REC_INVERTED_BACKGROUND_COLOR         0x02
+#define STYLE_REC_INVERTED_BORDER_TOP_COLOR         0x04
+#define STYLE_REC_INVERTED_BORDER_RIGHT_COLOR       0x08
+#define STYLE_REC_INVERTED_BORDER_BOTTOM_COLOR      0x10
+#define STYLE_REC_INVERTED_BORDER_LEFT_COLOR        0x20
+
 /**
     \brief Element style record.
 
@@ -189,6 +198,7 @@ struct css_style_rec_tag {
     css_ruby_position_t    ruby_position;
     lString32              content;
     css_length_t           cr_hint;
+    lUInt8                 cr_hint_inverted_colors;
     // The following should only be used when applying stylesheets while in lvend.cpp setNodeStyle(),
     // and cleaned up there, before the style is cached and shared. They are not serialized.
     lInt8                flags; // bitmap of STYLE_REC_FLAG_*
@@ -251,6 +261,7 @@ struct css_style_rec_tag {
     , caption_side(css_cs_inherit)
     , ruby_position(css_rp_inherit)
     , cr_hint(css_val_inherited, 0)
+    , cr_hint_inverted_colors(0)
     , flags(0)
     , pseudo_elem_before_style(NULL)
     , pseudo_elem_after_style(NULL)

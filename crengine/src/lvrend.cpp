@@ -62,6 +62,17 @@ int scaleForRenderDPI( int value ) {
     return value;
 }
 
+inline lUInt8 styleRecInvertedBorderColorFlag(int border_id)
+{
+    switch (border_id) {
+        case 0: return STYLE_REC_INVERTED_BORDER_TOP_COLOR;
+        case 1: return STYLE_REC_INVERTED_BORDER_RIGHT_COLOR;
+        case 2: return STYLE_REC_INVERTED_BORDER_BOTTOM_COLOR;
+        case 3: return STYLE_REC_INVERTED_BORDER_LEFT_COLOR;
+        default: return 0;
+    }
+}
+
 // Uncomment for debugging enhanced block rendering
 // #define DEBUG_BLOCK_RENDERING
 
@@ -297,6 +308,9 @@ void collapse_border(css_style_ref_t & target_style, int & current_target_size,
             }
             target_style->border_width[border_id] = neighbour_style->border_width[border_id];
             target_style->border_color[border_id] = neighbour_style->border_color[border_id];
+            lUInt8 inverted_color_flag = styleRecInvertedBorderColorFlag(border_id);
+            target_style->cr_hint_inverted_colors &= ~inverted_color_flag;
+            target_style->cr_hint_inverted_colors |= neighbour_style->cr_hint_inverted_colors & inverted_color_flag;
             current_target_size = neighbour_size;
         }
     }
@@ -2470,6 +2484,30 @@ inline lUInt32 getForegroundColor(const css_style_ref_t style)
             return LTEXT_COLOR_IS_RESERVED(style->color.value) ? LTEXT_COLOR_RESERVED_REPLACE : style->color.value;
         }
         return LTEXT_COLOR_CURRENT; // should not happen
+}
+
+inline lUInt32 invertNonGrayscaleColor(lUInt32 color)
+{
+    lUInt32 r = (color >> 16) & 0xFF;
+    lUInt32 g = (color >> 8) & 0xFF;
+    lUInt32 b = color & 0xFF;
+    if ( r != g || r != b ) // non-grayscale only
+        color ^= 0x00FFFFFF;
+    return color;
+}
+
+inline void invertStyleColorIfNeeded(css_length_t & color, lUInt8 & inverted_color_flags,
+                                     lUInt8 inverted_color_flag, bool skip_fully_transparent)
+{
+    if ( color.type != css_val_color || (inverted_color_flags & inverted_color_flag) )
+        return;
+    if ( skip_fully_transparent && IS_COLOR_FULLY_TRANSPARENT(color.value) )
+        return;
+    lUInt32 inverted_color = invertNonGrayscaleColor(color.value);
+    if ( inverted_color != (lUInt32)color.value ) {
+        color.value = inverted_color;
+        inverted_color_flags |= inverted_color_flag;
+    }
 }
 
 lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt32 oldflags, int direction )
@@ -4739,6 +4777,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->content = source->content ;
     dest->cr_hint.type = source->cr_hint.type ;
     dest->cr_hint.value = source->cr_hint.value ;
+    dest->cr_hint_inverted_colors = source->cr_hint_inverted_colors ;
 }
 
 // Only used by renderBlockElementLegacy()
@@ -11575,21 +11614,23 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // That is, 'color' will always be a css_val_color.
     // For the other 'background_color' and 'border_color[]', the only value possible
     // with css_val_unspecified is css_generic_currentcolor.
-
     // color
     // Inherited by default. Must always be a css_val_color: so 'inherit' or 'currentcolor'
     // is resolved to the parent's color (which will be our root node's color if no other
     // parent node got its color set).
     if ( pstyle->color.type == css_val_inherited || pstyle->color.type == css_val_unspecified ) {
         pstyle->color = parent_style->color;
+        pstyle->cr_hint_inverted_colors |= parent_style->cr_hint_inverted_colors & STYLE_REC_INVERTED_COLOR;
     }
 
     // border-color
     // Not inherited by default, defaults to "currentcolor", which should be kept as-is
     // so it can be inherited as-is ("currentcolor" should be resolved at use-time).
     for ( int i=0; i < 4; i++ ) {
-        if ( pstyle->border_color[i].type == css_val_inherited )
+        if ( pstyle->border_color[i].type == css_val_inherited ) {
             pstyle->border_color[i] = parent_style->border_color[i];
+            pstyle->cr_hint_inverted_colors |= parent_style->cr_hint_inverted_colors & styleRecInvertedBorderColorFlag(i);
+        }
     }
 
     // background-color
@@ -11598,6 +11639,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // simply draw its children over the already filled rect.
     if ( pstyle->background_color.type == css_val_inherited ) {
         pstyle->background_color = parent_style->background_color;
+        pstyle->cr_hint_inverted_colors |= parent_style->cr_hint_inverted_colors & STYLE_REC_INVERTED_BACKGROUND_COLOR;
     }
     else if (    pstyle->display >= css_d_table_row_group
               && pstyle->display <= css_d_table_cell
@@ -11613,6 +11655,12 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         //   background-color should handle it - but as a TR don't draw it,
         //   it will be propagated to the TD/TH under.
         // - (but not for TABLE, which draws itself its background.)
+        bool fcolor_inverted = pstyle->background_color.type == css_val_color ? // "currentcolor" if not
+                                (pstyle->cr_hint_inverted_colors & STYLE_REC_INVERTED_BACKGROUND_COLOR) :
+                                (pstyle->cr_hint_inverted_colors & STYLE_REC_INVERTED_COLOR);
+        bool parent_background_color_inverted = parent_style->background_color.type == css_val_color ? // "currentcolor" if not
+                                        (parent_style->cr_hint_inverted_colors & STYLE_REC_INVERTED_BACKGROUND_COLOR) :
+                                        (parent_style->cr_hint_inverted_colors & STYLE_REC_INVERTED_COLOR);
         lUInt32 fcolor = pstyle->background_color.type == css_val_color ? // "currentcolor" if not
                                     pstyle->background_color.value : pstyle->color.value;
         lUInt32 pcolor = parent_style->background_color.type == css_val_color ? // "currentcolor" if not
@@ -11623,6 +11671,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         if ( IS_COLOR_FULLY_TRANSPARENT(fcolor) ) {
             // Fully transparent: just use parent bgcolor.
             pstyle->background_color = parent_style->background_color;
+            pstyle->cr_hint_inverted_colors |= parent_style->cr_hint_inverted_colors & STYLE_REC_INVERTED_BACKGROUND_COLOR;
         }
         else if ( IS_COLOR_FULLY_OPAQUE(fcolor) ) {
             // Fully opaque: no blending needed, just let it be.
@@ -11631,30 +11680,31 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             // Parent fully transparent: just let this node color be.
         }
         else {
+            // If this element is hinted, invert only this element's own semi-transparent
+            // background contribution before blending. Inverting the final blended color
+            // would also invert the propagated parent contribution, which may have its own
+            // inversion state.
+            if ( STYLE_HAS_CR_HINT(pstyle, INVERT_COLORS) && !fcolor_inverted )
+                fcolor = invertNonGrayscaleColor(fcolor);
             pstyle->background_color.value = combineColors(fcolor, pcolor);
             pstyle->background_color.type = css_val_color; // in case it was unspecified/currentcolor
+            if ( STYLE_HAS_CR_HINT(pstyle, INVERT_COLORS) || fcolor_inverted || parent_background_color_inverted )
+                pstyle->cr_hint_inverted_colors |= STYLE_REC_INVERTED_BACKGROUND_COLOR;
         }
     }
 
     // -cr-hint: invert-colors: pre-invert non-grayscale colors so KOReader night mode's
-    // global framebuffer inversion cancels it out and preserves the intended hue.
+    // global framebuffer inversion cancels it out and preserves the intended hue. Track
+    // which computed values were already pre-inverted so a later matching descendant that
+    // inherits them through any number of non-matching ancestors doesn't invert them again.
     if ( STYLE_HAS_CR_HINT(pstyle, INVERT_COLORS) ) {
-        if ( pstyle->color.type == css_val_color ) {
-            lUInt32 cl = pstyle->color.value;
-            lUInt32 r = (cl >> 16) & 0xFF;
-            lUInt32 g = (cl >> 8) & 0xFF;
-            lUInt32 b = cl & 0xFF;
-            if ( r != g || r != b ) // non-grayscale only
-                pstyle->color.value = cl ^ 0x00FFFFFF;
-        }
-        if ( pstyle->background_color.type == css_val_color
-             && !IS_COLOR_FULLY_TRANSPARENT(pstyle->background_color.value) ) {
-            lUInt32 cl = pstyle->background_color.value;
-            lUInt32 r = (cl >> 16) & 0xFF;
-            lUInt32 g = (cl >> 8) & 0xFF;
-            lUInt32 b = cl & 0xFF;
-            if ( r != g || r != b ) // non-grayscale only
-                pstyle->background_color.value = cl ^ 0x00FFFFFF;
+        invertStyleColorIfNeeded(pstyle->color, pstyle->cr_hint_inverted_colors,
+                                 STYLE_REC_INVERTED_COLOR, false);
+        invertStyleColorIfNeeded(pstyle->background_color, pstyle->cr_hint_inverted_colors,
+                                 STYLE_REC_INVERTED_BACKGROUND_COLOR, true);
+        for ( int i=0; i < 4; i++ ) {
+            invertStyleColorIfNeeded(pstyle->border_color[i], pstyle->cr_hint_inverted_colors,
+                                     styleRecInvertedBorderColorFlag(i), true);
         }
     }
 
