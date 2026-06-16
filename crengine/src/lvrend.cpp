@@ -2430,6 +2430,10 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     else if ( fw>999 )
         fw = 999;
     // printf("cssd_font_family: %d %s", style->font_family, style->font_name.c_str());
+    // wght/ital are passed via the weight/italic params below, not here:
+    // GetFont's computeVariations() derives those from weight/italic and
+    // ignores requested.wght/requested.ital.
+    LVFontVariations variations;
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
@@ -2437,7 +2441,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         style->font_family,
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
-        documentId, true); // useBias=true, so that our preferred font gets used
+        documentId, true, // useBias=true, so that our preferred font gets used
+        variations.empty() ? NULL : &variations);
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }
