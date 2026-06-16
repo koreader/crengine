@@ -93,7 +93,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.78k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.79k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0034
 
@@ -5155,6 +5155,7 @@ bool ldomDocument::setRenderProps( int width, int dy, bool /*showCover*/, int /*
     s->font_weight = css_fw_400;
     s->font_style = css_fs_normal;
     s->font_features = css_length_t(css_val_unspecified, 0);
+    s->font_optical_sizing = css_fos_auto; // CSS initial value; enables opsz auto-injection
     s->text_indent = css_length_t(css_val_screen_px, 0);
     s->line_height = css_length_t(css_val_unspecified, css_generic_normal); // line-height: normal
     s->letter_spacing = css_length_t(css_val_unspecified, css_generic_normal); // letter-spacing: normal

@@ -64,6 +64,7 @@ enum css_decl_code {
     cssd_font_style,
     cssd_font_weight,
     cssd_font_features,           // font-feature-settings (not yet parsed)
+    cssd_font_optical_sizing,
     cssd_font_variant,            // all these are parsed specifically and mapped into
     cssd_font_variant_ligatures,  // the same style->font_features 31 bits bitmap
     cssd_font_variant_ligatures2, // -webkit-font-variant-ligatures (former Webkit property)
@@ -177,6 +178,7 @@ static const char * css_decl_name[] = {
     "font-style",
     "font-weight",
     "font-feature-settings",
+    "font-optical-sizing",
     "font-variant",
     "font-variant-ligatures",
     "-webkit-font-variant-ligatures",
@@ -2926,6 +2928,13 @@ static const char * css_fw_names[] =
     "900",
     NULL
 };
+static const char * css_fos_names[] = {
+    "", // css_fos_inherit
+    "auto",
+    "none",
+    NULL
+};
+
 static const char * css_va_names[] = 
 {
     "", // css_va_inherit
@@ -3899,6 +3908,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_font_weight:
                 IF_g_SET_n_AND_break(true, css_fw_inherit, css_fw_400)
                 n = parse_name( decl, css_fw_names, -1 );
+                break;
+            case cssd_font_optical_sizing:
+                IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
+                n = parse_name( decl, css_fos_names, -1 );
                 break;
             case cssd_font_features: // font-feature-settings
                 // Not (yet) implemented.
@@ -5321,6 +5334,10 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             break;
         case cssd_font_size:
             style->Apply( read_length(p), &style->font_size, imp_bit_font_size, is_important );
+            style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_font_optical_sizing:
+            style->Apply( (css_font_optical_sizing_t) *p++, &style->font_optical_sizing, imp_bit_font_optical_sizing, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_features:
