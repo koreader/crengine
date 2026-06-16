@@ -2434,6 +2434,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     // GetFont's computeVariations() derives those from weight/italic and
     // ignores requested.wght/requested.ital.
     LVFontVariations variations;
+    if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
+        variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
@@ -11240,6 +11242,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     /// Keywords properties
     // These have "inherit" as their initial value (others, less straightforward, are handled below)
     UPDATE_STYLE_FIELD( font_style, css_fs_inherit );
+    UPDATE_STYLE_FIELD( font_optical_sizing, css_fos_inherit );
     UPDATE_STYLE_FIELD( white_space, css_ws_inherit );
     UPDATE_STYLE_FIELD( text_align, css_ta_inherit );
     UPDATE_STYLE_FIELD( text_align_last, css_ta_inherit );
