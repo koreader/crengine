@@ -452,6 +452,9 @@ enum css_generic_value_t {
 // the right things to avoid any overflow.
 #define CSS_CR_HINT_NO_CAP_IMAGE_SIZE       0x00000020 // -cr-hint: no-cap-image-size
 
+// Pre-invert non-grayscale colors so night mode inverts them back to their original hue.
+#define CSS_CR_HINT_INVERT_COLORS           0x00000040 // -cr-hint: invert-colors
+
 // A node with these should be considered as TOC item of level N when building alternate TOC
 #define CSS_CR_HINT_TOC_LEVEL1              0x00000100 // -cr-hint: toc-level1
 #define CSS_CR_HINT_TOC_LEVEL2              0x00000200 // -cr-hint: toc-level2
