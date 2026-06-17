@@ -1045,9 +1045,10 @@ class EmbeddedFontStyleParser {
     lString32 _basePath;
     int _state;
     lString8 _face;
-    lString8 islocal;
     bool _italic;
     bool _bold;
+    bool _srcIsLocal;  // true while parsing a local(...) src value; false for url(...)
+    bool _urlIsLocal;  // true when _url for the current block came from local(...)
     lString32 _url;
 public:
     EmbeddedFontStyleParser(LVEmbeddedFontList & fontList) : _fontList(fontList) { }
@@ -1082,6 +1083,8 @@ public:
                 _face.clear();
                 _italic = false;
                 _bold = false;
+                _srcIsLocal = false;
+                _urlIsLocal = false;
                 _url.clear();
             } else
                 _state = 3; // inside other {
@@ -1091,11 +1094,9 @@ public:
                 if (!_url.empty()) {
 //                    CRLog::trace("@font { face: %s; bold: %s; italic: %s; url: %s", _face.c_str(), _bold ? "yes" : "no",
 //                                 _italic ? "yes" : "no", LCSTR(_url));
-                    if (islocal.length()==5 && _basePath.length()!=0)
-                        _url = _url.substr((_basePath.length()+1), (_url.length()-_basePath.length()));
                     while (_fontList.findByUrl(_url))
                         _url.append(lString32(" ")); //avoid add() replaces existing local name
-                    _fontList.add(_url, _face, _bold, _italic);
+                    _fontList.add(_url, _face, _bold, _italic, _urlIsLocal);
                 }
             }
             _state = 0;
@@ -1103,11 +1104,9 @@ public:
         case ',':
             if (_state == 2) {
                 if (!_url.empty()) {
-                    if (islocal.length() == 5 && _basePath.length()!=0)
-                        _url=(_url.substr((_basePath.length()+1),(_url.length()-_basePath.length())));
                     while (_fontList.findByUrl(_url))
                         _url.append(lString32(" "));
-                    _fontList.add(_url, _face, _bold, _italic);
+                    _fontList.add(_url, _face, _bold, _italic, _urlIsLocal);
                 }
                 _state = 11;
             }
@@ -1160,13 +1159,11 @@ public:
         } else if (_state == 11) {
             if (t == "url") {
                 _state = 12;
-                islocal=t;
-            }
-            else if (t=="local") {
-                _state=12;
-                islocal=t;
-            }
-            else
+                _srcIsLocal = false;
+            } else if (t == "local") {
+                _state = 12;
+                _srcIsLocal = true;
+            } else
                 _state = 2;
         }
     }
@@ -1174,11 +1171,18 @@ public:
         //CRLog::trace("state==%d: \"%s\"", _state, token.c_str());
         if (_state == 11 || _state == 13) {
             if (!token.empty()) {
-                lString32 ltoken = Utf8ToUnicode(token);
-                if (ltoken.startsWithNoCase(lString32("res://")) || ltoken.startsWithNoCase(lString32("file://")) )
-                    _url = ltoken;
-                else
-                    _url = LVCombinePaths(_basePath, ltoken);
+                if (_srcIsLocal) {
+                    // src: local(name) — _url holds the referenced font family
+                    // name, not a path.
+                    _urlIsLocal = true;
+                    _url = Utf8ToUnicode(token);
+                } else {
+                    lString32 ltoken = Utf8ToUnicode(token);
+                    if (ltoken.startsWithNoCase(lString32("res://")) || ltoken.startsWithNoCase(lString32("file://")) )
+                        _url = ltoken;
+                    else
+                        _url = LVCombinePaths(_basePath, ltoken);
+                }
             }
             _state = 2;
         } else if (_state == 5) {

@@ -669,21 +669,26 @@ class LVEmbeddedFontDef {
     lString8 _face;
     bool _bold;
     bool _italic;
+    // When true, _url holds a font family name from a `src: local(...)` rule
+    // rather than a path to an embedded font file.
+    bool _isLocal;
 public:
-    LVEmbeddedFontDef(lString32 url, lString8 face, bool bold, bool italic) :
-        _url(url), _face(face), _bold(bold), _italic(italic)
+    LVEmbeddedFontDef(lString32 url, lString8 face, bool bold, bool italic, bool isLocal = false) :
+        _url(url), _face(face), _bold(bold), _italic(italic), _isLocal(isLocal)
     {
     }
-    LVEmbeddedFontDef() : _bold(false), _italic(false) {
+    LVEmbeddedFontDef() : _bold(false), _italic(false), _isLocal(false) {
     }
 
     const lString32 & getUrl() const { return _url; }
     const lString8 & getFace() const { return _face; }
     bool getBold() const { return _bold; }
     bool getItalic() const { return _italic; }
+    bool getIsLocal() const { return _isLocal; }
     void setFace(const lString8 &  face) { _face = face; }
     void setBold(bool bold) { _bold = bold; }
     void setItalic(bool italic) { _italic = italic; }
+    void setIsLocal(bool isLocal) { _isLocal = isLocal; }
     bool serialize(SerialBuf & buf);
     bool deserialize(SerialBuf & buf);
 };
@@ -692,7 +697,7 @@ class LVEmbeddedFontList : public LVPtrVector<LVEmbeddedFontDef> {
 public:
     LVEmbeddedFontDef * findByUrl(lString32 url);
     void add(LVEmbeddedFontDef * def) { LVPtrVector<LVEmbeddedFontDef>::add(def); }
-    bool add(lString32 url, lString8 face, bool bold, bool italic);
+    bool add(lString32 url, lString8 face, bool bold, bool italic, bool isLocal = false);
     bool add(lString32 url) { return add(url, lString8::empty_str, false, false); }
     bool addAll(LVEmbeddedFontList & list);
     void set(LVEmbeddedFontList & list) { clear(); addAll(list); }
@@ -802,7 +807,10 @@ public:
     /// returns current hinting mode
     virtual hinting_mode_t  GetHintingMode() { return HINTING_MODE_AUTOHINT; }
 
-    virtual bool SetAlias(lString8 alias,lString8 facename,int documentId,bool bold,bool italic){ return false;}
+    /// Resolves `src: local(localName)` from a document's @font-face rule: if a
+    /// family named `localName` is registered, makes `alias` resolve to it for
+    /// font selection within `documentId`. Returns false if no such family exists.
+    virtual bool RegisterDocumentFontAlias(int /*documentId*/, lString8 /*alias*/, lString8 /*localName*/) { return false; }
 
     /// Set the primary reading font used as the step-2 fallback for all generic families.
     virtual void SetPrimaryFont( lString8 /*face*/ ) {}

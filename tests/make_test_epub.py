@@ -41,6 +41,7 @@ CONTENT_OPF = """\
     <item id="ch05"    href="ch05.html"    media-type="application/xhtml+xml"/>
     <item id="ch06"    href="ch06.html"    media-type="application/xhtml+xml"/>
     <item id="ch07"    href="ch07.html"    media-type="application/xhtml+xml"/>
+    <item id="ch08"    href="ch08.html"    media-type="application/xhtml+xml"/>
     <item id="padding" href="padding.bin"  media-type="application/octet-stream"/>
   </manifest>
   <spine toc="ncx">
@@ -51,6 +52,7 @@ CONTENT_OPF = """\
     <itemref idref="ch05"/>
     <itemref idref="ch06"/>
     <itemref idref="ch07"/>
+    <itemref idref="ch08"/>
   </spine>
 </package>
 """
@@ -90,6 +92,10 @@ TOC_NCX = """\
     <navPoint id="ch07" playOrder="7">
       <navLabel><text>7. Issue Regressions</text></navLabel>
       <content src="ch07.html"/>
+    </navPoint>
+    <navPoint id="ch08" playOrder="8">
+      <navLabel><text>8. src: local() Handling</text></navLabel>
+      <content src="ch08.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -522,6 +528,74 @@ mojibake.</p>
 </html>
 """
 
+CH08 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>src: local() Handling</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+<style type="text/css">
+@font-face {
+  font-family: "LocalSerif";
+  src: local("FreeSerif");
+}
+@font-face {
+  font-family: "LocalMissing";
+  src: local("ThisFontDoesNotExist");
+}
+@font-face {
+  font-family: "LocalWithFallback";
+  src: local("FreeSans"), url("no-such-file.ttf");
+}
+.local-serif   { font-family: "LocalSerif",        serif; }
+.real-serif    { font-family: "FreeSerif",          serif; }
+.local-missing { font-family: "LocalMissing",       serif; }
+.local-with-fb { font-family: "LocalWithFallback",  sans-serif; }
+.real-sans     { font-family: "FreeSans",           sans-serif; }
+</style>
+</head>
+<body>
+<h1>Chapter 8 &#x2014; src: local() Handling</h1>
+<p>Tests for <code>@font-face</code> rules that reference installed system
+fonts via <code>src: local("Name")</code>. These fonts ship with KOReader
+so local() resolution should succeed on any KOReader build.</p>
+
+<h2>Test 1 &#x2014; local() resolves to an existing font (FreeSerif)</h2>
+<p class="label">Both lines below must look identical. "LocalSerif" is declared
+as <code>src: local("FreeSerif")</code>; if the alias resolves correctly the
+two paragraphs are rendered in the same face.</p>
+<p class="sample local-serif">Via alias: The quick brown fox jumps over the lazy dog. 0123456789</p>
+<p class="sample real-serif">Direct:    The quick brown fox jumps over the lazy dog. 0123456789</p>
+<p class="label">If the two lines differ, local() resolution has failed and
+the alias fell back to the generic serif.</p>
+
+<h2>Test 2 &#x2014; local() with a non-existent font name</h2>
+<p class="label">Registration of "LocalMissing" must fail gracefully. The
+paragraph below must render in the document's default font &#x2014; no crash,
+no missing glyphs, no garbled text.</p>
+<p class="sample local-missing">Graceful fallback: The quick brown fox jumps over the lazy dog.</p>
+
+<h2>Test 3 &#x2014; local() with a url() fallback (FreeSans)</h2>
+<p class="label">"LocalWithFallback" is declared as
+<code>src: local("FreeSans"), url("no-such-file.ttf")</code>. The url()
+target does not exist in this EPUB. Both lines below must look identical;
+the local() source must resolve and the missing url() must not cause a
+crash or corrupt output.</p>
+<p class="sample local-with-fb">Via alias: The quick brown fox jumps over the lazy dog. 0123456789</p>
+<p class="sample real-sans">Direct:    The quick brown fox jumps over the lazy dog. 0123456789</p>
+<p class="label">If the two lines differ, local() resolution has failed. A
+crash or garbled output indicates the url() fallback path was not handled
+gracefully.</p>
+
+<h2>Expected behaviour</h2>
+<p>Test 1: both lines render in FreeSerif (identical appearance).</p>
+<p>Test 2: fallback line renders in the document default font; no crash.</p>
+<p>Test 3: both lines render in FreeSans (identical appearance); no crash.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Padding
 # ---------------------------------------------------------------------------
@@ -553,6 +627,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch05.html",        CH05)
         zf.writestr("OEBPS/ch06.html",        CH06)
         zf.writestr("OEBPS/ch07.html",        CH07)
+        zf.writestr("OEBPS/ch08.html",        CH08)
         zf.writestr(zipfile.ZipInfo("OEBPS/padding.bin"), PADDING,
                     compress_type=zipfile.ZIP_STORED)
     with open(path, "wb") as f:
