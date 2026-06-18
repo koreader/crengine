@@ -544,20 +544,6 @@ public:
     ~LFormattedText() { lvtextFreeFormatter( m_pbuffer ); }
 };
 
-// Pre-invert a non-grayscale color for -cr-hint: invert-colors.
-// Preserves alpha, and leaves reserved, transparent, and grayscale values unchanged.
-inline lUInt32 crHintInvertColor(lUInt32 color)
-{
-    if ( LTEXT_COLOR_IS_RESERVED(color) || IS_COLOR_FULLY_TRANSPARENT(color) )
-        return color;
-    lUInt32 r = color & 0x00FF0000;
-    lUInt32 g = (color << 8) & 0x00FF0000;
-    lUInt32 b = (color << 16) & 0x00FF0000;
-    if ( r == g && g == b )
-        return color;
-    return color ^ 0x00FFFFFF;
-}
-
 #endif
 
 #endif
