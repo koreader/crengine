@@ -559,19 +559,49 @@ in the base class (`lvfntman.h`) for backward compatibility with `cre.cpp`;
 the `LVFreeTypeFontManager` override that duplicated the logic is `#if 0`'d.
 `cre.cpp` can migrate to the new methods at its own pace.
 
-**`SetAlias` removal and proper `src: local()` handling.**
-`SetAlias` exists solely as a fallback in `registerEmbeddedFonts()` for
-`@font-face` rules that reference a local system font via `src: local("name")`.
-When `RegisterDocumentFont()` fails (no embedded file), the code strips spaces
-from the face name and URL and does a substring match against installed fonts —
-a fragile workaround. The clean fix:
-1. Add `bool _isLocal` to `LVEmbeddedFontDef` (with `serialize`/`deserialize`
-   updates and a cache version bump).
-2. In `EmbeddedFontStyleParser` (`epubfmt.cpp`), set the flag for `local(...)`
-   sources and store the raw font name rather than path-combining it.
-3. In `registerEmbeddedFonts()`, for local refs do a direct `findFamily()`
-   registry lookup instead of `RegisterDocumentFont()` + the substring loop.
-Once done, `SetAlias` has no remaining callers and can be removed.
+**`SetAlias` simplification and proper `src: local()` handling.** *(Done)*
+`SetAlias` previously existed solely as a fallback in `registerEmbeddedFonts()`
+for `@font-face` rules that reference a local system font via
+`src: local("name")`. When `RegisterDocumentFont()` failed (no embedded file),
+the code stripped spaces from the face name and URL and did a substring match
+against installed fonts — a fragile workaround.
+
+- `LVEmbeddedFontDef` gained `bool _isLocal` (with `serialize`/`deserialize`
+  updates and a cache version bump to `3.05.80k`).
+- `EmbeddedFontStyleParser` (`epubfmt.cpp`) replaces the old `lString8 islocal`
+  field (which stored the literal keyword `"url"` or `"local"` and was checked
+  by string length) with two clearly-scoped bools:
+  - `_srcIsLocal`: set when the `local`/`url` keyword is parsed; records which
+    kind of `src:` value is currently being tokenised.
+  - `_urlIsLocal`: set in `onQuotedText` when `_srcIsLocal` is true; records
+    that the `_url` about to be emitted to the font list is a local font name
+    rather than a file path. This is what gets passed to `_fontList.add()` and
+    stored in `LVEmbeddedFontDef::_isLocal`.
+  The parser also stores the `local(...)` argument as the raw font family name
+  directly, instead of path-combining it with the stylesheet base path and
+  stripping it back off.
+- `registerEmbeddedFonts()` (`lvtinydom.cpp`) now branches on `_isLocal` up
+  front and calls the new `RegisterDocumentFontAlias()`, which does a direct
+  `findFamily()` registry lookup and `registerAlias()` — replacing the
+  substring-match loop entirely.
+- `SetAlias` is simplified and renamed to `RegisterDocumentFontAlias`. The
+  `findFamily()` existence check, `registerAlias()` call, and bool
+  success/failure return all carry over from `SetAlias`. What's dropped is the
+  loop that copied the matched family's faces into the registry under the
+  alias name with `documentId` set, plus the unused `bold`/`italic` params.
+
+  **Behaviour change:** because that face-copying loop is gone, an aliased
+  `src: local(...)` font no longer appears in `getRegisteredDocumentFontList()`
+  / `getInstantiatedDocumentFontList()` (the "Embedded fonts" book info) for
+  the document — those lists filter on `face.documentId == document_id`, but
+  `RegisterDocumentFontAlias()` doesn't register any new faces, only the
+  alias mapping (which *is* removed on document close, in `removeFonts()`).
+  The faces backing the alias's target (e.g. "Georgia") are whatever was
+  already registered globally for that family name before the alias existed
+  - typically a real installed system font - and were never document-scoped
+  to begin with. Arguably more correct, since aliased local fonts aren't
+  actually embedded, but it's a user-visible difference from the old
+  behaviour.
 
 **Serif/sans-serif classification via FontConfig.**
 The FontConfig path registers all non-monospace fonts as `css_ff_sans_serif`.

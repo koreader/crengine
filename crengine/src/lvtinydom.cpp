@@ -93,7 +93,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.79k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.80k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0034
 
@@ -21881,10 +21881,6 @@ void ldomDocument::registerEmbeddedFonts()
     if (_fontList.empty())
         return;
     int list = _fontList.length();
-    lString8 x=lString8("");
-    lString32Collection flist;
-    fontMan->getFaceList(flist);
-    int cnt = flist.length();
     for (int i = 0; i < list; i++) {
         LVEmbeddedFontDef *item = _fontList.get(i);
         lString32 url = item->getUrl();
@@ -21895,33 +21891,29 @@ void ldomDocument::registerEmbeddedFonts()
                 if (!tmp.empty()) {face=tmp;break;}
             }
         }
-        if ((!x.empty() && x.pos(face)!=-1) || url.empty()) {
+        if (url.empty()) {
+            continue;
+        }
+        if (item->getIsLocal()) {
+            // @font-face { font-family: face; src: local("url"); }
+            // url names an already-installed system font; alias `face` to it.
+            if (!fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url))) {
+                //CRLog::error("Failed to find local font face: %s referenced by font-face %s", LCSTR(url), face.c_str());
+            }
             continue;
         }
         if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
+            // @font-face { font-family: face; src: url("res://...") or url("file://..."); }
+            // url points to a font file outside the document container (e.g. a KOReader resource).
             if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
                 //CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
             }
             continue;
         }
-        else {
-            if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
-                //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
-                lString32 fontface = lString32("");
-                for (int j = 0; j < cnt; j = j + 1) {
-                fontface = flist[j];
-                do { (fontface.replace(lString32(" "), lString32("\0"))); }
-                while (fontface.pos(lString32(" ")) != -1);
-                do { (url.replace(lString32(" "), lString32("\0"))); }
-                while (url.pos(lString32(" ")) != -1);
-                 if (fontface.lowercase().pos(url.lowercase()) != -1) {
-                    if(fontMan->SetAlias(face, UnicodeToLocal(flist[j]), getDocIndex(),item->getBold(),item->getItalic())){
-                    x.append(face).append(lString8(","));
-                        CRLog::debug("font-face %s matches local font %s",face.c_str(),LCSTR(flist[j]));
-                    break;}
-                 }
-                }
-            }
+        // @font-face { font-family: face; src: url("fonts/foo.ttf"); }
+        // url is a path relative to the document container (e.g. an EPUB-embedded font).
+        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+            //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
         }
     }
 }
