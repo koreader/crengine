@@ -660,6 +660,17 @@ CH09 = """\
   The ISBN-13 is 978-0-123456-47-2.
 </p>
 
+<h2>Accented characters (French)</h2>
+<p class="label">Normal text for comparison</p>
+<p class="sample serif">&#xC9;l&#xE8;ve fran&#xE7;ais &#x2014; &#xE0; c&#xF4;t&#xE9; de la for&#xEA;t, no&#xEB;l, &#x153;uvre, na&#xEF;ve.</p>
+<p class="label">small-caps: accented lowercase must uppercase to the
+accented capital (&#xE9;&#x2192;&#xC9;, not &#xE9;&#x2192;E), then shrink like any other letter</p>
+<p class="sample serif sc">&#xC9;l&#xE8;ve fran&#xE7;ais &#x2014; &#xE0; c&#xF4;t&#xE9; de la for&#xEA;t, no&#xEB;l, &#x153;uvre, na&#xEF;ve.</p>
+<p class="label">all-small-caps: the already-uppercase &#xC9; at the start must also shrink</p>
+<p class="sample serif sc-all">&#xC9;l&#xE8;ve fran&#xE7;ais &#x2014; &#xE0; c&#xF4;t&#xE9; de la for&#xEA;t, no&#xEB;l, &#x153;uvre, na&#xEF;ve.</p>
+<p class="label">Cedilla and ligature: &#xE7; (c-cedilla) and &#x153; (oe ligature) in small-caps</p>
+<p class="sample serif sc">Fran&#xE7;ais, c&#x153;ur, &#x153;il, gar&#xE7;on.</p>
+
 <h2>Small caps + text-decoration (serif)</h2>
 <p class="label">Underline, no small-caps, for comparison</p>
 <p class="sample serif underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>

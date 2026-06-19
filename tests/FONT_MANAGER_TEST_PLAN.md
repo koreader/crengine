@@ -242,6 +242,9 @@ These were bugs found during the refactor; verify they do not regress.
 | 16.13 | Underline + bold small-caps; underline + italic small-caps | Decoration line remains a single straight line; unaffected by the bold/italic combination |
 | 16.14 | Compare underline position: plain text (16.10's comparison line) vs synthesised small-caps | Underline sits at the same distance below the baseline in both — not noticeably closer to the baseline on the small-caps line |
 | 16.15 | Compare line-through position: plain text vs synthesised small-caps | Strike sits at the same height in both — not noticeably higher on the small-caps line |
+| 16.16 | French accented lowercase in small-caps (&#xE9;, &#xE8;, &#xE7;, &#xE0;, &#xF4;, &#xEA;, &#xEB;, &#xEF;) | Each accented lowercase letter maps to its accented uppercase form (e.g. &#xE9;&#x2192;&#xC9;) before shrinking — not to the unaccented capital, and not left as lowercase |
+| 16.17 | French accented uppercase (&#xC9;) in all-small-caps | The accented capital is also shrunk to the small size, same as plain ASCII capitals |
+| 16.18 | C-cedilla (&#xE7;/&#xC7;) and oe-ligature (&#x153;/&#x152;) in small-caps | Both map and shrink correctly; no missing-glyph boxes |
 
 ---
 
