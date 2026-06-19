@@ -157,6 +157,14 @@ p    { margin: 0.2em 0; }
 .sc-all    { font-variant-caps: all-small-caps; }
 .sc-bold   { font-variant-caps: small-caps; font-weight: bold; }
 .sc-italic { font-variant-caps: small-caps; font-style: italic; }
+
+/* Text decoration */
+.underline   { text-decoration: underline; }
+.overline    { text-decoration: overline; }
+.strike      { text-decoration: line-through; }
+.sc-underline { font-variant-caps: small-caps; text-decoration: underline; }
+.sc-overline  { font-variant-caps: small-caps; text-decoration: overline; }
+.sc-strike    { font-variant-caps: small-caps; text-decoration: line-through; }
 """
 
 # Each chapter is plain XHTML
@@ -652,6 +660,27 @@ CH09 = """\
   The ISBN-13 is 978-0-123456-47-2.
 </p>
 
+<h2>Small caps + text-decoration (serif)</h2>
+<p class="label">Underline, no small-caps, for comparison</p>
+<p class="sample serif underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Underlined small-caps: a single continuous line, not a
+fragmented line jumping up and down with the shrunk lowercase glyphs</p>
+<p class="sample serif sc-underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Overline, no small-caps, for comparison</p>
+<p class="sample serif overline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Overlined small-caps: a single continuous line above the
+full line height, not above each shrunk glyph individually</p>
+<p class="sample serif sc-overline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Line-through, no small-caps, for comparison</p>
+<p class="sample serif strike">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Small-caps with line-through: the strike sits at normal
+line-height centre, not at the shrunk glyphs' centre</p>
+<p class="sample serif sc-strike">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Underlined + bold small-caps</p>
+<p class="sample serif sc-bold underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Underlined + italic small-caps</p>
+<p class="sample serif sc-italic underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+
 <h2>Expected behaviour</h2>
 <p>With <strong>native small-caps</strong> (font has the 'smcp' OpenType feature):
 lowercase letters render as smaller uppercase glyphs from the font's own
@@ -664,6 +693,13 @@ to the surrounding text. The weight may appear slightly lighter than the
 native design would, but the text should remain clearly legible.</p>
 <p>Digits and punctuation should render at normal size in both cases.
 Uppercase letters should be unaffected.</p>
+<p>Underline/overline/line-through on small-caps text must be drawn once as a
+single straight line spanning the whole run, at the position and thickness
+determined by the line's overall metrics &#x2014; not once per glyph, and not
+at the smaller font's metrics for the shrunk lowercase-turned-uppercase runs.
+A jagged or doubled-up decoration line indicates each synthesised sub-run is
+drawing its own decoration instead of the line being drawn once across the
+whole string.</p>
 </body>
 </html>
 """

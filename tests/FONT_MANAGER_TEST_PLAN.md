@@ -235,6 +235,11 @@ These were bugs found during the refactor; verify they do not regress.
 | 16.6 | Digits and punctuation within small-caps text | Render at normal size, unaffected by the transform |
 | 16.7 | Uppercase letters within small-caps text | Unaffected — rendered at normal cap height, not shrunk |
 | 16.8 | Small-caps on a variable font with wdth/opsz/ital/slnt axes set | The synthesised small font instance matches the main instance's axis values (carried through `loadAndCache()`) |
+| 16.9 | Small-caps on a variable font whose italic is expressed via the `slnt` axis rather than a real italic face (e.g. Acumin) | Small-caps glyphs are slanted, matching the main run's slant — not upright |
+| 16.10 | `text-decoration: underline` on synthesised small-caps text | A single continuous underline spans the whole run at the line's normal position; not fragmented or offset per shrunk glyph (`LVFontSmallCapsTransform::DrawTextString`) |
+| 16.11 | `text-decoration: overline` on synthesised small-caps text | A single continuous overline above the full line height, not above each shrunk glyph individually |
+| 16.12 | `text-decoration: line-through` on synthesised small-caps text | The strike sits at the normal line-height centre, not at the shrunk glyphs' centre |
+| 16.13 | Underline + bold small-caps; underline + italic small-caps | Decoration line remains a single straight line; unaffected by the bold/italic combination |
 
 ---
 
