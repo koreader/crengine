@@ -19,7 +19,7 @@ The test EPUB is at `tests/font-manager-test.epub`.  Regenerate it with
 | # | Action | Expected |
 |---|--------|----------|
 | 1.1 | Open any existing book in KOReader | Text renders without crashes or blank pages |
-| 1.2 | Open `font-manager-test.epub` | All seven chapters display with visible text |
+| 1.2 | Open `font-manager-test.epub` | All nine chapters display with visible text |
 | 1.3 | Scroll through all chapters | No missing-glyph boxes on Latin text |
 
 ---
@@ -217,6 +217,24 @@ These were bugs found during the refactor; verify they do not regress.
 | 15.6 | Variable font weight 700 gets synthetic bold | View Chapter 1 with Literata at weight 700; should not appear heavier than the axis max |
 | 15.7 | Bold italic on Noto Sans shows as normal italic | View Chapter 2; bold italic should be visually heavier than normal italic |
 | 15.8 | CSS font-family list second entry never used | View Chapter 6; lines C and D must render identically in monospace |
+
+---
+
+## 16. Small caps (Chapter 9)
+
+**Goal:** Verify native and synthesised small-caps rendering via
+`font-variant-caps`.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 16.1 | `font-variant-caps: small-caps` on a font with native 'smcp' support | Lowercase letters render as the font's own small-caps glyphs; x-height roughly matches surrounding lowercase |
+| 16.2 | `font-variant-caps: small-caps` on a font without native 'smcp' support | Lowercase letters render as uppercase glyphs at ~75% of normal cap height, baseline-aligned with the rest of the line (`LVFontSmallCapsTransform`) |
+| 16.3 | `font-variant-caps: all-small-caps` | Both uppercase and lowercase letters render as small capitals |
+| 16.4 | Small-caps + bold | Small-caps glyphs are visibly bolder than the non-bold small-caps line |
+| 16.5 | Small-caps + italic | Small-caps glyphs are visibly slanted; baseline alignment with surrounding roman text still holds |
+| 16.6 | Digits and punctuation within small-caps text | Render at normal size, unaffected by the transform |
+| 16.7 | Uppercase letters within small-caps text | Unaffected — rendered at normal cap height, not shrunk |
+| 16.8 | Small-caps on a variable font with wdth/opsz/ital/slnt axes set | The synthesised small font instance matches the main instance's axis values (carried through `loadAndCache()`) |
 
 ---
 

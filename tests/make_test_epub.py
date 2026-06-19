@@ -42,6 +42,7 @@ CONTENT_OPF = """\
     <item id="ch06"    href="ch06.html"    media-type="application/xhtml+xml"/>
     <item id="ch07"    href="ch07.html"    media-type="application/xhtml+xml"/>
     <item id="ch08"    href="ch08.html"    media-type="application/xhtml+xml"/>
+    <item id="ch09"    href="ch09.html"    media-type="application/xhtml+xml"/>
     <item id="padding" href="padding.bin"  media-type="application/octet-stream"/>
   </manifest>
   <spine toc="ncx">
@@ -53,6 +54,7 @@ CONTENT_OPF = """\
     <itemref idref="ch06"/>
     <itemref idref="ch07"/>
     <itemref idref="ch08"/>
+    <itemref idref="ch09"/>
   </spine>
 </package>
 """
@@ -96,6 +98,10 @@ TOC_NCX = """\
     <navPoint id="ch08" playOrder="8">
       <navLabel><text>8. src: local() Handling</text></navLabel>
       <content src="ch08.html"/>
+    </navPoint>
+    <navPoint id="ch09" playOrder="9">
+      <navLabel><text>9. Small Caps</text></navLabel>
+      <content src="ch09.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -145,6 +151,12 @@ p    { margin: 0.2em 0; }
 .sans  { font-family: sans-serif; }
 .mono  { font-family: monospace; }
 .serif { font-family: serif; }
+
+/* Small caps */
+.sc        { font-variant-caps: small-caps; }
+.sc-all    { font-variant-caps: all-small-caps; }
+.sc-bold   { font-variant-caps: small-caps; font-weight: bold; }
+.sc-italic { font-variant-caps: small-caps; font-style: italic; }
 """
 
 # Each chapter is plain XHTML
@@ -596,6 +608,66 @@ gracefully.</p>
 </html>
 """
 
+CH09 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>Small Caps</title>
+<link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+<h1>Chapter 9 &#x2014; Small Caps</h1>
+
+<h2>font-variant-caps: small-caps (serif)</h2>
+<p class="label">Normal text for comparison</p>
+<p class="sample serif">The Quick Brown Fox Jumps Over The Lazy Dog. 1234567890.</p>
+<p class="label">small-caps: lowercase should appear as smaller capitals</p>
+<p class="sample serif sc">The Quick Brown Fox Jumps Over The Lazy Dog. 1234567890.</p>
+<p class="label">all-small-caps: uppercase AND lowercase both as small capitals</p>
+<p class="sample serif sc-all">The Quick Brown Fox Jumps Over The Lazy Dog. 1234567890.</p>
+
+<h2>Small caps + bold (serif)</h2>
+<p class="label">Normal bold for comparison</p>
+<p class="sample serif w700">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Bold small-caps</p>
+<p class="sample serif sc-bold">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+
+<h2>Small caps + italic (serif)</h2>
+<p class="label">Normal italic for comparison</p>
+<p class="sample serif italic">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+<p class="label">Italic small-caps</p>
+<p class="sample serif sc-italic">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+
+<h2>font-variant-caps: small-caps (sans-serif)</h2>
+<p class="label">Normal sans-serif for comparison</p>
+<p class="sample sans">The Quick Brown Fox Jumps Over The Lazy Dog. 1234567890.</p>
+<p class="label">Sans-serif small-caps</p>
+<p class="sample sans sc">The Quick Brown Fox Jumps Over The Lazy Dog. 1234567890.</p>
+
+<h2>Mixed case content</h2>
+<p class="label">Acronyms and proper nouns in small-caps context</p>
+<p class="sample serif sc">
+  In the year 2026, the HTML and CSS specifications were updated.
+  Dr. Smith visited NASA headquarters in Washington, D.C.
+  The ISBN-13 is 978-0-123456-47-2.
+</p>
+
+<h2>Expected behaviour</h2>
+<p>With <strong>native small-caps</strong> (font has the 'smcp' OpenType feature):
+lowercase letters render as smaller uppercase glyphs from the font's own
+small-caps design. The x-height of the small capitals should roughly match
+the x-height of the surrounding lowercase.</p>
+<p>With <strong>synthesised small-caps</strong> (no native 'smcp' feature):
+lowercase letters are replaced by uppercase glyphs rendered at approximately
+75% of the normal cap height, with the baseline of the smaller glyphs aligned
+to the surrounding text. The weight may appear slightly lighter than the
+native design would, but the text should remain clearly legible.</p>
+<p>Digits and punctuation should render at normal size in both cases.
+Uppercase letters should be unaffected.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Padding
 # ---------------------------------------------------------------------------
@@ -628,6 +700,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch06.html",        CH06)
         zf.writestr("OEBPS/ch07.html",        CH07)
         zf.writestr("OEBPS/ch08.html",        CH08)
+        zf.writestr("OEBPS/ch09.html",        CH09)
         zf.writestr(zipfile.ZipInfo("OEBPS/padding.bin"), PADDING,
                     compress_type=zipfile.ZIP_STORED)
     with open(path, "wb") as f:
