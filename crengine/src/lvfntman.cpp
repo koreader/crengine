@@ -3712,6 +3712,9 @@ public:
         return false;
     }
 
+    virtual int getUnderlineOffset() const    { return _underline_offset; }
+    virtual int getUnderlineThickness() const { return _underline_thickness; }
+
     virtual int getExtraMetric(font_extra_metric_t metric, bool scaled_to_px)
     {
         if ( _extra_metric == NULL ) {
@@ -4989,6 +4992,8 @@ public:
     virtual int  getExtraMetric(font_extra_metric_t m, bool s=true)
         { return _font->getExtraMetric(m, s); }
     virtual lChar32 getHyphChar()      { return _font->getHyphChar(); }
+    virtual int getUnderlineOffset() const    { return _font->getUnderlineOffset(); }
+    virtual int getUnderlineThickness() const { return _font->getUnderlineThickness(); }
     virtual bool hasOTMathSupport() const { return _font->hasOTMathSupport(); }
     virtual void* GetHandle()          { return _font->GetHandle(); }
     virtual lString8 getTypeFace() const { return _font->getTypeFace(); }
@@ -5107,15 +5112,22 @@ public:
                                    ls, -1, 0, -1, -1, svg);
         }
         if (flags & LFNT_DRAW_DECORATION_MASK) {
-            int h = getSize() > 30 ? 2 : 1;
+            // Match LVFreeTypeFace::DrawTextString's formulas exactly (using the main
+            // font's real underline metrics, not a generic size-based approximation),
+            // so decorated small-caps text lines up with plain text on the same line.
+            int thick = getUnderlineThickness();
             lUInt32 cl = buf->GetTextColor();
-            if (flags & LFNT_DRAW_UNDERLINE)
-                buf->FillRect(x0, y+getBaseline()+h,   x, y+getBaseline()+2*h, cl);
-            if (flags & LFNT_DRAW_OVERLINE)
-                buf->FillRect(x0, y+h,                 x, y+2*h,               cl);
+            if (flags & LFNT_DRAW_UNDERLINE) {
+                int liney = y + getBaseline() + getUnderlineOffset();
+                buf->FillRect(x0, liney, x, liney+thick, cl);
+            }
+            if (flags & LFNT_DRAW_OVERLINE) {
+                int liney = y + thick;
+                buf->FillRect(x0, liney, x, liney+thick, cl);
+            }
             if (flags & LFNT_DRAW_LINE_THROUGH) {
-                int ly = y + getHeight()/2 - h/2;
-                buf->FillRect(x0, ly, x, ly+h, cl);
+                int liney = y + getBaseline() - getSize()*2/7;
+                buf->FillRect(x0, liney, x, liney+thick, cl);
             }
         }
         return x - x0;

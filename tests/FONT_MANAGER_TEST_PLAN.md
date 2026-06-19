@@ -240,6 +240,8 @@ These were bugs found during the refactor; verify they do not regress.
 | 16.11 | `text-decoration: overline` on synthesised small-caps text | A single continuous overline above the full line height, not above each shrunk glyph individually |
 | 16.12 | `text-decoration: line-through` on synthesised small-caps text | The strike sits at the normal line-height centre, not at the shrunk glyphs' centre |
 | 16.13 | Underline + bold small-caps; underline + italic small-caps | Decoration line remains a single straight line; unaffected by the bold/italic combination |
+| 16.14 | Compare underline position: plain text (16.10's comparison line) vs synthesised small-caps | Underline sits at the same distance below the baseline in both — not noticeably closer to the baseline on the small-caps line |
+| 16.15 | Compare line-through position: plain text vs synthesised small-caps | Strike sits at the same height in both — not noticeably higher on the small-caps line |
 
 ---
 
