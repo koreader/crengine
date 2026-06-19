@@ -340,14 +340,14 @@ static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD";
 ////////////////////////////////////////////////////////////////////
 bool LVEmbeddedFontDef::serialize(SerialBuf & buf) {
     buf.putMagic(EMBEDDED_FONT_DEF_MAGIC);
-    buf << _url << _face << _bold << _italic;
+    buf << _url << _face << _bold << _italic << _isLocal;
     return !buf.error();
 }
 
 bool LVEmbeddedFontDef::deserialize(SerialBuf & buf) {
     if (!buf.checkMagic(EMBEDDED_FONT_DEF_MAGIC))
         return false;
-    buf >> _url >> _face >> _bold >> _italic;
+    buf >> _url >> _face >> _bold >> _italic >> _isLocal;
     return !buf.error();
 }
 
@@ -366,12 +366,12 @@ bool LVEmbeddedFontList::addAll(LVEmbeddedFontList & list) {
     bool changed = false;
     for (int i=0; i<list.length(); i++) {
         LVEmbeddedFontDef * def = list.get(i);
-        changed = add(def->getUrl(), def->getFace(), def->getBold(), def->getItalic()) || changed;
+        changed = add(def->getUrl(), def->getFace(), def->getBold(), def->getItalic(), def->getIsLocal()) || changed;
     }
     return changed;
 }
 
-bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool italic) {
+bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool italic, bool isLocal) {
     LVEmbeddedFontDef * def = findByUrl(url);
     if (def) {
         bool changed = false;
@@ -387,9 +387,13 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool itali
             def->setItalic(italic);
             changed = true;
         }
+        if (def->getIsLocal() != isLocal) {
+            def->setIsLocal(isLocal);
+            changed = true;
+        }
         return changed;
     }
-    def = new LVEmbeddedFontDef(url, face, bold, italic);
+    def = new LVEmbeddedFontDef(url, face, bold, italic, isLocal);
     add(def);
     return false;
 }
@@ -7003,27 +7007,18 @@ public:
         return true;
     }
 
-    /// Fallback for @font-face rules whose src resolves to an already-installed
-    /// local font (see the substring-match loop in registerEmbeddedFonts()):
-    /// makes the document-level CSS name `alias` resolve to the existing family
-    /// `facename` for font selection (via registerAlias()/resolveAlias()), and
-    /// also registers document-scoped copies of its faces under `alias` so the
-    /// name appears in getRegisteredDocumentFontList() (the "Embedded fonts"
-    /// book info). `bold`/`italic` are unused.
-    /// FONTMANAGER_REFACTOR.md "Future Work" describes replacing the src: local()
-    /// fallback with proper handling, after which SetAlias() can be removed.
-    bool SetAlias(lString8 alias, lString8 facename, int documentId, bool bold, bool italic)
+    /// Resolves `src: local(localName)` from a document's @font-face rule: if a
+    /// family named `localName` is registered, makes `alias` resolve to it for
+    /// font selection within `documentId`. Simplified from the old SetAlias():
+    /// the face-copying loop (which duplicated faces under the alias name with
+    /// documentId set, so they appeared in getRegisteredDocumentFontList) is
+    /// removed since local() fonts aren't truly embedded in the document.
+    virtual bool RegisterDocumentFontAlias(int documentId, lString8 alias, lString8 localName)
     {
         FONT_MAN_GUARD
-        const LVFontFamily* src = _registry.findFamily(facename);
-        if (!src || src->faceCount() == 0) return false;
-        for (int i = 0; i < src->faceCount(); i++) {
-            LVFontFace aliasedFace = src->faceAt(i);
-            aliasedFace.typeface   = alias;
-            aliasedFace.documentId = documentId;
-            _registry.registerFace(aliasedFace);
-        }
-        _registry.registerAlias(alias, facename, documentId);
+        if (!_registry.findFamily(localName))
+            return false;
+        _registry.registerAlias(alias, localName, documentId);
         return true;
     }
 
