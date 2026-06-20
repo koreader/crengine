@@ -42,14 +42,6 @@
 #define MAX_ADDED_LETTER_SPACING_PERCENT 0
 #define CJK_WIDTH_SCALE_PERCENT 100
 
-static inline lUInt32 adjustInvertedColor(LVDrawBuf * buf, lUInt32 color)
-{
-    if ( buf->getInvertColors() )
-        return invertNonGrayscaleColor(color);
-    return color;
-}
-
-
 // to debug formatter
 
 #if defined(_DEBUG) && 0
@@ -6304,7 +6296,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     css_style_ref_t style = node->getStyle();
                     lUInt32 bgcl = style->background_color.type == css_val_color ? // "currentcolor" if not
                                             style->background_color.value : style->color.value;
-                    bgcl = adjustInvertedColor(buf, bgcl);
+                    bgcl = buf->getInvertColors() ? invertNonGrayscaleColor(bgcl) : bgcl;
                     if ( !IS_COLOR_FULLY_TRANSPARENT(bgcl) ) { // background color to start/continue/end
                         bgcl = LTEXT_COLOR_IS_RESERVED(bgcl) ? LTEXT_COLOR_RESERVED_REPLACE : bgcl;
                         if ( is_right_pad != is_mirrored ) { // unmirrored right pad, or mirrored left pad
@@ -6345,7 +6337,7 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                 }
                 else
                 {
-                    lUInt32 bgcl = adjustInvertedColor(buf, srcline->bgcolor);
+                    lUInt32 bgcl = buf->getInvertColors() ? invertNonGrayscaleColor(srcline->bgcolor) : srcline->bgcolor;
                     if ( lastWordColor!=bgcl || lastWordStart==-1 ) {
                         if ( lastWordStart!=-1 )
                             if ( ((lastWordColor>>24) & 0xFF) != 0xFF ) // Not reserved, not alpha=100% (not transparent)
@@ -6623,8 +6615,8 @@ void LFormattedText::Draw( LVDrawBuf * buf, int x, int y, ldomMarkedRangeList * 
                     }
                     lUInt32 oldColor = buf->GetTextColor();
                     lUInt32 oldBgColor = buf->GetBackgroundColor();
-                    lUInt32 cl = adjustInvertedColor(buf, srcline->color);
-                    lUInt32 bgcl = adjustInvertedColor(buf, srcline->bgcolor);
+                    lUInt32 cl = buf->getInvertColors() ? invertNonGrayscaleColor(srcline->color) : srcline->color;
+                    lUInt32 bgcl = buf->getInvertColors() ? invertNonGrayscaleColor(srcline->bgcolor) : srcline->bgcolor;
                     if ( LTEXT_COLOR_IS_RESERVED(cl) ) {
                         if ( cl == LTEXT_COLOR_TRANSPARENT ) { // color: transparent
                             continue; // Don't draw this word

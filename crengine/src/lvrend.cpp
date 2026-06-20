@@ -2479,13 +2479,6 @@ inline lUInt32 getForegroundColor(const css_style_ref_t style)
         return LTEXT_COLOR_CURRENT; // should not happen
 }
 
-inline lUInt32 adjustInvertedColor(LVDrawBuf & drawbuf, lUInt32 color)
-{
-    if ( drawbuf.getInvertColors() )
-        return invertNonGrayscaleColor(color);
-    return color;
-}
-
 lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt32 oldflags, int direction )
 {
     lUInt32 flg = oldflags;
@@ -10121,7 +10114,7 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
         css_style_ref_t style = enode->getStyle();
         // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
         lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
-        bg_color = adjustInvertedColor(drawbuf, bg_color);
+        bg_color = drawbuf.getInvertColors() ? invertNonGrayscaleColor(bg_color) : bg_color;
         drawbuf.FillRect(bg_left, bg_top, bg_right, bg_bottom, bg_color);
     }
     if ( draw_bg_image ) {
@@ -10249,7 +10242,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         bool restoreBackgroundColor = false;
         // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
         lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
-        bg_color = adjustInvertedColor(drawbuf, bg_color);
+        bg_color = drawbuf.getInvertColors() ? invertNonGrayscaleColor(bg_color) : bg_color;
         lUInt32 oldColor = 0;
 
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
