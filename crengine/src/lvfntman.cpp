@@ -3712,6 +3712,9 @@ public:
         return false;
     }
 
+    virtual int getUnderlineOffset() const    { return _underline_offset; }
+    virtual int getUnderlineThickness() const { return _underline_thickness; }
+
     virtual int getExtraMetric(font_extra_metric_t metric, bool scaled_to_px)
     {
         if ( _extra_metric == NULL ) {
@@ -4989,6 +4992,8 @@ public:
     virtual int  getExtraMetric(font_extra_metric_t m, bool s=true)
         { return _font->getExtraMetric(m, s); }
     virtual lChar32 getHyphChar()      { return _font->getHyphChar(); }
+    virtual int getUnderlineOffset() const    { return _font->getUnderlineOffset(); }
+    virtual int getUnderlineThickness() const { return _font->getUnderlineThickness(); }
     virtual bool hasOTMathSupport() const { return _font->hasOTMathSupport(); }
     virtual void* GetHandle()          { return _font->GetHandle(); }
     virtual lString8 getTypeFace() const { return _font->getTypeFace(); }
@@ -5016,6 +5021,176 @@ public:
     virtual bool operator!() const { return !_font; }
     virtual void Clear()           { _wrappedRef.Clear(); }
     virtual ~LVFontProxy() {}
+};
+
+/// Synthesises small-caps by routing lowercase characters to uppercase glyphs
+/// in a smaller font instance (~75% of the normal size).
+class LVFontSmallCapsTransform : public LVFontProxy
+{
+    LVFontRef  _smallRef;  // keeps the small font alive
+    LVFont   * _smallFont; // fast pointer; matches _smallRef throughout lifetime (same pattern as LVFontProxy::_wrappedRef/_font)
+    bool       _allCaps; // true for all-small-caps (c2sc): uppercase is shrunk too
+
+    static lChar32 toUppercase(lChar32 ch) {
+        lChar32 buf[1] = { ch }; lStr_uppercase(buf, 1); return buf[0];
+    }
+    static bool isLowercase(lChar32 ch) {
+        return (lGetCharProps(ch) & CH_PROP_LOWER) != 0;
+    }
+    static bool isUppercase(lChar32 ch) {
+        return (lGetCharProps(ch) & CH_PROP_UPPER) != 0;
+    }
+    void mapChar(lChar32 ch, LVFont*& font, lChar32& mapped) const {
+        if (isLowercase(ch))                  { font = _smallFont; mapped = toUppercase(ch); }
+        else if (_allCaps && isUppercase(ch)) { font = _smallFont; mapped = ch; }
+        else                                   { font = _font;      mapped = ch; }
+    }
+    // Per-character font/glyph mapping, plus buffer for the longest
+    // possible run, so consecutive characters routed to the same font can be
+    // measured/drawn together in one call (kerning, ligatures, HarfBuzz
+    // shaping) instead of one isolated character at a time.
+    struct MappedRun {
+        LVFont ** font;
+        lChar32 * mapped;
+        lUInt16 * widths;
+        lUInt8  * flags;
+        explicit MappedRun(int len)
+            : font(new LVFont*[len]), mapped(new lChar32[len]),
+              widths(new lUInt16[len]), flags(new lUInt8[len]) {}
+        ~MappedRun() { delete[] font; delete[] mapped; delete[] widths; delete[] flags; }
+    };
+    void fillMappedRun(const lChar32 * text, int len, MappedRun & run) const {
+        for (int i = 0; i < len; i++)
+            mapChar(text[i], run.font[i], run.mapped[i]);
+    }
+public:
+    LVFontSmallCapsTransform(LVFontRef normalFont, LVFontRef smallFont, bool allCaps = false)
+        : LVFontProxy(normalFont), _smallRef(smallFont), _smallFont(smallFont.get()), _allCaps(allCaps) {}
+
+    virtual void setBitmapMode(bool m)           { LVFontProxy::setBitmapMode(m); _smallFont->setBitmapMode(m); }
+    virtual void setKerningMode(kerning_mode_t m) { LVFontProxy::setKerningMode(m); _smallFont->setKerningMode(m); }
+    virtual void setHintingMode(hinting_mode_t m) { LVFontProxy::setHintingMode(m); _smallFont->setHintingMode(m); }
+    virtual void clearCache() { LVFontProxy::clearCache(); _smallFont->clearCache(); }
+    virtual void Clear()      { LVFontProxy::Clear();      _smallRef.Clear(); }
+    virtual bool hasOTMathSupport() const { return false; }
+
+    virtual int getCharWidth(lChar32 ch, lChar32 d=0)
+        { LVFont* f; lChar32 m; mapChar(ch, f, m); return f->getCharWidth(m, d); }
+    virtual int getLeftSideBearing(lChar32 ch, bool n=false, bool i=false)
+        { LVFont* f; lChar32 m; mapChar(ch, f, m); return f->getLeftSideBearing(m, n, i); }
+    virtual int getRightSideBearing(lChar32 ch, bool n=false, bool i=false)
+        { LVFont* f; lChar32 m; mapChar(ch, f, m); return f->getRightSideBearing(m, n, i); }
+    virtual bool getGlyphInfo(lUInt32 c, glyph_info_t* g, lChar32 d=0, bool gi=false, bool fb=false)
+        { LVFont* f; lChar32 m; mapChar((lChar32)c, f, m); return f->getGlyphInfo((lUInt32)m, g, d, gi, fb); }
+    virtual bool getGlyphExtraMetric(glyph_extra_metric_t mt, lUInt32 c, int& v,
+                                      bool s=true, lChar32 d=0, bool fb=false)
+        { LVFont* f; lChar32 m; mapChar((lChar32)c, f, m); return f->getGlyphExtraMetric(mt, (lUInt32)m, v, s, d, fb); }
+    virtual LVFontGlyphCacheItem* getGlyph(lUInt32 c, lChar32 d=0, bool fb=false)
+        { LVFont* f; lChar32 m; mapChar((lChar32)c, f, m); return f->getGlyph((lUInt32)m, d, fb); }
+    virtual lUInt32 getTextWidth(const lChar32* text, int len, TextLangCfg* lc=NULL) {
+        if (len <= 0)
+            return 0;
+        MappedRun run(len);
+        fillMappedRun(text, len, run);
+        lUInt32 w = 0;
+        int i = 0;
+        while (i < len) {
+            LVFont* f = run.font[i];
+            int j = i + 1;
+            while (j < len && run.font[j] == f) j++;
+            int runLen = j - i;
+            f->measureText(run.mapped + i, runLen, run.widths, run.flags, 0x7FFF, 0, lc, 0, false, 0);
+            w += run.widths[runLen - 1];
+            i = j;
+        }
+        return w;
+    }
+    // Characters are split into runs of consecutive characters routed to the
+    // same font (normal or small), and each run is measured/drawn in one call
+    // so that kerning, ligatures and HarfBuzz shaping apply within the run -
+    // they can never apply across a run boundary, since that would require
+    // shaping glyphs from two distinct font instances together.
+    virtual lUInt16 measureText(const lChar32* text, int len,
+                                 lUInt16* widths, lUInt8* flags,
+                                 int max_width, lChar32 def_char,
+                                 TextLangCfg* lc=NULL, int ls=0,
+                                 bool ah=true, lUInt32 hints=0) {
+        if (len <= 0)
+            return 0;
+        MappedRun run(len);
+        fillMappedRun(text, len, run);
+        int total = 0;
+        int i = 0;
+        while (i < len) {
+            LVFont* f = run.font[i];
+            int j = i + 1;
+            while (j < len && run.font[j] == f) j++;
+            int runLen = j - i;
+            int n = f->measureText(run.mapped + i, runLen, run.widths, run.flags,
+                                    max_width - total, def_char, lc, ls, false, hints);
+            for (int k = 0; k < n; k++) {
+                widths[i + k] = (lUInt16)(total + run.widths[k]);
+                flags[i + k]  = run.flags[k];
+            }
+            if (n < runLen)
+                return (lUInt16)(i + n);
+            total += run.widths[runLen - 1];
+            i = j;
+        }
+        return (lUInt16)len;
+    }
+    virtual int DrawTextString(LVDrawBuf* buf, int x, int y,
+                                const lChar32* text, int len, lChar32 def_char,
+                                lUInt32* palette, bool addHyphen, TextLangCfg* lc,
+                                lUInt32 flags, int ls, int width, int tbg,
+                                int tw, int th, SVGGlyphsCollector* svg) {
+        int x0 = x;
+        // Shift small-font glyphs down so their baseline aligns with the normal font's.
+        int y_small = y + (_font->getBaseline() - _smallFont->getBaseline());
+        lUInt32 noDecFlags = flags & ~LFNT_DRAW_DECORATION_MASK;
+        if (len > 0) {
+            MappedRun run(len);
+            fillMappedRun(text, len, run);
+            int i = 0;
+            while (i < len) {
+                LVFont* f = run.font[i];
+                int j = i + 1;
+                while (j < len && run.font[j] == f) j++;
+                int runLen = j - i;
+                bool runHasHyphen = addHyphen && (j == len);
+                x += f->DrawTextString(buf, x, f == _smallFont ? y_small : y,
+                                       run.mapped + i, runLen, def_char,
+                                       palette, runHasHyphen, lc, noDecFlags,
+                                       ls, -1, 0, -1, -1, svg);
+                i = j;
+            }
+        }
+        if (flags & LFNT_DRAW_DECORATION_MASK) {
+            // Match LVFreeTypeFace::DrawTextString's formulas exactly (using the main
+            // font's real underline metrics, not a generic size-based approximation),
+            // so decorated small-caps text lines up with plain text on the same line.
+            // This is a deliberate duplicate (not shared via a helper) of the
+            // LFNT_DRAW_UNDERLINE/OVERLINE/LINE_THROUGH block in
+            // LVFreeTypeFace::DrawTextString() above (lvfntman.cpp:4759-4786):
+            // keep the two in sync if those formulas ever change.
+            int thickness = getUnderlineThickness();
+            lUInt32 cl = buf->GetTextColor();
+            if (flags & LFNT_DRAW_UNDERLINE) {
+                int liney = y + getBaseline() + getUnderlineOffset();
+                buf->FillRect(x0, liney, x, liney+thickness, cl);
+            }
+            if (flags & LFNT_DRAW_OVERLINE) {
+                int liney = y + thickness;
+                buf->FillRect(x0, liney, x, liney+thickness, cl);
+            }
+            if (flags & LFNT_DRAW_LINE_THROUGH) {
+                int liney = y + getBaseline() - getSize()*2/7;
+                buf->FillRect(x0, liney, x, liney+thickness, cl);
+            }
+        }
+        return x - x0;
+    }
+    virtual ~LVFontSmallCapsTransform() {}
 };
 
 #if 0 // removed during font manager refactor
@@ -5495,6 +5670,7 @@ struct LVFontFace {
     lString8           typeface;     // family name used for lookup
     bool               has_emojis;
     bool               has_ot_math;
+    bool               has_small_caps;
     int                documentId;   // -1 for global fonts
     LVByteArrayRef     buf;          // non-null for in-memory fonts
     // Variable-font axis ranges; for static fonts min==max.
@@ -5505,7 +5681,7 @@ struct LVFontFace {
     bool  _has_wdth; float _wdth_min, _wdth_max;
 
     LVFontFace() : face_index(-1), is_italic(false)
-               , has_emojis(false), has_ot_math(false), documentId(-1)
+               , has_emojis(false), has_ot_math(false), has_small_caps(false), documentId(-1)
                , _has_wght(false), _wght_min(0), _wght_max(0)
                , _has_opsz(false), _opsz_min(0), _opsz_max(0)
                , _has_ital(false), _ital_min(0), _ital_max(0)
@@ -6955,6 +7131,13 @@ public:
             hb_face_t* hb_face = hb_ft_face_create(ft_face, NULL);
             if (hb_ot_math_has_data(hb_face))
                 def.has_ot_math = true;
+            { // native small-caps ('smcp' GSUB feature); absence triggers synthesis
+                hb_tag_t smcp = HB_TAG('s','m','c','p');
+                unsigned feat_idx = 0;
+                if (hb_ot_layout_language_find_feature(hb_face, HB_OT_TAG_GSUB,
+                        0, HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX, smcp, &feat_idx))
+                    def.has_small_caps = true;
+            }
             hb_face_destroy(hb_face);
         }
         #endif
@@ -7078,6 +7261,34 @@ public:
         #else
             ref = LVFontRef(new LVFontBoldTransform(ref, &_globalCache));
         #endif
+        }
+
+        // Apply small-caps synthesis: wrap with a transform that routes lowercase
+        // letters to uppercase glyphs rendered at ~75% of the normal size.
+        bool needsSmallCaps = (features & (LFNT_OT_FEATURES_P_SMCP | LFNT_OT_FEATURES_P_C2SC))
+                               && !face.has_small_caps;
+        if (needsSmallCaps) {
+            int small_size = (size * 3 + 2) / 4; // ~75%, rounded up
+            if (small_size < 1) small_size = 1;
+            // Carry wdth/opsz through verbatim: computeVariations() only honours
+            // `requested` for those two axes. ital/slnt are NOT taken from
+            // `requested` - computeVariations() derives them solely from the
+            // `italic` bool - so pass the original CSS-requested `italic` flag
+            // (not `face.is_italic || italicize`, which is false for axis-based
+            // oblique faces like Acumin's slnt axis) so the small font's selector
+            // pass recomputes the same slant the main face got.
+            LVFontVariations smallVars;
+            if (computed_variations.wdth_set)
+                smallVars.set(LVFONT_TAG_WDTH, computed_variations.wdth);
+            if (computed_variations.opsz_set)
+                smallVars.set(LVFONT_TAG_OPSZ, computed_variations.opsz * 0.75f);
+            LVFontRef smallRef = GetFont(small_size, weight, italic,
+                                         face.css_family, face.typeface,
+                                         features & ~(LFNT_OT_FEATURES_P_SMCP | LFNT_OT_FEATURES_P_C2SC),
+                                         face.documentId, false, smallVars.empty() ? NULL : &smallVars);
+            if (!smallRef.isNull())
+                ref = LVFontRef(new LVFontSmallCapsTransform(ref, smallRef,
+                                    (features & LFNT_OT_FEATURES_P_C2SC) != 0));
         }
 
         _instance_cache.put(key, ref);

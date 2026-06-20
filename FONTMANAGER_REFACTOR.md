@@ -608,14 +608,19 @@ The FontConfig path registers all non-monospace fonts as `css_ff_sans_serif`.
 FontConfig can distinguish serif from sans-serif but the code does not use it.
 Step 3 of `select()` would benefit automatically if classification were added.
 
-**Synthesised small caps.**
-Add `bool requested_small_caps` to `LVFontInstanceKey` (include in `operator==`
-and `hash()`). In `loadAndCache()`, detect the mismatch (requested small caps,
-face has no native small-caps coverage) and wrap the loaded instance in a new
-`LVFontSmallCapsTransform` — analogous to `LVFontBoldTransform` — that scales
-lowercase glyphs to approximately 0.8 of cap height and shifts them to sit on
-the baseline. `GetFont()` would receive a `requested_small_caps` flag from the
-CSS `font-variant: small-caps` property.
+**Synthesised small caps.** *(Done)*
+`LVFontFace` gained `has_small_caps`, detected in `inspectFTFace()` via
+HarfBuzz's `hb_ot_layout_language_find_feature()` lookup for the `smcp` GSUB
+feature. In `loadAndCache()`, when `LFNT_OT_FEATURES_P_SMCP` or
+`LFNT_OT_FEATURES_P_C2SC` is requested and the face has no native small-caps
+coverage, the loaded instance is wrapped in a new `LVFontSmallCapsTransform`
+(analogous to `LVFontBoldTransform`) that routes lowercase characters to their
+uppercase glyphs in a second font instance loaded at ~75% of the requested
+size, and shifts that smaller font's baseline to align with the main font's.
+The smaller instance is fetched via a recursive `GetFont()` call carrying
+through the `wdth`/`ital`/`slnt` axis values from `computed_variations` (wght
+is conveyed via the existing `weight` parameter), with `opsz` scaled by the
+same 0.75 ratio as the size so optical sizing tracks the smaller glyphs.
 
 **CSS improvements: non-standard weights, font-width/font-stretch, oblique with custom angles.**
 - *Non-standard weights:* the selection and synthesis infrastructure already

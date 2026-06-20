@@ -493,6 +493,12 @@ public:
     virtual int getRightSideBearing( lChar32 ch, bool negative_only=false, bool italic_only=false ) = 0;
     /// returns extra metric
     virtual int getExtraMetric(font_extra_metric_t metric, bool scaled_to_px=true) = 0;
+    /// returns the vertical offset (in px, below the baseline) at which DrawTextString
+    /// draws the underline decoration line
+    virtual int getUnderlineOffset() const { return 0; }
+    /// returns the thickness (in px) of the underline / overline / strikethrough
+    /// decoration line drawn by DrawTextString
+    virtual int getUnderlineThickness() const { return 0; }
     /// returns if font has OpenType Math tables
     virtual bool hasOTMathSupport() const = 0;
     /// retrieves font handle
