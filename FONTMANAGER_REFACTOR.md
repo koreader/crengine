@@ -532,6 +532,20 @@ This ordering is enforced explicitly in the destructor body.
 
 ## Future Work
 
+**Regression: duplicate-face detection ignored the requested family name.** *(Fixed)*
+`LVFontFace::id()` originally computed face identity from `(file_path,
+face_index, documentId)` only, so registering the *same font file* under a
+*second* `@font-face` family name, in the same document, was silently
+dropped as a duplicate by `tryRegisterFace()`. This was a regression relative
+to pre-refactor behaviour: the old `LVFontDef::operator==()` included
+`_typeface == def._typeface` in its equality check (confirmed at
+`72cf7cc2^`), so two registrations of the same file under different requested
+family names were correctly treated as distinct.
+
+Fixed by folding `typeface` into `id()`'s hash, mirroring the old `_typeface`
+equality check. Covered by Chapter 10 of `tests/font-manager-test.epub`
+(see `tests/FONT_MANAGER_TEST_PLAN.md` sec 17).
+
 **OpenType features.**
 Replace `int features` (32-bit bitmap) with an open-ended `LVFontFeatureSet`
 (vector of `hb_feature_t`). Removes the 32-feature limit, supports numeric
@@ -608,19 +622,14 @@ The FontConfig path registers all non-monospace fonts as `css_ff_sans_serif`.
 FontConfig can distinguish serif from sans-serif but the code does not use it.
 Step 3 of `select()` would benefit automatically if classification were added.
 
-**Synthesised small caps.** *(Done)*
-`LVFontFace` gained `has_small_caps`, detected in `inspectFTFace()` via
-HarfBuzz's `hb_ot_layout_language_find_feature()` lookup for the `smcp` GSUB
-feature. In `loadAndCache()`, when `LFNT_OT_FEATURES_P_SMCP` or
-`LFNT_OT_FEATURES_P_C2SC` is requested and the face has no native small-caps
-coverage, the loaded instance is wrapped in a new `LVFontSmallCapsTransform`
-(analogous to `LVFontBoldTransform`) that routes lowercase characters to their
-uppercase glyphs in a second font instance loaded at ~75% of the requested
-size, and shifts that smaller font's baseline to align with the main font's.
-The smaller instance is fetched via a recursive `GetFont()` call carrying
-through the `wdth`/`ital`/`slnt` axis values from `computed_variations` (wght
-is conveyed via the existing `weight` parameter), with `opsz` scaled by the
-same 0.75 ratio as the size so optical sizing tracks the smaller glyphs.
+**Synthesised small caps.**
+Add `bool requested_small_caps` to `LVFontInstanceKey` (include in `operator==`
+and `hash()`). In `loadAndCache()`, detect the mismatch (requested small caps,
+face has no native small-caps coverage) and wrap the loaded instance in a new
+`LVFontSmallCapsTransform` — analogous to `LVFontBoldTransform` — that scales
+lowercase glyphs to approximately 0.8 of cap height and shifts them to sit on
+the baseline. `GetFont()` would receive a `requested_small_caps` flag from the
+CSS `font-variant: small-caps` property.
 
 **CSS improvements: non-standard weights, font-width/font-stretch, oblique with custom angles.**
 - *Non-standard weights:* the selection and synthesis infrastructure already

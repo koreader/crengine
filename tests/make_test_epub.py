@@ -11,6 +11,15 @@ import zipfile
 
 MIMETYPE = b"application/epub+zip"
 
+# Real font binary used to test embedding the same file under two distinct
+# @font-face family names (see CH10 below). Reused from KOReader's bundled
+# fonts rather than vendoring a duplicate copy -- this script is expected to
+# run from within a full koreader checkout (crengine is nested under
+# base/thirdparty/kpvcrlib here).
+FONT_SRC_PATH = os.path.join(os.path.dirname(__file__),
+                              "..", "..", "..", "..", "..",
+                              "resources", "fonts", "droid", "DroidSansMono.ttf")
+
 CONTAINER_XML = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:schemas:container">
@@ -43,6 +52,8 @@ CONTENT_OPF = """\
     <item id="ch07"    href="ch07.html"    media-type="application/xhtml+xml"/>
     <item id="ch08"    href="ch08.html"    media-type="application/xhtml+xml"/>
     <item id="ch09"    href="ch09.html"    media-type="application/xhtml+xml"/>
+    <item id="ch10"    href="ch10.html"    media-type="application/xhtml+xml"/>
+    <item id="font-mono" href="fonts/mono.ttf" media-type="font/ttf"/>
     <item id="padding" href="padding.bin"  media-type="application/octet-stream"/>
   </manifest>
   <spine toc="ncx">
@@ -55,6 +66,7 @@ CONTENT_OPF = """\
     <itemref idref="ch07"/>
     <itemref idref="ch08"/>
     <itemref idref="ch09"/>
+    <itemref idref="ch10"/>
   </spine>
 </package>
 """
@@ -102,6 +114,10 @@ TOC_NCX = """\
     <navPoint id="ch09" playOrder="9">
       <navLabel><text>9. Small Caps</text></navLabel>
       <content src="ch09.html"/>
+    </navPoint>
+    <navPoint id="ch10" playOrder="10">
+      <navLabel><text>10. Duplicate Face Registration</text></navLabel>
+      <content src="ch10.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -715,6 +731,51 @@ whole string.</p>
 </html>
 """
 
+CH10 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>Duplicate Face Registration</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+<style type="text/css">
+@font-face {
+  font-family: "EmbeddedDupA";
+  src: url("fonts/mono.ttf");
+}
+@font-face {
+  font-family: "EmbeddedDupB";
+  src: url("fonts/mono.ttf");
+}
+.dup-a { font-family: "EmbeddedDupA", serif; }
+.dup-b { font-family: "EmbeddedDupB", serif; }
+</style>
+</head>
+<body>
+<h1>Chapter 10 &#x2014; Duplicate Face Registration</h1>
+<p>Regresion check: the same embedded font file (<code>fonts/mono.ttf</code>)
+is declared by two separate <code>@font-face</code> rules under two different
+family names, "EmbeddedDupA" and "EmbeddedDupB". Both rules reference the
+exact same file, so the font manager must register the file twice -- once per
+family name -- rather than treating the second registration as a duplicate of
+the first.</p>
+
+<h2>Test</h2>
+<p class="label">Line A: font-family: "EmbeddedDupA"</p>
+<p class="sample dup-a">The quick brown fox jumps over the lazy dog. 0123456789</p>
+<p class="label">Line B: font-family: "EmbeddedDupB"</p>
+<p class="sample dup-b">The quick brown fox jumps over the lazy dog. 0123456789</p>
+
+<h2>Expected behaviour</h2>
+<p>Both lines must render in the embedded monospace font and look identical
+to each other. If the second @font-face registration was silently dropped as
+a duplicate (the regression this chapter targets), line B falls back to the
+serif reading font instead and looks visibly different from line A --
+specifically, it will not be monospaced.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Padding
 # ---------------------------------------------------------------------------
@@ -730,6 +791,16 @@ PADDING = bytes((i * 2654435761) & 0xFF for i in range(PADDING_SIZE))
 # ---------------------------------------------------------------------------
 
 def build_epub(path):
+    font_src_path = os.path.normpath(FONT_SRC_PATH)
+    if not os.path.isfile(font_src_path):
+        raise SystemExit(
+            f"Font file not found: {font_src_path}\n"
+            "Chapter 10 (duplicate face registration) embeds a real font "
+            "file and needs to be run from within a full koreader checkout "
+            "(crengine nested under base/thirdparty/kpvcrlib).")
+    with open(font_src_path, "rb") as f:
+        font_data = f.read()
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         # mimetype must be first and uncompressed
@@ -748,6 +819,8 @@ def build_epub(path):
         zf.writestr("OEBPS/ch07.html",        CH07)
         zf.writestr("OEBPS/ch08.html",        CH08)
         zf.writestr("OEBPS/ch09.html",        CH09)
+        zf.writestr("OEBPS/ch10.html",        CH10)
+        zf.writestr("OEBPS/fonts/mono.ttf",   font_data)
         zf.writestr(zipfile.ZipInfo("OEBPS/padding.bin"), PADDING,
                     compress_type=zipfile.ZIP_STORED)
     with open(path, "wb") as f:
