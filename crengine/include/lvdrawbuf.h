@@ -457,9 +457,9 @@ inline lUInt32 RevRGB( lUInt32 cl ) {
 inline lUInt32 invertNonGrayscaleColor( lUInt32 color ) {
     if ( (color & 0xFFFFFFFE) == 0xFFFFFFFE || (color & 0xFF000000) == 0xFF000000 )
         return color;
-    lUInt32 r = color & 0x00FF0000;
-    lUInt32 g = (color << 8) & 0x00FF0000;
-    lUInt32 b = (color << 16) & 0x00FF0000;
+    const lUInt8 b = color & 0xFF;
+    const lUInt8 g = (color >> 8) & 0xFF;
+    const lUInt8 r = (color >> 16) & 0xFF;
     if ( r == g && g == b )
         return color;
     return color ^ 0x00FFFFFF;
