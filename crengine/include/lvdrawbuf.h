@@ -108,6 +108,9 @@ public:
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) = 0;
     virtual bool getInvertImages() const = 0;
+    /// set to true to invert non-grayscale colors (so they get inverted back to normal by nightmode)
+    virtual void setInvertColors( bool invert ) = 0;
+    virtual bool getInvertColors() const = 0;
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) = 0;
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
@@ -259,6 +262,7 @@ protected:
     lUInt32 _textColor;
     bool _hidePartialGlyphs;
     bool _invertImages;
+    bool _invertColors;
     bool _ditherImages;
     bool _smoothImages;
     int _drawnImagesCount;
@@ -269,6 +273,9 @@ public:
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
     virtual bool getInvertImages() const { return _invertImages; }
+    /// set to true to invert non-grayscale colors (so they get inverted back to normal by nightmode)
+    virtual void setInvertColors( bool invert ) { _invertColors = invert; }
+    virtual bool getInvertColors() const { return _invertColors; }
     /// set to true to enforce dithering (only relevant for 8bpp Gray drawBuf)
     virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
@@ -316,7 +323,7 @@ public:
     int getDrawnImagesSurface() const { return _drawnImagesSurface; }
 
     LVBaseDrawBuf() : _dx(0), _dy(0), _rowsize(0), _data(NULL), _drawExtraInfo(NULL), _hidePartialGlyphs(true),
-                        _invertImages(false), _ditherImages(false), _smoothImages(false),
+                        _invertImages(false), _invertColors(false), _ditherImages(false), _smoothImages(false),
                         _drawnImagesCount(0), _drawnImagesSurface(0) { }
     virtual ~LVBaseDrawBuf() { }
 };
@@ -443,6 +450,19 @@ public:
 
 inline lUInt32 RevRGB( lUInt32 cl ) {
     return ((cl<<16)&0xFF0000) | ((cl>>16)&0x0000FF) | (cl&0x00FF00);
+}
+
+// Pre-invert a non-grayscale color so night mode inverts it back to its original hue.
+// Preserves alpha, and leaves reserved, transparent, and grayscale values unchanged.
+inline lUInt32 invertNonGrayscaleColor( lUInt32 color ) {
+    if ( (color & 0xFFFFFFFE) == 0xFFFFFFFE || (color & 0xFF000000) == 0xFF000000 )
+        return color;
+    const lUInt8 b = color & 0xFF;
+    const lUInt8 g = (color >> 8) & 0xFF;
+    const lUInt8 r = (color >> 16) & 0xFF;
+    if ( r == g && g == b )
+        return color;
+    return color ^ 0x00FFFFFF;
 }
 
 inline lUInt32 rgb565to888( lUInt32 cl ) {

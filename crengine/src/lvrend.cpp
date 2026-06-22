@@ -9292,6 +9292,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
     css_style_ref_t style = enode->getStyle();
+    const bool invert_colors = drawbuf.getInvertColors();
     bool hastopBorder = (style->border_style_top >=css_border_solid);
     bool hasrightBorder = (style->border_style_right >=css_border_solid);
     bool hasbottomBorder = (style->border_style_bottom >=css_border_solid);
@@ -9350,6 +9351,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (topBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c; // Firefox uses these values when color is real black 0x000000 (but not if 0x010101)
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    topBordercolor = invertNonGrayscaleColor(topBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int left=1,right=1;
@@ -9458,6 +9464,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (rightBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    rightBordercolor = invertNonGrayscaleColor(rightBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int up=1,down=1;
@@ -9569,6 +9580,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
                 }
+                if ( invert_colors ) {
+                    bottomBordercolor = invertNonGrayscaleColor(bottomBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
+                }
             }
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
@@ -9667,6 +9683,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (leftBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    leftBordercolor = invertNonGrayscaleColor(leftBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int up=1,down=1;
@@ -10114,6 +10135,7 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
         css_style_ref_t style = enode->getStyle();
         // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
         lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
+        bg_color = drawbuf.getInvertColors() ? invertNonGrayscaleColor(bg_color) : bg_color;
         drawbuf.FillRect(bg_left, bg_top, bg_right, bg_bottom, bg_color);
     }
     if ( draw_bg_image ) {
@@ -10241,6 +10263,7 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
         bool restoreBackgroundColor = false;
         // If not css_val_color, it must be (css_val_unspecified, css_generic_currentcolor)
         lUInt32 bg_color = style->background_color.type == css_val_color ? style->background_color.value : style->color.value;
+        bg_color = drawbuf.getInvertColors() ? invertNonGrayscaleColor(bg_color) : bg_color;
         lUInt32 oldColor = 0;
 
         // Don't draw background color for TR and THEAD/TFOOT/TBODY as it could
