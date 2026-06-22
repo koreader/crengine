@@ -6001,6 +6001,7 @@ class LVFontSelector {
         return computed;
     }
 
+public:
     /// family must be non-null; callers check registry.findFamily()/familyAt() first.
     LVFontMatch matchFamily(const LVFontFamily* family,
                              int weight, bool italic,
@@ -6045,7 +6046,6 @@ class LVFontSelector {
         return m;
     }
 
-public:
     LVFontMatch select(int weight, bool italic,
                         css_font_family_t family,
                         const lString8& typeface,
@@ -6770,6 +6770,24 @@ public:
             }
         }
         list.sort();
+    }
+
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math, bool & has_emojis )
+    {
+        FONT_MAN_GUARD
+        const LVFontFamily* fam = _registry.findFamily(UnicodeToUtf8(name));
+        if (!fam)
+            return false;
+        int weight = bold ? 700 : 400;
+        LVFontMatch m = _font_selector.matchFamily(fam, weight, italic, LVFontVariations());
+        if (!m.valid())
+            return false;
+        filename     = m.face->file_path;
+        index        = m.face->face_index;
+        family_type  = (int)m.face->css_family;
+        has_ot_math  = m.face->has_ot_math;
+        has_emojis   = m.face->has_emojis;
+        return true;
     }
 
     /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,
