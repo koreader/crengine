@@ -5998,6 +5998,7 @@ class LVFontSelector {
         return computed;
     }
 
+public:
     /// family must be non-null; callers check registry.findFamily()/familyAt() first.
     LVFontMatch matchFamily(const LVFontFamily* family,
                              int weight, bool italic,
@@ -6040,17 +6041,6 @@ class LVFontSelector {
         m.face                = face;
         m.computed_variations = computeVariations(*face, requested, weight, italic);
         return m;
-    }
-
-public:
-    /// Matches a face within a known family, without the typeface-list parsing,
-    /// preferred-family, and generic-family fallback steps of select(). Used
-    /// when the caller already has the exact family (e.g. looking up the file
-    /// backing a name from getFaceList()) and a fallback to an unrelated family
-    /// would be wrong.
-    LVFontMatch matchExact(const LVFontFamily* family, int weight, bool italic) const
-    {
-        return matchFamily(family, weight, italic, LVFontVariations());
     }
 
     LVFontMatch select(int weight, bool italic,
@@ -6786,7 +6776,7 @@ public:
         if (!fam)
             return false;
         int weight = bold ? 700 : 400;
-        LVFontMatch m = _font_selector.matchExact(fam, weight, italic);
+        LVFontMatch m = _font_selector.matchFamily(fam, weight, italic, LVFontVariations());
         if (!m.valid())
             return false;
         filename     = m.face->file_path;
