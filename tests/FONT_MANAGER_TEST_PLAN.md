@@ -257,6 +257,20 @@ These were bugs found during the refactor; verify they do not regress.
 
 ---
 
+## 17. Duplicate face registration (Chapter 10)
+
+**Goal:** Verify that registering the same embedded font file under two
+different `@font-face` family names succeeds for both, rather than the
+second being silently dropped as a duplicate.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 17.1 | View Chapter 10, line A (`font-family: "EmbeddedDupA"`) | Renders in the embedded monospace font |
+| 17.2 | View Chapter 10, line B (`font-family: "EmbeddedDupB"`) | Renders in the embedded monospace font — identical to line A |
+| 17.3 | Lines A and B are visually identical | If line B instead renders in the serif reading font, the duplicate-face-detection regression (`LVFontFace::id()` ignoring `typeface`) has returned |
+
+---
+
 ## Test environment notes
 
 - Test with both a **static font family** (e.g. Noto Serif — separate Regular/Bold/Italic/BoldItalic files) and a **variable font** (e.g. Literata — single file with wght and opsz axes).

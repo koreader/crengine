@@ -532,6 +532,20 @@ This ordering is enforced explicitly in the destructor body.
 
 ## Future Work
 
+**Regression: duplicate-face detection ignored the requested family name.** *(Fixed)*
+`LVFontFace::id()` originally computed face identity from `(file_path,
+face_index, documentId)` only, so registering the *same font file* under a
+*second* `@font-face` family name, in the same document, was silently
+dropped as a duplicate by `tryRegisterFace()`. This was a regression relative
+to pre-refactor behaviour: the old `LVFontDef::operator==()` included
+`_typeface == def._typeface` in its equality check (confirmed at
+`72cf7cc2^`), so two registrations of the same file under different requested
+family names were correctly treated as distinct.
+
+Fixed by folding `typeface` into `id()`'s hash, mirroring the old `_typeface`
+equality check. Covered by Chapter 10 of `tests/font-manager-test.epub`
+(see `tests/FONT_MANAGER_TEST_PLAN.md` sec 17).
+
 **OpenType features.**
 Replace `int features` (32-bit bitmap) with an open-ended `LVFontFeatureSet`
 (vector of `hb_feature_t`). Removes the 32-feature limit, supports numeric

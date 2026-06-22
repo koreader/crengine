@@ -5717,11 +5717,14 @@ struct LVFontFace {
     /// and use _wght_min/_wght_max as the axis range instead.
     int getStaticWeight() const { return hasWeightAxis() ? 0 : (int)_wght_min; }
 
-    /// Stable identity hash: (file, face_index, documentId).
+    /// Stable identity hash: (file, face_index, documentId, typeface).
+    /// typeface is included so that registering the same font file under a
+    /// second @font-face family name is not mistaken for a duplicate.
     lUInt32 id() const {
         lUInt32 h = file_path.getHash();
         h = h * 31 + (lUInt32)face_index;
         h = h * 31 + (lUInt32)(documentId == -1 ? 0 : documentId);
+        h = h * 31 + typeface.getHash();
         return h;
     }
 };
