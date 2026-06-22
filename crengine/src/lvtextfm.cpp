@@ -6156,6 +6156,7 @@ static void drawBorder(LVDrawBuf * buf, int x0, int x1, int y, int h, ldomNode *
     css_length_t border_color = style->border_color[bdidx];
     lUInt32 bdcl = border_color.type == css_val_color ? // "currentcolor" if not
                         border_color.value : style->color.value;
+    bdcl = buf->getInvertColors() ? invertNonGrayscaleColor(bdcl) : bdcl;
     if ( !IS_COLOR_FULLY_TRANSPARENT(bdcl) ) {
         int border_width = measureBorder(borderNode, bdidx);
         css_border_style_type_t border_style;

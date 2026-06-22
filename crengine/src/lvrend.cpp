@@ -9292,6 +9292,7 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
     css_style_ref_t style = enode->getStyle();
+    const bool invert_colors = drawbuf.getInvertColors();
     bool hastopBorder = (style->border_style_top >=css_border_solid);
     bool hasrightBorder = (style->border_style_right >=css_border_solid);
     bool hasbottomBorder = (style->border_style_bottom >=css_border_solid);
@@ -9350,6 +9351,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (topBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c; // Firefox uses these values when color is real black 0x000000 (but not if 0x010101)
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    topBordercolor = invertNonGrayscaleColor(topBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int left=1,right=1;
@@ -9458,6 +9464,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (rightBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    rightBordercolor = invertNonGrayscaleColor(rightBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int up=1,down=1;
@@ -9569,6 +9580,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
                 }
+                if ( invert_colors ) {
+                    bottomBordercolor = invertNonGrayscaleColor(bottomBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
+                }
             }
             int left=1,right=1;
             left=(hasleftBorder)?0:1;
@@ -9667,6 +9683,11 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 if ( (leftBordercolor & 0xFFFFFF) == 0 ) {
                     shadecolor = o|0x4c4c4c;
                     lightcolor = o|0xb2b2b2;
+                }
+                if ( invert_colors ) {
+                    leftBordercolor = invertNonGrayscaleColor(leftBordercolor);
+                    shadecolor = invertNonGrayscaleColor(shadecolor);
+                    lightcolor = invertNonGrayscaleColor(lightcolor);
                 }
             }
             int up=1,down=1;
