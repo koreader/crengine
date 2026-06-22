@@ -171,23 +171,12 @@ enum css_font_style_t {
     css_fs_oblique
 };
 
-/// font-weight property values
-enum css_font_weight_t {
-    css_fw_inherit,
-    css_fw_normal,
-    css_fw_bold,
-    css_fw_bolder,
-    css_fw_lighter,
-    css_fw_100,
-    css_fw_200,
-    css_fw_300,
-    css_fw_400,
-    css_fw_500,
-    css_fw_600,
-    css_fw_700,
-    css_fw_800,
-    css_fw_900
-};
+/// font-weight: stored as its numeric value (1–1000) or one of the keyword sentinels below.
+static const lUInt16 css_fw_inherit  = 0;    // unset / inherit
+static const lUInt16 css_fw_normal   = 1001; // keyword "normal"  → 400 at compute
+static const lUInt16 css_fw_bold     = 1002; // keyword "bold"    → 700 at compute
+static const lUInt16 css_fw_bolder   = 1003; // keyword "bolder"  → relative
+static const lUInt16 css_fw_lighter  = 1004; // keyword "lighter" → relative
 
 /// font-optical-sizing property values
 enum css_font_optical_sizing_t {

@@ -28,7 +28,7 @@ library install — no extra dependencies.
 | # | Action | Expected |
 |---|--------|----------|
 | 1.1 | Open any existing book in KOReader | Text renders without crashes or blank pages |
-| 1.2 | Open `font-manager-test.epub` | All nine chapters display with visible text |
+| 1.2 | Open `font-manager-test.epub` | All eleven chapters display with visible text |
 | 1.3 | Scroll through all chapters | No missing-glyph boxes on Latin text |
 
 ---
@@ -41,7 +41,7 @@ library install — no extra dependencies.
 |---|--------|----------|
 | 2.1 | View Chapter 1 with a static font (e.g. Noto Serif) | Weights 100–900 show a clear visual progression from light to heavy |
 | 2.2 | View Chapter 1 with a variable font (e.g. Literata) | Weights 100–900 show a smooth continuous progression; no sudden jumps |
-| 2.3 | CSS4 intermediate weights 550 and 650 | **Not yet implemented** — the CSS parser only recognises the literal "100".."900" keywords, so the declaration is ignored entirely (not rounded) and the element renders at its inherited weight (400/normal) |
+| 2.3 | CSS4 intermediate weights 437, 550, and 650 | Each renders as its own distinct, literal weight — not rounded or snapped to the nearest of the nine legacy 100-step buckets. 437 in particular must sit visibly between the 400 and 500 lines, not look identical to either |
 | 2.4 | Weight 700 on a variable font with wght range [300,700] | Renders at the font's maximum design weight — **no synthetic bold applied** |
 | 2.5 | Weight 900 on a variable font with wght range [300,700] | Renders at the font's maximum (700), not synthetically emboldened |
 
@@ -57,7 +57,7 @@ library install — no extra dependencies.
 | 3.2 | Italic text with a font that has a real italic face | Uses the real italic face (no synthesis slant artefact) |
 | 3.3 | Bold italic text | Uses bold italic face if available; otherwise synthesises from the appropriate base |
 | 3.4 | Bold italic on a variable font with ital axis | Uses ital axis to produce italic; wght axis for bold — no software synthesis |
-| 3.5 | CSS4 intermediate weight + italic (e.g. 550, italic) | **Not yet implemented** — the `font-weight` declaration is ignored entirely (not rounded); the element renders at its inherited weight (400/normal) but stays italic |
+| 3.5 | CSS4 intermediate weight + italic (e.g. 550, italic) | Renders at the literal weight 550 (not inherited 400, not rounded) while remaining italic |
 | 3.6 | `font-synthesis: none` | **Not yet implemented** — both synthesis-allowed and synthesis-none lines render identically |
 
 ---
@@ -268,6 +268,26 @@ second being silently dropped as a duplicate.
 | 17.1 | View Chapter 10, line A (`font-family: "EmbeddedDupA"`) | Renders in the embedded monospace font |
 | 17.2 | View Chapter 10, line B (`font-family: "EmbeddedDupB"`) | Renders in the embedded monospace font — identical to line A |
 | 17.3 | Lines A and B are visually identical | If line B instead renders in the serif reading font, the duplicate-face-detection regression (`LVFontFace::id()` ignoring `typeface`) has returned |
+
+---
+
+## 18. SVG text rendering (Chapter 11)
+
+**Goal:** Verify the font manager refactor and the new arbitrary-weight CSS
+parsing did not regress inline SVG text, which is rendered through a separate
+code path: LunaSVG is patched to delegate glyph shaping back to crengine's
+`fontMan->GetFont()` (see `lunasvgTextToPathsHelper()` in `lvimg.cpp`) instead
+of using its own font loader, so this exercises `GetFont()`'s weight/italic
+matching independently of the `lvstsheet.cpp` CSS parser changes in this PR.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 18.1 | View Chapter 11's normal-weight SVG `<text>` line | Renders as legible glyphs, same as before the font manager refactor |
+| 18.2 | Bold (700) and black (900) SVG `<text>` lines | Visibly heavier than the normal line, progressively |
+| 18.3 | Arbitrary weight 550 SVG `<text>` line | Sits visibly between the 400 and 700 lines. Note: this value is parsed by LunaSVG's own attribute parser, not by this PR's CSS changes — if it instead snaps to 400 or 700, that's a pre-existing LunaSVG-side limitation, not a regression from this PR; worth noting either way |
+| 18.4 | Italic SVG `<text>` line | Renders slanted/in an italic face |
+| 18.5 | SVG text embedded inline within a serif paragraph | Picks up the surrounding paragraph's typeface (family-name append in `lunasvgTextToPathsHelper()`), not a generic fallback. The run is *expected* to look smaller than the paragraph and to leave blank space before the trailing dash — its `font-size` is a fixed absolute SVG unit unrelated to the paragraph's em-relative size, and its `<svg>` box is wider than its glyphs. Only the typeface should match; size/box-fit differences are fixture artifacts, not bugs |
+| 18.6 | Any real-world SVG-heavy EPUBs (see [koreader/koreader#15520](https://github.com/koreader/koreader/issues/15520)) | Text renders comparably to the pre-refactor font manager — no missing glyphs, crashes, or gross layout differences |
 
 ---
 

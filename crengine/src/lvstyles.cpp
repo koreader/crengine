@@ -338,6 +338,8 @@ lString8 joinPropertyValueList( const lString8Collection & list )
 static const char * style_magic = "CR3STYLE";
 #define ST_PUT_ENUM(v) buf << (lUInt8)v
 #define ST_GET_ENUM(t,v) { lUInt8 tmp; buf >> tmp; v=(t)tmp; if (buf.error()) return false; }
+#define ST_PUT_U16(v) buf << (lUInt16)v
+#define ST_GET_U16(t,v) { lUInt16 tmp; buf >> tmp; v=(t)tmp; if (buf.error()) return false; }
 #define ST_PUT_LEN(v) buf << (lUInt8)v.type << (lInt32)v.value;
 #define ST_GET_LEN(v) { lUInt8 t; buf >> t; lInt32 val; buf >> val; v.type = (css_value_type_t)t; v.value = val; if (buf.error()) return false; }
 #define ST_PUT_LEN4(v) ST_PUT_LEN(v[0]);ST_PUT_LEN(v[1]);ST_PUT_LEN(v[2]);ST_PUT_LEN(v[3]);
@@ -366,7 +368,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     buf << font_name;               //    lString8             font_name;
     ST_PUT_LEN(font_size);          //    css_length_t         font_size;
     ST_PUT_ENUM(font_style);        //    css_font_style_t     font_style;
-    ST_PUT_ENUM(font_weight);       //    css_font_weight_t    font_weight;
+    ST_PUT_U16(font_weight);        //    lUInt16              font_weight;
     ST_PUT_LEN(font_features);      //    css_length_t         font_features;
     ST_PUT_ENUM(font_optical_sizing);
     ST_PUT_LEN(text_indent);        //    css_length_t         text_indent;
@@ -443,7 +445,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     buf >> font_name;                                       //    lString8             font_name;
     ST_GET_LEN(font_size);                                  //    css_length_t         font_size;
     ST_GET_ENUM(css_font_style_t, font_style);              //    css_font_style_t     font_style;
-    ST_GET_ENUM(css_font_weight_t, font_weight);            //    css_font_weight_t    font_weight;
+    ST_GET_U16(lUInt16, font_weight);
     ST_GET_LEN(font_features);                              //    css_length_t         font_features;
     ST_GET_ENUM(css_font_optical_sizing_t, font_optical_sizing);
     ST_GET_LEN(text_indent);                                //    css_length_t         text_indent;

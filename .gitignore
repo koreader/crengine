@@ -22,3 +22,4 @@ cr3gui/data/tessdata/
 cr3gui/data/ca-bundle.crt
 thirdparty
 build/
+tests/font-manager-test.epub

@@ -143,7 +143,7 @@ struct css_style_rec_tag {
     lString8             font_name;
     css_length_t         font_size;
     css_font_style_t     font_style;
-    css_font_weight_t    font_weight;
+    lUInt16              font_weight;
     css_length_t         font_features;
     css_font_optical_sizing_t  font_optical_sizing;
     css_length_t         text_indent;
