@@ -53,6 +53,7 @@ CONTENT_OPF = """\
     <item id="ch08"    href="ch08.html"    media-type="application/xhtml+xml"/>
     <item id="ch09"    href="ch09.html"    media-type="application/xhtml+xml"/>
     <item id="ch10"    href="ch10.html"    media-type="application/xhtml+xml"/>
+    <item id="ch11"    href="ch11.html"    media-type="application/xhtml+xml"/>
     <item id="font-mono" href="fonts/mono.ttf" media-type="font/ttf"/>
     <item id="padding" href="padding.bin"  media-type="application/octet-stream"/>
   </manifest>
@@ -67,6 +68,7 @@ CONTENT_OPF = """\
     <itemref idref="ch08"/>
     <itemref idref="ch09"/>
     <itemref idref="ch10"/>
+    <itemref idref="ch11"/>
   </spine>
 </package>
 """
@@ -119,6 +121,10 @@ TOC_NCX = """\
       <navLabel><text>10. Duplicate Face Registration</text></navLabel>
       <content src="ch10.html"/>
     </navPoint>
+    <navPoint id="ch11" playOrder="11">
+      <navLabel><text>11. SVG Text Rendering</text></navLabel>
+      <content src="ch11.html"/>
+    </navPoint>
   </navMap>
 </ncx>
 """
@@ -140,6 +146,7 @@ p    { margin: 0.2em 0; }
 .w550 { font-weight: 550; }
 .w600 { font-weight: 600; }
 .w650 { font-weight: 650; }
+.w137 { font-weight: 137; }
 .w700 { font-weight: 700; }
 .w800 { font-weight: 800; }
 .w900 { font-weight: 900; }
@@ -226,6 +233,9 @@ CH01 = """\
 <p class="sample serif w600">The quick brown fox jumps over the lazy dog. (600)</p>
 <p class="label">weight: 650 (CSS4 arbitrary)</p>
 <p class="sample serif w650">The quick brown fox jumps over the lazy dog. (650)</p>
+<p class="label">weight: 137 (CSS4 arbitrary, off the 100-grid &#x2014; must sit
+visibly between the 100 and 200 lines above, not snap to either one)</p>
+<p class="sample serif w137">The quick brown fox jumps over the lazy dog. (137)</p>
 <p class="label">weight: 700 (bold)</p>
 <p class="sample serif w700">The quick brown fox jumps over the lazy dog. (700)</p>
 <p class="label">weight: 800</p>
@@ -803,6 +813,109 @@ specifically, it will not be monospaced.</p>
 </html>
 """
 
+CH11 = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head><title>SVG Text Rendering</title>
+<link rel="stylesheet" type="text/css" href="style.css"/></head>
+<body>
+<h1>Chapter 11 &#x2014; SVG Text Rendering</h1>
+
+<p>Inline &lt;svg&gt;&lt;text&gt; is rendered via LunaSVG, which is patched to
+delegate glyph shaping back to crengine's own font matching
+(<code>fontMan-&gt;GetFont()</code> in <code>lunasvgTextToPathsHelper()</code>,
+<code>lvimg.cpp</code>) rather than using its own font loader. This is a
+separate code path from regular HTML/CSS text: the weight value here comes
+from LunaSVG's own attribute/style parsing, not from <code>lvstsheet.cpp</code>,
+so it exercises <code>GetFont()</code>'s weight matching independently of the
+CSS parser changes in this PR.</p>
+
+<h2>Baseline regression: plain SVG text still renders</h2>
+<p class="label">Normal weight, sans-serif, via SVG &lt;text&gt;</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="400">
+    SVG text — normal (400)
+  </text>
+</svg>
+
+<h2>Keyword/legacy bucket weights</h2>
+<p class="label">Bold (700) via SVG &lt;text&gt;</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="700">
+    SVG text — bold (700)
+  </text>
+</svg>
+<p class="label">Black (900) via SVG &lt;text&gt;</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="900">
+    SVG text — black (900)
+  </text>
+</svg>
+
+<h2>Arbitrary (non-bucket) weight</h2>
+<p class="label">weight: 400 via SVG &lt;text&gt; &#x2014; repeated here
+alongside 550 and 700 for an easier side-by-side comparison than scrolling
+back to the baseline section above</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="400">
+    SVG text — normal (400)
+  </text>
+</svg>
+<p class="label">weight: 550 via SVG &lt;text&gt; &#x2014; should sit visibly
+between the 400 and 700 lines, not snap to either</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="550">
+    SVG text — arbitrary (550)
+  </text>
+</svg>
+<p class="label">weight: 700 via SVG &lt;text&gt; &#x2014; repeated here for
+comparison</p>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="sans-serif" font-size="24" font-weight="700">
+    SVG text — bold (700)
+  </text>
+</svg>
+
+<h2>Italic via SVG &lt;text&gt;</h2>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40">
+  <text x="0" y="28" font-family="serif" font-size="24" font-style="italic">
+    SVG text — italic
+  </text>
+</svg>
+
+<h2>SVG text matching surrounding font (serif paragraph context)</h2>
+<p class="label">Note: the SVG run below is expected to look smaller than this
+paragraph and to leave blank space before the dash that follows it. Its
+font-size="20" is a fixed absolute SVG unit, unrelated to this paragraph's
+em-relative reading-font size, and its containing &lt;svg&gt; box
+(width="180") is wider than the rendered glyphs. Only the <strong>typeface</strong>
+match matters for this test — size and box-fit are artifacts of this fixture,
+not something to flag as a bug.</p>
+<p class="sample serif">Surrounding HTML text in the serif reading font, for comparison —
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="24" style="vertical-align: -5px;">
+  <text x="0" y="18" font-size="20">inline SVG run</text>
+</svg> — should pick up the same typeface as this paragraph
+(see the family-name append in <code>lunasvgTextToPathsHelper()</code>).</p>
+
+<h2>Expected behaviour</h2>
+<p>All SVG text lines above must render as legible glyphs, not boxes or blanks
+&#x2014; a blank/boxed line here, with the equivalent HTML/CSS chapters
+rendering fine, points specifically at <code>GetFont()</code> or the LunaSVG
+glyph-collection path rather than the CSS parser. The 550-weight line should
+look distinctly heavier than 400 and distinctly lighter than 700; if it instead
+looks identical to one of them, LunaSVG's own attribute parser (not part of
+this PR) is snapping the value to the nearest legacy bucket rather than
+forwarding it literally to <code>GetFont()</code> &#x2014; worth noting as a
+separate, pre-existing limitation if seen.</p>
+<p>Also see the real-world SVG-heavy EPUBs attached to
+<a href="https://github.com/koreader/koreader/issues/15520">koreader/koreader#15520</a>
+for broader coverage beyond these synthetic samples.</p>
+</body>
+</html>
+"""
+
 # ---------------------------------------------------------------------------
 # Padding
 # ---------------------------------------------------------------------------
@@ -847,6 +960,7 @@ def build_epub(path):
         zf.writestr("OEBPS/ch08.html",        CH08)
         zf.writestr("OEBPS/ch09.html",        CH09)
         zf.writestr("OEBPS/ch10.html",        CH10)
+        zf.writestr("OEBPS/ch11.html",        CH11)
         zf.writestr("OEBPS/fonts/mono.ttf",   font_data)
         zf.writestr(zipfile.ZipInfo("OEBPS/padding.bin"), PADDING,
                     compress_type=zipfile.ZIP_STORED)
