@@ -6043,6 +6043,16 @@ class LVFontSelector {
     }
 
 public:
+    /// Matches a face within a known family, without the typeface-list parsing,
+    /// preferred-family, and generic-family fallback steps of select(). Used
+    /// when the caller already has the exact family (e.g. looking up the file
+    /// backing a name from getFaceList()) and a fallback to an unrelated family
+    /// would be wrong.
+    LVFontMatch matchExact(const LVFontFamily* family, int weight, bool italic) const
+    {
+        return matchFamily(family, weight, italic, LVFontVariations());
+    }
+
     LVFontMatch select(int weight, bool italic,
                         css_font_family_t family,
                         const lString8& typeface,
@@ -6767,6 +6777,24 @@ public:
             }
         }
         list.sort();
+    }
+
+    virtual bool getFontFileNameAndFaceIndex( lString32 name, bool bold, bool italic, lString8 & filename, int & index, int & family_type, bool & has_ot_math, bool & has_emojis )
+    {
+        FONT_MAN_GUARD
+        const LVFontFamily* fam = _registry.findFamily(UnicodeToUtf8(name));
+        if (!fam)
+            return false;
+        int weight = bold ? 700 : 400;
+        LVFontMatch m = _font_selector.matchExact(fam, weight, italic);
+        if (!m.valid())
+            return false;
+        filename     = m.face->file_path;
+        index        = m.face->face_index;
+        family_type  = (int)m.face->css_family;
+        has_ot_math  = m.face->has_ot_math;
+        has_emojis   = m.face->has_emojis;
+        return true;
     }
 
     /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,
