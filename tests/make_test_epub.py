@@ -142,11 +142,11 @@ p    { margin: 0.2em 0; }
 .w200 { font-weight: 200; }
 .w300 { font-weight: 300; }
 .w400 { font-weight: 400; }
+.w437 { font-weight: 437; }
 .w500 { font-weight: 500; }
 .w550 { font-weight: 550; }
 .w600 { font-weight: 600; }
 .w650 { font-weight: 650; }
-.w137 { font-weight: 137; }
 .w700 { font-weight: 700; }
 .w800 { font-weight: 800; }
 .w900 { font-weight: 900; }
@@ -225,6 +225,9 @@ CH01 = """\
 <p class="sample serif w300">The quick brown fox jumps over the lazy dog. (300)</p>
 <p class="label">weight: 400 (normal)</p>
 <p class="sample serif w400">The quick brown fox jumps over the lazy dog. (400)</p>
+<p class="label">weight: 437 (CSS4 arbitrary, off the 100-grid &#x2014; must sit
+visibly between the 400 and 500 lines, not snap to either one)</p>
+<p class="sample serif w437">The quick brown fox jumps over the lazy dog. (437)</p>
 <p class="label">weight: 500</p>
 <p class="sample serif w500">The quick brown fox jumps over the lazy dog. (500)</p>
 <p class="label">weight: 550 (CSS4 arbitrary)</p>
@@ -233,9 +236,6 @@ CH01 = """\
 <p class="sample serif w600">The quick brown fox jumps over the lazy dog. (600)</p>
 <p class="label">weight: 650 (CSS4 arbitrary)</p>
 <p class="sample serif w650">The quick brown fox jumps over the lazy dog. (650)</p>
-<p class="label">weight: 137 (CSS4 arbitrary, off the 100-grid &#x2014; must sit
-visibly between the 100 and 200 lines above, not snap to either one)</p>
-<p class="sample serif w137">The quick brown fox jumps over the lazy dog. (137)</p>
 <p class="label">weight: 700 (bold)</p>
 <p class="sample serif w700">The quick brown fox jumps over the lazy dog. (700)</p>
 <p class="label">weight: 800</p>

@@ -41,7 +41,7 @@ library install — no extra dependencies.
 |---|--------|----------|
 | 2.1 | View Chapter 1 with a static font (e.g. Noto Serif) | Weights 100–900 show a clear visual progression from light to heavy |
 | 2.2 | View Chapter 1 with a variable font (e.g. Literata) | Weights 100–900 show a smooth continuous progression; no sudden jumps |
-| 2.3 | CSS4 intermediate weights 550, 650, and the off-grid 137 | Each renders as its own distinct, literal weight — not rounded or snapped to the nearest of the nine legacy 100-step buckets. 137 in particular must sit visibly between the 100 and 200 lines, not look identical to either |
+| 2.3 | CSS4 intermediate weights 437, 550, and 650 | Each renders as its own distinct, literal weight — not rounded or snapped to the nearest of the nine legacy 100-step buckets. 437 in particular must sit visibly between the 400 and 500 lines, not look identical to either |
 | 2.4 | Weight 700 on a variable font with wght range [300,700] | Renders at the font's maximum design weight — **no synthetic bold applied** |
 | 2.5 | Weight 900 on a variable font with wght range [300,700] | Renders at the font's maximum (700), not synthetically emboldened |
 
