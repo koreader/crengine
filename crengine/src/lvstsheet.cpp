@@ -3909,11 +3909,13 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     css_font_weight_t fw_val;
                     if ( g >= 0 ) {
                         fw_val = (g != css_g_initial) ? css_fw_inherit : 400;
-                    } else {
+                    }
+                    else {
                         int kw = parse_name( decl, css_fw_kw_names, -1 );
                         if ( kw >= 0 ) {
                             fw_val = css_fw_kw_vals[kw];
-                        } else {
+                        }
+                        else {
                             // Plain <number>, no unit: accept_unspecified=true lets parse_number_value()
                             // parse a bare number, but it will also happily attach a unit suffix (em, px...)
                             // if one follows, so we must check value.type is still css_val_unspecified.
