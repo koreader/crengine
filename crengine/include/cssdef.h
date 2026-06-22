@@ -172,12 +172,11 @@ enum css_font_style_t {
 };
 
 /// font-weight: stored as its numeric value (1–1000) or one of the keyword sentinels below.
-typedef lUInt16 css_font_weight_t;
-static const css_font_weight_t css_fw_inherit  = 0;    // unset / inherit
-static const css_font_weight_t css_fw_normal   = 1001; // keyword "normal"  → 400 at compute
-static const css_font_weight_t css_fw_bold     = 1002; // keyword "bold"    → 700 at compute
-static const css_font_weight_t css_fw_bolder   = 1003; // keyword "bolder"  → relative
-static const css_font_weight_t css_fw_lighter  = 1004; // keyword "lighter" → relative
+static const lUInt16 css_fw_inherit  = 0;    // unset / inherit
+static const lUInt16 css_fw_normal   = 1001; // keyword "normal"  → 400 at compute
+static const lUInt16 css_fw_bold     = 1002; // keyword "bold"    → 700 at compute
+static const lUInt16 css_fw_bolder   = 1003; // keyword "bolder"  → relative
+static const lUInt16 css_fw_lighter  = 1004; // keyword "lighter" → relative
 
 /// font-optical-sizing property values
 enum css_font_optical_sizing_t {

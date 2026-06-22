@@ -2918,7 +2918,7 @@ static const char * css_fw_kw_names[] =
     "lighter",
     NULL
 };
-static const css_font_weight_t css_fw_kw_vals[] =
+static const lUInt16 css_fw_kw_vals[] =
 {
     css_fw_normal,
     css_fw_bold,
@@ -3906,7 +3906,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 break;
             case cssd_font_weight:
                 {
-                    css_font_weight_t fw_val;
+                    lUInt16 fw_val;
                     if ( g >= 0 ) {
                         fw_val = (g != css_g_initial) ? css_fw_inherit : 400;
                     }
@@ -3927,7 +3927,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             int num = (num_val.value + 128) >> 8; // round to nearest integer
                             if ( num < 1 )    num = 1;
                             if ( num > 1000 ) num = 1000;
-                            fw_val = (css_font_weight_t)num;
+                            fw_val = (lUInt16)num;
                         }
                     }
                     buf << (lUInt32)(prop_code | importance | parsed_important | parse_important(decl));
@@ -5355,7 +5355,7 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_weight:
-            style->Apply( (css_font_weight_t) *p++, &style->font_weight, imp_bit_font_weight, is_important );
+            style->Apply( (lUInt16) *p++, &style->font_weight, imp_bit_font_weight, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             break;
         case cssd_font_size:

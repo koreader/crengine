@@ -368,7 +368,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     buf << font_name;               //    lString8             font_name;
     ST_PUT_LEN(font_size);          //    css_length_t         font_size;
     ST_PUT_ENUM(font_style);        //    css_font_style_t     font_style;
-    ST_PUT_U16(font_weight);        //    css_font_weight_t    font_weight;
+    ST_PUT_U16(font_weight);        //    lUInt16              font_weight;
     ST_PUT_LEN(font_features);      //    css_length_t         font_features;
     ST_PUT_ENUM(font_optical_sizing);
     ST_PUT_LEN(text_indent);        //    css_length_t         text_indent;
@@ -445,7 +445,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     buf >> font_name;                                       //    lString8             font_name;
     ST_GET_LEN(font_size);                                  //    css_length_t         font_size;
     ST_GET_ENUM(css_font_style_t, font_style);              //    css_font_style_t     font_style;
-    ST_GET_U16(css_font_weight_t, font_weight);
+    ST_GET_U16(lUInt16, font_weight);
     ST_GET_LEN(font_features);                              //    css_length_t         font_features;
     ST_GET_ENUM(css_font_optical_sizing_t, font_optical_sizing);
     ST_GET_LEN(text_indent);                                //    css_length_t         text_indent;
