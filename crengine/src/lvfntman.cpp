@@ -7303,7 +7303,11 @@ public:
                 smallVars.set(LVFONT_TAG_WDTH, computed_variations.wdth);
             if (computed_variations.opsz_set)
                 smallVars.set(LVFONT_TAG_OPSZ, computed_variations.opsz * 0.75f);
-            LVFontRef smallRef = GetFont(small_size, weight, italic,
+            // Downscaled glyphs lose apparent stroke thickness, so request a bit
+            // of extra weight on the small font to compensate.
+            int small_weight = weight + 100;
+            if (small_weight > 1000) small_weight = 1000;
+            LVFontRef smallRef = GetFont(small_size, small_weight, italic,
                                          face.css_family, face.typeface,
                                          features & ~(LFNT_OT_FEATURES_P_SMCP | LFNT_OT_FEATURES_P_C2SC),
                                          face.documentId, false, smallVars.empty() ? NULL : &smallVars);
