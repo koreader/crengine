@@ -254,6 +254,9 @@ These were bugs found during the refactor; verify they do not regress.
 | 16.16 | French accented lowercase in small-caps (&#xE9;, &#xE8;, &#xE7;, &#xE0;, &#xF4;, &#xEA;, &#xEB;, &#xEF;) | Each accented lowercase letter maps to its accented uppercase form (e.g. &#xE9;&#x2192;&#xC9;) before shrinking — not to the unaccented capital, and not left as lowercase |
 | 16.17 | French accented uppercase (&#xC9;) in all-small-caps | The accented capital is also shrunk to the small size, same as plain ASCII capitals |
 | 16.18 | C-cedilla (&#xE7;/&#xC7;) and oe-ligature (&#x153;/&#x152;) in small-caps | Both map and shrink correctly; no missing-glyph boxes |
+| 16.19 | Underlined justified text (narrow column, no small-caps) | Underline runs continuously through every inter-word justification gap, with no breaks, on a same-run word sequence |
+| 16.20 | Underlined justified text + synthesised small-caps | Underline still runs continuously through the expanded inter-word gaps; the gap before each word must not be left undecorated (regression check for `LVFontSmallCapsTransform::DrawTextString` ignoring the `text_decoration_back_gap` parameter) |
+| 16.21 | Enable "Word Expansion" in reader settings; view an underlined small-caps line (e.g. 16.10's comparison line) on a short/last line of a justified paragraph | Underline runs continuously through the extra inter-glyph spacing added within the word, including across a lowercase&#x2192;uppercase (small-font&#x2192;main-font) run boundary, not just between separate words |
 
 ---
 

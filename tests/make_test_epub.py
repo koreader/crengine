@@ -202,6 +202,11 @@ p    { margin: 0.2em 0; }
 .sc-underline { font-variant-caps: small-caps; text-decoration: underline; }
 .sc-overline  { font-variant-caps: small-caps; text-decoration: overline; }
 .sc-strike    { font-variant-caps: small-caps; text-decoration: line-through; }
+
+/* Justification: large side margins (rather than 'width', which book/page
+   rendering mode does not constrain the same way web rendering mode does)
+   narrow the available line box to force visible word-expansion gaps */
+.justify-narrow { text-align: justify; margin-left: 35%; margin-right: 35%; }
 """
 
 # Each chapter is plain XHTML
@@ -744,6 +749,16 @@ line-height centre, not at the shrunk glyphs' centre</p>
 <p class="sample serif sc-bold underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
 <p class="label">Underlined + italic small-caps</p>
 <p class="sample serif sc-italic underline">The Quick Brown Fox Jumps Over The Lazy Dog.</p>
+
+<h2>Small caps + text-decoration + justification (serif)</h2>
+<p class="label">Underlined, justified, no small-caps, for comparison &#x2014;
+narrow column forces visible word-expansion gaps; the underline must run
+continuously through every inter-word gap with no breaks</p>
+<p class="sample serif underline justify-narrow">The quick brown fox jumps over the lazy dog. A short justified paragraph to force word expansion gaps.</p>
+<p class="label">Underlined, justified, small-caps &#x2014; the underline must
+still run continuously through the expanded inter-word gaps, not stop and
+restart at each word</p>
+<p class="sample serif sc underline justify-narrow">The quick brown fox jumps over the lazy dog. A short justified paragraph to force word expansion gaps.</p>
 
 <h2>Expected behaviour</h2>
 <p>With <strong>native small-caps</strong> (font has the 'smcp' OpenType feature):

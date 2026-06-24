@@ -5142,8 +5142,9 @@ public:
     virtual int DrawTextString(LVDrawBuf* buf, int x, int y,
                                 const lChar32* text, int len, lChar32 def_char,
                                 lUInt32* palette, bool addHyphen, TextLangCfg* lc,
-                                lUInt32 flags, int ls, int width, int tbg,
-                                int tw, int th, SVGGlyphsCollector* svg) {
+                                lUInt32 flags, int letter_spacing, int width,
+                                int text_decoration_back_gap,
+                                int target_w, int target_h, SVGGlyphsCollector* svg) {
         int x0 = x;
         // Shift small-font glyphs down so their baseline aligns with the normal font's.
         int y_small = y + (_font->getBaseline() - _smallFont->getBaseline());
@@ -5161,34 +5162,45 @@ public:
                 x += f->DrawTextString(buf, x, f == _smallFont ? y_small : y,
                                        run.mapped + i, runLen, def_char,
                                        palette, runHasHyphen, lc, noDecFlags,
-                                       ls, -1, 0, -1, -1, svg);
+                                       letter_spacing, -1, 0, -1, -1, svg);
                 i = j;
             }
         }
-        if (flags & LFNT_DRAW_DECORATION_MASK) {
-            // Match LVFreeTypeFace::DrawTextString's formulas exactly (using the main
-            // font's real underline metrics, not a generic size-based approximation),
-            // so decorated small-caps text lines up with plain text on the same line.
-            // This is a deliberate duplicate (not shared via a helper) of the
-            // LFNT_DRAW_UNDERLINE/OVERLINE/LINE_THROUGH block in
-            // LVFreeTypeFace::DrawTextString() above (lvfntman.cpp:4759-4786):
-            // keep the two in sync if those formulas ever change.
+        // This is a deliberate duplicate (not shared via a helper) of the
+        // LFNT_DRAW_UNDERLINE/OVERLINE/LINE_THROUGH block in
+        // LVFreeTypeFace::DrawTextString() above (lvfntman.cpp:4759-4786):
+        // keep the two in sync if those formulas ever change.
+        int advance = x - x0;
+        if ( flags & LFNT_DRAW_DECORATION_MASK ) {
+            // text decoration: underline, etc.
+            // Don't overflow the provided width (which may be lower than our
+            // pen x if last glyph was a space not accounted in word width)
+            if ( width >= 0 && x > x0 + width)
+                x = x0 + width;
+            // And start the decoration before x0 if it is continued
+            // from previous word
+            x0 -= text_decoration_back_gap;
             int thickness = getUnderlineThickness();
             lUInt32 cl = buf->GetTextColor();
-            if (flags & LFNT_DRAW_UNDERLINE) {
+            if ( flags & LFNT_DRAW_UNDERLINE ) {
                 int liney = y + getBaseline() + getUnderlineOffset();
-                buf->FillRect(x0, liney, x, liney+thickness, cl);
+                buf->FillRect( x0, liney, x, liney+thickness, cl );
             }
-            if (flags & LFNT_DRAW_OVERLINE) {
+            if ( flags & LFNT_DRAW_OVERLINE ) {
+                // For now, we use the underline thickness as the offset from top, so
+                // to not be too high (should probably be computed from other metrics)
                 int liney = y + thickness;
-                buf->FillRect(x0, liney, x, liney+thickness, cl);
+                buf->FillRect( x0, liney, x, liney+thickness, cl );
+                // If we want to use this flag while developping for visually marking the start of words, use this instead:
+                // buf->FillRect( x0-getBaseline()/4, y, x0+getBaseline()/4, y+1, cl );
             }
-            if (flags & LFNT_DRAW_LINE_THROUGH) {
+            if ( flags & LFNT_DRAW_LINE_THROUGH ) {
+                // int liney = y + getBaseline() - getSize()/4 - h/2;
                 int liney = y + getBaseline() - getSize()*2/7;
-                buf->FillRect(x0, liney, x, liney+thickness, cl);
+                buf->FillRect( x0, liney, x, liney+thickness, cl );
             }
         }
-        return x - x0;
+        return advance;
     }
     virtual ~LVFontSmallCapsTransform() {}
 };
