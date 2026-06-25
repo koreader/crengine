@@ -664,6 +664,8 @@ public:
     virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
+    /// set fractional glyph positioning phase count
+    virtual void SetFractionalGlyphPositioning( int /*mode*/ ) { }
 
     /// get monospace size scale percent
     virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }

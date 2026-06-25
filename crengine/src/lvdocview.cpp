@@ -6896,6 +6896,10 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
                 fontMan->SetKerningMode((kerning_mode_t)mode);
                 REQUEST_RENDER("propsApply - font kerning")
             }
+        } else if (name == PROP_FONT_FRACTIONAL_POSITIONING) {
+            int mode = props->getIntDef(PROP_FONT_FRACTIONAL_POSITIONING, 0);
+            fontMan->SetFractionalGlyphPositioning(mode);
+            REQUEST_RENDER("propsApply - font fractional positioning")
         } else if (name == PROP_FONT_BASE_WEIGHT) {
             // replaces PROP_FONT_WEIGHT_EMBOLDEN
             int v = props->getIntDef(PROP_FONT_BASE_WEIGHT, 400);
