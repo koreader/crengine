@@ -224,6 +224,17 @@ static void destroy_SVGGlyphsCollector_svg_funcs() {
 // Uncomment to use the former >>6 (trunc) with no rounding (instead of previous one)
 // #define FONT_METRIC_TO_PX(x)    ((x) >> 6)
 
+static inline int FONT_METRIC_FLOOR_TO_PX(lInt32 x)
+{
+    return x >= 0 ? (x >> 6) : -(((-x) + 63) >> 6);
+}
+
+static inline int FONT_METRIC_FRAC_64(lInt32 x)
+{
+    int floor_px = FONT_METRIC_FLOOR_TO_PX(x);
+    return x - floor_px * 64;
+}
+
 #if COLOR_BACKBUFFER==0
 //#define USE_BITMAP_FONT
 #endif
@@ -249,6 +260,7 @@ LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
 static int gammaIndex = GAMMA_NO_CORRECTION_INDEX;
+static int fractionalGlyphPositioningMode = 0;
 
 /// returns first found face from passed list, or return face for font found by family only
 lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
@@ -3047,15 +3059,19 @@ public:
             int t_notdef_start = -1;
             int t_notdef_end = -1;
             bool max_width_reached = false; // set when reached while measuring with the fallback font
+            bool use_fractional_positioning = fractionalGlyphPositioningMode == 4;
+            lInt32 cur_width_64 = 0;
             for (int t = 0; t < len; t++) {
                 #ifdef DEBUG_MEASURE_TEXT
                     printf("MTHB t%d (=%x) ", t, text[t]);
                 #endif
                 // Grab all glyphs that do not belong to a cluster greater that our char position
+                bool cluster_has_advance = false;
                 while ( hg < glyph_count ) {
                     hcl = glyph_info[hg].cluster;
                     if (hcl <= t) {
                         int advance = 0;
+                        lInt32 advance_64 = 0;
                         if ( glyph_info[hg].codepoint != 0 ) { // Codepoint found in this font
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(found cp=%x) ", glyph_info[hg].codepoint);
@@ -3100,6 +3116,7 @@ public:
                                     // And fix our current width
                                     cur_width = widths[lastFitChar-1];
                                     prev_width = cur_width;
+                                    cur_width_64 = cur_width * 64;
                                     #ifdef DEBUG_MEASURE_TEXT
                                         printf("MTHB ### measured past failures > W= %d\n[...]", cur_width);
                                     #endif
@@ -3118,24 +3135,35 @@ public:
                                 // And go on with the found glyph now that we fixed what was before
                             }
                             // Glyph found in this font
-                            if ( glyph_pos[hg].x_advance )
-                                advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance + _synth_weight_strength);
+                            if ( glyph_pos[hg].x_advance ) {
+                                advance_64 = glyph_pos[hg].x_advance + _synth_weight_strength;
+                                advance = FONT_METRIC_TO_PX(advance_64);
+                            }
                         }
                         else {
                             #ifdef DEBUG_MEASURE_TEXT
                                 printf("(glyph not found) ");
                             #endif
                             // Keep the advance of .notdef/tofu in case there is no fallback font to correct them
-                            if ( glyph_pos[hg].x_advance )
-                                advance = FONT_METRIC_TO_PX(glyph_pos[hg].x_advance + _synth_weight_strength);
+                            if ( glyph_pos[hg].x_advance ) {
+                                advance_64 = glyph_pos[hg].x_advance + _synth_weight_strength;
+                                advance = FONT_METRIC_TO_PX(advance_64);
+                            }
                             if ( t_notdef_start < 0 ) {
                                 t_notdef_start = t;
                             }
                         }
+                        if ( use_fractional_positioning ) {
+                            cluster_has_advance = cluster_has_advance || advance_64 != 0;
+                            cur_width_64 += advance_64;
+                            cur_width = FONT_METRIC_TO_PX(cur_width_64);
+                        }
+                        else {
+                            cur_width += advance;
+                        }
                         #ifdef DEBUG_MEASURE_TEXT
-                            printf("c%d+%d ", hcl, advance);
+                            printf("c%d+%d ", hcl, use_fractional_positioning ? cur_width - prev_width : advance);
                         #endif
-                        cur_width += advance;
                         cur_cluster = hcl;
                         hg++;
                         continue; // keep grabbing glyphs
@@ -3157,13 +3185,19 @@ public:
                     // We're either a single char cluster, or the start
                     // of a multi chars cluster.
                     flags[t] = GET_CHAR_FLAGS(text[t]);
-                    if (cur_width == prev_width) {
+                    if ( use_fractional_positioning ? !cluster_has_advance : cur_width == prev_width ) {
                         // But if there is no advance (this happens with soft-hyphens),
                         // flag it and don't add any letter spacing.
                         flags[t] |= LCHAR_IS_CLUSTER_TAIL;
                     }
                     else {
-                        cur_width += letter_spacing; // only between clusters/graphemes
+                        if ( use_fractional_positioning ) {
+                            cur_width_64 += letter_spacing * 64; // only between clusters/graphemes
+                            cur_width = FONT_METRIC_TO_PX(cur_width_64);
+                        }
+                        else {
+                            cur_width += letter_spacing; // only between clusters/graphemes
+                        }
                     }
                     // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
                     // so HarfBuzz must already deal correctly with soft-hyphens.
@@ -3208,6 +3242,7 @@ public:
                     }
                     // And add all that to our current width
                     cur_width = widths[lastFitChar-1];
+                    cur_width_64 = cur_width * 64;
                     #ifdef DEBUG_MEASURE_TEXT
                         printf("MTHB ### measured past failures at EOT > W= %d\n[...]", cur_width);
                     #endif
@@ -3607,6 +3642,77 @@ public:
             }
 
             item = newItem(&_glyph_cache2, index, _slot);
+            if (item)
+                _glyph_cache2.put(item);
+        }
+        return item;
+    }
+
+    LVFontGlyphCacheItem * getGlyphByIndexSubpixel(lUInt32 index, int phase_64) {
+        if (_drawMonochrome || phase_64 <= 0)
+            return getGlyphByIndex(index);
+
+        // Cache one shifted bitmap for each non-zero quarter-pixel phase.
+        // Phase 0 uses the normal glyph cache entry; phases 1..3 are stored
+        // in the upper bits of the cache key to avoid changing the cache type.
+        int phase_step = phase_64 / 16;
+        if (phase_step <= 0)
+            return getGlyphByIndex(index);
+        if (phase_step > 3)
+            phase_step = 3;
+
+        lUInt32 cache_index = ((lUInt32)phase_step << 28) | (index & 0x0FFFFFFF);
+        LVFontGlyphCacheItem *item = _glyph_cache2.getByIndex(cache_index);
+        if (!item) {
+            int rend_flags = FT_LOAD_TARGET_LIGHT;
+            if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
+                rend_flags |= FT_LOAD_NO_AUTOHINT;
+            }
+            else if (_hintingMode == HINTING_MODE_AUTOHINT) {
+                rend_flags |= FT_LOAD_FORCE_AUTOHINT;
+            }
+            else if (_hintingMode == HINTING_MODE_DISABLED) {
+                rend_flags |= FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING;
+            }
+            if ( FT_HAS_COLOR(_face) && _hintingMode != HINTING_MODE_DISABLED )
+                rend_flags |= FT_LOAD_COLOR;
+
+            updateTransform();
+            int error = FT_Load_Glyph( _face, index, rend_flags );
+            if ( error == FT_Err_Execution_Too_Long && _hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR ) {
+                rend_flags |= FT_LOAD_NO_HINTING;
+                error = FT_Load_Glyph( _face, index, rend_flags );
+            }
+            if ( error )
+                return NULL;
+            if ( _slot->format != FT_GLYPH_FORMAT_OUTLINE )
+                return getGlyphByIndex(index);
+
+            bool is_embolden = false;
+            if (_synth_weight > 0) {
+                FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
+                FT_Outline_Translate(&_slot->outline, 0, -_synth_weight_half_strength);
+                is_embolden = true;
+            }
+            if (_italic==2) {
+                FT_GlyphSlot_Oblique(_slot);
+            }
+
+            FT_Outline_Translate(&_slot->outline, phase_step * 16, 0);
+            FT_Render_Glyph(_slot, FT_RENDER_MODE_LIGHT);
+
+            if (_synth_weight > 0 && is_embolden) {
+                if ( _slot->format == FT_GLYPH_FORMAT_OUTLINE ) {
+                    if ( _slot->metrics.horiAdvance > 0 ) {
+                        _slot->metrics.horiAdvance = (_slot->linearHoriAdvance >> 10) + _synth_weight_strength;
+                    }
+                    else {
+                        _slot->metrics.horiBearingX -= _synth_weight_strength;
+                    }
+                }
+            }
+
+            item = newItem(&_glyph_cache2, cache_index, _slot);
             if (item)
                 _glyph_cache2.put(item);
         }
@@ -4252,6 +4358,8 @@ public:
             int fb_t_start = 0;
             int fb_t_end = len;
             int hg = 0;  // index in glyph_info/glyph_pos
+            bool use_fractional_positioning = fractionalGlyphPositioningMode == 4;
+            lInt32 x_64 = x * 64;
             while (hg < glyph_count) { // hg is the start of a new cluster at this point
                 bool draw_with_fallback = false;
                 int hcl = glyph_info[hg].cluster;
@@ -4369,6 +4477,7 @@ public:
                        def_char, palette, fb_addHyphen, lang_cfg, fb_flags, letter_spacing,
                        width, text_decoration_back_gap, target_w, target_h, svg_collector );
                     x += fb_advance;
+                    x_64 = x * 64;
                     #ifdef DEBUG_DRAW_TEXT
                         printf("DTHB ### drawn past notdef > X+= %d\n[...]", fb_advance);
                     #endif
@@ -4379,6 +4488,7 @@ public:
                     #endif
                     // Draw glyphs of this same cluster
                     int prev_x = x;
+                    bool cluster_has_advance = false;
                     for (i = hg; i < hg2; i++) {
                         if ( svg_collector ) {
                             bool can_adjust_from_previous = (i == hg) && !isHBScriptCursive(hb_buffer_get_script(_hb_buffer));
@@ -4397,14 +4507,20 @@ public:
                                 int w = target_w / glyph_count;
                                 DrawStretchedGlyph(buf, glyph_info[i].codepoint, x, y, w, target_h, palette);
                                 x += w;
+                                x_64 = x * 64;
+                                cluster_has_advance = true;
                             }
                             else {
                                 // Regular drawing of glyph at the baseline
                                 int w;
+                                lInt32 w_64 = 0;
                                 if ( glyph_pos[i].x_advance )
-                                    w = FONT_METRIC_TO_PX(glyph_pos[i].x_advance + _synth_weight_strength);
+                                    w_64 = glyph_pos[i].x_advance + _synth_weight_strength;
+                                if ( glyph_pos[i].x_advance )
+                                    w = FONT_METRIC_TO_PX(w_64);
                                 else
                                     w = 0;
+                                cluster_has_advance = cluster_has_advance || w_64 != 0;
                                 #ifdef DEBUG_DRAW_TEXT
                                     printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
                                             item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
@@ -4466,11 +4582,33 @@ public:
                                     // gives x=x0+width, which is necessary to correctly draw any underline
                                     w = x0 + width - x;
                                 }
-                                drawGlyphItem(buf,
-                                          x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
-                                          y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
-                                          item, palette);
-                                x += w;
+                                if ( (flags & LFNT_HINT_CJK_ALTERED_WIDTH) || (flags & LFNT_HINT_CJK_SCALED_WIDTH) || !use_fractional_positioning ) {
+                                    drawGlyphItem(buf,
+                                              x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                              y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
+                                              item, palette);
+                                    x += w;
+                                    x_64 = x * 64;
+                                }
+                                else {
+                                    lInt32 draw_x_64 = x_64 + glyph_pos[i].x_offset;
+                                    int draw_x = FONT_METRIC_FLOOR_TO_PX(draw_x_64);
+                                    int phase_64 = FONT_METRIC_FRAC_64(draw_x_64);
+                                    int phase_step = (phase_64 + 8) / 16;
+                                    if (phase_step >= 4) {
+                                        phase_step = 0;
+                                        draw_x += 1;
+                                    }
+                                    LVFontGlyphCacheItem *draw_item = getGlyphByIndexSubpixel(glyph_info[i].codepoint, phase_step * 16);
+                                    if (!draw_item)
+                                        draw_item = item;
+                                    drawGlyphItem(buf,
+                                              draw_x + draw_item->origin_x,
+                                              y + _baseline - draw_item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
+                                              draw_item, palette);
+                                    x_64 += w_64;
+                                    x = FONT_METRIC_TO_PX(x_64);
+                                }
                             }
                         }
                         #ifdef DEBUG_DRAW_TEXT
@@ -4479,11 +4617,18 @@ public:
                         #endif
                     }
                     // Whole cluster drawn: add letter spacing
-                    if ( x > prev_x ) {
+                    if ( use_fractional_positioning ? cluster_has_advance : x > prev_x ) {
                         // But only if this cluster has some advance
                         // (e.g. a soft-hyphen makes its own cluster, that
                         // draws a space glyph, but with no advance)
-                        x += letter_spacing;
+                        if ( use_fractional_positioning ) {
+                            x_64 += letter_spacing * 64;
+                            x = FONT_METRIC_TO_PX(x_64);
+                        }
+                        else {
+                            x += letter_spacing;
+                            x_64 = x * 64;
+                        }
                     }
                 }
                 hg = hg2;
@@ -6432,6 +6577,17 @@ public:
         _instance_cache.forEachFont([mode](LVFontRef& f) {
             f->setKerningMode(mode);
         });
+    }
+
+    virtual void SetFractionalGlyphPositioning(int mode) {
+        mode = mode == 4 ? 4 : 0;
+        if (fractionalGlyphPositioningMode == mode)
+            return;
+        FONT_MAN_GUARD
+        fractionalGlyphPositioningMode = mode;
+        CRLog::debug("Fractional glyph positioning mode is changed: %d", mode);
+        gc();
+        clearGlyphCache();
     }
 
     /// set monospace size scale percent
