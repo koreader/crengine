@@ -217,8 +217,17 @@ enum kerning_mode_t {
     KERNING_MODE_DISABLED,
     KERNING_MODE_FREETYPE,
     KERNING_MODE_HARFBUZZ_LIGHT,
-    KERNING_MODE_HARFBUZZ
+    KERNING_MODE_HARFBUZZ,
+    KERNING_MODE_HARFBUZZ_FULL
 };
+
+inline bool isHarfBuzzShapingMode(kerning_mode_t mode) {
+    return mode == KERNING_MODE_HARFBUZZ || mode == KERNING_MODE_HARFBUZZ_FULL;
+}
+
+inline int getFractionalGlyphPositioningGranularity(kerning_mode_t mode) {
+    return mode == KERNING_MODE_HARFBUZZ_FULL ? 4 : 1;
+}
 
 
 // Hint flags for measuring and drawing (some used only with full Harfbuzz)
@@ -768,8 +777,6 @@ public:
     virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
-    /// set fractional glyph positioning granularity (1, 2, 4, 8, 16, 32 or 64 phases per pixel)
-    virtual void SetFractionalGlyphPositioning( int /*granularity*/ ) { }
 
     /// get monospace size scale percent
     virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }
