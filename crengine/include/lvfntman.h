@@ -768,8 +768,8 @@ public:
     virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
-    /// set fractional glyph positioning phase count
-    virtual void SetFractionalGlyphPositioning( int /*mode*/ ) { }
+    /// set fractional glyph positioning granularity (1, 2, 4, 8, 16, 32 or 64 phases per pixel)
+    virtual void SetFractionalGlyphPositioning( int /*granularity*/ ) { }
 
     /// get monospace size scale percent
     virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }
