@@ -260,6 +260,28 @@ LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
 static int gammaIndex = GAMMA_NO_CORRECTION_INDEX;
+// Tunable by PROP_FONT_FRACTIONAL_POSITIONING, but only used by
+// KERNING_MODE_HARFBUZZ_FULL. Other kerning modes force effective granularity 1.
+static int fractionalGlyphPositioningGranularity = 4;
+
+static int normalizeFractionalGlyphPositioningGranularity(int granularity) {
+    switch (granularity) {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+        return granularity;
+    default:
+        return 4;
+    }
+}
+
+static int getFractionalGlyphPositioningGranularity(kerning_mode_t mode) {
+    return mode == KERNING_MODE_HARFBUZZ_FULL ? fractionalGlyphPositioningGranularity : 1;
+}
 
 /// returns first found face from passed list, or return face for font found by family only
 lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
@@ -6609,6 +6631,17 @@ public:
         _instance_cache.forEachFont([mode](LVFontRef& f) {
             f->setKerningMode(mode);
         });
+    }
+
+    virtual void SetFractionalGlyphPositioning(int granularity) {
+        granularity = normalizeFractionalGlyphPositioningGranularity(granularity);
+        if (fractionalGlyphPositioningGranularity == granularity)
+            return;
+        FONT_MAN_GUARD
+        fractionalGlyphPositioningGranularity = granularity;
+        CRLog::debug("Fractional glyph positioning granularity is %d", granularity);
+        gc();
+        clearGlyphCache();
     }
 
     /// set monospace size scale percent
