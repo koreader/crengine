@@ -4611,13 +4611,22 @@ public:
                                     // gives x=x0+width, which is necessary to correctly draw any underline
                                     w = x0 + width - x;
                                 }
-                                // Keep the original integer path for CJK width tweaks.
-                                // These paths adjust x and w using final pixel widths so that
-                                // punctuation anchoring, scaling and underlines stay aligned.
-                                // They are the CJK width-changing flags set by lvtextfm.cpp
-                                // before DrawTextString(), from LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK
-                                // and cjk_width_scale_percent. LFNT_HINT_TRANSFORM_STRETCH is
-                                // another width-changing draw flag, handled by transform_stretch above.
+                                // lvtextfm.cpp sets these flags when it has already width-adjusted
+                                // a CJK glyph cell: LTEXT_WORD_IS_FLEXIBLE_WIDTH_CJK may compress
+                                // punctuation for line fitting, and cjk_width_scale_percent may
+                                // enlarge CJK cells. At this point, the glyph is expected to fit
+                                // at a specific position inside that adjusted integer-pixel cell.
+                                //
+                                // For normal glyphs, x/w are just the integer-pixel form of the
+                                // HarfBuzz position/advance. With these flags, the CJK code above
+                                // rewrites x/w to mean the manually adjusted final cell geometry:
+                                // x is where this adjusted glyph should be drawn, and w is the
+                                // remaining width needed to land on the adjusted cell boundary.
+                                // The normal fractional path would ignore that adjusted w and
+                                // advance from the original HarfBuzz w_64 instead, which can put
+                                // glyph placement, advance and decoration extents out of sync with
+                                // the adjusted CJK cell. LFNT_HINT_TRANSFORM_STRETCH is another
+                                // width-changing draw flag, handled by transform_stretch above.
                                 if ( (flags & LFNT_HINT_CJK_ALTERED_WIDTH) || (flags & LFNT_HINT_CJK_SCALED_WIDTH) || !use_fractional_positioning ) {
                                     drawGlyphItem(buf,
                                               x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
