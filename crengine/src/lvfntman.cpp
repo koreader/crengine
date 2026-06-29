@@ -4633,8 +4633,7 @@ public:
                                 // The normal fractional path would ignore that adjusted w and
                                 // advance from the original HarfBuzz w_64 instead, which can put
                                 // glyph placement, advance and decoration extents out of sync with
-                                // the adjusted CJK cell. LFNT_HINT_TRANSFORM_STRETCH is another
-                                // width-changing draw flag, handled by transform_stretch above.
+                                // the adjusted CJK cell.
                                 if ( (flags & LFNT_HINT_CJK_ALTERED_WIDTH) || (flags & LFNT_HINT_CJK_SCALED_WIDTH) || !use_fractional_positioning ) {
                                     drawGlyphItem(buf,
                                               x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
