@@ -7,6 +7,7 @@
 #define PROP_FONT_ANTIALIASING       "font.antialiasing.mode"
 #define PROP_FONT_HINTING            "font.hinting.mode"
 #define PROP_FONT_KERNING            "font.kerning.mode"
+#define PROP_FONT_FRACTIONAL_POSITIONING "font.fractional.positioning"
 #define PROP_FONT_COLOR              "font.color.default"
 #define PROP_FONT_FACE               "font.face.default"
 #define PROP_FONT_BASE_WEIGHT        "font.face.base.weight"        // replaces PROP_FONT_WEIGHT_EMBOLDEN ("font.face.weight.embolden")
