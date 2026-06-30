@@ -260,28 +260,7 @@ LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
 static int gammaIndex = GAMMA_NO_CORRECTION_INDEX;
-// Tunable by PROP_FONT_FRACTIONAL_POSITIONING, but only used by
-// KERNING_MODE_HARFBUZZ_FULL. Other kerning modes force effective granularity 1.
-static int fractionalGlyphPositioningGranularity = 4;
-
-static int normalizeFractionalGlyphPositioningGranularity(int granularity) {
-    switch (granularity) {
-    case 1:
-    case 2:
-    case 4:
-    case 8:
-    case 16:
-    case 32:
-    case 64:
-        return granularity;
-    default:
-        return 4;
-    }
-}
-
-static int getFractionalGlyphPositioningGranularity(kerning_mode_t mode) {
-    return mode == KERNING_MODE_HARFBUZZ_FULL ? fractionalGlyphPositioningGranularity : 1;
-}
+static int fractionalGlyphPositioningGranularity = 1;
 
 /// returns first found face from passed list, or return face for font found by family only
 lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
@@ -1706,7 +1685,7 @@ public:
     virtual LVFontRef getDecimalListItemFont() {
         if ( !_DecimalListItemFont.isNull() )
             return _DecimalListItemFont;
-        if ( isHarfBuzzShapingMode(_kerningMode) && !(getFeatures() & LFNT_OT_FEATURES_P_TNUM) ) {
+        if ( _kerningMode == KERNING_MODE_HARFBUZZ && !(getFeatures() & LFNT_OT_FEATURES_P_TNUM) ) {
             // We can request the same font with OpenType feature "tabular nums", for fixed width
             // digits and better alignment of decimal list items (no need to do it if this feature
             // has already been enabled for this font). If the font does not support the feature,
@@ -1901,7 +1880,7 @@ public:
     }
     void setupHBFeatures() {
         _hb_features.clear();
-        if ( isHarfBuzzShapingMode(_kerningMode) ) {
+        if ( _kerningMode == KERNING_MODE_HARFBUZZ ) {
             // We reserve 2 for those we're adding now, +2 for possibly added CSS font features
             // (otherwise, LVArray would expand from 2 to 11 on the next addition - it will
             // then expand from 4 to 14 on the 3rd added CSS font feature).
@@ -2644,7 +2623,7 @@ public:
         svg_collector->_advance_y = svg_collector->_advance_y * scale;
 
         #if USE_HARFBUZZ==1
-            if (isHarfBuzzShapingMode(_kerningMode) && code_is_glyph_index ) {
+            if (_kerningMode == KERNING_MODE_HARFBUZZ && code_is_glyph_index ) {
                 // With kerning mode harfbuzz, we get called with the fallback font and the glyph
                 // index in that font. No need to check if it is present or iterate fallback fonts.
                 // We can use hb_font_draw_glyph() which will make a smoother shape than
@@ -2903,7 +2882,7 @@ public:
         // measure character widths
 
     #if USE_HARFBUZZ==1
-        if (isHarfBuzzShapingMode(_kerningMode)) {
+        if (_kerningMode == KERNING_MODE_HARFBUZZ) {
 
             /** from harfbuzz/src/hb-buffer.h
              * hb_glyph_info_t:
@@ -3080,7 +3059,7 @@ public:
             int t_notdef_start = -1;
             int t_notdef_end = -1;
             bool max_width_reached = false; // set when reached while measuring with the fallback font
-            int fractional_positioning_granularity = getFractionalGlyphPositioningGranularity(_kerningMode);
+            int fractional_positioning_granularity = fractionalGlyphPositioningGranularity;
             bool use_fractional_positioning = fractional_positioning_granularity > 1;
             lInt32 cur_width_64 = 0;
             for (int t = 0; t < len; t++) {
@@ -3290,7 +3269,7 @@ public:
                     printf("%d:%d ", t, widths[t] - (t>0?widths[t-1]:0));
                 printf("\n");
             #endif
-        } // isHarfBuzzShapingMode(_kerningMode)
+        } // _kerningMode == KERNING_MODE_HARFBUZZ
 
         else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
             struct LVCharTriplet triplet;
@@ -4237,7 +4216,7 @@ public:
     virtual bool kerningEnabled() {
         #if (ALLOW_KERNING==1)
             #if USE_HARFBUZZ==1
-                return isHarfBuzzShapingMode(_kerningMode)
+                return _kerningMode == KERNING_MODE_HARFBUZZ
                     || (_kerningMode == KERNING_MODE_FREETYPE && FT_HAS_KERNING( _face ));
             #else
                 return _kerningMode != KERNING_MODE_DISABLED && FT_HAS_KERNING( _face );
@@ -4283,7 +4262,7 @@ public:
         int x0 = x;
 
     #if USE_HARFBUZZ==1
-        if (isHarfBuzzShapingMode(_kerningMode)) {
+        if (_kerningMode == KERNING_MODE_HARFBUZZ) {
             // See measureText() for more comments on how to work with Harfbuzz,
             // as we do and must work the same way here.
             int glyph_count;
@@ -4391,7 +4370,7 @@ public:
             int fb_t_start = 0;
             int fb_t_end = len;
             int hg = 0;  // index in glyph_info/glyph_pos
-            int fractional_positioning_granularity = getFractionalGlyphPositioningGranularity(_kerningMode);
+            int fractional_positioning_granularity = fractionalGlyphPositioningGranularity;
             bool use_fractional_positioning = fractional_positioning_granularity > 1;
             lInt32 x_64 = x * 64;
             while (hg < glyph_count) { // hg is the start of a new cluster at this point
@@ -4708,7 +4687,7 @@ public:
                 }
             }
 
-        } // isHarfBuzzShapingMode(_kerningMode)
+        } // _kerningMode == KERNING_MODE_HARFBUZZ
         else if (_kerningMode == KERNING_MODE_HARFBUZZ_LIGHT) {
             struct LVCharTriplet triplet;
             struct LVCharPosInfo posInfo;
@@ -6633,7 +6612,19 @@ public:
     }
 
     virtual void SetFractionalGlyphPositioning(int granularity) {
-        granularity = normalizeFractionalGlyphPositioningGranularity(granularity);
+        switch (granularity) {
+        case 1:
+        case 2:
+        case 4:
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+            break;
+        default:
+            granularity = 1;
+            break;
+        }
         if (fractionalGlyphPositioningGranularity == granularity)
             return;
         FONT_MAN_GUARD

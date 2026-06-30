@@ -6681,8 +6681,8 @@ void LVDocView::propsUpdateDefaults(CRPropRef props) {
 #endif
 	static int int_option_hinting[] = { 0, 1, 2 };
 	props->limitValueList(PROP_FONT_HINTING, int_option_hinting, 3);
-	static int int_option_kerning[] = { 0, 1, 2, 3, 4 };
-	props->limitValueList(PROP_FONT_KERNING, int_option_kerning, 5);
+	static int int_option_kerning[] = { 0, 1, 2, 3 };
+	props->limitValueList(PROP_FONT_KERNING, int_option_kerning, 4);
     static int int_options_1_2[] = { 2, 1 };
 	props->limitValueList(PROP_LANDSCAPE_PAGES, int_options_1_2, 2);
 	props->limitValueList(PROP_PAGES_TWO_VISIBLE_AS_ONE_PAGE_NUMBER, bool_options_def_false, 2);
@@ -6891,13 +6891,13 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         //     REQUEST_RENDER("propsApply - kerning")
         } else if (name == PROP_FONT_KERNING) {
             int mode = props->getIntDef(PROP_FONT_KERNING, (int)KERNING_MODE_DISABLED);
-            if ((int)fontMan->GetKerningMode() != mode && mode>=0 && mode<=(int)KERNING_MODE_HARFBUZZ_FULL) {
+            if ((int)fontMan->GetKerningMode() != mode && mode>=0 && mode<=(int)KERNING_MODE_HARFBUZZ) {
                 //CRLog::debug("Setting kerning mode to %d", mode);
                 fontMan->SetKerningMode((kerning_mode_t)mode);
                 REQUEST_RENDER("propsApply - font kerning")
             }
         } else if (name == PROP_FONT_FRACTIONAL_POSITIONING) {
-            int granularity = props->getIntDef(PROP_FONT_FRACTIONAL_POSITIONING, 4);
+            int granularity = props->getIntDef(PROP_FONT_FRACTIONAL_POSITIONING, 1);
             fontMan->SetFractionalGlyphPositioning(granularity);
             REQUEST_RENDER("propsApply - font fractional positioning")
         } else if (name == PROP_FONT_BASE_WEIGHT) {

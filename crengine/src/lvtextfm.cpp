@@ -2020,7 +2020,7 @@ public:
             FriBidiLevel newBidiLevel;
         #endif
         #if (USE_HARFBUZZ==1)
-            bool usingHarfbuzz = isHarfBuzzShapingMode(m_kerning_mode);
+            bool usingHarfbuzz = m_kerning_mode == KERNING_MODE_HARFBUZZ;
             // Unicode script change (note: hb_script_t is uint32_t)
             lUInt32 prevScript = HB_SCRIPT_COMMON;
             hb_unicode_funcs_t* _hb_unicode_funcs = hb_unicode_funcs_get_default();
@@ -4186,7 +4186,7 @@ public:
                         // If not using Harfbuzz, procede to mirror parens & al (don't
                         // do that if Harfbuzz is used, as it does that by itself, and
                         // would mirror back our mirrored chars!)
-                        if ( !isHarfBuzzShapingMode(m_kerning_mode) ) {
+                        if ( m_kerning_mode != KERNING_MODE_HARFBUZZ ) {
                             lChar32 * str = (lChar32*)(srcline->t.text + word->t.start);
                             FriBidiChar mirror;
                             for (int i=0; i < word->t.len; i++) {

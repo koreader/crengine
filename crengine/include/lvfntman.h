@@ -217,13 +217,8 @@ enum kerning_mode_t {
     KERNING_MODE_DISABLED,
     KERNING_MODE_FREETYPE,
     KERNING_MODE_HARFBUZZ_LIGHT,
-    KERNING_MODE_HARFBUZZ,
-    KERNING_MODE_HARFBUZZ_FULL
+    KERNING_MODE_HARFBUZZ
 };
-
-inline bool isHarfBuzzShapingMode(kerning_mode_t mode) {
-    return mode == KERNING_MODE_HARFBUZZ || mode == KERNING_MODE_HARFBUZZ_FULL;
-}
 
 
 // Hint flags for measuring and drawing (some used only with full Harfbuzz)
