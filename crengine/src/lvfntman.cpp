@@ -6730,18 +6730,27 @@ public:
         _instance_cache.gc();
     }
 
-    /// returns available typefaces
+    /// returns available typefaces (global fonts only - excludes document-embedded fonts)
     virtual void getFaceList( lString32Collection & list )
     {
         FONT_MAN_GUARD
         list.clear();
         for (int i = 0; i < _registry.familyCount(); i++) {
             const LVFontFamily* f = _registry.familyAt(i);
-            // faceAt(0).typeface holds the original-case display name;
-            // getName() is the lowercase lookup key and must not be used for display.
+            // A family can hold a mix of global and document-scoped faces when
+            // a document font shares its typeface name with a global one, so
+            // find the first global face rather than assuming faceAt(0) is global.
             assert(f->faceCount() > 0); // registerFace() always adds a face; removeFonts() prunes empties
-            lString32 name = Utf8ToUnicode(f->faceAt(0).typeface);
-            list.add(name);
+            for (int j = 0; j < f->faceCount(); j++) {
+                const LVFontFace& face = f->faceAt(j);
+                if (face.documentId != -1)
+                    continue;
+                // typeface holds the original-case display name;
+                // getName() is the lowercase lookup key, not used for display.
+                lString32 name = Utf8ToUnicode(face.typeface);
+                list.add(name);
+                break;
+            }
         }
         list.sort();
     }
