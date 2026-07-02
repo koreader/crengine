@@ -6746,7 +6746,7 @@ public:
                 if (face.documentId != -1)
                     continue;
                 // typeface holds the original-case display name;
-                // getName() is the lowercase lookup key and must not be used for display.
+                // getName() is the lowercase lookup key, not used for display.
                 lString32 name = Utf8ToUnicode(face.typeface);
                 list.add(name);
                 break;
