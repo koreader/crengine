@@ -4406,6 +4406,82 @@ void LVDocView::createDefaultDocument(lString32 title, lString32 message) {
     REQUEST_RENDER("resize")
 }
 
+/// load EPUB document from container
+bool LVDocView::LoadEpubDocument(LVContainerRef container, const lChar32 * fname, bool metadataOnly) {
+	if (container.isNull())
+		return false;
+
+	Clear();
+
+	lString32 filename32(fname ? fname : U"");
+	m_filename = filename32;
+	m_doc_props->setString(DOC_PROP_FILE_NAME, filename32);
+
+	m_swapDone = false;
+
+	setRenderProps(0, 0); // to allow apply styles and rend method while loading
+
+	if (m_callback) {
+		m_callback->OnLoadFileStart(filename32);
+	}
+	LVLock lock(getMutex());
+
+	clearImageCache();
+	lvsize_t containerSize = 0;
+	if (container->GetSize(&containerSize) == LVERR_OK) {
+		m_filesize = containerSize;
+		m_doc_props->setString(DOC_PROP_FILE_SIZE, lString32::itoa((int)containerSize));
+	}
+	m_stream.Clear();
+
+#if (USE_ZLIB==1)
+	if ( DetectEpubFormat( container ) ) {
+		CRLog::info("EPUB format detected");
+		createEmptyDocument();
+		m_doc->setProps( m_doc_props );
+		setRenderProps( 0, 0 ); // to allow apply styles and rend method while loading
+		setDocFormat( doc_format_epub );
+		if ( m_callback )
+			m_callback->OnLoadFileFormatDetected(doc_format_epub);
+		updateDocStyleSheet();
+		// See epubfmt.cpp's ExtractCoverFilenameFromCoverPageFragment()
+		// for why we need to pass fb2_elem_table and such.
+		bool res = ImportEpubDocument( container, m_doc, m_callback, this, metadataOnly, fb2_elem_table, fb2_attr_table, fb2_ns_table );
+		if ( !res ) {
+			setDocFormat( doc_format_none );
+			createDefaultDocument( cs32("ERROR: Error reading EPUB format"), cs32("Cannot open document") );
+			if ( m_callback ) {
+				m_callback->OnLoadFileError( cs32("Error reading EPUB document") );
+			}
+			return false;
+		} else {
+			m_container = m_doc->getContainer();
+			m_doc_props = m_doc->getProps();
+			setRenderProps( 0, 0 );
+			REQUEST_RENDER("loadDocument")
+			if ( m_callback ) {
+				m_callback->OnLoadFileEnd( );
+				//m_doc->compact();
+				m_doc->dumpStatistics();
+			}
+			m_arc = m_doc->getContainer();
+
+#ifdef SAVE_COPY_OF_LOADED_DOCUMENT //def _DEBUG
+			LVStreamRef ostream = LVOpenFileStream( "test_save_source.xml", LVOM_WRITE );
+			m_doc->saveToStream( ostream, "utf-16" );
+#endif
+
+			return true;
+		}
+	}
+#endif
+
+	if ( m_callback ) {
+		m_callback->OnLoadFileError( cs32("Error reading EPUB document") );
+	}
+	return false;
+}
+
 /// load document from stream
 bool LVDocView::LoadDocument(LVStreamRef stream, bool metadataOnly) {
 
