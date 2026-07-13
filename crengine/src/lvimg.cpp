@@ -2869,7 +2869,7 @@ public:
             free( _grayImage );
         if ( _colorImage )
             free( _colorImage );
-        if ( _colorImage )
+        if ( _colorImage16 )
             free( _colorImage16 );
     }
 };
