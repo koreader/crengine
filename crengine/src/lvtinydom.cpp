@@ -17600,9 +17600,9 @@ void ldomDocumentWriterFilter::OnText( const lChar32 * text, int len, lUInt32 fl
             bool isHr = false;
             if ( autoPara ) {
                 while ( (*text==' ' || *text=='\t' || *text==160) && len > 0 ) {
+                    leftSpace += (*text == '\t') ? 8 : 1;
                     text++;
                     len--;
-                    leftSpace += (*text == '\t') ? 8 : 1;
                 }
                 paraTag = leftSpace > 8 ? U"h2" : U"p";
                 lChar32 ch = 0;
@@ -20114,7 +20114,7 @@ lString8 ldomNode::getText8( lChar8 blockDelimiter, int maxSize ) const
                 if (i >= getChildCount() - 1)
                     break;
                 if ( blockDelimiter && child->isElement() ) {
-                    if ( child->getStyle()->display == css_d_block )
+                    if ( !child->getStyle().isNull() && child->getStyle()->display == css_d_block )
                         txt << blockDelimiter;
                 }
             }
