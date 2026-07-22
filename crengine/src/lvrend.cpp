@@ -1328,7 +1328,7 @@ public:
                 table_paddings_width = 0;
                 if ( !border_collapse ) { // padding were not applied when border-collapse
                     table_paddings_width += lengthToPx(elem, table_style->padding[0], table_width);
-                    table_paddings_width += lengthToPx(elem, table_style->padding[0], table_width);
+                    table_paddings_width += lengthToPx(elem, table_style->padding[1], table_width);
                 }
                 assignable_width = table_width - table_outer_borders_width - table_paddings_width - table_borderspacings_width;
                 restw = assignable_width - min_needed_width;
