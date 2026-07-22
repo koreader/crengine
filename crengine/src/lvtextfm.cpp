@@ -5912,7 +5912,7 @@ static void freeFrmLines( formatted_text_fragment_t * m_pbuffer )
         while ( (pair = it.next()) ) {
             delete pair->value;
         }
-        free( m_pbuffer->inlineboxes_links );
+        delete m_pbuffer->inlineboxes_links;
     }
     m_pbuffer->inlineboxes_links = NULL;
 }
