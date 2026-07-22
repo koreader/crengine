@@ -196,8 +196,8 @@ lChar32 LVTextFileBase::ReadRtfChar( int, const lChar32 * conv_table )
     if ( ch=='\\' && ch2!='\'' ) {
     } else if (ch=='\\' ) {
         m_buf_pos++;
-        int digit1 = charToHex( m_buf[0] );
-        int digit2 = charToHex( m_buf[1] );
+        int digit1 = charToHex( m_buf[m_buf_pos] );
+        int digit2 = charToHex( m_buf[m_buf_pos+1] );
         m_buf_pos+=2;
         if ( digit1>=0 && digit2>=0 ) {
             ch = ( (lChar8)((digit1 << 4) | digit2) );
