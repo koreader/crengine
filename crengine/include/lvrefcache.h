@@ -325,7 +325,9 @@ public:
 
     /// from index array
     LVIndexedRefCache( LVArray<ref_t> &list )
-    : index(NULL)
+    : size(0)
+    , table(NULL)
+    , index(NULL)
     , indexsize(0)
     , nextindex(0)
     , freeindex(0)
