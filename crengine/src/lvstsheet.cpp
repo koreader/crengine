@@ -1749,12 +1749,12 @@ void update_style_content_property( css_style_rec_t * style, ldomNode * node ) {
     while ( i < parsed_content_len ) {
         lChar32 ctype = parsed_content[i];
         if ( ctype == 's' ) { // literal string: copy as-is
-            lChar32 len = parsed_content[i] - 1; // (remove added +1)
+            lChar32 len = parsed_content[i+1] - 1; // (remove added +1)
             res.append(parsed_content, i, len+2);
             i += len+2;
         }
         else if ( ctype == 'a' ) { // attribute value: copy as-is
-            lChar32 len = parsed_content[i] - 1; // (remove added +1)
+            lChar32 len = parsed_content[i+1] - 1; // (remove added +1)
             res.append(parsed_content, i, len+2);
             i += len+2;
         }
