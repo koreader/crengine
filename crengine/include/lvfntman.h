@@ -15,6 +15,7 @@
 #ifndef __LV_FNT_MAN_H_INCLUDED__
 #define __LV_FNT_MAN_H_INCLUDED__
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <math.h>
 #include "crsetup.h"
