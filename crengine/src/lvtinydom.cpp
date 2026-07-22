@@ -20114,7 +20114,7 @@ lString8 ldomNode::getText8( lChar8 blockDelimiter, int maxSize ) const
                 if (i >= getChildCount() - 1)
                     break;
                 if ( blockDelimiter && child->isElement() ) {
-                    if ( child->getStyle()->display == css_d_block )
+                    if ( !child->getStyle().isNull() && child->getStyle()->display == css_d_block )
                         txt << blockDelimiter;
                 }
             }
