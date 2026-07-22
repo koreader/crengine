@@ -62,9 +62,7 @@
 #include <stdio.h>
 #endif
 
-#if __sun || __sgi
 #include <strings.h>
-#endif
 
 #ifdef WIN32
 #include <windows.h>
