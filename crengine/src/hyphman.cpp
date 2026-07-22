@@ -1255,6 +1255,8 @@ lUInt8 UserHyphDict::addEntry(const char *word, const char* hyphenation)
 
     // generate mask
     masks[words_in_memory] = (char*) malloc((word_len+1) * sizeof(char)); // +1 for termination
+    if (masks[words_in_memory] == NULL)
+        return USER_HYPH_DICT_MALFORMED;
 
     size_t hyphenation_pos = 1;
     size_t i = hyphenation_pos;
@@ -1316,6 +1318,8 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
 
     // buffer to hold user hyphenation file
     char *buf = (char*) malloc(filesize * sizeof(char));
+    if (buf == NULL)
+        return USER_HYPH_DICT_ERROR_NOT_SORTED;
 
     lvsize_t count = 0;
     instream->Read(buf, filesize, &count);
