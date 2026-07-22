@@ -1372,7 +1372,7 @@ lUInt8 UserHyphDict::init(lString32 filename, bool reload)
             printf("CRE WARNING: UserHyphDict dictionary word too long: '%s'\n", word);
 
         for ( i = 0; i<HYPHENATION_LENGTH-1; ++i ) { // -1 because of tailling NULL
-            if ( buf[i] == '\r' &&  i+1<filesize && buf[i+1] == '\n' ) {
+            if ( buf[pos] == '\r' &&  pos+1<filesize && buf[pos+1] == '\n' ) {
                 pos += 2;
                 break;
             }
