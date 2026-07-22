@@ -12,12 +12,13 @@
 *******************************************************/
 
 #include "../include/lvstring.h"
-#include <stdlib.h>
 #include <assert.h>
-#include <string.h>
-#include <stdio.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #ifdef LINUX
 #include <sys/time.h>
