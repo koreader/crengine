@@ -41,15 +41,7 @@
 #include "../include/textlang.h"
 
 
-#ifdef ANDROID
-
 #define _32(x) lString32(x)
-
-#else
-
-#include "../include/cri18n.h"
-
-#endif
 
 int HyphMan::_LeftHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
 int HyphMan::_RightHyphenMin = HYPH_DEFAULT_HYPHEN_MIN;
