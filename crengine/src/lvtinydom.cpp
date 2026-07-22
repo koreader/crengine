@@ -17600,9 +17600,9 @@ void ldomDocumentWriterFilter::OnText( const lChar32 * text, int len, lUInt32 fl
             bool isHr = false;
             if ( autoPara ) {
                 while ( (*text==' ' || *text=='\t' || *text==160) && len > 0 ) {
+                    leftSpace += (*text == '\t') ? 8 : 1;
                     text++;
                     len--;
-                    leftSpace += (*text == '\t') ? 8 : 1;
                 }
                 paraTag = leftSpace > 8 ? U"h2" : U"p";
                 lChar32 ch = 0;
