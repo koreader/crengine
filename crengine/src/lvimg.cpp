@@ -446,7 +446,7 @@ static void cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
     src->stream = stream;
     src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
     src->pub.next_input_byte = NULL; /* until buffer loaded */
-}
+} // cppcheck-suppress memleak; about src.buffer
 
 static void cr_jpeg_src_free (j_decompress_ptr cinfo)
 {
