@@ -366,16 +366,17 @@ public:
     Separate counter object is used, so no counter support is required for T.
     \param T class of stored object
 */
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDelete)
 template <class T> class LVRef
 {
 private:
     ref_count_rec_t * _ptr;
     //========================================
-    ref_count_rec_t * AddRef() const { ++_ptr->_refcount; return _ptr; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
+    ref_count_rec_t * AddRef() const { ++_ptr->_refcount; return _ptr; }
     //========================================
     void Release()
     { 
-        if (--_ptr->_refcount == 0) // NOLINT(clang-analyzer-cplusplus.NewDelete)
+        if (--_ptr->_refcount == 0)
         {
             if (_ptr != &ref_count_rec_t::null_ref)
             {
@@ -467,7 +468,7 @@ public:
         }
         else
         {
-            if (_ptr->_obj!=obj) // NOLINT(clang-analyzer-cplusplus.NewDelete)
+            if (_ptr->_obj!=obj)
             {
                 Release();
                 _ptr = new ref_count_rec_t(obj);
@@ -480,7 +481,7 @@ public:
     /** Imitates usual pointer behavior. 
         Usual way to access object fields. 
     */
-    T * operator -> () const { return reinterpret_cast<T*>(_ptr->_obj); } // NOLINT(clang-analyzer-cplusplus.NewDelete)
+    T * operator -> () const { return reinterpret_cast<T*>(_ptr->_obj); }
 
     /// Dereferences pointer to object.
     /** Imitates usual pointer behavior. */
@@ -501,14 +502,15 @@ public:
     /// Checks whether pointer is NULL or not.
     /** \return true if pointer is NULL.
         \sa isNull() */
-    bool operator ! () const { return !_ptr->_obj; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
+    bool operator ! () const { return !_ptr->_obj; }
 
     /// Checks whether pointer is NULL or not.
     /** \return true if pointer is NULL. 
         \sa operator !()
     */
-    bool isNull() const { return _ptr->_obj == NULL; } // NOLINT(clang-analyzer-cplusplus.NewDelete)
+    bool isNull() const { return _ptr->_obj == NULL; }
 };
+// NOLINTEND(clang-analyzer-cplusplus.NewDelete)
 
 template <typename T >
 class LVRefVec
