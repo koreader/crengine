@@ -102,7 +102,7 @@ public:
     /// sets item by index (extends vector if necessary)
     void set( int index, T item )
     {
-        reserve( index );
+        reserve( index + 1 );
         _array[index] = item;
     }
     /// returns size of buffer
