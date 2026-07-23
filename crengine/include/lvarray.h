@@ -133,8 +133,7 @@ public:
     void trim( int pos, int count, int reserved )
     {
 #if defined(_DEBUG) && !defined(ANDROID)
-        if ( pos<0 || count<=0 || pos+count > _count )
-            throw;
+        assert(pos >= 0 && count > 0 && pos + count <= _count);
 #endif
         int i;
         int new_sz = count;
@@ -157,8 +156,7 @@ public:
     void erase( int pos, int count )
     {
 #if defined(_DEBUG) && !defined(ANDROID)
-        if ( pos<0 || count<=0 || pos+count > _count )
-            throw;
+        assert(pos >= 0 && count > 0 && pos + count <= _count);
 #endif
         int i;
         for (i=pos+count; i<_count; i++)
