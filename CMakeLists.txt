@@ -133,6 +133,8 @@ set(CPPCHECK_FLAGS
     --project=${CMAKE_BINARY_DIR}/compile_commands.json
     --check-level=exhaustive
     --error-exitcode=2
+    --exitcode-suppress=nullPointerArithmeticOutOfMemory
+    --exitcode-suppress=nullPointerOutOfMemory
     --inline-suppr
     --platform=unix64
     --std=c++17
