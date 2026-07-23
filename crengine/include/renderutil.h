@@ -8,6 +8,8 @@
 #ifndef __RENDERUTIL_H_INCLUDED__
 #define __RENDERUTIL_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtinydom.h"
 
 struct InitialLetterInlineBoxMetrics

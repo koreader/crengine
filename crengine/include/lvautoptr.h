@@ -1,6 +1,8 @@
 #ifndef LVAUTOPTR_H
 #define LVAUTOPTR_H
 
+#include "crsetup.h"
+
 /// auto pointer
 template <class T >
 class LVAutoPtr {

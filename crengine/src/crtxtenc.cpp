@@ -11,6 +11,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/crtxtenc.h"
 #include "../include/lvstring.h"
 #include "../include/cp_stats.h"

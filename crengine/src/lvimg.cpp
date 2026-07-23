@@ -12,6 +12,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -59,11 +61,13 @@ typedef boolean wxjpeg_boolean;
 #define NANOSVG_ALL_COLOR_KEYWORDS
 #define NANOSVG_IMPLEMENTATION
 #define NANOSVGRAST_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_STATIC
 #include <nanosvg.h>
 #include <nanosvgrast.h>
-#include <stb_image_write.h> // for svg to png conversion
+#if (USE_STB_IMAGE==1)
+# define STB_IMAGE_WRITE_IMPLEMENTATION
+# define STB_IMAGE_WRITE_STATIC
+# include <stb_image_write.h> // for svg to png conversion
+#endif
 #endif
 
 static lUInt32 NEXT_CACHEABLE_OBJECT_ID = 1;
@@ -270,8 +274,7 @@ public:
 
 #if (USE_LIBJPEG==1)
 
-METHODDEF(void)
-cr_jpeg_error (j_common_ptr cinfo);
+static void cr_jpeg_error (j_common_ptr cinfo);
 
 
 typedef struct {
@@ -288,8 +291,7 @@ typedef struct {
  * before any data is actually read.
  */
 
-METHODDEF(void)
-cr_init_source (j_decompress_ptr cinfo)
+static void cr_init_source (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr*) cinfo->src;
 
@@ -333,8 +335,7 @@ cr_init_source (j_decompress_ptr cinfo)
  * the front of the buffer rather than discarding it.
  */
 
-METHODDEF(wxjpeg_boolean)
-cr_fill_input_buffer (j_decompress_ptr cinfo)
+static wxjpeg_boolean cr_fill_input_buffer (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
     lvsize_t bytesRead = 0;
@@ -370,8 +371,7 @@ cr_fill_input_buffer (j_decompress_ptr cinfo)
  * buffer is the application writer's problem.
  */
 
-METHODDEF(void)
-cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
+static void cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
 
@@ -392,6 +392,7 @@ cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
     }
 }
 
+#if 0
 /*
  * An additional method that can be provided by data source modules is the
  * resync_to_restart method for error recovery in the presence of RST markers.
@@ -399,12 +400,11 @@ cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
  * provided by the JPEG library.  That method assumes that no backtracking
  * is possible.
  */
-GLOBAL(wxjpeg_boolean)
-cr_resync_to_restart (j_decompress_ptr, int)
+static wxjpeg_boolean cr_resync_to_restart (j_decompress_ptr, int)
 {
     return FALSE;
 }
-
+#endif
 
 /*
  * Terminate source --- called by jpeg_finish_decompress
@@ -415,14 +415,12 @@ cr_resync_to_restart (j_decompress_ptr, int)
  * for error exit.
  */
 
-METHODDEF(void)
-cr_term_source (j_decompress_ptr)
+static void cr_term_source (j_decompress_ptr)
 {
   /* no work necessary here */
 }
 
-GLOBAL(void)
-cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
+static void cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
 {
     cr_jpeg_source_mgr * src;
 
@@ -448,10 +446,9 @@ cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
     src->stream = stream;
     src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
     src->pub.next_input_byte = NULL; /* until buffer loaded */
-}
+} // cppcheck-suppress memleak; about src.buffer
 
-GLOBAL(void)
-cr_jpeg_src_free (j_decompress_ptr cinfo)
+static void cr_jpeg_src_free (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
     if ( src && src->buffer )
@@ -498,8 +495,7 @@ typedef struct my_error_mgr * my_error_ptr;
  * Here's the routine that will replace the standard error_exit method:
  */
 
-METHODDEF(void)
-cr_jpeg_error (j_common_ptr cinfo)
+static void cr_jpeg_error (j_common_ptr cinfo)
 {
     //fprintf(stderr, "cr_jpeg_error() : fatal error while decoding JPEG image\n");
 
@@ -1944,6 +1940,8 @@ int LVSvgImageSource::DecodeFromBuffer(const unsigned char *buf, int buf_size, L
     return res;
 }
 
+#if (USE_STB_IMAGE==1)
+
 // Convenience function to convert SVG image data to PNG
 unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len)
 {
@@ -1996,6 +1994,8 @@ unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size
     nsvgDelete(image);
     return png;
 }
+
+#endif
 
 // ======= end of SVG support (with NanoSVG)
 #endif

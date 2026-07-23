@@ -1,3 +1,5 @@
+#include "crsetup.h"
+
 #include "../include/epubfmt.h"
 #include "../include/fb2def.h"
 

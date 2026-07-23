@@ -39,6 +39,8 @@
 #ifndef __LVFNT_H_INCLUDED__
 #define __LVFNT_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvplatform.h"
 

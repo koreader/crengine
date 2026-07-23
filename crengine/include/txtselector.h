@@ -15,6 +15,8 @@
 #ifndef TXTSELECTOR_H
 #define TXTSELECTOR_H
 
+#include "crsetup.h"
+
 #include "lvtinydom.h"
 
 // TEXT SELECTION TOOL

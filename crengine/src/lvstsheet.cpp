@@ -13,6 +13,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvstsheet.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"

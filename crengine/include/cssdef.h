@@ -16,6 +16,8 @@
 #if !defined(__CSS_DEF_H_INCLUDED__)
 #define __CSS_DEF_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvref.h"
 #include "lvstring.h"

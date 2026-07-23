@@ -44,6 +44,8 @@
 #ifndef __LVSTSHEET_H_INCLUDED__
 #define __LVSTSHEET_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "cssdef.h"
 #include "lvstyles.h"

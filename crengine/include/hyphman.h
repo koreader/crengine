@@ -15,6 +15,8 @@
 #ifndef _HYPHEN_
 #define _HYPHEN_
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvstream.h"
 #include "lvhashtable.h"

@@ -10,6 +10,8 @@
     See LICENSE file for details.
 */
 
+#include "crsetup.h"
+
 #include "../include/lvpagesplitter.h"
 #include "../include/lvtinydom.h"
 #include <time.h>

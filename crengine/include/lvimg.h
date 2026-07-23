@@ -14,6 +14,8 @@
 #ifndef __LVIMG_H_INCLUDED__
 #define __LVIMG_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvref.h"
 #include "lvstream.h"
@@ -145,6 +147,8 @@ class LVDrawBuf;
 // if no icons provided, battery will be drawn
 void LVDrawBatteryIcon( LVDrawBuf * drawbuf, const lvRect & batteryRc, int percent, bool charging, LVRefVec<LVImageSource> icons, LVFont * font );
 
+#if (USE_STB_IMAGE==1)
 unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len);
+#endif
 
 #endif

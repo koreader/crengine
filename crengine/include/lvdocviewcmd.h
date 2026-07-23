@@ -1,6 +1,8 @@
 #ifndef LVDOCVIEWCMD_H
 #define LVDOCVIEWCMD_H
 
+#include "crsetup.h"
+
 #define LVDOCVIEW_COMMANDS_START 100
 /// LVDocView commands
 enum LVDocCmd

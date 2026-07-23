@@ -24,6 +24,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvstream.h"
 #include "../include/lvptrvec.h"
 #include "../include/crtxtenc.h"

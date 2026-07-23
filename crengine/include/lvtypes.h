@@ -10,8 +10,9 @@
 #ifndef LVTYPES_H_INCLUDED
 #define LVTYPES_H_INCLUDED
 
-#include <stdlib.h>
 #include "crsetup.h"
+
+#include <stdlib.h>
 
 #ifdef _WIN32
 #include <windows.h>
