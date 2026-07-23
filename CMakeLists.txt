@@ -89,6 +89,7 @@ endfunction()
 find_program(CLANGTIDY clang-tidy)
 
 set(CLANGTIDY_FLAGS
+    --config-file=${CMAKE_SOURCE_DIR}/.clang-tidy
     -p ${CMAKE_BINARY_DIR}
     $<IF:$<BOOL:${CMAKE_COLOR_DIAGNOSTICS}>,--use-color,>
 )
