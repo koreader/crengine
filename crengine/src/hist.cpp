@@ -9,6 +9,8 @@
     See LICENSE file for details
 */
 
+#include "crsetup.h"
+
 #include "../include/lvtinydom.h"
 #include "../include/hist.h"
 

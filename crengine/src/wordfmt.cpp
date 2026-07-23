@@ -1,4 +1,5 @@
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvstring.h"
 #include "../include/lvstream.h"
 #include "../include/lvtinydom.h"

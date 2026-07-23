@@ -11,6 +11,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvmemman.h"
 #include "../include/lstridmap.h"
 #include "../include/dtddef.h"

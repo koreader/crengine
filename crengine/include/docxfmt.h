@@ -1,7 +1,8 @@
 #ifndef DOCXFMT_H
 #define DOCXFMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtinydom.h"
 
 

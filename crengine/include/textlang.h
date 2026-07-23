@@ -1,6 +1,8 @@
 #ifndef __TEXTLANG_H_INCLUDED__
 #define __TEXTLANG_H_INCLUDED__
 
+#include "crsetup.h"
+
 #if USE_HARFBUZZ==1
 #include <hb.h>
 #include <hb-ft.h>

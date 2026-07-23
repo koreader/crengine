@@ -1,7 +1,8 @@
 #ifndef EPUBFMT_H
 #define EPUBFMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtinydom.h"
 
 bool DetectEpubFormat( LVStreamRef stream );

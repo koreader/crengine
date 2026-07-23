@@ -16,6 +16,8 @@
 #ifndef __LVARRAY_H_INCLUDED__
 #define __LVARRAY_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <assert.h>
 #include "lvref.h"

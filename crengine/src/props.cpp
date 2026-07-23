@@ -9,6 +9,8 @@
     See LICENSE file for details
 */
 
+#include "crsetup.h"
+
 #include "../include/props.h"
 #include <stdio.h>
 

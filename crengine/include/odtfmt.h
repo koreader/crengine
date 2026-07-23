@@ -1,7 +1,8 @@
 #ifndef ODTFMT_H
 #define ODTFMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtinydom.h"
 
 

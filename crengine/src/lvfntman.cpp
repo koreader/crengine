@@ -12,12 +12,11 @@
 
 */
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 
-
-
-#include "../include/crsetup.h"
 #include "../include/lvfntman.h"
 #include "../include/lvstream.h"
 #include "../include/lvdrawbuf.h"

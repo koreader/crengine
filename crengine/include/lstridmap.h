@@ -17,6 +17,8 @@
 #ifndef __LSTR_ID_MAP_H__INCLUDED__
 #define __LSTR_ID_MAP_H__INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdio.h>
 #include "lvtypes.h"
 #include "lvstring.h"

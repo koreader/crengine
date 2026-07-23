@@ -89,6 +89,8 @@
 // This means we can insert <DocFragment> in the DOM that wouldn't be here
 // before, and risk DocFragment[index] in xpointers to get the index shifted.
 
+#include "crsetup.h"
+
 extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
@@ -219,7 +221,6 @@ enum CacheFileBlockType {
 
 #include <stdlib.h>
 #include <string.h>
-#include "../include/crsetup.h"
 #include "../include/lvstring.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"

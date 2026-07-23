@@ -1,7 +1,8 @@
 #ifndef CHMFMT_H
 #define CHMFMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtypes.h"
 #include "../include/lvtinydom.h"
 

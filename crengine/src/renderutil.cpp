@@ -29,6 +29,8 @@
  * tightened band still needs the strut baseline to stay inside the ink band.
  */
 
+#include "crsetup.h"
+
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
 #include "../include/renderutil.h"

@@ -1,7 +1,8 @@
 #ifndef PDBFMT_H
 #define PDBFMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtypes.h"
 #include "../include/lvplatform.h"
 #include "../include/lvtinydom.h"

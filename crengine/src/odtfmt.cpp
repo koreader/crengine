@@ -1,3 +1,5 @@
+#include "crsetup.h"
+
 #include "../include/odtfmt.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"

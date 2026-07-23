@@ -1,7 +1,8 @@
 #ifndef FB3FMT_H
 #define FB3FMT_H
 
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvtinydom.h"
 #include "../include/lvopc.h"
 

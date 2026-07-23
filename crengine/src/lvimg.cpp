@@ -12,6 +12,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -59,11 +61,13 @@ typedef boolean wxjpeg_boolean;
 #define NANOSVG_ALL_COLOR_KEYWORDS
 #define NANOSVG_IMPLEMENTATION
 #define NANOSVGRAST_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_STATIC
 #include <nanosvg.h>
 #include <nanosvgrast.h>
-#include <stb_image_write.h> // for svg to png conversion
+#if (USE_STB_IMAGE==1)
+# define STB_IMAGE_WRITE_IMPLEMENTATION
+# define STB_IMAGE_WRITE_STATIC
+# include <stb_image_write.h> // for svg to png conversion
+#endif
 #endif
 
 static lUInt32 NEXT_CACHEABLE_OBJECT_ID = 1;
@@ -1944,6 +1948,8 @@ int LVSvgImageSource::DecodeFromBuffer(const unsigned char *buf, int buf_size, L
     return res;
 }
 
+#if (USE_STB_IMAGE==1)
+
 // Convenience function to convert SVG image data to PNG
 unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size, float zoom_factor, int *png_data_len)
 {
@@ -1996,6 +2002,8 @@ unsigned char * convertSVGtoPNG(const unsigned char *svg_data, int svg_data_size
     nsvgDelete(image);
     return png;
 }
+
+#endif
 
 // ======= end of SVG support (with NanoSVG)
 #endif

@@ -13,6 +13,8 @@
 
 */
 
+#include "crsetup.h"
+
 // set to 1 for debug dump
 #if 0
 #define DUMP_HYPHENATION_WORDS 1
@@ -21,8 +23,6 @@
 #define DUMP_HYPHENATION_WORDS 0
 #define DUMP_PATTERNS 0
 #endif
-
-#include "../include/crsetup.h"
 
 #include <stdlib.h>
 #include <string.h>

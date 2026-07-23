@@ -15,6 +15,8 @@
 #ifndef __LVTEXTFM_H_INCLUDED__
 #define __LVTEXTFM_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvfntman.h"
 #include "lvbmpbuf.h"
