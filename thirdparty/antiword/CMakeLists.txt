@@ -49,3 +49,7 @@ target_sources(antiword PRIVATE ${ANTIWORD_SRCS})
 target_include_directories(antiword PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(antiword PROPERTIES C_VISIBILITY_PRESET hidden)
 set_target_properties(antiword PROPERTIES POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS})
+
+foreach(F IN LISTS ANTIWORD_SRCS)
+    add_lint_targets(${F} antiword)
+endforeach()
