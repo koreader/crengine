@@ -403,7 +403,6 @@ bool HyphDictionaryList::open(lString32 hyphDirectory, bool clear)
 
 	if ( !container.isNull() ) {
 		int len = container->GetObjectCount();
-        int count = 0;
         CRLog::info("%d items found in hyph directory", len);
 		for ( int i=0; i<len; i++ ) {
 			const LVContainerItemInfo * item = container->GetObjectInfo( i );
@@ -431,7 +430,6 @@ bool HyphDictionaryList::open(lString32 hyphDirectory, bool clear)
 			if (!suffix2add.empty())
 				title.append(suffix2add);
 			_list.add( new HyphDictionary( t, title, id, filename ) );
-            count++;
 		}
         _list.sort(HyphDictionary_comparator);
 		CRLog::info("%d dictionaries added to list", _list.length());
