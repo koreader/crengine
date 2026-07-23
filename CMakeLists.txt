@@ -84,9 +84,17 @@ function(add_chained_targets)
     endforeach()
 endfunction()
 
+find_program(BUILDCACHE buildcache)
+if(BUILDCACHE)
+    list(PREPEND BUILDCACHE env BUILDCACHE_LUA_PATH=${CMAKE_SOURCE_DIR}/utils)
+endif()
+
 # clang-tidy {{{
 
 find_program(CLANGTIDY clang-tidy)
+if(CLANGTIDY AND BUILDCACHE)
+    list(PREPEND CLANGTIDY ${BUILDCACHE})
+endif()
 
 set(CLANGTIDY_FLAGS
     --config-file=${CMAKE_SOURCE_DIR}/.clang-tidy
@@ -114,6 +122,9 @@ endfunction()
 # cppcheck {{{
 
 find_program(CPPCHECK cppcheck)
+if(CPPCHECK AND BUILDCACHE)
+    list(PREPEND CPPCHECK ${BUILDCACHE})
+endif()
 if(CPPCHECK AND CMAKE_COLOR_DIAGNOSTICS)
     list(PREPEND CPPCHECK env CLICOLOR_FORCE=1)
 endif()

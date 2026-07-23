@@ -7,7 +7,7 @@ ANSI_RESET="$(printf '%b' '\e[0m\e[1G')"
 
 for prog in "$@"; do
     case "${prog}" in
-        env | *=* | */npx) continue ;;
+        env | *=* | */buildcache | */npx) continue ;;
         *) break ;;
     esac
 done
