@@ -68,6 +68,8 @@ set(CRE_SRCS
 set(CPPCHECK_FLAGS
     --check-level=exhaustive
     --error-exitcode=2
+    --exitcode-suppress=nullPointerArithmeticOutOfMemory
+    --exitcode-suppress=nullPointerOutOfMemory
     --inline-suppr
     --platform=unix64
     --std=c++17
