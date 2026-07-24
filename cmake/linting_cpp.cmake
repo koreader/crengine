@@ -1,10 +1,18 @@
 include_guard(GLOBAL)
 include(linting)
 
+find_program(BUILDCACHE buildcache)
+if(BUILDCACHE)
+    list(PREPEND BUILDCACHE env BUILDCACHE_LUA_PATH=${CMAKE_CURRENT_LIST_DIR})
+endif()
+
 # clang-tidy {{{
 
 find_program(CLANGTIDY clang-tidy)
 if(CLANGTIDY)
+    if(BUILDCACHE)
+        list(PREPEND CLANGTIDY ${BUILDCACHE})
+    endif()
     if(NOT CLANGTIDY_CONFIG)
         set(CLANGTIDY_CONFIG ${CMAKE_SOURCE_DIR}/.clang-tidy)
         if(NOT EXISTS ${CLANGTIDY_CONFIG})
@@ -40,6 +48,9 @@ endfunction()
 
 find_program(CPPCHECK cppcheck)
 if(CPPCHECK)
+    if(BUILDCACHE)
+        list(PREPEND CPPCHECK ${BUILDCACHE})
+    endif()
     if(CMAKE_COLOR_DIAGNOSTICS)
         list(PREPEND CPPCHECK env CLICOLOR_FORCE=1)
     endif()
