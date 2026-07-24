@@ -1,5 +1,5 @@
-body { text-align: left; text-indent: 0px }
-p { text-align: justify; text-indent: 2em; margin-top:0em; margin-bottom: 0em }
+body { text-align: left; text-indent: 0 }
+p { text-align: justify; text-indent: 2em; margin-top: 0; margin-bottom: 0 }
 
 empty-line { height: 1em }
 
@@ -13,25 +13,25 @@ emphasis, i { font-style: italic }
 a { text-decoration: underline }
 a[type="note"] { vertical-align: super; font-size: 70%; text-decoration: none }
 
-image { text-align: center; text-indent: 0px }
+image { text-align: center; text-indent: 0 }
 p image { display: inline }
 
-title p, subtitle p, h1 p, h2 p, h3 p, h4 p, h5 p, h6 p { text-align: center; text-indent: 0px }
-cite p, epigraph p { text-align: left; text-indent: 0px }
-v { text-align: left; text-indent: 0px }
+title p, subtitle p, h1 p, h2 p, h3 p, h4 p, h5 p, h6 p { text-align: center; text-indent: 0 }
+cite p, epigraph p { text-align: left; text-indent: 0 }
+v { text-align: left; text-indent: 0 }
 
-stanza + stanza { margin-top: 1em; }
 stanza { margin-left: 30%; text-align: left; font-style: italic  }
-poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0px }
+stanza + stanza { margin-top: 1em; }
+poem { margin-top: 1em; margin-bottom: 1em; text-indent: 0 }
 text-author { font-weight: bold; font-style: italic; margin-left: 5%}
 epigraph { margin-left: 25%; margin-right: 1em; text-align: left; text-indent: 
        1px; font-style:  italic; margin-top: 15px; margin-bottom: 25px }
 cite { font-style: italic; margin-left: 5%; margin-right: 5%; text-align: justify; 
        margin-top:  20px; margin-bottom: 20px }
 
-title, h1, h2 { text-align: center; text-indent: 0px; font-weight: bold; hyphenate: none;  
+title, h1, h2 { text-align: center; text-indent: 0; font-weight: bold; hyphenate: none;  
       page-break-before: always; page-break-inside: avoid; page-break-after: avoid; }
-subtitle, h3, h4, h5, h6 { text-align: center; text-indent: 0px; font-weight: bold; 
+subtitle, h3, h4, h5, h6 { text-align: center; text-indent: 0; font-weight: bold; 
       hyphenate:  none; page-break-inside: avoid; page-break-after: avoid; }
 title { font-size: 110%; margin-top: 0.7em; margin-bottom: 0.5em }
 subtitle { font-style: italic; margin-top: 0.3em; margin-bottom: 0.3em }
@@ -43,11 +43,11 @@ h5 { font-size: 110% }
 
 
 table { font-size: 80%; margin:3px; }
-td, th { text-indent: 0px; padding: 3px }
+td, th { text-indent: 0; padding: 3px }
 th {  font-weight: bold; /* background-color: #DDD */ }
-table > caption { text-indent: 0px; padding: 4px; /* background-color: #EEE */ }
+table > caption { text-indent: 0; padding: 4px; /* background-color: #EEE */ }
 
-pre { display: block; white-space: pre; text-align: left;
+pre { display: block; white-space: pre;
      font-family: "Droid Sans Mono", monospace; text-align: left }
 code { display: inline; white-space: pre;
      font-family: "Droid Sans Mono", monospace; text-align: left }
