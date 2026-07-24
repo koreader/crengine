@@ -9,6 +9,19 @@ option(BUILD_SHARED_LIBS "build a shared library" ON)
 
 project(koreader LANGUAGES C CXX)
 
+# Create `compile_commands.json` in the build directory
+# (used by clang-tidy / cppcheck to extract compiler flags).
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
+set(CRE_CSS
+    cr3gui/data/cr3.css
+    cr3gui/data/epub.css
+    cr3gui/data/html5.css
+    cr3gui/data/fb2.css
+)
+file(GLOB CRE_HYPH_PATS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} cr3gui/data/hyph/*.pattern)
 set(CRE_LIBS)
 set(CRE_SRCS
     crengine/qimagescale/qimagescale.cpp
@@ -50,19 +63,40 @@ set(CRE_SRCS
     crengine/src/wordfmt.cpp
 )
 
-# helpers {{{
+# helpers (linting) {{{
+
+set(CPPCHECK_FLAGS
+    --check-level=exhaustive
+    --error-exitcode=2
+    --inline-suppr
+    --platform=unix64
+    --std=c++17
+)
+
+include(linting_cpp)
+include(linting_css)
+include(linting_xml)
+
+function(add_lint_targets F COMPONENT)
+    if(F MATCHES [[\.(c|cpp)$]])
+        add_clangtidy_target(${F} ${COMPONENT})
+        add_cppcheck_target(${F} ${COMPONENT})
+    elseif(F MATCHES [[\.css$]])
+        add_stylelint_target(${F} ${COMPONENT})
+    elseif(F MATCHES [[\.pattern$]])
+        add_xmllint_target(${F} ${COMPONENT})
+    else()
+        message(FATAL_ERROR "no support for linting: ${F}")
+    endif()
+endfunction()
+
+# }}}
+
+# helpers (options) {{{
 
 find_package(PkgConfig REQUIRED)
 
 set(AUTO_RX [[^[Aa][Uu][Tt][Oo]$]])
-
-macro(set01 VAR VALUE)
-    if(${VALUE})
-        set(${VAR} 1 ${ARGN})
-    else()
-        set(${VAR} 0 ${ARGN})
-    endif()
-endmacro()
 
 function(featopt NAME DEFAULT)
     cmake_parse_arguments("" "" "PKG" "HDR" ${ARGN})
@@ -118,7 +152,11 @@ function(featopt NAME DEFAULT)
     if(FOUND AND (_HDR OR _PKG))
         set(CRE_LIBS ${CRE_LIBS} PkgConfig::${ID} PARENT_SCOPE)
     endif()
-    set01(USE_${ID} ${FOUND} PARENT_SCOPE)
+    if(FOUND)
+        set(USE_${ID} 1 PARENT_SCOPE)
+    else()
+        set(USE_${ID} 0 PARENT_SCOPE)
+    endif()
 endfunction()
 
 # }}}
@@ -235,6 +273,24 @@ endif()
 target_include_directories(crengine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(crengine PUBLIC crengine/include)
 target_link_libraries(crengine PRIVATE ${CRE_LIBS})
+
+# }}}
+
+# linting {{{
+
+foreach(F IN LISTS CRE_CSS CRE_HYPH_PATS CRE_SRCS)
+    add_lint_targets(${F} crengine)
+endforeach()
+
+find_program(JQ jq)
+if(JQ)
+    add_custom_target(lint-languages.json
+        COMMAND ${GA_GROUP} ./utils/lint_languages_catalog.sh cr3gui/data/hyph/languages.json
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        VERBATIM
+    )
+    add_chained_targets(lint lint-crengine lint-languages.json)
+endif()
 
 # }}}
 
