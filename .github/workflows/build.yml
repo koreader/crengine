@@ -9,8 +9,14 @@ jobs:
 
   linux:
 
-    name: Static linting
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [Debug, Release]
+
+    name: Build & Lint (${{ matrix.flavor }})
+    runs-on: ubuntu-26.04
+
     env:
       CLICOLOR_FORCE: "1"
 
@@ -40,6 +46,8 @@ jobs:
           libfribidi-dev
           libharfbuzz-dev
           libjpeg-turbo8-dev
+          libmd4c-dev
+          libmd4c-html0-dev
           libpng-dev
           libunibreak-dev
           libutf8proc-dev
@@ -49,6 +57,8 @@ jobs:
           libzstd-dev
         )
         sudo apt-get update && sudo apt-get install --no-install-recommends "${packages[@]}"
+        # Get a more recent version of cppcheck (for `--exitcode-suppress=…` support).
+        wget http://archive.ubuntu.com/ubuntu/pool/universe/c/cppcheck/cppcheck_2.21.0-1_amd64.deb
         # We need a more recent version of libunibreak for `lb_get_char_class` support.
         wget http://mirrors.kernel.org/ubuntu/pool/universe/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
         sudo dpkg -i *.deb
@@ -64,5 +74,15 @@ jobs:
         echo '::remove-matcher owner=tsc::'
         echo '::add-matcher::.github/problem-matchers.json'
 
+    - name: Configure
+      run: |
+        cmake -B build -S . -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.flavor }} \
+          -DCMAKE_COLOR_DIAGNOSTICS=ON 2>&1
+        printf '%s\n' NINJA_STATUS="$(printf '\e[32;1m%%p⎹\e[0m ')" >>"${GITHUB_ENV}"
+
+    - name: Build
+      run: ninja -C build -k0 2>&1
+
     - name: Lint
-      run: ./utils/lint.sh 2>&1
+      run: ninja -C build lint -k0 2>&1
