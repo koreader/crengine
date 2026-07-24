@@ -24,3 +24,6 @@ thirdparty/*/
 !thirdparty/chmlib/
 build/
 tests/font-manager-test.epub
+/node_modules/
+/package.json
+/package-lock.json
