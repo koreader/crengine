@@ -274,8 +274,7 @@ public:
 
 #if (USE_LIBJPEG==1)
 
-METHODDEF(void)
-cr_jpeg_error (j_common_ptr cinfo);
+static void cr_jpeg_error (j_common_ptr cinfo);
 
 
 typedef struct {
@@ -292,8 +291,7 @@ typedef struct {
  * before any data is actually read.
  */
 
-METHODDEF(void)
-cr_init_source (j_decompress_ptr cinfo)
+static void cr_init_source (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr*) cinfo->src;
 
@@ -337,8 +335,7 @@ cr_init_source (j_decompress_ptr cinfo)
  * the front of the buffer rather than discarding it.
  */
 
-METHODDEF(wxjpeg_boolean)
-cr_fill_input_buffer (j_decompress_ptr cinfo)
+static wxjpeg_boolean cr_fill_input_buffer (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
     lvsize_t bytesRead = 0;
@@ -374,8 +371,7 @@ cr_fill_input_buffer (j_decompress_ptr cinfo)
  * buffer is the application writer's problem.
  */
 
-METHODDEF(void)
-cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
+static void cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
 
@@ -403,8 +399,7 @@ cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
  * provided by the JPEG library.  That method assumes that no backtracking
  * is possible.
  */
-GLOBAL(wxjpeg_boolean)
-cr_resync_to_restart (j_decompress_ptr, int)
+static wxjpeg_boolean cr_resync_to_restart (j_decompress_ptr, int)
 {
     return FALSE;
 }
@@ -419,14 +414,12 @@ cr_resync_to_restart (j_decompress_ptr, int)
  * for error exit.
  */
 
-METHODDEF(void)
-cr_term_source (j_decompress_ptr)
+static void cr_term_source (j_decompress_ptr)
 {
   /* no work necessary here */
 }
 
-GLOBAL(void)
-cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
+static void cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
 {
     cr_jpeg_source_mgr * src;
 
@@ -454,8 +447,7 @@ cr_jpeg_src (j_decompress_ptr cinfo, LVStream * stream)
     src->pub.next_input_byte = NULL; /* until buffer loaded */
 }
 
-GLOBAL(void)
-cr_jpeg_src_free (j_decompress_ptr cinfo)
+static void cr_jpeg_src_free (j_decompress_ptr cinfo)
 {
     cr_jpeg_source_mgr * src = (cr_jpeg_source_mgr *) cinfo->src;
     if ( src && src->buffer )
@@ -502,8 +494,7 @@ typedef struct my_error_mgr * my_error_ptr;
  * Here's the routine that will replace the standard error_exit method:
  */
 
-METHODDEF(void)
-cr_jpeg_error (j_common_ptr cinfo)
+static void cr_jpeg_error (j_common_ptr cinfo)
 {
     //fprintf(stderr, "cr_jpeg_error() : fatal error while decoding JPEG image\n");
 
