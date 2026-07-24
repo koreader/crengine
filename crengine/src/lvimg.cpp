@@ -392,6 +392,7 @@ static void cr_skip_input_data (j_decompress_ptr cinfo, long num_bytes)
     }
 }
 
+#if 0
 /*
  * An additional method that can be provided by data source modules is the
  * resync_to_restart method for error recovery in the presence of RST markers.
@@ -403,7 +404,7 @@ static wxjpeg_boolean cr_resync_to_restart (j_decompress_ptr, int)
 {
     return FALSE;
 }
-
+#endif
 
 /*
  * Terminate source --- called by jpeg_finish_decompress
