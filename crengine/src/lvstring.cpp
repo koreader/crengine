@@ -11,6 +11,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvstring.h"
 #include <assert.h>
 #include <limits.h>

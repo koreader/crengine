@@ -1,22 +1,10 @@
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release CACHE STRING
-    "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
-    FORCE)
-ENDIF(NOT CMAKE_BUILD_TYPE)
-
-IF (${CMAKE_BUILD_TYPE} STREQUAL Release)
-    ADD_DEFINITIONS( -DNDEBUG=1 )
-ELSE()
-    ADD_DEFINITIONS( -DDEBUG=1 )
-ENDIF(${CMAKE_BUILD_TYPE} STREQUAL Release)
-
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-SET (CHMLIB_SOURCES 
-    src/chm_lib.c  
-    src/lzx.c  
+set(CHMLIB_SRCS
+    src/chm_lib.c
+    src/lzx.c
 )
 
-ADD_LIBRARY(chmlib STATIC ${CHMLIB_SOURCES})
-
+add_library(chmlib OBJECT)
+target_sources(chmlib PRIVATE ${CHMLIB_SRCS})
+target_include_directories(chmlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set_target_properties(chmlib PROPERTIES C_VISIBILITY_PRESET hidden)
+set_target_properties(chmlib PROPERTIES POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS})

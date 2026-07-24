@@ -11,6 +11,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvxml.h"
 #include "../include/crtxtenc.h"
 #include "../include/fb2def.h"

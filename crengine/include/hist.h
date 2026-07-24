@@ -12,6 +12,8 @@
 #ifndef HIST_H_INCLUDED
 #define HIST_H_INCLUDED
 
+#include "crsetup.h"
+
 #include <time.h>
 #include "lvstring.h"
 #include "lvptrvec.h"

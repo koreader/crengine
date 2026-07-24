@@ -1,4 +1,5 @@
-#include "../include/crsetup.h"
+#include "crsetup.h"
+
 #include "../include/lvstream.h"
 //#define CHM_SUPPORT_ENABLED 1
 #if CHM_SUPPORT_ENABLED==1

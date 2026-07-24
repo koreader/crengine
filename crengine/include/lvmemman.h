@@ -14,8 +14,8 @@
 #ifndef __LV_MEM_MAN_H_INCLUDED__
 #define __LV_MEM_MAN_H_INCLUDED__
 
-
 #include "crsetup.h"
+
 #include "lvtypes.h"
 
 #define CR_FATAL_ERROR_UNKNOWN             -1
