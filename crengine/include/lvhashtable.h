@@ -13,6 +13,8 @@
 #ifndef __LVHASHTABLE_H_INCLUDED__
 #define __LVHASHTABLE_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include "lvtypes.h"

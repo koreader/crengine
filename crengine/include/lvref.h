@@ -19,6 +19,8 @@
 #ifndef __LVREF_H_INCLUDED__
 #define __LVREF_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <cassert>
 #include "lvtypes.h"
 #include "lvmemman.h"

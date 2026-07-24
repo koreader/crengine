@@ -1,344 +1,241 @@
-PROJECT(cr3)
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.17.5)
 
-#INCLUDE(CPack)
+# CMake options.
+# NOTE: must be done before `project(…)` call.
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "build type")
+endif()
+option(BUILD_SHARED_LIBS "build a shared library" ON)
 
-if( ${CMAKE_SYSTEM} MATCHES "Darwin" )
-  message("MAC OSX build")
-  SET(MAC 1)
-endif( ${CMAKE_SYSTEM} MATCHES "Darwin" )
+project(koreader LANGUAGES C CXX)
 
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release CACHE STRING
-      "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
-      FORCE)
-ENDIF(NOT CMAKE_BUILD_TYPE)
+set(CRE_LIBS)
+set(CRE_SRCS
+    crengine/qimagescale/qimagescale.cpp
+    crengine/src/chmfmt.cpp
+    crengine/src/cp_stats.cpp
+    crengine/src/crtxtenc.cpp
+    crengine/src/docxfmt.cpp
+    crengine/src/epubfmt.cpp
+    crengine/src/fb3fmt.cpp
+    crengine/src/hist.cpp
+    crengine/src/hyphman.cpp
+    crengine/src/lstridmap.cpp
+    crengine/src/lvdocview.cpp
+    crengine/src/lvdrawbuf.cpp
+    crengine/src/lvfnt.cpp
+    crengine/src/lvfntman.cpp
+    crengine/src/lvimg.cpp
+    crengine/src/lvmemman.cpp
+    crengine/src/lvopc.cpp
+    crengine/src/lvpagesplitter.cpp
+    crengine/src/lvrend.cpp
+    crengine/src/lvstream.cpp
+    crengine/src/lvstring.cpp
+    crengine/src/lvstsheet.cpp
+    crengine/src/lvstyles.cpp
+    crengine/src/lvtextfm.cpp
+    crengine/src/lvtinydom.cpp
+    crengine/src/lvxml.cpp
+    crengine/src/mathml.cpp
+    crengine/src/mdfmt.cpp
+    crengine/src/odtfmt.cpp
+    crengine/src/odxutil.cpp
+    crengine/src/pdbfmt.cpp
+    crengine/src/props.cpp
+    crengine/src/renderutil.cpp
+    crengine/src/rtfimp.cpp
+    crengine/src/textlang.cpp
+    crengine/src/txtselector.cpp
+    crengine/src/wordfmt.cpp
+)
 
-IF(${CMAKE_BUILD_TYPE} STREQUAL Debug)
-  ADD_DEFINITIONS( -D_DEBUG=1 -DDEBUG=1 )
-ELSE()
-  ADD_DEFINITIONS( -DNDEBUG=1 )
-ENDIF(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+# helpers {{{
 
-if(MSVC)
-  # Force to always compile with W4
-  if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
-    string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
-  endif()
-elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  # Update if necessary
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-long-long -pedantic -std=c++11 -fPIC -Wno-misleading-indentation")
+find_package(PkgConfig REQUIRED)
+
+set(AUTO_RX [[^[Aa][Uu][Tt][Oo]$]])
+
+macro(set01 VAR VALUE)
+    if(${VALUE})
+        set(${VAR} 1 ${ARGN})
+    else()
+        set(${VAR} 0 ${ARGN})
+    endif()
+endmacro()
+
+function(featopt NAME DEFAULT)
+    cmake_parse_arguments("" "" "PKG" "HDR" ${ARGN})
+    if(_HDR AND _PKG)
+        message(FATAL_ERROR "HDR and PKG keywords are mutually exclusive")
+    endif()
+    string(TOUPPER ${NAME} ID)
+    set(${ID} ${DEFAULT} CACHE STRING "enable ${NAME} support (auto|off|on)")
+    if(_HDR)
+        set(${ID}_ROOT "" CACHE PATH "additional prefix where to look for ${NAME}")
+    endif()
+    set(VAL ${${ID}})
+    if(VAL AND NOT VAL MATCHES "${AUTO_RX}")
+        set(_REQUIRED REQUIRED)
+    else()
+        set(_REQUIRED)
+    endif()
+    set(${ID}_REQUIRED ${_REQUIRED} PARENT_SCOPE)
+    set(FOUND ${VAL})
+    if(VAL AND _HDR)
+        if(NOT DEFINED CACHE{${ID}_FOUND})
+            message(STATUS "Checking for header '${_HDR}'")
+            if(DEFINED ${ID}_ROOT)
+                set(PATHS ${${ID}_ROOT}/include)
+            else()
+                set(PATHS)
+            endif()
+            find_file(${ID}_FOUND NAMES ${_HDR} PATHS ${PATHS})
+            if(${ID}_FOUND)
+                message(STATUS "  Found ${${ID}_FOUND}")
+            else()
+                message(STATUS "  Header ${_HDR} not found")
+                if(_REQUIRED)
+                    message(FATAL_ERROR "The following required header was not found: ${_HDR}")
+                endif()
+            endif()
+        endif()
+        if(${ID}_FOUND)
+            add_library(${ID} INTERFACE)
+            add_library(PkgConfig::${ID} ALIAS ${ID})
+            get_filename_component(DIR ${${ID}_FOUND} DIRECTORY)
+            target_include_directories(${ID} INTERFACE ${DIR})
+        else()
+            set(FOUND FALSE)
+        endif()
+    endif()
+    if(VAL AND _PKG)
+        pkg_check_modules(${ID} ${_PKG} ${_REQUIRED} IMPORTED_TARGET)
+        if(NOT ${ID}_FOUND)
+            set(FOUND FALSE)
+        endif()
+    endif()
+    if(FOUND AND (_HDR OR _PKG))
+        set(CRE_LIBS ${CRE_LIBS} PkgConfig::${ID} PARENT_SCOPE)
+    endif()
+    set01(USE_${ID} ${FOUND} PARENT_SCOPE)
+endfunction()
+
+# }}}
+
+# options {{{
+
+# Boolean options.
+option(DISABLE_CLOEXEC "force disable closexec support" OFF)
+option(DISABLE_LFS     "force disable LFS support"      OFF)
+
+# Feature options.
+set(AUTO AUTO CACHE STRING "override value of all 'auto' features")
+# lint_cmake: -whitespace/mismatch
+featopt(Antiword    ${AUTO}                                  )
+featopt(CHMLib      ${AUTO}                                  )
+featopt(FreeType    ${AUTO} PKG "freetype2"                  )
+featopt(Fontconfig  OFF     PKG "fontconfig"                 )
+featopt(FriBidi     ${AUTO} PKG "fribidi"                    )
+featopt(GIF         ${AUTO}                                  )
+featopt(HarfBuzz    ${AUTO} PKG "harfbuzz >= 8.0"            )
+featopt(libjpeg     ${AUTO} PKG "libjpeg"                    )
+featopt(libpng      ${AUTO} PKG "libpng"                     )
+featopt(libunibreak ${AUTO} PKG "libunibreak >= 6.0"         )
+featopt(LibwebP     ${AUTO} PKG "libwebpdecoder libwebpdemux")
+featopt(LunaSVG     ${AUTO} PKG "lunasvg"                    )
+featopt(MathML      ${AUTO}                                  )
+featopt(MD4C        ${AUTO} PKG "md4c-html"                  )
+featopt(NanoSVG     ${AUTO} HDR "nanosvg.h;nanosvg/nanosvg.h")
+featopt(SRELL       ${AUTO} HDR "srell.hpp"                  )
+featopt(stb_image   OFF     HDR "stb_image.h;stb/stb_image.h")
+featopt(utf8proc    ${AUTO} PKG "libutf8proc"                )
+featopt(zlib        ${AUTO} PKG "zlib"                       )
+featopt(zstd        ${AUTO} PKG "libzstd"                    )
+# lint_cmake: +whitespace/mismatch
+
+# Mandatory dependencies.
+pkg_check_modules(XXHASH libxxhash REQUIRED IMPORTED_TARGET)
+list(APPEND CRE_LIBS PkgConfig::XXHASH)
+
+# Handle conflicting feature options.
+
+if(USE_FONTCONFIG AND NOT USE_FREETYPE)
+    if(FONTCONFIG_REQUIRED)
+        message(FATAL_ERROR "cannot enable FONTCONFIG without FREETYPE")
+    endif()
+    set(USE_FONTCONFIG 0)
 endif()
 
-if (NOT DEFINED GUI)
-  SET(GUI QT)
-  message("GUI type is not specified!")
-  message("Using ${GUI} as default")
-  message("Add cmake parameter -D GUI={QT|WX|CRGUI_XCB|CRGUI_NANOX|CRGUI_PB|CRGUI_QT|CRGUI_JINKE_PLUGIN|CRGUI_WIN32|FB2PROPS} to use another GUI frontend")
-else ()
-  message("Using GUI frontend ${GUI}")
-endif (NOT DEFINED GUI)
+# NOTE: prefer LunaSVG (better SVG support).
+if(USE_NANOSVG AND USE_LUNASVG)
+    if(NANOSVG_REQUIRED AND LUNASVG_REQUIRED)
+        message(FATAL_ERROR "cannot enable both NANOSVG and LUNASVG")
+    endif()
+    if(NANOSVG_REQUIRED)
+        set(DNR LUNASVG)
+    else()
+        set(DNR NANOSVG)
+    endif()
+    list(REMOVE_ITEM CRE_LIBS PkgConfig::${DNR})
+    set(USE_${DNR} 0)
+endif()
 
+# }}}
 
+# crsetup.h {{{
 
-# Determines whether to use external app EDICT for dictionary
-if (NOT DEFINED USE_EXTERNAL_EDICT_DICTIONARY)
-  SET(USE_EXTERNAL_EDICT_DICTIONARY 0)
-else()
-  SET(USE_EXTERNAL_EDICT_DICTIONARY ${USE_EXTERNAL_EDICT_DICTIONARY})
-endif (NOT DEFINED USE_EXTERNAL_EDICT_DICTIONARY)
-message("using USE_EXTERNAL_EDICT_DICTIONARY=${USE_EXTERNAL_EDICT_DICTIONARY}")
-ADD_DEFINITIONS( -DUSE_EXTERNAL_EDICT_DICTIONARY=${USE_EXTERNAL_EDICT_DICTIONARY} )
+include(CheckTypeSize)
 
+if(DISABLE_CLOEXEC)
+    set(DISABLE_CLOEXEC 1)
+endif()
 
-# Document buffer cache / compression settings
+if(NOT DISABLE_LFS)
+    # Test and Enable LFS Support in glibc, based on zlib
+    set(CMAKE_REQUIRED_DEFINITIONS -D_LARGEFILE64_SOURCE=1)
+    check_type_size(off64_t OFF64_T)
+    set(CMAKE_REQUIRED_DEFINITIONS)
+endif()
 
-#whether to compress data
-if (NOT DEFINED DOC_DATA_COMPRESSION_LEVEL)
-  message("-D DOC_DATA_COMPRESSION_LEVEL=0|1|2|3|4|5 parameter is not defined: will use default value")
-  SET(DOC_DATA_COMPRESSION_LEVEL 1)
-else()
-  SET(DOC_DATA_COMPRESSION_LEVEL ${DOC_DATA_COMPRESSION_LEVEL})
-endif (NOT DEFINED DOC_DATA_COMPRESSION_LEVEL)
-message("using TEXT_COMPRESSION_LEVEL=${DOC_DATA_COMPRESSION_LEVEL}")
-ADD_DEFINITIONS( -DDOC_DATA_COMPRESSION_LEVEL=${DOC_DATA_COMPRESSION_LEVEL} )
+configure_file(crengine/include/crsetup.h.cmake crsetup.h @ONLY)
 
-# Total RAM buffers size for document
-if (NOT DEFINED DOC_BUFFER_SIZE)
-  message("-D DOC_BUFFER_SIZE=N parameter is not defined: will use default value")
-  SET(DOC_BUFFER_SIZE 0x400000)
-else()
-  SET(DOC_BUFFER_SIZE ${DOC_BUFFER_SIZE})
-endif (NOT DEFINED DOC_BUFFER_SIZE)
-message("using DOC_BUFFER_SIZE=${DOC_BUFFER_SIZE}")
-ADD_DEFINITIONS( -DDOC_BUFFER_SIZE=${DOC_BUFFER_SIZE} )
+# }}}
 
-# big page margins support
-if (NOT DEFINED BIG_PAGE_MARGINS)
-  SET(BIG_PAGE_MARGINS 0)
-else()
-  SET(BIG_PAGE_MARGINS ${BIG_PAGE_MARGINS})
-endif (NOT DEFINED BIG_PAGE_MARGINS)
-ADD_DEFINITIONS( -DBIG_PAGE_MARGINS=${BIG_PAGE_MARGINS} )
+add_compile_definitions($<$<CONFIG:Debug>:_DEBUG=1> $<$<CONFIG:Debug>:DEBUG=1>)
 
-# big page margins support
-if (NOT DEFINED MAX_IMAGE_SCALE_MUL)
-  SET(MAX_IMAGE_SCALE_MUL 0)
-else()
-  SET(MAX_IMAGE_SCALE_MUL ${MAX_IMAGE_SCALE_MUL})
-endif (NOT DEFINED MAX_IMAGE_SCALE_MUL)
-ADD_DEFINITIONS( -DMAX_IMAGE_SCALE_MUL=${MAX_IMAGE_SCALE_MUL} )
-message("using MAX_IMAGE_SCALE_MUL=${MAX_IMAGE_SCALE_MUL}")
+# sub-libraries {{{
 
+if(ANTIWORD)
+    add_compile_definitions(CR3_ANTIWORD_PATCH=1)
+    add_subdirectory(thirdparty/antiword)
+    list(APPEND CRE_LIBS antiword)
+endif()
 
-if(MAC)
-  ADD_DEFINITIONS( -DMAC=1 -DLINUX=1 -D_LINUX=1 -DCR_EMULATE_GETTEXT=1 )
-elseif ( WIN32 )
-  ADD_DEFINITIONS( -DWIN32=1 -D_WIN32=1 -DCR_EMULATE_GETTEXT=1 )
-else()
-  ADD_DEFINITIONS( -DLINUX=1 -D_LINUX=1 )
-endif(MAC)
+if(CHMLIB)
+    add_subdirectory(thirdparty/chmlib)
+    list(APPEND CRE_LIBS chmlib)
+endif()
 
-# Large files support
-ADD_DEFINITIONS( -D_LARGEFILE64_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DLVLONG_FILE_SUPPORT=1 )
+# }}}
 
-if (NOT DEFINED GRAY_BACKBUFFER_BITS)
-  SET(GRAY_BACKBUFFER_BITS 2)
-endif (NOT DEFINED GRAY_BACKBUFFER_BITS)
-if (NOT DEFINED ENABLE_DBUS_VIEWER_EVENTS)
-  SET(ENABLE_DBUS_VIEWER_EVENTS 0)
-endif (NOT DEFINED ENABLE_DBUS_VIEWER_EVENTS)
+# libcrengine {{{
 
+add_library(crengine)
+target_sources(crengine PRIVATE ${CRE_SRCS})
+# Make sure we get full `constexpr` support.
+target_compile_features(crengine PRIVATE cxx_std_17)
+target_compile_options(crengine PRIVATE -ftabstop=4 -Wall)
+if(NOT BUILD_SHARED_LIBS)
+    # Enable `-fvisibility=hidden`.
+    set_target_properties(crengine PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    # Enable `-fvisibility-inlines-hidden`.
+    set_target_properties(crengine PROPERTIES VISIBILITY_INLINES_HIDDEN TRUE)
+endif()
+target_include_directories(crengine PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(crengine PUBLIC crengine/include)
+target_link_libraries(crengine PRIVATE ${CRE_LIBS})
 
-SET (CRGUI_DEFS -DCOLOR_BACKBUFFER=0 -DLDOM_USE_OWN_MEM_MAN=0 -DGRAY_BACKBUFFER_BITS=${GRAY_BACKBUFFER_BITS} 
-      -DENABLE_DBUS_VIEWER_EVENTS=${ENABLE_DBUS_VIEWER_EVENTS})
-SET (DESKTOP_DEFS -DCOLOR_BACKBUFFER=1 -DLDOM_USE_OWN_MEM_MAN=1 -DUSE_FREETYPE=1 )
+# }}}
 
-if( ${GUI} STREQUAL QT )
-FIND_PACKAGE( Qt4 REQUIRED )
-INCLUDE(${QT_USE_FILE})
-SET(QT_3RDPARTY_DIR ${QT_INCLUDE_DIR}/../src/3rdparty)
-endif( ${GUI} STREQUAL QT )
-
-#UNRAR support
-if(DEFINED USE_UNRAR)
-  message("Will build static UNRAR library")
-  SET(USE_UNRAR 1)
-  SET(UNRAR_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/unrar)
-  SET(UNRAR_LIBRARIES unrar)
-  ADD_DEFINITIONS(-DUSE_UNRAR=1)
-  INCLUDE_DIRECTORIES(${UNRAR_INCLUDE_DIR})
-  ADD_SUBDIRECTORY(thirdparty/unrar)
-else()
-  message("NO_UNRAR parameter specified: Will not support UNRAR")
-  SET(UNRAR_INCLUDE_DIR)
-  SET(UNRAR_LIBRARIES)
-  ADD_DEFINITIONS(-DUSE_UNRAR=0)
-  SET(USE_UNRAR 0)
-endif(DEFINED USE_UNRAR)
-
-if (MAC)
-  message("will use zlib, libpng, libjpeg, freetype from Qt static library")
-  SET(ZLIB_INCLUDE_DIR ${QT_3RDPARTY_DIR}/zlib)
-  SET(ZLIB_LIBRARIES )
-  SET(PNG_INCLUDE_DIR ${QT_3RDPARTY_DIR}/libpng)
-  SET(PNG_LIBRARIES )
-  SET(FREETYPE_INCLUDE_DIRS ${QT_3RDPARTY_DIR}/freetype/include)
-  SET(FREETYPE_LIBRARIES )
-  SET(JPEG_INCLUDE_DIR ${QT_3RDPARTY_DIR}/libjpeg)
-  SET(JPEG_LIBRARIES )
-endif(MAC)
-
-if (NOT MAC)
-if (DEFINED USE_QT_ZLIB)
-  SET(ZLIB_INCLUDE_DIR ${QT_INCLUDE_DIR}/../src/3rdparty/zlib)
-  message("Using QT ZLIB ${USE_QT_ZLIB} include dir: ${ZLIB_INCLUDE_DIR}")
-# SET(ZLIB_LIBRARIES "")
-else()
-if (NOT WIN32 AND NOT DEFINED USE_STATIC_ZLIB)
-FIND_PACKAGE(ZLIB)
-endif (NOT WIN32 AND NOT DEFINED USE_STATIC_ZLIB)
-if (NOT ZLIB_FOUND)
-  message("System ZLIB not found, will build local one")
-  #to disable #include <qconfig.h>
-  ADD_DEFINITIONS(-DCR3_PATCH=1)
-  ADD_SUBDIRECTORY(thirdparty/zlib)
-  SET(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/zlib)
-  SET(ZLIB_LIBRARIES z)
-endif (NOT ZLIB_FOUND)
-endif(DEFINED USE_QT_ZLIB)
-endif(NOT MAC)
-
-if ( NOT ${GUI} STREQUAL FB2PROPS )
-if (NOT MAC)
-if (NOT WIN32 AND NOT CR3_PNG)
-FIND_PACKAGE(PNG)
-endif (NOT WIN32 AND NOT CR3_PNG)
-if (NOT PNG_FOUND)
-  message("System LIBPNG not found, will build local one")
-  #to disable #include <qconfig.h>
-  ADD_DEFINITIONS(-DCR3_PATCH=1)
-  INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR})
-  ADD_SUBDIRECTORY(thirdparty/libpng)
-  SET(PNG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libpng)
-  SET(PNG_LIBRARIES png)
-endif (NOT PNG_FOUND)
-
-if (NOT WIN32 AND NOT CR3_JPEG)
-FIND_PACKAGE(JPEG)
-endif (NOT WIN32 AND NOT CR3_JPEG)
-if (NOT JPEG_FOUND)
-  message("System LIBJPEG not found, will build local one")
-  ADD_SUBDIRECTORY(thirdparty/libjpeg)
-  SET(JPEG_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libjpeg)
-  SET(JPEG_LIBRARIES jpeg)
-endif (NOT JPEG_FOUND)
-
-if (NOT WIN32 AND NOT CR3_FREETYPE)
-FIND_PACKAGE(Freetype)
-endif (NOT WIN32 AND NOT CR3_FREETYPE)
-if (NOT FREETYPE_FOUND)
-  message("System FREETYPE not found, will build local one")
-  ADD_SUBDIRECTORY(thirdparty/freetype)
-  SET(FREETYPE_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/freetype/include)
-  SET(FREETYPE_LIBRARIES freetype)
-endif (NOT FREETYPE_FOUND)
-endif (NOT MAC)
-
-#if (ENABLE_CHM)
-message("Will build patched LIBCHM library")
-ADD_SUBDIRECTORY(thirdparty/chmlib)
-SET(CHM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/chmlib/src)
-SET(CHM_LIBRARIES chmlib)
-ADD_DEFINITIONS(-DCHM_SUPPORT_ENABLED=1)
-#else()
-#ADD_DEFINITIONS(-DCHM_SUPPORT_ENABLED=0)
-#endif(ENABLE_CHM)
-
-message("Will build patched ANTIWORD library")
-ADD_DEFINITIONS(-DCR3_ANTIWORD_PATCH=1)
-ADD_SUBDIRECTORY(thirdparty/antiword)
-SET(ANTIWORD_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/antiword)
-SET(ANTIWORD_LIBRARIES antiword)
-ADD_DEFINITIONS(-DENABLE_ANTIWORD=1)
-INCLUDE_DIRECTORIES( ${ANTIWORD_INCLUDE_DIR} )
-endif ( NOT ${GUI} STREQUAL FB2PROPS )
-
-
-INCLUDE_DIRECTORIES( 
-  ${PNG_INCLUDE_DIR} 
-  ${JPEG_INCLUDE_DIR} 
-  ${ZLIB_INCLUDE_DIR} 
-  ${FREETYPE_INCLUDE_DIRS}
-  ${HARFBUZZ_INCLUDE_DIRS}
-  ${ANTIWORD_INCLUDE_DIR}
-  ${CHM_INCLUDE_DIR}
-)
-
-if ( ${GUI} STREQUAL FB2PROPS )
-SET(STD_LIBS 
-  ${ZLIB_LIBRARIES} 
-)
-else()
-SET(STD_LIBS 
-  ${JPEG_LIBRARIES} 
-  ${FREETYPE_LIBRARIES} 
-  ${HARFBUZZ_LIBRARIES}
-  ${PNG_LIBRARIES} 
-  ${ZLIB_LIBRARIES} 
-  ${CHM_LIBRARIES}
-  ${ANTIWORD_LIBRARIES}
-)
-include_directories(${FT_INCLUDE_PATH})
-endif ( ${GUI} STREQUAL FB2PROPS )
-
-include_directories(crengine/include)
-
-if ( NOT ${GUI} STREQUAL FB2PROPS )
-include_directories(tinydict)
-message("Will make tinydict library - .dict format support")
-ADD_SUBDIRECTORY(tinydict)
-endif ( NOT ${GUI} STREQUAL FB2PROPS )
-
-
-include(FindPkgConfig)
-
-if ( ${GUI} STREQUAL CRGUI_XCB )
-  message("Will make CR3GUI for XCB")
-  ADD_DEFINITIONS( -DCR_USE_XCB=1 ${CRGUI_DEFS} )
-  ADD_DEFINITIONS( -DCR_INTERNAL_PAGE_ORIENTATION=0 ${CRGUI_DEFS} )
-  message("Freetype include dir: ${FREETYPE_INCLUDE_DIRS}")
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3gui)
-elseif ( ${GUI} STREQUAL CRGUI_NANOX )
-  message("Will make CR3GUI for NanoX")
-  if (ENABLE_DBUS_VIEWER_EVENTS)
-    message("Will handle DBUS messages")
-    pkg_check_modules( DBUS REQUIRED dbus-1 )
-    message("dbus include dir: ${DBUS_INCLUDE_DIRS} path ${DBUS_INCLUDE_PATH}")
-    include_directories(${DBUS_INCLUDE_DIRS})
-  endif (ENABLE_DBUS_VIEWER_EVENTS)
-  ADD_DEFINITIONS( -DLBOOK=1 -DWITH_JINKE=1 -DCR_USE_JINKE=1
-    -DJINKE_VIEWER ${CRGUI_DEFS} -DENABLE_UPDATE_MODE_SETTING=1 )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3gui)
-elseif ( ${GUI} STREQUAL CRGUI_JINKE_PLUGIN )
-  message("Will make CR3GUI plugin for Jinke Viewer")
-  ADD_DEFINITIONS( -DLBOOK=1 -DWITH_JINKE=1 -DWITH_JINKE_APP=1
-    -DCR_USE_JINKE=1 ${CRGUI_DEFS}
-    -DENABLE_UPDATE_MODE_SETTING=1 )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3gui)
-elseif ( ${GUI} STREQUAL FB2PROPS )
-  message("Will make LIBFB2PROPS plugin for Jinke Bookshelf")
-  ADD_DEFINITIONS( -DLBOOK=1 -DWITH_JINKE=1 -DCR_USE_JINKE=1 -DBUILD_LITE=1 ${CRGUI_DEFS} )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(fb2props)
-elseif ( ${GUI} STREQUAL CRGUI_WIN32 )
-  message("Will make CR3GUI for Win32")
-  ADD_DEFINITIONS( ${CRGUI_DEFS} )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3gui)
-elseif ( ${GUI} STREQUAL QT )
-  message("Will make CR3/QT")
-  ADD_DEFINITIONS( ${DESKTOP_DEFS} )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3qt)
-elseif ( ${GUI} STREQUAL WX )
-  message("Will make CR3/WX")
-  ADD_DEFINITIONS( ${DESKTOP_DEFS} -DCR_WX_SUPPORT=1 )
-  SET(wxWidgets_USE_LIBS base core )
-  FIND_PACKAGE(wxWidgets)
-  IF (wxWidgets_FOUND)
-    INCLUDE(${wxWidgets_USE_FILE})
-    include_directories( ${wxWidgets_INCLUDE_DIRS} )
-    message( "WX include: ${wxWidgets_INCLUDE_DIRS}" )
-  ELSE (wxWidgets_FOUND)
-    message("wxWidgets library not found!")
-  ENDIF (wxWidgets_FOUND)
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3wx)
-elseif ( ${GUI} STREQUAL CRGUI_PB )
-  message("Will make CR3GUI for PocketBook")
-  ADD_DEFINITIONS( -DLBOOK=1 -DCR_POCKETBOOK=1 
-   ${CRGUI_DEFS} -DCR_USE_INVERT_FOR_SELECTION_MARKS=1 -DENABLE_UPDATE_MODE_SETTING=1)
-  ADD_DEFINITIONS( -DCR_INTERNAL_PAGE_ORIENTATION=0 )
-  ADD_SUBDIRECTORY(crengine)  
-  ADD_SUBDIRECTORY(cr3gui)
-  FIND_PATH (INKVIEW_INCLUDE_DIR inkview.h)
-  IF (INKVIEW_INCLUDE_DIR)
-    include_directories(${INKVIEW_INCLUDE_DIR})
-  ELSE (INKVIEW_INCLUDE_DIR)
-    message("inkview.h not found")
-  ENDIF (INKVIEW_INCLUDE_DIR)
-elseif ( ${GUI} STREQUAL CRGUI_QT )
-  message("Will make CR3GUI with Qt backend")
-  ADD_DEFINITIONS( -DCR_USE_QT=1 -DCRGUI_QT=1 -DCR_USE_INVERT_FOR_SELECTION_MARKS=1)
-  ADD_DEFINITIONS( -DCR_INTERNAL_PAGE_ORIENTATION=0 ${CRGUI_DEFS} )
-  ADD_SUBDIRECTORY(crengine)
-  ADD_SUBDIRECTORY(cr3gui)
-else ( ${GUI} STREQUAL CRGUI_XCB )
-  message("Unknown GUI type ${GUI}")
-endif ( ${GUI} STREQUAL CRGUI_XCB )
+# vim: foldmethod=marker foldlevel=0

@@ -1,3 +1,5 @@
+#include "crsetup.h"
+
 #include "../include/pdbfmt.h"
 #include <ctype.h>
 

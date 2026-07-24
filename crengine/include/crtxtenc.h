@@ -13,6 +13,8 @@
 #ifndef __CRTXTENC_H_INCLUDED__
 #define __CRTXTENC_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdio.h>
 #include "lvtypes.h"
 #include "lvplatform.h"

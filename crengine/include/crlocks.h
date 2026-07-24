@@ -1,6 +1,8 @@
 #ifndef CRLOCKS_H
 #define CRLOCKS_H
 
+#include "crsetup.h"
+
 #if 0
 
 #include "lvautoptr.h"

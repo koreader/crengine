@@ -16,6 +16,8 @@
 #ifndef __LVPTRVEC_H_INCLUDED__
 #define __LVPTRVEC_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include "lvmemman.h"
 

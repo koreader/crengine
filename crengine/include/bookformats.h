@@ -1,6 +1,8 @@
 #ifndef BOOKFORMATS_H
 #define BOOKFORMATS_H
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvstring.h"
 

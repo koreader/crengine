@@ -1,6 +1,8 @@
 // IMPORTANT : when making changes in language detection logic and per-language
 // rules here, be sure to also bump FORMATTING_VERSION_ID in src/lvtinydom.cpp
 
+#include "crsetup.h"
+
 #include "../include/lvtypes.h"
 #include "../include/lvstring.h"
 #include "../include/lvtinydom.h"

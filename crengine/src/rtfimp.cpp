@@ -10,6 +10,9 @@
    See LICENSE file for details
 
 *******************************************************/
+
+#include "crsetup.h"
+
 #include "../include/rtfimp.h"
 #include "../include/crtxtenc.h"
 #include "../include/lvtinydom.h"
