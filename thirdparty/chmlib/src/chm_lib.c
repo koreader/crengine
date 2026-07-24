@@ -57,6 +57,7 @@
 #include "lzx.h"
 
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #ifdef CHM_DEBUG
 #include <stdio.h>
@@ -142,45 +143,13 @@
  * many bits as they specify.
  */
 
-/* i386, 32-bit, Windows */
-#ifdef WIN32
-typedef unsigned char           UChar;
-typedef __int16                 Int16;
-typedef unsigned __int16        UInt16;
-typedef __int32                 Int32;
-typedef unsigned __int32        UInt32;
-typedef __int64                 Int64;
-typedef unsigned __int64        UInt64;
-
-/* I386, 32-bit, non-Windows */
-/* Sparc        */
-/* MIPS         */
-/* PPC          */
-#elif __i386__ || __sun || __sgi || __ppc__ || __arm__ || __mips__
-typedef unsigned char           UChar;
-typedef short                   Int16;
-typedef unsigned short          UInt16;
-typedef long                    Int32;
-typedef unsigned long           UInt32;
-typedef long long               Int64;
-typedef unsigned long long      UInt64;
-
-/* x86-64 */
-/* Note that these may be appropriate for other 64-bit machines. */
-#elif __x86_64__ || __ia64__ || __aarch64__
-typedef unsigned char           UChar;
-typedef short                   Int16;
-typedef unsigned short          UInt16;
-typedef int                     Int32;
-typedef unsigned int            UInt32;
-typedef long                    Int64;
-typedef unsigned long           UInt64;
-
-#else
-
-/* yielding an error is preferable to yielding incorrect behavior */
-#error "Please define the sized types for your platform in chm_lib.c"
-#endif
+typedef unsigned char UChar;
+typedef int16_t       Int16;
+typedef uint16_t      UInt16;
+typedef int32_t       Int32;
+typedef uint32_t      UInt32;
+typedef int64_t       Int64;
+typedef uint64_t      UInt64;
 
 /* GCC */
 #ifdef __GNUC__
