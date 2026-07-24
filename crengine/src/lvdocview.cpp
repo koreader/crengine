@@ -6891,11 +6891,15 @@ CRPropRef LVDocView::propsApply(CRPropRef props) {
         //     REQUEST_RENDER("propsApply - kerning")
         } else if (name == PROP_FONT_KERNING) {
             int mode = props->getIntDef(PROP_FONT_KERNING, (int)KERNING_MODE_DISABLED);
-            if ((int)fontMan->GetKerningMode() != mode && mode>=0 && mode<=3) {
+            if ((int)fontMan->GetKerningMode() != mode && mode>=0 && mode<=(int)KERNING_MODE_HARFBUZZ) {
                 //CRLog::debug("Setting kerning mode to %d", mode);
                 fontMan->SetKerningMode((kerning_mode_t)mode);
                 REQUEST_RENDER("propsApply - font kerning")
             }
+        } else if (name == PROP_FONT_FRACTIONAL_POSITIONING) {
+            int granularity = props->getIntDef(PROP_FONT_FRACTIONAL_POSITIONING, 1);
+            fontMan->SetFractionalGlyphPositioning(granularity);
+            REQUEST_RENDER("propsApply - font fractional positioning")
         } else if (name == PROP_FONT_BASE_WEIGHT) {
             // replaces PROP_FONT_WEIGHT_EMBOLDEN
             int v = props->getIntDef(PROP_FONT_BASE_WEIGHT, 400);
