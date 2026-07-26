@@ -22705,6 +22705,11 @@ void LVPageMap::sortByDocY()
         }
         _children[j+1] = item;
     }
+    // Keep _index in sync with the new order, so it still is the index of the item
+    // in this page map (as set by addPage()), and still a valid tie-break above if
+    // we are called again.
+    for ( int i=0; i<nb; i++ )
+        _children[i]->_index = i;
 }
 
 /// serialize to byte array (pointer will be incremented by number of bytes written)
