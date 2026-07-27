@@ -235,6 +235,19 @@ static inline int FONT_METRIC_FRAC_64(lInt32 x)
     return x - floor_px * 64;
 }
 
+static inline int FONT_METRIC_SUBPIXEL_PHASE_STEP(lInt32 x, int phase_count, int &draw_x)
+{
+    draw_x = FONT_METRIC_FLOOR_TO_PX(x);
+    int phase_64 = FONT_METRIC_FRAC_64(x);
+    int phase_unit = 64 / phase_count;
+    int phase_step = (phase_64 + phase_unit / 2) / phase_unit;
+    if (phase_step >= phase_count) {
+        phase_step = 0;
+        draw_x += 1;
+    }
+    return phase_step;
+}
+
 #if COLOR_BACKBUFFER==0
 //#define USE_BITMAP_FONT
 #endif
@@ -3654,7 +3667,7 @@ public:
 
     LVFontGlyphCacheItem * getGlyphByIndexSubpixel(lUInt32 index, int phase_step, int phase_count) {
         if (_drawMonochrome || phase_step <= 0 || phase_count <= 1)
-            return getGlyphByIndex(index);
+            return NULL;
 
         // This is the same loading/rendering path as getGlyphByIndex(), but with
         // the outline shifted horizontally before rendering. The phase count is
@@ -3663,7 +3676,7 @@ public:
         //   4  phases: 0/64, 16/64, 32/64, 48/64
         //   64 phases: every 1/64 pixel position
         //
-        // Phase 0 uses the normal glyph cache entry. Non-zero phases are stored
+        // Subpixel phase 0 uses the normal glyph cache entry. Non-zero phases are stored
         // in the high 6 bits of the existing 32-bit glyph cache key, leaving the
         // lower 26 bits for the glyph index. This keeps the cache type unchanged
         // and supports up to 64 phases, but assumes practical glyph indices stay
@@ -3673,7 +3686,13 @@ public:
             phase_step = phase_count - 1;
         static const int SUBPIXEL_PHASE_SHIFT = 26;
         static const lUInt32 SUBPIXEL_GLYPH_INDEX_MASK = (1u << SUBPIXEL_PHASE_SHIFT) - 1;
-        lUInt32 cache_index = ((lUInt32)phase_step << SUBPIXEL_PHASE_SHIFT) | (index & SUBPIXEL_GLYPH_INDEX_MASK);
+        if (index & ~SUBPIXEL_GLYPH_INDEX_MASK) {
+            // For an index  >= 2^26 (very rare), skip the packed phase-key cache and return
+            // the ordinary glyph cache entry keyed by the unmodified index, to avoid collisions
+            // with non-phase-zero entries.
+            return getGlyphByIndex(index);
+        }
+        lUInt32 cache_index = ((lUInt32)phase_step << SUBPIXEL_PHASE_SHIFT) | index;
         LVFontGlyphCacheItem *item = _glyph_cache2.getByIndex(cache_index);
         if (!item) {
             int rend_flags = FT_LOAD_TARGET_LIGHT;
@@ -3697,8 +3716,8 @@ public:
             }
             if ( error )
                 return NULL;
-            if ( _slot->format != FT_GLYPH_FORMAT_OUTLINE )
-                return getGlyphByIndex(index);
+            if (_slot->format != FT_GLYPH_FORMAT_OUTLINE)
+                return NULL;
 
             bool is_embolden = false;
             if (_synth_weight > 0) {
@@ -4503,7 +4522,7 @@ public:
                     int prev_x = x;
                     // With fractional positioning, a cluster can advance in 26.6 units
                     // without changing the rounded integer x. Track the original
-                    // HarfBuzz advance to decide whether letter spacing should apply.
+                    // unrounded advance to decide whether letter spacing should apply.
                     bool cluster_has_advance = false;
                     for (i = hg; i < hg2; i++) {
                         if ( svg_collector ) {
@@ -4609,18 +4628,17 @@ public:
                                     x_64 = x * 64;
                                 }
                                 else {
-                                    lInt32 draw_x_64 = x_64 + glyph_pos[i].x_offset;
-                                    int draw_x = FONT_METRIC_FLOOR_TO_PX(draw_x_64);
-                                    int phase_64 = FONT_METRIC_FRAC_64(draw_x_64);
-                                    int phase_unit = 64 / fractional_positioning_granularity;
-                                    int phase_step = (phase_64 + phase_unit / 2) / phase_unit;
-                                    if (phase_step >= fractional_positioning_granularity) {
-                                        phase_step = 0;
-                                        draw_x += 1;
-                                    }
+                                    int draw_x;
+                                    int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(
+                                        x_64 + glyph_pos[i].x_offset,
+                                        fractional_positioning_granularity, draw_x);
                                     LVFontGlyphCacheItem *draw_item = getGlyphByIndexSubpixel(glyph_info[i].codepoint, phase_step, fractional_positioning_granularity);
-                                    if (!draw_item)
+                                    if (!draw_item) {
                                         draw_item = item;
+                                        // A normal bitmap cannot represent this subpixel phase.
+                                        // Keep the former rounded integer placement.
+                                        draw_x = x;
+                                    }
                                     drawGlyphItem(buf,
                                               draw_x + draw_item->origin_x,
                                               y + _baseline - draw_item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
@@ -4667,9 +4685,24 @@ public:
                 LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
                 if (item) {
                     w = item->advance;
-                    drawGlyphItem(buf, x + item->origin_x,
-                               y + _baseline - item->origin_y,
-                               item, palette);
+                    int draw_x = x;
+                    LVFontGlyphCacheItem *draw_item = item;
+                    if (use_fractional_positioning) {
+                        FT_UInt hyphen_index = getCharIndex(ch, 0);
+                        if (hyphen_index) {
+                            int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(
+                                x_64, fractional_positioning_granularity, draw_x);
+                            LVFontGlyphCacheItem *subpixel_item = getGlyphByIndexSubpixel(
+                                hyphen_index, phase_step, fractional_positioning_granularity);
+                            if (subpixel_item)
+                                draw_item = subpixel_item;
+                            else
+                                draw_x = x;
+                        }
+                    }
+                    drawGlyphItem(buf, draw_x + draw_item->origin_x,
+                                   y + _baseline - draw_item->origin_y,
+                                   draw_item, palette);
                     x  += w; // + letter_spacing; (let's not add any letter-spacing after hyphen)
                 }
             }
@@ -6596,6 +6629,10 @@ public:
         _instance_cache.forEachFont([mode](LVFontRef& f) {
             f->setKerningMode(mode);
         });
+    }
+
+    virtual int GetFractionalGlyphPositioning() {
+        return fractionalGlyphPositioningGranularity;
     }
 
     virtual void SetFractionalGlyphPositioning(int granularity) {
