@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Minimal EPUB reproducing two font-variant/small-caps bugs.
+"""Minimal EPUB reproducing three font-variant/small-caps bugs.
 
 crengine maps all font-variant-* longhands into a single shared
-style->font_features bitmap. This exercises two distinct bugs in how that
+style->font_features bitmap. This exercises three distinct bugs in how that
 shared bitmap gets updated.
 
 Cases A/B: a font-variant shorthand ("small-caps") followed by another
@@ -21,6 +21,14 @@ plain "normal" (no small caps). Before the fix, "inherit" was applied by
 OR'ing a zero value into the bitmap instead of replacing it, so the
 small-caps bit set by the lower-specificity rule survived the explicit
 inherit.
+
+Case D: a lower-specificity rule sets small-caps (font-variant-caps), and a
+higher-specificity rule on the same node sets a *different* longhand
+(font-variant-numeric) to "initial". Since "initial" only concerns the
+numeric sub-feature, the small-caps bit should be unaffected. Before the
+fix, "initial" on any single longhand reset the whole shared bitmap
+(hardcoded to clear every sub-feature), so it also wiped out the unrelated
+small-caps bit.
 """
 
 import io
@@ -103,6 +111,17 @@ span.inherit-phrase {
 p.case-c span.inherit-phrase {
     font-variant: inherit;
 }
+
+/* Case D: a lower-specificity rule sets small-caps, then a higher-specificity
+   rule on the same node sets a different longhand (font-variant-numeric) to
+   "initial". Small-caps should be unaffected -- "initial" here only concerns
+   the numeric sub-feature. */
+span.initial-phrase {
+    font-variant-caps: small-caps;
+}
+p.case-d span.initial-phrase {
+    font-variant-numeric: initial;
+}
 """
 
 CH01 = """\
@@ -149,6 +168,19 @@ phrase of the chapter</span> continues here as normal running text.</p>
 <p class="label">Expected after the fix: Case C's opening phrase is NOT
 small-caps (plain text), because the explicit "inherit" takes over
 completely.</p>
+
+<p class="label">Case D &#x2014; a lower-specificity rule sets small-caps on
+the phrase, then a higher-specificity rule on the same element sets a
+different longhand, "font-variant-numeric: initial". This should only reset
+the numeric sub-feature, leaving small-caps untouched. Bug: before the fix,
+"initial" on any single longhand reset the entire shared bitmap, wiping out
+the unrelated small-caps bit.</p>
+<p class="case-d"><span class="initial-phrase">The first
+phrase of the chapter</span> continues here as normal running text.</p>
+
+<p class="label">Expected after the fix: Case D's opening phrase IS
+small-caps, because "font-variant-numeric: initial" only resets the numeric
+sub-feature, not the unrelated small-caps bit.</p>
 </body>
 </html>
 """
