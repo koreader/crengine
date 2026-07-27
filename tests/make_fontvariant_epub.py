@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
-"""Minimal EPUB reproducing the font-variant/small-caps !important bug.
+"""Minimal EPUB reproducing two font-variant/small-caps bugs.
 
-Two paragraphs use the same shape of rule: a font-variant shorthand
-("small-caps") followed by another font-variant-* longhand reset to
-"normal". crengine maps all font-variant-* longhands into a single shared
-style->font_features bitmap; before the fix, any longhand set to
-"normal"/"none" wiped out the whole bitmap rather than just its own bits,
-so the later "font-variant-alternates: normal" erased the "small-caps" bit
-the shorthand had just set.
+crengine maps all font-variant-* longhands into a single shared
+style->font_features bitmap. This exercises two distinct bugs in how that
+shared bitmap gets updated.
 
-Case A omits !important (the bug: the small-caps bit is wiped by the later
-plain "normal" longhand). Case B adds !important (the manual workaround).
-On a fixed crengine build both should render identically in small caps.
+Cases A/B: a font-variant shorthand ("small-caps") followed by another
+font-variant-* longhand reset to "normal", within the same rule on the same
+node. Before the fix, any longhand set to "normal"/"none" wiped out the
+whole bitmap rather than just its own bits, so the later
+"font-variant-alternates: normal" erased the "small-caps" bit the shorthand
+had just set. Case A omits !important (triggers the bug). Case B adds
+!important (the manual workaround). On a fixed crengine build both should
+render identically in small caps.
+
+Case C: a lower-specificity rule sets small-caps on a node, and a
+higher-specificity rule on that same node then says "font-variant:
+inherit". Since nothing above sets font-variant, the node should inherit
+plain "normal" (no small caps). Before the fix, "inherit" was applied by
+OR'ing a zero value into the bitmap instead of replacing it, so the
+small-caps bit set by the lower-specificity rule survived the explicit
+inherit.
 """
 
 import io
@@ -84,6 +93,16 @@ p.case-b span.first-phrase {
     font-variant: small-caps !important;
     font-variant-alternates: normal;
 }
+
+/* Case C: a lower-specificity rule sets small-caps, then a higher-specificity
+   rule on the same node says "font-variant: inherit". Nothing above sets
+   font-variant, so the node should inherit plain "normal" (no small caps). */
+span.inherit-phrase {
+    font-variant: small-caps;
+}
+p.case-c span.inherit-phrase {
+    font-variant: inherit;
+}
 """
 
 CH01 = """\
@@ -117,6 +136,19 @@ see.</p>
 <p class="label">Expected after the fix: Case A and Case B look identical
 &#x2014; both show "THE FIRST PHRASE OF THE CHAPTER" in small caps, with the
 rest of the paragraph in normal case.</p>
+
+<p class="label">Case C &#x2014; a lower-specificity rule sets small-caps on
+the phrase, then a higher-specificity rule on the same element says
+"font-variant: inherit". Nothing above sets font-variant, so the phrase
+should inherit plain text (no small caps). Bug: before the fix, the
+small-caps bit set by the lower-specificity rule survived the explicit
+inherit.</p>
+<p class="case-c"><span class="inherit-phrase">The first
+phrase of the chapter</span> continues here as normal running text.</p>
+
+<p class="label">Expected after the fix: Case C's opening phrase is NOT
+small-caps (plain text), because the explicit "inherit" takes over
+completely.</p>
 </body>
 </html>
 """

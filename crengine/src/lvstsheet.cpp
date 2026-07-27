@@ -3966,7 +3966,13 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // carry an extra 3rd word (reset_mask, see below) that this macro doesn't know
                 // how to emit.
                 if ( g >= 0 ) {
-                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                    // All these longhands (and the shorthand) are stored as style->font_features,
+                    // whose apply() case is keyed on cssd_font_features -- not on the specific
+                    // longhand's own cssd_font_variant_* code. Push the remapped code here too
+                    // (matching the g<0 path below), or apply() has no matching case for eg.
+                    // cssd_font_variant_caps and silently drops this declaration while desyncing
+                    // the read of every declaration that follows it in the same rule.
+                    buf<<(lUInt32) (cssd_font_features | importance | parse_important(decl));
                     if ( g != css_g_initial ) {
                         // inherit/unset: let lvrend.cpp's inheritance merge handle it
                         buf<<(lUInt32) css_val_inherited;
@@ -5403,8 +5409,12 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
                 css_length_t font_features = read_length(p);
                 lUInt32 reset_mask = (lUInt32) *p++;
                 if ( font_features.type == css_val_inherited ) {
-                    // "inherit"/"unset": let the inheritance merge in lvrend.cpp handle it
-                    style->ApplyAsBitmapOr( font_features, &style->font_features, imp_bit_font_features, is_important );
+                    // "inherit"/"unset": fully reset to the inherited marker (a plain
+                    // assignment, not a bitmap-OR), discarding any bits a lower-specificity
+                    // declaration may have already set on this same node, so the merge in
+                    // lvrend.cpp starts purely from the parent's value, as the property
+                    // being explicitly inherited implies.
+                    style->Apply( font_features, &style->font_features, imp_bit_font_features, is_important );
                 }
                 else {
                     // Only clear/set the bits owned by the longhand (or shorthand) that produced
