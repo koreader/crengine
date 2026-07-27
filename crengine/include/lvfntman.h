@@ -319,20 +319,20 @@ enum kerning_mode_t {
 // block. Only the font-variant shorthand itself (or "font-variant: normal")
 // should reset the union of all these masks.
 #define LFNT_OT_FEATURES_MASK_LIGATURES  (LFNT_OT_FEATURES_M_LIGA | LFNT_OT_FEATURES_M_CALT | LFNT_OT_FEATURES_P_DLIG | \
-                                           LFNT_OT_FEATURES_M_DLIG | LFNT_OT_FEATURES_P_HLIG | LFNT_OT_FEATURES_M_HLIG)
+                                          LFNT_OT_FEATURES_M_DLIG | LFNT_OT_FEATURES_P_HLIG | LFNT_OT_FEATURES_M_HLIG)
 #define LFNT_OT_FEATURES_MASK_ALTERNATES (LFNT_OT_FEATURES_P_HIST)
 #define LFNT_OT_FEATURES_MASK_CAPS       (LFNT_OT_FEATURES_P_SMCP | LFNT_OT_FEATURES_P_C2SC | LFNT_OT_FEATURES_P_PCAP | \
-                                           LFNT_OT_FEATURES_P_C2PC | LFNT_OT_FEATURES_P_UNIC | LFNT_OT_FEATURES_P_TITL)
+                                          LFNT_OT_FEATURES_P_C2PC | LFNT_OT_FEATURES_P_UNIC | LFNT_OT_FEATURES_P_TITL)
 #define LFNT_OT_FEATURES_MASK_POSITION   (LFNT_OT_FEATURES_P_SUPS | LFNT_OT_FEATURES_P_SUBS)
 #define LFNT_OT_FEATURES_MASK_NUMERIC    (LFNT_OT_FEATURES_P_LNUM | LFNT_OT_FEATURES_P_ONUM | LFNT_OT_FEATURES_P_PNUM | \
-                                           LFNT_OT_FEATURES_P_TNUM | LFNT_OT_FEATURES_P_ZERO | LFNT_OT_FEATURES_P_ORDN | \
-                                           LFNT_OT_FEATURES_P_FRAC | LFNT_OT_FEATURES_P_AFRC)
+                                          LFNT_OT_FEATURES_P_TNUM | LFNT_OT_FEATURES_P_ZERO | LFNT_OT_FEATURES_P_ORDN | \
+                                          LFNT_OT_FEATURES_P_FRAC | LFNT_OT_FEATURES_P_AFRC)
 #define LFNT_OT_FEATURES_MASK_EASTASIAN  (LFNT_OT_FEATURES_P_RUBY | LFNT_OT_FEATURES_P_SMPL | LFNT_OT_FEATURES_P_TRAD | \
-                                           LFNT_OT_FEATURES_P_FWID | LFNT_OT_FEATURES_P_PWID | LFNT_OT_FEATURES_P_JP78 | \
-                                           LFNT_OT_FEATURES_P_JP83 | LFNT_OT_FEATURES_P_JP04)
+                                          LFNT_OT_FEATURES_P_FWID | LFNT_OT_FEATURES_P_PWID | LFNT_OT_FEATURES_P_JP78 | \
+                                          LFNT_OT_FEATURES_P_JP83 | LFNT_OT_FEATURES_P_JP04)
 #define LFNT_OT_FEATURES_MASK_ALL        (LFNT_OT_FEATURES_MASK_LIGATURES | LFNT_OT_FEATURES_MASK_ALTERNATES | \
-                                           LFNT_OT_FEATURES_MASK_CAPS | LFNT_OT_FEATURES_MASK_POSITION | \
-                                           LFNT_OT_FEATURES_MASK_NUMERIC | LFNT_OT_FEATURES_MASK_EASTASIAN)
+                                          LFNT_OT_FEATURES_MASK_CAPS | LFNT_OT_FEATURES_MASK_POSITION | \
+                                          LFNT_OT_FEATURES_MASK_NUMERIC | LFNT_OT_FEATURES_MASK_EASTASIAN)
 
 // Extra font metrics (cached)
 enum font_extra_metric_t

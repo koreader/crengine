@@ -4000,11 +4000,11 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     // clears the alternates bit and doesn't wipe out a "small-caps" bit set by
                     // another declaration (possibly the font-variant shorthand) in the same rule.
                     int reset_mask = (parse_ligatures  ? LFNT_OT_FEATURES_MASK_LIGATURES  : 0)
-                                    | (parse_alternates ? LFNT_OT_FEATURES_MASK_ALTERNATES : 0)
-                                    | (parse_caps       ? LFNT_OT_FEATURES_MASK_CAPS       : 0)
-                                    | (parse_position   ? LFNT_OT_FEATURES_MASK_POSITION   : 0)
-                                    | (parse_numeric    ? LFNT_OT_FEATURES_MASK_NUMERIC    : 0)
-                                    | (parse_eastasian  ? LFNT_OT_FEATURES_MASK_EASTASIAN  : 0);
+                                   | (parse_alternates ? LFNT_OT_FEATURES_MASK_ALTERNATES : 0)
+                                   | (parse_caps       ? LFNT_OT_FEATURES_MASK_CAPS       : 0)
+                                   | (parse_position   ? LFNT_OT_FEATURES_MASK_POSITION   : 0)
+                                   | (parse_numeric    ? LFNT_OT_FEATURES_MASK_NUMERIC    : 0)
+                                   | (parse_eastasian  ? LFNT_OT_FEATURES_MASK_EASTASIAN  : 0);
                     prop_code = cssd_font_features;
                     int features = 0; // "normal" = no extra feature
                     int nb_parsed = 0;
