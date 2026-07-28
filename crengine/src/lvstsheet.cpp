@@ -6007,6 +6007,56 @@ bool LVCssSelectorRule::quickClassCheck(const lUInt32 *classHashes, size_t size)
     return false;
 }
 
+static bool getOriginalFragmentAttributeValue(const ldomNode *node, lUInt16 attrid, lString32 &original_value) {
+    // EPUB/CHM documents are merged into a single DOM, and ldomDocumentFragmentWriter
+    // rewrites some attributes with a "_doc_fragment_N_ " prefix so they stay unique.
+    // CSS selectors should still be able to target the original source value, so we
+    // recover it here when the stored DOM value clearly comes from that rewrite.
+    if (attrid == attr_id || attrid == attr_name) {
+        lString32 value = node->getAttributeValue(attrid);
+        if (!value.startsWith(U"_doc_fragment_"))
+            return false;
+        int sep = value.pos(lString32(" "));
+        if (sep <= 0 || sep + 1 >= value.length())
+            return false;
+        if (value[sep - 1] != U'_')
+            return false;
+        original_value = value.substr(sep + 1, value.length() - sep - 1);
+        return true;
+    }
+    if (attrid == attr_href || attrid == attr_src || attrid == attr_data) {
+        lString32 value = node->getAttributeValue(attrid);
+        if (!value.startsWith(U"#_doc_fragment_"))
+            return false;
+        int sep = value.pos(lString32(" "));
+        if (sep <= 1 || sep + 1 > value.length())
+            return false;
+        if (value[sep - 1] != U'_')
+            return false;
+        lString32 doc_fragment_id;
+        const ldomNode *parent = node;
+        while (parent) {
+            if (parent->getNodeId() == el_DocFragment) {
+                doc_fragment_id = parent->getAttributeValue(attr_id);
+                break;
+            }
+            parent = parent->getParentNode();
+        }
+        if (doc_fragment_id.empty())
+            return false;
+        // Cross-fragment links lose their original path when imported into the
+        // single DOM, so only recover the original "#id" for same-fragment refs.
+        lString32 same_fragment_prefix = lString32(U"#") + doc_fragment_id + U"_ ";
+        if (!value.startsWith(same_fragment_prefix))
+            return false;
+        original_value = lString32(U"#");
+        if (sep + 1 < value.length())
+            original_value << value.substr(sep + 1, value.length() - sep - 1);
+        return true;
+    }
+    return false;
+}
+
 bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
 {
     if (!node || node->isNull() || node->isRoot())
@@ -6139,7 +6189,16 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             lString32 val = node->getAttributeValue(_attrid);
             if (_type == cssrt_attreq_i)
                 val.lowercase();
-            return val == _value;
+            if (val == _value)
+                return true;
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
+                return false;
+            if (_type == cssrt_attreq_i)
+                original_val.lowercase();
+            return original_val == _value;
         }
         break;
     case cssrt_attrhas:       // E[foo~="value"]
@@ -6159,6 +6218,20 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             int pos;
             while ((pos = val.pos(_value, start)) >= 0) {
                 if ((pos == 0 || val[pos - 1] == ' ') && (pos + value_len == val_len || val[pos + value_len] == ' '))
+                    return true;
+                start = pos + 1;
+            }
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
+                return false;
+            if (_type == cssrt_attrhas_i)
+                original_val.lowercase();
+            val_len = original_val.length();
+            start = 0;
+            while ((pos = original_val.pos(_value, start)) >= 0) {
+                if ((pos == 0 || original_val[pos - 1] == ' ') && (pos + value_len == val_len || original_val[pos + value_len] == ' '))
                     return true;
                 start = pos + 1;
             }
@@ -6182,12 +6255,27 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             if (_type == cssrt_attrstarts_i)
                 val.lowercase();
             if (value_len == val_len) {
-                return val == _value;
+                if (val == _value)
+                    return true;
             }
-            if (val[value_len] != '-')
+            else if (val[value_len] == '-' && val.substr(0, value_len) == _value) {
+                return true;
+            }
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
                 return false;
-            val = val.substr(0, value_len);
-            return val == _value;
+            val_len = original_val.length();
+            if (value_len > val_len)
+                return false;
+            if (_type == cssrt_attrstarts_i)
+                original_val.lowercase();
+            if (value_len == val_len)
+                return original_val == _value;
+            if (original_val[value_len] != '-')
+                return false;
+            return original_val.substr(0, value_len) == _value;
         }
         break;
     case cssrt_attrstarts:    // E[foo^="value"]
@@ -6205,7 +6293,20 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             val = val.substr(0, value_len);
             if (_type == cssrt_attrstarts_i)
                 val.lowercase();
-            return val == _value;
+            if (val == _value)
+                return true;
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
+                return false;
+            val_len = original_val.length();
+            if (value_len > val_len)
+                return false;
+            original_val = original_val.substr(0, value_len);
+            if (_type == cssrt_attrstarts_i)
+                original_val.lowercase();
+            return original_val == _value;
         }
         break;
     case cssrt_attrends:    // E[foo$="value"]
@@ -6223,7 +6324,20 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             val = val.substr(val_len-value_len, value_len);
             if (_type == cssrt_attrends_i)
                 val.lowercase();
-            return val == _value;
+            if (val == _value)
+                return true;
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
+                return false;
+            val_len = original_val.length();
+            if (value_len > val_len)
+                return false;
+            original_val = original_val.substr(val_len-value_len, value_len);
+            if (_type == cssrt_attrends_i)
+                original_val.lowercase();
+            return original_val == _value;
         }
         break;
     case cssrt_attrcontains:    // E[foo*="value"]
@@ -6238,7 +6352,18 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
                 return false;
             if (_type == cssrt_attrcontains_i)
                 val.lowercase();
-            return val.pos(_value, 0) >= 0;
+            if (val.pos(_value, 0) >= 0)
+                return true;
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed it with "_doc_fragment_N_ " to keep merged-DOM attributes unique.
+            lString32 original_val;
+            if ( !getOriginalFragmentAttributeValue(node, _attrid, original_val) )
+                return false;
+            if (_value.length()>original_val.length())
+                return false;
+            if (_type == cssrt_attrcontains_i)
+                original_val.lowercase();
+            return original_val.pos(_value, 0) >= 0;
         }
         break;
     case cssrt_id:            // E#id
@@ -6246,23 +6371,12 @@ bool LVCssSelectorRule::check( const ldomNode * & node, bool allow_cache ) const
             const lString32 &val = node->getAttributeValue(attr_id);
             if ( val.empty() )
                 return false;
-            // With EPUBs and CHMs, using ldomDocumentFragmentWriter,
-            // we get the codeBasePrefix (+ a space) prepended to the
-            // original id, ie: id="_doc_fragment_7_ origId"
-            if ( !val.endsWith(_value) )
-                return false;
-            int prefix_len = val.length() - _value.length();
-            if ( prefix_len == 0 )
-                return true; // exact match (non EPUB/CHM)
-            if ( val[prefix_len - 1] != U' ' )
-                return false; // not a space, can't be a match
-            // Ensure this prefix looks enough like a codeBasePrefix so
-            // that we can consider it a match
-            if ( prefix_len >= 2 && val[prefix_len - 2] != U'_' )
-                return false; // not the trailing '_' of a "_doc_fragment_7_"
-            if ( val.startsWith(U"_doc_fragment_") )
+            if ( val == _value )
                 return true;
-            return false;
+            // Retry with the pre-rewrite source value, as DocFragment import may have
+            // prefixed id= with "_doc_fragment_N_ " to keep merged-DOM ids unique.
+            lString32 original_val;
+            return getOriginalFragmentAttributeValue(node, attr_id, original_val) && original_val == _value;
         }
         break;
     case cssrt_class:         // E.class
