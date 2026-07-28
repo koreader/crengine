@@ -4009,7 +4009,6 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         }
                         break;
                     }
-                    prop_code = cssd_font_features;
                     int features = 0; // "normal" = no extra feature
                     int nb_parsed = 0;
                     int nb_invalid = 0;
@@ -4070,7 +4069,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         skip_spaces( decl );
                     }
                     if ( nb_parsed - nb_invalid > 0 ) { // at least one valid named value seen
-                        buf<<(lUInt32) (prop_code | importance | parsed_important);
+                        buf<<(lUInt32) (cssd_font_features | importance | parsed_important);
                         buf<<(lUInt32) css_val_unspecified; // len.type
                         buf<<(lUInt32) features; // len.value
                         buf<<(lUInt32) reset_mask; // bits this declaration is allowed to clear/set
