@@ -324,6 +324,25 @@ struct css_style_rec_tag {
             if (is_important == 0x3) importance[slot] |= sbit;
         }
     }
+    // Similar to ApplyAsBitmapOr(), but only clearing/setting the bits within reset_mask
+    // (the bits owned by the specific longhand property, or by the full shorthand, that
+    // produced this value), leaving bits owned by other properties untouched. This lets
+    // eg. "font-variant-alternates: normal" reset only the alternates bit(s) instead of
+    // wiping out a "small-caps" bit set by an earlier "font-variant: small-caps" in the
+    // same declaration block (currently used only for style->font_features).
+    inline void ApplyAsBitmapMaskedOr( css_length_t value, lUInt32 reset_mask, css_length_t *field, css_style_rec_important_bit bit, lUInt8 is_important ) {
+        int slot = bit>>5;        // 32 bits per LUint32 slot
+        int sbit = 1<<(bit&0x1f); // bitmask for this bit in its slot
+        if (     !(important[slot] & sbit)
+              || (is_important == 0x3)
+              || (is_important == 0x1 && !(importance[slot] & sbit) )
+           ) {
+            field->value = (field->value & ~(int)reset_mask) | value.value; // clear owned bits, then OR in new ones
+            field->type = value.type;    // use the one from value (always css_val_unspecified for font_features)
+            if (is_important & 0x1) important[slot] |= sbit;
+            if (is_important == 0x3) importance[slot] |= sbit;
+        }
+    }
 };
 
 /// style record reference type

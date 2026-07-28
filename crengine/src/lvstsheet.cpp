@@ -3962,12 +3962,14 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_font_variant_numeric:
             case cssd_font_variant_east_asian:
             case cssd_font_variant_alternates:
-                // 'initial', like 'normal' and 'none', when used on the specific properties,
-                // will unfortunately reset all the others.
-                IF_g_PUSH_LENGTH_AND_break(1, true, css_val_unspecified, 0);
+                // Not using IF_g_PUSH_LENGTH_AND_break() here, as cssd_font_features records
+                // carry an extra 3rd word (reset_mask, see below) that this macro doesn't know
+                // how to emit.
                 {
                     // https://drafts.csswg.org/css-fonts-3/#propdef-font-variant
                     // https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant
+                    // Which of the font_features sub-ranges this specific longhand (or the full
+                    // shorthand) owns.
                     bool parse_ligatures =  prop_code == cssd_font_variant || prop_code == cssd_font_variant_ligatures
                                                                            || prop_code == cssd_font_variant_ligatures2;
                     bool parse_caps =       prop_code == cssd_font_variant || prop_code == cssd_font_variant_caps;
@@ -3975,8 +3977,38 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     bool parse_numeric =    prop_code == cssd_font_variant || prop_code == cssd_font_variant_numeric;
                     bool parse_eastasian =  prop_code == cssd_font_variant || prop_code == cssd_font_variant_east_asian;
                     bool parse_alternates = prop_code == cssd_font_variant || prop_code == cssd_font_variant_alternates;
-                    // All values are mapped into a single style->font_features 31 bits bitmap
-                    prop_code = cssd_font_features;
+                    // All values are mapped into a single style->font_features 31 bits bitmap.
+                    // reset_mask tracks which bits this specific longhand (or the full shorthand)
+                    // is allowed to affect, so that eg. "font-variant-alternates: normal" only
+                    // clears the alternates bit and doesn't wipe out a "small-caps" bit set by
+                    // another declaration (possibly the font-variant shorthand) in the same rule.
+                    int reset_mask = (parse_ligatures  ? LFNT_OT_FEATURES_MASK_LIGATURES  : 0)
+                                   | (parse_alternates ? LFNT_OT_FEATURES_MASK_ALTERNATES : 0)
+                                   | (parse_caps       ? LFNT_OT_FEATURES_MASK_CAPS       : 0)
+                                   | (parse_position   ? LFNT_OT_FEATURES_MASK_POSITION   : 0)
+                                   | (parse_numeric    ? LFNT_OT_FEATURES_MASK_NUMERIC    : 0)
+                                   | (parse_eastasian  ? LFNT_OT_FEATURES_MASK_EASTASIAN  : 0);
+
+                    if ( g >= 0 ) {
+                        // Use cssd_font_features, which is the only one we handle in apply()..
+                        buf<<(lUInt32) (cssd_font_features | importance | parse_important(decl));
+                        if ( g != css_g_initial ) {
+                            // inherit/unset: let lvrend.cpp's inheritance merge handle it
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
+                            buf<<(lUInt32) 0; // reset_mask unused for the inherited marker
+                        }
+                        else {
+                            // 'initial' resets this property to its initial value ('normal'),
+                            // same as an explicit "normal"/"none" named value would -- so reuse
+                            // the same reset_mask, resetting only the bits this specific longhand
+                            // (or, for the shorthand, all of them) owns.
+                            buf<<(lUInt32) css_val_unspecified;
+                            buf<<(lUInt32) 0;
+                            buf<<(lUInt32) reset_mask;
+                        }
+                        break;
+                    }
                     int features = 0; // "normal" = no extra feature
                     int nb_parsed = 0;
                     int nb_invalid = 0;
@@ -4037,9 +4069,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         skip_spaces( decl );
                     }
                     if ( nb_parsed - nb_invalid > 0 ) { // at least one valid named value seen
-                        buf<<(lUInt32) (prop_code | importance | parsed_important);
+                        buf<<(lUInt32) (cssd_font_features | importance | parsed_important);
                         buf<<(lUInt32) css_val_unspecified; // len.type
                         buf<<(lUInt32) features; // len.value
+                        buf<<(lUInt32) reset_mask; // bits this declaration is allowed to clear/set
                         // css_val_unspecified just says this value has no unit
                         // For cssd_font_features, it actually means there is a value specified.
                         // The default of (css_val_inherited, 0) is what means there was no
@@ -5371,12 +5404,20 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             // (while still ensuring !important).
             {
                 css_length_t font_features = read_length(p);
-                if ( font_features.value == 0 && font_features.type == css_val_unspecified ) {
-                    // except if "font-variant: normal/none", which resets all previously set bits
+                lUInt32 reset_mask = (lUInt32) *p++;
+                if ( font_features.type == css_val_inherited ) {
+                    // "inherit"/"unset": fully reset to the inherited marker (a plain
+                    // assignment, not a bitmap-OR), discarding any bits a lower-specificity
+                    // declaration may have already set on this same node, so the merge in
+                    // lvrend.cpp starts purely from the parent's value, as the property
+                    // being explicitly inherited implies.
                     style->Apply( font_features, &style->font_features, imp_bit_font_features, is_important );
                 }
                 else {
-                    style->ApplyAsBitmapOr( font_features, &style->font_features, imp_bit_font_features, is_important );
+                    // Only clear/set the bits owned by the longhand (or shorthand) that produced
+                    // this declaration (reset_mask), so a "font-variant-xxx: normal" doesn't wipe
+                    // out bits set by another font-variant-* property in the same rule.
+                    style->ApplyAsBitmapMaskedOr( font_features, reset_mask, &style->font_features, imp_bit_font_features, is_important );
                 }
                 style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
             }
