@@ -333,21 +333,24 @@ void LVFontManager::SetGamma( double gamma ) {
 ////////////////////////////////////////////////////////////////////
 
 static const char * EMBEDDED_FONT_LIST_MAGIC = "FNTL";
-static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD";
+// Bumped: LVEmbeddedFontDef gained _weight (replacing _bold),
+// changing the serialise layout. Stale cache entries are discarded
+// and re-rendered once.
+static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD2";
 
 ////////////////////////////////////////////////////////////////////
 // LVEmbeddedFontDef
 ////////////////////////////////////////////////////////////////////
 bool LVEmbeddedFontDef::serialize(SerialBuf & buf) {
     buf.putMagic(EMBEDDED_FONT_DEF_MAGIC);
-    buf << _url << _face << _bold << _italic << _isLocal;
+    buf << _url << _face << _weight << _italic << _isLocal;
     return !buf.error();
 }
 
 bool LVEmbeddedFontDef::deserialize(SerialBuf & buf) {
     if (!buf.checkMagic(EMBEDDED_FONT_DEF_MAGIC))
         return false;
-    buf >> _url >> _face >> _bold >> _italic >> _isLocal;
+    buf >> _url >> _face >> _weight >> _italic >> _isLocal;
     return !buf.error();
 }
 
@@ -366,12 +369,12 @@ bool LVEmbeddedFontList::addAll(LVEmbeddedFontList & list) {
     bool changed = false;
     for (int i=0; i<list.length(); i++) {
         LVEmbeddedFontDef * def = list.get(i);
-        changed = add(def->getUrl(), def->getFace(), def->getBold(), def->getItalic(), def->getIsLocal()) || changed;
+        changed = add(def->getUrl(), def->getFace(), def->getWeight(), def->getItalic(), def->getIsLocal()) || changed;
     }
     return changed;
 }
 
-bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool italic, bool isLocal) {
+bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool italic, bool isLocal) {
     LVEmbeddedFontDef * def = findByUrl(url);
     if (def) {
         bool changed = false;
@@ -379,8 +382,8 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool itali
             def->setFace(face);
             changed = true;
         }
-        if (def->getBold() != bold) {
-            def->setBold(bold);
+        if (def->getWeight() != weight) {
+            def->setWeight(weight);
             changed = true;
         }
         if (def->getItalic() != italic) {
@@ -393,7 +396,7 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, bool bold, bool itali
         }
         return changed;
     }
-    def = new LVEmbeddedFontDef(url, face, bold, italic, isLocal);
+    def = new LVEmbeddedFontDef(url, face, weight, italic, isLocal);
     add(def);
     return false;
 }
@@ -7455,8 +7458,10 @@ public:
     // Note: publishers can specify font-variant/font-feature-settings/font-variation-settings
     // in the @font-face declaration.
     // todo: parse it and pass it here, and set it on the non-instantiated font (instead of -1)
-    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, bool bold, bool italic) {
+    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, int weight, bool italic) {
         FONT_MAN_GUARD
+        if (container.isNull()) // no container to resolve src: url() against (e.g. a styletweak)
+            return false;
         lString8 name8 = UnicodeToUtf8(name);
         CRLog::debug("RegisterDocumentFont(documentId=%d, path=%s)", documentId, name8.c_str());
         name.trim(); // Remove any " " appended to avoid url override with duplicates
@@ -7516,7 +7521,7 @@ public:
                 fontFamily = css_ff_serif;
             */
 
-            int weight = !faceName.empty() ? (bold ? 700 : 400) : getFontWeight(face);
+            int resolvedWeight = !faceName.empty() ? weight : getFontWeight(face);
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
 
             LVFontFace def;
@@ -7527,7 +7532,7 @@ public:
             def.typeface   = familyName;
             def.documentId = documentId;
             def.buf        = buf;
-            inspectFTFace(face, def, weight);
+            inspectFTFace(face, def, resolvedWeight);
             #if (DEBUG_FONT_MAN==1)
                 if ( _log )
                     fprintf(_log, "registering font: (file=%s[%d], weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -7593,7 +7598,7 @@ public:
         _registry.removeFonts(documentId);
     }
 
-    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, bool bold, bool italic) {
+    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, int weight, bool italic) {
         if (name.startsWithNoCase(lString32("res://")))
             name = name.substr(6);
         else if (name.startsWithNoCase(lString32("file://")))
@@ -7650,7 +7655,7 @@ public:
             def.css_family = fontFamily;
             def.typeface   = family_name;
             def.documentId = documentId;
-            inspectFTFace(face, def, bold ? 700 : 400);
+            inspectFTFace(face, def, weight);
             FT_Done_Face( face ); face = NULL;
             if (!tryRegisterFace(def)) return false;
             res = true;

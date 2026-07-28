@@ -25,3 +25,4 @@ thirdparty/*/
 !thirdparty/chmlib/
 build/
 tests/font-manager-test.epub
+tests/fontface-test.epub

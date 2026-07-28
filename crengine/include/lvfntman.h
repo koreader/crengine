@@ -696,26 +696,26 @@ struct LVFontVariations {
 class LVEmbeddedFontDef {
     lString32 _url;
     lString8 _face;
-    bool _bold;
+    int _weight;
     bool _italic;
     // When true, _url holds a font family name from a `src: local(...)` rule
     // rather than a path to an embedded font file.
     bool _isLocal;
 public:
-    LVEmbeddedFontDef(lString32 url, lString8 face, bool bold, bool italic, bool isLocal = false) :
-        _url(url), _face(face), _bold(bold), _italic(italic), _isLocal(isLocal)
+    LVEmbeddedFontDef(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false) :
+        _url(url), _face(face), _weight(weight), _italic(italic), _isLocal(isLocal)
     {
     }
-    LVEmbeddedFontDef() : _bold(false), _italic(false), _isLocal(false) {
+    LVEmbeddedFontDef() : _weight(400), _italic(false), _isLocal(false) {
     }
 
     const lString32 & getUrl() const { return _url; }
     const lString8 & getFace() const { return _face; }
-    bool getBold() const { return _bold; }
+    int getWeight() const { return _weight; }
     bool getItalic() const { return _italic; }
     bool getIsLocal() const { return _isLocal; }
     void setFace(const lString8 &  face) { _face = face; }
-    void setBold(bool bold) { _bold = bold; }
+    void setWeight(int weight) { _weight = weight; }
     void setItalic(bool italic) { _italic = italic; }
     void setIsLocal(bool isLocal) { _isLocal = isLocal; }
     bool serialize(SerialBuf & buf);
@@ -726,8 +726,8 @@ class LVEmbeddedFontList : public LVPtrVector<LVEmbeddedFontDef> {
 public:
     LVEmbeddedFontDef * findByUrl(lString32 url);
     void add(LVEmbeddedFontDef * def) { LVPtrVector<LVEmbeddedFontDef>::add(def); }
-    bool add(lString32 url, lString8 face, bool bold, bool italic, bool isLocal = false);
-    bool add(lString32 url) { return add(url, lString8::empty_str, false, false); }
+    bool add(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false);
+    bool add(lString32 url) { return add(url, lString8::empty_str, 400, false); }
     bool addAll(LVEmbeddedFontList & list);
     void set(LVEmbeddedFontList & list) { clear(); addAll(list); }
     bool serialize(SerialBuf & buf);
@@ -765,9 +765,9 @@ public:
     /// registers font by name
     virtual bool RegisterFont( lString8 name ) = 0;
     /// registers font by name and face
-    virtual bool RegisterExternalFont(int /*documentId*/, lString32 /*name*/, lString8 /*face*/, bool /*bold*/, bool /*italic*/) { return false; }
+    virtual bool RegisterExternalFont(int /*documentId*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/) { return false; }
     /// registers document font
-    virtual bool RegisterDocumentFont(int /*documentId*/, LVContainerRef /*container*/, lString32 /*name*/, lString8 /*face*/, bool /*bold*/, bool /*italic*/) { return false; }
+    virtual bool RegisterDocumentFont(int /*documentId*/, LVContainerRef /*container*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/) { return false; }
     /// unregisters all document fonts
     virtual void UnregisterDocumentFonts(int /*documentId*/) { }
     /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,

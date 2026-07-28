@@ -1040,6 +1040,10 @@ LVStreamRef GetEpubCoverpage(LVContainerRef arc)
 }
 
 
+#if 0 // Removed during @font-face parsing refactor: superseded by parse_font_face_rule()
+      // in lvstsheet.cpp, which is reached for all CSS sources (external files,
+      // <head><style> blocks, and styletweaks) via the normal stylesheet parsing path.
+      // See FONTFACE_PARSER_REFACTOR.md.
 class EmbeddedFontStyleParser {
     LVEmbeddedFontList & _fontList;
     lString32 _basePath;
@@ -1292,6 +1296,7 @@ public:
         }
     }
 };
+#endif // 0 // Removed during @font-face parsing refactor
 
 bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
             CacheLoadingCallback * formatCallback, bool metadataOnly,
@@ -1343,8 +1348,10 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     lString32 pageMapSource;
     lString32 coverId;
 
+#if 0 // Removed during @font-face parsing refactor
     LVEmbeddedFontList fontList;
     EmbeddedFontStyleParser styleParser(fontList);
+#endif
 
     // Read OPF file
     {
@@ -1740,6 +1747,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     }
                 }
             }
+#if 0 // Removed during @font-face parsing refactor
             if (metadataOnly) {
                 continue;
             }
@@ -1759,6 +1767,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 if ( progressCallback )
                     progressCallback->OnLoadFileProgress(3);
             }
+#endif
         }
         CRLog::debug("opf: reading items done.");
 
@@ -1864,12 +1873,14 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 #endif
     //m_doc->setCodeBase( codeBase );
 
+#if 0 // Removed during @font-face parsing refactor
     int fontList_nb_before_head_parsing = fontList.length();
     if (!fontList.empty()) {
         // set document font list, and register fonts
         m_doc->getEmbeddedFontList().set(fontList);
         m_doc->registerEmbeddedFonts();
     }
+#endif
 
     // Build a single DOM from all the spine items (each contained in a <DocFragment> internal element)
     ldomDocumentFragmentWriter appender(&writer, cs32("body"), cs32("DocFragment"), lString32::empty_str );
@@ -1912,9 +1923,11 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 CRLog::debug("Checking fragment: %s", LCSTR(name));
                 LVStreamRef stream = m_arc->OpenStream(name.c_str(), LVOM_READ);
                 if ( !stream.isNull() ) {
+#if 0 // Removed during @font-face parsing refactor
                     lString32 base = name;
                     LVExtractLastPathElement(base);
                     //CRLog::trace("base: %s", LCSTR(base));
+#endif
                     LVHTMLParser parser(stream, &appender);
                     if ( parser.CheckFormat() && parser.Parse() && appender.hasMetBaseTag() ) {
                         // CheckFormat() is not perfect (the two bytes "ul" in some encrypted stream
@@ -1923,10 +1936,12 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                         // a <DocFragment> has been added into the DOM.
                         handled = true;
                         fragmentCount++;
+#if 0 // Removed during @font-face parsing refactor
                         // We may also meet @font-face in the html <head><style>
                         lString8 headCss = appender.getHeadStyleText();
                         //CRLog::trace("style: %s", headCss.c_str());
                         styleParser.parse(base, headCss);
+#endif
                     }
                     if ( !handled && relaxed_spine ) {
                         // SVG are allowed in the <spine>
@@ -2156,6 +2171,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     writer.OnStop();
     CRLog::debug("EPUB: %d documents merged", fragmentCount);
 
+#if 0 // Removed during @font-face parsing refactor
     if ( fontList.length() != fontList_nb_before_head_parsing ) {
         // New fonts met when parsing <head><style> of some DocFragments
         // Drop styles (before unregistering fonts, as they may reference them)
@@ -2168,6 +2184,7 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
         m_doc->registerEmbeddedFonts();
         printf("CRE: document loaded, but styles re-init needed (cause: embedded fonts)\n");
     }
+#endif
 
     // fragmentCount is not fool proof, best to check if we really made
     // some DocFragments children of <RootNode><body>
