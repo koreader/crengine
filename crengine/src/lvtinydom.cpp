@@ -21872,6 +21872,8 @@ LVImageSourceRef ldomNode::getObjectImageSource()
 }
 
 /// register embedded document fonts in font manager, if any exist in document
+/// note: currently only called from loadCacheFileContent(), to re-register fonts
+/// deserialized from the cache file's _fontList
 void ldomDocument::registerEmbeddedFonts()
 {
     if (_fontList.empty())
@@ -21901,18 +21903,65 @@ void ldomDocument::registerEmbeddedFonts()
         if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
             // @font-face { font-family: face; src: url("res://...") or url("file://..."); }
             // url points to a font file outside the document container (e.g. a KOReader resource).
-            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getWeight(), item->getItalic())) {
                 //CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
             }
             continue;
         }
         // @font-face { font-family: face; src: url("fonts/foo.ttf"); }
         // url is a path relative to the document container (e.g. an EPUB-embedded font).
-        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getWeight(), item->getItalic())) {
             //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
         }
     }
 }
+
+/// Registers a font declared by a parsed @font-face CSS rule (called as a
+/// side-effect of CSS parsing, never from registerEmbeddedFonts()'s cache
+/// re-open path) and records it in _fontList for cache serialisation.
+/// The _fontList append only happens on successful registration, so that a
+/// duplicate @font-face rule (e.g. repeated inline <style> across spine
+/// items) is a cheap no-op rather than corrupting the serialised list.
+/// Registering here, immediately as each rule is parsed, is what lets a
+/// DocFragment's @font-face rules take effect before that same DocFragment's
+/// body is styled (parseStyleSheet runs right before body styling, per
+/// DocFragment). Without this, fonts would only become known to fontMan in a
+/// separate batch after all DocFragments were processed, so early fragments
+/// would style against an incomplete font registry and fall back to the
+/// default font -- the same bug class the old pre/post-scan + forceReinitStyles()
+/// design in epubfmt.cpp existed to paper over.
+bool ldomDocument::registerFontFace(lString32 url, lString8 face, int weight, bool italic, bool isLocal)
+{
+    if (url.empty() || face.empty())
+        return false;
+    bool registered;
+    if (isLocal) {
+        // @font-face { font-family: face; src: local("name"); }
+        registered = fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url));
+    }
+    else if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
+        registered = fontMan->RegisterExternalFont(getDocIndex(), url, face, weight, italic);
+    }
+    else {
+        registered = fontMan->RegisterDocumentFont(getDocIndex(), _container, url, face, weight, italic);
+    }
+    if (registered) {
+        _fontList.add(url, face, weight, italic, isLocal);
+        // A node styled earlier in this same fresh parse may have already
+        // resolved (and cached in _fontMap, keyed by style index) a fallback
+        // font for a style referencing this family before it was registered.
+        // Drop the whole map so any such stale resolution is redone against
+        // the now-updated font registry -- see FONTFACE_PARSER_REFACTOR.md,
+        // "Bug found via runtime verification: stale font-resolution cache".
+        _fontMap.clear();
+    }
+    return registered;
+}
+#if 0 // Removed during @font-face parsing refactor: its only caller was the
+      // epubfmt.cpp post-scan forceReinitStyles()+unregister+re-register cycle,
+      // which was removed in the same refactor. Document close and clear() both
+      // call fontMan->UnregisterDocumentFonts() directly instead. See
+      // FONTFACE_PARSER_REFACTOR.md.
 /// unregister embedded document fonts in font manager, if any exist in document
 void ldomDocument::unregisterEmbeddedFonts()
 {
@@ -21921,6 +21970,7 @@ void ldomDocument::unregisterEmbeddedFonts()
 #endif
     fontMan->UnregisterDocumentFonts(_docIndex);
 }
+#endif
 
 /// returns object image stream
 LVStreamRef ldomDocument::getObjectImageStream( lString32 refName )

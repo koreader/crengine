@@ -2752,9 +2752,16 @@ public:
     /// return document's embedded font list
     LVEmbeddedFontList & getEmbeddedFontList() { return _fontList; }
     /// register embedded document fonts in font manager, if any exist in document
+    /// note: currently only called from loadCacheFileContent(), to re-register fonts
+    /// deserialized from the cache file's _fontList
     void registerEmbeddedFonts();
+#if 0 // Removed during @font-face parsing refactor: no remaining caller, see lvtinydom.cpp
     /// unregister embedded document fonts in font manager, if any exist in document
     void unregisterEmbeddedFonts();
+#endif
+    /// register a font declared by a parsed @font-face CSS rule, as a side-effect
+    /// of CSS parsing; appends to the embedded font list only on success
+    bool registerFontFace(lString32 url, lString8 face, int weight, bool italic, bool isLocal);
 #endif
 
     /// returns pointer to TOC root node
@@ -3140,9 +3147,6 @@ private:
     bool m_nonlinear = false;
 
 public:
-
-    /// return content of html/head/style element
-    lString8 getHeadStyleText() { return UnicodeToUtf8(headStyleText); }
 
     ldomNode * getBaseElement() { return lastBaseElement; }
 
