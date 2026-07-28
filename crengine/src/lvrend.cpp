@@ -2578,6 +2578,72 @@ lUInt32 styleToTextFmtFlags( bool is_block, const css_style_ref_t & style, lUInt
     return flg;
 }
 
+// Returns the used line-height in screen px for a node style.
+// All related values (%, em, ex, unitless) apply their factor to font->getSize().
+// Only "normal" uses font->getHeight(). Absolute units and rem-like units are
+// handled by lengthToPx().
+static int getLineHeightPx(ldomNode * node, css_style_rec_t * style, LVFontRef font)
+{
+    ldomDocument * doc = node->getDocument();
+    if ( style->line_height.type == css_val_screen_px ) {
+        // (If in screen_px, interline_scale_factor has already been
+        // applied in  setNodeStyle() when inherited.)
+        return style->line_height.value;
+    }
+    int line_h;
+    if ( style->line_height.type == css_val_unspecified && style->line_height.value == css_generic_normal ) {
+        line_h = font->getHeight();
+    }
+    else if ( style->line_height.type == css_val_lh || style->line_height.type == css_val_rlh
+            || style->line_height.type == css_val_urlh ) {
+        // setNodeStyle() resolves line-height: lh/rlh to screen_px, so seeing them
+        // here mostly means we are being asked too early: fall back to the font height.
+        line_h = font->getHeight();
+    }
+    else {
+        // In all other cases (%, em, unitless/unspecified), we can just
+        // scale 'em', and use the computed value for absolute sized
+        // values and 'rem' (related to root element font size).
+        int em = font->getSize();
+        line_h = lengthToPx(node, style->line_height, em, em, true);
+        if ( line_h < 0 )
+            line_h = font->getHeight();
+    }
+    // Scale line_h according to document's _interlineScaleFactor
+    int interline_scale_factor = doc->getInterlineScaleFactor();
+    if ( interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE )
+        line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+    return line_h;
+}
+
+static int getUserRootLineHeightPx(ldomDocument * doc)
+{
+    // Our private u* root units stay anchored to the document default font,
+    // ie. the user/UI root baseline rather than the publisher's <html> style.
+    int line_h = doc->getDefaultFont()->getHeight();
+    int interline_scale_factor = doc->getInterlineScaleFactor();
+    if ( interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE )
+        line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
+    return line_h;
+}
+
+static ldomNode * getRootUnitNode(ldomNode * node)
+{
+    // The CSS root can be the real <html>/<FictionBook>, or a DocFragment in
+    // EPUB/CHM where <html> has been rewritten to that fragment wrapper. Walk up
+    // from the current node so rem/rlh stay local to the current fragment.
+    for ( ldomNode * n = node; n; n = n->getParentNode() ) {
+        lUInt16 node_id = n->getNodeId();
+        if ( node_id == el_DocFragment || node_id == el_html || node_id == el_FictionBook )
+            return n;
+    }
+    ldomDocument * doc = node->getDocument();
+    ldomNode * root = doc->getRootNode();
+    if ( root && root->getChildCount() > 0 )
+        root = root->getChildNode(0);
+    return root;
+}
+
 // Convert CSS value (type + number value) to screen px
 int lengthToPx( ldomNode * node, css_length_t val, int base_px, int base_em, bool unspecified_as_em )
 {
@@ -2633,8 +2699,45 @@ int lengthToPx( ldomNode * node, css_length_t val, int base_px, int base_em, boo
         break;
     }
 
-    case css_val_rem: // value = rem*256 (font size of the root element)
+    case css_val_urem: // value = urem*256 (engine/user root font size)
         px = (node->getDocument()->getDefaultFont()->getSize() * val.value) >> 8;
+        break;
+    case css_val_rem: // value = rem*256 (font size of the document root element)
+        {
+            ldomNode * root = getRootUnitNode(node);
+            // When the actual root element font is not available yet (typically
+            // while we are computing it), rem falls back to the initial document default.
+            int root_font_size = root && !root->getFont().isNull()
+                    ? root->getFont()->getSize()
+                    : node->getDocument()->getDefaultFont()->getSize();
+            px = (root_font_size * val.value) >> 8;
+        }
+        break;
+    case css_val_rex:
+    case css_val_rch: // Same approximation as ex/ch, but from the document root element font size.
+        {
+            ldomNode * root = getRootUnitNode(node);
+            int root_font_size = root && !root->getFont().isNull()
+                    ? root->getFont()->getSize()
+                    : node->getDocument()->getDefaultFont()->getSize();
+            px = (root_font_size * val.value) >> 9;
+        }
+        break;
+
+    case css_val_urlh: // engine/user root line height
+        px = (getUserRootLineHeightPx(node->getDocument()) * val.value) >> 8;
+        break;
+    case css_val_lh:
+        px = (getLineHeightPx(node, node->getStyle().get(), node->getFont()) * val.value) >> 8;
+        break;
+    case css_val_rlh:
+        {
+            ldomNode * root = getRootUnitNode(node);
+            int root_line_h = root && !root->getStyle().isNull() && !root->getFont().isNull()
+                    ? getLineHeightPx(root, root->getStyle().get(), root->getFont())
+                    : getUserRootLineHeightPx(node->getDocument());
+            px = (root_line_h * val.value) >> 8;
+        }
         break;
 
     /* absolute value, less often used - value = unit*256 */
@@ -2658,6 +2761,10 @@ int lengthToPx( ldomNode * node, css_length_t val, int base_px, int base_em, boo
     case css_val_pc: // 12 pt     6pc = 96px
         if (gRenderDPI)
             px = 96 * value / 6 >> 8;
+        break;
+    case css_val_q: // 40q = 1cm = 96/2.54px
+        if (gRenderDPI)
+            px = (int)(96 * value / 101.6) >> 8;
         break;
     case css_val_vw: {
         int page_width = node->getDocument()->getPageWidth();
@@ -2696,7 +2803,10 @@ int lengthToPx( ldomNode * node, css_length_t val, int base_px, int base_em, boo
 bool is_length_relative_unit(css_length_t val)
 {
     return (val.type == css_val_percent || val.type == css_val_em ||
-            val.type == css_val_ex || val.type == css_val_ch || val.type == css_val_rem ||
+            val.type == css_val_ex || val.type == css_val_ch ||
+            val.type == css_val_rem || val.type == css_val_urem ||
+            val.type == css_val_rex || val.type == css_val_rch ||
+            val.type == css_val_lh || val.type == css_val_rlh || val.type == css_val_urlh ||
             val.type == css_val_vw || val.type == css_val_vh ||
             val.type == css_val_vmin || val.type == css_val_vmax);
 }
@@ -3155,17 +3265,7 @@ lString32 renderListItemMarker( ldomNode * enode, int & marker_width, int * fina
         // kind of background, if inside it has already been drawn)
         lUInt32 bgcl = LTEXT_COLOR_TRANSPARENT;
         if (line_h < 0) { // -1, not specified by caller: find it out from the node
-            if ( style->line_height.type == css_val_unspecified &&
-                        style->line_height.value == css_generic_normal ) {
-                line_h = font->getHeight(); // line-height: normal
-            }
-            else {
-                int em = font->getSize();
-                line_h = lengthToPx(enode, style->line_height, em, em, true);
-            }
-            // Scale line_h according to document's _interlineScaleFactor
-            if (style->line_height.type != css_val_screen_px && doc->getInterlineScaleFactor() != INTERLINE_SCALE_FACTOR_NO_SCALE)
-                line_h = (line_h * doc->getInterlineScaleFactor()) >> INTERLINE_SCALE_FACTOR_SHIFT;
+            line_h = getLineHeightPx(enode, style.get(), font);
             if ( STYLE_HAS_CR_HINT(style, STRUT_CONFINED) )
                 flags |= LTEXT_STRUT_CONFINED;
             if ( final_line_h ) {
@@ -7642,24 +7742,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         if ( is_empty_line_elem && style_height.type == css_val_unspecified ) {
             // No height specified: default to line-height, just like
             // if it were rendered final.
-            int line_h;
-            if ( style->line_height.type == css_val_unspecified &&
-                        style->line_height.value == css_generic_normal ) {
-                line_h = enode->getFont()->getHeight(); // line-height: normal
-            }
-            else {
-                // In all other cases (%, em, unitless/unspecified), we can just
-                // scale 'em', and use the computed value for absolute sized
-                // values and 'rem' (related to root element font size).
-                line_h = lengthToPx(enode, style->line_height, em, em, true);
-            }
-            // Scale line_h according to document's _interlineScaleFactor, but
-            // not if it was already in screen_px, which means it has already
-            // been scaled (in setNodeStyle() when inherited).
-            int interline_scale_factor = enode->getDocument()->getInterlineScaleFactor();
-            if (style->line_height.type != css_val_screen_px && interline_scale_factor != INTERLINE_SCALE_FACTOR_NO_SCALE)
-                line_h = (line_h * interline_scale_factor) >> INTERLINE_SCALE_FACTOR_SHIFT;
-            style_height.value = line_h;
+            style_height.value = getLineHeightPx(enode, style.get(), enode->getFont());
             style_height.type = css_val_screen_px;
         }
         // We don't have a container height to apply heights in %, so ignore them
@@ -11443,7 +11526,31 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         pstyle->font_size.type = parent_style->font_size.type;
         pstyle->font_size.value = parent_style->font_size.value * pstyle->font_size.value / 100 / 256;
         break;
+    case css_val_lh:
+        // In font-size, lh resolves against the parent's computed line-height.
+        pstyle->font_size.value = getLineHeightPx(enode, parent_style.get(), parent_font) * pstyle->font_size.value / 256;
+        pstyle->font_size.type = css_val_screen_px;
+        break;
+    case css_val_rlh:
+        {
+            // Publisher-facing root line-height, from the actual document root element.
+            ldomNode * root = getRootUnitNode(enode);
+            int root_line_h = root && !root->getStyle().isNull() && !root->getFont().isNull()
+                    ? getLineHeightPx(root, root->getStyle().get(), root->getFont())
+                    : getUserRootLineHeightPx(doc);
+            pstyle->font_size.value = root_line_h * pstyle->font_size.value / 256;
+            pstyle->font_size.type = css_val_screen_px;
+        }
+        break;
+    case css_val_urlh:
+        // Private engine/user root line-height, from the document default font.
+        pstyle->font_size.value = getUserRootLineHeightPx(doc) * pstyle->font_size.value / 256;
+        pstyle->font_size.type = css_val_screen_px;
+        break;
     case css_val_rem:
+    case css_val_urem:
+    case css_val_rex:
+    case css_val_rch:
     case css_val_vw:
     case css_val_vh:
     case css_val_vmin:
@@ -11455,6 +11562,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     case css_val_mm:
     case css_val_pt:
     case css_val_pc:
+    case css_val_q:
         // absolute size, nothing to do
         break;
     case css_val_unspecified:
@@ -11502,6 +11610,25 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
                 pstyle->line_height = parent_style->line_height; // inherit as-is
                 break;
         }
+    }
+    else if (pstyle->line_height.type == css_val_lh) {
+        // In line-height, lh resolves against the parent's computed line-height.
+        pstyle->line_height.value = getLineHeightPx(enode, parent_style.get(), parent_font) * pstyle->line_height.value / 256;
+        pstyle->line_height.type = css_val_screen_px;
+    }
+    else if (pstyle->line_height.type == css_val_rlh) {
+        ldomNode * root = getRootUnitNode(enode);
+        int root_line_h = root && !root->getStyle().isNull() && !root->getFont().isNull()
+                ? getLineHeightPx(root, root->getStyle().get(), root->getFont())
+                : getUserRootLineHeightPx(doc);
+        // Publisher-facing root line-height, from the actual document root element.
+        pstyle->line_height.value = root_line_h * pstyle->line_height.value / 256;
+        pstyle->line_height.type = css_val_screen_px;
+    }
+    else if (pstyle->line_height.type == css_val_urlh) {
+        // Private engine/user root line-height, from the document default font.
+        pstyle->line_height.value = getUserRootLineHeightPx(doc) * pstyle->line_height.value / 256;
+        pstyle->line_height.type = css_val_screen_px;
     }
 
     // vertical_align: computed value: "for percentage and length values, the absolute length, otherwise the keyword as specified"
