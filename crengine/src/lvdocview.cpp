@@ -958,35 +958,54 @@ LVPageMap * LVDocView::getPageMap() {
 
 /// update page info for LVPageMapItems
 void LVDocView::updatePageMapInfo(LVPageMap * pagemap) {
-    // Ensure page and doc_y never go backward
-    int prev_page = 0;
+    // A page list is not required to be in reading order: a conversion may move
+    // front matter to the end of the spine while the page list keeps referencing
+    // it at its original place. So, don't assume list order is reading order:
+    // resolve each item's true position, and only then order and normalize.
+    int nb = pagemap->getChildCount();
+    // 1) Resolve each item's document Y and page from its XPointer, with no clamping.
+    //    Note whether these positions happen to be in ascending order, so we can
+    //    skip the sorting below in the usual case of a page list in reading order.
+    bool needs_sort = false;
     int prev_doc_y = 0;
-    for (int i = 0; i < pagemap->getChildCount(); i++) {
+    for (int i = 0; i < nb; i++) {
         LVPageMapItem * item = pagemap->getChild(i);
-        if (!item->getXPointer().isNull()) {
-            int doc_y = item->getDocY(true); // refresh
-            int page = -1;
-            if (doc_y >= 0) {
-                page = m_pages.FindNearestPage(doc_y, 0);
-                if (page < 0 || page >= getPageCount(true))
-                    page = -1;
-                else
-                    page = getExternalPageNumber(page);
-            }
-            item->_page = page;
-            if ( item->_page < prev_page )
-                item->_page = prev_page;
-            else
-                prev_page = item->_page;
-            if ( item->_doc_y < prev_doc_y )
-                item->_doc_y = prev_doc_y;
-            else
-                prev_doc_y = item->_doc_y;
-        }
-        else {
-            item->_page = prev_page;
+        int doc_y = -1;
+        if (!item->getXPointer().isNull())
+            doc_y = item->getDocY(true); // refresh
+        if (doc_y < 0) {
+            // Position not resolvable (ie. XPointer to a node not found): keep this
+            // item next to its predecessor in the list, and have it get its page
+            // number in 3) below.
             item->_doc_y = prev_doc_y;
+            item->_page = -1;
+            continue;
         }
+        int page = m_pages.FindNearestPage(doc_y, 0);
+        if (page < 0 || page >= getPageCount(true))
+            page = -1;
+        else
+            page = getExternalPageNumber(page);
+        item->_doc_y = doc_y;
+        item->_page = page;
+        if (doc_y < prev_doc_y)
+            needs_sort = true;
+        prev_doc_y = doc_y;
+    }
+    // 2) Order items by their resolved position, so consumers can expect the page
+    //    map to be in reading order (and can binary search it by position).
+    if (needs_sort)
+        pagemap->sortByDocY();
+    // 3) Ensure page numbers never go backward: items with no page number get the one
+    //    of their (now, in reading order) predecessor. Positions being ordered, the
+    //    page numbers computed above can't go backward otherwise.
+    int prev_page = 0;
+    for (int i = 0; i < nb; i++) {
+        LVPageMapItem * item = pagemap->getChild(i);
+        if (item->_page < 0)
+            item->_page = prev_page;
+        else
+            prev_page = item->_page;
     }
     pagemap->setPageValidForVisiblePageNumbers( getVisiblePageNumberCount() );
 }

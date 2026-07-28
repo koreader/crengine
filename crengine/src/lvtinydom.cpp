@@ -22677,6 +22677,41 @@ bool LVPageMapItem::deserialize( ldomDocument * doc, SerialBuf & buf )
     return !buf.error();
 
 }
+
+/// order items by their resolved document Y position
+void LVPageMap::sortByDocY()
+{
+    // _doc_y must have been resolved by LVDocView::updatePageMapInfo() before we're called.
+    // Items sharing the same position are tie-broken on their _index, so they keep their
+    // relative order (a page list may reference the same location twice, and unresolved
+    // items are given the position of their predecessor).
+    // We use an insertion sort: page lists are small (a few hundred items at most), and
+    // they are usually already ordered or nearly so - which this handles in O(n) passes,
+    // while needing no additional dependency (LVPtrVector::sort() uses qsort(), which
+    // is not stable, and we don't want to pull in <algorithm> for std::stable_sort()).
+    int nb = _children.length();
+    for ( int i=1; i<nb; i++ ) {
+        LVPageMapItem * item = _children[i];
+        int j = i - 1;
+        while ( j >= 0 ) {
+            LVPageMapItem * prev = _children[j];
+            bool prev_is_after = prev->_doc_y != item->_doc_y ? prev->_doc_y > item->_doc_y
+                                                              : prev->_index > item->_index;
+            if ( !prev_is_after )
+                break;
+            _children[j+1] = prev; // shift it right (don't use LVPtrVector::set(),
+                                   // which would delete the item it overwrites)
+            j--;
+        }
+        _children[j+1] = item;
+    }
+    // Keep _index in sync with the new order, so it still is the index of the item
+    // in this page map (as set by addPage()), and still a valid tie-break above if
+    // we are called again.
+    for ( int i=0; i<nb; i++ )
+        _children[i]->_index = i;
+}
+
 /// serialize to byte array (pointer will be incremented by number of bytes written)
 bool LVPageMap::serialize( SerialBuf & buf )
 {
