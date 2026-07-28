@@ -249,11 +249,18 @@ enum css_value_type_t {
     css_val_em,   // relative to font size of the current element
     css_val_ex,   // 1ex =~ 0.5em in many fonts (https://developer.mozilla.org/en-US/docs/Web/CSS/length)
     css_val_ch,   // 1ch assumed to be 0.5em for widths when impractical to determine (same url)
-    css_val_rem,  // 'root em', relative to font-size of the root element (typically <html>)
+    css_val_rem,  // 'root em', relative to font-size of the document root element (typically <html>)
+    css_val_urem, // relative to the engine/user root font size (document default font)
     css_val_vw,   // 1 percent of the screen width
     css_val_vh,   // 1 percent of the screen height
     css_val_vmin, // maximum of 1 percent of the screen height or width
     css_val_vmax, // minimum of 1 percent of the screen height or width
+    css_val_q,    // quarter-millimeter, 40q = 1cm
+    css_val_rex,  // root ex, approximated like ex from the document root element font size
+    css_val_rch,  // root ch, approximated like ch from the document root element font size
+    css_val_lh,   // relative to the computed line-height of the current element
+    css_val_rlh,  // relative to the computed line-height of the root element
+    css_val_urlh, // relative to the engine/user root line-height (document default font + interline)
     css_val_percent,
     css_val_screen_px, // screen px, for already scaled values
     css_val_color
