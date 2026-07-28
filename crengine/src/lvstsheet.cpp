@@ -3966,11 +3966,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 // carry an extra 3rd word (reset_mask, see below) that this macro doesn't know
                 // how to emit.
                 {
+                    // https://drafts.csswg.org/css-fonts-3/#propdef-font-variant
+                    // https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant
                     // Which of the font_features sub-ranges this specific longhand (or the full
-                    // shorthand) owns -- computed from the still-original, per-case prop_code
-                    // (the cssd_font_variant_* value, before it gets remapped to cssd_font_features
-                    // below), and shared by both the global-keyword path just below (for 'initial')
-                    // and the named-value parsing path further down (for eg. "normal"/"none").
+                    // shorthand) owns.
                     bool parse_ligatures =  prop_code == cssd_font_variant || prop_code == cssd_font_variant_ligatures
                                                                            || prop_code == cssd_font_variant_ligatures2;
                     bool parse_caps =       prop_code == cssd_font_variant || prop_code == cssd_font_variant_caps;
@@ -3991,12 +3990,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                                    | (parse_eastasian  ? LFNT_OT_FEATURES_MASK_EASTASIAN  : 0);
 
                     if ( g >= 0 ) {
-                        // All these longhands (and the shorthand) are stored as style->font_features,
-                        // whose apply() case is keyed on cssd_font_features -- not on the specific
-                        // longhand's own cssd_font_variant_* code. Push the remapped code here too
-                        // (matching the g<0 path below), or apply() has no matching case for eg.
-                        // cssd_font_variant_caps and silently drops this declaration while desyncing
-                        // the read of every declaration that follows it in the same rule.
+                        // Use cssd_font_features, which is the only one we handle in apply()..
                         buf<<(lUInt32) (cssd_font_features | importance | parse_important(decl));
                         if ( g != css_g_initial ) {
                             // inherit/unset: let lvrend.cpp's inheritance merge handle it
@@ -4015,8 +4009,6 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         }
                         break;
                     }
-                    // https://drafts.csswg.org/css-fonts-3/#propdef-font-variant
-                    // https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant
                     prop_code = cssd_font_features;
                     int features = 0; // "normal" = no extra feature
                     int nb_parsed = 0;
