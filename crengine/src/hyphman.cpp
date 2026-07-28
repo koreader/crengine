@@ -1480,7 +1480,7 @@ lString32 UserHyphDict::getHyphenation(const char *word)
         flags[i] = 0;
     }
 
-    TextLangMan::getTextLangCfg()->getHyphMethod()->hyphenate(word_str.c_str(), len, widths, flags, 0, 0xFFFF, 1);
+    TextLangMan::getTextLangCfg()->getHyphMethod()->hyphenate(word_str.c_str(), len, widths, flags, 0, 0xFFFF, 1); // cppcheck-suppress uninitvar
 
     lString32 hyphenation;
     size_t i;
