@@ -333,9 +333,6 @@ void LVFontManager::SetGamma( double gamma ) {
 ////////////////////////////////////////////////////////////////////
 
 static const char * EMBEDDED_FONT_LIST_MAGIC = "FNTL";
-// Bumped: LVEmbeddedFontDef gained _weight (replacing _bold),
-// changing the serialise layout. Stale cache entries are discarded
-// and re-rendered once.
 static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD2";
 
 ////////////////////////////////////////////////////////////////////
@@ -343,23 +340,23 @@ static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD2";
 ////////////////////////////////////////////////////////////////////
 bool LVEmbeddedFontDef::serialize(SerialBuf & buf) {
     buf.putMagic(EMBEDDED_FONT_DEF_MAGIC);
-    buf << _url << _face << _weight << _italic << _isLocal;
+    buf << _url << _face << _weight << _italic << _isLocal << _fragmentIdx;
     return !buf.error();
 }
 
 bool LVEmbeddedFontDef::deserialize(SerialBuf & buf) {
     if (!buf.checkMagic(EMBEDDED_FONT_DEF_MAGIC))
         return false;
-    buf >> _url >> _face >> _weight >> _italic >> _isLocal;
+    buf >> _url >> _face >> _weight >> _italic >> _isLocal >> _fragmentIdx;
     return !buf.error();
 }
 
 ////////////////////////////////////////////////////////////////////
 // LVEmbeddedFontList
 ////////////////////////////////////////////////////////////////////
-LVEmbeddedFontDef * LVEmbeddedFontList::findByUrl(lString32 url) {
+LVEmbeddedFontDef * LVEmbeddedFontList::findByUrlAndFragment(lString32 url, int fragmentIdx) {
     for (int i=0; i<length(); i++) {
-        if (get(i)->getUrl() == url)
+        if (get(i)->getUrl() == url && get(i)->getFragmentIdx() == fragmentIdx)
             return get(i);
     }
     return NULL;
@@ -369,13 +366,13 @@ bool LVEmbeddedFontList::addAll(LVEmbeddedFontList & list) {
     bool changed = false;
     for (int i=0; i<list.length(); i++) {
         LVEmbeddedFontDef * def = list.get(i);
-        changed = add(def->getUrl(), def->getFace(), def->getWeight(), def->getItalic(), def->getIsLocal()) || changed;
+        changed = add(def->getUrl(), def->getFace(), def->getWeight(), def->getItalic(), def->getIsLocal(), def->getFragmentIdx()) || changed;
     }
     return changed;
 }
 
-bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool italic, bool isLocal) {
-    LVEmbeddedFontDef * def = findByUrl(url);
+bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool italic, bool isLocal, int fragmentIdx) {
+    LVEmbeddedFontDef * def = findByUrlAndFragment(url, fragmentIdx);
     if (def) {
         bool changed = false;
         if (def->getFace() != face) {
@@ -396,7 +393,7 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool ital
         }
         return changed;
     }
-    def = new LVEmbeddedFontDef(url, face, weight, italic, isLocal);
+    def = new LVEmbeddedFontDef(url, face, weight, italic, isLocal, fragmentIdx);
     add(def);
     return false;
 }
@@ -5687,6 +5684,12 @@ struct LVFontFace {
     bool               has_ot_math;
     bool               has_small_caps;
     int                documentId;   // -1 for global fonts
+    // Sorted set of DocFragment indices that may use this face.
+    // Empty = no restriction (all fragments, or document-scoped).
+    // Used instead of a single fragmentIdx so that one LVFontFace entry
+    // covers all fragments that declare the same @font-face, keeping the
+    // registry O(fonts) rather than O(fragments × fonts).
+    LVArray<int>       fragmentIdxSet;
     LVByteArrayRef     buf;          // non-null for in-memory fonts
     // Variable-font axis ranges; for static fonts min==max.
     bool  _has_wght; float _wght_min, _wght_max;
@@ -5702,6 +5705,35 @@ struct LVFontFace {
                , _has_ital(false), _ital_min(0), _ital_max(0)
                , _has_slnt(false), _slnt_min(0), _slnt_max(0)
                , _has_wdth(false), _wdth_min(0), _wdth_max(0) {}
+
+    // Returns true if this face is accessible from the given DocFragment.
+    // A face with an empty fragmentIdxSet has no restriction.
+    bool allowedForFragment(int fragmentIdx) const {
+        if (fragmentIdxSet.empty()) return true;
+        if (fragmentIdx < 0) return false;  // restricted face, no fragment context
+        int lo = 0, hi = fragmentIdxSet.length() - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (fragmentIdxSet[mid] == fragmentIdx) return true;
+            if (fragmentIdxSet[mid] < fragmentIdx) lo = mid + 1;
+            else hi = mid - 1;
+        }
+        return false;
+    }
+
+    // Insert fragmentIdx into the sorted fragmentIdxSet (no-op if already present).
+    void addFragment(int fragmentIdx) {
+        if (fragmentIdx < 0) return;
+        int lo = 0, hi = fragmentIdxSet.length();
+        while (lo < hi) {
+            int mid = (lo + hi) / 2;
+            if (fragmentIdxSet[mid] < fragmentIdx) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo < fragmentIdxSet.length() && fragmentIdxSet[lo] == fragmentIdx)
+            return;  // already present
+        fragmentIdxSet.insert(lo, fragmentIdx);
+    }
 
     void setAxisInfo(lUInt32 tag, float mn, float mx) {
         switch (tag) {
@@ -5735,6 +5767,8 @@ struct LVFontFace {
     /// Stable identity hash: (file, face_index, documentId, typeface).
     /// typeface is included so that registering the same font file under a
     /// second @font-face family name is not mistaken for a duplicate.
+    /// fragmentIdx is NOT included: the registry holds one entry per physical
+    /// face per document and tracks allowed fragments via fragmentIdxSet.
     lUInt32 id() const {
         lUInt32 h = file_path.getHash();
         h = h * 31 + (lUInt32)face_index;
@@ -5757,6 +5791,29 @@ public:
         for (int i = _faces.length() - 1; i >= 0; i--)
             if (_faces[i]->documentId == documentId)
                 _faces.erase(i, 1);
+    }
+    // Find a face by its identity hash and add fragmentIdx to its allowed set.
+    // Returns true if a matching face was found (and updated).
+    bool addFragmentById(lUInt32 id, int fragmentIdx) {
+        for (int i = 0; i < _faces.length(); i++) {
+            if (_faces[i]->id() == id) {
+                _faces[i]->addFragment(fragmentIdx);
+                return true;
+            }
+        }
+        return false;
+    }
+    // Add fragmentIdx to every face in this family with the given file_path and documentId.
+    // Returns true if at least one face was found.
+    bool addFragmentForFilePath(const lString8& file_path, int documentId, int fragmentIdx) {
+        bool found = false;
+        for (int i = 0; i < _faces.length(); i++) {
+            if (_faces[i]->documentId == documentId && _faces[i]->file_path == file_path) {
+                _faces[i]->addFragment(fragmentIdx);
+                found = true;
+            }
+        }
+        return found;
     }
     const lString8& getName() const { return _name; }
     const LVFontFace& faceAt(int i) const { return *_faces[i]; }
@@ -5914,6 +5971,24 @@ public:
                 if (_families[i]->faceAt(j).id() == id) return true;
         return false;
     }
+    // If a face with the given file_path+documentId is already registered,
+    // add fragmentIdx to its allowed set and return true.  Avoids reloading
+    // the font file from disk/memory for repeat registrations from new fragments.
+    bool addFragmentToFacesForFile(const lString8& file_path, int documentId, int fragmentIdx) {
+        bool found = false;
+        for (int i = 0; i < _families.length(); i++)
+            if (_families[i]->addFragmentForFilePath(file_path, documentId, fragmentIdx))
+                found = true;
+        return found;
+    }
+    // Find mutable face pointer by id (for merging fragmentIdxSet on initial register).
+    LVFontFace* findFaceById(lUInt32 id) {
+        for (int i = 0; i < _families.length(); i++)
+            for (int j = 0; j < _families[i]->faceCount(); j++)
+                if (_families[i]->faceAt(j).id() == id)
+                    return &_families[i]->mutableFaceAt(j);
+        return nullptr;
+    }
 };
 
 /// Result of a font selection.
@@ -6021,7 +6096,8 @@ public:
     LVFontMatch matchFamily(const LVFontFamily* family,
                              int weight, bool italic,
                              const LVFontVariations& requested,
-                             int documentId = -1) const
+                             int documentId = -1,
+                             int fragmentIdx = -1) const
     {
         LVFontMatch m;
 
@@ -6034,6 +6110,11 @@ public:
         for (int i = 0; i < family->faceCount(); i++) {
             const LVFontFace& face = family->faceAt(i);
             if (face.documentId != -1 && face.documentId != documentId)
+                continue;
+            // Fragment-scoped: only visible to fragments that declared this font.
+            // Guard on documentId != -1 so that when doc fonts are disabled
+            // (getFontContextDocIndex() returns -1), fragment filtering is also off.
+            if (documentId != -1 && !face.allowedForFragment(fragmentIdx))
                 continue;
             bool nativelyItalic = face.is_italic ||
                     (face._has_ital && face._ital_max > 0.5f) ||
@@ -6067,7 +6148,8 @@ public:
                         const LVFontVariations& requested,
                         const LVFontRegistry& registry,
                         int documentId,
-                        const lString8& preferred_family) const
+                        const lString8& preferred_family,
+                        int fragmentIdx = -1) const
     {
         // 1. Try each name in the CSS font-family list in order.
         //    typeface may be a comma-separated list e.g. "Georgia, Times New Roman".
@@ -6079,7 +6161,7 @@ public:
             const LVFontFamily* fam = registry.findFamily(names[i], documentId);
             if (!fam)
                 continue;
-            m = matchFamily(fam, weight, italic, requested, documentId);
+            m = matchFamily(fam, weight, italic, requested, documentId, fragmentIdx);
             if (m.valid()) return m;
         }
 
@@ -6087,7 +6169,7 @@ public:
         if (!preferred_family.empty()) {
             const LVFontFamily* fam = registry.findFamily(preferred_family, documentId);
             if (fam) {
-                m = matchFamily(fam, weight, italic, requested, documentId);
+                m = matchFamily(fam, weight, italic, requested, documentId, fragmentIdx);
                 if (m.valid()) return m;
             }
         }
@@ -6098,7 +6180,7 @@ public:
             const LVFontFamily* fam = registry.familyAt(i);
             for (int j = 0; j < fam->faceCount(); j++) {
                 if (fam->faceAt(j).css_family == family) {
-                    m = matchFamily(fam, weight, italic, requested, documentId);
+                    m = matchFamily(fam, weight, italic, requested, documentId, fragmentIdx);
                     if (m.valid()) return m;
                     break;
                 }
@@ -6107,7 +6189,7 @@ public:
 
         // 4. Last resort: any registered face at all.
         if (registry.familyCount() > 0) {
-            m = matchFamily(registry.familyAt(0), weight, italic, requested, documentId);
+            m = matchFamily(registry.familyAt(0), weight, italic, requested, documentId, fragmentIdx);
         }
 
         return m;
@@ -7224,9 +7306,24 @@ public:
         }
     }
 
-    /// Deduplicate, register, and return true; or log and return false if duplicate.
-    bool tryRegisterFace(const LVFontFace& def)
+    /// Register a face, merging fragmentIdx into an existing entry if one
+    /// with the same id already exists.  For system (documentId==-1) faces
+    /// the old duplicate-rejection behaviour is preserved.
+    bool tryRegisterFace(const LVFontFace& def, int fragmentIdx = -1)
     {
+        if (fragmentIdx >= 0) {
+            // Document-embedded, fragment-scoped: merge into existing or add new.
+            LVFontFace* existing = _registry.findFaceById(def.id());
+            if (existing) {
+                existing->addFragment(fragmentIdx);
+                return true;
+            }
+            LVFontFace newDef = def;
+            newDef.addFragment(fragmentIdx);
+            _registry.registerFace(newDef);
+            return true;
+        }
+        // Non-fragment-scoped (system fonts or document-global): deduplicate.
         if (_registry.hasFaceId(def.id())) {
             CRLog::trace("font definition is duplicate");
             return false;
@@ -7346,7 +7443,7 @@ public:
 
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t css_family, lString8 typeface,
                                 int features, int documentId, bool useBias=false,
-                                const LVFontVariations* variations=NULL)
+                                const LVFontVariations* variations=NULL, int fragmentIdx = -1)
     {
         FONT_MAN_GUARD
 
@@ -7359,7 +7456,7 @@ public:
                 preferred = _preferred_family;
         }
         LVFontMatch m = _font_selector.select(weight, italic, css_family, typeface,
-                                         requested, _registry, documentId, preferred);
+                                         requested, _registry, documentId, preferred, fragmentIdx);
         if (!m.valid()) {
             CRLog::error("GetFont: no match for typeface='%s' w=%d italic=%d family=%d",
                          typeface.c_str(), weight, (int)italic, (int)css_family);
@@ -7458,12 +7555,16 @@ public:
     // Note: publishers can specify font-variant/font-feature-settings/font-variation-settings
     // in the @font-face declaration.
     // todo: parse it and pass it here, and set it on the non-instantiated font (instead of -1)
-    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, int weight, bool italic) {
+    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, int weight, bool italic, int fragmentIdx = -1) {
         FONT_MAN_GUARD
         if (container.isNull()) // no container to resolve src: url() against (e.g. a styletweak)
             return false;
         lString8 name8 = UnicodeToUtf8(name);
-        CRLog::debug("RegisterDocumentFont(documentId=%d, path=%s)", documentId, name8.c_str());
+        CRLog::debug("RegisterDocumentFont(documentId=%d, fragmentIdx=%d, path=%s)", documentId, fragmentIdx, name8.c_str());
+        // Fast path: if this file is already registered for this document, just add
+        // the new fragment to existing entries without reloading the font data.
+        if (fragmentIdx >= 0 && _registry.addFragmentToFacesForFile(name8, documentId, fragmentIdx))
+            return true;
         name.trim(); // Remove any " " appended to avoid url override with duplicates
         LVStreamRef stream = container->OpenStream(name.c_str(), LVOM_READ);
         if (stream.isNull()) // Try again in case it is percent-encoded
@@ -7525,13 +7626,13 @@ public:
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
 
             LVFontFace def;
-            def.file_path  = name8;
-            def.face_index = index;
-            def.is_italic  = italicFlag;
-            def.css_family = fontFamily;
-            def.typeface   = familyName;
-            def.documentId = documentId;
-            def.buf        = buf;
+            def.file_path   = name8;
+            def.face_index  = index;
+            def.is_italic   = italicFlag;
+            def.css_family  = fontFamily;
+            def.typeface    = familyName;
+            def.documentId  = documentId;
+            def.buf         = buf;
             inspectFTFace(face, def, resolvedWeight);
             #if (DEBUG_FONT_MAN==1)
                 if ( _log )
@@ -7540,7 +7641,7 @@ public:
                         def.is_italic?1:0, (int)def.css_family, def.typeface.c_str());
             #endif
             if ( face ) { FT_Done_Face( face ); face = NULL; }
-            if (!tryRegisterFace(def)) return false;
+            if (!tryRegisterFace(def, fragmentIdx)) return false;
             res = true;
             if ( index>=num_faces-1 ) break;
 #if 0 // removed during font manager refactor
@@ -7598,13 +7699,17 @@ public:
         _registry.removeFonts(documentId);
     }
 
-    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, int weight, bool italic) {
+    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, int weight, bool italic, int fragmentIdx = -1) {
         if (name.startsWithNoCase(lString32("res://")))
             name = name.substr(6);
         else if (name.startsWithNoCase(lString32("file://")))
             name = name.substr(7);
         lString8 fname = UnicodeToUtf8(name);
-        CRLog::debug("RegisterExternalFont(documentId=%d, path=%s)", documentId, fname.c_str());
+        CRLog::debug("RegisterExternalFont(documentId=%d, fragmentIdx=%d, path=%s)", documentId, fragmentIdx, fname.c_str());
+        // Fast path: if this file is already registered for this document, just add
+        // the new fragment to existing entries without reloading the font from disk.
+        if (fragmentIdx >= 0 && _registry.addFragmentToFacesForFile(fname, documentId, fragmentIdx))
+            return true;
 
         bool res = false;
         int index = 0;
@@ -7649,15 +7754,15 @@ public:
             */
 
             LVFontFace def;
-            def.file_path  = fname;
-            def.face_index = index;
-            def.is_italic  = italic;
-            def.css_family = fontFamily;
-            def.typeface   = family_name;
-            def.documentId = documentId;
+            def.file_path   = fname;
+            def.face_index  = index;
+            def.is_italic   = italic;
+            def.css_family  = fontFamily;
+            def.typeface    = family_name;
+            def.documentId  = documentId;
             inspectFTFace(face, def, weight);
             FT_Done_Face( face ); face = NULL;
-            if (!tryRegisterFace(def)) return false;
+            if (!tryRegisterFace(def, fragmentIdx)) return false;
             res = true;
             if ( index>=num_faces-1 ) break;
 #if 0 // removed during font manager refactor
@@ -7915,7 +8020,7 @@ public:
     }
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features, int documentId, bool useBias=false,
-                                const LVFontVariations* /*variations*/=NULL)
+                                const LVFontVariations* /*variations*/=NULL, int /*fragmentIdx*/=-1)
     {
         LVFontDef * def = new LVFontDef(
             lString8::empty_str,
@@ -8048,7 +8153,7 @@ public:
     }
     virtual LVFontRef GetFont(int size, int weight, bool bitalic, css_font_family_t family, lString8 typeface,
                                 int features=0, int documentId=-1, bool useBias=false,
-                                const LVFontVariations* /*variations*/=NULL)
+                                const LVFontVariations* /*variations*/=NULL, int /*fragmentIdx*/=-1)
     {
         int italic = bitalic?1:0;
         if (size<8)

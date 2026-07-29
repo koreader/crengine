@@ -2661,12 +2661,12 @@ static const char * css_atrule_name[] = {
 // #define DEBUG_AT_RULES_PROCESSING
 
 // Defined further down (needs css_fw_kw_names/css_fs_names, declared below).
-static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase );
+static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, LVStyleSheet * stylesheet = nullptr );
 
 /// Parse (or skip) @keyword rule
 /// parseFontFace: false from contexts that only gather matching CSS text for
 /// display (e.g. a node style inspector) and must not register fonts as a side effect.
-static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, bool parseFontFace = true )
+static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, bool parseFontFace = true, LVStyleSheet * stylesheet = nullptr )
 {
     // https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule
     // We only handle a few of them, and we may not parse according to the full complex
@@ -2742,7 +2742,7 @@ static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc, lString
 
     if ( name == css_at_font_face && parseFontFace ) {
         str++; // skip opening '{'
-        parse_font_face_rule( str, doc, codeBase ); // consumes up to and including the closing '}'
+        parse_font_face_rule( str, doc, codeBase, stylesheet ); // consumes up to and including the closing '}'
         skip_spaces(str);
         return true;
     }
@@ -3106,7 +3106,7 @@ static bool parse_fontface_src_value( const lString8 & value, lString32 codeBase
 // Registers the font with the document as a side effect; does not produce a
 // css_style_rec_t or otherwise affect the stylesheet's rule list (see
 // FONTFACE_PARSER_REFACTOR.md, "@font-face is not a stylesheet rule in the usual sense").
-static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase )
+static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, LVStyleSheet * stylesheet )
 {
     lString8 family;
     int weight = 400;
@@ -3190,6 +3190,8 @@ static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString3
 
     if ( doc && haveSrc && !family.empty() ) {
         ((ldomDocument *)doc)->registerFontFace(url, family, weight, italic, isLocal);
+        if ( stylesheet )
+            stylesheet->addFontFaceDecl(url, family, weight, italic, isLocal);
     }
 }
 
@@ -7944,7 +7946,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             delete selector;
             // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly
             if ( *str == '@' ) {
-                parse_or_skip_at_rule(str, _doc, codeBase);
+                parse_or_skip_at_rule(str, _doc, codeBase, true, this);
             }
             else if ( *str == '}' && _nested ) {
                 // We're done parsing this nested CSS block
@@ -8071,6 +8073,10 @@ void LVStyleSheet::merge(const LVStyleSheet &other) {
         }
     }
     _selector_count += other._selector_count;
+    // Propagate @font-face declarations so they are preserved in cache entries
+    // up the @import chain and can be replayed for subsequent DocFragments.
+    for (int i = 0; i < other._fontFaceDecls.length(); i++)
+        _fontFaceDecls.add(other._fontFaceDecls[i]);
 }
 
 /// extract @import filename from beginning of CSS

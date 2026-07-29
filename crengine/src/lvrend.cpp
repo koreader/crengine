@@ -2395,6 +2395,19 @@ int LVRendGetBaseFontWeight()
     return rend_font_base_weight;
 }
 
+/// Walk up the DOM tree from `node` to find the nearest DocFragment ancestor
+/// and return its sibling index (its position among the root's children).
+/// Returns -1 if no DocFragment ancestor is found (non-EPUB documents, or
+/// nodes that are themselves above the DocFragment level).
+static int getNodeFragmentIdx(ldomNode * node)
+{
+    for (ldomNode * n = node; n && !n->isNull() && !n->isRoot(); n = n->getParentNode()) {
+        if (n->getNodeId() == el_DocFragment)
+            return (int)n->getNodeIndex();
+    }
+    return -1;
+}
+
 LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
 {
     int sz;
@@ -2436,6 +2449,7 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     LVFontVariations variations;
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    int fragmentIdx = (documentId != -1) ? getNodeFragmentIdx(node) : -1;
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
@@ -2444,7 +2458,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
         documentId, true, // useBias=true, so that our preferred font gets used
-        variations.empty() ? NULL : &variations);
+        variations.empty() ? NULL : &variations,
+        fragmentIdx);
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }

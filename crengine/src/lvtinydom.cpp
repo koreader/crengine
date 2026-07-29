@@ -3938,6 +3938,7 @@ ldomDocument::ldomDocument()
 , _doc_pages(NULL)
 #endif
 , lists(100)
+, _parsingFragmentIdx(-1)
 {
     _docIndex = ldomNode::registerDocument(this);
     ldomNode* node = allocTinyElement(NULL, 0, 0);
@@ -3990,6 +3991,7 @@ ldomDocument::ldomDocument( ldomDocument & doc )
 #endif
 , _container(doc._container)
 , lists(100)
+, _parsingFragmentIdx(-1)
 {
     _docIndex = ldomNode::registerDocument(this);
 }
@@ -5012,6 +5014,16 @@ public:
         LVStyleSheet *cached = cache.get(cssFile);
         if (cached) {
             dest.merge(*cached);
+            // Replay @font-face registrations with the current fragment's index.
+            // On a cache miss the registrations happened directly during parsing;
+            // on a cache hit we must re-register so each DocFragment that links
+            // the same CSS file gets its own scoped copy of the font.
+            const LVArray<LVStyleSheet::LVFontFaceDecl> & decls = cached->getFontFaceDecls();
+            for (int i = 0; i < decls.length(); i++) {
+                _document->registerFontFace(decls[i].url, decls[i].face,
+                                            decls[i].weight, decls[i].italic,
+                                            decls[i].isLocal);
+            }
             return true;
         }
 
@@ -9007,6 +9019,11 @@ bool ldomNode::applyNodeStylesheet()
 
     bool stylesheetChanged = false;
 
+    // Tag the document with this fragment's index for the duration of CSS
+    // parsing, so registerFontFace() can scope @font-face rules to this fragment.
+    if ( getNodeId() == el_DocFragment )
+        getDocument()->setParsingFragmentIdx((int)getNodeIndex());
+
     if ( getNodeId() == el_DocFragment && hasAttribute(attr_StyleSheet) ) {
         getDocument()->_stylesheet.push();
         stylesheetChanged = getDocument()->parseStyleSheet(getAttributeValue(attr_StyleSheet));
@@ -9028,6 +9045,10 @@ bool ldomNode::applyNodeStylesheet()
             }
         }
     }
+
+    if ( getNodeId() == el_DocFragment )
+        getDocument()->setParsingFragmentIdx(-1);
+
     return stylesheetChanged;
 #endif
     return false;
@@ -18516,6 +18537,12 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
         for ( int j=0; j<sz; j++ ) {
             buf[j].setDocumentIndex( _docIndex );
             if ( buf[j].isElement() ) {
+                // Each DocFragment may declare @font-face rules scoped to itself.
+                // Clear the style→font cache at each boundary so nodes in later
+                // fragments re-resolve against their own fragment's font scope
+                // rather than reusing a resolution from a prior fragment.
+                if ( buf[j].getNodeId() == el_DocFragment )
+                    _fontMap.clear();
                 lUInt16 style = getNodeStyleIndex( buf[j]._handle._dataIndex );
                 if ( enabled && style!=0 ) {
                     css_style_ref_t s = list->get( style );
@@ -21903,14 +21930,14 @@ void ldomDocument::registerEmbeddedFonts()
         if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
             // @font-face { font-family: face; src: url("res://...") or url("file://..."); }
             // url points to a font file outside the document container (e.g. a KOReader resource).
-            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getWeight(), item->getItalic())) {
+            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getWeight(), item->getItalic(), item->getFragmentIdx())) {
                 //CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
             }
             continue;
         }
         // @font-face { font-family: face; src: url("fonts/foo.ttf"); }
         // url is a path relative to the document container (e.g. an EPUB-embedded font).
-        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getWeight(), item->getItalic())) {
+        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getWeight(), item->getItalic(), item->getFragmentIdx())) {
             //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
         }
     }
@@ -21934,19 +21961,22 @@ bool ldomDocument::registerFontFace(lString32 url, lString8 face, int weight, bo
 {
     if (url.empty() || face.empty())
         return false;
+    int fragIdx = _parsingFragmentIdx;
     bool registered;
     if (isLocal) {
-        // @font-face { font-family: face; src: local("name"); }
+        // src: local() resolves to a system font alias; scoping to a fragment
+        // is not useful (system fonts are globally available), so fragIdx is
+        // not passed here and the alias has document scope.
         registered = fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url));
     }
     else if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
-        registered = fontMan->RegisterExternalFont(getDocIndex(), url, face, weight, italic);
+        registered = fontMan->RegisterExternalFont(getDocIndex(), url, face, weight, italic, fragIdx);
     }
     else {
-        registered = fontMan->RegisterDocumentFont(getDocIndex(), _container, url, face, weight, italic);
+        registered = fontMan->RegisterDocumentFont(getDocIndex(), _container, url, face, weight, italic, fragIdx);
     }
     if (registered) {
-        _fontList.add(url, face, weight, italic, isLocal);
+        _fontList.add(url, face, weight, italic, isLocal, fragIdx);
         // A node styled earlier in this same fresh parse may have already
         // resolved (and cached in _fontMap, keyed by style index) a fallback
         // font for a style referencing this family before it was registered.

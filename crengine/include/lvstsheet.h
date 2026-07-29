@@ -255,6 +255,19 @@ public:
     \sa LVCssDeclaration
 */
 class LVStyleSheet {
+public:
+    // @font-face declaration stored so that the stylesheet cache can replay
+    // registrations with the correct fragment index on subsequent DocFragments
+    // that link the same CSS file.
+    struct LVFontFaceDecl {
+        lString32 url;
+        lString8  face;
+        int       weight;
+        bool      italic;
+        bool      isLocal;
+    };
+
+private:
     lxmlDocBase * _doc;
     bool _nested;
 
@@ -279,7 +292,16 @@ class LVStyleSheet {
 
     void set(LVPtrVector<LVCssSelector> & v );
 
+    LVArray<LVFontFaceDecl> _fontFaceDecls;
+
 public:
+
+    void addFontFaceDecl(lString32 url, lString8 face, int weight, bool italic, bool isLocal) {
+        LVFontFaceDecl d;
+        d.url = url; d.face = face; d.weight = weight; d.italic = italic; d.isLocal = isLocal;
+        _fontFaceDecls.add(d);
+    }
+    const LVArray<LVFontFaceDecl> & getFontFaceDecls() const { return _fontFaceDecls; }
 
     // save current state of stylesheet
     void push()
