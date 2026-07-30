@@ -53,7 +53,7 @@
 
 /// System.
 #define CR_USE_THREADS                       0
-#define LDOM_USE_OWN_MEM_MAN                 1
+#define LDOM_USE_OWN_MEM_MAN                 @USE_OWN_MEM_MAN@
 
 /// Text.
 #define USE_LIMITED_FONT_SIZES_SET           0
