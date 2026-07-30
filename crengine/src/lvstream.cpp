@@ -876,10 +876,6 @@ LVStreamRef LVMapFileStream( const lChar8 * pathname, lvopen_mode_t mode, lvsize
 }
 
 
-//#ifdef _LINUX
-#undef USE_ANSI_FILES
-//#endif
-
 #if (USE_ANSI_FILES==1)
 
 class LVFileStream : public LVNamedStream

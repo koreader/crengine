@@ -47,7 +47,7 @@
 # define _LARGEFILE64_SOURCE                 1
 #endif
 #define LVLONG_FILE_SUPPORT                  0
-#define USE_ANSI_FILES                       1
+#define USE_ANSI_FILES                       0
 #define FILE_STREAM_BUFFER_SIZE              0x20000   // 128.0 KiB
 #define ZIP_STREAM_BUFFER_SIZE               0x40000   // 256.0 KiB
 
