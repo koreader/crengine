@@ -26,6 +26,17 @@ exercise per-DocFragment @font-face registration order:
          — that's font-manager-test.epub's job. It belongs here rather than
          there because the bug is in @font-face parsing/registration, the
          same layer the rest of this fixture exercises.
+  ch07 — regression test for koreader#15557: an unquoted, multi-word
+         font-family name in the @font-face rule's font-family descriptor,
+         referenced by the same unquoted name elsewhere. The old parser
+         (EmbeddedFontStyleParser in epubfmt.cpp) tokenized descriptor values
+         on whitespace and took only the first token, so an unquoted name
+         like "Ordering Test Space Name" was truncated to "Ordering" at
+         registration time, silently breaking the match against any rule
+         referencing the font by its full name. A second rule under a quoted
+         family name, pointing at its own distinct file, is a sanity control:
+         quoting was always handled correctly even by the old parser, so
+         Test 7b is expected to pass independently of whether Test 7a does.
 
 Each @font-face rule references a DISTINCT embedded font file, read directly
 from koreader/resources/fonts/ (crengine is always built as a thirdparty
@@ -108,12 +119,15 @@ CONTENT_OPF = """\
     <item id="fontC"   href="fonts/ordering-test-italic.ttf" media-type="application/x-font-ttf"/>
     <item id="fontD"   href="fonts/ordering-test-weight-light.ttf" media-type="application/x-font-ttf"/>
     <item id="fontE"   href="fonts/ordering-test-weight-heavy.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontF"   href="fonts/ordering-test-space.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontG"   href="fonts/ordering-test-space-quoted.ttf" media-type="application/x-font-ttf"/>
     <item id="ch01"    href="ch01.html"          media-type="application/xhtml+xml"/>
     <item id="ch02"    href="ch02.html"          media-type="application/xhtml+xml"/>
     <item id="ch03"    href="ch03.html"          media-type="application/xhtml+xml"/>
     <item id="ch04"    href="ch04.html"          media-type="application/xhtml+xml"/>
     <item id="ch05"    href="ch05.html"          media-type="application/xhtml+xml"/>
     <item id="ch06"    href="ch06.html"          media-type="application/xhtml+xml"/>
+    <item id="ch07"    href="ch07.html"          media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="ncx">
     <itemref idref="ch01"/>
@@ -122,6 +136,7 @@ CONTENT_OPF = """\
     <itemref idref="ch04"/>
     <itemref idref="ch05"/>
     <itemref idref="ch06"/>
+    <itemref idref="ch07"/>
   </spine>
 </package>
 """
@@ -157,6 +172,10 @@ TOC_NCX = """\
     <navPoint id="ch06" playOrder="6">
       <navLabel><text>6. Numeric @font-face font-weight (koreader#10040 / #12525)</text></navLabel>
       <content src="ch06.html"/>
+    </navPoint>
+    <navPoint id="ch07" playOrder="7">
+      <navLabel><text>7. Unquoted font-family with a space (koreader#15557)</text></navLabel>
+      <content src="ch07.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -330,6 +349,45 @@ Test 6b: this line should render in the embedded bold italic serif test font
 quick brown fox jumps over the lazy dog.</p>""",
 )
 
+CH07 = PAGE_TEMPLATE.format(
+    title="Unquoted font-family with a space",
+    heading="Chapter 7 &#x2014; Unquoted font-family with a space (koreader#15557)",
+    head_extra="""\
+<style type="text/css">
+@font-face {
+  font-family: Ordering Test Space Name;
+  src: url(fonts/ordering-test-space.ttf);
+}
+@font-face {
+  font-family: "Ordering Test Space Name Quoted";
+  src: url("fonts/ordering-test-space-quoted.ttf");
+}
+</style>""",
+    body="""\
+<p>This chapter's @font-face rule gives its font-family descriptor as
+"Ordering Test Space Name" &#x2014; multiple words, no quotes, and
+deliberately different from the referenced file name
+("ordering-test-space.ttf"). This is a regression test for
+koreader#15557: the old @font-face parser (EmbeddedFontStyleParser in
+epubfmt.cpp) tokenized descriptor values on whitespace and kept only the
+first token, so this name would have been registered as just "Ordering",
+silently breaking any rule that referenced the font by its full,
+correct name (as Test 7a below does). The second rule, under a quoted
+family name, is a sanity control pointing at its own distinct file
+&#x2014; quoting was never broken by the old parser, so Test 7b is expected
+to pass regardless of whether Test 7a does.</p>
+<p style="font-family: Ordering Test Space Name, serif;">Test 7a
+(unquoted, the regression case): this line should render in the embedded
+bold italic sans-serif test font (Noto Sans Bold Italic).</p>
+<p style="font-family: 'Ordering Test Space Name Quoted', serif;">Test 7b
+(quoted, sanity control): this line should render in the embedded italic
+serif test font (Noto Serif Italic) &#x2014; a different typeface from Test
+7a, confirming this is a distinct, correctly-registered face rather than
+Test 7a leaking through by coincidence.</p>
+<p style="font-family: serif;">Reference (default serif, for contrast): the
+quick brown fox jumps over the lazy dog.</p>""",
+)
+
 # ---------------------------------------------------------------------------
 # Build the EPUB
 # ---------------------------------------------------------------------------
@@ -350,6 +408,10 @@ def load_fonts(koreader_root):
         # actually tests).
         "ordering-test-weight-light.ttf": "resources/fonts/freefont/FreeSans.ttf",
         "ordering-test-weight-heavy.ttf": "resources/fonts/noto/NotoSerif-BoldItalic.ttf",
+        # ch07 (koreader#15557): two more distinct files, for the same
+        # duplicate-registration reason as ch06's two files above.
+        "ordering-test-space.ttf":        "resources/fonts/noto/NotoSans-BoldItalic.ttf",
+        "ordering-test-space-quoted.ttf":  "resources/fonts/noto/NotoSerif-Italic.ttf",
     }
     font_files = {}
     missing = []
@@ -388,6 +450,7 @@ def build_epub(path, font_files):
         zf.writestr("OEBPS/ch04.html",         CH04)
         zf.writestr("OEBPS/ch05.html",         CH05)
         zf.writestr("OEBPS/ch06.html",         CH06)
+        zf.writestr("OEBPS/ch07.html",         CH07)
         for name, data in font_files.items():
             zf.writestr(zipfile.ZipInfo(f"OEBPS/fonts/{name}"),
                         data, compress_type=zipfile.ZIP_DEFLATED)

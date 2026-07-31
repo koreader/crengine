@@ -13,10 +13,12 @@ manager test EPUB covers font *selection* (weight, italic, stretch, fallback)
 among already-correctly-registered faces, using only system-installed fonts
 and no multi-fragment `@font-face` scenarios. This plan is primarily about
 *when* an embedded `@font-face` font becomes available relative to the
-per-DocFragment body styling that needs it (Chapters 1–5), plus one adjacent
-check that belongs at the same `@font-face`-parsing layer rather than in the
+per-DocFragment body styling that needs it (Chapters 1–5), plus two adjacent
+checks that belong at the same `@font-face`-parsing layer rather than in the
 selection-focused EPUB: whether a numeric `font-weight` descriptor is read
-correctly at registration time (Chapter 6, section 4 below).
+correctly at registration time (Chapter 6, section 4 below), and whether an
+unquoted, multi-word `font-family` descriptor is read in full rather than
+truncated (Chapter 7, section 5 below).
 
 The test EPUB is at `tests/fontface-test.epub`. Regenerate it with
 `python3 tests/make_fontface_test_epub.py` if needed — it reads the test
@@ -27,8 +29,9 @@ the script fails with a clear error naming the missing path if it isn't).
 Each `@font-face` rule in this EPUB points at a **distinct** embedded font
 file (Chapters 1–3/5 additionally give each rule's file its own family name;
 Chapter 6 uses two files under one shared family, at two different
-`font-weight` values — see section 4 below). Files must stay distinct per
-rule — see the note at the top of `make_fontface_test_epub.py`: registering
+`font-weight` values — see section 4 below; Chapter 7 uses two files under
+two different family names, one quoted and one not — see section 5 below).
+Files must stay distinct per rule — see the note at the top of `make_fontface_test_epub.py`: registering
 the same font file twice in the same document, even under a different family
 name, is silently dropped by the font manager's duplicate-face detection
 (`LVFontFace::id()` in `lvfntman.cpp`). That's a real, pre-existing font
@@ -39,13 +42,13 @@ one file across all three families during development. Worth a separate bug
 report, but out of scope for this plan.
 
 A pass/fail only requires distinguishing each test font from the **default
-serif** (or, in Chapter 6, from each other) by eye — no font identity needs
-to be recognised — mirroring the monospace-as-unambiguous-marker approach
-already used in `font-manager-test.epub` (Chapter 6). The five test fonts
-(Droid Sans Mono, Noto Sans Bold, Noto Sans Italic, FreeSans, Noto Serif Bold
-Italic) are also visually distinct from each other, which is incidental
-rather than load-bearing for Chapters 1–5 but is exactly the point for
-Chapter 6.
+serif** (or, in Chapters 6 and 7, from each other) by eye — no font identity
+needs to be recognised — mirroring the monospace-as-unambiguous-marker
+approach already used in `font-manager-test.epub` (Chapter 6). The seven test
+fonts (Droid Sans Mono, Noto Sans Bold, Noto Sans Italic, FreeSans, Noto
+Serif Bold Italic, Noto Sans Bold Italic, Noto Serif Italic) are also
+visually distinct from each other, which is incidental rather than
+load-bearing for Chapters 1–5 but is exactly the point for Chapters 6 and 7.
 
 ---
 
@@ -198,7 +201,38 @@ being dropped at `@font-face` registration time — see
 
 ---
 
-## 5. Manual step — `@font-face` in a styletweak
+## 5. Unquoted `font-family` with a space (Chapter 7)
+
+**Goal:** Regression test for koreader#15557. The old `@font-face` parser
+(`EmbeddedFontStyleParser` in `epubfmt.cpp`, removed by this refactor)
+tokenized descriptor values on whitespace and kept only the first token, so
+an unquoted, multi-word `font-family` value like `Ordering Test Space Name`
+was registered as just `Ordering` — silently breaking any rule that
+referenced the font by its full, correct name. Quoted values were never
+affected, since quoting routed through a different code path
+(`onQuotedText()`) that read the whole string.
+
+Chapter 7 declares two `@font-face` rules, each pointing at its own distinct
+embedded file: one under an unquoted multi-word family name (`Ordering Test
+Space Name`, the regression case) and one under a quoted variant
+(`"Ordering Test Space Name Quoted"`, a sanity control that was never
+affected by the old parser's bug).
+
+| # | Action | Expected |
+|---|--------|----------|
+| 7.1 | View Chapter 7, Test 7a line (unquoted family name) | Renders in the embedded bold italic sans-serif test font (Noto Sans Bold Italic), not the default serif |
+| 7.2 | View Chapter 7, Test 7b line (quoted family name) | Renders in the embedded italic serif test font (Noto Serif Italic) — a different typeface from Test 7a |
+| 7.3 | Compare Test 7a and Test 7b to the reference serif line | All three must look visibly different from each other |
+
+If Test 7a falls back to the default serif font while Test 7b renders
+correctly, the unquoted multi-word `font-family` descriptor is being
+truncated at `@font-face` registration time — see `parse_font_face_rule()`
+in `lvstsheet.cpp`, the `cssff_font_family` case and its use of
+`splitPropertyValueList()`.
+
+---
+
+## 6. Manual step — `@font-face` in a styletweak
 
 **Goal:** Confirm `@font-face` declared in a KOReader styletweak (merged
 *after* the book's own user-agent stylesheet, not at the top of any file) is
@@ -211,11 +245,11 @@ by KOReader at the Lua layer, independent of any one book.
 
 | # | Action | Expected |
 |---|--------|----------|
-| 5.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
-| 5.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
-| 5.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
+| 6.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
+| 6.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
+| 6.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
 
-If 5.2 shows the first page in the wrong font while later pages are correct,
+If 6.2 shows the first page in the wrong font while later pages are correct,
 that's the ordering bug this whole plan exists to catch, manifesting via the
 styletweak path specifically rather than the EPUB-internal path covered by
 Chapters 1–5 above.
@@ -234,6 +268,8 @@ Chapters 1–5 above.
   this specific ordering invariant to appear.
 - Re-run section 4 (Chapter 6) after any change to `parse_font_face_rule()`
   or the `@font-face` descriptor tables in `lvstsheet.cpp`.
+- Re-run section 5 (Chapter 7) after any change to `parse_font_face_rule()`'s
+  `cssff_font_family` case or `splitPropertyValueList()` in `lvstsheet.cpp`.
 - This plan only exercises the EPUB path. The ordering-invariant audit found
   a separate, pre-existing, unrelated gap in the CHM `DocFragment` path —
   out of scope here, tracked separately.
