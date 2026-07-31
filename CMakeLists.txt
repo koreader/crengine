@@ -168,6 +168,7 @@ endfunction()
 # Boolean options.
 option(DISABLE_CLOEXEC "force disable closexec support" OFF)
 option(DISABLE_LFS     "force disable LFS support"      OFF)
+option(OWN_MEM_MAN     "use custom memory manager"      ON)
 
 # Feature options.
 set(AUTO AUTO CACHE STRING "override value of all 'auto' features")
@@ -236,6 +237,12 @@ if(NOT DISABLE_LFS)
     set(CMAKE_REQUIRED_DEFINITIONS -D_LARGEFILE64_SOURCE=1)
     check_type_size(off64_t OFF64_T)
     set(CMAKE_REQUIRED_DEFINITIONS)
+endif()
+
+if(OWN_MEM_MAN)
+    set(USE_OWN_MEM_MAN 1)
+else()
+    set(USE_OWN_MEM_MAN 0)
 endif()
 
 configure_file(crengine/include/crsetup.h.cmake crsetup.h @ONLY)
