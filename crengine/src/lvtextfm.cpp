@@ -2969,16 +2969,20 @@ public:
                         && frmline->word_count > 1           // not if single word (expanded, but not taking the full width is ugly)
                         && 100 * extra_width > m_pbuffer->unused_space_threshold_percent * usable_width ) {
             // extra_width is more than 5% of usable_width: we would be added too much spacing.
-            // But we're allowed to add some letter spacing intoto words to reduce spacing
+            // But we're allowed to add some letter spacing into words to reduce spacing
             // between words.
             // (We do that only when this line is justified - we could do it too when the
             // line is left- or right-aligned, but we do not know here if this is not the
             // last line of a paragraph, left aligned, that would not need to be expanded.)
             // We loop and increase letter spacing, and we stop as soon as we are
             // under the unused_space_threshold_percent (5%). If some iteration
-            // brings us below min_extra_width (spaces shrunk too much), we go
+            // brings us below zero extra width (spaces would have to be shrunk), we go
             // back to the previous letter_spacing (which may put us back with
             // the unused extra space > 5%, but that is preferable).
+            // (We used to allow added_spacing to eat into the additional_extra_width
+            // budget that condensed spacing (word->min_width) could provide, but it
+            // ended up looking bad for some highly expanded lines, as letter spacing
+            // became too similar to word spacing.)
             //
             // First, gather some info
             int max_font_size = 0;
