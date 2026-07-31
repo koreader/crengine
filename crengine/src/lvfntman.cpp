@@ -333,7 +333,7 @@ void LVFontManager::SetGamma( double gamma ) {
 ////////////////////////////////////////////////////////////////////
 
 static const char * EMBEDDED_FONT_LIST_MAGIC = "FNTL";
-static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD2";
+static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD";
 
 ////////////////////////////////////////////////////////////////////
 // LVEmbeddedFontDef
