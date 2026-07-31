@@ -2981,7 +2981,6 @@ public:
             // the unused extra space > 5%, but that is preferable).
             //
             // First, gather some info
-            int min_extra_width = 0; // negative value (from the allowed spaces condensing)
             int max_font_size = 0;
             for ( int i=0; i<(int)frmline->word_count; i++ ) {
                 formatted_word_t * word = &frmline->words[i];
@@ -2992,7 +2991,6 @@ public:
                 // them get less space added, and western/numbers get the expansion).
                 if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
-                min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
                 LVFont * font = (LVFont *)srcline->t.font;
                 int font_size = font->getSize();
@@ -3024,9 +3022,13 @@ public:
                     else
                         can_try_larger = true;
                     added_spacing += word->distinct_glyphs * word->added_letter_spacing;
+                    // spaces between words need the same amount of tracking as the glyphs to
+                    // maintain visual contrast between letter spacing and word spacing.
+                    if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 )
+                        added_spacing += word->added_letter_spacing;
                 }
                 int new_extra_width = extra_width - added_spacing;
-                if ( new_extra_width < min_extra_width ) { // too much added, not enough for spaces
+                if ( new_extra_width < 0 ) { // too much added, not enough for spaces
                     // Get back values from previous step (which was fine)
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
