@@ -18526,6 +18526,7 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
     LVArray<css_style_ref_t> * list = _styles.getIndex();
 
     _fontMap.clear(); // style index to font index
+    int currentFragmentIdx = -1; // tracked below as we cross DocFragment boundaries, in document order
 
     for ( int i=0; i<count; i++ ) {
         int offs = i*TNC_PART_LEN;
@@ -18541,15 +18542,17 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
                 // Clear the style→font cache at each boundary so nodes in later
                 // fragments re-resolve against their own fragment's font scope
                 // rather than reusing a resolution from a prior fragment.
-                if ( buf[j].getNodeId() == el_DocFragment )
+                if ( buf[j].getNodeId() == el_DocFragment ) {
                     _fontMap.clear();
+                    currentFragmentIdx = (int)buf[j].getNodeIndex();
+                }
                 lUInt16 style = getNodeStyleIndex( buf[j]._handle._dataIndex );
                 if ( enabled && style!=0 ) {
                     css_style_ref_t s = list->get( style );
                     if ( !s.isNull() ) {
                         lUInt16 fntIndex = _fontMap.get( style );
                         if ( fntIndex==0 ) {
-                            LVFontRef fnt = getFont(&buf[j], s.get(), getFontContextDocIndex());
+                            LVFontRef fnt = getFont(&buf[j], s.get(), getFontContextDocIndex(), currentFragmentIdx);
                             fntIndex = (lUInt16)_fonts.cache( fnt );
                             if ( fnt.isNull() ) {
                                 CRLog::error("font not found for style!");
@@ -20352,7 +20355,10 @@ static void updateStyleData( ldomNode * node )
 #endif
 
 #if BUILD_LITE!=1
-static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progressCallback, int & lastProgressPercent )
+// fragmentIdx: the DocFragment sibling index `node` is nested under, tracked
+// down through the recursion as we go (rather than have initNodeFont() walk
+// back up the ancestor chain to re-discover it for every single node).
+static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progressCallback, int & lastProgressPercent, int fragmentIdx )
 {
     if ( !node->isElement() )
         return;
@@ -20361,6 +20367,8 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
     // DocFragment (for epub) and body (for html) may hold some stylesheet
     // as first child or a link to stylesheet file in attribute
     if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body ) {
+        if ( node->getNodeId()==el_DocFragment )
+            fragmentIdx = (int)node->getNodeIndex();
         styleSheetChanged = node->applyNodeStylesheet();
         if ( styleSheetChanged ) {
             // For HTML files, if the parent of this <body> is a <html>,
@@ -20369,7 +20377,7 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
             // element, will be initNodeStyle()'ed just below.)
             ldomNode * parentNode = node->getParentNode();
             if ( parentNode->getNodeId() == el_html ) {
-                parentNode->initNodeStyle();
+                parentNode->initNodeStyle(fragmentIdx);
             }
         }
         // We don't have access to much metric to show the progress of
@@ -20387,12 +20395,12 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
         }
     }
 
-    node->initNodeStyle();
+    node->initNodeStyle(fragmentIdx);
     int n = node->getChildCount();
     for ( int i=0; i<n; i++ ) {
         ldomNode * child = node->getChildNode(i);
         if ( child->isElement() )
-            updateStyleDataRecursive( child, progressCallback, lastProgressPercent );
+            updateStyleDataRecursive( child, progressCallback, lastProgressPercent, fragmentIdx );
     }
     if ( styleSheetChanged )
         node->getDocument()->getStyleSheet()->pop();
@@ -20405,7 +20413,7 @@ void ldomNode::initNodeStyleRecursive( LVDocViewCallback * progressCallback )
         progressCallback->OnNodeStylesUpdateStart();
     getDocument()->_fontMap.clear();
     int lastProgressPercent = -1;
-    updateStyleDataRecursive( this, progressCallback, lastProgressPercent );
+    updateStyleDataRecursive( this, progressCallback, lastProgressPercent, -1 );
     //recurseElements( updateStyleData );
     if (progressCallback)
         progressCallback->OnNodeStylesUpdateEnd();
@@ -20829,7 +20837,7 @@ void ldomNode::setStyle( css_style_ref_t & style )
     }
 }
 
-bool ldomNode::initNodeFont()
+bool ldomNode::initNodeFont(int fragmentIdx)
 {
     if ( !isElement() )
         return false;
@@ -20842,7 +20850,7 @@ bool ldomNode::initNodeFont()
             CRLog::error("style not found for index %d", style);
             s = getDocument()->_styles.get( style );
         }
-        LVFontRef fnt = ::getFont(this, s.get(), getDocument()->getFontContextDocIndex());
+        LVFontRef fnt = ::getFont(this, s.get(), getDocument()->getFontContextDocIndex(), fragmentIdx);
         fntIndex = (lUInt16)getDocument()->_fonts.cache( fnt );
         if ( fnt.isNull() ) {
             CRLog::error("font not found for style!");
@@ -20869,17 +20877,26 @@ bool ldomNode::initNodeFont()
     return true;
 }
 
-void ldomNode::initNodeStyle()
+void ldomNode::initNodeStyle(int fragmentIdx)
 {
     // assume all parent styles already initialized
     if ( !getDocument()->isDefStyleSet() )
         return;
     if ( isElement() ) {
+        if ( getNodeId() == el_DocFragment ) {
+            // Style->font resolution is cached below (in initNodeFont()) keyed
+            // by style index only, not by fragment, so clear it at each
+            // DocFragment boundary: a style shared with a prior fragment must
+            // not reuse a font that was resolved under that other fragment's
+            // @font-face scope.
+            getDocument()->_fontMap.clear();
+        }
         if ( isRoot() || getParentNode()->isRoot() )
         {
             setNodeStyle( this,
                 getDocument()->getDefaultStyle(),
-                getDocument()->getDefaultFont()
+                getDocument()->getDefaultFont(),
+                fragmentIdx
             );
         }
         else
@@ -20914,7 +20931,8 @@ void ldomNode::initNodeStyle()
 #endif
             setNodeStyle( this,
                 style,
-                font
+                font,
+                fragmentIdx
                 );
 #if DEBUG_DOM_STORAGE==1
             if ( this->getStyle().isNull() ) {

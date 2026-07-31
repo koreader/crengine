@@ -1049,8 +1049,11 @@ public:
     /// if stylesheet file name is set, and file is found, set stylesheet to its value
     bool applyNodeStylesheet();
 
-    bool initNodeFont();
-    void initNodeStyle();
+    /// fragmentIdx: this node's DocFragment sibling index, if already known by
+    /// the caller (eg. a traversal tracking it as it goes), else -2
+    /// (FRAGMENT_IDX_UNKNOWN in lvrend.h) to have it looked up as needed.
+    bool initNodeFont(int fragmentIdx=-2);
+    void initNodeStyle(int fragmentIdx=-2);
     /// init render method for this node only (children should already have rend method set)
     void initNodeRendMethod();
     /// init render method for the whole subtree
