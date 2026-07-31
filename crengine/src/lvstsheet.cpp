@@ -2740,6 +2740,10 @@ static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc, lString
     if ( *str != '{' ) // not the expected block start
         return false;
 
+    // When !parseFontFace, we don't special-case @font-face here: it falls
+    // through to the has_nested_declaration handling below (already set
+    // true for it above), which parses-and-discards its block just like any
+    // other unhandled at-rule -- same as @font-face was skipped pre-refactor.
     if ( name == css_at_font_face && parseFontFace ) {
         str++; // skip opening '{'
         parse_font_face_rule( str, doc, codeBase, stylesheet ); // consumes up to and including the closing '}'
