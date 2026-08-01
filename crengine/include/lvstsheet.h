@@ -273,7 +273,6 @@ private:
 
     int _selector_count;
     LVArray <int> _selector_count_stack;
-    LVArray <int> _fontFaceDecls_count_stack;
 
     LVPtrVector <LVCssSelector> _selectors;
     LVPtrVector <LVPtrVector <LVCssSelector> > _stack;
@@ -309,10 +308,6 @@ public:
     {
         _selector_count_stack.add( _selector_count );
         _stack.add( dup() );
-        // _fontFaceDecls is append-only (addFontFaceDecl()/merge() only ever
-        // add entries), so unlike _selectors it doesn't need a full snapshot:
-        // remembering the length is enough to truncate back to it on pop().
-        _fontFaceDecls_count_stack.add( _fontFaceDecls.length() );
     }
     // restore previously saved state
     bool pop()
@@ -323,11 +318,6 @@ public:
         // including a 1000 selectors stylesheet).
         if ( !_selector_count_stack.empty() )
             _selector_count = _selector_count_stack.remove( _selector_count_stack.length()-1 );
-        if ( !_fontFaceDecls_count_stack.empty() ) {
-            int savedLen = _fontFaceDecls_count_stack.remove( _fontFaceDecls_count_stack.length()-1 );
-            if ( savedLen < _fontFaceDecls.length() )
-                _fontFaceDecls.erase( savedLen, _fontFaceDecls.length() - savedLen );
-        }
         LVPtrVector <LVCssSelector> * v = _stack.pop();
         if ( !v )
             return false;
@@ -342,8 +332,6 @@ public:
         _selector_count_stack.clear();
         _selectors.clear();
         _stack.clear();
-        _fontFaceDecls.clear();
-        _fontFaceDecls_count_stack.clear();
     }
     /// set document to retrieve ID values from
     void setDocument( lxmlDocBase * doc ) { _doc = doc; }
