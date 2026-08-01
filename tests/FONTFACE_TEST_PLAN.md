@@ -92,15 +92,17 @@ earlier spine item than the one that declares it — fails *gracefully* on a
 **fresh parse**, and confirm the declaration itself is valid by using it
 correctly in its own fragment.
 
-**Secondary purpose — reproduction case for an open bug.** This section also
-doubles as the manual reproduction case for the `_fontMap`/style-content
-caching bug found via runtime verification (stale font-resolution cache).
-That bug is real, confirmed, and currently unfixed. Steps 3.1–3.4, run in spine order without
-skipping around (see the navigation-order note further below), are this
-bug's repro recipe: if the engine is ever changed such that Chapters 4 and 5
-end up resolving the same style index again, this section will once more show
-Chapter 4 picking up whichever font was resolved first regardless of spine
-order — that's the symptom to look for when revisiting that bug.
+**Secondary purpose — regression test for a fixed bug.** This section also
+doubles as the regression test for a `_fontMap`/style-content caching bug
+found via runtime verification (stale font-resolution cache), fixed by
+`ldomNode::initNodeStyle()` clearing `_fontMap` on every `el_DocFragment`
+boundary ("CSS: avoid walk up node tree to get fragmentIdx",
+`lvtinydom.cpp`). Chapter 4's Test 4 paragraph and Chapter 5's Test 5
+paragraph are deliberately given byte-identical computed styles (see
+`make_fontface_test_epub.py`'s docstring) so that steps 3.1–3.4 exercise this
+fix directly: if the `_fontMap` boundary clear ever regresses, this section
+will once more show Chapter 4 picking up whichever font was resolved first
+regardless of spine order — that's the symptom to look for.
 
 **This section's Chapter 4 expectation only applies to a fresh parse** (first
 open, or any open that follows a cache invalidation — magic-constant bump,
@@ -148,26 +150,26 @@ actively avoid:
   (Scope section) — confirm Chapters 1/2/3's test fonts are rendering
   correctly first, since a shared-file mistake in this fixture would make
   Chapter 5 fail for a reason unrelated to ordering.
-- A separate font-*resolution* caching issue: `ldomNode::initNodeFont()`
-  (`lvtinydom.cpp`) caches resolved fonts keyed by a document-wide,
-  content-deduplicated style index (`_fontMap`/`_styles`, not by node), with
-  no invalidation when the font registry changes mid-pass. If Chapter 4's and
-  Chapter 5's Test paragraphs ever end up with byte-identical computed styles
-  again (the `letter-spacing: 1px` on Chapter 4's paragraph exists
-  specifically to prevent this), whichever chapter is *viewed first* "wins"
-  and the other silently inherits its font resolution, independent of
-  registration ordering — a real, more general bug in its own right, not
-  fixed, worth its own investigation regardless of whether this specific
-  test ever trips over it again.
+- A separate font-*resolution* caching issue, now fixed:
+  `ldomNode::initNodeFont()` (`lvtinydom.cpp`) caches resolved fonts keyed by
+  a document-wide, content-deduplicated style index (`_fontMap`/`_styles`,
+  not by node). Chapter 4's and Chapter 5's Test paragraphs are deliberately
+  given byte-identical computed styles specifically to exercise this: before
+  the fix, whichever chapter was *viewed first* would "win" and the other
+  would silently inherit its font resolution, independent of registration
+  ordering. `ldomNode::initNodeStyle()` now clears `_fontMap` on every
+  `el_DocFragment` boundary, so each fragment's styling pass always
+  re-resolves against its own `@font-face` scope rather than reusing a
+  resolution cached from a different fragment. If Chapter 4 and 5 diverge
+  from this section's expected results, this is the first place to look.
 
-**Navigation order matters for this reason.** Because of the caching issue
-above, view Chapters 1 through 5 **in spine order, front to back, in a single
-session**, before drawing conclusions from Chapter 4 or 5. Viewing Chapter 5
-before stepping back to Chapter 4 (or any other out-of-order navigation
-between them) can make Chapter 4 incorrectly show the italic test font, or
-vice versa — not because registration ordering broke, but because of the
-*other* bug this section just described. If you see an unexpected result,
-restart from Chapter 1 in a fresh reading session before filing it.
+**Navigation order should no longer matter, by design.** View Chapters 1
+through 5 in spine order for a clean first pass, but the fix above means
+viewing Chapter 5 before stepping back to Chapter 4 (or any other
+out-of-order navigation between them) should **not** change either chapter's
+result. If it does, that's a regression of the `_fontMap` boundary-clear fix
+described above, not expected behaviour — restart from Chapter 1 in a fresh
+reading session to confirm before filing it.
 
 ---
 

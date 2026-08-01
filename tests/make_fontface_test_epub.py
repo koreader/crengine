@@ -59,29 +59,28 @@ font manager limitation so this fixture isolates only the ordering behaviour
 it's meant to test. See FONTMANAGER_REFACTOR.md, "Future Work" for the
 write-up of that bug.
 
-Chapters 4 and 5's test paragraphs must NOT use byte-identical computed
-styles either, for an unrelated reason: ldomNode::initNodeFont()
-(lvtinydom.cpp) caches resolved fonts in _fontMap keyed by *style index*
-(from the document-wide, content-deduplicated _styles cache, lvrefcache.h),
-not by node. Two elements anywhere in the document — even in different
-DocFragments — with an identical computed css_style_rec_t share one cache
-entry, with no invalidation when the font registry changes between when the
-first and second were resolved. Chapter 4's Test 4 paragraph and Chapter 5's
-Test 5 paragraph originally used the identical inline
-`style="font-family: 'OrderingTestFontC', serif;"`, so Chapter 4's
-(correct, at that point) fallback-to-serif resolution got cached and silently
-reused for Chapter 5's later, otherwise-correctly-registered, paragraph. The
-near-imperceptible `letter-spacing: 1px` on Chapter 4's paragraph below exists
-solely to keep the two style records distinct -- a sub-pixel value (e.g.
-0.01px) was tried first and was NOT sufficient: crengine's layout engine
-works in integer screen pixels, and the sub-pixel value rounded away to the
-same computed style after all, so the collision (and its symptom -- whichever
-chapter is viewed first "wins" and the other inherits its font resolution)
-persisted across out-of-spine-order navigation between Chapters 4 and 5. This
-is a third, separate, and more general bug than the file-reuse one above —
-it isn't specific to this fixture's deliberately malformed Chapter 4 scenario;
-it would also bite two *legitimately* ordered DocFragments sharing a CSS class
-whose font becomes available between them -- not fixed, just documented here.
+Chapters 4 and 5's test paragraphs are DELIBERATELY byte-identical in
+computed style -- `style="font-family: 'OrderingTestFontC', serif;"` on both
+-- as a regression test for a third, separate bug that used to live here:
+ldomNode::initNodeFont() (lvtinydom.cpp) caches resolved fonts in _fontMap
+keyed by *style index* (from the document-wide, content-deduplicated _styles
+cache, lvrefcache.h), not by node. Two elements anywhere in the document —
+even in different DocFragments — with an identical computed css_style_rec_t
+share one cache entry. Before commit f2c6db30 ("CSS: avoid walk up node tree
+to get fragmentIdx") threaded fragmentIdx through getFont()/initNodeFont()
+and had ldomNode::initNodeStyle() clear _fontMap on every el_DocFragment
+boundary, that entry was never invalidated when the font registry changed
+between when the first and second were resolved:
+Chapter 4's Test 4 paragraph and Chapter 5's Test 5 paragraph, sharing this
+identical style, meant Chapter 4's (correct, at that point) fallback-to-serif
+resolution got cached and silently reused for Chapter 5's later,
+otherwise-correctly-registered, paragraph, regardless of spine order. The
+_fontMap clear on each DocFragment boundary fixes this: Chapter 5's styling
+pass starts with an empty _fontMap, so its Test 5 paragraph always
+re-resolves against Chapter 5's own @font-face scope instead of reusing
+Chapter 4's cached miss. If this ever regresses, Test 5 below will render in
+the default serif font (Chapter 4's stale resolution) instead of the
+embedded italic test font.
 """
 
 import io
@@ -266,21 +265,16 @@ registration ordering this engine relies on. This is not expected to
 work.</p>
 <p>This chapter and Chapter 5 serve two purposes: (1) confirm
 this malformed-ordering case fails gracefully on a fresh parse rather than
-crashing, and (2) double as the manual reproduction case for an open,
-unrelated bug in font-resolution caching (stale font-resolution cache found
-via runtime verification) -- view both chapters in spine order, without
-skipping around, for either purpose to be meaningful. See
+crashing, and (2) double as a regression test for a previously-fixed,
+unrelated bug in font-resolution caching -- view both chapters in spine
+order, without skipping around, for either purpose to be meaningful. See
 tests/FONTFACE_TEST_PLAN.md, section 3, for the full procedure and expected
 results.</p>
-<!-- letter-spacing here is a near-imperceptible visual nudge, not a true
-     no-op; it only keeps this paragraph's computed style distinct from
-     Chapter 5's Test 5 paragraph, which would otherwise share a style index
-     and silently reuse this resolution via _fontMap (lvtinydom.cpp) -- see
-     this script's docstring. A whole 1px (not a sub-pixel value) is used
-     deliberately: crengine's layout engine works in integer screen pixels,
-     so a sub-pixel value risks rounding away to the same computed style
-     after all, defeating the point. -->
-<p style="font-family: 'OrderingTestFontC', serif; letter-spacing: 1px;">
+<!-- This paragraph's style is deliberately byte-identical to Chapter 5's
+     Test 5 paragraph below (same "font-family: 'OrderingTestFontC', serif;"
+     inline style, nothing else differing) -- see this script's docstring
+     for why that's the point rather than a bug. -->
+<p style="font-family: 'OrderingTestFontC', serif;">
 Test 4: this line is expected to fall back to the default serif font
 &#x2014; no crash, no missing glyphs, no italic rendering.</p>
 <p style="font-family: serif;">Reference (default serif): the quick brown
