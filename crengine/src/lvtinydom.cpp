@@ -5028,6 +5028,10 @@ public:
         }
 
         LVStyleSheet *styleSheet = new LVStyleSheet(_document);
+        // This is the object that will be stored in StyleSheetCache below, so
+        // it (and anything merged into it from its own @import chain) needs
+        // to remember its @font-face decls for replay on future cache hits.
+        styleSheet->enableFontFaceDeclTracking();
         lString32 codeBase = cssFile;
         LVExtractLastPathElement(codeBase);
         LVContainerRef container = _document->getContainer();

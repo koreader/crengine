@@ -8078,9 +8078,14 @@ void LVStyleSheet::merge(const LVStyleSheet &other) {
     }
     _selector_count += other._selector_count;
     // Propagate @font-face declarations so they are preserved in cache entries
-    // up the @import chain and can be replayed for subsequent DocFragments.
-    for (int i = 0; i < other._fontFaceDecls.length(); i++)
-        _fontFaceDecls.add(other._fontFaceDecls[i]);
+    // up the @import chain and can be replayed for subsequent DocFragments --
+    // but only into a destination that actually tracks them (see
+    // _trackFontFaceDecls); merging into the live document stylesheet, which
+    // never gets cached, would just accumulate decls nothing ever reads.
+    if ( _trackFontFaceDecls ) {
+        for (int i = 0; i < other._fontFaceDecls.length(); i++)
+            _fontFaceDecls.add(other._fontFaceDecls[i]);
+    }
 }
 
 /// extract @import filename from beginning of CSS
