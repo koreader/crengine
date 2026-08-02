@@ -133,7 +133,7 @@ bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 );
 void freeFormatData( ldomNode * node );
 
 /// returns best suitable font for style
-LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
+LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int docFragmentIdx=DOC_FRAGMENT_IDX_UNKNOWN);
 /// initializes format data for node
 void initFormatData( ldomNode * node );
 /// initializes rendering method for node
@@ -155,9 +155,9 @@ int renderTable( LVRendPageContext & context, ldomNode * element, int x, int y, 
                  bool shrink_to_fit, int min_width, int & fitted_width, int direction=REND_DIRECTION_UNSET,
                  bool pb_inside_avoid=false, bool enhanced_rendering=false, bool is_ruby_table=false );
 /// sets node style
-/// fragmentIdx: the node's DocFragment sibling index, if already known by the
+/// docFragmentIdx: the node's DocFragment sibling index, if already known by the
 /// caller (eg. a traversal tracking it), else left to be looked up as needed.
-void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font, int fragmentIdx=FRAGMENT_IDX_UNKNOWN );
+void setNodeStyle( ldomNode * node, css_style_ref_t parent_style, LVFontRef parent_font, int docFragmentIdx=DOC_FRAGMENT_IDX_UNKNOWN );
 /// copy style
 void copystyle( css_style_ref_t sourcestyle, css_style_ref_t deststyle );
 

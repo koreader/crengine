@@ -702,15 +702,15 @@ class LVEmbeddedFontDef {
     // rather than a path to an embedded font file.
     bool _isLocal;
     // Index of the DocFragment that declared this @font-face rule, or -1 if
-    // it applies to all fragments (e.g. a rule parsed outside any
-    // DocFragment). local() aliases are fragment-scoped like any other rule.
-    int _fragmentIdx;
+    // it applies to all DocFragments (e.g. a rule parsed outside any
+    // DocFragment). local() aliases are doc-fragment-scoped like any other rule.
+    int _docFragmentIdx;
 public:
-    LVEmbeddedFontDef(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false, int fragmentIdx = -1) :
-        _url(url), _face(face), _weight(weight), _italic(italic), _isLocal(isLocal), _fragmentIdx(fragmentIdx)
+    LVEmbeddedFontDef(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false, int docFragmentIdx = -1) :
+        _url(url), _face(face), _weight(weight), _italic(italic), _isLocal(isLocal), _docFragmentIdx(docFragmentIdx)
     {
     }
-    LVEmbeddedFontDef() : _weight(400), _italic(false), _isLocal(false), _fragmentIdx(-1) {
+    LVEmbeddedFontDef() : _weight(400), _italic(false), _isLocal(false), _docFragmentIdx(-1) {
     }
 
     const lString32 & getUrl() const { return _url; }
@@ -718,21 +718,21 @@ public:
     int getWeight() const { return _weight; }
     bool getItalic() const { return _italic; }
     bool getIsLocal() const { return _isLocal; }
-    int getFragmentIdx() const { return _fragmentIdx; }
+    int getDocFragmentIdx() const { return _docFragmentIdx; }
     void setFace(const lString8 &  face) { _face = face; }
     void setWeight(int weight) { _weight = weight; }
     void setItalic(bool italic) { _italic = italic; }
     void setIsLocal(bool isLocal) { _isLocal = isLocal; }
-    void setFragmentIdx(int fragmentIdx) { _fragmentIdx = fragmentIdx; }
+    void setDocFragmentIdx(int docFragmentIdx) { _docFragmentIdx = docFragmentIdx; }
     bool serialize(SerialBuf & buf);
     bool deserialize(SerialBuf & buf);
 };
 
 class LVEmbeddedFontList : public LVPtrVector<LVEmbeddedFontDef> {
 public:
-    LVEmbeddedFontDef * findByUrlAndFragment(lString32 url, int fragmentIdx);
+    LVEmbeddedFontDef * findByUrlAndDocFragment(lString32 url, int docFragmentIdx);
     void add(LVEmbeddedFontDef * def) { LVPtrVector<LVEmbeddedFontDef>::add(def); }
-    bool add(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false, int fragmentIdx = -1);
+    bool add(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false, int docFragmentIdx = -1);
     bool add(lString32 url) { return add(url, lString8::empty_str, 400, false); }
     bool addAll(LVEmbeddedFontList & list);
     void set(LVEmbeddedFontList & list) { clear(); addAll(list); }
@@ -755,7 +755,7 @@ public:
     /// returns most similar font
     virtual LVFontRef GetFont(int size, int weight, bool italic, css_font_family_t family, lString8 typeface,
                                 int features=0, int documentId = -1, bool useBias=false,
-                                const LVFontVariations* variations=NULL, int fragmentIdx = -1) = 0;
+                                const LVFontVariations* variations=NULL, int docFragmentIdx = -1) = 0;
 
     /// return available font weight values
     virtual void GetAvailableFontWeights(LVArray<int>& weights, lString8 typeface) = 0;
@@ -771,9 +771,9 @@ public:
     /// registers font by name
     virtual bool RegisterFont( lString8 name ) = 0;
     /// registers font by name and face
-    virtual bool RegisterExternalFont(int /*documentId*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/, int /*fragmentIdx*/ = -1) { return false; }
+    virtual bool RegisterExternalFont(int /*documentId*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/, int /*docFragmentIdx*/ = -1) { return false; }
     /// registers document font
-    virtual bool RegisterDocumentFont(int /*documentId*/, LVContainerRef /*container*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/, int /*fragmentIdx*/ = -1) { return false; }
+    virtual bool RegisterDocumentFont(int /*documentId*/, LVContainerRef /*container*/, lString32 /*name*/, lString8 /*face*/, int /*weight*/, bool /*italic*/, int /*docFragmentIdx*/ = -1) { return false; }
     /// unregisters all document fonts
     virtual void UnregisterDocumentFonts(int /*documentId*/) { }
     /// makes sure registered fonts have a proper entry at weight 400 and 700 when possible,
@@ -844,10 +844,10 @@ public:
 
     /// Resolves `src: local(localName)` from a document's @font-face rule: if a
     /// family named `localName` is registered, makes `alias` resolve to it for
-    /// font selection within `documentId`, scoped to `fragmentIdx` (-1 for the
+    /// font selection within `documentId`, scoped to `docFragmentIdx` (-1 for the
     /// whole document) so two DocFragments can map the same family name to
     /// different local() targets. Returns false if no such family exists.
-    virtual bool RegisterDocumentFontAlias(int /*documentId*/, lString8 /*alias*/, lString8 /*localName*/, int /*fragmentIdx*/ = -1) { return false; }
+    virtual bool RegisterDocumentFontAlias(int /*documentId*/, lString8 /*alias*/, lString8 /*localName*/, int /*docFragmentIdx*/ = -1) { return false; }
 
     /// Set the primary reading font used as the step-2 fallback for all generic families.
     virtual void SetPrimaryFont( lString8 /*face*/ ) {}

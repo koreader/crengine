@@ -72,9 +72,9 @@ extern const int gDOMVersionCurrent;
 /// default docFlag set
 #define DOC_FLAG_DEFAULTS (DOC_FLAG_ENABLE_INTERNAL_STYLES|DOC_FLAG_ENABLE_FOOTNOTES|DOC_FLAG_ENABLE_DOC_FONTS)
 
-/// sentinel for fragmentIdx params: look it up (by walking up from node to
+/// sentinel for docFragmentIdx params: look it up (by walking up from node to
 /// its DocFragment ancestor) rather than trusting a caller-supplied value
-#define FRAGMENT_IDX_UNKNOWN (-2)
+#define DOC_FRAGMENT_IDX_UNKNOWN (-2)
 
 
 
@@ -1053,11 +1053,11 @@ public:
     /// if stylesheet file name is set, and file is found, set stylesheet to its value
     bool applyNodeStylesheet();
 
-    /// fragmentIdx: this node's DocFragment sibling index, if already known by
+    /// docFragmentIdx: this node's DocFragment sibling index, if already known by
     /// the caller (eg. a traversal tracking it as it goes), else
-    /// FRAGMENT_IDX_UNKNOWN to have it looked up as needed.
-    bool initNodeFont(int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
-    void initNodeStyle(int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
+    /// DOC_FRAGMENT_IDX_UNKNOWN to have it looked up as needed.
+    bool initNodeFont(int docFragmentIdx=DOC_FRAGMENT_IDX_UNKNOWN);
+    void initNodeStyle(int docFragmentIdx=DOC_FRAGMENT_IDX_UNKNOWN);
     /// init render method for this node only (children should already have rend method set)
     void initNodeRendMethod();
     /// init render method for the whole subtree
@@ -2711,12 +2711,12 @@ private:
     LVEmbeddedFontList _fontList;
 
     // DocFragment index of the @font-face rule currently being parsed; -1
-    // outside a per-fragment CSS parse (e.g. a document-level stylesheet).
-    // Not used on cache reload: registerEmbeddedFonts() reads the fragment
+    // outside a per-DocFragment CSS parse (e.g. a document-level stylesheet).
+    // Not used on cache reload: registerEmbeddedFonts() reads the DocFragment
     // index already stored per entry in _fontList instead of this field.
     // Set by applyNodeStylesheet() for the duration of each DocFragment's
     // parseStyleSheet() call, then reset.
-    int _parsingFragmentIdx;
+    int _parsingDocFragmentIdx;
 
     lString8Collection _fontFamilyFonts;
 
@@ -2746,9 +2746,9 @@ public:
 
     /// Set/get the DocFragment index being parsed for @font-face scoping.
     /// Called by ldomNode::applyNodeStylesheet() and LVImportStylesheetParser
-    /// to scope @font-face registrations to the correct fragment, or -1 for global.
-    void setParsingFragmentIdx(int idx) { _parsingFragmentIdx = idx; }
-    int  getParsingFragmentIdx() const  { return _parsingFragmentIdx; }
+    /// to scope @font-face registrations to the correct DocFragment, or -1 for global.
+    void setParsingDocFragmentIdx(int idx) { _parsingDocFragmentIdx = idx; }
+    int  getParsingDocFragmentIdx() const  { return _parsingDocFragmentIdx; }
 
 #if BUILD_LITE!=1
     lUInt32 getDocumentRenderingHash() { return _doc_rendering_hash; }
