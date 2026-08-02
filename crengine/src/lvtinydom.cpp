@@ -9023,7 +9023,7 @@ bool ldomNode::applyNodeStylesheet()
 
     bool stylesheetChanged = false;
 
-    // Tag the document with this DocFragment's index for the duration of CSS
+    // Remember this DocFragment's index for the duration of CSS
     // parsing, so registerFontFace() can scope @font-face rules to this DocFragment.
     if ( getNodeId() == el_DocFragment )
         getDocument()->setParsingDocFragmentIdx((int)getNodeIndex());
