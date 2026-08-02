@@ -701,9 +701,9 @@ class LVEmbeddedFontDef {
     // When true, _url holds a font family name from a `src: local(...)` rule
     // rather than a path to an embedded font file.
     bool _isLocal;
-    // Index of the DocFragment (spine item) that declared this @font-face rule,
-    // or -1 if available to all fragments (e.g. loaded from cache without
-    // per-fragment context, or a local() alias which has document scope).
+    // Index of the DocFragment that declared this @font-face rule, or -1 if
+    // it applies to all fragments (e.g. a rule parsed outside any
+    // DocFragment). local() aliases are fragment-scoped like any other rule.
     int _fragmentIdx;
 public:
     LVEmbeddedFontDef(lString32 url, lString8 face, int weight, bool italic, bool isLocal = false, int fragmentIdx = -1) :
@@ -844,8 +844,10 @@ public:
 
     /// Resolves `src: local(localName)` from a document's @font-face rule: if a
     /// family named `localName` is registered, makes `alias` resolve to it for
-    /// font selection within `documentId`. Returns false if no such family exists.
-    virtual bool RegisterDocumentFontAlias(int /*documentId*/, lString8 /*alias*/, lString8 /*localName*/) { return false; }
+    /// font selection within `documentId`, scoped to `fragmentIdx` (-1 for the
+    /// whole document) so two DocFragments can map the same family name to
+    /// different local() targets. Returns false if no such family exists.
+    virtual bool RegisterDocumentFontAlias(int /*documentId*/, lString8 /*alias*/, lString8 /*localName*/, int /*fragmentIdx*/ = -1) { return false; }
 
     /// Set the primary reading font used as the step-2 fallback for all generic families.
     virtual void SetPrimaryFont( lString8 /*face*/ ) {}

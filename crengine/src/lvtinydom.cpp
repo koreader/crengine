@@ -21943,8 +21943,9 @@ void ldomDocument::registerEmbeddedFonts()
         }
         if (item->getIsLocal()) {
             // @font-face { font-family: face; src: local("url"); }
-            // url names an already-installed system font; alias `face` to it.
-            if (!fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url))) {
+            // url names an already-installed system font; alias `face` to it,
+            // scoped to the fragment that originally declared it.
+            if (!fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url), item->getFragmentIdx())) {
                 //CRLog::error("Failed to find local font face: %s referenced by font-face %s", LCSTR(url), face.c_str());
             }
             continue;
@@ -21986,10 +21987,12 @@ bool ldomDocument::registerFontFace(lString32 url, lString8 face, int weight, bo
     int fragIdx = _parsingFragmentIdx;
     bool registered;
     if (isLocal) {
-        // src: local() resolves to a system font alias; scoping to a fragment
-        // is not useful (system fonts are globally available), so fragIdx is
-        // not passed here and the alias has document scope.
-        registered = fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url));
+        // src: local() resolves to a system font alias. The resolved target
+        // (an installed system font) is always the same regardless of scope,
+        // but the alias *mapping* itself is fragment-scoped: two DocFragments
+        // may map the same family name to different local() targets, so
+        // fragIdx is passed through rather than registering document-wide.
+        registered = fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url), fragIdx);
     }
     else if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
         registered = fontMan->RegisterExternalFont(getDocIndex(), url, face, weight, italic, fragIdx);

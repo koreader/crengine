@@ -2706,10 +2706,12 @@ private:
 
     LVEmbeddedFontList _fontList;
 
-    // DocFragment index currently being parsed for @font-face registration; -1
-    // when not inside a per-fragment CSS parse (document-level stylesheet, or
-    // cache reload via registerEmbeddedFonts).  Set by applyNodeStylesheet() for
-    // the duration of each DocFragment's parseStyleSheet() call, then reset.
+    // DocFragment index of the @font-face rule currently being parsed; -1
+    // outside a per-fragment CSS parse (e.g. a document-level stylesheet).
+    // Not used on cache reload: registerEmbeddedFonts() reads the fragment
+    // index already stored per entry in _fontList instead of this field.
+    // Set by applyNodeStylesheet() for the duration of each DocFragment's
+    // parseStyleSheet() call, then reset.
     int _parsingFragmentIdx;
 
     lString8Collection _fontFamilyFonts;

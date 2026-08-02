@@ -5826,10 +5826,14 @@ public:
 class LVFontRegistry {
     LVPtrVector<LVFontFamily, true>   _families;
     // Alias pairs: alias -> canonical family name, scoped to the document
-    // that registered them (-1 for global aliases).
+    // that registered them (including a currently unused -1 for global
+    // aliases) and, within that document, to a DocFragment (-1 for
+    // document-wide) -- so two DocFragments can map the same family name to
+    // different local() targets without clobbering each other.
     LVArray<lString8>  _alias_from;
     LVArray<lString8>  _alias_to;
     LVArray<int>       _alias_doc;
+    LVArray<int>       _alias_fragment;
 
     LVFontFamily* findOrCreateFamily(lString8 name) {
         lString8 lower = name;
@@ -5848,34 +5852,47 @@ public:
         findOrCreateFamily(key)->addFace(face);
     }
 
-    void registerAlias(lString8 alias, lString8 canonical, int documentId) {
+    void registerAlias(lString8 alias, lString8 canonical, int documentId, int fragmentIdx = -1) {
         alias.lowercase();
         canonical.lowercase();
         for (int i = 0; i < _alias_from.length(); i++)
-            if (_alias_from[i] == alias && _alias_doc[i] == documentId) { _alias_to[i] = canonical; return; }
+            if (_alias_from[i] == alias && _alias_doc[i] == documentId && _alias_fragment[i] == fragmentIdx) {
+                _alias_to[i] = canonical; return;
+            }
         _alias_from.add(alias);
         _alias_to.add(canonical);
         _alias_doc.add(documentId);
+        _alias_fragment.add(fragmentIdx);
     }
 
-    // Resolves an alias registered for `documentId`, falling back to a
-    // global (documentId == -1) alias.
-    lString8 resolveAlias(lString8 name, int documentId) const {
+    // Resolves an alias registered for `documentId`/`fragmentIdx`, preferring
+    // (in order): an exact fragment match, a document-wide alias for
+    // `documentId` (fragmentIdx == -1), then a global (documentId == -1)
+    // alias. A fragment-scoped alias is invisible outside its own fragment.
+    lString8 resolveAlias(lString8 name, int documentId, int fragmentIdx = -1) const {
         name.lowercase();
+        int docWideMatch = -1;
+        int globalMatch = -1;
         for (int i = 0; i < _alias_from.length(); i++) {
             if (_alias_from[i] != name) continue;
-            if (_alias_doc[i] == documentId) return _alias_to[i];
-            if (_alias_doc[i] == -1) return _alias_to[i];
+            if (_alias_doc[i] == documentId) {
+                if (fragmentIdx >= 0 && _alias_fragment[i] == fragmentIdx) return _alias_to[i];
+                if (_alias_fragment[i] == -1 && docWideMatch < 0) docWideMatch = i;
+            } else if (_alias_doc[i] == -1 && _alias_fragment[i] == -1 && globalMatch < 0) {
+                globalMatch = i;
+            }
         }
+        if (docWideMatch >= 0) return _alias_to[docWideMatch];
+        if (globalMatch >= 0) return _alias_to[globalMatch];
         return name;
     }
 
-    const LVFontFamily* findFamily(lString8 name, int documentId = -1) const {
+    const LVFontFamily* findFamily(lString8 name, int documentId = -1, int fragmentIdx = -1) const {
         // Return the family by name regardless of documentId - global fonts have
         // documentId=-1 and must be reachable from any document.  Face-level
         // document scoping (preferring embedded faces over global ones) is handled
         // in LVFontSelector::matchFamily().
-        lString8 key = resolveAlias(name, documentId);
+        lString8 key = resolveAlias(name, documentId, fragmentIdx);
         for (int i = 0; i < _families.length(); i++)
             if (_families[i]->getName() == key) return _families[i];
         return nullptr;
@@ -5892,6 +5909,7 @@ public:
                 _alias_from.erase(i, 1);
                 _alias_to.erase(i, 1);
                 _alias_doc.erase(i, 1);
+                _alias_fragment.erase(i, 1);
             }
         }
     }
@@ -6158,7 +6176,7 @@ public:
         lString8Collection names;
         splitPropertyValueList(typeface.c_str(), names);
         for (int i = 0; i < names.length(); i++) {
-            const LVFontFamily* fam = registry.findFamily(names[i], documentId);
+            const LVFontFamily* fam = registry.findFamily(names[i], documentId, fragmentIdx);
             if (!fam)
                 continue;
             m = matchFamily(fam, weight, italic, requested, documentId, fragmentIdx);
@@ -6167,7 +6185,7 @@ public:
 
         // 2. User's preferred family (replaces the useBias scoring trick).
         if (!preferred_family.empty()) {
-            const LVFontFamily* fam = registry.findFamily(preferred_family, documentId);
+            const LVFontFamily* fam = registry.findFamily(preferred_family, documentId, fragmentIdx);
             if (fam) {
                 m = matchFamily(fam, weight, italic, requested, documentId, fragmentIdx);
                 if (m.valid()) return m;
@@ -7338,12 +7356,12 @@ public:
     /// the face-copying loop (which duplicated faces under the alias name with
     /// documentId set, so they appeared in getRegisteredDocumentFontList) is
     /// removed since local() fonts aren't truly embedded in the document.
-    virtual bool RegisterDocumentFontAlias(int documentId, lString8 alias, lString8 localName)
+    virtual bool RegisterDocumentFontAlias(int documentId, lString8 alias, lString8 localName, int fragmentIdx = -1)
     {
         FONT_MAN_GUARD
         if (!_registry.findFamily(localName))
             return false;
-        _registry.registerAlias(alias, localName, documentId);
+        _registry.registerAlias(alias, localName, documentId, fragmentIdx);
         return true;
     }
 
