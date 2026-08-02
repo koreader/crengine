@@ -5722,15 +5722,24 @@ struct LVFontFace {
     }
 
     // Insert docFragmentIdx into the sorted docFragmentIdxSet (no-op if already present).
+    // DocFragments are registered in increasing index order, so this is almost
+    // always an append: check that case first to skip the binary search.
     void addDocFragment(int docFragmentIdx) {
         if (docFragmentIdx < 0) return;
-        int lo = 0, hi = docFragmentIdxSet.length();
+        int n = docFragmentIdxSet.length();
+        if (n == 0 || docFragmentIdxSet[n - 1] < docFragmentIdx) {
+            docFragmentIdxSet.add(docFragmentIdx);
+            return;
+        }
+        if (docFragmentIdxSet[n - 1] == docFragmentIdx)
+            return;  // already present
+        int lo = 0, hi = n;
         while (lo < hi) {
             int mid = (lo + hi) / 2;
             if (docFragmentIdxSet[mid] < docFragmentIdx) lo = mid + 1;
             else hi = mid;
         }
-        if (lo < docFragmentIdxSet.length() && docFragmentIdxSet[lo] == docFragmentIdx)
+        if (lo < n && docFragmentIdxSet[lo] == docFragmentIdx)
             return;  // already present
         docFragmentIdxSet.insert(lo, docFragmentIdx);
     }
