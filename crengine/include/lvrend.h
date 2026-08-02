@@ -132,10 +132,6 @@ bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 );
 /// removes format data from node
 void freeFormatData( ldomNode * node );
 
-/// sentinel for the fragmentIdx params below: look it up (by walking up from
-/// node to its DocFragment ancestor) rather than trusting a caller-supplied value
-#define FRAGMENT_IDX_UNKNOWN (-2)
-
 /// returns best suitable font for style
 LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
 /// initializes format data for node

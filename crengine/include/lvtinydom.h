@@ -72,6 +72,10 @@ extern const int gDOMVersionCurrent;
 /// default docFlag set
 #define DOC_FLAG_DEFAULTS (DOC_FLAG_ENABLE_INTERNAL_STYLES|DOC_FLAG_ENABLE_FOOTNOTES|DOC_FLAG_ENABLE_DOC_FONTS)
 
+/// sentinel for fragmentIdx params: look it up (by walking up from node to
+/// its DocFragment ancestor) rather than trusting a caller-supplied value
+#define FRAGMENT_IDX_UNKNOWN (-2)
+
 
 
 #define LXML_NS_NONE 0       ///< no namespace specified
@@ -1050,10 +1054,10 @@ public:
     bool applyNodeStylesheet();
 
     /// fragmentIdx: this node's DocFragment sibling index, if already known by
-    /// the caller (eg. a traversal tracking it as it goes), else -2
-    /// (FRAGMENT_IDX_UNKNOWN in lvrend.h) to have it looked up as needed.
-    bool initNodeFont(int fragmentIdx=-2);
-    void initNodeStyle(int fragmentIdx=-2);
+    /// the caller (eg. a traversal tracking it as it goes), else
+    /// FRAGMENT_IDX_UNKNOWN to have it looked up as needed.
+    bool initNodeFont(int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
+    void initNodeStyle(int fragmentIdx=FRAGMENT_IDX_UNKNOWN);
     /// init render method for this node only (children should already have rend method set)
     void initNodeRendMethod();
     /// init render method for the whole subtree
