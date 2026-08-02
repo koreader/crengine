@@ -37,8 +37,56 @@ exercise per-DocFragment @font-face registration order:
          family name, pointing at its own distinct file, is a sanity control:
          quoting was always handled correctly even by the old parser, so
          Test 7b is expected to pass independently of whether Test 7a does.
+  ch08 — two @font-face rules under the SAME family, in the SAME fragment,
+         at the SAME (default) weight/style: an exact tie, pointing at two
+         distinct embedded files. LVFontSelector::pickBestWeight() resolves
+         an exact-match tie by returning the first candidate found while
+         walking the family's face list in registration order, so this is
+         expected to render in the FIRST-declared file's face, not the
+         second/latest one -- the opposite of ordinary CSS cascade semantics,
+         where a later declaration would win. Distinct from ch06, which uses
+         two different explicit font-weight values specifically so weight
+         disambiguates the two faces without ever exercising this tie.
+  ch09 — the exact same @font-face rule (family, weight, style, url) declared
+         TWICE in one <style> block. RegisterDocumentFont()'s fast path
+         matches by file_path+documentId and treats an already-present
+         DocFragment index as a no-op, so this is expected to be harmless:
+         renders normally, no crash, no duplicate-glyph artefacts.
+  ch10 — an external stylesheet that itself contains the same literal
+         `@import url(...)` of one target CSS file TWICE. LVImportStylesheetParser
+         only guards against *circular* imports (via _inProgress, cleared as
+         soon as each import call returns), not repeat-within-one-pass
+         imports, so the second @import re-enters LVStyleSheet::merge() and
+         appends the target's selectors into the destination stylesheet a
+         second time. That's real (if harmless) internal duplication -- not
+         visually observable, since merging identical declarations twice
+         doesn't change the computed style -- so this chapter can only assert
+         the font still renders correctly; the duplication itself has to be
+         confirmed by reading the code, not by eye. The embedded file is
+         FreeSerif, which has a visibly smaller x-height/cap-height than most
+         reading fonts at the same nominal size -- easy to mistake for a
+         registration bug on first look -- so the chapter also declares a
+         second family reaching the SAME FreeSerif typeface via
+         `src: local("FreeSerif")` (a completely different, unaffected
+         registration path: RegisterDocumentFontAlias, not
+         RegisterDocumentFont) purely as a same-page reference line, so the
+         "smaller than surrounding text" look has something to be checked
+         against rather than relying on memory of what FreeSerif looks like
+         elsewhere.
+  ch11, ch12 — two DIFFERENT fragments, each declaring an @font-face rule
+         under the SAME family name ("OrderingTestAliasScope") but with a
+         different `src: local(...)` target (FreeSerif vs FreeSans, both
+         shipped with KOReader). RegisterDocumentFontAlias()/resolveAlias()
+         scope the alias mapping itself to the declaring DocFragment (see
+         lvfntman.cpp), independently of ch01-ch07/ch08's per-file face
+         scoping, since local() never registers a distinct embedded face --
+         it only maps a family name to an already-registered system font,
+         and that mapping must not leak between fragments that reuse the
+         same alias name for different targets.
 
-Each @font-face rule references a DISTINCT embedded font file, read directly
+Each @font-face rule (other than ch11/ch12's local() aliases, which point at
+already-installed system fonts rather than embedding a file) references a
+DISTINCT embedded font file, read directly
 from koreader/resources/fonts/ (crengine is always built as a thirdparty
 component of koreader, never standalone, so this path is always available —
 see load_fonts() below) and re-packaged into the EPUB under its own family
@@ -58,6 +106,19 @@ needing its own distinct file works around that (pre-existing, unrelated)
 font manager limitation so this fixture isolates only the ordering behaviour
 it's meant to test. See FONTMANAGER_REFACTOR.md, "Future Work" for the
 write-up of that bug.
+
+For the same reason, ch08's two rules (the tie test) and ch09's rule
+(deliberately declared twice) each point at a file not used anywhere else in
+this fixture, even though ch09 repeats one rule verbatim rather than reusing
+a file across two DIFFERENT families -- keeping every rule's file globally
+unique in this fixture, regardless of which case it's testing, avoids ever
+having to reason about whether a given reuse is the safe kind (identical
+rule, same family) or the unsafe kind (same file, different family) while
+reading this file. ch10 (duplicate @import) likewise gets its own file. ch11
+and ch12 need no new files at all: `src: local(...)` never embeds a file, it
+only maps a family name to an already-registered system font (FreeSerif /
+FreeSans, both shipped with KOReader), so it isn't subject to this
+per-document-per-file limitation either way.
 
 Chapters 4 and 5's test paragraphs are DELIBERATELY byte-identical in
 computed style -- `style="font-family: 'OrderingTestFontC', serif;"` on both
@@ -113,6 +174,8 @@ CONTENT_OPF = """\
   <manifest>
     <item id="ncx"     href="toc.ncx"            media-type="application/x-dtbncx+xml"/>
     <item id="shared"  href="css/shared.css"     media-type="text/css"/>
+    <item id="dupimporttarget"  href="css/dup-import-target.css"  media-type="text/css"/>
+    <item id="dupimportwrapper" href="css/dup-import-wrapper.css" media-type="text/css"/>
     <item id="fontA"   href="fonts/ordering-test-mono.ttf"   media-type="application/x-font-ttf"/>
     <item id="fontB"   href="fonts/ordering-test-bold.ttf"   media-type="application/x-font-ttf"/>
     <item id="fontC"   href="fonts/ordering-test-italic.ttf" media-type="application/x-font-ttf"/>
@@ -120,6 +183,10 @@ CONTENT_OPF = """\
     <item id="fontE"   href="fonts/ordering-test-weight-heavy.ttf" media-type="application/x-font-ttf"/>
     <item id="fontF"   href="fonts/ordering-test-space.ttf" media-type="application/x-font-ttf"/>
     <item id="fontG"   href="fonts/ordering-test-space-quoted.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontH"   href="fonts/ordering-test-tie-first.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontI"   href="fonts/ordering-test-tie-second.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontJ"   href="fonts/ordering-test-exact-dup.ttf" media-type="application/x-font-ttf"/>
+    <item id="fontK"   href="fonts/ordering-test-dup-import.ttf" media-type="application/x-font-ttf"/>
     <item id="ch01"    href="ch01.html"          media-type="application/xhtml+xml"/>
     <item id="ch02"    href="ch02.html"          media-type="application/xhtml+xml"/>
     <item id="ch03"    href="ch03.html"          media-type="application/xhtml+xml"/>
@@ -127,6 +194,11 @@ CONTENT_OPF = """\
     <item id="ch05"    href="ch05.html"          media-type="application/xhtml+xml"/>
     <item id="ch06"    href="ch06.html"          media-type="application/xhtml+xml"/>
     <item id="ch07"    href="ch07.html"          media-type="application/xhtml+xml"/>
+    <item id="ch08"    href="ch08.html"          media-type="application/xhtml+xml"/>
+    <item id="ch09"    href="ch09.html"          media-type="application/xhtml+xml"/>
+    <item id="ch10"    href="ch10.html"          media-type="application/xhtml+xml"/>
+    <item id="ch11"    href="ch11.html"          media-type="application/xhtml+xml"/>
+    <item id="ch12"    href="ch12.html"          media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="ncx">
     <itemref idref="ch01"/>
@@ -136,6 +208,11 @@ CONTENT_OPF = """\
     <itemref idref="ch05"/>
     <itemref idref="ch06"/>
     <itemref idref="ch07"/>
+    <itemref idref="ch08"/>
+    <itemref idref="ch09"/>
+    <itemref idref="ch10"/>
+    <itemref idref="ch11"/>
+    <itemref idref="ch12"/>
   </spine>
 </package>
 """
@@ -176,6 +253,26 @@ TOC_NCX = """\
       <navLabel><text>7. Unquoted font-family with a space (koreader#15557)</text></navLabel>
       <content src="ch07.html"/>
     </navPoint>
+    <navPoint id="ch08" playOrder="8">
+      <navLabel><text>8. Tied same-family, same-fragment ordering</text></navLabel>
+      <content src="ch08.html"/>
+    </navPoint>
+    <navPoint id="ch09" playOrder="9">
+      <navLabel><text>9. Exact duplicate @font-face declaration</text></navLabel>
+      <content src="ch09.html"/>
+    </navPoint>
+    <navPoint id="ch10" playOrder="10">
+      <navLabel><text>10. Duplicate @import of the same CSS file</text></navLabel>
+      <content src="ch10.html"/>
+    </navPoint>
+    <navPoint id="ch11" playOrder="11">
+      <navLabel><text>11. Fragment-scoped alias (target A)</text></navLabel>
+      <content src="ch11.html"/>
+    </navPoint>
+    <navPoint id="ch12" playOrder="12">
+      <navLabel><text>12. Fragment-scoped alias (target B)</text></navLabel>
+      <content src="ch12.html"/>
+    </navPoint>
   </navMap>
 </ncx>
 """
@@ -187,6 +284,33 @@ SHARED_CSS = """\
   font-family: "OrderingTestFontB";
   src: url("../fonts/ordering-test-bold.ttf");
 }
+"""
+
+DUP_IMPORT_TARGET_CSS = """\
+/* Imported (twice, from dup-import-wrapper.css) by ch10. Declares the
+   @font-face rule that ch10 actually uses. */
+@font-face {
+  font-family: "OrderingTestDupImport";
+  src: url("../fonts/ordering-test-dup-import.ttf");
+}
+"""
+
+DUP_IMPORT_WRAPPER_CSS = """\
+/* Linked by ch10. The SAME @import target, LITERALLY REPEATED: this is the
+   fixture for case D (duplicate @import of the same CSS file within one CSS
+   file). LVImportStylesheetParser's _inProgress set only guards circular
+   imports -- it is cleared as soon as the first @import's recursive Parse()
+   call returns, so by the time this second, identical @import line is
+   processed, nothing stops it from re-entering Parse() too. That second call
+   hits the StyleSheetCache (so the file itself is not re-read/re-parsed) but
+   still unconditionally calls LVStyleSheet::merge(), which is a plain
+   append with no dedup check -- so dup-import-target.css's selectors end up
+   in ch10's stylesheet twice. Font registration itself stays a harmless
+   no-op (same fast path as case C/ch09), so this is not expected to be
+   visible by eye; see tests/FONTFACE_TEST_PLAN.md section 9 for how to
+   confirm the actual duplication by reading the code instead. */
+@import url("dup-import-target.css");
+@import url("dup-import-target.css");
 """
 
 PAGE_TEMPLATE = """\
@@ -382,6 +506,186 @@ Test 7a leaking through by coincidence.</p>
 quick brown fox jumps over the lazy dog.</p>""",
 )
 
+CH08 = PAGE_TEMPLATE.format(
+    title="Tied same-family, same-fragment ordering",
+    heading="Chapter 8 &#x2014; Tied same-family, same-fragment ordering",
+    head_extra="""\
+<style type="text/css">
+@font-face {
+  font-family: "OrderingTestTieReg";
+  src: url("fonts/ordering-test-tie-first.ttf");
+}
+@font-face {
+  font-family: "OrderingTestTieReg";
+  src: url("fonts/ordering-test-tie-second.ttf");
+}
+</style>""",
+    body="""\
+<p>Two @font-face rules declare the SAME family, "OrderingTestTieReg", in
+this SAME fragment, neither specifying font-weight or font-style &#x2014;
+both register at the default weight (400) and style (roman), an exact tie.
+Unlike Chapter 6, where two different explicit font-weight values let weight
+matching disambiguate the two faces, nothing here disambiguates them: this
+directly tests which one wins on a genuine tie, which Chapter 6 never
+exercises.</p>
+<p>LVFontSelector::pickBestWeight() (lvfntman.cpp) resolves an exact-weight
+tie by returning the first candidate it finds while walking the family's
+face list in registration (i.e. declaration) order &#x2014; NOT the most
+recently declared one, unlike ordinary CSS cascade rules for equal
+specificity. So the line below is expected to render in the FIRST rule's
+font (Noto Sans Regular), not the second rule's (Noto Serif Bold).</p>
+<p style="font-family: 'OrderingTestTieReg', serif;">Test 8: this line should
+render in the embedded plain sans-serif test font (Noto Sans Regular) &#x2014;
+the FIRST-declared rule's file, not the second-declared rule's (Noto Serif
+Bold). If it renders in Noto Serif Bold instead, tie resolution has changed
+to favour the latest declaration &#x2014; update this fixture's expectation
+(and tests/FONTFACE_TEST_PLAN.md section 7) to match rather than treating
+that as a silent regression, since nothing in the CSS spec mandates
+first-wins here; this fixture just documents current behaviour.</p>
+<p style="font-family: serif;">Reference (default serif, for contrast): the
+quick brown fox jumps over the lazy dog.</p>""",
+)
+
+CH09 = PAGE_TEMPLATE.format(
+    title="Exact duplicate @font-face declaration",
+    heading="Chapter 9 &#x2014; Exact duplicate @font-face declaration",
+    head_extra="""\
+<style type="text/css">
+@font-face {
+  font-family: "OrderingTestExactDup";
+  src: url("fonts/ordering-test-exact-dup.ttf");
+}
+@font-face {
+  font-family: "OrderingTestExactDup";
+  src: url("fonts/ordering-test-exact-dup.ttf");
+}
+</style>""",
+    body="""\
+<p>The exact same @font-face rule &#x2014; same family, same url, nothing
+differing &#x2014; is declared TWICE in this chapter's &lt;head&gt;&lt;style&gt;.
+RegisterDocumentFont()'s fast path (lvfntman.cpp) matches by file_path and
+documentId and finds this fragment's index already present on the second
+call, so the second declaration is expected to be a cheap no-op: no crash,
+no duplicate-glyph artefacts, no change in rendering versus a single
+declaration.</p>
+<p style="font-family: 'OrderingTestExactDup', serif;">Test 9: this line
+should render normally in the embedded test font (Noto Serif Regular),
+exactly as if the duplicate rule above were not there at all.</p>
+<p style="font-family: serif;">Reference (default serif, for contrast): the
+quick brown fox jumps over the lazy dog.</p>""",
+)
+
+CH10 = PAGE_TEMPLATE.format(
+    title="Duplicate @import of the same CSS file",
+    heading="Chapter 10 &#x2014; Duplicate @import of the same CSS file",
+    head_extra="""\
+<link rel="stylesheet" type="text/css" href="css/dup-import-wrapper.css"/>
+<style type="text/css">
+/* A second, independent route to the SAME physical typeface (FreeSerif),
+   registered via a completely different code path: src: local() maps a
+   family name to an already-installed SYSTEM font (RegisterDocumentFontAlias
+   in lvfntman.cpp), rather than embedding a copy of the file the way
+   dup-import-target.css's rule does (RegisterDocumentFont). This is safe to
+   declare alongside OrderingTestDupImport's embedded FreeSerif file in the
+   same document -- unlike embedding the same *file* under two families
+   (see the note at the top of this script), local() never touches
+   RegisterDocumentFont()'s file-path-keyed fast path at all, so there is no
+   risk of the second family being silently dropped here. Its only purpose
+   is to give Test 10 a known-good comparison typeface on the same page. */
+@font-face {
+  font-family: "OrderingTestDupImportReference";
+  src: local("FreeSerif");
+}
+</style>""",
+    body="""\
+<p>This chapter links an external stylesheet (css/dup-import-wrapper.css)
+whose ENTIRE content is the same literal <code>@import url("dup-import-target.css");</code>
+statement, repeated twice. See the comment at the top of
+dup-import-wrapper.css (make_fontface_test_epub.py) for exactly why this is
+not caught by the circular-import guard and results in dup-import-target.css's
+@font-face rule and selectors being merged into this chapter's stylesheet
+twice over. That duplication is real but not expected to be visible here
+&#x2014; merging an identical declaration twice doesn't change the computed
+style &#x2014; so this chapter can only confirm the font still renders
+correctly; it cannot by itself prove the duplication happened or didn't.</p>
+<p>The embedded test font here is FreeSerif, which has a noticeably smaller
+x-height and cap-height, relative to its nominal size, than most reading
+fonts &#x2014; at the SAME CSS font-size it can look smaller than the
+surrounding paragraph text even though nothing here sets font-size. Don't
+mistake that for a bug: compare Test 10 against the reference line
+immediately below it, which reaches the exact same FreeSerif typeface
+through an entirely separate registration path (<code>src: local("FreeSerif")</code>,
+not the duplicated-@import file embed), so it isn't affected by anything
+this chapter is actually testing. If the two lines match, the duplicated
+import produced a correctly functioning font and the smaller appearance is
+just FreeSerif's normal look at this size.</p>
+<p style="font-family: 'OrderingTestDupImport', serif;">Test 10 (via the
+doubled @import): this line should render in FreeSerif, despite the
+doubled import.</p>
+<p style="font-family: 'OrderingTestDupImportReference', serif;">Reference
+(FreeSerif via local(), NOT via the doubled @import): this line should look
+IDENTICAL to Test 10 above &#x2014; same typeface, same apparent size, same
+smaller-than-surrounding-text look. If it doesn't match Test 10, that (not
+the small size on its own) is the real signal something is wrong.</p>
+<p style="font-family: serif;">Reference (default serif, for contrast with
+both FreeSerif lines above): the quick brown fox jumps over the lazy dog.</p>""",
+)
+
+CH11 = PAGE_TEMPLATE.format(
+    title="Fragment-scoped alias (target A)",
+    heading="Chapter 11 &#x2014; Fragment-scoped alias (target A)",
+    head_extra="""\
+<style type="text/css">
+@font-face {
+  font-family: "OrderingTestAliasScope";
+  src: local("FreeSerif");
+}
+</style>""",
+    body="""\
+<p>This chapter and Chapter 12 both declare an @font-face rule under the
+SAME family name, "OrderingTestAliasScope", but each maps it via
+<code>src: local(...)</code> to a DIFFERENT already-installed system font
+&#x2014; FreeSerif here, FreeSans in Chapter 12. Unlike ch01-ch09's embedded
+files, local() never registers a distinct document-embedded face; it only
+maps a family name to an existing system font, via
+RegisterDocumentFontAlias()/resolveAlias() (lvfntman.cpp). That alias
+mapping is itself scoped to the declaring DocFragment, so this chapter's
+"OrderingTestAliasScope" &#x2192; FreeSerif mapping must not be visible from
+Chapter 12, and vice versa, even though both chapters use the identical
+alias name.</p>
+<p style="font-family: 'OrderingTestAliasScope', sans-serif;">Test 11: this
+line should render in FreeSerif &#x2014; a serif face &#x2014; despite the
+fallback family listed being sans-serif, confirming the alias resolved
+correctly in this fragment.</p>
+<p style="font-family: sans-serif;">Reference (default sans-serif, for
+contrast): the quick brown fox jumps over the lazy dog.</p>""",
+)
+
+CH12 = PAGE_TEMPLATE.format(
+    title="Fragment-scoped alias (target B)",
+    heading="Chapter 12 &#x2014; Fragment-scoped alias (target B)",
+    head_extra="""\
+<style type="text/css">
+@font-face {
+  font-family: "OrderingTestAliasScope";
+  src: local("FreeSans");
+}
+</style>""",
+    body="""\
+<p>This chapter re-declares "OrderingTestAliasScope" &#x2014; the same
+family name Chapter 11 used &#x2014; but maps it to FreeSans instead of
+FreeSerif. See Chapter 11 for the full explanation of what this pair of
+chapters tests.</p>
+<p style="font-family: 'OrderingTestAliasScope', serif;">Test 12: this line
+should render in FreeSans &#x2014; a sans-serif face, visibly different from
+Chapter 11's Test 11 line &#x2014; despite the fallback family listed being
+serif, and despite both chapters using the exact same alias name. If this
+line instead renders in FreeSerif (Chapter 11's target), the alias mapping
+leaked across DocFragments.</p>
+<p style="font-family: serif;">Reference (default serif, for contrast): the
+quick brown fox jumps over the lazy dog.</p>""",
+)
+
 # ---------------------------------------------------------------------------
 # Build the EPUB
 # ---------------------------------------------------------------------------
@@ -406,6 +710,16 @@ def load_fonts(koreader_root):
         # duplicate-registration reason as ch06's two files above.
         "ordering-test-space.ttf":        "resources/fonts/noto/NotoSans-BoldItalic.ttf",
         "ordering-test-space-quoted.ttf":  "resources/fonts/noto/NotoSerif-Italic.ttf",
+        # ch08 (tied same-family, same-fragment ordering): two more distinct
+        # files, again for the same duplicate-registration reason.
+        "ordering-test-tie-first.ttf":    "resources/fonts/noto/NotoSans-Regular.ttf",
+        "ordering-test-tie-second.ttf":   "resources/fonts/noto/NotoSerif-Bold.ttf",
+        # ch09 (exact duplicate @font-face declaration): one file, declared
+        # twice by two byte-identical rules -- not reused from elsewhere.
+        "ordering-test-exact-dup.ttf":    "resources/fonts/noto/NotoSerif-Regular.ttf",
+        # ch10 (duplicate @import of the same CSS file): one file, referenced
+        # from dup-import-target.css.
+        "ordering-test-dup-import.ttf":   "resources/fonts/freefont/FreeSerif.ttf",
     }
     font_files = {}
     missing = []
@@ -438,6 +752,8 @@ def build_epub(path, font_files):
         zf.writestr("OEBPS/content.opf",       CONTENT_OPF)
         zf.writestr("OEBPS/toc.ncx",           TOC_NCX)
         zf.writestr("OEBPS/css/shared.css",    SHARED_CSS)
+        zf.writestr("OEBPS/css/dup-import-target.css",  DUP_IMPORT_TARGET_CSS)
+        zf.writestr("OEBPS/css/dup-import-wrapper.css", DUP_IMPORT_WRAPPER_CSS)
         zf.writestr("OEBPS/ch01.html",         CH01)
         zf.writestr("OEBPS/ch02.html",         CH02)
         zf.writestr("OEBPS/ch03.html",         CH03)
@@ -445,6 +761,11 @@ def build_epub(path, font_files):
         zf.writestr("OEBPS/ch05.html",         CH05)
         zf.writestr("OEBPS/ch06.html",         CH06)
         zf.writestr("OEBPS/ch07.html",         CH07)
+        zf.writestr("OEBPS/ch08.html",         CH08)
+        zf.writestr("OEBPS/ch09.html",         CH09)
+        zf.writestr("OEBPS/ch10.html",         CH10)
+        zf.writestr("OEBPS/ch11.html",         CH11)
+        zf.writestr("OEBPS/ch12.html",         CH12)
         for name, data in font_files.items():
             zf.writestr(zipfile.ZipInfo(f"OEBPS/fonts/{name}"),
                         data, compress_type=zipfile.ZIP_DEFLATED)

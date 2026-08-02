@@ -13,12 +13,19 @@ manager test EPUB covers font *selection* (weight, italic, stretch, fallback)
 among already-correctly-registered faces, using only system-installed fonts
 and no multi-fragment `@font-face` scenarios. This plan is primarily about
 *when* an embedded `@font-face` font becomes available relative to the
-per-DocFragment body styling that needs it (Chapters 1–5), plus two adjacent
-checks that belong at the same `@font-face`-parsing layer rather than in the
-selection-focused EPUB: whether a numeric `font-weight` descriptor is read
-correctly at registration time (Chapter 6, section 4 below), and whether an
-unquoted, multi-word `font-family` descriptor is read in full rather than
-truncated (Chapter 7, section 5 below).
+per-DocFragment body styling that needs it (Chapters 1–5), plus several
+adjacent checks that belong at the same `@font-face`-parsing/registration
+layer rather than in the selection-focused EPUB: whether a numeric
+`font-weight` descriptor is read correctly at registration time (Chapter 6,
+section 4), whether an unquoted, multi-word `font-family` descriptor is read
+in full rather than truncated (Chapter 7, section 5), which face wins when
+two rules under one family genuinely tie in the same fragment (Chapter 8,
+section 7), whether an exact duplicate `@font-face` rule is a harmless no-op
+(Chapter 9, section 8), whether a literally-repeated `@import` of the same
+CSS file causes any visible problem (Chapter 10, section 9), and whether a
+`src: local(...)` alias is correctly scoped per DocFragment when two
+fragments reuse the same alias name for different targets (Chapters 11–12,
+section 10).
 
 The test EPUB is at `tests/fontface-test.epub`. Regenerate it with
 `python3 tests/make_fontface_test_epub.py` if needed — it reads the test
@@ -30,25 +37,40 @@ Each `@font-face` rule in this EPUB points at a **distinct** embedded font
 file (Chapters 1–3/5 additionally give each rule's file its own family name;
 Chapter 6 uses two files under one shared family, at two different
 `font-weight` values — see section 4 below; Chapter 7 uses two files under
-two different family names, one quoted and one not — see section 5 below).
+two different family names, one quoted and one not — see section 5 below;
+Chapter 8 uses two files under one shared family at the *same* default
+weight — see section 7 below; Chapter 9 uses one file declared by two
+byte-identical rules — see section 8 below; Chapter 10 uses one file reached
+via a doubled `@import` — see section 9 below). Chapters 11–12 are the one
+exception: their `src: local(...)` rules reference already-installed system
+fonts (FreeSerif, FreeSans) by name rather than embedding a file — see
+section 10 below.
+
 Files must stay distinct per rule — see the note at the top of `make_fontface_test_epub.py`: registering
 the same font file twice in the same document, even under a different family
-name, is silently dropped by the font manager's duplicate-face detection
-(`LVFontFace::id()` in `lvfntman.cpp`). That's a real, pre-existing font
-manager limitation, unrelated to and independent of the `@font-face` ordering
-and weight-parsing behaviour this plan tests — confirmed live via "font
-definition is duplicate" trace log entries when this fixture briefly shared
-one file across all three families during development. Worth a separate bug
-report, but out of scope for this plan.
+name, is silently dropped by the font manager's duplicate-face-registration
+fast path (`RegisterDocumentFont()`'s `addDocFragmentToFacesForFile()` short
+circuit in `lvfntman.cpp`, which matches by file path only, ignoring the
+requested family name). That's a real, pre-existing font manager limitation,
+unrelated to and independent of the `@font-face` ordering and weight-parsing
+behaviour this plan tests — confirmed live via "font definition is
+duplicate" trace log entries when this fixture briefly shared one file
+across all three families during development. Worth a separate bug report,
+but out of scope for this plan. (Chapter 9's exact duplicate is *not* an
+instance of this: it repeats one rule under its own single family, not two
+different families sharing a file — see section 8.)
 
 A pass/fail only requires distinguishing each test font from the **default
-serif** (or, in Chapters 6 and 7, from each other) by eye — no font identity
-needs to be recognised — mirroring the monospace-as-unambiguous-marker
-approach already used in `font-manager-test.epub` (Chapter 6). The seven test
-fonts (Droid Sans Mono, Noto Sans Bold, Noto Sans Italic, FreeSans, Noto
-Serif Bold Italic, Noto Sans Bold Italic, Noto Serif Italic) are also
-visually distinct from each other, which is incidental rather than
-load-bearing for Chapters 1–5 but is exactly the point for Chapters 6 and 7.
+serif** (or, in Chapters 6, 7 and 8, from each other; in Chapters 11–12,
+from the opposite chapter's line) by eye — no font identity needs to be
+recognised — mirroring the monospace-as-unambiguous-marker approach already
+used in `font-manager-test.epub` (Chapter 6). The eleven embedded test fonts
+(Droid Sans Mono, Noto Sans Bold, Noto Sans Italic, FreeSans, Noto Serif
+Bold Italic, Noto Sans Bold Italic, Noto Serif Italic, Noto Sans Regular,
+Noto Serif Bold, Noto Serif Regular, FreeSerif) are also visually distinct
+from each other, which is incidental rather than load-bearing for Chapters
+1–5 but is exactly the point for Chapters 6, 7 and 8. Chapters 11–12 instead
+rely on FreeSerif vs. FreeSans being visually distinct system fonts.
 
 ---
 
@@ -234,7 +256,173 @@ in `lvstsheet.cpp`, the `cssff_font_family` case and its use of
 
 ---
 
-## 6. Manual step — `@font-face` in a styletweak
+## 7. Tied same-family, same-fragment ordering (Chapter 8)
+
+**Goal:** Confirm which face wins when two `@font-face` rules under the same
+family, in the same fragment, genuinely tie — same (default) `font-weight`,
+same (default, roman) `font-style`. Chapter 6 (section 4) already covers two
+rules under one family in one fragment, but disambiguates them with two
+different explicit `font-weight` values, so weight matching always has a
+clear winner and the tie-break path is never exercised. This section is
+specifically about what happens when nothing disambiguates the two faces.
+
+Chapter 8 declares two `@font-face` rules under one family,
+`OrderingTestTieReg`, neither specifying `font-weight` or `font-style` —
+both register at weight 400, roman — each pointing at its own distinct
+embedded file (Noto Sans Regular declared first, Noto Serif Bold declared
+second).
+
+| # | Action | Expected |
+|---|--------|----------|
+| 7.1 | View Chapter 8, Test 8 line | Renders in the embedded plain sans-serif test font (Noto Sans Regular) — the **first**-declared rule's file |
+| 7.2 | Compare Test 8 to the reference serif line | The two lines must look visibly different |
+
+If Test 8 instead renders in Noto Serif Bold (the **second**-declared
+rule's file), tie resolution is picking the most-recently-declared face
+rather than the first — see `LVFontSelector::pickBestWeight()` in
+`lvfntman.cpp`: its exact-static-weight-match loop returns the first
+candidate found while walking the family's face list in registration
+(declaration) order, so a genuine tie currently resolves to whichever rule
+was declared **first**, not last — the opposite of ordinary CSS cascade
+semantics for equal specificity. That is current, intentional behaviour as
+far as this plan is concerned (nothing in the CSS Fonts spec mandates
+last-wins for an exact tie among embedded faces), so a change here isn't
+automatically a regression — but it is a behaviour change worth confirming
+was deliberate, and this section (plus Chapter 8's own in-page note) should
+be updated to match if it ever changes.
+
+---
+
+## 8. Exact duplicate `@font-face` declaration (Chapter 9)
+
+**Goal:** Confirm that declaring the exact same `@font-face` rule twice in
+one CSS block — same family, same `src`, nothing differing — is a harmless
+no-op rather than a crash, a double-registration artefact, or a corrupted
+face list.
+
+Chapter 9 declares one rule, `OrderingTestExactDup`, pointing at its own
+distinct embedded file, verbatim twice in the same `<head><style>` block.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 8.1 | View Chapter 9, Test 9 line | Renders normally in the embedded test font (Noto Serif Regular), exactly as if the duplicate rule were not there |
+| 8.2 | Compare Test 9 to the reference serif line | The two lines must look visibly different |
+| 8.3 | No crash, hang, or log spam beyond a single (harmless) "font definition is duplicate" trace entry | — |
+
+This case is expected to pass cleanly: `RegisterDocumentFont()`'s fast path
+in `lvfntman.cpp` (`addDocFragmentToFacesForFile()`) matches the second,
+identical registration by file path and finds this fragment's index already
+present, so it returns immediately without reloading or re-registering
+anything. This is a **different** code path from the same-file/different-family
+limitation noted in the Scope section above — that one is a real, unrelated
+gap; this one is the intended, documented no-op behaviour for a genuine
+duplicate. If Test 9 falls back to the default serif font, or the book fails
+to open, the fast path has stopped treating an exact duplicate as safe.
+
+---
+
+## 9. Duplicate `@import` of the same CSS file (Chapter 10)
+
+**Goal:** Confirm that a CSS file containing the same literal
+`@import url(...)` statement twice does not visibly break rendering, even
+though (per code reading, not visually observable) it does cause the
+imported file's rules to be merged into the destination stylesheet twice.
+
+Chapter 10 links `css/dup-import-wrapper.css`, whose entire content is:
+
+```css
+@import url("dup-import-target.css");
+@import url("dup-import-target.css");
+```
+
+`dup-import-target.css` declares the `OrderingTestDupImport` `@font-face`
+rule, pointing at its own distinct embedded file: FreeSerif.
+
+**Note on FreeSerif's apparent size.** FreeSerif has a visibly smaller
+x-height and cap-height, relative to its nominal size, than most reading
+fonts (x-height/em ≈ 0.45 vs. ≈ 0.54 for Noto Serif) — at the exact same CSS
+`font-size` it can look smaller than the surrounding paragraph text even
+though nothing in this fixture sets `font-size` anywhere. That's a property
+of the typeface, unrelated to anything this section tests, and easy to
+mistake for a registration bug on first look. To make that unambiguous,
+Chapter 10 also declares a second family, `OrderingTestDupImportReference`,
+reaching the exact same FreeSerif typeface via `src: local("FreeSerif")` —
+a completely different registration path (`RegisterDocumentFontAlias`, not
+`RegisterDocumentFont`) that never goes anywhere near the doubled-`@import`
+chain — purely so Test 10 has a known-good, same-page comparison line.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 9.1 | View Chapter 10, Test 10 line (via the doubled `@import`) | Renders in FreeSerif |
+| 9.2 | View Chapter 10's reference line (via `local("FreeSerif")`, immediately below Test 10) | Renders in FreeSerif |
+| 9.3 | Compare Test 10 to its `local()` reference line | The two lines must look **identical** — same typeface, same apparent size (including both looking smaller than the surrounding paragraph text — that's FreeSerif's normal look, not a defect) |
+| 9.4 | Compare both FreeSerif lines to the default-serif reference line at the bottom | Both FreeSerif lines must look visibly different from the default serif line |
+| 9.5 | No crash, hang, or unbounded slowdown | — |
+
+Step 9.3 is the actual pass/fail signal for this section — not whether the
+FreeSerif lines look "small," since they're expected to. If Test 10 and its
+`local()` reference diverge (e.g. Test 10 falls back to the default serif
+font while the reference renders correctly in FreeSerif), that indicates the
+doubled `@import` broke `OrderingTestDupImport`'s registration specifically,
+since the reference line, being on a completely separate code path, would be
+unaffected by anything wrong with the `@import` handling.
+
+A pass here only confirms there's no *visible* problem — merging an
+identical set of declarations into a stylesheet twice doesn't change the
+computed style, so 9.1–9.5 passing does **not** prove the duplication isn't
+happening internally. To confirm the duplication itself: `LVImportStylesheetParser::Parse()`
+(`lvtinydom.cpp`) guards only against *circular* imports via its
+`_inProgress` set, which is cleared as soon as each import's recursive
+`Parse()` call returns — so a second, later `@import` of the same URL in the
+same file is not recognised as "already imported this pass." It re-enters
+`Parse()`, hits the `StyleSheetCache` (so the file itself is not re-read
+from disk or re-parsed), but still calls `LVStyleSheet::merge()`
+unconditionally, and `merge()` (`lvstsheet.cpp`) is a plain append with no
+dedup check — so `dup-import-target.css`'s selectors end up in the
+destination stylesheet twice. Font registration itself stays a harmless
+no-op via the same fast path as section 8. This duplication is a real,
+if minor, inefficiency (doubled memory for the imported ruleset, doubled
+selector-matching work for every element in this fragment) rather than a
+correctness bug — worth a follow-up fix, but out of scope for this plan,
+which only asserts it doesn't break rendering.
+
+---
+
+## 10. Fragment-scoped `local()` alias (Chapters 11–12)
+
+**Goal:** Confirm that a `src: local(...)` alias mapping is scoped to the
+DocFragment that declares it, the same way embedded-file faces are (Chapters
+1–5), so that two different fragments can map the **same** family name to
+**different** local targets without either leaking into the other.
+
+Chapter 11 declares `@font-face { font-family: "OrderingTestAliasScope";
+src: local("FreeSerif"); }`. Chapter 12 declares the same family name,
+`src: local("FreeSans")`. Both FreeSerif and FreeSans ship with KOReader, so
+`local()` resolution should succeed in both chapters independently of any
+one book's embedded fonts.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 10.1 | View Chapter 11, Test 11 line | Renders in FreeSerif (a serif face) despite its CSS fallback family being sans-serif |
+| 10.2 | View Chapter 12, Test 12 line | Renders in FreeSans (a sans-serif face) despite its CSS fallback family being serif |
+| 10.3 | Compare Test 11 and Test 12 | The two lines must look visibly different from each other (serif vs. sans-serif) |
+| 10.4 | View Chapter 12 before Chapter 11 (out-of-order navigation) | Same results as 10.1/10.2 — order must not matter |
+
+If Test 12 renders in FreeSerif instead of FreeSans (or vice versa for Test
+11), Chapter 11's alias mapping leaked into Chapter 12 (or vice versa) — see
+`resolveAlias()` in `lvfntman.cpp`: a `docFragmentIdx`-scoped alias is
+supposed to be invisible outside its own DocFragment, falling back to a
+document-wide (`docFragmentIdx == -1`) or global (`documentId == -1`) alias
+only when no fragment-scoped match exists for the *current* fragment. Unlike
+section 3's Chapter 4/5 pair, this isn't a spine-order-sensitive check —
+`RegisterDocumentFontAlias()` scopes the mapping by fragment index at
+registration time, not by when it's referenced — so 10.4 passing or failing
+the same way as 10.1–10.3 is the expected result either way; it's included
+as a sanity check, not because order is expected to matter here.
+
+---
+
+## 11. Manual step — `@font-face` in a styletweak
 
 **Goal:** Confirm `@font-face` declared in a KOReader styletweak (merged
 *after* the book's own user-agent stylesheet, not at the top of any file) is
@@ -247,14 +435,14 @@ by KOReader at the Lua layer, independent of any one book.
 
 | # | Action | Expected |
 |---|--------|----------|
-| 6.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
-| 6.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
-| 6.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
+| 11.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
+| 11.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
+| 11.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
 
-If 6.2 shows the first page in the wrong font while later pages are correct,
-that's the ordering bug this whole plan exists to catch, manifesting via the
-styletweak path specifically rather than the EPUB-internal path covered by
-Chapters 1–5 above.
+If 11.2 shows the first page in the wrong font while later pages are
+correct, that's the ordering bug this whole plan exists to catch,
+manifesting via the styletweak path specifically rather than the
+EPUB-internal path covered by Chapters 1–5 above.
 
 ---
 
@@ -272,6 +460,19 @@ Chapters 1–5 above.
   or the `@font-face` descriptor tables in `lvstsheet.cpp`.
 - Re-run section 5 (Chapter 7) after any change to `parse_font_face_rule()`'s
   `cssff_font_family` case or `splitPropertyValueList()` in `lvstsheet.cpp`.
+- Re-run section 7 (Chapter 8) after any change to
+  `LVFontSelector::pickBestWeight()` or `matchFamily()` in `lvfntman.cpp` —
+  these determine tie-break order among same-family, same-fragment faces.
+- Re-run section 8 (Chapter 9) after any change to `RegisterDocumentFont()`'s
+  fast path (`addDocFragmentToFacesForFile()`) or `tryRegisterFace()` in
+  `lvfntman.cpp`.
+- Re-run section 9 (Chapter 10) after any change to
+  `LVImportStylesheetParser::Parse()` or `LVStyleSheet::merge()` — these
+  determine both the (currently absent) dedup of repeated imports and the
+  correctness of the resulting merged ruleset.
+- Re-run section 10 (Chapters 11–12) after any change to
+  `RegisterDocumentFontAlias()` or `resolveAlias()` in `lvfntman.cpp` — these
+  determine per-DocFragment alias scoping.
 - This plan only exercises the EPUB path. The ordering-invariant audit found
   a separate, pre-existing, unrelated gap in the CHM `DocFragment` path —
   out of scope here, tracked separately.
