@@ -955,6 +955,8 @@ public:
     bool LoadDocument( const lChar32 * fname, bool metadataOnly = false );
     /// load document from stream
     bool LoadDocument( LVStreamRef stream, bool metadataOnly = false );
+    /// load EPUB document from container
+    bool LoadEpubDocument( LVContainerRef container, const lChar32 * fname, bool metadataOnly = false );
 
     /// save last file position
     void savePosition();

@@ -77,9 +77,8 @@ public:
 //    }
 //}
 
-bool DetectEpubFormat( LVStreamRef stream )
+bool DetectEpubFormat( LVContainerRef m_arc )
 {
-    LVContainerRef m_arc = LVOpenArchieve( stream );
     if ( m_arc.isNull() )
         return false; // not a ZIP archive
 
@@ -108,6 +107,12 @@ bool DetectEpubFormat( LVStreamRef stream )
     if ( mimeType != U"application/epub+zip" )
         return false;
     return true;
+}
+
+bool DetectEpubFormat( LVStreamRef stream )
+{
+    LVContainerRef m_arc = LVOpenArchieve( stream );
+    return DetectEpubFormat( m_arc );
 }
 
 void ReadEpubNcxToc( ldomDocument * doc, ldomNode * mapRoot, LVTocItem * baseToc, ldomDocumentFragmentWriter & appender ) {
@@ -1295,11 +1300,10 @@ public:
     }
 };
 
-bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
+bool ImportEpubDocument( LVContainerRef arc, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
             CacheLoadingCallback * formatCallback, bool metadataOnly,
             const elem_def_t * node_scheme, const attr_def_t * attr_scheme, const ns_def_t * ns_scheme )
 {
-    LVContainerRef arc = LVOpenArchieve( stream );
     if ( arc.isNull() )
         return false; // not a ZIP archive
 
@@ -2224,4 +2228,13 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 
     return true;
 
+}
+
+bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
+            CacheLoadingCallback * formatCallback, bool metadataOnly,
+            const elem_def_t * node_scheme, const attr_def_t * attr_scheme, const ns_def_t * ns_scheme )
+{
+    LVContainerRef arc = LVOpenArchieve( stream );
+    return ImportEpubDocument( arc, m_doc, progressCallback, formatCallback, metadataOnly,
+            node_scheme, attr_scheme, ns_scheme );
 }
