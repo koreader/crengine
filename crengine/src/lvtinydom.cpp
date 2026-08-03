@@ -22012,20 +22012,6 @@ bool ldomDocument::registerFontFace(lString32 url, lString8 face, int weight, bo
     }
     return registered;
 }
-#if 0 // Removed during @font-face parsing refactor: its only caller was the
-      // epubfmt.cpp post-scan forceReinitStyles()+unregister+re-register cycle,
-      // which was removed in the same refactor. Document close and clear() both
-      // call fontMan->UnregisterDocumentFonts() directly instead. See
-      // FONTFACE_PARSER_REFACTOR.md.
-/// unregister embedded document fonts in font manager, if any exist in document
-void ldomDocument::unregisterEmbeddedFonts()
-{
-#if BUILD_LITE!=1
-    clearRendBlockCache();
-#endif
-    fontMan->UnregisterDocumentFonts(_docIndex);
-}
-#endif
 
 /// returns object image stream
 LVStreamRef ldomDocument::getObjectImageStream( lString32 refName )
