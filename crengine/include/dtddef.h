@@ -27,6 +27,9 @@
 */
 
 #if !defined(__DTD_DEF_H_INCLUDED__) || defined(XS_IMPLEMENT_SCHEME)
+
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "cssdef.h"
 

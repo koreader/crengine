@@ -1,6 +1,8 @@
 #ifndef __MATHML_H_INCLUDED__
 #define __MATHML_H_INCLUDED__
 
+#include "crsetup.h"
+
 class ldomDocumentWriter;
 
 enum MathMLParserStepType {

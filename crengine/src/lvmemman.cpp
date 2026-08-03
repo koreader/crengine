@@ -11,6 +11,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include "../include/lvmemman.h"
 #include "../include/lvref.h"

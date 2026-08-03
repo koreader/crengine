@@ -27,6 +27,8 @@
 #ifndef __LVSTREAM_H_INCLUDED__
 #define __LVSTREAM_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include "lvtypes.h"
 #include "lvplatform.h"
 #include "lvref.h"

@@ -11,6 +11,8 @@
 #ifndef LVPLATFORM_H_INCLUDED
 #define LVPLATFORM_H_INCLUDED
 
+#include "crsetup.h"
+
 #include <fcntl.h>
 
 /// platform-dependent path separator

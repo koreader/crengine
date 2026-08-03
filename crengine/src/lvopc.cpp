@@ -1,3 +1,5 @@
+#include "crsetup.h"
+
 #include "../include/lvopc.h"
 #include "../include/lvtinydom.h"
 

@@ -1,6 +1,8 @@
 #ifndef LVDOCVIEWPROPS_H
 #define LVDOCVIEWPROPS_H
 
+#include "crsetup.h"
+
 // standard properties supported by LVDocView
 #define PROP_FONT_GAMMA              "font.gamma" // currently supported: 0.65 .. 1.35, see gammatbl.h
 #define PROP_FONT_GAMMA_INDEX        "font.gamma.index" // currently supported: 0..30 ~= 0.65 .. 1.35, see gammatbl.h

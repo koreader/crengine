@@ -1,3 +1,5 @@
+#include "crsetup.h"
+
 #include "../include/fb2def.h"
 #include "odxutil.h"
 

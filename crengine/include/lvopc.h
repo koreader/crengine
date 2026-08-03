@@ -1,6 +1,8 @@
 #ifndef LVOPC_H
 #define LVOPC_H
 
+#include "crsetup.h"
+
 #include "lvstring.h"
 #include "lvstream.h"
 #include "lvhashtable.h"

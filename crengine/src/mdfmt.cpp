@@ -18,11 +18,12 @@
  *   MA 02110-1301, USA.                                                   *
  ***************************************************************************/
 
-#include "mdfmt.h"
+#include "crsetup.h"
 
 #if (USE_MD4C == 1)
 
-#include <lvtinydom.h>
+#include "lvtinydom.h"
+#include "mdfmt.h"
 
 #include <string.h>
 

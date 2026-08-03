@@ -24,6 +24,8 @@
 
 *******************************************************/
 
+#include "crsetup.h"
+
 #include "../include/lvstream.h"
 #include "../include/lvptrvec.h"
 #include "../include/crtxtenc.h"
@@ -873,10 +875,6 @@ LVStreamRef LVMapFileStream( const lChar8 * pathname, lvopen_mode_t mode, lvsize
 	return LVMapFileStream( fn.c_str(), mode, minSize );
 }
 
-
-//#ifdef _LINUX
-#undef USE_ANSI_FILES
-//#endif
 
 #if (USE_ANSI_FILES==1)
 

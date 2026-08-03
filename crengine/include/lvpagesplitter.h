@@ -13,6 +13,8 @@
 #ifndef __LV_PAGESPLITTER_H_INCLUDED__
 #define __LV_PAGESPLITTER_H_INCLUDED__
 
+#include "crsetup.h"
+
 #include <stdlib.h>
 #include <time.h>
 #include "lvtypes.h"
