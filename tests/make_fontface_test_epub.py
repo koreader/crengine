@@ -11,12 +11,12 @@ exercise per-DocFragment @font-face registration order:
   ch02 — font declared in an external CSS file linked by ch02 (first parse)
   ch03 — same external CSS file, linked again by ch03 (stylesheet-cache hit;
          must still render correctly without re-registering)
-  ch04 — references a font declared only later, in ch05 (malformed per the
-         spine-order assumption this refactor relies on; must fall back
-         gracefully, not crash)
+  ch04 — references a font declared only in ch05's fragment, never its own
+         (out of scope for ch04's DocFragment; must fall back gracefully,
+         not crash)
   ch05 — declares the font ch04 references, and also uses it locally (proves
-         the declaration itself is valid, isolating ch04's fallback as an
-         ordering effect rather than a broken font)
+         the declaration itself is valid, isolating ch04's fallback as a
+         fragment-scoping effect rather than a broken font)
   ch06 — regression test for koreader#10040 / koreader#12525: two @font-face
          rules under the SAME family, at two different numeric font-weight
          values (300 and 900), each pointing at its own distinct embedded
@@ -383,12 +383,13 @@ CH04 = PAGE_TEMPLATE.format(
     head_extra="<!-- no @font-face here: OrderingTestFontC is declared only in ch05.html -->",
     body="""\
 <p>This paragraph references "OrderingTestFontC", which this EPUB declares
-only later, in Chapter 5. A font referenced in spine item N but declared
-only in spine item M &gt; N is malformed per the per-DocFragment
-registration ordering this engine relies on. This is not expected to
-work.</p>
-<p>This chapter and Chapter 5 serve two purposes: (1) confirm
-this malformed-ordering case fails gracefully on a fresh parse rather than
+only in Chapter 5's fragment, not this one. @font-face declarations are
+scoped to the DocFragment that declares them, so a font declared in one
+fragment is not available in another, regardless of spine order &#x2014;
+this fragment never declares "OrderingTestFontC" itself, so the reference
+here is not expected to resolve.</p>
+<p>This chapter and Chapter 5 serve two purposes: (1) confirm this
+cross-fragment reference fails gracefully on a fresh parse rather than
 crashing, and (2) double as a regression test for a previously-fixed,
 unrelated bug in font-resolution caching -- view both chapters in spine
 order, without skipping around, for either purpose to be meaningful. See
@@ -400,7 +401,8 @@ results.</p>
      for why that's the point rather than a bug. -->
 <p style="font-family: 'OrderingTestFontC', serif;">
 Test 4: this line is expected to fall back to the default serif font
-&#x2014; no crash, no missing glyphs, no italic rendering.</p>
+&#x2014; no crash, no missing glyphs, no italic rendering &#x2014;
+because "OrderingTestFontC" is out of scope for this fragment.</p>
 <p style="font-family: serif;">Reference (default serif): the quick brown
 fox jumps over the lazy dog. Test 4's line above should look identical to
 this one.</p>""",
