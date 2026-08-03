@@ -234,7 +234,6 @@ enum kerning_mode_t {
 #define LFNT_HINT_TRANSFORM_STRETCH      0x0100 /// Glyph(s) are to be stretched so their bounding box fits the provided w/h
 #define LFNT_HINT_CJK_ALTERED_WIDTH      0x0200 /// CJK full width glyph is to be shifted to look correct in a non-nominal width
 #define LFNT_HINT_CJK_SCALED_WIDTH       0x0400 /// CJK full width glyph has been scaled by cjk_width_scale_percent
-
 // These 4 translate from LTEXT_TD_* equivalents (see lvtextfm.h). Keep them in sync.
 #define LFNT_DRAW_UNDERLINE              0x1000 /// underlined text
 #define LFNT_DRAW_OVERLINE               0x2000 /// overlined text
@@ -768,10 +767,10 @@ public:
     virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
-    /// get fractional glyph positioning granularity
-    virtual int GetFractionalGlyphPositioning() { return 1; }
-    /// set fractional glyph positioning granularity (1, 2, 4, 8, 16, 32 or 64 phases per pixel)
-    virtual void SetFractionalGlyphPositioning( int /*granularity*/ ) { }
+    /// get fractional glyph positioning strength (0: off, 1..3: increasing precision)
+    virtual int GetFractionalGlyphPositioning() { return 0; }
+    /// set fractional glyph positioning strength (0: off, 1..3: increasing precision)
+    virtual void SetFractionalGlyphPositioning( int /*strength*/ ) { }
 
     /// get monospace size scale percent
     virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }

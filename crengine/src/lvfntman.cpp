@@ -273,7 +273,7 @@ LVFontManager * fontMan = NULL;
 
 static double gammaLevel = 1.0;
 static int gammaIndex = GAMMA_NO_CORRECTION_INDEX;
-static int fractionalGlyphPositioningGranularity = 1;
+static int fractionalGlyphPositioningStrength = 0;
 
 /// returns first found face from passed list, or return face for font found by family only
 lString8 LVFontManager::findFontFace(lString8 commaSeparatedFaceList, css_font_family_t fallbackByFamily) {
@@ -1573,6 +1573,22 @@ protected:
     LVHashTable<struct LVCharTriplet, struct LVCharPosInfo> _width_cache2;
 #endif
 public:
+    int getFractionalGlyphPositioningGranularity() const {
+        if (!fractionalGlyphPositioningStrength)
+            return 1;
+        // Strength 1, 2 and 3 bound the positioning error to 1/96, 1/192
+        // and 1/384 em respectively. Cap at eight phases to limit cache use.
+        // At 48 px/em, strengths 1/2/3 use 1/2/4 phases. Each higher
+        // strength doubles the px/em thresholds: strength 3 uses 8 phases
+        // below 48 px/em, 4 below 96, 2 below 192, and 1 above.
+        int x_ppem = _face->size->metrics.x_ppem;
+        int error_denominator = 96 << (fractionalGlyphPositioningStrength - 1);
+        int phase_count = 1;
+        while (phase_count < 8 && 2 * phase_count * x_ppem < error_denominator)
+            phase_count *= 2;
+        return phase_count;
+    }
+
 
     virtual void clearFontRefs( const LVFont *ptr ) {
         if ( _fallbackFont.get() == ptr ) {
@@ -3072,7 +3088,7 @@ public:
             int t_notdef_start = -1;
             int t_notdef_end = -1;
             bool max_width_reached = false; // set when reached while measuring with the fallback font
-            int fractional_positioning_granularity = fractionalGlyphPositioningGranularity;
+            int fractional_positioning_granularity = getFractionalGlyphPositioningGranularity();
             bool use_fractional_positioning = fractional_positioning_granularity > 1;
             lInt32 cur_width_64 = 0;
             for (int t = 0; t < len; t++) {
@@ -3080,9 +3096,6 @@ public:
                     printf("MTHB t%d (=%x) ", t, text[t]);
                 #endif
                 // Grab all glyphs that do not belong to a cluster greater that our char position
-                // With fractional positioning, a cluster can have a non-zero 26.6 advance
-                // while still rounding to the same integer pixel width as the previous one.
-                // So we can't use cur_width == prev_width to detect zero-advance clusters.
                 bool cluster_has_advance = false;
                 while ( hg < glyph_count ) {
                     hcl = glyph_info[hg].cluster;
@@ -3171,15 +3184,21 @@ public:
                             }
                         }
                         if ( use_fractional_positioning ) {
-                            cluster_has_advance = cluster_has_advance || advance_64 != 0;
                             cur_width_64 += advance_64;
+                            #ifdef DEBUG_MEASURE_TEXT
+                                advance = FONT_METRIC_TO_PX(cur_width_64) - cur_width;
+                            #endif
                             cur_width = FONT_METRIC_TO_PX(cur_width_64);
+                            cluster_has_advance = cluster_has_advance || advance_64 != 0;
+                            // (With fractional positioning, a cluster can have a non-zero 26.6 advance
+                            // while still rounding to the same integer pixel width as the previous one.)
                         }
                         else {
                             cur_width += advance;
+                            cluster_has_advance = cur_width != prev_width;
                         }
                         #ifdef DEBUG_MEASURE_TEXT
-                            printf("c%d+%d ", hcl, use_fractional_positioning ? cur_width - prev_width : advance);
+                            printf("c%d+%d ", hcl, advance);
                         #endif
                         cur_cluster = hcl;
                         hg++;
@@ -3202,18 +3221,18 @@ public:
                     // We're either a single char cluster, or the start
                     // of a multi chars cluster.
                     flags[t] = GET_CHAR_FLAGS(text[t]);
-                    if ( use_fractional_positioning ? !cluster_has_advance : cur_width == prev_width ) {
+                    if ( !cluster_has_advance ) {
                         // But if there is no advance (this happens with soft-hyphens),
                         // flag it and don't add any letter spacing.
                         flags[t] |= LCHAR_IS_CLUSTER_TAIL;
                     }
-                    else {
+                    else { // Only add letter-spacing between clusters/graphemes.
                         if ( use_fractional_positioning ) {
-                            cur_width_64 += letter_spacing * 64; // only between clusters/graphemes
+                            cur_width_64 += letter_spacing * 64;
                             cur_width = FONT_METRIC_TO_PX(cur_width_64);
                         }
                         else {
-                            cur_width += letter_spacing; // only between clusters/graphemes
+                            cur_width += letter_spacing;
                         }
                     }
                     // It seems each soft-hyphen is in its own cluster, of length 1 and width 0,
@@ -3666,7 +3685,12 @@ public:
     }
 
     LVFontGlyphCacheItem * getGlyphByIndexSubpixel(lUInt32 index, int phase_step, int phase_count) {
-        if (_drawMonochrome || phase_step <= 0 || phase_count <= 1)
+        if (phase_count <= 1 || _drawMonochrome )
+            return NULL;
+        // Phase zero has no outline translation, so reuse the normal bitmap.
+        if (phase_step == 0)
+            return getGlyphByIndex(index);
+        if (phase_step < 0)
             return NULL;
 
         // This is the same loading/rendering path as getGlyphByIndex(), but with
@@ -3678,23 +3702,19 @@ public:
         //
         // Subpixel phase 0 uses the normal glyph cache entry. Non-zero phases are stored
         // in the high 6 bits of the existing 32-bit glyph cache key, leaving the
-        // lower 26 bits for the glyph index. This keeps the cache type unchanged
-        // and supports up to 64 phases, but assumes practical glyph indices stay
-        // below 2^26. Current fonts are far below this, but it is still an
-        // implementation assumption rather than a format guarantee.
+        // lower 26 bits for the glyph index.
+        // (This shared cache key scheme can cause subpixel entries for indices < 2^26
+        // to collide with normal entries for indices >= 2^26: current fonts are far
+        // below that, so we accept this constraint.)
         if (phase_step >= phase_count)
             phase_step = phase_count - 1;
         static const int SUBPIXEL_PHASE_SHIFT = 26;
-        static const lUInt32 SUBPIXEL_GLYPH_INDEX_MASK = (1u << SUBPIXEL_PHASE_SHIFT) - 1;
-        if (index & ~SUBPIXEL_GLYPH_INDEX_MASK) {
-            // For an index  >= 2^26 (very rare), skip the packed phase-key cache and return
-            // the ordinary glyph cache entry keyed by the unmodified index, to avoid collisions
-            // with non-phase-zero entries.
-            return getGlyphByIndex(index);
-        }
-        lUInt32 cache_index = ((lUInt32)phase_step << SUBPIXEL_PHASE_SHIFT) | index;
+        lUInt32 cache_index = ((lUInt32)phase_step << SUBPIXEL_PHASE_SHIFT)
+                            | (index & ((1u << SUBPIXEL_PHASE_SHIFT) - 1));
         LVFontGlyphCacheItem *item = _glyph_cache2.getByIndex(cache_index);
         if (!item) {
+            // Unlike getGlyphByIndex(), we cannot request FT_LOAD_RENDER here:
+            // we must translate the loaded outline for this subpixel phase first.
             int rend_flags = FT_LOAD_TARGET_LIGHT;
             if (_hintingMode == HINTING_MODE_BYTECODE_INTERPRETOR) {
                 rend_flags |= FT_LOAD_NO_AUTOHINT;
@@ -3719,6 +3739,8 @@ public:
             if (_slot->format != FT_GLYPH_FORMAT_OUTLINE)
                 return NULL;
 
+            // Apply synthetic transformations before the phase translation, then
+            // render the final outline explicitly.
             bool is_embolden = false;
             if (_synth_weight > 0) {
                 FT_Outline_Embolden(&_slot->outline, _synth_weight_strength);
@@ -3728,7 +3750,6 @@ public:
             if (_italic==2) {
                 FT_GlyphSlot_Oblique(_slot);
             }
-
             FT_Outline_Translate(&_slot->outline, phase_step * (64 / phase_count), 0);
             FT_Render_Glyph(_slot, FT_RENDER_MODE_LIGHT);
 
@@ -4389,7 +4410,7 @@ public:
             int fb_t_start = 0;
             int fb_t_end = len;
             int hg = 0;  // index in glyph_info/glyph_pos
-            int fractional_positioning_granularity = fractionalGlyphPositioningGranularity;
+            int fractional_positioning_granularity = getFractionalGlyphPositioningGranularity();
             bool use_fractional_positioning = fractional_positioning_granularity > 1;
             lInt32 x_64 = x * 64;
             while (hg < glyph_count) { // hg is the start of a new cluster at this point
@@ -4520,9 +4541,6 @@ public:
                     #endif
                     // Draw glyphs of this same cluster
                     int prev_x = x;
-                    // With fractional positioning, a cluster can advance in 26.6 units
-                    // without changing the rounded integer x. Track the original
-                    // unrounded advance to decide whether letter spacing should apply.
                     bool cluster_has_advance = false;
                     for (i = hg; i < hg2; i++) {
                         if ( svg_collector ) {
@@ -4534,32 +4552,60 @@ public:
                             svg_collector->addGlyph();
                             continue;
                         }
-                        LVFontGlyphCacheItem *item = getGlyphByIndex(glyph_info[i].codepoint);
-                        if (item) {
-                            if ( transform_stretch ) {
+                        LVFontGlyphCacheItem *item = NULL;
+                        if ( transform_stretch ) {
+                            item = getGlyphByIndex(glyph_info[i].codepoint);
+                            if (item) {
                                 // Stretched drawing of glyph to the x/y/w/h provided (used with MathML)
                                 // Split the targeted width to each glyph in case we have more than one
                                 int w = target_w / glyph_count;
                                 DrawStretchedGlyph(buf, glyph_info[i].codepoint, x, y, w, target_h, palette);
                                 x += w;
                                 x_64 = x * 64;
-                                cluster_has_advance = true;
+                                cluster_has_advance = x > prev_x;
                             }
-                            else {
-                                // Regular drawing of glyph at the baseline
-                                int w;
-                                lInt32 w_64 = 0;
-                                if ( glyph_pos[i].x_advance )
-                                    w_64 = glyph_pos[i].x_advance + _synth_weight_strength;
-                                if ( glyph_pos[i].x_advance )
-                                    w = FONT_METRIC_TO_PX(w_64);
-                                else
-                                    w = 0;
-                                cluster_has_advance = cluster_has_advance || w_64 != 0;
-                                #ifdef DEBUG_DRAW_TEXT
-                                    printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
-                                            item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
-                                #endif
+                            #ifdef DEBUG_DRAW_TEXT
+                            else
+                                printf("SKIPPED %x", glyph_info[i].codepoint);
+                            #endif
+                            continue;
+                        }
+                        // Regular drawing of glyph at the baseline
+                        int draw_x = x;
+                        bool use_subpixel_glyph = use_fractional_positioning
+                                    && !(flags & (LFNT_HINT_CJK_ALTERED_WIDTH | LFNT_HINT_CJK_SCALED_WIDTH));
+                        if (use_subpixel_glyph) {
+                            int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(x_64 + glyph_pos[i].x_offset,
+                                                            fractional_positioning_granularity, draw_x);
+                            item = getGlyphByIndexSubpixel(glyph_info[i].codepoint,
+                                                            phase_step, fractional_positioning_granularity);
+                        }
+                        if (!item) {
+                            // Bitmap/color/monochrome glyphs cannot represent a phase,
+                            // so use the normal cache entry and rounded placement.
+                            item = getGlyphByIndex(glyph_info[i].codepoint);
+                            use_subpixel_glyph = false;
+                            draw_x = x;
+                        }
+                        if (!item) {
+                            #ifdef DEBUG_DRAW_TEXT
+                                printf("SKIPPED %x", glyph_info[i].codepoint);
+                            #endif
+                            continue;
+                        }
+                        int w = 0;
+                        lInt32 w_64 = 0;
+                        if ( glyph_pos[i].x_advance ) {
+                            w_64 = glyph_pos[i].x_advance + _synth_weight_strength;
+                            w = FONT_METRIC_TO_PX(w_64);
+                        }
+                        #ifdef DEBUG_DRAW_TEXT
+                            printf("%x(x=%d+%d,w=%d) ", glyph_info[i].codepoint, x,
+                                item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset), w);
+                        #endif
+                        if ( flags & (LFNT_HINT_CJK_ALTERED_WIDTH | LFNT_HINT_CJK_SCALED_WIDTH) ) {
+                                // With these CJK flags, we will compute/adjust x/w and we'll use
+                                // them as-is. use_subpixel_glyph has already been set to false above.
                                 if ( flags & LFNT_HINT_CJK_ALTERED_WIDTH ) {
                                     int orig_width = width;
                                     if ( flags & LFNT_HINT_CJK_SCALED_WIDTH ) {
@@ -4617,44 +4663,30 @@ public:
                                     // gives x=x0+width, which is necessary to correctly draw any underline
                                     w = x0 + width - x;
                                 }
-                                // With these CJK flags, x/w have already been computed/adjusted,
-                                // so use them as-is, without fractional positioning.
-                                if ( (flags & LFNT_HINT_CJK_ALTERED_WIDTH) || (flags & LFNT_HINT_CJK_SCALED_WIDTH) || !use_fractional_positioning ) {
-                                    drawGlyphItem(buf,
-                                              x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
-                                              y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
-                                              item, palette);
-                                    x += w;
-                                    x_64 = x * 64;
-                                }
-                                else {
-                                    int draw_x;
-                                    int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(
-                                        x_64 + glyph_pos[i].x_offset,
-                                        fractional_positioning_granularity, draw_x);
-                                    LVFontGlyphCacheItem *draw_item = getGlyphByIndexSubpixel(glyph_info[i].codepoint, phase_step, fractional_positioning_granularity);
-                                    if (!draw_item) {
-                                        draw_item = item;
-                                        // A normal bitmap cannot represent this subpixel phase.
-                                        // Keep the former rounded integer placement.
-                                        draw_x = x;
-                                    }
-                                    drawGlyphItem(buf,
-                                              draw_x + draw_item->origin_x,
-                                              y + _baseline - draw_item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
-                                              draw_item, palette);
-                                    x_64 += w_64;
-                                    x = FONT_METRIC_TO_PX(x_64);
-                                }
-                            }
+                                draw_x = x;
                         }
-                        #ifdef DEBUG_DRAW_TEXT
-                        else
-                            printf("SKIPPED %x", glyph_info[i].codepoint);
-                        #endif
+                        if (!use_subpixel_glyph) {
+                            drawGlyphItem(buf,
+                                      draw_x + item->origin_x + FONT_METRIC_TO_PX(glyph_pos[i].x_offset),
+                                      y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
+                                      item, palette);
+                            x += w;
+                            x_64 = x * 64;
+                            cluster_has_advance = x > prev_x;
+                        }
+                        else {
+                            // (x_offset was already accounted for when computing phase_step)
+                            drawGlyphItem(buf,
+                                      draw_x + item->origin_x,
+                                      y + _baseline - item->origin_y - FONT_METRIC_TO_PX(glyph_pos[i].y_offset),
+                                      item, palette);
+                            x_64 += w_64;
+                            x = FONT_METRIC_TO_PX(x_64);
+                            cluster_has_advance = cluster_has_advance || w_64 != 0;
+                        }
                     }
                     // Whole cluster drawn: add letter spacing
-                    if ( use_fractional_positioning ? cluster_has_advance : x > prev_x ) {
+                    if ( cluster_has_advance ) {
                         // But only if this cluster has some advance
                         // (e.g. a soft-hyphen makes its own cluster, that
                         // draws a space glyph, but with no advance)
@@ -4682,27 +4714,27 @@ public:
 
             if (addHyphen) {
                 ch = getHyphChar();
-                LVFontGlyphCacheItem *item = getGlyph(ch, def_char);
+                int draw_x = x;
+                LVFontGlyphCacheItem *item = NULL;
+                if (use_fractional_positioning) {
+                    FT_UInt hyphen_index = getCharIndex(ch, 0);
+                    if (hyphen_index) {
+                        int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(x_64,
+                                                fractional_positioning_granularity, draw_x);
+                        item = getGlyphByIndexSubpixel(hyphen_index,
+                                                phase_step, fractional_positioning_granularity);
+                    }
+                }
+                if (!item) {
+                    // Phase zero and hyphens from a fallback font use the normal cache entry.
+                    item = getGlyph(ch, def_char);
+                    draw_x = x;
+                }
                 if (item) {
                     w = item->advance;
-                    int draw_x = x;
-                    LVFontGlyphCacheItem *draw_item = item;
-                    if (use_fractional_positioning) {
-                        FT_UInt hyphen_index = getCharIndex(ch, 0);
-                        if (hyphen_index) {
-                            int phase_step = FONT_METRIC_SUBPIXEL_PHASE_STEP(
-                                x_64, fractional_positioning_granularity, draw_x);
-                            LVFontGlyphCacheItem *subpixel_item = getGlyphByIndexSubpixel(
-                                hyphen_index, phase_step, fractional_positioning_granularity);
-                            if (subpixel_item)
-                                draw_item = subpixel_item;
-                            else
-                                draw_x = x;
-                        }
-                    }
-                    drawGlyphItem(buf, draw_x + draw_item->origin_x,
-                                   y + _baseline - draw_item->origin_y,
-                                   draw_item, palette);
+                    drawGlyphItem(buf, draw_x + item->origin_x,
+                                   y + _baseline - item->origin_y,
+                                   item, palette);
                     x  += w; // + letter_spacing; (let's not add any letter-spacing after hyphen)
                 }
             }
@@ -6632,28 +6664,17 @@ public:
     }
 
     virtual int GetFractionalGlyphPositioning() {
-        return fractionalGlyphPositioningGranularity;
+        return fractionalGlyphPositioningStrength;
     }
 
-    virtual void SetFractionalGlyphPositioning(int granularity) {
-        switch (granularity) {
-        case 1:
-        case 2:
-        case 4:
-        case 8:
-        case 16:
-        case 32:
-        case 64:
-            break;
-        default:
-            granularity = 1;
-            break;
-        }
-        if (fractionalGlyphPositioningGranularity == granularity)
+    virtual void SetFractionalGlyphPositioning(int strength) {
+        if (strength < 0 || strength > 3)
+            strength = 0;
+        if (fractionalGlyphPositioningStrength == strength)
             return;
         FONT_MAN_GUARD
-        fractionalGlyphPositioningGranularity = granularity;
-        CRLog::debug("Fractional glyph positioning granularity is %d", granularity);
+        fractionalGlyphPositioningStrength = strength;
+        CRLog::debug("Fractional glyph positioning strength is %d", strength);
         gc();
         clearGlyphCache();
     }

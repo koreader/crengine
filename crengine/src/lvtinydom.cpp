@@ -398,9 +398,9 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // if ( fontMan->getKerning() )
     //     hash += 127365;
     hash = hash * 31 + (int)fontMan->GetKerningMode();
-    // Measurements only change when toggling fractional positionning (1 means not enabled),
-    // not when only the granularity changes.
-    hash = hash * 31 + (fontMan->GetFractionalGlyphPositioning() != 1);
+    // All enabled strengths preserve fractional layout; only enabling or
+    // disabling it changes measurements.
+    hash = hash * 31 + (fontMan->GetFractionalGlyphPositioning() != 0);
     hash = hash * 31 + fontMan->GetMonospaceSizeScale();
     hash = hash * 31 + (int)fontMan->GetFallbackFontSizesAdjusted();
     hash = hash * 31 + fontMan->GetFontListHash(documentId);
