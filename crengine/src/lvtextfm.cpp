@@ -2969,19 +2969,22 @@ public:
                         && frmline->word_count > 1           // not if single word (expanded, but not taking the full width is ugly)
                         && 100 * extra_width > m_pbuffer->unused_space_threshold_percent * usable_width ) {
             // extra_width is more than 5% of usable_width: we would be added too much spacing.
-            // But we're allowed to add some letter spacing intoto words to reduce spacing
+            // But we're allowed to add some letter spacing into words to reduce spacing
             // between words.
             // (We do that only when this line is justified - we could do it too when the
             // line is left- or right-aligned, but we do not know here if this is not the
             // last line of a paragraph, left aligned, that would not need to be expanded.)
             // We loop and increase letter spacing, and we stop as soon as we are
             // under the unused_space_threshold_percent (5%). If some iteration
-            // brings us below min_extra_width (spaces shrunk too much), we go
+            // brings us below zero extra width (spaces would have to be shrunk), we go
             // back to the previous letter_spacing (which may put us back with
             // the unused extra space > 5%, but that is preferable).
+            // (We used to allow added_spacing to eat into the additional_extra_width
+            // budget that condensed spacing (word->min_width) could provide, but it
+            // ended up looking bad for some highly expanded lines, as letter spacing
+            // became too similar to word spacing.)
             //
             // First, gather some info
-            int min_extra_width = 0; // negative value (from the allowed spaces condensing)
             int max_font_size = 0;
             for ( int i=0; i<(int)frmline->word_count; i++ ) {
                 formatted_word_t * word = &frmline->words[i];
@@ -2992,7 +2995,6 @@ public:
                 // them get less space added, and western/numbers get the expansion).
                 if ( word->distinct_glyphs <= 0 || word->flags & LTEXT_WORD_IS_CJK )
                     continue;
-                min_extra_width += word->min_width - word->width;
                 src_text_fragment_t * srcline = &m_pbuffer->srctext[word->src_text_index];
                 LVFont * font = (LVFont *)srcline->t.font;
                 int font_size = font->getSize();
@@ -3024,9 +3026,13 @@ public:
                     else
                         can_try_larger = true;
                     added_spacing += word->distinct_glyphs * word->added_letter_spacing;
+                    // spaces between words need the same amount of tracking as the glyphs to
+                    // maintain visual contrast between letter spacing and word spacing.
+                    if ( word->flags & LTEXT_WORD_CAN_ADD_SPACE_AFTER && i < frmline->word_count-1 )
+                        added_spacing += word->added_letter_spacing;
                 }
                 int new_extra_width = extra_width - added_spacing;
-                if ( new_extra_width < min_extra_width ) { // too much added, not enough for spaces
+                if ( new_extra_width < 0 ) { // too much added, not enough for spaces
                     // Get back values from previous step (which was fine)
                     added_spacing = 0;
                     for ( int i=0; i<(int)frmline->word_count; i++ ) {
