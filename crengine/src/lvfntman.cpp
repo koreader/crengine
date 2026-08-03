@@ -5830,19 +5830,74 @@ public:
     int faceCount() const { return _faces.length(); }
 };
 
+/// One alias mapping: `alias` family name -> `canonical` family name,
+/// scoped to a document (documentId == -1 for a currently unused global
+/// scope) and a set of DocFragments.
+struct LVFontAlias {
+    lString8     alias;      // lowercase
+    lString8     canonical;  // lowercase
+    int          documentId; // -1 for global
+    // Sorted set of DocFragment indices this mapping applies to.
+    // Empty = document-wide (applies to every DocFragment in documentId).
+    LVArray<int> docFragmentIdxSet;
+
+    LVFontAlias() : documentId(-1) {}
+
+    // Mirrors LVFontFace::allowedForDocFragment().
+    bool appliesToDocFragment(int docFragmentIdx) const {
+        if (docFragmentIdxSet.empty()) return true;
+        if (docFragmentIdx < 0) return false;
+        int lo = 0, hi = docFragmentIdxSet.length() - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (docFragmentIdxSet[mid] == docFragmentIdx) return true;
+            if (docFragmentIdxSet[mid] < docFragmentIdx) lo = mid + 1;
+            else hi = mid - 1;
+        }
+        return false;
+    }
+
+    // Mirrors LVFontFace::addDocFragment().
+    void addDocFragment(int docFragmentIdx) {
+        if (docFragmentIdx < 0) return;
+        int n = docFragmentIdxSet.length();
+        if (n == 0 || docFragmentIdxSet[n - 1] < docFragmentIdx) {
+            docFragmentIdxSet.add(docFragmentIdx);
+            return;
+        }
+        if (docFragmentIdxSet[n - 1] == docFragmentIdx)
+            return;  // already present
+        int lo = 0, hi = n;
+        while (lo < hi) {
+            int mid = (lo + hi) / 2;
+            if (docFragmentIdxSet[mid] < docFragmentIdx) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo < n && docFragmentIdxSet[lo] == docFragmentIdx)
+            return;  // already present
+        docFragmentIdxSet.insert(lo, docFragmentIdx);
+    }
+
+    // Remove docFragmentIdx from a restricted (non-empty) set. No-op if the
+    // set is document-wide (empty) or doesn't contain it.
+    void removeDocFragment(int docFragmentIdx) {
+        for (int i = 0; i < docFragmentIdxSet.length(); i++) {
+            if (docFragmentIdxSet[i] == docFragmentIdx) {
+                docFragmentIdxSet.erase(i, 1);
+                return;
+            }
+        }
+    }
+};
+
 /// Registry of physical font faces, keyed by family name.
 /// Holds only registered faces - no loaded instances.
 class LVFontRegistry {
     LVPtrVector<LVFontFamily, true>   _families;
-    // Alias pairs: alias -> canonical family name, scoped to the document
-    // that registered them (including a currently unused -1 for global
-    // aliases) and, within that document, to a DocFragment (-1 for
-    // document-wide) -- so two DocFragments can map the same family name to
-    // different local() targets without clobbering each other.
-    LVArray<lString8>  _alias_from;
-    LVArray<lString8>  _alias_to;
-    LVArray<int>       _alias_doc;
-    LVArray<int>       _alias_doc_fragment;
+    // Alias mappings: alias -> canonical family name. One entry per distinct
+    // (alias, canonical, documentId) triple; see LVFontAlias for how the
+    // DocFragment scope is folded in.
+    LVPtrVector<LVFontAlias, true>    _aliases;
 
     LVFontFamily* findOrCreateFamily(lString8 name) {
         lString8 lower = name;
@@ -5861,38 +5916,78 @@ public:
         findOrCreateFamily(key)->addFace(face);
     }
 
+    // Registers alias -> canonical for documentId, scoped to docFragmentIdx
+    // (-1 for document-wide). Matches the old last-registration-wins
+    // behaviour when this exact scope was previously mapped to a different
+    // canonical (e.g. a single DocFragment declaring the same family name
+    // via local() twice): the stale claim on that scope is dropped first.
+    // Document-wide and fragment-restricted mappings for the same alias
+    // otherwise coexist (resolveAlias() prefers the more specific one)
     void registerAlias(lString8 alias, lString8 canonical, int documentId, int docFragmentIdx = -1) {
         alias.lowercase();
         canonical.lowercase();
-        for (int i = 0; i < _alias_from.length(); i++)
-            if (_alias_from[i] == alias && _alias_doc[i] == documentId && _alias_doc_fragment[i] == docFragmentIdx) {
-                _alias_to[i] = canonical; return;
+        if (docFragmentIdx < 0) {
+            // Document-wide: at most one such entry per (alias, documentId).
+            for (int i = 0; i < _aliases.length(); i++) {
+                LVFontAlias* a = _aliases[i];
+                if (a->alias == alias && a->documentId == documentId && a->docFragmentIdxSet.empty()) {
+                    a->canonical = canonical;
+                    return;
+                }
             }
-        _alias_from.add(alias);
-        _alias_to.add(canonical);
-        _alias_doc.add(documentId);
-        _alias_doc_fragment.add(docFragmentIdx);
+            LVFontAlias* a = new LVFontAlias();
+            a->alias = alias;
+            a->canonical = canonical;
+            a->documentId = documentId;
+            _aliases.add(a);
+            return;
+        }
+        // Fragment-scoped: detach docFragmentIdx from whichever restricted
+        // group currently claims it under a different canonical, then
+        // attach it to (or create) the group for the new canonical.
+        LVFontAlias* target = nullptr;
+        for (int i = _aliases.length() - 1; i >= 0; i--) {
+            LVFontAlias* a = _aliases[i];
+            if (a->alias != alias || a->documentId != documentId || a->docFragmentIdxSet.empty()) continue;
+            if (a->canonical == canonical) {
+                target = a;
+                continue;
+            }
+            a->removeDocFragment(docFragmentIdx);
+            if (a->docFragmentIdxSet.empty())
+                _aliases.erase(i, 1);  // now-pointless restricted group
+        }
+        if (!target) {
+            target = new LVFontAlias();
+            target->alias = alias;
+            target->canonical = canonical;
+            target->documentId = documentId;
+            _aliases.add(target);
+        }
+        target->addDocFragment(docFragmentIdx);
     }
 
     // Resolves an alias registered for `documentId`/`docFragmentIdx`, preferring
     // (in order): an exact doc fragment match, a document-wide alias for
-    // `documentId` (docFragmentIdx == -1), then a global (documentId == -1)
+    // `documentId` (empty docFragmentIdxSet), then a global (documentId == -1)
     // alias. A doc-fragment-scoped alias is invisible outside its own DocFragment.
     lString8 resolveAlias(lString8 name, int documentId, int docFragmentIdx = -1) const {
         name.lowercase();
         int docWideMatch = -1;
         int globalMatch = -1;
-        for (int i = 0; i < _alias_from.length(); i++) {
-            if (_alias_from[i] != name) continue;
-            if (_alias_doc[i] == documentId) {
-                if (docFragmentIdx >= 0 && _alias_doc_fragment[i] == docFragmentIdx) return _alias_to[i];
-                if (_alias_doc_fragment[i] == -1 && docWideMatch < 0) docWideMatch = i;
-            } else if (_alias_doc[i] == -1 && _alias_doc_fragment[i] == -1 && globalMatch < 0) {
+        for (int i = 0; i < _aliases.length(); i++) {
+            const LVFontAlias* a = _aliases[i];
+            if (a->alias != name) continue;
+            if (a->documentId == documentId) {
+                if (docFragmentIdx >= 0 && !a->docFragmentIdxSet.empty() && a->appliesToDocFragment(docFragmentIdx))
+                    return a->canonical;
+                if (a->docFragmentIdxSet.empty() && docWideMatch < 0) docWideMatch = i;
+            } else if (a->documentId == -1 && a->docFragmentIdxSet.empty() && globalMatch < 0) {
                 globalMatch = i;
             }
         }
-        if (docWideMatch >= 0) return _alias_to[docWideMatch];
-        if (globalMatch >= 0) return _alias_to[globalMatch];
+        if (docWideMatch >= 0) return _aliases[docWideMatch]->canonical;
+        if (globalMatch >= 0) return _aliases[globalMatch]->canonical;
         return name;
     }
 
@@ -5913,13 +6008,9 @@ public:
             if (_families[i]->faceCount() == 0)
                 delete _families.remove(i);
         }
-        for (int i = _alias_doc.length() - 1; i >= 0; i--) {
-            if (_alias_doc[i] == documentId) {
-                _alias_from.erase(i, 1);
-                _alias_to.erase(i, 1);
-                _alias_doc.erase(i, 1);
-                _alias_doc_fragment.erase(i, 1);
-            }
+        for (int i = _aliases.length() - 1; i >= 0; i--) {
+            if (_aliases[i]->documentId == documentId)
+                _aliases.erase(i, 1);
         }
     }
 
