@@ -25,13 +25,29 @@ section 7), whether an exact duplicate `@font-face` rule is a harmless no-op
 CSS file causes any visible problem (Chapter 10, section 9), and whether a
 `src: local(...)` alias is correctly scoped per DocFragment when two
 fragments reuse the same alias name for different targets (Chapters 11–12,
-section 10).
+section 10), and whether an `@import`ed `@font-face` rule is overridden by a
+same-family/weight/style rule declared afterward in the importing file, the
+way ordinary CSS cascade source-order rules would suggest (section 11).
 
 The test EPUB is at `tests/fontface-test.epub`. Regenerate it with
 `python3 tests/make_fontface_test_epub.py` if needed — it reads the test
 fonts directly from `koreader/resources/fonts/` (crengine is always
 built as a thirdparty component of koreader, so this is always available;
 the script fails with a clear error naming the missing path if it isn't).
+
+Section 11 uses a second, separate EPUB, `tests/fontface-import-precedence-test.epub`
+(regenerate with `python3 tests/make_fontface_import_precedence_test_epub.py`).
+It is not a chapter in `fontface-test.epub` because it needs a fresh,
+genuine same-family/weight/style tie — the same requirement as Chapter 8 —
+but `fontface-test.epub` has already spent all eleven of KOReader's
+visually-distinct, Latin-legible shipped fonts across its own chapters (see
+below), leaving no twelfth distinct file to add another tie case into that
+same document without hitting the same-file-per-document dedup limitation
+described two paragraphs down. See the module docstring in
+`make_fontface_import_precedence_test_epub.py` for the full reasoning,
+including why the remaining shipped fonts (Arabic/Bengali/Devanagari "UI"
+faces, Nerd Fonts symbols) aren't viable substitutes — none of them cover
+Basic Latin.
 
 Each `@font-face` rule in this EPUB points at a **distinct** embedded font
 file (Chapters 1–3/5 additionally give each rule's file its own family name;
@@ -422,7 +438,74 @@ as a sanity check, not because order is expected to matter here.
 
 ---
 
-## 11. Manual step — `@font-face` in a styletweak
+## 11. `@import` vs. local override precedence (fontface-import-precedence-test.epub, Chapter 1)
+
+**Goal:** Confirm whether an `@font-face` rule reached via `@import` is
+overridden by a same-family, same-(default-)weight, same-(default-)style
+rule declared afterward in the *importing* file — the scenario raised in
+review: "if a css `@import`s overrides.css which redefines a @font-face, I
+would expect the last to win." This is section 7's tie question again (which
+face wins a genuine tie), but for two rules that reach the font manager via
+different routes instead of both sitting in one `<style>` block.
+
+This uses the separate `fontface-import-precedence-test.epub` — see the
+Scope section above for why. Its single chapter links `css/wrapper.css`,
+which is:
+
+```css
+@import url("base.css");
+@font-face {
+  font-family: "OrderingTestImportPrecedence";
+  src: url("../fonts/import-test-override.ttf");
+}
+```
+
+`base.css` declares one rule under the same family, neither specifying
+`font-weight` nor `font-style`:
+
+```css
+@font-face {
+  font-family: "OrderingTestImportPrecedence";
+  src: url("../fonts/import-test-base.ttf");
+}
+```
+
+Both rules register at the default weight (400) and style (roman) — an exact
+tie, differing only in which file's rule registers first. `base.css`'s file
+is Noto Sans Regular; `wrapper.css`'s own rule (the "override," declared
+after the `@import`) points at Noto Serif Bold.
+
+| # | Action | Expected |
+|---|--------|----------|
+| 11.1 | View Chapter 1, Test 1 line | Renders in the embedded plain sans-serif test font (Noto Sans Regular) — `base.css`'s **imported** rule, not `wrapper.css`'s own rule declared after the `@import` |
+| 11.2 | Compare Test 1 to the reference serif line | The two lines must look visibly different |
+
+If Test 1 instead renders in Noto Serif Bold (`wrapper.css`'s own,
+later-declared rule), an `@import`ed `@font-face` rule is being overridden by
+a same-tie rule declared afterward in the importing file — contrary to
+current behaviour, and worth confirming was deliberate before updating this
+section (and the fixture's own in-page note) to match.
+
+Current behaviour, per `LVImportStylesheetParser::Parse()` (`lvtinydom.cpp`):
+while a stylesheet's leading `@import` line(s) are present, `Parse()`
+recursively parses each imported file into the same destination
+`LVStyleSheet` — registering that file's `@font-face` rules as a side effect
+— *before* parsing the importing file's own trailing content. So the
+imported rule always registers before the importing file's own rule; there
+is no cascade-style "later declaration wins" step for `@font-face` at all,
+only registration order. `LVFontSelector::pickBestWeight()`'s exact-tie
+resolution (`lvfntman.cpp`) then picks the first-registered candidate, same
+as section 7's Chapter 8 — so the imported rule wins here too, regardless of
+which file's rule a reader might expect to "win" by CSS-cascade intuition.
+That's current, intentional behaviour as far as this plan is concerned
+(nothing in the CSS Fonts spec mandates last-wins for an exact tie among
+embedded faces, `@import`ed or not), so a change here isn't automatically a
+regression — but see section 7's note for the same caveat: it's a behaviour
+change worth confirming was deliberate if it ever happens.
+
+---
+
+## 12. Manual step — `@font-face` in a styletweak
 
 **Goal:** Confirm `@font-face` declared in a KOReader styletweak (merged
 *after* the book's own user-agent stylesheet, not at the top of any file) is
@@ -435,11 +518,11 @@ by KOReader at the Lua layer, independent of any one book.
 
 | # | Action | Expected |
 |---|--------|----------|
-| 11.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
-| 11.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
-| 11.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
+| 12.1 | Create a custom styletweak containing:<br>`@font-face { font-family: "StyletweakTestFont"; src: local("FreeSans"); }`<br>`body { font-family: "StyletweakTestFont", serif; }` | Styletweak saved without error |
+| 12.2 | Enable the styletweak, open `fontface-test.epub` (or any book) | **All** body text, starting from the very first page, renders in FreeSans — not the default serif, and not a fallback that only kicks in after the first page |
+| 12.3 | Disable the styletweak, reopen the same book | Text reverts to the normal default font |
 
-If 11.2 shows the first page in the wrong font while later pages are
+If 12.2 shows the first page in the wrong font while later pages are
 correct, that's the ordering bug this whole plan exists to catch,
 manifesting via the styletweak path specifically rather than the
 EPUB-internal path covered by Chapters 1–5 above.
@@ -473,6 +556,12 @@ EPUB-internal path covered by Chapters 1–5 above.
 - Re-run section 10 (Chapters 11–12) after any change to
   `RegisterDocumentFontAlias()` or `resolveAlias()` in `lvfntman.cpp` — these
   determine per-DocFragment alias scoping.
+- Re-run section 11 (`fontface-import-precedence-test.epub`) after any change
+  to `LVImportStylesheetParser::Parse()` (`lvtinydom.cpp`) or
+  `LVFontSelector::pickBestWeight()` (`lvfntman.cpp`) — these determine
+  whether an imported rule still registers, and still wins an exact tie,
+  before a same-family/weight/style rule declared later in the importing
+  file.
 - This plan only exercises the EPUB path. The ordering-invariant audit found
   a separate, pre-existing, unrelated gap in the CHM `DocFragment` path —
   out of scope here, tracked separately.

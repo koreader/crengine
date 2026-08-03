@@ -26,3 +26,4 @@ thirdparty/*/
 build/
 tests/font-manager-test.epub
 tests/fontface-test.epub
+tests/fontface-import-precedence-test.epub
