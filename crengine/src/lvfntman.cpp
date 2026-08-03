@@ -5833,10 +5833,11 @@ public:
 /// One alias mapping: `alias` family name -> `canonical` family name,
 /// scoped to a document (documentId == -1 for a currently unused global
 /// scope) and a set of DocFragments.
-struct LVFontAlias {
-    lString8     alias;      // lowercase
-    lString8     canonical;  // lowercase
-    int          documentId; // -1 for global
+struct LVFontAlias
+{
+    lString8 alias;     // lowercase
+    lString8 canonical; // lowercase
+    int documentId;     // -1 for global
     // Sorted set of DocFragment indices this mapping applies to.
     // Empty = document-wide (applies to every DocFragment in documentId).
     LVArray<int> docFragmentIdxSet;
@@ -5844,45 +5845,57 @@ struct LVFontAlias {
     LVFontAlias() : documentId(-1) {}
 
     // Mirrors LVFontFace::allowedForDocFragment().
-    bool appliesToDocFragment(int docFragmentIdx) const {
-        if (docFragmentIdxSet.empty()) return true;
-        if (docFragmentIdx < 0) return false;
+    bool appliesToDocFragment(int docFragmentIdx) const
+    {
+        if (docFragmentIdxSet.empty())
+            return true;
+        if (docFragmentIdx < 0)
+            return false;
         int lo = 0, hi = docFragmentIdxSet.length() - 1;
         while (lo <= hi) {
             int mid = (lo + hi) / 2;
-            if (docFragmentIdxSet[mid] == docFragmentIdx) return true;
-            if (docFragmentIdxSet[mid] < docFragmentIdx) lo = mid + 1;
-            else hi = mid - 1;
+            if (docFragmentIdxSet[mid] == docFragmentIdx)
+                return true;
+            if (docFragmentIdxSet[mid] < docFragmentIdx)
+                lo = mid + 1;
+            else
+                hi = mid - 1;
         }
         return false;
     }
 
     // Mirrors LVFontFace::addDocFragment().
-    void addDocFragment(int docFragmentIdx) {
-        if (docFragmentIdx < 0) return;
+    void addDocFragment(int docFragmentIdx)
+    {
+        if (docFragmentIdx < 0)
+            return;
         int n = docFragmentIdxSet.length();
         if (n == 0 || docFragmentIdxSet[n - 1] < docFragmentIdx) {
             docFragmentIdxSet.add(docFragmentIdx);
             return;
         }
         if (docFragmentIdxSet[n - 1] == docFragmentIdx)
-            return;  // already present
+            return; // already present
         int lo = 0, hi = n;
         while (lo < hi) {
             int mid = (lo + hi) / 2;
-            if (docFragmentIdxSet[mid] < docFragmentIdx) lo = mid + 1;
-            else hi = mid;
+            if (docFragmentIdxSet[mid] < docFragmentIdx)
+                lo = mid + 1;
+            else
+                hi = mid;
         }
         if (lo < n && docFragmentIdxSet[lo] == docFragmentIdx)
-            return;  // already present
+            return; // already present
         docFragmentIdxSet.insert(lo, docFragmentIdx);
     }
 
     // Remove docFragmentIdx from a restricted (non-empty) set. No-op if the
     // set is document-wide (empty) or doesn't contain it.
-    void removeDocFragment(int docFragmentIdx) {
+    void removeDocFragment(int docFragmentIdx)
+    {
         for (int i = 0; i < docFragmentIdxSet.length(); i++) {
-            if (docFragmentIdxSet[i] == docFragmentIdx) {
+            if (docFragmentIdxSet[i] == docFragmentIdx)
+            {
                 docFragmentIdxSet.erase(i, 1);
                 return;
             }
