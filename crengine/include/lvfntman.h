@@ -792,6 +792,10 @@ public:
     virtual kerning_mode_t GetKerningMode() { return _kerningMode; }
     /// get kerning mode: true==ON, false=OFF
     virtual void SetKerningMode( kerning_mode_t mode ) { _kerningMode = mode; gc(); clearGlyphCache(); }
+    /// get fractional glyph positioning strength (0: off, 1..3: increasing precision)
+    virtual int GetFractionalGlyphPositioning() { return 0; }
+    /// set fractional glyph positioning strength (0: off, 1..3: increasing precision)
+    virtual void SetFractionalGlyphPositioning( int /*strength*/ ) { }
 
     /// get monospace size scale percent
     virtual int GetMonospaceSizeScale() { return _monospaceSizeScale; }

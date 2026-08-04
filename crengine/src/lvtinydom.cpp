@@ -399,6 +399,9 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
     // if ( fontMan->getKerning() )
     //     hash += 127365;
     hash = hash * 31 + (int)fontMan->GetKerningMode();
+    // All enabled strengths preserve fractional layout; only enabling or
+    // disabling it changes measurements.
+    hash = hash * 31 + (fontMan->GetFractionalGlyphPositioning() != 0);
     hash = hash * 31 + fontMan->GetMonospaceSizeScale();
     hash = hash * 31 + (int)fontMan->GetFallbackFontSizesAdjusted();
     hash = hash * 31 + fontMan->GetFontListHash(documentId);
@@ -429,8 +432,9 @@ lUInt32 calcGlobalSettingsHash(int documentId, bool already_rendered)
         hash = hash * 31 + UserHyphDict::getHash();
     }
     /*
-    printf("  %d %d %d %d %d %d %d %d %d %d %d\n",
+    printf("  %d %d %d %d %d %d %d %d %d %d %d %d\n",
         (int)fontMan->GetKerningMode(),
+        fontMan->GetFractionalGlyphPositioning(),
         fontMan->GetMonospaceSizeScale(),
         (int)fontMan->GetFallbackFontSizesAdjusted(),
         fontMan->GetFontListHash(documentId),
