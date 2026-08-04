@@ -2397,7 +2397,28 @@ int LVRendGetBaseFontWeight()
     return rend_font_base_weight;
 }
 
-LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
+/// Walk up the DOM tree from `node` to find the nearest DocFragment ancestor
+/// and return its sibling index (its position among the root's children).
+/// Returns -1 if no DocFragment ancestor is found (non-EPUB documents, or
+/// nodes that are themselves above the DocFragment level).
+/// This is only a fallback for callers that don't already know the DocFragment
+/// they're working in: bulk passes over the whole tree (the recursive style
+/// pass, cache reload) already cross DocFragment boundaries explicitly as
+/// they go, and should pass that index into getFont()/initNodeFont() instead
+/// of paying for this walk on every node.
+static int getNodeDocFragmentIdx(ldomNode * node)
+{
+    for (ldomNode * n = node; n && !n->isNull() && !n->isRoot(); n = n->getParentNode()) {
+        if (n->getNodeId() == el_DocFragment)
+            return (int)n->getNodeIndex();
+    }
+    return -1;
+}
+
+/// docFragmentIdx: pass the node's DocFragment sibling index if the caller already
+/// knows it (eg. from a traversal that tracks it), or leave at the default to
+/// have it looked up by walking up from node.
+LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int docFragmentIdx)
 {
     int sz;
     if ( style->font_size.type == css_val_em || style->font_size.type == css_val_ex ||
@@ -2438,6 +2459,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
     LVFontVariations variations;
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    if (docFragmentIdx == DOC_FRAGMENT_IDX_UNKNOWN)
+        docFragmentIdx = (documentId != -1) ? getNodeDocFragmentIdx(node) : -1;
     LVFontRef fnt = fontMan->GetFont(
         sz,
         fw,
@@ -2446,7 +2469,8 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId)
         lString8(style->font_name.c_str()),
         style->font_features.value, // (.type is always css_val_unspecified after setNodeStyle())
         documentId, true, // useBias=true, so that our preferred font gets used
-        variations.empty() ? NULL : &variations);
+        variations.empty() ? NULL : &variations,
+        docFragmentIdx);
     //fnt = LVCreateFontTransform( fnt, LVFONT_TRANSFORM_EMBOLDEN );
     return fnt;
 }
@@ -10838,7 +10862,7 @@ inline bool inheritLength( css_length_t & val, css_length_t & parent_val, int pa
     return true;
 }
 
-void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font )
+void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef parent_font, int docFragmentIdx )
 {
     //lvdomElementFormatRec * fmt = node->getRenderData();
     css_style_ref_t style( new css_style_rec_t );
@@ -10871,7 +10895,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             // that check it (ie. recursed resetRendMethodToInline())
             enode->setStyle( style );
             // Doing initNodeFont(), even if the font won't ever be used, avoids "style hash mismatch".
-            enode->initNodeFont();
+            enode->initNodeFont(docFragmentIdx);
             return;
         }
         ldomNode * sourceNode = enode->getCloneNodeSource();
@@ -11865,7 +11889,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     }
 
     // set font
-    enode->initNodeFont();
+    enode->initNodeFont(docFragmentIdx);
 
     // Now that this node is fully styled, ensure these pseudo elements
     // are there as children, creating them if needed and possible.

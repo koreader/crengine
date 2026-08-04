@@ -2625,7 +2625,7 @@ static const char * css_atrule_name[] = {
     // These ones may or may not have a prelude, and then a CSS block which is only a declaration (and
     // not a full stylesheet as a list of selectors+declarations) which may contain other at-rules
     // All of these are unsupported
-    "font-face", // - already quickly parsed in epubfmt.cpp, ignored at this point
+    "font-face", // + parsed by parse_font_face_rule(), registers fonts as a side effect
     "page",      // - CSS properties used for printing (usually to set larger margins)
         "bottom-center",      // - sub-at-rules allowed inside @page { }
         "bottom-left",        //   The list of names differ among specifications,
@@ -2662,8 +2662,13 @@ static const char * css_atrule_name[] = {
 // Uncomment for debugging @rules processing
 // #define DEBUG_AT_RULES_PROCESSING
 
+// Defined further down (needs css_fw_kw_names/css_fs_names, declared below).
+static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, LVStyleSheet * stylesheet = nullptr );
+
 /// Parse (or skip) @keyword rule
-static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc )
+/// parseFontFace: false from contexts that only gather matching CSS text for
+/// display (e.g. a node style inspector) and must not register fonts as a side effect.
+static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, bool parseFontFace = true, LVStyleSheet * stylesheet = nullptr )
 {
     // https://developer.mozilla.org/en-US/docs/Web/CSS/At-rule
     // We only handle a few of them, and we may not parse according to the full complex
@@ -2737,6 +2742,17 @@ static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc )
     if ( *str != '{' ) // not the expected block start
         return false;
 
+    // When !parseFontFace, we don't special-case @font-face here: it falls
+    // through to the has_nested_declaration handling below (already set
+    // true for it above), which parses-and-discards its block just like any
+    // other unhandled at-rule.
+    if ( name == css_at_font_face && parseFontFace ) {
+        str++; // skip opening '{'
+        parse_font_face_rule( str, doc, codeBase, stylesheet ); // consumes up to and including the closing '}'
+        skip_spaces(str);
+        return true;
+    }
+
     if ( process_nested_block ) {
         #ifdef DEBUG_AT_RULES_PROCESSING
             printf("++ %.*s\n", str-start, start);
@@ -2763,7 +2779,7 @@ static bool parse_or_skip_at_rule( const char * &str, lxmlDocBase * doc )
     }
     else if ( has_nested_declaration ) {
         LVCssDeclaration tmp_decl;
-        tmp_decl.parse( str, false, doc );
+        tmp_decl.parse( str, false, doc, codeBase );
     }
     #ifdef DEBUG_AT_RULES_PROCESSING
         printf("     done at [...%.*s]%.*s...\n", 10, str-10, 10, str);
@@ -2950,7 +2966,242 @@ static const char * css_fos_names[] =
     NULL
 };
 
-static const char * css_va_names[] = 
+// @font-face descriptors: https://developer.mozilla.org/en-US/docs/Web/CSS/@font-face
+// (font-display is not parsed: it only affects load-time swap/fallback behaviour
+// for network-fetched web fonts, which doesn't apply to fonts read from an EPUB
+// container or the local filesystem. font-stretch and unicode-range are not
+// parsed either: neither is acted on by the font selector.)
+enum css_fontface_descriptor_code {
+    cssff_font_family,
+    cssff_font_weight,
+    cssff_font_style,
+    cssff_src,
+    cssff_unknown
+};
+
+static const char * css_fontface_descriptor_names[] = {
+    "font-family",
+    "font-weight",
+    "font-style",
+    "src",
+    NULL
+};
+
+// Like parse_property_name(), but against the @font-face descriptor name table:
+// matches a descriptor name followed by ':' (skipping spaces), and advances str
+// past the ':' on success.
+static int parse_fontface_descriptor_name( const char * &str )
+{
+    skip_spaces(str);
+    for (int i=0; css_fontface_descriptor_names[i]; i++) {
+        const char * tmp = str;
+        if ( substr_icompare( css_fontface_descriptor_names[i], tmp) ) {
+            skip_spaces(tmp);
+            if ( *tmp == ':' ) {
+                tmp++;
+                skip_spaces(tmp);
+                str = tmp;
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+// Extracts the raw text of a descriptor value, up to (not including) the next
+// top-level ';' or '}', respecting quotes and a single level of balanced parens
+// (so url(), local() and data: URIs containing ';' or ',' are not cut short).
+// Does not advance past the stop character.
+static lString8 extract_fontface_value( const char * &str )
+{
+    const char * start = str;
+    char quote_ch = 0;
+    char closing_paren_ch = 0;
+    while ( *str ) {
+        if ( quote_ch ) {
+            if ( *str == quote_ch )
+                quote_ch = 0;
+        }
+        else if ( closing_paren_ch ) {
+            if ( *str == closing_paren_ch )
+                closing_paren_ch = 0;
+            else if ( *str == '\'' || *str == '\"' )
+                quote_ch = *str;
+        }
+        else if ( *str == ';' || *str == '}' ) {
+            break;
+        }
+        else if ( *str == '\'' || *str == '\"' ) {
+            quote_ch = *str;
+        }
+        else if ( *str == '(' ) {
+            closing_paren_ch = ')';
+        }
+        str++;
+    }
+    lString8 value(start, str-start);
+    value.trim();
+    return value;
+}
+
+// Parses the first src() entry (url(...) or local(...)) out of a @font-face "src"
+// descriptor value, ignoring any further comma-separated fallback entries (this
+// matches the prior epubfmt.cpp parser's behaviour of only using the first valid
+// entry). url(...) paths are resolved against codeBase; local(...) names are font
+// family names, not paths, and are left untouched.
+static bool parse_fontface_src_value( const lString8 & value, lString32 codeBase, lString32 & url, bool & isLocal )
+{
+    const char * str = value.c_str();
+    skip_spaces(str);
+    const char * keyword_start = str;
+    bool is_local;
+    if ( substr_icompare("local", str) )
+        is_local = true;
+    else if ( substr_icompare("url", str) )
+        is_local = false;
+    else
+        return false;
+    skip_spaces(str);
+    if ( *str != '(' )
+        return false;
+    str++; // skip opening '('
+    char quote_ch = 0;
+    int depth = 1;
+    while ( *str && depth > 0 ) {
+        if ( quote_ch ) {
+            if ( *str == quote_ch ) quote_ch = 0;
+        }
+        else if ( *str == '\'' || *str == '\"' ) {
+            quote_ch = *str;
+        }
+        else if ( *str == '(' ) {
+            depth++;
+        }
+        else if ( *str == ')' ) {
+            depth--;
+            if ( depth == 0 )
+                break;
+        }
+        str++;
+    }
+    if ( *str != ')' )
+        return false;
+    str++; // include the closing ')'
+    lString8 token(keyword_start, str-keyword_start);
+    if ( is_local ) {
+        // Strip the "local(" prefix and trailing ')', plus any surrounding quotes.
+        lString8 inner = token.substr(6, token.length() - 7);
+        inner.trim();
+        if ( inner.length() >= 2 &&
+             ((inner[0]=='\"' && inner[inner.length()-1]=='\"') || (inner[0]=='\'' && inner[inner.length()-1]=='\'')) )
+            inner = inner.substr(1, inner.length()-2);
+        url = Utf8ToUnicode(inner);
+    }
+    else {
+        // resolve_url_path() strips the "url(" wrapper and quotes itself, and
+        // resolves the path against codeBase.
+        resolve_url_path(token, codeBase);
+        url = Utf8ToUnicode(token);
+    }
+    isLocal = is_local;
+    return true;
+}
+
+// Parses a "@font-face { ... }" block, str positioned right after the opening '{'.
+// Always advances str past the closing '}' (or to the end of input on malformed CSS).
+// Registers the font with the document as a side effect; does not produce a
+// css_style_rec_t or otherwise affect the stylesheet's rule list (see
+// FONTFACE_PARSER_REFACTOR.md, "@font-face is not a stylesheet rule in the usual sense").
+static void parse_font_face_rule( const char * &str, lxmlDocBase * doc, lString32 codeBase, LVStyleSheet * stylesheet )
+{
+    lString8 family;
+    int weight = 400;
+    bool italic = false;
+    lString32 url;
+    bool isLocal = false;
+    bool haveSrc = false;
+
+    skip_spaces(str);
+    while ( *str && *str != '}' ) {
+        int descriptor = parse_fontface_descriptor_name(str);
+        if ( descriptor < 0 ) {
+            // Unknown descriptor, or malformed text: skip to next property or end of block
+            next_property(str);
+            continue;
+        }
+        switch ( (css_fontface_descriptor_code)descriptor ) {
+            case cssff_font_family:
+                {
+                    lString8Collection list;
+                    int processed = splitPropertyValueList( str, list );
+                    str += processed;
+                    if ( list.length() )
+                        family = list[0];
+                }
+                break;
+            case cssff_font_weight:
+                {
+                    // Per spec, @font-face's font-weight descriptor only accepts
+                    // normal | bold | <number>: "bolder"/"lighter" are relative to
+                    // a parent that doesn't exist here, so are invalid and ignored
+                    // (weight keeps its current/default value, as for any other
+                    // invalid descriptor value).
+                    int kw = parse_name( str, css_fw_kw_names, -1 );
+                    if ( kw >= 0 ) {
+                        lUInt16 fw_val = css_fw_kw_vals[kw];
+                        if ( fw_val == css_fw_bold )
+                            weight = 700;
+                        else if ( fw_val == css_fw_normal )
+                            weight = 400;
+                    }
+                    else {
+                        // Plain <number>, no unit: same handling as cssd_font_weight above,
+                        // since the descriptor also accepts fractional weights (e.g. 401.5).
+                        css_length_t num_val;
+                        if ( parse_number_value( str, num_val, false, false, false, false, false, true )
+                                && num_val.type == css_val_unspecified ) {
+                            int num = (num_val.value + 128) >> 8; // round to nearest integer
+                            if ( num < 1 )    num = 1;
+                            if ( num > 1000 ) num = 1000;
+                            weight = num;
+                        }
+                    }
+                }
+                break;
+            case cssff_font_style:
+                {
+                    int n = parse_name( str, css_fs_names, -1 );
+                    italic = ( n == css_fs_italic || n == css_fs_oblique );
+                }
+                break;
+            case cssff_src:
+                {
+                    lString8 value = extract_fontface_value(str);
+                    lString32 srcUrl;
+                    bool srcIsLocal;
+                    if ( !haveSrc && parse_fontface_src_value(value, codeBase, srcUrl, srcIsLocal) ) {
+                        url = srcUrl;
+                        isLocal = srcIsLocal;
+                        haveSrc = true;
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+        next_property(str); // consumes ';', or stops at '}'
+    }
+    if ( *str == '}' )
+        str++;
+
+    if ( doc && haveSrc && !family.empty() ) {
+        ((ldomDocument *)doc)->registerFontFace(url, family, weight, italic, isLocal);
+        if ( stylesheet )
+            stylesheet->addFontFaceDecl(url, family, weight, italic, isLocal);
+    }
+}
+
+static const char * css_va_names[] =
 {
     "", // css_va_inherit
     "baseline", 
@@ -4934,7 +5185,7 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             if ( *decl == '@' ) {
                 // Unless it's an atrule (ie. "@top-left {}" inside "@page {}"),
                 // and we need to parse or skip it properly
-                parse_or_skip_at_rule(decl, doc);
+                parse_or_skip_at_rule(decl, doc, codeBase);
                 // This will have properly skipped any closing ';' or '}' - the latter
                 // does not require a followup ';', so avoid skipping what follows it
                 skip_to_next_property = false;
@@ -7701,7 +7952,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             delete selector;
             // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly
             if ( *str == '@' ) {
-                parse_or_skip_at_rule(str, _doc);
+                parse_or_skip_at_rule(str, _doc, codeBase, true, this);
             }
             else if ( *str == '}' && _nested ) {
                 // We're done parsing this nested CSS block
@@ -7781,9 +8032,11 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
             break;
         }
         if (err) {
-            // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly
+            // We may have stumbled on a @ rule (@namespace, @media...): parse or skip it properly.
+            // parseFontFace=false: this only gathers matching CSS text for display (e.g. a node
+            // style inspector) and must not register fonts as a side effect of that.
             if ( *str == '@' ) {
-                parse_or_skip_at_rule(str, _doc);
+                parse_or_skip_at_rule(str, _doc, lString32::empty_str, false);
             }
             else {
                 // ignore current rule: skip to block closing '}'
@@ -7826,6 +8079,15 @@ void LVStyleSheet::merge(const LVStyleSheet &other) {
         }
     }
     _selector_count += other._selector_count;
+    // Propagate @font-face declarations so they are preserved in cache entries
+    // up the @import chain and can be replayed for subsequent DocFragments --
+    // but only into a destination that actually tracks them (see
+    // _trackFontFaceDecls); merging into the live document stylesheet, which
+    // never gets cached, would just accumulate decls nothing ever reads.
+    if ( _trackFontFaceDecls ) {
+        for (int i = 0; i < other._fontFaceDecls.length(); i++)
+            _fontFaceDecls.add(other._fontFaceDecls[i]);
+    }
 }
 
 /// extract @import filename from beginning of CSS

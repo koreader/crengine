@@ -3943,6 +3943,7 @@ ldomDocument::ldomDocument()
 , _doc_pages(NULL)
 #endif
 , lists(100)
+, _parsingDocFragmentIdx(-1)
 {
     _docIndex = ldomNode::registerDocument(this);
     ldomNode* node = allocTinyElement(NULL, 0, 0);
@@ -3995,6 +3996,7 @@ ldomDocument::ldomDocument( ldomDocument & doc )
 #endif
 , _container(doc._container)
 , lists(100)
+, _parsingDocFragmentIdx(-1)
 {
     _docIndex = ldomNode::registerDocument(this);
 }
@@ -5017,10 +5019,24 @@ public:
         LVStyleSheet *cached = cache.get(cssFile);
         if (cached) {
             dest.merge(*cached);
+            // Replay @font-face registrations with the current DocFragment's index.
+            // On a cache miss the registrations happened directly during parsing;
+            // on a cache hit we must re-register so each DocFragment that links
+            // the same CSS file gets its own scoped copy of the font.
+            const LVArray<LVStyleSheet::LVFontFaceDecl> & decls = cached->getFontFaceDecls();
+            for (int i = 0; i < decls.length(); i++) {
+                _document->registerFontFace(decls[i].url, decls[i].face,
+                                            decls[i].weight, decls[i].italic,
+                                            decls[i].isLocal);
+            }
             return true;
         }
 
         LVStyleSheet *styleSheet = new LVStyleSheet(_document);
+        // This is the object that will be stored in StyleSheetCache below, so
+        // it (and anything merged into it from its own @import chain) needs
+        // to remember its @font-face decls for replay on future cache hits.
+        styleSheet->enableFontFaceDeclTracking();
         lString32 codeBase = cssFile;
         LVExtractLastPathElement(codeBase);
         LVContainerRef container = _document->getContainer();
@@ -9012,6 +9028,11 @@ bool ldomNode::applyNodeStylesheet()
 
     bool stylesheetChanged = false;
 
+    // Remember this DocFragment's index for the duration of CSS
+    // parsing, so registerFontFace() can scope @font-face rules to this DocFragment.
+    if ( getNodeId() == el_DocFragment )
+        getDocument()->setParsingDocFragmentIdx((int)getNodeIndex());
+
     if ( getNodeId() == el_DocFragment && hasAttribute(attr_StyleSheet) ) {
         getDocument()->_stylesheet.push();
         stylesheetChanged = getDocument()->parseStyleSheet(getAttributeValue(attr_StyleSheet));
@@ -9033,6 +9054,10 @@ bool ldomNode::applyNodeStylesheet()
             }
         }
     }
+
+    if ( getNodeId() == el_DocFragment )
+        getDocument()->setParsingDocFragmentIdx(-1);
+
     return stylesheetChanged;
 #endif
     return false;
@@ -18510,6 +18535,7 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
     LVArray<css_style_ref_t> * list = _styles.getIndex();
 
     _fontMap.clear(); // style index to font index
+    int currentDocFragmentIdx = -1; // tracked below as we cross DocFragment boundaries, in document order
 
     for ( int i=0; i<count; i++ ) {
         int offs = i*TNC_PART_LEN;
@@ -18521,13 +18547,21 @@ bool tinyNodeCollection::updateLoadedStyles( bool enabled )
         for ( int j=0; j<sz; j++ ) {
             buf[j].setDocumentIndex( _docIndex );
             if ( buf[j].isElement() ) {
+                // Each DocFragment may declare @font-face rules scoped to itself.
+                // Clear the style→font cache at each boundary so nodes in later
+                // DocFragments re-resolve against their own DocFragment's font scope
+                // rather than reusing a resolution from a prior DocFragment.
+                if ( buf[j].getNodeId() == el_DocFragment ) {
+                    _fontMap.clear();
+                    currentDocFragmentIdx = (int)buf[j].getNodeIndex();
+                }
                 lUInt16 style = getNodeStyleIndex( buf[j]._handle._dataIndex );
                 if ( enabled && style!=0 ) {
                     css_style_ref_t s = list->get( style );
                     if ( !s.isNull() ) {
                         lUInt16 fntIndex = _fontMap.get( style );
                         if ( fntIndex==0 ) {
-                            LVFontRef fnt = getFont(&buf[j], s.get(), getFontContextDocIndex());
+                            LVFontRef fnt = getFont(&buf[j], s.get(), getFontContextDocIndex(), currentDocFragmentIdx);
                             fntIndex = (lUInt16)_fonts.cache( fnt );
                             if ( fnt.isNull() ) {
                                 CRLog::error("font not found for style!");
@@ -20330,7 +20364,10 @@ static void updateStyleData( ldomNode * node )
 #endif
 
 #if BUILD_LITE!=1
-static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progressCallback, int & lastProgressPercent )
+// docFragmentIdx: the DocFragment sibling index `node` is nested under, tracked
+// down through the recursion as we go (rather than have initNodeFont() walk
+// back up the ancestor chain to re-discover it for every single node).
+static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progressCallback, int & lastProgressPercent, int docFragmentIdx )
 {
     if ( !node->isElement() )
         return;
@@ -20339,6 +20376,8 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
     // DocFragment (for epub) and body (for html) may hold some stylesheet
     // as first child or a link to stylesheet file in attribute
     if ( node->getNodeId()==el_DocFragment || node->getNodeId()==el_body ) {
+        if ( node->getNodeId()==el_DocFragment )
+            docFragmentIdx = (int)node->getNodeIndex();
         styleSheetChanged = node->applyNodeStylesheet();
         if ( styleSheetChanged ) {
             // For HTML files, if the parent of this <body> is a <html>,
@@ -20347,7 +20386,7 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
             // element, will be initNodeStyle()'ed just below.)
             ldomNode * parentNode = node->getParentNode();
             if ( parentNode->getNodeId() == el_html ) {
-                parentNode->initNodeStyle();
+                parentNode->initNodeStyle(docFragmentIdx);
             }
         }
         // We don't have access to much metric to show the progress of
@@ -20365,12 +20404,12 @@ static void updateStyleDataRecursive( ldomNode * node, LVDocViewCallback * progr
         }
     }
 
-    node->initNodeStyle();
+    node->initNodeStyle(docFragmentIdx);
     int n = node->getChildCount();
     for ( int i=0; i<n; i++ ) {
         ldomNode * child = node->getChildNode(i);
         if ( child->isElement() )
-            updateStyleDataRecursive( child, progressCallback, lastProgressPercent );
+            updateStyleDataRecursive( child, progressCallback, lastProgressPercent, docFragmentIdx );
     }
     if ( styleSheetChanged )
         node->getDocument()->getStyleSheet()->pop();
@@ -20383,7 +20422,7 @@ void ldomNode::initNodeStyleRecursive( LVDocViewCallback * progressCallback )
         progressCallback->OnNodeStylesUpdateStart();
     getDocument()->_fontMap.clear();
     int lastProgressPercent = -1;
-    updateStyleDataRecursive( this, progressCallback, lastProgressPercent );
+    updateStyleDataRecursive( this, progressCallback, lastProgressPercent, -1 );
     //recurseElements( updateStyleData );
     if (progressCallback)
         progressCallback->OnNodeStylesUpdateEnd();
@@ -20807,7 +20846,7 @@ void ldomNode::setStyle( css_style_ref_t & style )
     }
 }
 
-bool ldomNode::initNodeFont()
+bool ldomNode::initNodeFont(int docFragmentIdx)
 {
     if ( !isElement() )
         return false;
@@ -20820,7 +20859,7 @@ bool ldomNode::initNodeFont()
             CRLog::error("style not found for index %d", style);
             s = getDocument()->_styles.get( style );
         }
-        LVFontRef fnt = ::getFont(this, s.get(), getDocument()->getFontContextDocIndex());
+        LVFontRef fnt = ::getFont(this, s.get(), getDocument()->getFontContextDocIndex(), docFragmentIdx);
         fntIndex = (lUInt16)getDocument()->_fonts.cache( fnt );
         if ( fnt.isNull() ) {
             CRLog::error("font not found for style!");
@@ -20847,17 +20886,26 @@ bool ldomNode::initNodeFont()
     return true;
 }
 
-void ldomNode::initNodeStyle()
+void ldomNode::initNodeStyle(int docFragmentIdx)
 {
     // assume all parent styles already initialized
     if ( !getDocument()->isDefStyleSet() )
         return;
     if ( isElement() ) {
+        if ( getNodeId() == el_DocFragment ) {
+            // Style->font resolution is cached below (in initNodeFont()) keyed
+            // by style index only, not by DocFragment, so clear it at each
+            // DocFragment boundary: a style shared with a prior DocFragment must
+            // not reuse a font that was resolved under that other DocFragment's
+            // @font-face scope.
+            getDocument()->_fontMap.clear();
+        }
         if ( isRoot() || getParentNode()->isRoot() )
         {
             setNodeStyle( this,
                 getDocument()->getDefaultStyle(),
-                getDocument()->getDefaultFont()
+                getDocument()->getDefaultFont(),
+                docFragmentIdx
             );
         }
         else
@@ -20892,7 +20940,8 @@ void ldomNode::initNodeStyle()
 #endif
             setNodeStyle( this,
                 style,
-                font
+                font,
+                docFragmentIdx
                 );
 #if DEBUG_DOM_STORAGE==1
             if ( this->getStyle().isNull() ) {
@@ -21877,6 +21926,8 @@ LVImageSourceRef ldomNode::getObjectImageSource()
 }
 
 /// register embedded document fonts in font manager, if any exist in document
+/// note: currently only called from loadCacheFileContent(), to re-register fonts
+/// deserialized from the cache file's _fontList
 void ldomDocument::registerEmbeddedFonts()
 {
     if (_fontList.empty())
@@ -21897,8 +21948,9 @@ void ldomDocument::registerEmbeddedFonts()
         }
         if (item->getIsLocal()) {
             // @font-face { font-family: face; src: local("url"); }
-            // url names an already-installed system font; alias `face` to it.
-            if (!fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url))) {
+            // url names an already-installed system font; alias `face` to it,
+            // scoped to the DocFragment that originally declared it.
+            if (!fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url), item->getDocFragmentIdx())) {
                 //CRLog::error("Failed to find local font face: %s referenced by font-face %s", LCSTR(url), face.c_str());
             }
             continue;
@@ -21906,25 +21958,64 @@ void ldomDocument::registerEmbeddedFonts()
         if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
             // @font-face { font-family: face; src: url("res://...") or url("file://..."); }
             // url points to a font file outside the document container (e.g. a KOReader resource).
-            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+            if (!fontMan->RegisterExternalFont(getDocIndex(), item->getUrl(), item->getFace(), item->getWeight(), item->getItalic(), item->getDocFragmentIdx())) {
                 //CRLog::error("Failed to register external font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
             }
             continue;
         }
         // @font-face { font-family: face; src: url("fonts/foo.ttf"); }
         // url is a path relative to the document container (e.g. an EPUB-embedded font).
-        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getBold(), item->getItalic())) {
+        if (!fontMan->RegisterDocumentFont(getDocIndex(), _container, item->getUrl(), item->getFace(), item->getWeight(), item->getItalic(), item->getDocFragmentIdx())) {
             //CRLog::error("Failed to register document font face: %s file: %s", item->getFace().c_str(), LCSTR(item->getUrl()));
         }
     }
 }
-/// unregister embedded document fonts in font manager, if any exist in document
-void ldomDocument::unregisterEmbeddedFonts()
+
+/// Registers a font declared by a parsed @font-face CSS rule (called as a
+/// side-effect of CSS parsing, never from registerEmbeddedFonts()'s cache
+/// re-open path) and records it in _fontList for cache serialisation.
+/// The _fontList append only happens on successful registration, so that a
+/// duplicate @font-face rule (e.g. repeated inline <style> across spine
+/// items) is a cheap no-op rather than corrupting the serialised list.
+/// Registering here, immediately as each rule is parsed, is what lets a
+/// DocFragment's @font-face rules take effect before that same DocFragment's
+/// body is styled (parseStyleSheet runs right before body styling, per
+/// DocFragment). Without this, fonts would only become known to fontMan in a
+/// separate batch after all DocFragments were processed, so early fragments
+/// would style against an incomplete font registry and fall back to the
+/// default font -- the same bug class the old pre/post-scan + forceReinitStyles()
+/// design in epubfmt.cpp existed to paper over.
+bool ldomDocument::registerFontFace(lString32 url, lString8 face, int weight, bool italic, bool isLocal)
 {
-#if BUILD_LITE!=1
-    clearRendBlockCache();
-#endif
-    fontMan->UnregisterDocumentFonts(_docIndex);
+    if (url.empty() || face.empty())
+        return false;
+    int docFragIdx = _parsingDocFragmentIdx;
+    bool registered;
+    if (isLocal) {
+        // src: local() resolves to a system font alias. The resolved target
+        // (an installed system font) is always the same regardless of scope,
+        // but the alias *mapping* itself is fragment-scoped: two DocFragments
+        // may map the same family name to different local() targets, so
+        // docFragIdx is passed through rather than registering document-wide.
+        registered = fontMan->RegisterDocumentFontAlias(getDocIndex(), face, UnicodeToLocal(url), docFragIdx);
+    }
+    else if (url.startsWithNoCase(lString32("res://")) || url.startsWithNoCase(lString32("file://"))) {
+        registered = fontMan->RegisterExternalFont(getDocIndex(), url, face, weight, italic, docFragIdx);
+    }
+    else {
+        registered = fontMan->RegisterDocumentFont(getDocIndex(), _container, url, face, weight, italic, docFragIdx);
+    }
+    if (registered) {
+        _fontList.add(url, face, weight, italic, isLocal, docFragIdx);
+        // A node styled earlier in this same fresh parse may have already
+        // resolved (and cached in _fontMap, keyed by style index) a fallback
+        // font for a style referencing this family before it was registered.
+        // Drop the whole map so any such stale resolution is redone against
+        // the now-updated font registry -- see FONTFACE_PARSER_REFACTOR.md,
+        // "Bug found via runtime verification: stale font-resolution cache".
+        _fontMap.clear();
+    }
+    return registered;
 }
 
 /// returns object image stream

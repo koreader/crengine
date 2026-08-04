@@ -27,3 +27,5 @@ tests/font-manager-test.epub
 /node_modules/
 /package.json
 /package-lock.json
+tests/fontface-test.epub
+tests/fontface-import-precedence-test.epub

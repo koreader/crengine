@@ -1041,260 +1041,6 @@ LVStreamRef GetEpubCoverpage(LVContainerRef arc)
     return coverPageImageStream;
 }
 
-
-class EmbeddedFontStyleParser {
-    LVEmbeddedFontList & _fontList;
-    lString32 _basePath;
-    int _state;
-    lString8 _face;
-    bool _italic;
-    bool _bold;
-    bool _srcIsLocal;  // true while parsing a local(...) src value; false for url(...)
-    bool _urlIsLocal;  // true when _url for the current block came from local(...)
-    lString32 _url;
-public:
-    EmbeddedFontStyleParser(LVEmbeddedFontList & fontList) : _fontList(fontList) { }
-    void onToken(char token) {
-        // 4,5:  font-family:
-        // 6,7:  font-weight:
-        // 8,9:  font-style:
-        //10,11: src:
-        //   10   11    12   13
-        //   src   :   url    (
-        //CRLog::trace("state==%d: %c ", _state, token);
-        switch (token) {
-        case ':':
-            if (_state < 2) {
-                _state = 0;
-            } else if (_state == 4 || _state == 6 || _state == 8 || _state == 10) {
-                _state++;
-            } else if (_state != 3) {
-                _state = 2;
-            }
-            break;
-        case ';':
-            if (_state < 2) {
-                _state = 0;
-            } else if (_state != 3) {
-                _state = 2;
-            }
-            break;
-        case '{':
-            if (_state == 1) {
-                _state = 2; // inside @font {
-                _face.clear();
-                _italic = false;
-                _bold = false;
-                _srcIsLocal = false;
-                _urlIsLocal = false;
-                _url.clear();
-            } else
-                _state = 3; // inside other {
-            break;
-        case '}':
-            if (_state == 2) {
-                if (!_url.empty()) {
-//                    CRLog::trace("@font { face: %s; bold: %s; italic: %s; url: %s", _face.c_str(), _bold ? "yes" : "no",
-//                                 _italic ? "yes" : "no", LCSTR(_url));
-                    while (_fontList.findByUrl(_url))
-                        _url.append(lString32(" ")); //avoid add() replaces existing local name
-                    _fontList.add(_url, _face, _bold, _italic, _urlIsLocal);
-                }
-            }
-            _state = 0;
-            break;
-        case ',':
-            if (_state == 2) {
-                if (!_url.empty()) {
-                    while (_fontList.findByUrl(_url))
-                        _url.append(lString32(" "));
-                    _fontList.add(_url, _face, _bold, _italic, _urlIsLocal);
-                }
-                _state = 11;
-            }
-            break;
-        case '(':
-            if (_state == 12) {
-                _state = 13;
-            } else {
-                if (_state > 3)
-                    _state = 2;
-            }
-            break;
-        }
-    }
-    void onToken(lString8 & token) {
-        if (token.empty())
-            return;
-        lString8 t = token;
-        token.clear();
-        //CRLog::trace("state==%d: %s", _state, t.c_str());
-        if (t == "@font-face") {
-            if (_state == 0)
-                _state = 1; // right after @font
-            return;
-        }
-        if (_state == 1)
-            _state = 0;
-        if (_state == 2) {
-            if (t == "font-family")
-                _state = 4;
-            else if (t == "font-weight")
-                _state = 6;
-            else if (t == "font-style")
-                _state = 8;
-            else if (t == "src")
-                _state = 10;
-        } else if (_state == 5) {
-            _face = t;
-            _state = 2;
-        } else if (_state == 7) {
-            if (t == "bold")
-                _bold = true;
-            _state = 2;
-        } else if (_state == 9) {
-            if (t == "italic")
-                _italic = true;
-            else if (t == "oblique" || t.startsWith("oblique ") ) // oblique may be followed by angle values
-                _italic = true;
-            _state = 2;
-        } else if (_state == 11) {
-            if (t == "url") {
-                _state = 12;
-                _srcIsLocal = false;
-            } else if (t == "local") {
-                _state = 12;
-                _srcIsLocal = true;
-            } else
-                _state = 2;
-        }
-    }
-    void onQuotedText(lString8 & token) {
-        //CRLog::trace("state==%d: \"%s\"", _state, token.c_str());
-        if (_state == 11 || _state == 13) {
-            if (!token.empty()) {
-                if (_srcIsLocal) {
-                    // src: local(name) — _url holds the referenced font family
-                    // name, not a path.
-                    _urlIsLocal = true;
-                    _url = Utf8ToUnicode(token);
-                } else {
-                    lString32 ltoken = Utf8ToUnicode(token);
-                    if (ltoken.startsWithNoCase(lString32("res://")) || ltoken.startsWithNoCase(lString32("file://")) )
-                        _url = ltoken;
-                    else
-                        _url = LVCombinePaths(_basePath, ltoken);
-                }
-            }
-            _state = 2;
-        } else if (_state == 5) {
-            if (!token.empty()) {
-                _face = token;
-            }
-            _state = 2;
-        }
-        token.clear();
-    }
-    lString8 deletecomment(lString8 css) {
-        int state;
-        lString8 tmp=lString8("");
-        tmp.reserve( css.length() );
-        char c;
-        state = 0;
-        for (int i=0;i<css.length();i++) {
-            c=css[i];
-            if (state == 0 ) {
-                if (c == ('/'))           // ex. [/]
-                    state = 1;
-                else if (c == ('\'') )    // ex. [']
-                    state = 5;
-                else if (c == ('\"'))     // ex. ["]
-                    state = 7;
-            }
-            else if (state == 1 && c == ('*'))     // ex. [/*]
-                    state = 2;
-            else if (state == 1) {                // ex. [<secure/_stdio.h> or 5/3]
-                    tmp<<('/');
-                    if (c != ('/'))               // stay in state 1 if [//]
-                        state = 0;
-            }
-            else if (state == 2 && c == ('*'))    // ex. [/*he*]
-                    state = 3;
-            else if (state == 2)                // ex. [/*heh]
-                    state = 2;
-            else if (state == 3 && c == ('/'))    // ex. [/*heh*/]
-                    state = 0;
-            else if (state == 3 && c == ('*'))    // ex. [/*heh**]
-                    state = 3;
-            else if (state == 3)                // ex. [/*heh*e]
-                    state = 2;
-            /* Moved up for faster normal path:
-            else if (state == 0 && c == ('\'') )    // ex. [']
-                    state = 5;
-            */
-            else if (state == 5 && c == ('\\'))     // ex. ['\]
-                    state = 6;
-            else if (state == 6)                // ex. ['\n or '\' or '\t etc.]
-                    state = 5;
-            else if (state == 5 && c == ('\'') )   // ex. ['\n' or '\'' or '\t' ect.]
-                    state = 0;
-            /* Moved up for faster normal path:
-            else if (state == 0 && c == ('\"'))    // ex. ["]
-                    state = 7;
-            */
-            else if (state == 8)                // ex. ["\n or "\" or "\t ect.]
-                    state = 7;
-            else if (state == 7 && c == ('\"'))    // ex. ["\n" or "\"" or "\t" ect.]
-                    state = 0;
-            if ((state == 0 && c != ('/')) || state == 5 || state == 6 || state == 7 || state == 8)
-                    tmp<<c;
-        }
-        return tmp;
-    }
-    void parse(lString32 basePath, const lString8 & css) {
-        _state = 0;
-        _basePath = basePath;
-        lString8 token;
-        char insideQuotes = 0;
-        lString8 css_ = deletecomment(css);
-        for (int i=0; i<css_.length(); i++) {
-            char ch = css_[i];
-            if (insideQuotes) {
-                if (ch == insideQuotes) {
-                    onQuotedText(token);
-                    insideQuotes = 0;
-                } else {
-                    token << ch;
-                }
-                continue;
-            }
-            else if (_state == 13) {
-                if (ch == ')') {
-                    onQuotedText(token);
-                } else {
-                    if (token.empty() && (ch == '\'' || ch=='\"')) {
-                        insideQuotes = ch;
-                    } else if (ch != ' ') {
-                        token << ch;
-                    }
-                }
-                continue;
-            }
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
-                onToken(token);
-            } else if (ch == '@' || ch=='-' || ch=='_' || ch=='.' || (ch>='a' && ch <='z') || (ch>='A' && ch <='Z') || (ch>='0' && ch <='9')) {
-                token << ch;
-            } else if (ch == ':' || ch=='{' || ch == '}' || ch=='(' || ch == ')' || ch == ';' || ch == ',') {
-                onToken(token);
-                onToken(ch);
-            } else if (ch == '\'' || ch == '\"') {
-                onToken(token);
-                insideQuotes = ch;
-            }
-        }
-    }
-};
-
 bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCallback * progressCallback,
             CacheLoadingCallback * formatCallback, bool metadataOnly,
             const elem_def_t * node_scheme, const attr_def_t * attr_scheme, const ns_def_t * ns_scheme )
@@ -1344,9 +1090,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     lString32 pageMapHref; // epub2 Adobe page-map
     lString32 pageMapSource;
     lString32 coverId;
-
-    LVEmbeddedFontList fontList;
-    EmbeddedFontStyleParser styleParser(fontList);
 
     // Read OPF file
     {
@@ -1742,25 +1485,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     }
                 }
             }
-            if (metadataOnly) {
-                continue;
-            }
-            if (mediaType == "text/css") {
-                // Parse all CSS files to see if they specify some @font-face
-                lString32 name = LVCombinePaths(codeBase, href);
-                LVStreamRef cssStream = m_arc->OpenStream(name.c_str(), LVOM_READ);
-                if (!cssStream.isNull()) {
-                    lString8 cssFile = UnicodeToUtf8(LVReadTextFile(cssStream));
-                    lString32 base = name;
-                    LVExtractLastPathElement(base);
-                    //CRLog::trace("style: %s", cssFile.c_str());
-                    styleParser.parse(base, cssFile);
-                }
-                // Huge CSS files may take some time being parsed, so update progress
-                // after each one to get a chance of it being displayed at this point.
-                if ( progressCallback )
-                    progressCallback->OnLoadFileProgress(3);
-            }
         }
         CRLog::debug("opf: reading items done.");
 
@@ -1866,13 +1590,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
 #endif
     //m_doc->setCodeBase( codeBase );
 
-    int fontList_nb_before_head_parsing = fontList.length();
-    if (!fontList.empty()) {
-        // set document font list, and register fonts
-        m_doc->getEmbeddedFontList().set(fontList);
-        m_doc->registerEmbeddedFonts();
-    }
-
     // Build a single DOM from all the spine items (each contained in a <DocFragment> internal element)
     ldomDocumentFragmentWriter appender(&writer, cs32("body"), cs32("DocFragment"), lString32::empty_str );
     writer.OnStart(NULL);
@@ -1914,9 +1631,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 CRLog::debug("Checking fragment: %s", LCSTR(name));
                 LVStreamRef stream = m_arc->OpenStream(name.c_str(), LVOM_READ);
                 if ( !stream.isNull() ) {
-                    lString32 base = name;
-                    LVExtractLastPathElement(base);
-                    //CRLog::trace("base: %s", LCSTR(base));
                     LVHTMLParser parser(stream, &appender);
                     if ( parser.CheckFormat() && parser.Parse() && appender.hasMetBaseTag() ) {
                         // CheckFormat() is not perfect (the two bytes "ul" in some encrypted stream
@@ -1925,10 +1639,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                         // a <DocFragment> has been added into the DOM.
                         handled = true;
                         fragmentCount++;
-                        // We may also meet @font-face in the html <head><style>
-                        lString8 headCss = appender.getHeadStyleText();
-                        //CRLog::trace("style: %s", headCss.c_str());
-                        styleParser.parse(base, headCss);
                     }
                     if ( !handled && relaxed_spine ) {
                         // SVG are allowed in the <spine>
@@ -2157,19 +1867,6 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
     writer.OnTagClose(U"", U"body");
     writer.OnStop();
     CRLog::debug("EPUB: %d documents merged", fragmentCount);
-
-    if ( fontList.length() != fontList_nb_before_head_parsing ) {
-        // New fonts met when parsing <head><style> of some DocFragments
-        // Drop styles (before unregistering fonts, as they may reference them)
-        m_doc->forceReinitStyles();
-            // todo: we could avoid forceReinitStyles() when embedded fonts are disabled
-            // (but being here is quite rare - and having embedded font disabled even more)
-        m_doc->unregisterEmbeddedFonts();
-        // set document font list, and register fonts
-        m_doc->getEmbeddedFontList().set(fontList);
-        m_doc->registerEmbeddedFonts();
-        printf("CRE: document loaded, but styles re-init needed (cause: embedded fonts)\n");
-    }
 
     // fragmentCount is not fool proof, best to check if we really made
     // some DocFragments children of <RootNode><body>

@@ -1,0 +1,17 @@
+/* Demonstrates that @font-face is now parsed in style tweaks (koreader#10604),
+ * instead of being silently ignored.
+ *
+ * Style tweaks have no book container to resolve a relative `src: url(...)`
+ * against, so only `src: local(...)` (an already-installed/bundled font name)
+ * or an absolute `file://` URL will actually resolve here. This uses
+ * `local()` to alias a new family name to one of KOReader's bundled fonts,
+ * then applies that alias to the whole book so the effect is visible.
+ */
+@font-face {
+    font-family: "KOReader Tweak Demo Font";
+    src: local("Droid Sans Mono");
+}
+
+body {
+    font-family: "KOReader Tweak Demo Font" !important;
+}
