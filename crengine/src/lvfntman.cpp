@@ -5960,7 +5960,8 @@ public:
         LVFontAlias* target = nullptr;
         for (int i = _aliases.length() - 1; i >= 0; i--) {
             LVFontAlias* a = _aliases[i];
-            if (a->alias != alias || a->documentId != documentId || a->docFragmentIdxSet.empty()) continue;
+            if (a->alias != alias || a->documentId != documentId || a->docFragmentIdxSet.empty())
+                continue;
             if (a->canonical == canonical) {
                 target = a;
                 continue;
@@ -5988,18 +5989,23 @@ public:
         int docWideMatch = -1;
         int globalMatch = -1;
         for (int i = 0; i < _aliases.length(); i++) {
-            const LVFontAlias* a = _aliases[i];
-            if (a->alias != name) continue;
-            if (a->documentId == documentId) {
+            const LVFontAlias *a = _aliases[i];
+            if (a->alias != name)
+                continue;
+            if (a->documentId == documentId){
                 if (docFragmentIdx >= 0 && !a->docFragmentIdxSet.empty() && a->appliesToDocFragment(docFragmentIdx))
                     return a->canonical;
-                if (a->docFragmentIdxSet.empty() && docWideMatch < 0) docWideMatch = i;
-            } else if (a->documentId == -1 && a->docFragmentIdxSet.empty() && globalMatch < 0) {
+                if (a->docFragmentIdxSet.empty() && docWideMatch < 0)
+                    docWideMatch = i;
+            }
+            else if (a->documentId == -1 && a->docFragmentIdxSet.empty() && globalMatch < 0) {
                 globalMatch = i;
             }
         }
-        if (docWideMatch >= 0) return _aliases[docWideMatch]->canonical;
-        if (globalMatch >= 0) return _aliases[globalMatch]->canonical;
+        if (docWideMatch >= 0)
+            return _aliases[docWideMatch]->canonical;
+        if (globalMatch >= 0)
+            return _aliases[globalMatch]->canonical;
         return name;
     }
 
