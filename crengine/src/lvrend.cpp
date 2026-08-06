@@ -10153,7 +10153,7 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
     // or starts inside this page/screen: we may have inter body margins, or
     // some initial top margin above the first body.
     // We need to check there is really none to be able to draw on the whole buffer.
-    bool no_visible_previous_body = doc_y <= 0; // This body started before page top
+    const bool no_visible_previous_body = doc_y <= 0; // This body started before page top
     if ( !no_visible_previous_body ) {
         // Find previous body if any, to see if would have some part in this page
         // We expect either sibling BODY (FB2) or sibling DocFragement>BODY (EPUB)
@@ -10175,22 +10175,17 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
                 }
             }
         }
-        if ( !prevBody ) {
-            no_visible_previous_body = true;
-        }
-        else {
+        if ( prevBody ) {
             // Make out the doc_y this prev body would have
             lvRect prevrect;
             prevBody->getAbsRect(prevrect);
             lvRect thisrect;
             enode->getAbsRect(thisrect);
             int prev_bottom_doc_y = doc_y - thisrect.top + prevrect.bottom;
-            if ( prev_bottom_doc_y <= 0 ) { // previous body ends before this page
-                no_visible_previous_body = true;
-            }
-            else {
-                // There may be unused space between this prev body bottom and
-                // this body top, caused by collapsed body top/bottom margins.
+            if ( prev_bottom_doc_y > 0 ) {
+                // Previous body does not end before this page: there may be unused
+                // space between this prev body bottom and this body top, caused by
+                // collapsed body top/bottom margins.
                 // Make the boundary between backgrounds at the middle of this (round up)
                 bg_top = y0 + doc_y - (thisrect.top - prevrect.bottom)/2;
             }
@@ -10198,7 +10193,7 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
     }
     // Same checks as above, but for a next body below this one
     RenderRectAccessor fmt( enode );
-    bool no_visible_next_body = doc_y + fmt.getHeight() >= dy; // this body ends after page bottom
+    const bool no_visible_next_body = doc_y + fmt.getHeight() >= dy; // this body ends after page bottom
     if ( !no_visible_next_body ) {
         // Find next body
         ldomNode * nextBody = NULL;
@@ -10219,21 +10214,16 @@ void DrawBodyBackground( LVDrawBuf & drawbuf, bool draw_bg_color, bool draw_bg_i
                 }
             }
         }
-        if ( !nextBody ) {
-            no_visible_next_body = true;
-        }
-        else {
+        if ( nextBody ) {
             lvRect nextrect;
             nextBody->getAbsRect(nextrect);
             lvRect thisrect;
             enode->getAbsRect(thisrect);
             int next_top_doc_y = doc_y - thisrect.top + nextrect.top;
-            if ( next_top_doc_y >= dy ) { // next body starts after this page
-                no_visible_next_body = true;
-            }
-            else {
-                // There may be unused space between this next body top and
-                // this body bottom, caused by collapsed body top/bottom margins
+            if ( next_top_doc_y < dy ) {
+                // Next body starts on this page: There may be unused space
+                // between this next body top and this body bottom, caused by
+                // collapsed body top/bottom margins.
                 // Make the boundary between backgrounds at the middle of this (round down)
                 bg_bottom = y0 + doc_y + fmt.getHeight() + (nextrect.top - thisrect.bottom + 1)/2;
             }
