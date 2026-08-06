@@ -1709,7 +1709,7 @@ public:
         }
         str.trimDoubleSpaces(false, false, true);
         lChar32 singleChar = getSingleLineChar( str );
-        if ( singleChar!=0 && singleChar>='A' )
+        if ( singleChar>='A' )
             singleChar = 0;
         bool isHeader = singleChar!=0;
         if ( formatFlags & tftDoubleEmptyLineBeforeHeaders ) {

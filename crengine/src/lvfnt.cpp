@@ -190,7 +190,7 @@ lUInt16 lvfontMeasureText( const lvfont_handle pfont,
             break;
         if (flags[hwEnd-1]&LCHAR_ALLOW_WRAP_AFTER)
             break;
-        if (ch=='.' || ch==',' || ch=='!' || ch=='?' || ch=='?')
+        if (ch=='.' || ch==',' || ch=='!' || ch=='?')
             break;
 
     }
