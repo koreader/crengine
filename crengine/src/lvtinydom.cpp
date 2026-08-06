@@ -19903,7 +19903,7 @@ const lString32 & ldomNode::getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 i
 }
 
 /// returns all attribute values by attribute name id, looking at all children
-const void ldomNode::getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const
+void ldomNode::getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const
 {
     ASSERT_NODE_NOT_NULL;
     values.clear();
