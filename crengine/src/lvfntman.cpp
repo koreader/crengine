@@ -1743,7 +1743,7 @@ public:
         _BulletListItemFont = fontMan->GetFont(
             getSize(),
             400,  // regular weight   // bullets stays the regular weight and non-italic, even
-            0,    // no italic        // when their UL and LI are bold and/or italic
+            false,// no italic        // when their UL and LI are bold and/or italic
             getFontFamily(),
             preferred_bullet_fonts,   // We can provide a list, fontMan->GetFont() will split t and look for each
             0,    // no feature needed
@@ -5784,7 +5784,7 @@ public:
             }
             else {
                 ch = getHyphChar();
-                isHyphen = 0;
+                isHyphen = false;
             }
 
             LVFontGlyphCacheItem * item = getGlyph(ch, def_char);
