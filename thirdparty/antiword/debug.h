@@ -64,44 +64,44 @@
 
 #else
 
-#define DBG_MSG(t)		/* EMPTY */
-#define DBG_STRN(t,m)		/* EMPTY */
-#define DBG_CHR(m)		/* EMPTY */
-#define DBG_DEC(m)		/* EMPTY */
-#define DBG_HEX(m)		/* EMPTY */
-#define DBG_FLT(m)		/* EMPTY */
+#define DBG_MSG(t)		(void)(t)
+#define DBG_STRN(t,m)		((void)(t),(void)(m))
+#define DBG_CHR(m)		(void)(m)
+#define DBG_DEC(m)		(void)(m)
+#define DBG_HEX(m)		(void)(m)
+#define DBG_FLT(m)		(void)(m)
 
 #define DBG_FIXME()		/* EMPTY */
-#define DBG_PRINT_BLOCK(b,m)	/* EMPTY */
-#define DBG_UNICODE(t)		/* EMPTY */
-#define DBG_UNICODE_N(t,m)	/* EMPTY */
+#define DBG_PRINT_BLOCK(b,m)	((void)(b),(void)(m))
+#define DBG_UNICODE(t)		(void)(t)
+#define DBG_UNICODE_N(t,m)	((void)(t),(void)(m))
 
-#define DBG_MSG_C(c,t)		/* EMPTY */
-#define DBG_STRN_C(c,t,m)	/* EMPTY */
-#define DBG_CHR_C(c,m)		/* EMPTY */
-#define DBG_DEC_C(c,m)		/* EMPTY */
-#define DBG_HEX_C(c,m)		/* EMPTY */
-#define DBG_FLT_C(c,m)		/* EMPTY */
+#define DBG_MSG_C(c,t)		(void)((c) && (t))
+#define DBG_STRN_C(c,t,m)	(void)((c) && ((t),(m)))
+#define DBG_CHR_C(c,m)		(void)((c) && (m))
+#define DBG_DEC_C(c,m)		(void)((c) && (m))
+#define DBG_HEX_C(c,m)		(void)((c) && (m))
+#define DBG_FLT_C(c,m)		(void)((c) && (m))
 
 #endif /* DEBUG */
 
-#define NO_DBG_MSG(t)		/* EMPTY */
-#define NO_DBG_STRN(t,m)	/* EMPTY */
-#define NO_DBG_CHR(m)		/* EMPTY */
-#define NO_DBG_DEC(m)		/* EMPTY */
-#define NO_DBG_HEX(m)		/* EMPTY */
-#define NO_DBG_FLT(m)		/* EMPTY */
+#define NO_DBG_MSG(t)		(void)(t)
+#define NO_DBG_STRN(t,m)	((void)(t),(void)(m))
+#define NO_DBG_CHR(m)		(void)(m)
+#define NO_DBG_DEC(m)		(void)(m)
+#define NO_DBG_HEX(m)		(void)(m)
+#define NO_DBG_FLT(m)		(void)(m)
 
-#define NO_DBG_PRINT_BLOCK(b,m)	/* EMPTY */
-#define NO_DBG_UNICODE(t)	/* EMPTY */
-#define NO_DBG_UNICODE_N(t,m)	/* EMPTY */
+#define NO_DBG_PRINT_BLOCK(b,m)	((void)(b),(void)(m))
+#define NO_DBG_UNICODE(t)	(void)(t)
+#define NO_DBG_UNICODE_N(t,m)	((void)(t),(void)(m))
 
-#define NO_DBG_MSG_C(c,t)	/* EMPTY */
-#define NO_DBG_STRN_C(c,t,m)	/* EMPTY */
-#define NO_DBG_CHR_C(c,m)	/* EMPTY */
-#define NO_DBG_DEC_C(c,m)	/* EMPTY */
-#define NO_DBG_HEX_C(c,m)	/* EMPTY */
-#define NO_DBG_FLT_C(c,m)	/* EMPTY */
+#define NO_DBG_MSG_C(c,t)	(void)((c) && (t))
+#define NO_DBG_STRN_C(c,t,m)	(void)((c) && ((t),(m)))
+#define NO_DBG_CHR_C(c,m)	(void)((c) && (m))
+#define NO_DBG_DEC_C(c,m)	(void)((c) && (m))
+#define NO_DBG_HEX_C(c,m)	(void)((c) && (m))
+#define NO_DBG_FLT_C(c,m)	(void)((c) && (m))
 
 #if defined(TRACE)
 

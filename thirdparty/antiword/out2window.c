@@ -484,7 +484,6 @@ tComputeStringLengthMax(const char *szString, size_t tColumnWidthMax)
 	}
 
 	tLen = 0;
-	tWidth = 0;
 	for (;;) {
 		tLenPrev = tLen;
 		tLen += tGetCharacterLength(szString + tLen);
