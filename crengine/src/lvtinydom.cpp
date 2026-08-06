@@ -1764,7 +1764,6 @@ LVStreamRef ldomBlobCache::getBlob( lString32 name )
     return LVStreamRef();
 }
 
-#if BUILD_LITE!=1
 //#define DEBUG_RENDER_RECT_ACCESS
 #ifdef DEBUG_RENDER_RECT_ACCESS
   static signed char render_rect_flags[200000]={0};
@@ -2309,8 +2308,6 @@ void RenderRectAccessor::setInvolvedFloatIds( int float_count, const lUInt32 * f
     if (float_count > 4) _extra5 = float_ids[4];
     _modified = true;
 }
-
-#endif
 
 
 class ldomPersistentText;
