@@ -661,7 +661,7 @@ static lString32 decodeText(lString8 text) {
     return Utf8ToUnicode(buf);
 }
 
-static int findBytes(lChar8 * buf, int start, int end, const lChar8 * pattern) {
+static int findBytes(const lChar8 * buf, int start, int end, const lChar8 * pattern) {
     int len = lStr_len(pattern);
     for (int i = start; i <= end - len; i++) {
         int j = 0;

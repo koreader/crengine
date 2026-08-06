@@ -2292,7 +2292,7 @@ void RenderRectAccessor::getInvolvedFloatIds( int & float_count, lUInt32 * float
     if (float_count > 3) float_ids[3] = _extra4;
     if (float_count > 4) float_ids[4] = _extra5;
 }
-void RenderRectAccessor::setInvolvedFloatIds( int float_count, lUInt32 * float_ids )
+void RenderRectAccessor::setInvolvedFloatIds( int float_count, const lUInt32 * float_ids )
 {
     if ( _dirty ) {
         _dirty = false;

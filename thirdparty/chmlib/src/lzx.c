@@ -345,7 +345,7 @@ int LZXreset(struct LZXstate *pState)
  * Returns 0 for OK or 1 for error
  */
 
-static int make_decode_table(ULONG nsyms, ULONG nbits, UBYTE *length, UWORD *table) {
+static int make_decode_table(ULONG nsyms, ULONG nbits, const UBYTE *length, UWORD *table) {
     register UWORD sym;
     register ULONG leaf;
     register UBYTE bit_num = 1;

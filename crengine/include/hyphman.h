@@ -51,7 +51,7 @@ public:
         , _right_hyphen_min(rightHyphenMin)
         { }
     lString32 getId() { return _id; }
-    virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 ) = 0;
+    virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 ) = 0;
     virtual ~HyphMethod() { }
     virtual lUInt32 getCount() { return 0; }
     virtual lUInt32 getSize() { return 0; }
@@ -162,7 +162,7 @@ public:
     HyphMan();
     ~HyphMan();
 
-    static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 );
+    static bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 );
     /* Obsolete:
     inline static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize=1 )
     {
@@ -202,7 +202,7 @@ public:
 
     static inline lUInt32 getHash() { return _hash_value; };
 
-    static bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
+    static bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     static lString32 getHyphenation(const char *word);
 };
 

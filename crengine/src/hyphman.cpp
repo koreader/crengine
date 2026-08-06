@@ -70,7 +70,7 @@ class TexHyph : public HyphMethod
 public:
     int largest_overflowed_word;
     bool match( const lChar32 * str, char * mask );
-    virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
+    virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     void addPattern( TexPattern * pattern );
     void checkForModifiers( lString32 str );
     TexHyph( lString32 id=HYPH_DICT_ID_DICTIONARY, int leftHyphenMin=HYPHMETHOD_DEFAULT_HYPHEN_MIN, int rightHyphenMin=HYPHMETHOD_DEFAULT_HYPHEN_MIN );
@@ -86,7 +86,7 @@ class AlgoHyph : public HyphMethod
 {
 public:
     AlgoHyph(): HyphMethod(HYPH_DICT_ID_ALGORITHM) {};
-    virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
+    virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     virtual ~AlgoHyph();
 };
 
@@ -94,7 +94,7 @@ class SoftHyphensHyph : public HyphMethod
 {
 public:
     SoftHyphensHyph(): HyphMethod(HYPH_DICT_ID_SOFTHYPHENS) {};
-    virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
+    virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     virtual ~SoftHyphensHyph();
 };
 
@@ -102,7 +102,7 @@ class NoHyph : public HyphMethod
 {
 public:
     NoHyph(): HyphMethod(HYPH_DICT_ID_NONE) {};
-    virtual bool hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+    virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
     {
         CR_UNUSED6(str, len, widths, flags, hyphCharWidth, maxWidth);
         return false;
@@ -237,7 +237,7 @@ bool HyphMan::isEnabled() {
     */
 }
 
-bool HyphMan::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+bool HyphMan::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     return TextLangMan::getMainLangHyphMethod()->hyphenate( str, len, widths, flags, hyphCharWidth, maxWidth, flagSize );
     /* Obsolete:
@@ -453,7 +453,7 @@ HyphMan::~HyphMan()
 // and AlgoHyph::hyphenate(): if soft hyphens are found in the
 // provided word, trust and use them; don't do the regular patterns
 // and algorithm matching.
-static bool softhyphens_hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+static bool softhyphens_hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     bool soft_hyphens_found = false;
     for ( int i = 0; i<len; i++ ) {
@@ -473,7 +473,7 @@ static bool softhyphens_hyphenate( const lChar32 * str, int len, lUInt16 * width
     return soft_hyphens_found;
 }
 
-bool SoftHyphensHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+bool SoftHyphensHyph::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( UserHyphDict::hasWords() ) {
         if ( UserHyphDict::hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
@@ -931,7 +931,7 @@ bool TexHyph::match( const lChar32 * str, char * mask )
 //    return true;
 //}
 
-bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+bool TexHyph::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( UserHyphDict::hasWords() ) {
         if ( UserHyphDict::hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
@@ -1070,7 +1070,7 @@ bool TexHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 
     return res;
 }
 
-bool AlgoHyph::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+bool AlgoHyph::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( UserHyphDict::hasWords() ) {
         if ( UserHyphDict::hyphenate(str, len, widths, flags, hyphCharWidth, maxWidth, flagSize) )
@@ -1492,7 +1492,7 @@ lString32 UserHyphDict::getHyphenation(const char *word)
     return hyphenation;
 }
 
-bool UserHyphDict::hyphenate( const lChar32 * str, int len, lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
+bool UserHyphDict::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize )
 {
     if ( !UserHyphDict::hasWords() ) {
         return false;
