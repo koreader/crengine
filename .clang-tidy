@@ -20,6 +20,7 @@ Checks: >
   clang-analyzer-unix.MallocSizeof,
   clang-analyzer-unix.MismatchedDeallocator,
   clang-analyzer-unix.StdCLibraryFunctions,
+  -clang-diagnostic-vla-cxx-extension,
   misc-redundant-expression,
   misc-static-assert,
   readability-duplicate-include,
