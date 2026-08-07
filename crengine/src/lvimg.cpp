@@ -1048,7 +1048,7 @@ public:
     LVGifImageSource();
     virtual ~LVGifImageSource();
     void Clear();
-    const int GetColorTableColorCount() {
+    int GetColorTableColorCount() {
         if (m_flg_gtc)
             return m_global_color_table_color_count;
         else
@@ -1091,7 +1091,7 @@ public:
     LVGifFrame(LVGifImageSource * pImage);
     ~LVGifFrame();
     void Clear();
-    const int GetColorTableColorCount() {
+    int GetColorTableColorCount() {
         if (m_flg_ltc)
             return m_local_color_table_color_count;
         else

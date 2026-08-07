@@ -721,7 +721,7 @@ public:
         if ( !hdr.read(stream) )
             return false;
         if ( hdr.recordCount==0 )
-            return 0;
+            return false;
 
         if ( hdr.checkType("TEXt") && hdr.checkCreator("REAd") )
             _format = PALMDOC;

@@ -1709,7 +1709,7 @@ public:
         }
         str.trimDoubleSpaces(false, false, true);
         lChar32 singleChar = getSingleLineChar( str );
-        if ( singleChar!=0 && singleChar>='A' )
+        if ( singleChar>='A' )
             singleChar = 0;
         bool isHeader = singleChar!=0;
         if ( formatFlags & tftDoubleEmptyLineBeforeHeaders ) {
@@ -5928,7 +5928,6 @@ end_of_node:
 
             m_txt_buf.erase(0, last_split_txtlen);
             tlen = m_txt_buf.length();
-            last_split_txtlen = 0;
 
             //=====================================================
             if (flgBreak) {

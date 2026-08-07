@@ -565,7 +565,7 @@ vGet6Stylesheet(FILE *pFile, ULONG ulStartBlock,
 						aucBuffer + tOffset + tPos + 2,
 						(int)tUpxLen, pFont);
 				NO_DBG_DEC(pFont->usFontSize);
-				NO_DBG_DEC(pFont->ucFontcolor);
+				NO_DBG_DEC(pFont->ucFontColor);
 				NO_DBG_HEX(pFont->usFontStyle);
 			}
 		}
@@ -768,7 +768,7 @@ vGet8Stylesheet(FILE *pFile, const pps_info_type *pPPS,
 						aucBuffer + tOffset + tPos + 2,
 						(int)tUpxLen, pFont);
 				NO_DBG_DEC(pFont->usFontSize);
-				NO_DBG_DEC(pFont->ucFontcolor);
+				NO_DBG_DEC(pFont->ucFontColor);
 				NO_DBG_HEX(pFont->usFontStyle);
 			}
 		}

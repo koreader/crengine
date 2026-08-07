@@ -124,6 +124,7 @@ xstrdup(const char *szArg)
  * returns NULL;
  * This makes p=xfree(p) possible, free memory and overwrite the pointer to it.
  */
+#undef xfree
 void *
 xfree(void *pvArg)
 {

@@ -7059,7 +7059,7 @@ bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, ch
             parse_trailing_i = false;
             if (end_pos == 0) // Empty value, or some leading space: this is invalid
                 return false;
-            if (str[pos] && str[pos]==' ' && str[pos+1] && (str[pos+1]=='i' || str[pos+1]=='I')) {
+            if (str[pos]==' ' && str[pos+1] && (str[pos+1]=='i' || str[pos+1]=='I')) {
                 parse_trailing_i = true;
                 pos+=2;
             }

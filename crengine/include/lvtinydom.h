@@ -865,7 +865,7 @@ public:
     void getNextFloatMinYs( int & left, int & right );
     void setNextFloatMinYs( int left, int right );
     void getInvolvedFloatIds( int & float_count, lUInt32 * float_ids );
-    void setInvolvedFloatIds( int float_count, lUInt32 * float_ids );
+    void setInvolvedFloatIds( int float_count, const lUInt32 * float_ids );
 
     void push();
     void clear();
@@ -1155,8 +1155,8 @@ public:
     const lString32 & getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 id ) const;
     const lString32 & getFirstInnerAttributeValue( lUInt16 id ) const { return getFirstInnerAttributeValue( LXML_NS_ANY, id ); }
     /// returns all attribute values by attribute name id, looking at all children
-    const void getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const;
-    const void getAllInnerAttributeValues( lUInt16 id, lString32Collection & values ) const {
+    void getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const;
+    void getAllInnerAttributeValues( lUInt16 id, lString32Collection & values ) const {
         return getAllInnerAttributeValues( LXML_NS_ANY, id, values );
     }
 

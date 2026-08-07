@@ -1764,7 +1764,6 @@ LVStreamRef ldomBlobCache::getBlob( lString32 name )
     return LVStreamRef();
 }
 
-#if BUILD_LITE!=1
 //#define DEBUG_RENDER_RECT_ACCESS
 #ifdef DEBUG_RENDER_RECT_ACCESS
   static signed char render_rect_flags[200000]={0};
@@ -2292,7 +2291,7 @@ void RenderRectAccessor::getInvolvedFloatIds( int & float_count, lUInt32 * float
     if (float_count > 3) float_ids[3] = _extra4;
     if (float_count > 4) float_ids[4] = _extra5;
 }
-void RenderRectAccessor::setInvolvedFloatIds( int float_count, lUInt32 * float_ids )
+void RenderRectAccessor::setInvolvedFloatIds( int float_count, const lUInt32 * float_ids )
 {
     if ( _dirty ) {
         _dirty = false;
@@ -2309,8 +2308,6 @@ void RenderRectAccessor::setInvolvedFloatIds( int float_count, lUInt32 * float_i
     if (float_count > 4) _extra5 = float_ids[4];
     _modified = true;
 }
-
-#endif
 
 
 class ldomPersistentText;
@@ -19903,7 +19900,7 @@ const lString32 & ldomNode::getFirstInnerAttributeValue( lUInt16 nsid, lUInt16 i
 }
 
 /// returns all attribute values by attribute name id, looking at all children
-const void ldomNode::getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const
+void ldomNode::getAllInnerAttributeValues( lUInt16 nsid, lUInt16 id, lString32Collection & values ) const
 {
     ASSERT_NODE_NOT_NULL;
     values.clear();

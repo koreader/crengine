@@ -724,6 +724,7 @@ extern void	*xcalloc(size_t, size_t);
 extern void 	*xrealloc(void *, size_t);
 extern char	*xstrdup(const char *);
 extern void 	*xfree(void *);
+#define xfree(P) (xfree(P), NULL)
 /* xml.c */
 extern void	vCreateBookIntro(diagram_type *, int);
 extern void	vPrologueXML(diagram_type *, const options_type *);

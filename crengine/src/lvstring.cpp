@@ -15,6 +15,7 @@
 
 #include "../include/lvstring.h"
 #include <assert.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -5293,12 +5294,16 @@ public:
         "DEBUG",
         "TRACE",
         };
+        if (!f) {
+            fprintf(stderr, "fopen(%s): %s\n", fname, strerror(errno));
+            f = stderr;
+        }
         fwrite( utf8sign, 3, 1, f);
         info( "Started logging. Level=%s", log_level_names[getLogLevel()] );
     }
 
     virtual ~CRFileLogger() {
-        if ( f && autoClose ) {
+        if ( f && autoClose && f != stderr ) {
             info( "Stopped logging" );
             fclose( f );
         }

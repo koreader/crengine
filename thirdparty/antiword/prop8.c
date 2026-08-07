@@ -120,9 +120,9 @@ vGet8DopInfo(FILE *pFile, const pps_type *pTable,
 	fail(aulBBD == NULL || aulSBD == NULL);
 
 	ulBeginDocpInfo = ulGetLong(0x192, aucHeader); /* fcDop */
-	NO_DBG_HEX(ulBeginSectInfo);
+	NO_DBG_HEX(ulBeginDocpInfo);
 	tDocpInfoLen = (size_t)ulGetLong(0x196, aucHeader); /* lcbDop */
-	NO_DBG_DEC(tSectInfoLen);
+	NO_DBG_DEC(tDocpInfoLen);
 	if (tDocpInfoLen < 28) {
 		DBG_MSG("No Document information");
 		return;
@@ -518,6 +518,9 @@ eGet8RowInfo(int iFodo,
 	if (bFound2416_0 || bFound244b_0) {
 		return found_not_a_cell;
 	}
+	// Silence clang-tidy warnings (clang-analyzer-deadcode.DeadStores).
+	(void)bFound244c_0;
+	(void)bFound244c_1;
 	return found_nothing;
 } /* end of eGet8RowInfo */
 
