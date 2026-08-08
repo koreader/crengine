@@ -3811,6 +3811,11 @@ lxmlDocBase::lxmlDocBase( int /*dataBufSize*/ )
 {
     // create and add one data buffer
     _ua_stylesheet.setDocument( this );
+    // Style tweaks are reparsed into this live stylesheet at runtime, and a
+    // tweak's @font-face rule (eg. a changed src: local() target) must be
+    // able to invalidate the render-context hash -- see getHash() and
+    // _trackFontFaceDecls in lvstsheet.h.
+    _ua_stylesheet.enableFontFaceDeclTracking();
     _stylesheet.setDocument( this );
 }
 
