@@ -7863,8 +7863,7 @@ lUInt32 LVStyleSheet::getHash() const
     // Only non-empty when this instance opted into tracking (see
     // _trackFontFaceDecls): folds @font-face state (notably src: local()
     // targets, which don't otherwise appear in any selector/declaration)
-    // into the hash, so callers relying on getHash() to detect a
-    // rendering-relevant change (eg. checkRenderContext()) see one.
+    // into the hash.
     for ( int i=0; i<_fontFaceDecls.length(); i++ ) {
         const LVFontFaceDecl & d = _fontFaceDecls[i];
         lUInt32 declHash = d.url.getHash();

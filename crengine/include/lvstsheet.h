@@ -307,8 +307,9 @@ private:
     //   invisible to the render-context hash used to decide whether a
     //   reformat is needed.
     // Any other LVStyleSheet (author stylesheet merge destinations, nested
-    // at-rule scratch sheets, etc) never gets cached or hashed for this
-    // purpose, so isn't worth recording into.
+    // at-rule scratch sheets, etc) is never used as a cache key or fed into
+    // getHash(), so nothing would ever read decls recorded into it; leaving
+    // tracking off avoids accumulating decls nobody consumes.
     bool _trackFontFaceDecls = false;
 
 public:
