@@ -303,9 +303,6 @@ private:
     //   reusing the same file;
     // - the document's live stylesheet (_ua_stylesheet) needs them so that
     //   getHash() changes when a style tweak's @font-face rule changes
-    //   (e.g. a different src: local() target), which is otherwise
-    //   invisible to the render-context hash used to decide whether a
-    //   reformat is needed.
     // Any other LVStyleSheet (author stylesheet merge destinations, nested
     // at-rule scratch sheets, etc) is never used as a cache key or fed into
     // getHash(), so nothing would ever read decls recorded into it; leaving
