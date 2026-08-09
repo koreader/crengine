@@ -3811,6 +3811,8 @@ lxmlDocBase::lxmlDocBase( int /*dataBufSize*/ )
 {
     // create and add one data buffer
     _ua_stylesheet.setDocument( this );
+    // Style tweaks may contain @font-face rule, be sure we notice any change
+    _ua_stylesheet.enableFontFaceDeclTracking();
     _stylesheet.setDocument( this );
 }
 

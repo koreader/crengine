@@ -7684,6 +7684,8 @@ void LVStyleSheet::set(LVPtrVector<LVCssSelector> & v  )
 LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
 :   _doc( sheet._doc )
 ,   _nested( sheet._nested )
+,   _fontFaceDecls( sheet._fontFaceDecls )
+,   _trackFontFaceDecls( sheet._trackFontFaceDecls )
 {
     set( sheet._selectors );
     _selector_count = sheet._selector_count;
@@ -7857,6 +7859,19 @@ lUInt32 LVStyleSheet::getHash() const
     for ( int i=0; i<_selectors.length(); i++ ) {
         if ( _selectors[i] )
             hash = hash * 31 + _selectors[i]->getHash() + i*15324;
+    }
+    // Only non-empty when this instance opted into tracking (see
+    // _trackFontFaceDecls): folds @font-face state (notably src: local()
+    // targets, which don't otherwise appear in any selector/declaration)
+    // into the hash.
+    for ( int i=0; i<_fontFaceDecls.length(); i++ ) {
+        const LVFontFaceDecl & d = _fontFaceDecls[i];
+        lUInt32 declHash = d.url.getHash();
+        declHash = declHash * 31 + d.face.getHash();
+        declHash = declHash * 31 + (lUInt32)d.weight;
+        declHash = declHash * 31 + (lUInt32)d.italic;
+        declHash = declHash * 31 + (lUInt32)d.isLocal;
+        hash = hash * 31 + declHash + i*7919;
     }
     return hash;
 }

@@ -295,12 +295,18 @@ private:
     void set(LVPtrVector<LVCssSelector> & v );
 
     LVArray<LVFontFaceDecl> _fontFaceDecls;
-    // Off by default: only the per-file LVStyleSheet objects that
-    // LVImportStylesheetParser builds for StyleSheetCache need to remember
-    // their @font-face decls (to replay registrations on a cache hit for a
-    // later DocFragment reusing the same file). The document's live
-    // stylesheet, and any other LVStyleSheet, never gets cached and so
-    // never has its decls read back -- don't bother recording them there.
+    // Off by default. Two distinct consumers opt a given LVStyleSheet
+    // instance in:
+    // - the per-file LVStyleSheet objects that LVImportStylesheetParser
+    //   builds for StyleSheetCache need to remember their @font-face decls
+    //   to replay registrations on a cache hit for a later DocFragment
+    //   reusing the same file;
+    // - the document's live stylesheet (_ua_stylesheet) needs them so that
+    //   getHash() changes when a style tweak's @font-face rule changes
+    // Any other LVStyleSheet (author stylesheet merge destinations, nested
+    // at-rule scratch sheets, etc) is never used as a cache key or fed into
+    // getHash(), so nothing would ever read decls recorded into it; leaving
+    // tracking off avoids accumulating decls nobody consumes.
     bool _trackFontFaceDecls = false;
 
 public:
@@ -345,6 +351,7 @@ public:
         _selector_count_stack.clear();
         _selectors.clear();
         _stack.clear();
+        _fontFaceDecls.clear();
     }
     /// set document to retrieve ID values from
     void setDocument( lxmlDocBase * doc ) { _doc = doc; }
