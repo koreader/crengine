@@ -2947,9 +2947,10 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
         //     https://wiki.mozilla.org/SVG:Sizing
         //     https://docs.google.com/presentation/d/1POUiroOBbLmXYlQKf0pIR8zVkHWH9jRVN-w8A4aNsIk/
         //     https://oreillymedia.github.io/Using_SVG/guide/units.html
-        //   ie. <svg width="100%" height="100%" viewBox="0 0 509 800" preserveAspectRatio="xMidYMid meet">
-        //   SVG wrappers for cover images use width="100%" and height="100%"
-        //   So, assume the % to be relative to the container width and the page height
+        //   We still resolve a % width against the known container width, as that gives
+        //   sensible results for the common wrappers like:
+        //     <svg width="100%" height="100%" viewBox="0 0 509 800" ...>
+        //   But for height we only resolve % when we have a definite container height.
         lString32 at_width = enode->getAttributeValue(attr_width);
         if ( !at_width.empty() ) {
             lString8 s8 = UnicodeToUtf8(at_width);
@@ -2968,8 +2969,20 @@ bool getStyledImageSize( ldomNode * enode, int & img_width, int & img_height, in
             css_length_t svg_h;
             if ( parse_number_value(s, svg_h) ) {
                 if ( svg_h.type == css_val_percent ) {
-                    int ref_height = enode->getDocument()->getPageHeight() - enode->getSurroundingAddedHeight(true);
-                    height = lengthToPx(enode, svg_h, ref_height);
+                    if ( container_height >= 0 ) {
+                        height = lengthToPx(enode, svg_h, container_height);
+                    }
+                    // We used to have:
+                    //  int ref_height = enode->getDocument()->getPageHeight() - enode->getSurroundingAddedHeight(true);
+                    //  height = lengthToPx(enode, svg_h, ref_height);
+                    // to treat height="100%" as "page height", but this makes
+                    // inline or inline-block SVG wrappers spuriously page-tall.
+                    // But it seems we can just leave it unset: the generic used-value
+                    // sizing code below will derive the missing height from the
+                    // resolved width and the SVG intrinsic aspect ratio.
+                    // Then, when formatted by lvtextfm.cpp, it may be scaled down
+                    // further so the final rendered height, plus surrounding
+                    // margins/borders/padding, does not overflow the page height.
                 }
                 else if ( is_length_relative_unit(svg_h) ) {
                     height = lengthToPx(enode, svg_h, 0);
