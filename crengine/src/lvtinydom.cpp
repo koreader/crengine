@@ -19,7 +19,7 @@
 // Users of this library can request the old behaviour by setting
 // gDOMVersionRequested to an older version to request the old (possibly
 // buggy) behaviour.
-#define DOM_VERSION_CURRENT 20240114
+#define DOM_VERSION_CURRENT 20260812
 
 // Also defined in include/lvtinydom.h
 #define DOM_VERSION_WITH_NORMALIZED_XPOINTERS 20200223
@@ -88,6 +88,10 @@
 // EPUB <spine>, and not only those with media-type="application/xhtml+xml".
 // This means we can insert <DocFragment> in the DOM that wouldn't be here
 // before, and risk DocFragment[index] in xpointers to get the index shifted.
+//
+// 20260812: XPointers serialized by toStringV2() now always emit an
+// explicit [1] for the first sibling element of its kind. This avoids
+// costly forward sibling scans.
 
 #include "crsetup.h"
 
@@ -11604,10 +11608,15 @@ lString32 ldomXPointer::toStringV2()
             lString32 name = p->getNodeName();
             if ( !parent )
                 return "/" + name + path;
+            // The following "cosmetic" xpointer string tweak could be costly
+            // in some cases. Do it only when an older dom_version is requested
+            // (= previously opened books, as frontend may rely on raw string
+            // equality with saved annotations).
+            bool explicitFirstIndex = getDocument()->getDOMVersionRequested() >= 20260812;
             int count = 0;
             ldomNodeIdPredicate predicat(p->getNodeId());
             int index = getElementIndex(parent, p, predicat, count);
-            if ( count == 1 ) {
+            if ( !explicitFirstIndex && count == 1 ) {
                 // We're first, but see if we have following siblings with the
                 // same element name, so we can have "div[1]" instead of "div"
                 // when parent has more than one of it (as toStringV1 does).
@@ -11619,7 +11628,7 @@ lString32 ldomXPointer::toStringV2()
                     }
                 }
             }
-            if ( count>1 )
+            if ( explicitFirstIndex || count>1 )
                 path = cs32("/") + name + "[" + fmt::decimal(index) + "]" + path;
             else
                 path = cs32("/") + name + path;
@@ -11627,9 +11636,10 @@ lString32 ldomXPointer::toStringV2()
             // text
             if ( !parent )
                 return cs32("/text()") + path;
+            bool explicitFirstIndex = getDocument()->getDOMVersionRequested() >= 20260812;
             int count = 0;
             int index = getElementIndex(parent, p, isTextNode, count);
-            if ( count == 1 ) {
+            if ( !explicitFirstIndex && count == 1 ) {
                 // We're first, but see if we have following text siblings,
                 // so we can have "text()[1]" instead of "text()" when
                 // parent has more than one text node (as toStringV1 does).
@@ -11641,7 +11651,7 @@ lString32 ldomXPointer::toStringV2()
                     }
                 }
             }
-            if ( count>1 )
+            if ( explicitFirstIndex || count>1 )
                 path = cs32("/text()") + "[" + fmt::decimal(index) + "]" + path;
             else
                 path = "/text()" + path;
