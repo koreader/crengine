@@ -968,6 +968,7 @@ private:
     void autoboxChildren( int startIndex, int endIndex, bool handleFloating=false );
     void removeChildren( int startIndex, int endIndex );
     bool cleanIfOnlyEmptyTextInline( bool handleFloating=false );
+    bool removeStandaloneWhitespaceTextChildrenInMixedContent( bool handleFloating=false );
     /// returns true if element has inline content (non empty text, images, <BR>)
     bool hasNonEmptyInlineContent( bool ignoreFloats=false );
 
