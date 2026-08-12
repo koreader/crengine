@@ -3271,7 +3271,7 @@ lString32 extractDocSeriesAndNumber( ldomDocument * doc, lString32 & seriesNumbe
 lString32 extractDocKeywords( ldomDocument * doc );
 lString32 extractDocDescription( ldomDocument * doc );
 
-bool IsEmptySpace( const lChar32 * text, int len );
+
 
 /// parse XML document from stream, returns NULL if failed
 ldomDocument * LVParseXMLStream( LVStreamRef stream,
