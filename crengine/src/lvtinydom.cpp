@@ -4359,7 +4359,8 @@ static void writeSVGNode( LVStream * stream, ldomNode * node, bool forward_node_
 static void addAtImportCssFiles(ldomDocument * document, lString32 cssFile, lString32Collection & cssFiles); // defined just below writeNodeEx()
 
 static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection & cssFiles, LVStream * extra_stream, int wflags=0,
-    ldomXPointerEx startXP=ldomXPointerEx(), ldomXPointerEx endXP=ldomXPointerEx(), int indentBaseLevel=-1)
+    ldomXPointerEx startXP=ldomXPointerEx(), ldomXPointerEx endXP=ldomXPointerEx(), int indentBaseLevel=-1,
+    ldomXPointerEx * currentXP=NULL, const ldomXPointerEx * startNodeXP=NULL, const ldomXPointerEx * endNodeXP=NULL)
 {
     bool isStartNode = false;
     bool isEndNode = false;
@@ -4367,48 +4368,46 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
     bool isBeforeEnd = false;
     bool containsStart = false;
     bool containsEnd = false;
+    // We used to recompute ldomXPointerEx(node, 0) at each recursive
+    // step, but that can be expensive on huge flat DOMs because it has
+    // to rebuild the node path from parent/sibling indexes. It is
+    // cheaper to compute the initial xpointer once, then update it
+    // while descending/ascending recursion. These locals back the
+    // optional XPointer parameters during that recursion.
+    ldomXPointerEx currentXPBacking;
+    ldomXPointerEx startNodeXPBacking;
+    ldomXPointerEx endNodeXPBacking;
 
     if ( !startXP.isNull() && !endXP.isNull() ) {
-        ldomXPointerEx currentEXP = ldomXPointerEx(node, 0);
-        // Use start (offset=0) of text node for comparisons, but keep original XPointers
-        ldomXPointerEx startEXP = ldomXPointerEx( startXP );
-        startEXP.setOffset(0);
-        ldomXPointerEx endEXP = ldomXPointerEx( endXP );
-        endEXP.setOffset(0);
-        if (currentEXP == startEXP)
-            isStartNode = true;
-        if (currentEXP == endEXP)
-            isEndNode = true;
-        if ( currentEXP.compare( startEXP ) >= 0 ) {
-            isAfterStart = true;
+        if ( !currentXP ) {
+            // Initial call: compute these once
+            currentXPBacking = ldomXPointerEx(node, 0);
+            currentXP = &currentXPBacking;
+            // Use start/end with offset=0 for node comparisons, but keep the
+            // original XPointers for text slicing below.
+            startNodeXPBacking = ldomXPointerEx( startXP );
+            startNodeXPBacking.setOffset(0);
+            startNodeXP = &startNodeXPBacking;
+            endNodeXPBacking = ldomXPointerEx( endXP );
+            endNodeXPBacking.setOffset(0);
+            endNodeXP = &endNodeXPBacking;
         }
-        if ( currentEXP.compare( endEXP ) <= 0 ) {
-            isBeforeEnd = true;
-        }
-        ldomNode *tmp;
-        tmp = startXP.getNode();
-        while (tmp) {
-            if (tmp == node) {
-                containsStart = true;
-                break;
-            }
-            tmp = tmp->getParentNode();
-        }
-        tmp = endXP.getNode();
-        while (tmp) {
-            if (tmp == node) {
-                containsEnd = true;
-                break;
-            }
-            tmp = tmp->getParentNode();
-        }
+        int cmpStart = currentXP->compare( *startNodeXP );
+        int cmpEnd = currentXP->compare( *endNodeXP );
+        isStartNode = cmpStart == 0;
+        isEndNode = cmpEnd == 0;
+        isAfterStart = cmpStart >= 0;
+        isBeforeEnd = cmpEnd <= 0;
+        containsStart = currentXP->isPathPrefixOf( *startNodeXP );
+        containsEnd = currentXP->isPathPrefixOf( *endNodeXP );
     }
     else {
+        // Whole subtree: no comparison and no XPointer maintenance needed
         containsStart = true;
         containsEnd = true;
         isAfterStart = true;
         isBeforeEnd = true;
-        // but not isStartNode nor isEndNode, as these use startXP and endXP
+        // but not isStartNode nor isEndNode: no actual start/end boundary node
     }
 
     bool isInitialNode = false;
@@ -4806,7 +4805,11 @@ static void writeNodeEx( LVStream * stream, ldomNode * node, lString32Collection
                 *stream << "\n";
             if ( ! isStylesheetTag ) {
                 for ( int i=0; i<(int)node->getChildCount(); i++ ) {
-                    writeNodeEx( stream, node->getChildNode(i), cssFiles, extra_stream, wflags, startXP, endXP, indentBaseLevel );
+                    bool moved = currentXP ? currentXP->child(i) : false;
+                    writeNodeEx( stream, node->getChildNode(i), cssFiles, extra_stream, wflags, startXP, endXP, indentBaseLevel,
+                        currentXP, startNodeXP, endNodeXP );
+                    if ( moved )
+                        currentXP->parent();
                 }
             }
             else {
@@ -12001,6 +12004,17 @@ void ldomXPointerEx::initIndex()
     for ( int i=0; i<_level; i++ ) {
         _indexes[ i ] = m[ _level - i - 1 ];
     }
+}
+
+bool ldomXPointerEx::isPathPrefixOf( const ldomXPointerEx & v ) const
+{
+    if ( _level > v._level )
+        return false;
+    for ( int i=0; i<_level; i++ ) {
+        if ( _indexes[i] != v._indexes[i] )
+            return false;
+    }
+    return true;
 }
 
 /// move to sibling #
