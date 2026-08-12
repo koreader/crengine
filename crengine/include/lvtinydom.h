@@ -968,6 +968,7 @@ private:
     void autoboxChildren( int startIndex, int endIndex, bool handleFloating=false );
     void removeChildren( int startIndex, int endIndex );
     bool cleanIfOnlyEmptyTextInline( bool handleFloating=false );
+    bool removeStandaloneWhitespaceTextChildrenInMixedContent( bool handleFloating=false );
     /// returns true if element has inline content (non empty text, images, <BR>)
     bool hasNonEmptyInlineContent( bool ignoreFloats=false );
 
@@ -1293,6 +1294,8 @@ public:
 
     /// for display:list-item node, get marker
     bool getNodeListMarker( int & counterValue, lString32 & marker, int & markerWidth );
+    /// returns true if text node contains only plain whitespace
+    bool isWhitespaceText() const;
     /// is node a floating floatBox
     bool isFloatingBox() const;
     /// is node an inlineBox that has not been re-inlined by having

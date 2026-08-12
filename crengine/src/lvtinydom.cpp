@@ -5995,6 +5995,19 @@ bool IsEmptySpace( const lChar32 * text, int len )
    return true;
 }
 
+bool ldomNode::isWhitespaceText() const
+{
+    if ( !isText() )
+        return false;
+    const lString8 s8(getText8());
+    const lChar8 * text = s8.c_str();
+    int len = s8.length();
+    for ( int i=0; i<len; i++ )
+        if ( text[i]!=' ' && text[i]!='\r' && text[i]!='\n' && text[i]!='\t' )
+            return false;
+    return true;
+}
+
 
 /////////////////////////////////////////////////////////////////
 /// lxmlElementWriter
@@ -7868,8 +7881,22 @@ void ldomNode::initNodeRendMethod()
                 // a cache file is used, and we'll end up being erm_final anyway).
                 // But let's keep it, in case it handles some edge cases.
             } else {
+                bool skipAutoboxLoop = false;
+                // Most mixed-content HTML nodes only have block children plus
+                // formatting whitespace text nodes. Drop these ignorable text
+                // runs in one compaction pass before the older autobox loop,
+                // so we don't pay for thousands of middle-of-array removals.
+                if ( removeStandaloneWhitespaceTextChildrenInMixedContent(handleFloating) ) {
+                    detectChildTypes( this, hasBlockItems, hasInline, hasInternalTableItems, hasFloating, handleFloating );
+                    if ( !hasInline ) {
+                        // If only block-ish children remain after that cleanup,
+                        // we can avoid the autobox pass entirely.
+                        setRendMethod( erm_block );
+                        skipAutoboxLoop = true;
+                    }
+                }
                 // cleanup or autobox
-                int i=getChildCount()-1;
+                int i = skipAutoboxLoop ? -1 : getChildCount()-1;
                 for ( ; i>=0; i-- ) {
                     ldomNode * node = getChildNode(i);
 
@@ -21475,6 +21502,81 @@ void ldomNode::addChild( lInt32 childNodeIndex )
         modify(); // convert to mutable element
     tinyElement * me = NPELEM;
     me->_children.add( childNodeIndex );
+}
+
+bool ldomNode::removeStandaloneWhitespaceTextChildrenInMixedContent( bool handleFloating )
+{
+#if BUILD_LITE!=1
+    ASSERT_NODE_NOT_NULL;
+    if ( !isElement() )
+        return false;
+    // In mixed block/inline content, most inline runs are often just whitespace
+    // separators between block siblings (typical HTML pretty-printing). The
+    // legacy autoboxChildren() path would later remove them one by one from the
+    // middle of a potentially huge _children array, which is quadratic. Compact
+    // them in one pass here, now that styles and rendMethods tell us whether
+    // such whitespace is really ignorable in this context.
+    tinyElement * me = isPersistent() ? NULL : NPELEM;
+    int childCount = getChildCount();
+    if ( childCount == 0 )
+        return false;
+    LVArray<lInt32> keptChildren;
+    bool compacting = false;
+    for ( int i=0; i<childCount; ) {
+        ldomNode * node = getChildNode(i);
+        if ( node->isWhitespaceText() ) {
+            int j = i;
+            while ( j+1 < childCount && getChildNode(j+1)->isWhitespaceText() )
+                j++;
+            ldomNode * prev = i > 0 ? getChildNode(i-1) : NULL;
+            ldomNode * next = j+1 < childCount ? getChildNode(j+1) : NULL;
+            bool prevInlineish = prev && ( isInlineNode(prev) || (handleFloating && isFloatingNode(prev)) );
+            bool nextInlineish = next && ( isInlineNode(next) || (handleFloating && isFloatingNode(next)) );
+            // Keep whitespace only when it sits between inline-ish siblings.
+            // Leading/trailing whitespace around such runs, and whitespace
+            // between block siblings, would be trimmed or removed later by
+            // autoboxChildren(); doing it in one pass avoids many costly
+            // middle-of-array removals on huge child collections.
+            bool keepRun = prevInlineish && nextInlineish && ( isInlineNode(prev) || isInlineNode(next) );
+            if ( keepRun ) {
+                if ( compacting ) {
+                    for ( int k=i; k<=j; k++ )
+                        keptChildren.add( me->_children[k] );
+                }
+            }
+            else {
+                if ( !compacting ) {
+                    // Keep the common no-removal path cheap: delay both modify()
+                    // and temporary array allocation until we have found the
+                    // first whitespace run that should really be dropped.
+                    if ( !me ) {
+                        modify();
+                        me = NPELEM;
+                    }
+                    compacting = true;
+                    keptChildren.reserve(childCount);
+                    for ( int k=0; k<i; k++ )
+                        keptChildren.add( me->_children[k] );
+                }
+                for ( int k=i; k<=j; k++ )
+                    getChildNode(k)->destroy();
+            }
+            i = j + 1;
+            continue;
+        }
+        if ( compacting )
+            keptChildren.add( me->_children[i] );
+        i++;
+    }
+    if ( compacting ) {
+        me->_children = keptChildren;
+        return true;
+    }
+    return false;
+#else
+    CR_UNUSED(handleFloating);
+    return false;
+#endif
 }
 
 /// move range of children startChildIndex to endChildIndex inclusively to specified element
