@@ -5463,8 +5463,7 @@ int renderBlockElementLegacy( LVRendPageContext & context, ldomNode * enode, int
                         if ( child->isText() ) {
                             // We may occasionally let empty text nodes among block elements,
                             // just skip them
-                            lString32 s = child->getText();
-                            if ( IsEmptySpace(s.c_str(), s.length() ) )
+                            if ( child->isWhitespaceText() )
                                 continue;
                             crFatalError(144, "Attempting to render non-empty Text node");
                         }
@@ -8731,8 +8730,7 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                     if ( child->isText() ) {
                         // We may occasionally let empty text nodes among block elements,
                         // just skip them
-                        lString32 s = child->getText();
-                        if ( IsEmptySpace(s.c_str(), s.length() ) )
+                        if ( child->isWhitespaceText() )
                             continue;
                         crFatalError(144, "Attempting to render non-empty Text node");
                     }
