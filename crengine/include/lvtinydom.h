@@ -1865,9 +1865,9 @@ protected:
     void initIndex();
 public:
     /// returns bottom level index
-    int getIndex() { return _indexes[_level-1]; }
+    int getIndex() const { return _indexes[_level-1]; }
     /// returns node level
-    int getLevel() { return _level; }
+    int getLevel() const { return _level; }
     /// default constructor
     ldomXPointerEx()
 	    : ldomXPointer()
@@ -1923,6 +1923,8 @@ public:
     {
         return _data->getDocument()==v._data->getDocument() && _data->getNode()==v._data->getNode() && _data->getOffset()==v._data->getOffset();
     }
+    /// returns true when this node path is a prefix of the provided xpointer path
+    bool isPathPrefixOf( const ldomXPointerEx & v ) const;
     /// searches path for element with specific id, returns level at which element is founs, 0 if not found
     int findElementInPath( lUInt16 id );
     /// compare two pointers, returns -1, 0, +1
