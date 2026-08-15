@@ -5877,6 +5877,9 @@ private:
     int  last_split_after_flag; // in case we need to adjust upcoming line's flag vs previous line's
     bool in_non_linear_sequence;
     bool in_combining_non_linear_sequence;
+    bool initial_letter_active;
+    lUInt32 initial_letter_id; // inlineBox id (x/width/side are rebuilt from it when needed)
+    int  initial_letter_end_y; // flow-relative end y, kept only for quick "already past current y?" checks
 
     // vm_* : state of our handling of collapsable vertical margins
     bool vm_has_some;              // true when some vertical margin added, reset to false when pushed
@@ -5914,6 +5917,9 @@ public:
         last_split_after_flag(RN_SPLIT_AUTO),
         in_non_linear_sequence(false),
         in_combining_non_linear_sequence(false),
+        initial_letter_active(false),
+        initial_letter_id(0),
+        initial_letter_end_y(0),
         vm_has_some(false),
         vm_disabled(false),
         vm_target_avoid_pb_inside(false),
@@ -6099,6 +6105,41 @@ public:
         return baseline_y;
     }
 
+    bool hasCarriedInitialLetter() {
+        return initial_letter_active;
+    }
+    void resetCarriedInitialLetterExclusion() {
+        initial_letter_active = false;
+        initial_letter_id = 0;
+        initial_letter_end_y = 0;
+    }
+    void setCarriedInitialLetterExclusion( lUInt32 node_id, int end_y ) {
+        if ( node_id == 0 || end_y <= c_y ) {
+            resetCarriedInitialLetterExclusion();
+            return;
+        }
+        initial_letter_active = true;
+        initial_letter_id = node_id;
+        initial_letter_end_y = end_y;
+    }
+    bool advancePastCarriedInitialLetter() {
+        if ( !initial_letter_active ) {
+            return false;
+        }
+        int cleared_y = initial_letter_end_y;
+        int dy = cleared_y - c_y;
+        if ( dy > 0 ) {
+            addSpaceToContext(c_y, cleared_y, 1, false, false, false);
+            moveDown( dy );
+            seen_content_since_page_split = true;
+        }
+        resetCarriedInitialLetterExclusion();
+        return dy > 0;
+    }
+
+    bool hasActiveFloatFootprint() {
+        return _floats.length() > 0 || initial_letter_active;
+    }
     bool hasActiveFloats() {
         return _floats.length() > 0;
     }
@@ -6836,6 +6877,11 @@ public:
                     // no page split over them
                 }
             }
+            if ( initial_letter_active && initial_letter_end_y > new_c_y ) {
+                // A carried initial-letter tail cannot escape the block
+                // formatting context either.
+                new_c_y = initial_letter_end_y;
+            }
             // addSpaceToContext() will take care of avoiding page split
             // where some (non-cleared) floats are still running.
             addSpaceToContext(last_c_y, new_c_y, 1, false, false, false);
@@ -6908,6 +6954,9 @@ public:
                 _floats.remove(i);
                 delete flt;
             }
+        }
+        if ( initial_letter_active && initial_letter_end_y <= c_y ) {
+            resetCarriedInitialLetterExclusion();
         }
         return had_floats_running;
     }
@@ -7141,10 +7190,11 @@ public:
     BlockFloatFootprint getFloatFootprint(ldomNode * node, int d_left, int d_right, int d_top ) {
         // Returns the footprint of current floats over a final block
         // to be laid out at current c_y (+d_top).
-        // This footprint will be a set of floats to represent outer
-        // floats possibly having some impact over the final block
-        // about to be formatted.
-        // These floats can be either:
+        // This footprint is mainly a set of floats that represents outer
+        // floats possibly having some impact over the final block about to be
+        // formatted. It may also carry one active initial-letter exclusion.
+        //
+        // The float part can be either:
         // - real floats rectangles, when they are no more than 5
         //   and ALLOW_EXACT_FLOATS_FOOTPRINTS is enabled
         // - or "fake" floats ("footprints") embodying all floats
@@ -7153,7 +7203,15 @@ public:
         //   intersecting with this final block, but whose y sets
         //   the minimal y for the possible upcoming embedded floats.
         //
-        // Why at most "5" real floats?
+        // When a carried initial-letter is present, we keep it separate from
+        // these fake float footprints when we can spare an exact saved id slot:
+        // a later formatting can then rebuild its own dedicated exclusion
+        // geometry from that initial-letter inlineBox rect. It must stay a
+        // distinct obstacle, not a normal float rect: ordinary float clear
+        // semantics should not apply to it, and later real floats should not
+        // stack against a previous initial-letter as if it were an actual float.
+        //
+        // Why at most "5" exact saved ids?
         // Because I initially went with the "fake" floats solution,
         // because otherwise, storing references (per final block) to
         // a variable number of other floatBox nodes would need another
@@ -7167,16 +7225,23 @@ public:
         // the real floatBoxes node (which I can if they are no more
         // than 5), so we can fetch their real positions and dimensions
         // each time a final block is to be (re-)formatted, to allow
-        // for a nicer layout of text around these (at most 5) floats.
+        // for a nicer layout of text around these floats. One of these
+        // slots may also be used by a carried initial-letter inlineBox.
 
         // We need erm_final at level 1 (body, floatBox or inlineBox child)
         // to clear their own floats, to get them accounted in the document,
         // float, or inlineBox height, so they are fully contained in it and
         // don't overflow. (Level 0 can't be erm_final).
         bool no_clear_own_floats = (level > 1) && BLOCK_RENDERING(rend_flags, DO_NOT_CLEAR_OWN_FLOATS);
-        BlockFloatFootprint footprint = BlockFloatFootprint( this, d_left, d_top, no_clear_own_floats);
-        if (_floats.length() == 0) // zero footprint if no float
+        // We will handle cross-block initial-letter carry, the formatter
+        // will give us back the exclusion and doesn't need to grow its
+        // height to its ink bottom
+        bool no_clear_own_initial_letter = true;
+        BlockFloatFootprint footprint = BlockFloatFootprint( this, d_left, d_top,
+                                            no_clear_own_floats, no_clear_own_initial_letter );
+        if ( !hasActiveFloatFootprint() ) // no float, no initial letter
             return footprint;
+        bool allow_exact = BLOCK_RENDERING(rend_flags, ALLOW_EXACT_FLOATS_FOOTPRINTS);
         int top_y = c_y + d_top;
         int left_x = x_min + d_left;
         int right_x = x_max - d_right;
@@ -7198,7 +7263,7 @@ public:
         // printf("left_x = x_min %d + d_left %d = %d  top_y=%d\n", x_min, d_left, left_x, top_y);
         for (int i=0; i<_floats.length(); i++) {
             BlockFloat * flt = _floats[i];
-            if ( BLOCK_RENDERING(rend_flags, ALLOW_EXACT_FLOATS_FOOTPRINTS) ) {
+            if ( allow_exact ) {
                 // Ignore floats already passed by and possibly not yet removed
                 if (flt->bottom > top_y) {
                     if (floats_involved < 5) { // at most 5 slots
@@ -7260,12 +7325,54 @@ public:
                 }
             }
         }
-        if ( floats_involved > 0 && floats_involved <= 5) {
+        if ( initial_letter_active && initial_letter_end_y > top_y ) {
+            // FlowState keeps only the inlineBox id: we must rebuild
+            // the formatter obstacle x/width/side from the current
+            // cached inlineBox geometry.
+            int abs_x;
+            int width;
+            int abs_end_y;
+            bool is_right;
+            if ( getInitialLetterInlineBoxExclusionById( node->getDocument(),
+                            initial_letter_id, abs_x, width, abs_end_y, is_right ) ) {
+                int exclusion_x = abs_x - left_x;
+                int exclusion_right = exclusion_x + width;
+                if ( exclusion_x < 0 )
+                    exclusion_x = 0;
+                if ( exclusion_right > final_width )
+                    exclusion_right = final_width;
+                if ( exclusion_right > exclusion_x ) {
+                    footprint.initial_letter_active = true;
+                    footprint.initial_letter_id = initial_letter_id;
+                    footprint.initial_letter_x = exclusion_x;
+                    footprint.initial_letter_width = exclusion_right - exclusion_x;
+                    footprint.initial_letter_is_right = is_right;
+                    // The carried exclusion end_y is already stored in the same
+                    // y-space as c_y, so just rebase it to this final block text top.
+                    footprint.initial_letter_end_y = initial_letter_end_y - top_y;
+                }
+            }
+        }
+        bool save_initial_letter_as_exact_id = footprint.initial_letter_active;
+        int exact_ids_involved = floats_involved + (save_initial_letter_as_exact_id ? 1 : 0);
+        bool use_exact_ids = allow_exact && exact_ids_involved > 0 && exact_ids_involved <= 5;
+        if ( !use_exact_ids && save_initial_letter_as_exact_id && _floats.length() == 0 ) {
+            // Even when exact float footprints are disabled, we can still use one
+            // saved id to preserve a carried initial-letter if no real floats are
+            // currently active: there is then no float footprint information to lose.
+            use_exact_ids = true;
+        }
+        if ( use_exact_ids ) {
             // We can use floatIds
             footprint.use_floatIds = true;
             footprint.nb_floatIds = floats_involved;
-            // No need to call generateEmbeddedFloatsFromFloatIds() as we
-            // already computed them above.
+            if ( save_initial_letter_as_exact_id ) {
+                footprint.floatIds[footprint.nb_floatIds] = footprint.initial_letter_id;
+                footprint.nb_floatIds++;
+            }
+            // No need to call generateEmbeddedFloatsFromFloatIds() as we already
+            // computed the float rectangles above. If an initial-letter inlineBox id
+            // is present, restore() will rebuild its carried exclusion from it.
             /* Uncomment for checking reproducible results (here and below)
                footprint.generateEmbeddedFloatsFromFloatIds( node, final_width );
             */
@@ -7295,13 +7402,41 @@ public:
                 footprint.left_min_y = 0;
             if (footprint.right_min_y < 0 )
                 footprint.right_min_y = 0;
-            // Generate the float to transfer
+            if ( footprint.initial_letter_active ) {
+                // Rare fallback when we cannot spare one saved exact-id slot for
+                // the initial-letter inlineBox: clear below it by turning the
+                // top footprint into a full-width exclusion.
+                int clear_y = footprint.initial_letter_end_y;
+                if ( footprint.left_h < clear_y )
+                    footprint.left_h = clear_y;
+                if ( footprint.right_h > footprint.left_h )
+                    footprint.left_h = footprint.right_h;
+                footprint.left_w = final_width;
+                footprint.right_w = final_width;
+                footprint.right_h = footprint.left_h;
+                if ( footprint.left_min_y < clear_y )
+                    footprint.left_min_y = clear_y;
+                if ( footprint.right_min_y < clear_y )
+                    footprint.right_min_y = clear_y;
+                footprint.initial_letter_active = false;
+                footprint.initial_letter_id = 0;
+            }
+            // Generate the floats to transfer
             footprint.generateEmbeddedFloatsFromFootprints( final_width );
         }
         return footprint;
     }
 
 }; // Done with FlowState
+
+void BlockFloatFootprint::forwardFoundInitialLetter(lUInt32 node_id, bool carry_on, int end_y)
+{
+    formatted_initial_letter_id = node_id;
+    if ( carry_on && node_id != 0 && end_y > 0 ) {
+        formatted_initial_letter_carry_on = true;
+        formatted_initial_letter_carry_end_y = end_y;
+    }
+}
 
 // Register overflowing embedded floats into the main flow
 void BlockFloatFootprint::forwardOverflowingFloat( int x, int y, int w, int h, bool r, ldomNode * node )
@@ -7325,13 +7460,66 @@ void BlockFloatFootprint::generateEmbeddedFloatsFromFloatIds( ldomNode * node,  
     // RenderRectAccessor of the current node, and all the floats
     // that were associated to the node because of their involvement
     // in text layout.
+    // Most saved ids are floatBox nodes; one slot may also contain
+    // a carried initial-letter inlineBox so we can rebuild its
+    // dedicated exclusion geometry.
     lvRect rc;
     node->getAbsRect( rc, true ); // get formatted text abs coordinates
     int node_x = rc.left;
     int node_y = rc.top;
+    initial_letter_active = false;
+    initial_letter_id = 0;
+    initial_letter_end_y = 0;
+    initial_letter_x = 0;
+    initial_letter_width = 0;
+    initial_letter_is_right = false;
     floats_cnt = 0;
     for (int i=0; i<nb_floatIds; i++) {
         ldomNode * fbox = node->getDocument()->getTinyNode(floatIds[i]); // get node from its dataIndex
+        if ( !fbox ) {
+            crFatalError(145, "Missing saved float footprint node");
+        }
+        if ( fbox->getEffectiveNodeId() == el_inlineBox ) {
+            int abs_x;
+            int width;
+            int abs_end_y;
+            bool is_right;
+            if ( !getInitialLetterInlineBoxPseudoElem(fbox) ) {
+                crFatalError(146, "Saved float footprint inlineBox is not an initial-letter");
+            }
+            if ( !getInitialLetterInlineBoxExclusion(fbox, abs_x, width, abs_end_y, is_right) ) {
+                crFatalError(147, "Failed to rebuild saved initial-letter exclusion");
+            }
+            int x0 = abs_x - node_x;
+            int x1 = x0 + width;
+            if ( x0 < 0 )
+                x0 = 0;
+            else if ( x0 > final_width )
+                x0 = final_width;
+            if ( x1 < 0 )
+                x1 = 0;
+            else if ( x1 > final_width )
+                x1 = final_width;
+            int end_y = abs_end_y - node_y;
+            if ( end_y <= 0 ) {
+                crFatalError(148, "Saved initial-letter exclusion has invalid end_y");
+            }
+            if ( x1 <= x0 ) {
+                // This carried exclusion does not overlap the current final
+                // block width, so it has no effect on this block layout.
+                continue;
+            }
+            initial_letter_active = true;
+            initial_letter_id = floatIds[i];
+            initial_letter_end_y = end_y;
+            initial_letter_x = x0;
+            initial_letter_width = x1 - x0;
+            initial_letter_is_right = is_right;
+            continue;
+        }
+        if ( fbox->getEffectiveNodeId() != el_floatBox ) {
+            crFatalError(149, "Saved float footprint node has unexpected type");
+        }
         // The floatBox rect values should be exactly the same as what was
         // used in the flow's _floats when rendering. We can check if this
         // is not the case (so a bug) by uncommenting a few things below.
@@ -7463,6 +7651,12 @@ void BlockFloatFootprint::store(ldomNode * node)
     else {
         RENDER_RECT_UNSET_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
     }
+    if ( no_clear_own_initial_letter ) {
+        RENDER_RECT_SET_FLAG(fmt, NO_CLEAR_OWN_INITIAL_LETTER);
+    }
+    else {
+        RENDER_RECT_UNSET_FLAG(fmt, NO_CLEAR_OWN_INITIAL_LETTER);
+    }
     fmt.push();
 }
 
@@ -7478,8 +7672,18 @@ void BlockFloatFootprint::restore(ldomNode * node, int final_width)
         fmt.getTopRectsExcluded( left_w, left_h, right_w, right_h );
         fmt.getNextFloatMinYs( left_min_y, right_min_y );
         generateEmbeddedFloatsFromFootprints( final_width );
+        // No exact carried initial-letter was saved on this path. If there had
+        // been one earlier, getFloatFootprint() already degraded it into a
+        // full-width clear footprint before storing these generic top rects.
+        initial_letter_active = false;
+        initial_letter_id = 0;
+        initial_letter_end_y = 0;
+        initial_letter_x = 0;
+        initial_letter_width = 0;
+        initial_letter_is_right = false;
     }
     no_clear_own_floats = RENDER_RECT_HAS_FLAG(fmt, NO_CLEAR_OWN_FLOATS);
+    no_clear_own_initial_letter = RENDER_RECT_HAS_FLAG(fmt, NO_CLEAR_OWN_INITIAL_LETTER);
 }
 
 int BlockFloatFootprint::getTopShiftX(int final_width, bool get_right_shift)
@@ -8441,6 +8645,15 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         break_before = RN_SPLIT_ALWAYS;
     }
 
+    // If we have a carried initial-letter still active, and we meet a block
+    // with HasFirstLetter (which may or may not be an initial-letter), clear
+    // that initial-letter (per-specs if initial-letter, otherwise not, but
+    // simpler to not check if it is (which is expensive) and do it in all
+    // cases, probably for the best).
+    bool cleared_carried_initial_letter = flow->hasCarriedInitialLetter() && enode->hasAttribute(attr_HasFirstLetter)
+                                        ? flow->advancePastCarriedInitialLetter()
+                                        : false;
+
     if ( no_margin_collapse ) {
         // Push any earlier margin so it does not get collapsed with this one
         flow->pushVerticalMargin();
@@ -9022,8 +9235,11 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // margin now (and not delay it to the first addContentLine()).
                 // This can mess with proper margins collapsing if we were to
                 // output no content (we don't know that yet).
-                // So, do it only if we have floats.
-                if ( flow->hasActiveFloats() )
+                // So, do it only if we have an active float footprint, or if we
+                // just cleared a carried initial-letter because this block starts
+                // with its own one: in both cases renderFinalBlock() must see the
+                // final post-margin absolute y before it stores its geometry.
+                if ( flow->hasActiveFloatFootprint() || cleared_carried_initial_letter )
                     flow->pushVerticalMargin();
 
                 int inner_width = width - padding_left - padding_right;
@@ -9135,6 +9351,48 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int final_h = enode->renderFinalBlock( txform, &fmt, inner_width, &float_footprint );
                 int final_min_y = float_footprint.getFinalMinY();
                 int final_max_y = float_footprint.getFinalMaxY();
+
+                if ( float_footprint.formatted_initial_letter_id ) {
+                    ldomNode * initial_letter_inline_box = getInitialLetterInlineBoxById(enode->getDocument(),
+                                                                    float_footprint.formatted_initial_letter_id);
+                    if ( initial_letter_inline_box ) {
+                        // Initial-letter ink can extend beyond the formatter's own line box height,
+                        // so grow the final block overflow if that happens. As we can only get that
+                        // ink rect in abs coordinates, we must get our final rect abs coordinates
+                        // too (at this time, its x/y are set - they may be shifted later, but so
+                        // would the inlineBox: their difference will stay the same).
+                        lvRect final_abs_rect;
+                        enode->getAbsRect(final_abs_rect, true);
+                        lvRect initial_letter_abs_rect;
+                        if ( !getInitialLetterInlineBoxInkRect(initial_letter_inline_box, initial_letter_abs_rect) ) {
+                            // Fallback to the host inlineBox rect when precise ink geometry cannot be rebuilt;
+                            // it is less exact but still provides a safe conservative overflow bound.
+                            initial_letter_inline_box->getAbsRect(initial_letter_abs_rect);
+                        }
+                        int initial_letter_top = initial_letter_abs_rect.top - final_abs_rect.top;
+                        int initial_letter_bottom = initial_letter_abs_rect.bottom - final_abs_rect.top;
+                        if ( initial_letter_top < final_min_y ) {
+                            final_min_y = initial_letter_top;
+                        }
+                        if ( initial_letter_bottom > final_max_y ) {
+                            final_max_y = initial_letter_bottom;
+                        }
+                        // If formatting reported that our initial letter inline box overflows
+                        // its own rect, its exclusion must be carried onto following blocks.
+                        // (The above is about top and bottom ink overflows, used for drawing it,
+                        // this one is about the exclusion area affecting next rendering.)
+                        if ( float_footprint.formatted_initial_letter_carry_on ) {
+                            // Forward that local exclusion end_y into the current FlowState y-space.
+                            int final_text_top_in_flow = flow->getCurrentAbsoluteY() + padding_top;
+                            // Matches getFloatFootprint()'s top_y: convert between FlowState y-space
+                            // and the final block-local y-space used in BlockFloatFootprint.
+                            flow->setCarriedInitialLetterExclusion(float_footprint.formatted_initial_letter_id,
+                                    final_text_top_in_flow + float_footprint.formatted_initial_letter_carry_end_y );
+                        }
+                    }
+                }
+                // (If a previous carried exclusion has been passed over after this block height,
+                // it will be reset by any flow->addContent*() done below.)
 
                 flow->getPageContext()->updateRenderProgress(1);
                 #ifdef DEBUG_DUMP_ENABLED
