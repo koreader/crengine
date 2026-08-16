@@ -145,10 +145,9 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
     }
 }
 
-// Emit a filepos-id="fileposNNNN" attribute (rewritten to id= by the writer
-// filter) into the stream, to be placed inside a start tag.
+// Emit an id="fileposNNNN" attribute into the stream, to be placed inside a start tag. 
 static void writeFileposIdAttr(LVStreamRef & out, lUInt32 filepos) {
-    lString8 attr(" filepos-id=\"");
+    lString8 attr(" id=\"");
     attr.append(MOBI_FILEPOS_ID_PREFIX);
     attr.appendDecimal((lInt64)filepos);
     attr.append("\"");
@@ -167,14 +166,14 @@ static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
 // Pre-process the raw HTML stream: find all filepos=NNNN references and inject
 // anchors at those byte offsets, so the existing id->node map can resolve them
 // (and they survive cache serialization).
-// Where the offset falls inside a start tag, we add a filepos-id="fileposNNNN"
-// attribute to that tag (which the writer filter will rewrite to id=), avoiding
-// splitting any text node. Otherwise, if the offset is immediately followed
-// (after whitespace) by a start tag, we attach the id to that tag too: an empty
-// inline <a> anchor right after a page break would resolve to the previous page,
-// whereas attaching the id to the following element keeps the target on the
-// correct page. Only when the offset lands mid-text do we insert a standalone
-// <a id="fileposNNNN"></a> marker (the same approach calibre uses).
+// Where the offset falls inside a start tag, we add an id="fileposNNNN"
+// attribute to that tag, avoiding splitting any text node. Otherwise, if the
+// offset is immediately followed (after whitespace) by a start tag, we attach
+// the id to that tag too: an empty inline <a> anchor right after a page break
+// would resolve to the previous page, whereas attaching the id to the following
+// element keeps the target on the correct page. Only when the offset lands
+// mid-text do we insert a standalone <a id="fileposNNNN"></a> marker (the same
+// approach calibre uses).
 static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver, lUInt32 domVersion) {
     LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
     if (buffered.isNull())
@@ -210,9 +209,9 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
     for (int i = 0; i < fileposRefs.length(); i++) {
         lUInt32 filepos = fileposRefs[i];
         int insertPos = (int)filepos;
-        // If the offset falls inside a tag (<...>), add a filepos-id attribute
-        // to that tag rather than inserting a separate <a> element (which would
-        // split a text node and break highlights).
+        // If the offset falls inside a tag (<...>), add an id attribute to that
+        // tag rather than inserting a separate <a> element (which would split a
+        // text node and break highlights).
         bool injectIntoTag = false;
         int tagEndPos = insertPos;
         if (insertPos > 0 && insertPos < dataSize) {
