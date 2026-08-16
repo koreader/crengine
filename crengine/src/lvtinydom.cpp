@@ -6652,6 +6652,33 @@ static void copyRendMethodFromSources(ldomNode * node) {
         if ( source ) {
             if ( source->isElement() ) {
                 node->setRendMethod( source->getRendMethod() );
+                lUInt16 source_node_id = source->getNodeId();
+                if ( source_node_id == el_floatBox || source_node_id == el_inlineBox ) {
+                    // On these elements, initNodeRendMethod() has reported on them
+                    // a few specific styles from their child. But it skips cloneNodes,
+                    // and these styles are required for rendering floats and inlineboxes
+                    // part of the first line sequence. Let's do the same here.
+                    css_style_ref_t source_style = source->getStyle();
+                    css_style_ref_t node_style = node->getStyle();
+                    css_style_ref_t style( new css_style_rec_t );
+                    copystyle(node_style, style);
+                    bool style_changed = false;
+                    if ( node_style->display != source_style->display ) {
+                        style->display = source_style->display;
+                        style_changed = true;
+                    }
+                    if ( source_node_id == el_floatBox && node_style->float_ != source_style->float_ ) {
+                        style->float_ = source_style->float_;
+                        style_changed = true;
+                    }
+                    if ( source_node_id == el_inlineBox && !(node_style->vertical_align == source_style->vertical_align) ) {
+                        style->vertical_align = source_style->vertical_align;
+                        style_changed = true;
+                    }
+                    if ( style_changed ) {
+                        node->setStyle(style);
+                    }
+                }
             }
             else {
                 // Not really needed, but safer, and let's have ~i (inline)
