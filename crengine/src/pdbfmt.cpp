@@ -75,21 +75,13 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
     }
 }
 
-static void appendBytes(LVArray<lUInt8> & out, const lUInt8 * data, int len) {
-    if (len > 0) out.add(data, len);
-}
-
-static void appendMobiMarker(LVArray<lUInt8> & out, lUInt32 filepos) {
-    lString8 marker("<a id=\"");
-    marker.append(MOBI_FILEPOS_ID_PREFIX);
-    marker.appendDecimal((lInt64)filepos);
-    marker.append("\"></a>");
-    appendBytes(out, (const lUInt8 *)marker.c_str(), marker.length());
-}
-
 // Pre-process the raw HTML stream: find all filepos=NNNN references and inject
-// <a id="fileposNNNN"></a> markers at those byte offsets, so the existing
-// id->node map can resolve them (and they survive cache serialization).
+// anchors at those byte offsets, so the existing id->node map can resolve them
+// (and they survive cache serialization).
+// Where the offset falls inside a start tag, we add a filepos-id="fileposNNNN"
+// attribute to that tag (which the writer filter will rewrite to id=), avoiding
+// splitting any text node. Otherwise, we insert a standalone <a id="fileposNNNN">
+// </a> marker (the same approach calibre uses).
 static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
     LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
     if (buffered.isNull())
@@ -116,14 +108,20 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
     qsort(fileposRefs.get(), fileposRefs.length(), sizeof(lUInt32), compareUInt32);
 
     // Build the rewritten byte array with markers inserted at filepos offsets.
-    // If the offset falls inside a tag (<...>), move past the closing '>'.
-    LVArray<lUInt8> rewritten;
-    rewritten.reserve(dataSize + fileposRefs.length() * 64);
+    LVStreamRef rewritten = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
+    if (rewritten.isNull()) {
+        stream->SetPos(0);
+        return LVStreamRef();
+    }
     int outPos = 0;
     for (int i = 0; i < fileposRefs.length(); i++) {
         lUInt32 filepos = fileposRefs[i];
         int insertPos = (int)filepos;
-        // Check if filepos is inside a tag by scanning backward for '<' and forward for '>'
+        // If the offset falls inside a tag (<...>), add a filepos-id attribute
+        // to that tag rather than inserting a separate <a> element (which would
+        // split a text node and break highlights).
+        bool injectIntoTag = false;
+        int tagEndPos = insertPos;
         if (insertPos > 0 && insertPos < dataSize) {
             // Find the nearest '<' before insertPos that is not closed by '>'
             int prevLT = -1;
@@ -131,26 +129,48 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
                 if (data[j] == '<') { prevLT = j; break; }
                 if (data[j] == '>') break; // not inside a tag
             }
-            if (prevLT >= 0) {
-                // Find the nearest '>' after insertPos
+            if (prevLT >= 0 && data[prevLT + 1] != '/') {
+                // Find the nearest '>' after insertPos (stopping at any '<')
                 int nextGT = -1;
                 for (int j = insertPos; j < dataSize; j++) {
                     if (data[j] == '>') { nextGT = j; break; }
                     if (data[j] == '<') break;
                 }
-                if (nextGT > insertPos)
-                    insertPos = nextGT + 1;
+                // We're inside a start tag if a '>' follows before any '<'.
+                // (If the offset is in text, we hit a '<' first and nextGT
+                // stays -1, so we insert a standalone marker instead.)
+                if (nextGT > insertPos) {
+                    injectIntoTag = true;
+                    tagEndPos = nextGT; // '>' position (attribute goes before it)
+                }
             }
         }
         if (insertPos < outPos)
             insertPos = outPos;
-        appendBytes(rewritten, data + outPos, insertPos - outPos);
-        appendMobiMarker(rewritten, filepos);
-        outPos = insertPos;
+        if (injectIntoTag) {
+            // Copy up to (but not including) the closing '>', then emit the
+            // attribute, then the '>'.
+            rewritten->Write(data + outPos, tagEndPos - outPos, NULL);
+            lString8 attr(" filepos-id=\"");
+            attr.append(MOBI_FILEPOS_ID_PREFIX);
+            attr.appendDecimal((lInt64)filepos);
+            attr.append("\"");
+            rewritten->Write(attr.c_str(), attr.length(), NULL);
+            outPos = tagEndPos;
+        } else {
+            rewritten->Write(data + outPos, insertPos - outPos, NULL);
+            lString8 marker("<a id=\"");
+            marker.append(MOBI_FILEPOS_ID_PREFIX);
+            marker.appendDecimal((lInt64)filepos);
+            marker.append("\"></a>");
+            rewritten->Write(marker.c_str(), marker.length(), NULL);
+            outPos = insertPos;
+        }
     }
-    appendBytes(rewritten, data + outPos, dataSize - outPos);
+    rewritten->Write(data + outPos, dataSize - outPos, NULL);
+    rewritten->SetPos(0);
     stream->SetPos(0);
-    return LVCreateMemoryStream(rewritten.ptr(), rewritten.length(), true, LVOM_READ);
+    return rewritten;
 }
 
 // Custom callback filter that rewrites MOBI-specific attributes during HTML parsing:
