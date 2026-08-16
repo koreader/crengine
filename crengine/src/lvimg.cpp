@@ -2068,11 +2068,8 @@ static void lunasvgTextToPathsHelper(lunasvg::external_context_t * xcontext, con
         0, 0, -1, 0, -1, -1, &collector);
 }
 
-static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const char * url, const unsigned char * bitmap, int width, int height, double & original_aspect_ratio)
+static LVImageSourceRef lunasvgGetImageSource(lunasvg::external_context_t * xcontext, const char * url)
 {
-    if ( !bitmap || width <= 0 || height <= 0 )
-        return false;
-
     LVImageSourceRef img;
     ldomDocument * doc = ((LVNodeImageSource *)xcontext->external_object)->GetSourceDocument();
     if ( doc ) {
@@ -2110,7 +2107,27 @@ static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const
                 img = LVCreateStreamImageSource( ref );
         }
     }
-    if ( img.isNull() )
+    return img;
+}
+
+static bool lunasvgGetImageSizeHelper(lunasvg::external_context_t * xcontext, const char * url, int & width, int & height)
+{
+    LVImageSourceRef img = lunasvgGetImageSource(xcontext, url);
+    if ( img.isNull() || img->GetWidth() <= 0 || img->GetHeight() <= 0 )
+        return false;
+
+    width = img->GetWidth();
+    height = img->GetHeight();
+    return true;
+}
+
+static bool lunasvgDrawImageHelper(lunasvg::external_context_t * xcontext, const char * url, const unsigned char * bitmap, int width, int height, double & original_aspect_ratio)
+{
+    if ( !bitmap || width <= 0 || height <= 0 )
+        return false;
+
+    LVImageSourceRef img = lunasvgGetImageSource(xcontext, url);
+    if ( img.isNull() || img->GetWidth() <= 0 || img->GetHeight() <= 0 )
         return false;
 
     original_aspect_ratio = (double)img->GetWidth() / (double)img->GetHeight();
@@ -2167,6 +2184,7 @@ LVSvgImageSource::LVSvgImageSource( ldomNode * node, LVStreamRef stream )
     lunasvg_xcontext.external_object = this;
     lunasvg_xcontext.text_to_paths_helper = &lunasvgTextToPathsHelper;
     lunasvg_xcontext.draw_image_helper = &lunasvgDrawImageHelper;
+    lunasvg_xcontext.get_image_size_helper = &lunasvgGetImageSizeHelper;
 }
 LVSvgImageSource::~LVSvgImageSource() {}
 
