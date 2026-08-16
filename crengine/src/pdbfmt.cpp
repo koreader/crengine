@@ -6,6 +6,177 @@
 // uncomment following line to save PDB content streams to /tmp
 //#define DUMP_PDB_CONTENTS
 
+// --- MOBI filepos fragment support ---
+// MOBI uses byte offsets for internal links: <a filepos="NNNN"> points to the
+// byte offset NNNN in the uncompressed HTML, and <... filepos-id="XXX"> marks a
+// target. We resolve these by (1) injecting <a id="fileposNNNN"></a> markers at
+// each referenced byte offset (the same approach calibre uses), and (2) rewriting
+// filepos/filepos-id attributes into href/id so the existing id->node map handles
+// fragment resolution (and is serialized to cache).
+
+static const char * MOBI_FILEPOS_ID_PREFIX = "filepos";
+
+static int compareUInt32(const void * left, const void * right) {
+    lUInt32 a = *(const lUInt32 *)left, b = *(const lUInt32 *)right;
+    return (a < b) ? -1 : (a > b) ? 1 : 0;
+}
+
+// Quick case-insensitive check: does data[pos..pos+6] match "filepos"?
+static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
+    if (pos + 7 > dataSize) return false;
+    for (int i = 0; i < 7; i++) {
+        lUInt8 ch = data[pos + i];
+        lUInt8 expected = (lUInt8)"filepos"[i];
+        if (ch != expected && (ch < 'A' || ch > 'Z' || ch != (expected - 32)))
+            return false;
+    }
+    return true;
+}
+
+// Scan raw HTML bytes for filepos="NNNN" occurrences, record the numeric values.
+static void collectMobiFileposData(const lUInt8 * data, int dataSize,
+        LVArray<lUInt32> & fileposRefs) {
+    LVHashTable<lUInt32, lUInt8> seenRefs(256);
+    for (int i = 0; i < dataSize - 8; ) {
+        if (!matchFileposBytes(data, dataSize, i)) { i++; continue; }
+        int pos = i + 7;
+        // Skip whitespace before '='
+        while (pos < dataSize && (data[pos] == ' ' || data[pos] == '\t')) pos++;
+        if (pos >= dataSize || data[pos] != '=') { i++; continue; }
+        pos++; // skip '='
+        // Skip whitespace and an optional opening quote
+        while (pos < dataSize && (data[pos] == ' ' || data[pos] == '"' || data[pos] == '\''))
+            pos++;
+        // Parse the integer value
+        lUInt64 val = 0;
+        int numStart = pos;
+        while (pos < dataSize && data[pos] >= '0' && data[pos] <= '9') {
+            val = val * 10 + (data[pos] - '0');
+            pos++;
+        }
+        if (pos > numStart && val > 0 && val <= (lUInt64)dataSize) {
+            lUInt32 filepos = (lUInt32)val;
+            lUInt8 marker = 0;
+            if (!seenRefs.get(filepos, marker)) {
+                seenRefs.set(filepos, 1);
+                fileposRefs.add(filepos);
+            }
+        }
+        i = pos; // resume after the value
+    }
+}
+
+static void appendBytes(LVArray<lUInt8> & out, const lUInt8 * data, int len) {
+    if (len > 0) out.add(data, len);
+}
+
+static void appendMobiMarker(LVArray<lUInt8> & out, lUInt32 filepos) {
+    lString8 marker("<a id=\"");
+    marker.append(MOBI_FILEPOS_ID_PREFIX);
+    marker.appendDecimal((lInt64)filepos);
+    marker.append("\"></a>");
+    appendBytes(out, (const lUInt8 *)marker.c_str(), marker.length());
+}
+
+// Pre-process the raw HTML stream: find all filepos=NNNN references and inject
+// <a id="fileposNNNN"></a> markers at those byte offsets, so the existing
+// id->node map can resolve them (and they survive cache serialization).
+static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
+    LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
+    if (buffered.isNull())
+        return LVStreamRef();
+    stream->SetPos(0);
+    LVPumpStream(buffered, stream);
+    buffered->SetPos(0);
+    LVByteArrayRef rawData = buffered->GetData();
+    if (rawData.isNull() || rawData->empty()) {
+        stream->SetPos(0);
+        return LVStreamRef();
+    }
+    const lUInt8 * data = rawData->get();
+    int dataSize = rawData->length();
+
+    LVArray<lUInt32> fileposRefs;
+    collectMobiFileposData(data, dataSize, fileposRefs);
+    if (fileposRefs.empty()) {
+        stream->SetPos(0);
+        return LVStreamRef();
+    }
+
+    // Sort for sequential insertion
+    qsort(fileposRefs.get(), fileposRefs.length(), sizeof(lUInt32), compareUInt32);
+
+    // Build the rewritten byte array with markers inserted at filepos offsets.
+    // If the offset falls inside a tag (<...>), move past the closing '>'.
+    LVArray<lUInt8> rewritten;
+    rewritten.reserve(dataSize + fileposRefs.length() * 64);
+    int outPos = 0;
+    for (int i = 0; i < fileposRefs.length(); i++) {
+        lUInt32 filepos = fileposRefs[i];
+        int insertPos = (int)filepos;
+        // Check if filepos is inside a tag by scanning backward for '<' and forward for '>'
+        if (insertPos > 0 && insertPos < dataSize) {
+            // Find the nearest '<' before insertPos that is not closed by '>'
+            int prevLT = -1;
+            for (int j = insertPos - 1; j >= 0; j--) {
+                if (data[j] == '<') { prevLT = j; break; }
+                if (data[j] == '>') break; // not inside a tag
+            }
+            if (prevLT >= 0) {
+                // Find the nearest '>' after insertPos
+                int nextGT = -1;
+                for (int j = insertPos; j < dataSize; j++) {
+                    if (data[j] == '>') { nextGT = j; break; }
+                    if (data[j] == '<') break;
+                }
+                if (nextGT > insertPos)
+                    insertPos = nextGT + 1;
+            }
+        }
+        if (insertPos < outPos)
+            insertPos = outPos;
+        appendBytes(rewritten, data + outPos, insertPos - outPos);
+        appendMobiMarker(rewritten, filepos);
+        outPos = insertPos;
+    }
+    appendBytes(rewritten, data + outPos, dataSize - outPos);
+    stream->SetPos(0);
+    return LVCreateMemoryStream(rewritten.ptr(), rewritten.length(), true, LVOM_READ);
+}
+
+// Custom callback filter that rewrites MOBI-specific attributes during HTML parsing:
+// - filepos-id="XXX" -> id="XXX" (target marker, registered in the id->node map)
+// - filepos="NNNN" -> href="#fileposNNNN" (link to a byte-offset target)
+class MobiHtmlWriterFilter : public ldomDocumentWriterFilter {
+public:
+    MobiHtmlWriterFilter(ldomDocument * document)
+        : ldomDocumentWriterFilter(document, false, HTML_AUTOCLOSE_TABLE) {}
+
+    virtual void OnAttribute(const lChar32 * nsname, const lChar32 * attrname,
+                             const lChar32 * attrvalue) {
+        if (attrname && !lStr_cmp(attrname, U"filepos-id")) {
+            // Target marker: rewrite to a regular id attribute so it is
+            // registered in the id->node map (and serialized to cache).
+            ldomDocumentWriterFilter::OnAttribute(nsname, U"id", attrvalue);
+            return;
+        }
+        if (attrname && !lStr_cmp(attrname, U"filepos")) {
+            // Link to a byte offset: rewrite to href="#fileposNNNN".
+            lInt64 filepos = 0;
+            if (lString32(attrvalue).atoi(filepos) && filepos >= 0 && filepos <= 0xFFFFFFFFLL) {
+                lString32 href(U"#");
+                href.append(MOBI_FILEPOS_ID_PREFIX);
+                href.appendDecimal(filepos);
+                ldomDocumentWriterFilter::OnAttribute(nsname, U"href", href.c_str());
+                return;
+            }
+        }
+        ldomDocumentWriterFilter::OnAttribute(nsname, attrname, attrvalue);
+    }
+};
+
+// --- end MOBI filepos fragment support ---
+
 struct PDBHdr
 {
     lUInt8    name[32];
@@ -1310,16 +1481,24 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
     case doc_format_html:
         // HTML
         {
+            LVStreamRef parserStream = stream;
+            bool isMobiHtml = pdb->getFormat() == PDBFile::MOBI;
 
-            ldomDocumentWriterFilter writerFilter(doc, false,
-                    HTML_AUTOCLOSE_TABLE);
-            LVHTMLParser parser(stream, &writerFilter);
+            if (isMobiHtml) {
+                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream);
+                if (!rewrittenStream.isNull())
+                    parserStream = rewrittenStream;
+            }
+
+            MobiHtmlWriterFilter mobiWriterFilter(doc);
+            LVHTMLParser parser(parserStream, &mobiWriterFilter);
             parser.setProgressCallback(progressCallback);
             if ( !parser.CheckFormat() ) {
                 return false;
             } else {
-                if (pdb->getFormat()==PDBFile::MOBI && isCorrectUtf8Text(stream))
+                if (isMobiHtml && isCorrectUtf8Text(parserStream))
                     parser.SetCharset(U"utf-8");
+                parserStream->SetPos(0);
                 if (!parser.Parse()) {
                     return false;
                 }
