@@ -19,21 +19,91 @@
 
 static const char * MOBI_FILEPOS_ID_PREFIX = "filepos";
 
+// Maps a filepos byte offset to the id a link should target. Only populated
+// when the target element already has its own id, so we point the link at that
+// id instead of injecting a synthetic one (which would duplicate it).
+struct MobiFileposResolver {
+    LVHashTable<lUInt32, lString32> targetIds;
+    MobiFileposResolver() : targetIds(256) {}
+};
+
 static int compareUInt32(const void * left, const void * right) {
     lUInt32 a = *(const lUInt32 *)left, b = *(const lUInt32 *)right;
     return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-// Quick case-insensitive check: does data[pos..pos+6] match "filepos"?
-static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
-    if (pos + 7 > dataSize) return false;
-    for (int i = 0; i < 7; i++) {
+// Case-insensitive match of a fixed-length ASCII string at data[pos].
+static bool matchAscii(const lUInt8 * data, int pos, const char * str, int len) {
+    for (int i = 0; i < len; i++) {
         lUInt8 ch = data[pos + i];
-        lUInt8 expected = (lUInt8)"filepos"[i];
+        lUInt8 expected = (lUInt8)str[i];
         if (ch != expected && (ch < 'A' || ch > 'Z' || ch != (expected - 32)))
             return false;
     }
     return true;
+}
+
+// Quick case-insensitive check: does data[pos..pos+6] match "filepos"?
+static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
+    if (pos + 7 > dataSize) return false;
+    return matchAscii(data, pos, "filepos", 7);
+}
+
+// Does the start tag spanning [tagStart, tagEnd) already declare an "id" or
+// "filepos-id" attribute? If so, return its value (so a link can point at it
+// instead of us injecting a duplicate id). Returns an empty string if none.
+static lString32 tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd) {
+    for (int i = tagStart; i < tagEnd; i++) {
+        // An attribute name is preceded by whitespace (or the tag name).
+        bool atBoundary = (i == tagStart) ||
+            data[i-1] == ' ' || data[i-1] == '\t' ||
+            data[i-1] == '\r' || data[i-1] == '\n';
+        if (!atBoundary)
+            continue;
+        int remaining = tagEnd - i;
+        int nameLen = 0;
+        // "filepos-id" (9 chars)
+        if (remaining >= 9 && matchAscii(data, i, "filepos-id", 9)) {
+            nameLen = 9;
+        }
+        // "id" (2 chars)
+        else if (remaining >= 2 && matchAscii(data, i, "id", 2)) {
+            nameLen = 2;
+        }
+        if (nameLen == 0)
+            continue;
+        int afterName = i + nameLen;
+        if (afterName < tagEnd && data[afterName] != ' ' &&
+                    data[afterName] != '\t' && data[afterName] != '=' &&
+                    data[afterName] != '>')
+            continue; // e.g. "idle", "width": not the id attribute
+        // Skip whitespace and an optional '=' and quote to reach the value
+        int p = afterName;
+        while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' ||
+                    data[p] == '\r' || data[p] == '\n')) {
+            p++;
+        }
+        if (p < tagEnd && data[p] == '=') {
+            p++;
+            while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' ||
+                        data[p] == '\r' || data[p] == '\n')) {
+                p++;
+            }
+            if (p < tagEnd && (data[p] == '"' || data[p] == '\''))
+                p++;
+        }
+        int valStart = p;
+        while (p < tagEnd && data[p] != '"' && data[p] != '\'' &&
+                    data[p] != ' ' && data[p] != '\t' &&
+                    data[p] != '\r' && data[p] != '\n' && data[p] != '>') {
+            p++;
+        }
+        if (p > valStart)
+            return lString32((const lChar8 *)(data + valStart), p - valStart);
+        // Attribute present but empty value: still counts as "has an id".
+        return lString32(U"");
+    }
+    return lString32();
 }
 
 // Scan raw HTML bytes for filepos="NNNN" occurrences, record the numeric values.
@@ -75,14 +145,37 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
     }
 }
 
+// Emit a filepos-id="fileposNNNN" attribute (rewritten to id= by the writer
+// filter) into the stream, to be placed inside a start tag.
+static void writeFileposIdAttr(LVStreamRef & out, lUInt32 filepos) {
+    lString8 attr(" filepos-id=\"");
+    attr.append(MOBI_FILEPOS_ID_PREFIX);
+    attr.appendDecimal((lInt64)filepos);
+    attr.append("\"");
+    out->Write(attr.c_str(), attr.length(), NULL);
+}
+
+// Emit a standalone <a id="fileposNNNN"></a> marker.
+static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
+    lString8 marker("<a id=\"");
+    marker.append(MOBI_FILEPOS_ID_PREFIX);
+    marker.appendDecimal((lInt64)filepos);
+    marker.append("\"></a>");
+    out->Write(marker.c_str(), marker.length(), NULL);
+}
+
 // Pre-process the raw HTML stream: find all filepos=NNNN references and inject
 // anchors at those byte offsets, so the existing id->node map can resolve them
 // (and they survive cache serialization).
 // Where the offset falls inside a start tag, we add a filepos-id="fileposNNNN"
 // attribute to that tag (which the writer filter will rewrite to id=), avoiding
-// splitting any text node. Otherwise, we insert a standalone <a id="fileposNNNN">
-// </a> marker (the same approach calibre uses).
-static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
+// splitting any text node. Otherwise, if the offset is immediately followed
+// (after whitespace) by a start tag, we attach the id to that tag too: an empty
+// inline <a> anchor right after a page break would resolve to the previous page,
+// whereas attaching the id to the following element keeps the target on the
+// correct page. Only when the offset lands mid-text do we insert a standalone
+// <a id="fileposNNNN"></a> marker (the same approach calibre uses).
+static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver) {
     LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
     if (buffered.isNull())
         return LVStreamRef();
@@ -140,8 +233,44 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
                 // (If the offset is in text, we hit a '<' first and nextGT
                 // stays -1, so we insert a standalone marker instead.)
                 if (nextGT > insertPos) {
-                    injectIntoTag = true;
-                    tagEndPos = nextGT; // '>' position (attribute goes before it)
+                    lString32 existingId = tagGetIdAttr(data, prevLT, nextGT);
+                    if (!existingId.empty()) {
+                        // The tag already has an id: point the link at it.
+                        resolver.targetIds.set(filepos, existingId);
+                    } else {
+                        injectIntoTag = true;
+                        tagEndPos = nextGT; // '>' position (attribute goes before it)
+                    }
+                }
+            }
+        }
+        if (!injectIntoTag) {
+            // The offset is not inside a tag. If it is immediately followed
+            // (after whitespace) by a start tag, attach the id to that tag
+            // instead of emitting an empty <a> marker: an empty inline anchor
+            // right after a page break resolves to the previous page.
+            int j = insertPos;
+            while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
+                        data[j] == '\r' || data[j] == '\n')) {
+                j++;
+            }
+            if (j < dataSize && data[j] == '<' && j + 1 < dataSize &&
+                        data[j + 1] != '/') {
+                // Find the '>' closing this start tag
+                int nextGT = -1;
+                for (int k = j + 1; k < dataSize; k++) {
+                    if (data[k] == '>') { nextGT = k; break; }
+                    if (data[k] == '<') break;
+                }
+                if (nextGT > j) {
+                    lString32 existingId = tagGetIdAttr(data, j, nextGT);
+                    if (!existingId.empty()) {
+                        // The tag already has an id: point the link at it.
+                        resolver.targetIds.set(filepos, existingId);
+                    } else {
+                        injectIntoTag = true;
+                        tagEndPos = nextGT;
+                    }
                 }
             }
         }
@@ -151,19 +280,11 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
             // Copy up to (but not including) the closing '>', then emit the
             // attribute, then the '>'.
             rewritten->Write(data + outPos, tagEndPos - outPos, NULL);
-            lString8 attr(" filepos-id=\"");
-            attr.append(MOBI_FILEPOS_ID_PREFIX);
-            attr.appendDecimal((lInt64)filepos);
-            attr.append("\"");
-            rewritten->Write(attr.c_str(), attr.length(), NULL);
+            writeFileposIdAttr(rewritten, filepos);
             outPos = tagEndPos;
         } else {
             rewritten->Write(data + outPos, insertPos - outPos, NULL);
-            lString8 marker("<a id=\"");
-            marker.append(MOBI_FILEPOS_ID_PREFIX);
-            marker.appendDecimal((lInt64)filepos);
-            marker.append("\"></a>");
-            rewritten->Write(marker.c_str(), marker.length(), NULL);
+            writeFileposMarker(rewritten, filepos);
             outPos = insertPos;
         }
     }
@@ -177,9 +298,11 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream) {
 // - filepos-id="XXX" -> id="XXX" (target marker, registered in the id->node map)
 // - filepos="NNNN" -> href="#fileposNNNN" (link to a byte-offset target)
 class MobiHtmlWriterFilter : public ldomDocumentWriterFilter {
+    MobiFileposResolver & _resolver;
 public:
-    MobiHtmlWriterFilter(ldomDocument * document)
-        : ldomDocumentWriterFilter(document, false, HTML_AUTOCLOSE_TABLE) {}
+    MobiHtmlWriterFilter(ldomDocument * document, MobiFileposResolver & resolver)
+        : ldomDocumentWriterFilter(document, false, HTML_AUTOCLOSE_TABLE)
+        , _resolver(resolver) {}
 
     virtual void OnAttribute(const lChar32 * nsname, const lChar32 * attrname,
                              const lChar32 * attrvalue) {
@@ -190,9 +313,17 @@ public:
             return;
         }
         if (attrname && !lStr_cmp(attrname, U"filepos")) {
-            // Link to a byte offset: rewrite to href="#fileposNNNN".
+            // Link to a byte offset: rewrite to href="#fileposNNNN", or to the
+            // target element's existing id if it already had one.
             lInt64 filepos = 0;
             if (lString32(attrvalue).atoi(filepos) && filepos >= 0 && filepos <= 0xFFFFFFFFLL) {
+                lString32 targetId;
+                if (_resolver.targetIds.get((lUInt32)filepos, targetId)) {
+                    lString32 href(U"#");
+                    href.append(targetId);
+                    ldomDocumentWriterFilter::OnAttribute(nsname, U"href", href.c_str());
+                    return;
+                }
                 lString32 href(U"#");
                 href.append(MOBI_FILEPOS_ID_PREFIX);
                 href.appendDecimal(filepos);
@@ -1512,14 +1643,15 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
         {
             LVStreamRef parserStream = stream;
             bool isMobiHtml = pdb->getFormat() == PDBFile::MOBI;
+            MobiFileposResolver mobiResolver;
 
             if (isMobiHtml) {
-                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream);
+                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver);
                 if (!rewrittenStream.isNull())
                     parserStream = rewrittenStream;
             }
 
-            MobiHtmlWriterFilter mobiWriterFilter(doc);
+            MobiHtmlWriterFilter mobiWriterFilter(doc, mobiResolver);
             LVHTMLParser parser(parserStream, &mobiWriterFilter);
             parser.setProgressCallback(progressCallback);
             if ( !parser.CheckFormat() ) {
