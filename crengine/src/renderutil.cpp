@@ -82,6 +82,30 @@ static bool isAppliedInitialLetterPseudoElem(ldomNode * enode, css_style_rec_t *
             && hasAppliedInitialLetter(style);
 }
 
+// The actual ::first-letter pseudo can live below nested inline elements
+// (<i>, <span>, ...) and even below ::first-line cloneNodes. When we need the
+// paragraph-level grid or direction that own the initial-letter effect, walk
+// up the unboxed/effective ancestor chain until we reach the block that was
+// flagged with attr_HasFirstLetter.
+static ldomNode * getInitialLetterOwnerBlock(ldomNode * enode)
+{
+    if ( !enode ) {
+        return NULL;
+    }
+    ldomNode * node = enode->getEffectiveNode();
+    if ( !node ) {
+        return NULL;
+    }
+    ldomNode * ancestor = node->getUnboxedParent();
+    while ( ancestor ) {
+        if ( ancestor->hasAttribute(attr_HasFirstLetter) ) {
+            return ancestor;
+        }
+        ancestor = ancestor->getUnboxedParent();
+    }
+    return NULL;
+}
+
 // Initial-letter rides on top of the existing inline-box pipeline.
 // This helper recognizes the wrapper shape produced by that pipeline:
 // the inlineBox host, whose first child is the ::first-letter pseudo-element.
@@ -90,7 +114,11 @@ static bool isAppliedInitialLetterPseudoElem(ldomNode * enode, css_style_rec_t *
 // especially once ::first-line clones are involved.
 ldomNode * getInitialLetterInlineBoxPseudoElem(ldomNode * inline_box)
 {
-    if ( !inline_box || inline_box->getChildCount() <= 0 ) {
+    if ( !inline_box ) {
+        return NULL;
+    }
+    inline_box = inline_box->getEffectiveNode();
+    if ( !inline_box || inline_box->getEffectiveNodeId() != el_inlineBox || inline_box->getChildCount() <= 0 ) {
         return NULL;
     }
     ldomNode * node = inline_box->getChildNode(0);
@@ -102,6 +130,21 @@ ldomNode * getInitialLetterInlineBoxPseudoElem(ldomNode * inline_box)
         return NULL;
     }
     return node;
+}
+
+ldomNode * getInitialLetterInlineBoxById(ldomDocument * doc, lUInt32 node_id)
+{
+    if ( !doc || node_id == 0 ) {
+        return NULL;
+    }
+    ldomNode * inline_box = doc->getTinyNode(node_id);
+    if ( !inline_box || inline_box->getEffectiveNodeId() != el_inlineBox ) {
+        return NULL;
+    }
+    if ( !getInitialLetterInlineBoxPseudoElem(inline_box) ) {
+        return NULL;
+    }
+    return inline_box;
 }
 
 // Return the used line-height that initial-letter sizing should be based on.
@@ -460,23 +503,27 @@ static bool getInitialLetterInkBoundsPx(ldomNode * enode, css_style_rec_t * styl
 // Expand the pseudo's own one-line band back toward the parent line grid when
 // the visually tightened ink band would otherwise be noticeably smaller than
 // the surrounding natural lines.
-static bool getInitialLetterNaturalBandPx(ldomNode * enode, css_style_rec_t * style, LVFontRef font,
-        const InitialLetterInkBounds & ink_bounds, int & expand_top, int & natural_height)
+//
+// Keep this owner-block-based top placement shared: newer initial-letter paths
+// (nested inline content, ::first-line clones, carried exclusion rebuild) all
+// need to agree on where the paragraph grid says the initial starts.
+static bool getInitialLetterTopOffsetPx(ldomNode * enode, css_style_rec_t * style,
+        LVFontRef font, int & top_offset, int & parent_line_height)
 {
-    expand_top = 0;
-    natural_height = 0;
-    ldomNode * parent = enode ? enode->getParentNode() : NULL;
-    if ( !parent || parent->isNull() || !style || font.isNull() ) {
+    top_offset = 0;
+    parent_line_height = 0;
+    ldomNode * owner = getInitialLetterOwnerBlock(enode);
+    if ( !owner || owner->isNull() || !style || font.isNull() ) {
         return false;
     }
-    css_style_ref_t parent_style_ref = parent->getStyle();
-    LVFontRef parent_font = parent->getFont();
-    if ( parent_style_ref.isNull() || parent_font.isNull() ) {
+    css_style_ref_t owner_style_ref = owner->getStyle();
+    LVFontRef owner_font = owner->getFont();
+    if ( owner_style_ref.isNull() || owner_font.isNull() ) {
         return false;
     }
-    css_style_rec_t * parent_style = parent_style_ref.get();
-    int parent_line_height = getInitialLetterStyleLineHeightPx(parent->getDocument(), parent,
-            parent_style, parent_font, -1);
+    css_style_rec_t * owner_style = owner_style_ref.get();
+    parent_line_height = getInitialLetterStyleLineHeightPx(owner->getDocument(), owner,
+            owner_style, owner_font, -1);
     if ( parent_line_height <= 0 ) {
         return false;
     }
@@ -484,19 +531,35 @@ static bool getInitialLetterNaturalBandPx(ldomNode * enode, css_style_rec_t * st
     if ( sink <= 0 ) {
         sink = 1;
     }
-    int parent_adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(parent->getDocument(), parent,
-            parent_style, parent_font, -1);
+    int parent_adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(owner->getDocument(), owner,
+            owner_style, owner_font, -1);
     int initial_baseline = font->getBaseline();
     int initial_letter_size = style->initial_letter.value >> 8;
-    int top_offset;
     if ( initial_letter_size >= sink * 256 ) {
         top_offset = parent_adjusted_baseline + (sink - 1) * parent_line_height - initial_baseline;
     }
     else {
-        int parent_cap_height = getInitialLetterFontCapHeightPx(parent_font);
+        int parent_cap_height = getInitialLetterFontCapHeightPx(owner_font);
         int initial_cap_height = getInitialLetterFontCapHeightPx(font);
         top_offset = parent_adjusted_baseline - parent_cap_height
                     - (initial_baseline - initial_cap_height);
+    }
+    return true;
+}
+
+static bool getInitialLetterNaturalBandPx(ldomNode * enode, css_style_rec_t * style, LVFontRef font,
+        const InitialLetterInkBounds & ink_bounds, int & expand_top, int & natural_height)
+{
+    expand_top = 0;
+    natural_height = 0;
+    int top_offset = 0;
+    int parent_line_height = 0;
+    if ( !getInitialLetterTopOffsetPx(enode, style, font, top_offset, parent_line_height) ) {
+        return false;
+    }
+    int sink = style->initial_letter.value & 0xFF;
+    if ( sink <= 0 ) {
+        sink = 1;
     }
     int actual_top = top_offset + ink_bounds.min_top;
     if ( actual_top > 0 ) {
@@ -537,6 +600,30 @@ static int getInitialLetterInkBottomPx(ldomNode * enode, css_style_rec_t * style
     return found ? max_bottom : -1;
 }
 
+// Initial-letter exclusion/overflow is primarily driven by glyph ink. Keep
+// underline support conservative: when underline is present, just extend the
+// lower bound to include the rule that DrawTextString() will paint below the
+// baseline. This is enough to avoid most clashes with following wrapped lines
+// or a later carried-initial clear, without trying to model decoration joins.
+//
+// We intentionally do not try the same for top decorations such as overline:
+// avoiding overlap with previous paragraphs would require real layout
+// clearance above the block, not just a larger overflow rect, and that feels
+// too invasive for such a rare case.
+static int getInitialLetterDecorationBottomPx(ldomNode * enode, css_style_rec_t * style,
+        LVFontRef font, int computed_em)
+{
+    if ( !isAppliedInitialLetterPseudoElem(enode, style) ) {
+        return -1;
+    }
+    if ( style->text_decoration != css_td_underline && style->text_decoration != css_td_blink ) {
+        return -1;
+    }
+    int adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(enode->getDocument(), enode, style, font, computed_em);
+    int underline_bottom = adjusted_baseline + font->getUnderlineOffset() + font->getUnderlineThickness();
+    return underline_bottom > adjusted_baseline ? underline_bottom : -1;
+}
+
 // Inline-box-backed initial-letter layout needs one more derived layer on top
 // of the raw font/ink helpers above: where should the box baseline sit on the
 // first line, and how much depth should later lines exclude below it?
@@ -551,25 +638,36 @@ bool getInitialLetterInlineBoxMetrics(ldomNode * inline_box, int rendered_baseli
     if ( !pseudo ) {
         return false;
     }
-    ldomNode * parent = inline_box->getParentNode();
-    if ( !parent || parent->isNull() ) {
+    ldomNode * styled_parent = pseudo->getEffectiveParentNode();
+    ldomNode * owner = getInitialLetterOwnerBlock(pseudo);
+    if ( !styled_parent || styled_parent->isNull() || !owner || owner->isNull() ) {
         return false;
     }
+    // These two ancestors serve different roles when the first letter starts in
+    // nested inline content (eg. <p><i>T</i>est): the styled parent provides
+    // inherited font/style context for sizing the glyph, while the owner block
+    // provides the paragraph line grid that size/sink and later-line exclusion
+    // are measured against. With ::first-line clones, *Effective* access keeps
+    // both lookups anchored to the original source subtree.
     css_style_ref_t style_ref = pseudo->getStyle();
-    css_style_ref_t parent_style_ref = parent->getStyle();
+    css_style_ref_t styled_parent_style_ref = styled_parent->getStyle();
+    css_style_ref_t owner_style_ref = owner->getStyle();
     LVFontRef computed_font = pseudo->getFont();
-    LVFontRef parent_font = parent->getFont();
-    if ( style_ref.isNull() || parent_style_ref.isNull() || computed_font.isNull() || parent_font.isNull() ) {
+    LVFontRef styled_parent_font = styled_parent->getFont();
+    LVFontRef owner_font = owner->getFont();
+    if ( style_ref.isNull() || styled_parent_style_ref.isNull() || owner_style_ref.isNull()
+            || computed_font.isNull() || styled_parent_font.isNull() || owner_font.isNull() ) {
         return false;
     }
     css_style_rec_t * style = style_ref.get();
-    css_style_rec_t * parent_style = parent_style_ref.get();
-    LVFontRef font = getUsedInitialLetterFont(pseudo, style, parent_style, parent_font);
+    css_style_rec_t * styled_parent_style = styled_parent_style_ref.get();
+    css_style_rec_t * owner_style = owner_style_ref.get();
+    LVFontRef font = getUsedInitialLetterFont(pseudo, style, styled_parent_style, styled_parent_font);
     if ( font.isNull() ) {
         font = computed_font;
     }
     int computed_em = computed_font->getSize();
-    int parent_line_height = getInitialLetterStyleLineHeightPx(parent->getDocument(), parent, parent_style, parent_font, -1);
+    int parent_line_height = getInitialLetterStyleLineHeightPx(owner->getDocument(), owner, owner_style, owner_font, -1);
     if ( parent_line_height <= 0 ) {
         return false;
     }
@@ -577,7 +675,7 @@ bool getInitialLetterInlineBoxMetrics(ldomNode * inline_box, int rendered_baseli
     if ( sink <= 0 ) {
         sink = 1;
     }
-    int parent_adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(parent->getDocument(), parent, parent_style, parent_font, -1);
+    int parent_adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(owner->getDocument(), owner, owner_style, owner_font, -1);
     int initial_baseline = font->getBaseline();
     int initial_letter_size = style->initial_letter.value >> 8;
     int top_offset;
@@ -585,7 +683,7 @@ bool getInitialLetterInlineBoxMetrics(ldomNode * inline_box, int rendered_baseli
         top_offset = parent_adjusted_baseline + (sink - 1) * parent_line_height - initial_baseline;
     }
     else {
-        int parent_cap_height = getInitialLetterFontCapHeightPx(parent_font);
+        int parent_cap_height = getInitialLetterFontCapHeightPx(owner_font);
         int initial_cap_height = getInitialLetterFontCapHeightPx(font);
         top_offset = parent_adjusted_baseline - parent_cap_height
                     - (initial_baseline - initial_cap_height);
@@ -621,15 +719,141 @@ bool getInitialLetterInlineBoxMetrics(ldomNode * inline_box, int rendered_baseli
         metrics.placement_baseline = rendered_baseline + parent_adjusted_baseline - top_offset - initial_baseline;
     }
     int visual_bottom = getInitialLetterInkBottomPx(pseudo, style, font, computed_em);
+    int decoration_bottom = getInitialLetterDecorationBottomPx(pseudo, style, font, computed_em);
+    if ( decoration_bottom > visual_bottom ) {
+        visual_bottom = decoration_bottom;
+    }
     if ( visual_bottom <= 0 ) {
         visual_bottom = getInitialLetterStyleLineHeightPx(pseudo->getDocument(), pseudo, style, font, computed_em);
     }
     int actual_bottom = top_offset + visual_bottom;
+    metrics.ink_bottom = actual_bottom;
     if ( actual_bottom > metrics.exclusion_height ) {
         metrics.exclusion_height = actual_bottom;
     }
     metrics.valid = true;
     return true;
+}
+
+bool getInitialLetterInlineBoxHorizontalInkOverflow(ldomNode * inline_box,
+        int & left_overflow, int & right_overflow)
+{
+    left_overflow = 0;
+    right_overflow = 0;
+    lvRect ink_rect;
+    if ( !getInitialLetterInlineBoxInkRect(inline_box, ink_rect) ) {
+        return false;
+    }
+    lvRect box_rect;
+    inline_box->getAbsRect(box_rect);
+    left_overflow = box_rect.left - ink_rect.left;
+    if ( left_overflow < 0 ) {
+        left_overflow = 0;
+    }
+    right_overflow = ink_rect.right - box_rect.right;
+    if ( right_overflow < 0 ) {
+        right_overflow = 0;
+    }
+    return true;
+}
+
+bool getInitialLetterInlineBoxExclusion(ldomNode * inline_box, int & abs_x, int & width,
+        int & abs_end_y, bool & is_right)
+{
+    abs_x = 0;
+    width = 0;
+    abs_end_y = 0;
+    is_right = false;
+    if ( !inline_box ) {
+        return false;
+    }
+    RenderRectAccessor fmt(inline_box);
+    InitialLetterInlineBoxMetrics metrics;
+    if ( !getInitialLetterInlineBoxMetrics(inline_box, fmt.getBaseline(), metrics) ) {
+        return false;
+    }
+    ldomNode * owner = getInitialLetterOwnerBlock(inline_box);
+    if ( !owner || owner->isNull() ) {
+        return false;
+    }
+    css_style_ref_t owner_style_ref = owner->getStyle();
+    LVFontRef owner_font = owner->getFont();
+    if ( owner_style_ref.isNull() || owner_font.isNull() ) {
+        return false;
+    }
+    lvRect box_rect;
+    inline_box->getAbsRect(box_rect);
+    int exclusion_x = box_rect.left;
+    int exclusion_right = box_rect.right;
+    RenderRectAccessor parent_fmt(owner);
+    int direction = RENDER_RECT_GET_DIRECTION(parent_fmt);
+    if ( direction == REND_DIRECTION_UNSET ) {
+        lvRect parent_rect;
+        owner->getAbsRect(parent_rect, true);
+        is_right = box_rect.left + box_rect.right > parent_rect.left + parent_rect.right;
+    }
+    else {
+        is_right = direction == REND_DIRECTION_RTL;
+    }
+    int left_overflow = 0;
+    int right_overflow = 0;
+    if ( getInitialLetterInlineBoxHorizontalInkOverflow(inline_box, left_overflow, right_overflow) ) {
+        if ( is_right ) {
+            if ( left_overflow > 0 ) {
+                exclusion_x -= left_overflow;
+            }
+        }
+        else {
+            if ( right_overflow > 0 ) {
+                exclusion_right += right_overflow;
+            }
+        }
+    }
+    width = exclusion_right - exclusion_x;
+    if ( width <= 0 ) {
+        return false;
+    }
+    abs_x = exclusion_x;
+    int strut_baseline = getInitialLetterStyleAdjustedBaselinePx(owner->getDocument(),
+            owner, owner_style_ref.get(), owner_font, -1);
+    ldomNode * final_node = inline_box;
+    while ( final_node ) {
+        if ( final_node->getRendMethod() == erm_final ) {
+            break;
+        }
+        final_node = final_node->getParentNode();
+    }
+    if ( final_node ) {
+        LFormattedTextRef formatted;
+        CVRendBlockCache & cache = final_node->getDocument()->getRendBlockCache();
+        if ( cache.get(final_node, formatted) && !formatted.isNull() ) {
+            strut_baseline = formatted->GetBuffer()->strut_baseline;
+        }
+    }
+    // box_rect.top is the absolute top of the inlineBox host. From there, move
+    // down to the owner block's strut baseline, then to the initial-letter
+    // placement baseline, then by the exclusion depth used by later wrapped
+    // lines. Using the owner block here keeps carried exclusion aligned with
+    // the paragraph even when the initial itself sits in a nested inline span.
+    // Note that any first-line lift caused by metrics.top_overflow is already
+    // reflected in box_rect.top via the inlineBox y stored by lvtextfm.cpp, so
+    // we must not add top_overflow a second time here.
+    abs_end_y = box_rect.top - strut_baseline + metrics.placement_baseline + metrics.exclusion_height;
+    return abs_end_y > box_rect.top;
+}
+
+bool getInitialLetterInlineBoxExclusionById(ldomDocument * doc, lUInt32 node_id,
+        int & abs_x, int & width, int & abs_end_y, bool & is_right)
+{
+    ldomNode * inline_box = getInitialLetterInlineBoxById(doc, node_id);
+    if ( !inline_box ) {
+        abs_x = 0;
+        width = 0;
+        abs_end_y = 0;
+        is_right = false;
+        return false;
+    }
+    return getInitialLetterInlineBoxExclusion(inline_box, abs_x, width, abs_end_y, is_right);
 }
 
 // Hit-testing wants the visual footprint of the enlarged initial-letter, not
@@ -642,7 +866,7 @@ bool getInitialLetterInlineBoxInkRect(ldomNode * inline_box, lvRect & rect)
     if ( !pseudo ) {
         return false;
     }
-    ldomNode * parent = inline_box->getParentNode();
+    ldomNode * parent = inline_box->getEffectiveParentNode();
     if ( !parent || parent->isNull() ) {
         return false;
     }
@@ -685,6 +909,16 @@ bool getInitialLetterInlineBoxInkRect(ldomNode * inline_box, lvRect & rect)
     else {
         rect.top = box_rect.top + ink_bounds.min_top;
         rect.bottom = box_rect.top + ink_bounds.max_bottom;
+    }
+    // Keep top overflow ink-only. Extending it for overline would not solve
+    // the actual inter-paragraph overlap issue, which would need block-level
+    // top clearance semantics.
+    int decoration_bottom = getInitialLetterDecorationBottomPx(pseudo, style_ref.get(), font, computed_em);
+    if ( decoration_bottom > 0 ) {
+        int decoration_abs_bottom = box_rect.top + decoration_bottom;
+        if ( decoration_abs_bottom > rect.bottom ) {
+            rect.bottom = decoration_abs_bottom;
+        }
     }
     if ( rect.height() == 0 && rect.width() > 0 ) {
         rect.bottom++;

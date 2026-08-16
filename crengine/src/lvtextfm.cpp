@@ -432,6 +432,7 @@ public:
     bool m_has_float_to_position;
     bool m_has_ongoing_float;
     bool m_no_clear_own_floats;
+    bool m_no_clear_own_initial_letter;
     kerning_mode_t m_kerning_mode;
     bool m_allow_strut_confining;
     bool m_has_multiple_scripts;
@@ -456,9 +457,13 @@ public:
     bool m_has_cjk; // true when some CJK met
     int  m_cjk_prev_line_added_space_div; // Used with CJK justified lines, to
     int  m_cjk_prev_line_added_space_mod; // apply same spacing on last line.
+    lUInt32 m_formatted_initial_letter_id;
+    int  m_formatted_initial_letter_ink_end_y;
     struct {
         bool active;
+        bool is_carried;
         bool is_right;
+        lUInt32 node_id;
         int x;
         int width;
         int start_y;
@@ -498,11 +503,16 @@ public:
         m_has_float_to_position = false;
         m_has_ongoing_float = false;
         m_no_clear_own_floats = false;
+        m_no_clear_own_initial_letter = false;
         m_has_multiple_scripts = false;
         m_usable_left_overflow = 0;
         m_usable_right_overflow = 0;
         m_hanging_punctuation = false;
+        m_formatted_initial_letter_id = 0;
+        m_formatted_initial_letter_ink_end_y = 0;
         m_initial_letter_exclusion.active = false;
+        m_initial_letter_exclusion.is_carried = false;
+        m_initial_letter_exclusion.node_id = 0;
         m_initial_letter_exclusion.is_right = false;
         m_initial_letter_exclusion.x = 0;
         m_initial_letter_exclusion.width = 0;
@@ -537,7 +547,6 @@ public:
         RenderRectAccessor fmt( node );
         InitialLetterInlineBoxMetrics metrics;
         if ( !getInitialLetterInlineBoxMetrics(node, fmt.getBaseline(), metrics) ) {
-            m_initial_letter_exclusion.active = false;
             return;
         }
         int exclusion_start = frmline->y + frmline->height;
@@ -545,31 +554,22 @@ public:
         // same vertical shift must extend the later-line exclusion footprint.
         int exclusion_end = frmline->y + metrics.top_overflow + metrics.exclusion_height;
         if ( exclusion_end <= exclusion_start ) {
-            m_initial_letter_exclusion.active = false;
             return;
         }
         int exclusion_x = fmt.getX();
         int exclusion_right = exclusion_x + fmt.getWidth();
         // This mirrors the width widening done when the inline-box is first measured.
-        lvRect ink_rect;
-        if ( getInitialLetterInlineBoxInkRect(node, ink_rect) ) {
-            lvRect box_rect;
-            node->getAbsRect(box_rect);
+        int left_overflow = 0;
+        int right_overflow = 0;
+        if ( getInitialLetterInlineBoxHorizontalInkOverflow(node, left_overflow, right_overflow) ) {
             if ( m_para_dir_is_rtl ) {
-                int left_overflow = box_rect.left - ink_rect.left;
-                if ( left_overflow > 0 ) {
-                    exclusion_x -= left_overflow;
-                }
+                exclusion_x -= left_overflow;
             }
             else {
-                int right_overflow = ink_rect.right - box_rect.right;
-                if ( right_overflow > 0 ) {
-                    exclusion_right += right_overflow;
-                }
+                exclusion_right += right_overflow;
             }
         }
         if ( exclusion_right <= 0 || exclusion_x >= m_pbuffer->width ) {
-            m_initial_letter_exclusion.active = false;
             return;
         }
         if ( exclusion_x < 0 ) {
@@ -578,12 +578,23 @@ public:
         if ( exclusion_right > m_pbuffer->width ) {
             exclusion_right = m_pbuffer->width;
         }
+        // We only report back (if/via float_footprint, to renderBlockElementEnhanced())
+        // the initial letter we found if it has generated an exclusion area.
+        lUInt32 node_id = node->getDataIndex();
+        m_formatted_initial_letter_id = node_id;
         m_initial_letter_exclusion.active = true;
+        m_initial_letter_exclusion.is_carried = false;
+        m_initial_letter_exclusion.node_id = node_id;
         m_initial_letter_exclusion.is_right = m_para_dir_is_rtl;
         m_initial_letter_exclusion.x = exclusion_x;
         m_initial_letter_exclusion.width = exclusion_right - exclusion_x;
         m_initial_letter_exclusion.start_y = exclusion_start;
         m_initial_letter_exclusion.end_y = exclusion_end;
+        int inline_box_top = frmline->y + frmline->baseline - word->o.baseline + word->y;
+        int ink_end = inline_box_top + metrics.ink_bottom;
+        if ( ink_end > m_formatted_initial_letter_ink_end_y ) {
+            m_formatted_initial_letter_ink_end_y = ink_end;
+        }
     }
 
     // Embedded floats positioning helpers.
@@ -896,6 +907,10 @@ public:
         // inner floats (we don't fill the height of outer floats (float_footprint)
         // as they can still apply over our siblings.)
         fillAndMoveToY( getFloatsMaxBottomY() );
+    }
+    void finalizeInitialLetterInk() {
+        // Similar for a still ongoing initial-letter
+        fillAndMoveToY( m_formatted_initial_letter_ink_end_y );
     }
     void fillAndMoveToY(int target_y) {
         // Adds blank lines to fill the vertical space from current m_y to target_y.
@@ -2411,21 +2426,14 @@ public:
                             // of the running text (ie. italic 'f').
                             // (activateInitialLetterInlineBoxExclusion() will do the same for
                             // the exclusion area).
-                            lvRect ink_rect;
-                            if ( getInitialLetterInlineBoxInkRect(node, ink_rect) ) {
-                                lvRect box_rect;
-                                node->getAbsRect(box_rect);
+                            int left_overflow = 0;
+                            int right_overflow = 0;
+                            if ( getInitialLetterInlineBoxHorizontalInkOverflow(node, left_overflow, right_overflow) ) {
                                 if ( m_para_dir_is_rtl ) {
-                                    int left_overflow = box_rect.left - ink_rect.left;
-                                    if ( left_overflow > 0 ) {
-                                        width += left_overflow;
-                                    }
+                                    width += left_overflow;
                                 }
                                 else {
-                                    int right_overflow = ink_rect.right - box_rect.right;
-                                    if ( right_overflow > 0 ) {
-                                        width += right_overflow;
-                                    }
+                                    width += right_overflow;
                                 }
                             }
                             // It feels we can let a space following the initial letter
@@ -3648,8 +3656,13 @@ public:
             // still spans this line
             frmline->flags |= LTEXT_LINE_SPLIT_AVOID_BEFORE;
         }
-        if ( m_initial_letter_exclusion.active && m_y < m_initial_letter_exclusion.end_y && !first ) {
-            // Avoid page split alongside a sinking initial letter
+        if ( m_initial_letter_exclusion.active && m_y < m_initial_letter_exclusion.end_y
+                                               && m_y >= m_initial_letter_exclusion.start_y ) {
+            // Avoid page split on every line actually affected by the exclusion.
+            // (Using the exclusion start_y rather than the naive:
+            //   (!first || m_initial_letter_exclusion.is_carried)
+            // keeps this working in these two cases and also when splitParagraphs() starts
+            // a new sub-paragraph after a <br/> and our initial letter still spans.)
             frmline->flags |= LTEXT_LINE_SPLIT_AVOID_BEFORE;
         }
         if ( lineIsBidi ) {
@@ -5667,18 +5680,6 @@ public:
             #endif
         }
 
-        // If we have an initial-letter still ongoing, extend that paragraph height
-        // so it contains it fully so it does not overlap on the following paragraph.
-        if ( isLastPara && m_initial_letter_exclusion.active && m_y < m_initial_letter_exclusion.end_y
-                && m_pbuffer->frmlinecount > 0 ) {
-            formatted_line_t * last_line = m_pbuffer->frmlines[m_pbuffer->frmlinecount - 1];
-            int extra_height = m_initial_letter_exclusion.end_y - m_y;
-            if ( last_line && extra_height > 0 ) {
-                last_line->height += extra_height;
-                m_y += extra_height;
-                m_pbuffer->height = m_y;
-            }
-        }
     }
 
     void processEmbeddedBlock( int idx )
@@ -5824,6 +5825,14 @@ public:
             // Clear our own floats so they are fully contained in this final block.
             finalizeFloats();
         }
+        if ( !m_no_clear_own_initial_letter ) {
+            // Likewise, contain our own initial-letter ink
+            // (When m_no_clear_own_initial_letter unset, we are rendering a table cell
+            // or a standalone float/inlinebox: we clear only down to the bottom ink,
+            // and not down to the exclusion area which is usually aligned to a paragraph
+            // line box, so possibly taller, which would leave some blank space.)
+            finalizeInitialLetterInk();
+        }
         if ( clear_after_last_flag ) {
             floatClearText( clear_after_last_flag );
         }
@@ -5965,6 +5974,7 @@ lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, int para_dire
 
     if (float_footprint) {
         formatter.m_no_clear_own_floats = float_footprint->no_clear_own_floats;
+        formatter.m_no_clear_own_initial_letter = float_footprint->no_clear_own_initial_letter;
 
         // BlockFloatFootprint provides a set of floats to represent
         // outer floats possibly having some footprint over the final
@@ -5983,9 +5993,31 @@ lUInt32 LFormattedText::Format(lUInt16 width, lUInt16 page_height, int para_dire
             flt->is_right = (bool)(float_footprint->floats[i][4]);
             flt->inward_margin = float_footprint->floats[i][5];
         }
+        // It can also provide the exclusion area from a previous initial letter
+        // not fully consumed by its own final block.
+        if ( float_footprint->initial_letter_active ) {
+            formatter.m_initial_letter_exclusion.active = true;
+            formatter.m_initial_letter_exclusion.is_carried = true;
+            formatter.m_initial_letter_exclusion.node_id = float_footprint->initial_letter_id;
+            formatter.m_initial_letter_exclusion.is_right = float_footprint->initial_letter_is_right;
+            formatter.m_initial_letter_exclusion.x = float_footprint->initial_letter_x;
+            formatter.m_initial_letter_exclusion.width = float_footprint->initial_letter_width;
+            formatter.m_initial_letter_exclusion.start_y = 0;
+            formatter.m_initial_letter_exclusion.end_y = float_footprint->initial_letter_end_y;
+        }
     }
 
     lUInt32 h = formatter.format();
+
+    if ( float_footprint && formatter.m_formatted_initial_letter_id && float_footprint->no_clear_own_initial_letter ) {
+        // By the time formatting ends, m_formatted_initial_letter_id survives
+        // only if the formatter also installed the matching local exclusion.
+        bool carry_new_initial_letter = formatter.m_initial_letter_exclusion.active
+                                     && formatter.m_initial_letter_exclusion.end_y > (int)h;
+        float_footprint->forwardFoundInitialLetter(formatter.m_formatted_initial_letter_id,
+                                        carry_new_initial_letter,
+                                        formatter.m_initial_letter_exclusion.end_y);
+    }
 
     if ( float_footprint && float_footprint->no_clear_own_floats ) {
         // If we did not finalize/clear our embedded floats, forward
