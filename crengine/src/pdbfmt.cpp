@@ -50,9 +50,11 @@ static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
 }
 
 // Does the start tag spanning [tagStart, tagEnd) already declare an "id" or
-// "filepos-id" attribute? If so, return its value (so a link can point at it
-// instead of us injecting a duplicate id). Returns an empty string if none.
-static lString32 tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd) {
+// "filepos-id" attribute? If so, set *idValue to its value and return true (so
+// a link can point at it instead of us injecting a duplicate id). Returns false
+// if the tag has no such attribute. An empty id="" still returns true (the tag
+// has an id, so we must not inject a second one).
+static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString32 & idValue) {
     for (int i = tagStart; i < tagEnd; i++) {
         // An attribute name is preceded by whitespace (or the tag name).
         bool atBoundary = (i == tagStart) ||
@@ -99,11 +101,12 @@ static lString32 tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd) {
             p++;
         }
         if (p > valStart)
-            return lString32((const lChar8 *)(data + valStart), p - valStart);
-        // Attribute present but empty value: still counts as "has an id".
-        return lString32(U"");
+            idValue = lString32((const lChar8 *)(data + valStart), p - valStart);
+        else
+            idValue.clear(); // empty id=""
+        return true;
     }
-    return lString32();
+    return false;
 }
 
 // Scan raw HTML bytes for filepos="NNNN" occurrences, record the numeric values.
@@ -225,8 +228,8 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
                 // (If the offset is in text, we hit a '<' first and nextGT
                 // stays -1, so we insert a standalone marker instead.)
                 if (nextGT > insertPos) {
-                    lString32 existingId = tagGetIdAttr(data, prevLT, nextGT);
-                    if (!existingId.empty()) {
+                    lString32 existingId;
+                    if (tagGetIdAttr(data, prevLT, nextGT, existingId)) {
                         // The tag already has an id: point the link at it.
                         resolver.targetIds.set(filepos, existingId);
                     } else {
@@ -255,8 +258,8 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
                     if (data[k] == '<') break;
                 }
                 if (nextGT > j) {
-                    lString32 existingId = tagGetIdAttr(data, j, nextGT);
-                    if (!existingId.empty()) {
+                    lString32 existingId;
+                    if (tagGetIdAttr(data, j, nextGT, existingId)) {
                         // The tag already has an id: point the link at it.
                         resolver.targetIds.set(filepos, existingId);
                     } else {
@@ -270,9 +273,14 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
             insertPos = outPos;
         if (injectIntoTag) {
             // Copy up to (but not including) the closing '>', then emit the
-            // attribute, then the '>'.
-            rewritten->Write(data + outPos, tagEndPos - outPos, NULL);
+            // attribute, then the '>'. For a self-closing tag (<div/>), the
+            // attribute must go before the '/'.
+            bool selfClosing = (tagEndPos > outPos && data[tagEndPos - 1] == '/');
+            int copyEnd = selfClosing ? tagEndPos - 1 : tagEndPos;
+            rewritten->Write(data + outPos, copyEnd - outPos, NULL);
             writeFileposIdAttr(rewritten, filepos);
+            if (selfClosing)
+                rewritten->Write("/", 1, NULL);
             outPos = tagEndPos;
         } else if (domVersion >= 20260812) {
             // Only inject a standalone <a> marker (which may split a text node
