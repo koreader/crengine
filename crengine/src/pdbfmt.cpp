@@ -175,7 +175,7 @@ static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
 // whereas attaching the id to the following element keeps the target on the
 // correct page. Only when the offset lands mid-text do we insert a standalone
 // <a id="fileposNNNN"></a> marker (the same approach calibre uses).
-static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver) {
+static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver, lUInt32 domVersion) {
     LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
     if (buffered.isNull())
         return LVStreamRef();
@@ -282,9 +282,15 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
             rewritten->Write(data + outPos, tagEndPos - outPos, NULL);
             writeFileposIdAttr(rewritten, filepos);
             outPos = tagEndPos;
-        } else {
+        } else if (domVersion >= 20260812) {
+            // Only inject a standalone <a> marker (which may split a text node
+            // and break highlights) when a recent DOM version is requested.
             rewritten->Write(data + outPos, insertPos - outPos, NULL);
             writeFileposMarker(rewritten, filepos);
+            outPos = insertPos;
+        } else {
+            // Older DOM: skip the marker entirely to avoid splitting text nodes.
+            rewritten->Write(data + outPos, insertPos - outPos, NULL);
             outPos = insertPos;
         }
     }
@@ -1646,7 +1652,7 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
             MobiFileposResolver mobiResolver;
 
             if (isMobiHtml) {
-                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver);
+                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver, doc->getDOMVersionRequested());
                 if (!rewrittenStream.isNull())
                     parserStream = rewrittenStream;
             }
