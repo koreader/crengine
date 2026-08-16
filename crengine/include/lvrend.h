@@ -45,6 +45,7 @@
 #define RENDER_RECT_FLAG_BOX_IS_POSITIONNED                 0x0400 // for inlineBox (when X/Y set in its erm_final)
 #define RENDER_RECT_FLAG_DO_MATH_TRANSFORM                  0x0800 // do math glyph stretching
 #define RENDER_RECT_FLAG_BOX_IS_DISCARDED                   0x1000 // source inlineBox hidden in favor of a ::first-line clone owner
+#define RENDER_RECT_FLAG_NO_CLEAR_OWN_INITIAL_LETTER        0x2000
 #define RENDER_RECT_FLAG_TEMP_USED_AS_CSS_CHECK_CACHE       0x8000 // has been cleared and is used as a CSS checks cache
 
 #define RENDER_RECT_SET_FLAG(r, f)     ( r.setFlags( r.getFlags() | RENDER_RECT_FLAG_##f ) )
@@ -84,6 +85,7 @@ public:
     // Forwarded from BLOCK_RENDERING_DO_NOT_CLEAR_OWN_FLOATS
     // (or not when table cell erm_final)
     bool no_clear_own_floats;
+    bool no_clear_own_initial_letter;
     bool use_floatIds;
     // Footprints, used when they are more than 5 floats involved,
     // or ALLOW_EXACT_FLOATS_FOOTPRINTS not enabled.
@@ -93,14 +95,29 @@ public:
     int right_h;
     int left_min_y;
     int right_min_y;
-    // FloatIds, used when less than 5 floats involved
-    // and ALLOW_EXACT_FLOATS_FOOTPRINTS enabled
+    // FloatIds, used when there are at most 5 exact saved nodes involved
+    // and ALLOW_EXACT_FLOATS_FOOTPRINTS enabled. These are usually floatBox
+    // nodes, but one slot may be used by an initial-letter inlineBox so
+    // we can rebuild its carried exclusion without extra cached fields.
     int nb_floatIds;
     lUInt32 floatIds[5];
     // Floats to transfer to final block for it to
     // start with these 5 "fake" embedded floats
     int floats_cnt;
     int floats[5][6]; // max 5 floats, with (x,y,w,h,is_right,inward_margin) each
+    // Initial letter exclusion area (from a previous formatting) but still active,
+    // transferred to a new final block formatting so it can wrap around.
+    bool initial_letter_active;
+    lUInt32 initial_letter_id;
+    int  initial_letter_end_y;
+    int  initial_letter_x;
+    int  initial_letter_width;
+    bool initial_letter_is_right;
+    // New initial letter received from a final block formatting when it has
+    // met one, possibly still ongoing and to carry onto next formattings.
+    lUInt32 formatted_initial_letter_id;
+    bool formatted_initial_letter_carry_on;
+    int  formatted_initial_letter_carry_end_y;
 
     int getFinalMinY() { return used_min_y; };
     int getFinalMaxY() { return used_max_y; };
@@ -109,13 +126,20 @@ public:
     void generateEmbeddedFloatsFromFootprints( int final_width );
     void generateEmbeddedFloatsFromFloatIds( ldomNode * node, int final_width );
     void forwardOverflowingFloat( int x, int y, int w, int h, bool r, ldomNode * node );
+    void forwardFoundInitialLetter(lUInt32 node_id, bool carry_on, int end_y);
     int getTopShiftX(int final_width, bool get_right_shift=false);
 
-    BlockFloatFootprint( FlowState * fl=NULL, int dleft=0, int dtop=0, bool noclearownfloats=false ) :
+    BlockFloatFootprint( FlowState * fl=NULL, int dleft=0, int dtop=0,
+                         bool noclearownfloats=false, bool noclearowninitialletter=false ) :
         flow(fl), d_left(dleft), d_top(dtop), used_min_y(0), used_max_y(0),
-        no_clear_own_floats(noclearownfloats), use_floatIds(false),
+        no_clear_own_floats(noclearownfloats),
+        no_clear_own_initial_letter(noclearowninitialletter), use_floatIds(false),
         left_w(0), left_h(0), right_w(0), right_h(0), left_min_y(0), right_min_y(0),
-        nb_floatIds(0), floats_cnt(0)
+        nb_floatIds(0), floats_cnt(0),
+        initial_letter_active(false), initial_letter_id(0), initial_letter_end_y(0),
+        initial_letter_x(0), initial_letter_width(0), initial_letter_is_right(false),
+        formatted_initial_letter_id(0),
+        formatted_initial_letter_carry_on(false), formatted_initial_letter_carry_end_y(0)
         { }
 };
 
