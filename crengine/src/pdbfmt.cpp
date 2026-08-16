@@ -44,16 +44,22 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
         if (!matchFileposBytes(data, dataSize, i)) { i++; continue; }
         int pos = i + 7;
         // Skip whitespace before '='
-        while (pos < dataSize && (data[pos] == ' ' || data[pos] == '\t')) pos++;
+        while (pos < dataSize &&
+                    (data[pos] == ' ' || data[pos] == '\t')) {
+            pos++;
+        }
         if (pos >= dataSize || data[pos] != '=') { i++; continue; }
         pos++; // skip '='
         // Skip whitespace and an optional opening quote
-        while (pos < dataSize && (data[pos] == ' ' || data[pos] == '"' || data[pos] == '\''))
+        while (pos < dataSize &&
+                    (data[pos] == ' ' || data[pos] == '"' || data[pos] == '\'')) {
             pos++;
+        }
         // Parse the integer value
         lUInt64 val = 0;
         int numStart = pos;
-        while (pos < dataSize && data[pos] >= '0' && data[pos] <= '9') {
+        while (pos < dataSize &&
+                    data[pos] >= '0' && data[pos] <= '9') {
             val = val * 10 + (data[pos] - '0');
             pos++;
         }
