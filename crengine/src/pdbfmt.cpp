@@ -7,12 +7,15 @@
 //#define DUMP_PDB_CONTENTS
 
 // --- MOBI filepos fragment support ---
-// MOBI uses byte offsets for internal links: <a filepos="NNNN"> points to the
-// byte offset NNNN in the uncompressed HTML, and <... filepos-id="XXX"> marks a
-// target. We resolve these by (1) injecting <a id="fileposNNNN"></a> markers at
-// each referenced byte offset (the same approach calibre uses), and (2) rewriting
-// filepos/filepos-id attributes into href/id so the existing id->node map handles
-// fragment resolution (and is serialized to cache).
+// MOBI uses two independent mechanisms for internal links:
+// - <a filepos="NNNN"> points to byte offset NNNN in the uncompressed HTML.
+//   Nothing in the source marks that offset; we must add an anchor there.
+// - filepos-id="XXX" on an element marks it as a target (used by the NCX/TOC).
+// We resolve both by rewriting them into plain href/id attributes, so the
+// existing id->node map handles fragment resolution (and survives cache
+// serialization). For each referenced byte offset, we inject an anchor: either
+// a filepos-id attribute on the tag containing the offset, or (if the offset
+// lands in text/whitespace) a standalone <a id="fileposNNNN"></a> element.
 
 static const char * MOBI_FILEPOS_ID_PREFIX = "filepos";
 
