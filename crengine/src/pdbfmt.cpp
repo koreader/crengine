@@ -305,18 +305,34 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
 // - filepos="NNNN" -> href="#fileposNNNN" (link to a byte-offset target)
 class MobiHtmlWriterFilter : public ldomDocumentWriterFilter {
     MobiFileposResolver & _resolver;
+    bool _curTagHasId; // whether the current tag already got an id attribute
 public:
     MobiHtmlWriterFilter(ldomDocument * document, MobiFileposResolver & resolver)
         : ldomDocumentWriterFilter(document, false, HTML_AUTOCLOSE_TABLE)
-        , _resolver(resolver) {}
+        , _resolver(resolver)
+        , _curTagHasId(false) {}
+
+    virtual ldomNode * OnTagOpen(const lChar32 * nsname, const lChar32 * tagname) {
+        _curTagHasId = false;
+        return ldomDocumentWriterFilter::OnTagOpen(nsname, tagname);
+    }
 
     virtual void OnAttribute(const lChar32 * nsname, const lChar32 * attrname,
                              const lChar32 * attrvalue) {
         if (attrname && !lStr_cmp(attrname, U"filepos-id")) {
-            // Target marker: rewrite to a regular id attribute so it is
-            // registered in the id->node map (and serialized to cache).
-            ldomDocumentWriterFilter::OnAttribute(nsname, U"id", attrvalue);
+            // MOBI target marker: rewrite to a regular id attribute so it is
+            // registered in the id->node map (and serialized to cache). But
+            // skip it if the tag already has a plain id, to avoid a duplicate.
+            if (!_curTagHasId) {
+                ldomDocumentWriterFilter::OnAttribute(nsname, U"id", attrvalue);
+                _curTagHasId = true;
+            }
             return;
+        }
+        if (attrname && !lStr_cmp(attrname, U"id")) {
+            // The tag has a plain id: remember it, so a following filepos-id
+            // won't be rewritten into a second id attribute.
+            _curTagHasId = true;
         }
         if (attrname && !lStr_cmp(attrname, U"filepos")) {
             // Link to a byte offset: rewrite to href="#fileposNNNN", or to the
