@@ -330,8 +330,11 @@ public:
             return;
         }
         if (attrname && !lStr_cmp(attrname, U"id")) {
-            // The tag has a plain id: remember it, so a following filepos-id
-            // won't be rewritten into a second id attribute.
+            // If a filepos-id already claimed this tag's id slot, drop this
+            // plain id so the DOM's surviving id matches what tagGetIdAttr()
+            // picks first (avoids a duplicate id attribute).
+            if (_curTagHasId)
+                return;
             _curTagHasId = true;
         }
         if (attrname && !lStr_cmp(attrname, U"filepos")) {
