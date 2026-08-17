@@ -92,6 +92,8 @@
 // 20260812: XPointers serialized by toStringV2() now always emit an
 // explicit [1] for the first sibling element of its kind. This avoids
 // costly forward sibling scans.
+// Also allows MOBI documents to inject a standalone <a> marker inside text
+// for resolving 'filepos' links (which may split a text node).
 
 #include "crsetup.h"
 
