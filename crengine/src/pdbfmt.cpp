@@ -49,11 +49,11 @@ static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
     return matchAscii(data, pos, "filepos", 7);
 }
 
-// Does the start tag spanning [tagStart, tagEnd) already declare an "id" or
-// "filepos-id" attribute? If so, set *idValue to its value and return true (so
-// a link can point at it instead of us injecting a duplicate id). Returns false
-// if the tag has no such attribute. An empty id="" still returns true (the tag
-// has an id, so we must not inject a second one).
+// Does the start tag spanning [tagStart, tagEnd) already declare a non-empty
+// "id" or "filepos-id" attribute? If so, set *idValue to its value and return
+// true (so a link can point at it instead of us injecting a duplicate id).
+// Returns false if the tag has no such attribute, or if it is empty (id=""),
+// in which case the caller injects our own id="fileposNNNN" to override it.
 static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString32 & idValue) {
     for (int i = tagStart; i < tagEnd; i++) {
         // An attribute name is preceded by whitespace (or the tag name).
@@ -103,7 +103,7 @@ static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString3
         if (p > valStart)
             idValue = lString32((const lChar8 *)(data + valStart), p - valStart);
         else
-            idValue.clear(); // empty id=""
+            return false; // empty id="": let the caller inject its own id
         return true;
     }
     return false;
