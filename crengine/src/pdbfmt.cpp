@@ -171,15 +171,10 @@ static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
 // mid-text do we insert a standalone <a id="fileposNNNN"></a> marker (the same
 // approach calibre uses).
 static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver, bool allowInjectStandaloneId) {
-    LVStreamRef buffered = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
-    if (buffered.isNull())
-        return LVStreamRef();
     stream->SetPos(0);
-    LVPumpStream(buffered, stream);
-    buffered->SetPos(0);
-    LVByteArrayRef rawData = buffered->GetData();
+    LVByteArrayRef rawData = stream->GetData();
+    stream->SetPos(0);
     if (rawData.isNull() || rawData->empty()) {
-        stream->SetPos(0);
         return LVStreamRef();
     }
     const lUInt8 * data = rawData->get();
@@ -188,7 +183,6 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
     LVArray<lUInt32> fileposRefs;
     collectMobiFileposData(data, dataSize, fileposRefs);
     if (fileposRefs.empty()) {
-        stream->SetPos(0);
         return LVStreamRef();
     }
 
