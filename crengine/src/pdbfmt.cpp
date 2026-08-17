@@ -280,7 +280,7 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
             rewritten->Write(data + outPos, copyEnd - outPos, NULL);
             writeFileposIdAttr(rewritten, filepos);
             if (selfClosing)
-                rewritten->Write("/", 1, NULL);
+                *rewritten << "/";
             outPos = tagEndPos;
         } else if (allowInjectStandaloneId) {
             // Only inject a standalone <a> marker (which may split a text node
