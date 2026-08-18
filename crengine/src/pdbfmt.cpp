@@ -141,16 +141,16 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
 
 // Emit an id="fileposNNNN" attribute into the stream, to be placed inside a start tag.
 static void writeFileposIdAttr(LVStreamRef & out, lUInt32 filepos) {
-    lString8 attr;
-    attr << " id=\"" << MOBI_FILEPOS_ID_PREFIX << fmt::decimal(filepos) << "\"";
-    *out << attr;
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), " id=\"%s%u\"", MOBI_FILEPOS_ID_PREFIX, (unsigned)filepos);
+    out->Write(buf, len, NULL);
 }
 
 // Emit a standalone <a id="fileposNNNN"></a> marker.
 static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
-    lString8 marker;
-    marker << "<a id=\"" << MOBI_FILEPOS_ID_PREFIX << fmt::decimal(filepos) << "\"></a>";
-    *out << marker;
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "<a id=\"%s%u\"></a>", MOBI_FILEPOS_ID_PREFIX, (unsigned)filepos);
+    out->Write(buf, len, NULL);
 }
 
 // Pre-process the raw HTML stream: find all filepos=NNNN references and inject
