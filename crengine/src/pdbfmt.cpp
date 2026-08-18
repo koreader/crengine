@@ -1689,31 +1689,41 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
         {
             LVStreamRef parserStream = stream;
             bool isMobiHtml = pdb->getFormat() == PDBFile::MOBI;
-            MobiFileposResolver mobiResolver;
-            // Injecting a standalone <a> marker into text could split a text nodes and break highlights.
+
+            // Injecting a standalone <a> marker into text could split a text node
+            // and break highlights; only do it on recent DOM versions.
             bool allowInjectStandaloneId = doc->getDOMVersionRequested() >= 20260812;
 
             if (isMobiHtml) {
+                MobiFileposResolver mobiResolver;
                 LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver, allowInjectStandaloneId);
                 if (!rewrittenStream.isNull())
                     parserStream = rewrittenStream;
-            }
 
-            MobiHtmlWriterFilter mobiWriterFilter(doc, mobiResolver);
-            ldomDocumentWriterFilter plainWriterFilter(doc, false, HTML_AUTOCLOSE_TABLE);
-            ldomDocumentWriterFilter * writerFilter = isMobiHtml
-                ? static_cast<ldomDocumentWriterFilter *>(&mobiWriterFilter)
-                : &plainWriterFilter;
-            LVHTMLParser parser(parserStream, writerFilter);
-            parser.setProgressCallback(progressCallback);
-            if ( !parser.CheckFormat() ) {
-                return false;
-            } else {
-                if (isMobiHtml && isCorrectUtf8Text(parserStream))
-                    parser.SetCharset(U"utf-8");
-                parserStream->SetPos(0);
-                if (!parser.Parse()) {
+                MobiHtmlWriterFilter mobiWriterFilter(doc, mobiResolver);
+                LVHTMLParser parser(parserStream, &mobiWriterFilter);
+                parser.setProgressCallback(progressCallback);
+                if ( !parser.CheckFormat() ) {
                     return false;
+                } else {
+                    if (isCorrectUtf8Text(parserStream))
+                        parser.SetCharset(U"utf-8");
+                    parserStream->SetPos(0);
+                    if (!parser.Parse()) {
+                        return false;
+                    }
+                }
+            } else {
+                ldomDocumentWriterFilter plainWriterFilter(doc, false, HTML_AUTOCLOSE_TABLE);
+                LVHTMLParser parser(parserStream, &plainWriterFilter);
+                parser.setProgressCallback(progressCallback);
+                if ( !parser.CheckFormat() ) {
+                    return false;
+                } else {
+                    parserStream->SetPos(0);
+                    if (!parser.Parse()) {
+                        return false;
+                    }
                 }
             }
         }
