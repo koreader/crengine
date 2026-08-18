@@ -112,7 +112,6 @@ static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString3
 // Scan raw HTML bytes for filepos="NNNN" occurrences, record the numeric values.
 static void collectMobiFileposData(const lUInt8 * data, int dataSize,
         LVArray<lUInt32> & fileposRefs) {
-    LVHashTable<lUInt32, lUInt8> seenRefs(256);
     for (int i = 0; i < dataSize - 8; ) {
         if (!matchFileposBytes(data, dataSize, i)) { i++; continue; }
         int pos = i + 7;
@@ -134,12 +133,7 @@ static void collectMobiFileposData(const lUInt8 * data, int dataSize,
             pos++;
         }
         if (pos > numStart && val > 0 && val <= (lUInt64)dataSize) {
-            lUInt32 filepos = (lUInt32)val;
-            lUInt8 marker = 0;
-            if (!seenRefs.get(filepos, marker)) {
-                seenRefs.set(filepos, 1);
-                fileposRefs.add(filepos);
-            }
+            fileposRefs.add((lUInt32)val);
         }
         i = pos; // resume after the value
     }
@@ -188,6 +182,15 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
 
     // Sort for sequential insertion
     qsort(fileposRefs.get(), fileposRefs.length(), sizeof(lUInt32), compareUInt32);
+
+    // Dedup in-place
+    int n = 1;
+    for (int i = 1; i < fileposRefs.length(); i++) {
+        if (fileposRefs[i] != fileposRefs[n-1])
+            fileposRefs[n++] = fileposRefs[i];
+    }
+    if (n < fileposRefs.length())
+        fileposRefs.erase(n, fileposRefs.length() - n);
 
     // Build the rewritten byte array with markers inserted at filepos offsets.
     LVStreamRef rewritten = LVCreateMemoryStream(NULL, 0, false, LVOM_READWRITE);
