@@ -174,7 +174,7 @@ static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
             // Find the nearest '>' after pos (stopping at any '<').
             for (int j = pos; j < dataSize; j++) {
                 if (data[j] == '>') {
-                    if (j > pos) { tagStart = prevLT; tagEnd = j; return true; }
+                    if (j >= pos) { tagStart = prevLT; tagEnd = j; return true; }
                     break;
                 }
                 if (data[j] == '<') break;
@@ -183,6 +183,10 @@ static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
     }
     // Is pos immediately followed (after whitespace) by a start tag?
     int j = pos;
+    // If we landed on '>' (end of a closing or start tag), advance past it so
+    // we can look for the following start tag.
+    if (j < dataSize && data[j] == '>')
+        j++;
     while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
                 data[j] == '\r' || data[j] == '\n')) {
         j++;
