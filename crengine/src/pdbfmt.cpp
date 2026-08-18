@@ -155,6 +155,15 @@ static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
     out->Write(buf, len, NULL);
 }
 
+// Does the start tag spanning [tagStart, tagEnd] (with data[tagEnd] == '>')
+// close itself, i.e. end with '/>' possibly preceded by whitespace?
+static bool isSelfClosingTag(const lUInt8 * data, int tagStart, int tagEnd) {
+    int i = tagEnd - 1;
+    while (i > tagStart && (data[i] == ' ' || data[i] == '\t'))
+        i--;
+    return i > tagStart && data[i] == '/';
+}
+
 // Locate a start tag we can attach a synthetic id to, given a byte offset pos.
 // If pos is inside a start tag, return that tag's [<, >) span. Otherwise, if
 // pos is immediately followed (after whitespace) by a start tag, return that
@@ -174,30 +183,45 @@ static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
             // Find the nearest '>' after pos (stopping at any '<').
             for (int j = pos; j < dataSize; j++) {
                 if (data[j] == '>') {
-                    if (j >= pos) { tagStart = prevLT; tagEnd = j; return true; }
+                    // Skip self-closing void tags (e.g. <mbp:pagebreak/>): an
+                    // id on them is useless and they get autoBoxed, so fall
+                    // through to the following-tag scan instead.
+                    if (!isSelfClosingTag(data, prevLT, j)) {
+                        tagStart = prevLT; tagEnd = j; return true;
+                    }
+                    pos = j + 1; // skip past this self-closing tag
                     break;
                 }
                 if (data[j] == '<') break;
             }
         }
     }
-    // Is pos immediately followed (after whitespace) by a start tag?
+    // Is pos followed (after whitespace) by a start tag? Skip self-closing
+    // void tags (e.g. <mbp:pagebreak/>) and keep looking for a real element.
     int j = pos;
     // If we landed on '>' (end of a closing or start tag), advance past it so
     // we can look for the following start tag.
     if (j < dataSize && data[j] == '>')
         j++;
-    while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
-                data[j] == '\r' || data[j] == '\n')) {
-        j++;
-    }
-    if (j < dataSize && data[j] == '<' && j + 1 < dataSize &&
-                data[j + 1] != '/') {
-        // Find the '>' closing this start tag.
-        for (int k = j + 1; k < dataSize; k++) {
-            if (data[k] == '>') { tagStart = j; tagEnd = k; return true; }
-            if (data[k] == '<') break;
+    while (true) {
+        while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
+                    data[j] == '\r' || data[j] == '\n')) {
+            j++;
         }
+        if (!(j < dataSize && data[j] == '<' && j + 1 < dataSize &&
+                    data[j + 1] != '/'))
+            break;
+        // Find the '>' closing this start tag.
+        int k = j + 1;
+        while (k < dataSize && data[k] != '>' && data[k] != '<')
+            k++;
+        if (k >= dataSize || data[k] != '>')
+            break; // malformed
+        if (!isSelfClosingTag(data, j, k)) {
+            tagStart = j; tagEnd = k; return true;
+        }
+        // Self-closing void tag: skip past it and continue.
+        j = k + 1;
     }
     return false;
 }
