@@ -155,6 +155,49 @@ static void writeFileposMarker(LVStreamRef & out, lUInt32 filepos) {
     out->Write(buf, len, NULL);
 }
 
+// Locate a start tag we can attach a synthetic id to, given a byte offset pos.
+// If pos is inside a start tag, return that tag's [<, >) span. Otherwise, if
+// pos is immediately followed (after whitespace) by a start tag, return that
+// tag's span. Returns false (leaving tagStart/tagEnd untouched) if neither
+// applies, i.e. the offset lands in text/whitespace with no following start tag.
+static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
+        int & tagStart, int & tagEnd) {
+    // Is pos inside a start tag? Find the nearest '<' before pos that is not
+    // already closed by a '>'.
+    if (pos > 0 && pos < dataSize) {
+        int prevLT = -1;
+        for (int j = pos - 1; j >= 0; j--) {
+            if (data[j] == '<') { prevLT = j; break; }
+            if (data[j] == '>') break; // not inside a tag
+        }
+        if (prevLT >= 0 && data[prevLT + 1] != '/') {
+            // Find the nearest '>' after pos (stopping at any '<').
+            for (int j = pos; j < dataSize; j++) {
+                if (data[j] == '>') {
+                    if (j > pos) { tagStart = prevLT; tagEnd = j; return true; }
+                    break;
+                }
+                if (data[j] == '<') break;
+            }
+        }
+    }
+    // Is pos immediately followed (after whitespace) by a start tag?
+    int j = pos;
+    while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
+                data[j] == '\r' || data[j] == '\n')) {
+        j++;
+    }
+    if (j < dataSize && data[j] == '<' && j + 1 < dataSize &&
+                data[j + 1] != '/') {
+        // Find the '>' closing this start tag.
+        for (int k = j + 1; k < dataSize; k++) {
+            if (data[k] == '>') { tagStart = j; tagEnd = k; return true; }
+            if (data[k] == '<') break;
+        }
+    }
+    return false;
+}
+
 // Pre-process the raw HTML stream: find all filepos=NNNN references and inject
 // anchors at those byte offsets, so the existing id->node map can resolve them
 // (and they survive cache serialization).
@@ -209,63 +252,14 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
         // text node and break highlights).
         bool injectIntoTag = false;
         int tagEndPos = insertPos;
-        if (insertPos > 0 && insertPos < dataSize) {
-            // Find the nearest '<' before insertPos that is not closed by '>'
-            int prevLT = -1;
-            for (int j = insertPos - 1; j >= 0; j--) {
-                if (data[j] == '<') { prevLT = j; break; }
-                if (data[j] == '>') break; // not inside a tag
-            }
-            if (prevLT >= 0 && data[prevLT + 1] != '/') {
-                // Find the nearest '>' after insertPos (stopping at any '<')
-                int nextGT = -1;
-                for (int j = insertPos; j < dataSize; j++) {
-                    if (data[j] == '>') { nextGT = j; break; }
-                    if (data[j] == '<') break;
-                }
-                // We're inside a start tag if a '>' follows before any '<'.
-                // (If the offset is in text, we hit a '<' first and nextGT
-                // stays -1, so we insert a standalone marker instead.)
-                if (nextGT > insertPos) {
-                    lString32 existingId;
-                    if (tagGetIdAttr(data, prevLT, nextGT, existingId)) {
-                        // The tag already has an id: point the link at it.
-                        resolver.targetIds.set(filepos, existingId);
-                    } else {
-                        injectIntoTag = true;
-                        tagEndPos = nextGT; // '>' position (attribute goes before it)
-                    }
-                }
-            }
-        }
-        if (!injectIntoTag) {
-            // The offset is not inside a tag. If it is immediately followed
-            // (after whitespace) by a start tag, attach the id to that tag
-            // instead of emitting an empty <a> marker: an empty inline anchor
-            // right after a page break resolves to the previous page.
-            int j = insertPos;
-            while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
-                        data[j] == '\r' || data[j] == '\n')) {
-                j++;
-            }
-            if (j < dataSize && data[j] == '<' && j + 1 < dataSize &&
-                        data[j + 1] != '/') {
-                // Find the '>' closing this start tag
-                int nextGT = -1;
-                for (int k = j + 1; k < dataSize; k++) {
-                    if (data[k] == '>') { nextGT = k; break; }
-                    if (data[k] == '<') break;
-                }
-                if (nextGT > j) {
-                    lString32 existingId;
-                    if (tagGetIdAttr(data, j, nextGT, existingId)) {
-                        // The tag already has an id: point the link at it.
-                        resolver.targetIds.set(filepos, existingId);
-                    } else {
-                        injectIntoTag = true;
-                        tagEndPos = nextGT;
-                    }
-                }
+        int tagStart;
+        if (findStartTagAt(data, dataSize, insertPos, tagStart, tagEndPos)) {
+            lString32 existingId;
+            if (tagGetIdAttr(data, tagStart, tagEndPos, existingId)) {
+                // The tag already has an id: point the link at it.
+                resolver.targetIds.set(filepos, existingId);
+            } else {
+                injectIntoTag = true;
             }
         }
         if (insertPos < outPos)
