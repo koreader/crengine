@@ -1673,7 +1673,11 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
             }
 
             MobiHtmlWriterFilter mobiWriterFilter(doc, mobiResolver);
-            LVHTMLParser parser(parserStream, &mobiWriterFilter);
+            ldomDocumentWriterFilter plainWriterFilter(doc, false, HTML_AUTOCLOSE_TABLE);
+            ldomDocumentWriterFilter * writerFilter = isMobiHtml
+                ? static_cast<ldomDocumentWriterFilter *>(&mobiWriterFilter)
+                : &plainWriterFilter;
+            LVHTMLParser parser(parserStream, writerFilter);
             parser.setProgressCallback(progressCallback);
             if ( !parser.CheckFormat() ) {
                 return false;
