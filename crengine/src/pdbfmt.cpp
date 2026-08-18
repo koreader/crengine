@@ -113,6 +113,8 @@ static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString3
 static void collectMobiFileposData(const lUInt8 * data, int dataSize,
         LVArray<lUInt32> & fileposRefs) {
     for (int i = 0; i < dataSize - 8; ) {
+        lUInt8 ch = data[i];
+        if (ch != 'f' && ch != 'F') { i++; continue; }
         if (!matchFileposBytes(data, dataSize, i)) { i++; continue; }
         int pos = i + 7;
         // Skip whitespace before '='
