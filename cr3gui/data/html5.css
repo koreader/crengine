@@ -47,7 +47,7 @@ DocFragment {
     page-break-before: always;
 }
 /* MOBI <mbp:pagebreak/> element (parsed as element name "pagebreak") */
-/* stylelint-disable-line property-no-unknown */
+/* stylelint-disable-line selector-type-no-unknown */
 pagebreak {
   -cr-only-if: pdb-document;
     display: block;
