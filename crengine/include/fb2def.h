@@ -275,6 +275,9 @@ XS_TAG1I( switch )  // <epub:switch>
 XS_TAG1I( case )    // <epub:case required-namespace="...">
 XS_TAG1I( default ) // <epub:default>
 
+// MOBI elements
+XS_TAG1I( pagebreak ) // <mbp:pagebreak/>
+
 // FB2 elements
 XS_TAG1( FictionBook )
 XS_TAG1( annotation )
