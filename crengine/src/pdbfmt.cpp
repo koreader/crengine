@@ -529,6 +529,8 @@ private:
         for (int flag = 0x8000; flag; flag >>= 1) {
             if (!(_mobiExtraDataFlags & flag))
                 continue;
+            if (buf.length() == 0)
+                return; // nothing to strip from an empty record
             lInt32 n = buf[buf.length()-1];
             if (flag == 1) {
                 n &= 3;
