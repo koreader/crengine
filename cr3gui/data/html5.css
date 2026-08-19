@@ -46,6 +46,12 @@
 DocFragment {
     page-break-before: always;
 }
+/* MOBI <mbp:pagebreak/> element (parsed as element name "pagebreak") */
+pagebreak {
+  -cr-only-if: pdb-document;
+    display: block;
+    page-break-before: always;
+}
 /* Element added for each empty line when rendering plain txt files */
 empty-line {
     height: 1em;
