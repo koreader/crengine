@@ -42,6 +42,8 @@
         "DocFragment",
         "rubyBox",
 
+        "pagebreak",
+
         "empty-line",
 
         "author",
