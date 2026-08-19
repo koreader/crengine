@@ -57,9 +57,7 @@ static bool matchFileposBytes(const lUInt8 * data, int dataSize, int pos) {
 static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString32 & idValue) {
     for (int i = tagStart; i < tagEnd; i++) {
         // An attribute name is preceded by whitespace (or the tag name).
-        bool atBoundary = (i == tagStart) ||
-            data[i-1] == ' ' || data[i-1] == '\t' ||
-            data[i-1] == '\r' || data[i-1] == '\n';
+        bool atBoundary = (i == tagStart) || data[i-1] == ' ' || data[i-1] == '\t' || data[i-1] == '\r' || data[i-1] == '\n';
         if (!atBoundary)
             continue;
         int remaining = tagEnd - i;
@@ -75,29 +73,23 @@ static bool tagGetIdAttr(const lUInt8 * data, int tagStart, int tagEnd, lString3
         if (nameLen == 0)
             continue;
         int afterName = i + nameLen;
-        if (afterName < tagEnd && data[afterName] != ' ' &&
-                    data[afterName] != '\t' && data[afterName] != '=' &&
-                    data[afterName] != '>')
+        if (afterName < tagEnd && data[afterName] != ' ' && data[afterName] != '\t' && data[afterName] != '=' && data[afterName] != '>')
             continue; // e.g. "idle", "width": not the id attribute
         // Skip whitespace and an optional '=' and quote to reach the value
         int p = afterName;
-        while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' ||
-                    data[p] == '\r' || data[p] == '\n')) {
+        while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' || data[p] == '\r' || data[p] == '\n')) {
             p++;
         }
         if (p < tagEnd && data[p] == '=') {
             p++;
-            while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' ||
-                        data[p] == '\r' || data[p] == '\n')) {
+            while (p < tagEnd && (data[p] == ' ' || data[p] == '\t' || data[p] == '\r' || data[p] == '\n')) {
                 p++;
             }
             if (p < tagEnd && (data[p] == '"' || data[p] == '\''))
                 p++;
         }
         int valStart = p;
-        while (p < tagEnd && data[p] != '"' && data[p] != '\'' &&
-                    data[p] != ' ' && data[p] != '\t' &&
-                    data[p] != '\r' && data[p] != '\n' && data[p] != '>') {
+        while (p < tagEnd && data[p] != '"' && data[p] != '\'' && data[p] != ' ' && data[p] != '\t' && data[p] != '\r' && data[p] != '\n' && data[p] != '>') {
             p++;
         }
         if (p > valStart)
