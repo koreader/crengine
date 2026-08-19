@@ -6108,6 +6108,9 @@ public:
     bool hasCarriedInitialLetter() {
         return initial_letter_active;
     }
+    bool hasCarriedInitialLetterAtY(int y) {
+        return initial_letter_active && initial_letter_end_y > y;
+    }
     void resetCarriedInitialLetterExclusion() {
         initial_letter_active = false;
         initial_letter_id = 0;
@@ -6182,7 +6185,7 @@ public:
         // Ensure avoid_pb_inside
         if ( avoid_pb_inside_just_toggled_off ) {
             avoid_pb_inside_just_toggled_off = false;
-            if ( !split_avoid_before && !hasFloatRunningAtY(starty) ) {
+            if ( !split_avoid_before && !hasFloatRunningAtY(starty) && !hasCarriedInitialLetterAtY(starty) ) {
                 // Previous added line may have RN_SPLIT_AFTER_AVOID, but
                 // we want to allow a split between it and this new line:
                 // just add an empty line to cancel the split avoid
@@ -6223,7 +6226,7 @@ public:
                 flags |= RN_SPLIT_AFTER_AVOID;
             if ( split_avoid_inside && !is_first & !is_last )
                 flags |= RN_SPLIT_BEFORE_AVOID | RN_SPLIT_AFTER_AVOID;
-            if ( hasFloatRunningAtY(y0) )
+            if ( hasFloatRunningAtY(y0) || hasCarriedInitialLetterAtY(y0) )
                 flags |= RN_SPLIT_BEFORE_AVOID;
             flags |= line_dir_flag;
             context.AddLine(y0, y1, flags);
@@ -6242,7 +6245,7 @@ public:
             // but we want to allow a split between it and this new
             // line or the coming pushed vertical margin:
             // just add an empty line to cancel the split avoid
-            if ( !(flags & RN_SPLIT_BEFORE_AVOID) && !hasFloatRunningAtY(c_y) ) {
+            if ( !(flags & RN_SPLIT_BEFORE_AVOID) && !hasFloatRunningAtY(c_y) && !hasCarriedInitialLetterAtY(c_y) ) {
                 context.AddLine( c_y, c_y, RN_SPLIT_BOTH_AUTO|line_dir_flag );
                 last_split_after_flag = RN_SPLIT_AUTO;
             }
@@ -6268,7 +6271,7 @@ public:
         // Most often for content lines, lvtextfm.cpp's LVFormatter will
         // have already checked for float (via BlockFloatFootprint), so
         // avoid calling hasFloatRunningAtY() when not needed
-        if ( !(flags & RN_SPLIT_BEFORE_AVOID) && hasFloatRunningAtY(c_y) )
+        if ( !(flags & RN_SPLIT_BEFORE_AVOID) && (hasFloatRunningAtY(c_y) || hasCarriedInitialLetterAtY(c_y)) )
             flags |= RN_SPLIT_BEFORE_AVOID;
         flags |= line_dir_flag;
         context.AddLine( c_y, c_y + height, flags );
@@ -6418,6 +6421,12 @@ public:
             // Avoid consecutive page split when no real content in between
             if ( BLOCK_RENDERING(rend_flags, ALLOW_PAGE_BREAK_WHEN_NO_CONTENT) || seen_content_since_page_split ) {
                 if ( vm_active_pb_flag != RN_SPLIT_ALWAYS ) {
+                    if ( hasCarriedInitialLetter() ) {
+                        // Don't break through a carried initial letter.
+                        // (For floats, break-before is handled earlier when preparing the child
+                        // in renderBlockElementEnhanced() where we also handle clear:)
+                        advancePastCarriedInitialLetter();
+                    }
                     // First break-before or break-after:always seen.
                     // Forget any previously seen margin, as it would
                     // collapse at end of previous page, but we won't
@@ -6531,6 +6540,12 @@ public:
         int margin = getCurrentVerticalMargin();
         vm_back_usable_as_margin = 0;
         // printf("pushing vertical margin %d (%x %d)\n", margin, vm_target_node, vm_target_level);
+
+        // A nested child may have produced a carried initial after an outer
+        // break-*:always was queued. Clear it at the last possible point.
+        if ( vm_active_pb_flag == RN_SPLIT_ALWAYS && hasCarriedInitialLetter() ) {
+            advancePastCarriedInitialLetter();
+        }
 
         // Note: below, we allow some margin (previous page margin) to be discarded
         // if it can not fit on the previous page and is pushed on next page. This is
@@ -6653,11 +6668,11 @@ public:
                     flags &= ~RN_SPLIT_AFTER_ALWAYS;
                     flags |= RN_SPLIT_AFTER_AVOID;
                 }
-                if ( hasFloatRunningAtY(c_y, margin) ) {
+                if ( hasFloatRunningAtY(c_y, margin) || hasCarriedInitialLetterAtY(c_y) ) {
                     // Don't discard margin, or we would discard some part of a float
                     flags &= ~RN_SPLIT_DISCARD_AT_START;
                 }
-                if ( hasFloatRunningAtY(c_y) ) {
+                if ( hasFloatRunningAtY(c_y) || hasCarriedInitialLetterAtY(c_y) ) {
                     // Avoid a split
                     flags &= ~RN_SPLIT_BEFORE_ALWAYS;
                     flags |= RN_SPLIT_BEFORE_AVOID;
@@ -8650,9 +8665,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
     // that initial-letter (per-specs if initial-letter, otherwise not, but
     // simpler to not check if it is (which is expensive) and do it in all
     // cases, probably for the best).
-    bool cleared_carried_initial_letter = flow->hasCarriedInitialLetter() && enode->hasAttribute(attr_HasFirstLetter)
-                                        ? flow->advancePastCarriedInitialLetter()
-                                        : false;
+    if ( flow->hasCarriedInitialLetter() && enode->hasAttribute(attr_HasFirstLetter) ) {
+        flow->advancePastCarriedInitialLetter();
+    }
 
     if ( no_margin_collapse ) {
         // Push any earlier margin so it does not get collapsed with this one
@@ -8734,8 +8749,9 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
         case erm_table:
             {
                 // As we don't support laying tables aside floats, just clear
-                // all floats and push all margins
+                // all floats, pass by any initial letter, and push all margins
                 flow->clearFloats( css_c_both );
+                flow->advancePastCarriedInitialLetter();
                 flow->pushVerticalMargin();
 
                 // We need to update the RenderRectAccessor() as renderTable will
@@ -9235,11 +9251,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 // margin now (and not delay it to the first addContentLine()).
                 // This can mess with proper margins collapsing if we were to
                 // output no content (we don't know that yet).
-                // So, do it only if we have an active float footprint, or if we
-                // just cleared a carried initial-letter because this block starts
-                // with its own one: in both cases renderFinalBlock() must see the
-                // final post-margin absolute y before it stores its geometry.
-                if ( flow->hasActiveFloatFootprint() || cleared_carried_initial_letter )
+                // So, do it only if we have an active float footprint:
+                // renderFinalBlock() must see the final post-margin absolute y
+                // before it stores that footprint's geometry.
+                if ( flow->hasActiveFloatFootprint() )
                     flow->pushVerticalMargin();
 
                 int inner_width = width - padding_left - padding_right;
@@ -9352,7 +9367,23 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                 int final_min_y = float_footprint.getFinalMinY();
                 int final_max_y = float_footprint.getFinalMaxY();
 
+                lUInt32 carried_initial_letter_id = 0;
+                int carried_initial_letter_end_y = 0;
                 if ( float_footprint.formatted_initial_letter_id ) {
+                    // An initial-letter was discovered while formatting this block.
+                    // Emit any pending margin now (it would be done anyway when
+                    // AddContent*() the first content of this final block) before
+                    // recording the exclusion endpoint (this ensures that from now
+                    // on, all relevant coordinates - the final text top and the
+                    // initial-letter end y are in the same flow coordinate space,
+                    // and we can compute diffs).
+                    int next_split_before_flag = RN_SPLIT_AUTO;
+                    if ( padding_top == 0 && !isFootNoteBody && txform->GetLineCount() > 0
+                                          && (txform->GetLineInfo(0)->flags & LTEXT_LINE_SPLIT_AVOID_BEFORE) ) {
+                        next_split_before_flag = RN_SPLIT_AVOID;
+                    }
+                    flow->pushVerticalMargin(next_split_before_flag);
+
                     ldomNode * initial_letter_inline_box = getInitialLetterInlineBoxById(enode->getDocument(),
                                                                     float_footprint.formatted_initial_letter_id);
                     if ( initial_letter_inline_box ) {
@@ -9382,12 +9413,17 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                         // (The above is about top and bottom ink overflows, used for drawing it,
                         // this one is about the exclusion area affecting next rendering.)
                         if ( float_footprint.formatted_initial_letter_carry_on ) {
-                            // Forward that local exclusion end_y into the current FlowState y-space.
                             int final_text_top_in_flow = flow->getCurrentAbsoluteY() + padding_top;
                             // Matches getFloatFootprint()'s top_y: convert between FlowState y-space
                             // and the final block-local y-space used in BlockFloatFootprint.
-                            flow->setCarriedInitialLetterExclusion(float_footprint.formatted_initial_letter_id,
-                                    final_text_top_in_flow + float_footprint.formatted_initial_letter_carry_end_y );
+                            carried_initial_letter_id = float_footprint.formatted_initial_letter_id;
+                            carried_initial_letter_end_y = final_text_top_in_flow
+                                                         + float_footprint.formatted_initial_letter_carry_end_y;
+                            // We'll activate this (with flow->setCarriedInitialLetterExclusion()) below
+                            // when we are done with adding the lines (otherwise, its generic handling,
+                            // when AddContentLine() the first line, would wrongly add SPLIT_BEFORE_AVOID
+                            // to it; lvtextfm has itself set the correct SPLIT_BEFORE_AVOID on its
+                            // own lines passed by the initial letter exclusion).
                         }
                     }
                 }
@@ -9562,6 +9598,10 @@ void renderBlockElementEnhanced( FlowState * flow, ldomNode * enode, int x, int 
                             }
                         }
                     }
+                }
+
+                if ( carried_initial_letter_id ) {
+                    flow->setCarriedInitialLetterExclusion(carried_initial_letter_id, carried_initial_letter_end_y);
                 }
 
                 // Leave footnote body before style height and padding, to get
