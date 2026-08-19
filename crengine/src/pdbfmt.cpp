@@ -169,8 +169,7 @@ static bool isSelfClosingTag(const lUInt8 * data, int tagStart, int tagEnd) {
 // pos is immediately followed (after whitespace) by a start tag, return that
 // tag's span. Returns false (leaving tagStart/tagEnd untouched) if neither
 // applies, i.e. the offset lands in text/whitespace with no following start tag.
-static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
-        int & tagStart, int & tagEnd) {
+static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos, int & tagStart, int & tagEnd) {
     // Is pos inside a start tag? Find the nearest '<' before pos that is not
     // already closed by a '>'.
     if (pos > 0 && pos < dataSize) {
@@ -204,12 +203,10 @@ static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos,
     if (j < dataSize && data[j] == '>')
         j++;
     while (true) {
-        while (j < dataSize && (data[j] == ' ' || data[j] == '\t' ||
-                    data[j] == '\r' || data[j] == '\n')) {
+        while (j < dataSize && (data[j] == ' ' || data[j] == '\t' || data[j] == '\r' || data[j] == '\n')) {
             j++;
         }
-        if (!(j < dataSize && data[j] == '<' && j + 1 < dataSize &&
-                    data[j + 1] != '/'))
+        if (!(j < dataSize && data[j] == '<' && j + 1 < dataSize && data[j + 1] != '/'))
             break;
         // Find the '>' closing this start tag.
         int k = j + 1;
