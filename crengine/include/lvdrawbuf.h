@@ -115,6 +115,7 @@ public:
     virtual void setDitherImages( bool dither ) = 0;
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
     virtual void setSmoothScalingImages( bool smooth ) = 0;
+    virtual bool getSmoothScalingImages() const = 0;
     /// invert image
     virtual void Invert() = 0;
     /// get buffer width, pixels
@@ -280,6 +281,7 @@ public:
     virtual void setDitherImages( bool dither ) { _ditherImages = dither; }
     /// set to true to switch to a more costly smooth scaler instead of nearest neighbor
     virtual void setSmoothScalingImages( bool smooth ) { _smoothImages = smooth; }
+    virtual bool getSmoothScalingImages() const { return _smoothImages; }
     /// returns current background color
     virtual lUInt32 GetBackgroundColor() const { return _backgroundColor; }
     /// sets current background color

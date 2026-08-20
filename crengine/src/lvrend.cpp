@@ -10287,8 +10287,12 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             // Resize the decoded image to img_w x img_h if that doesn't match its
             // native pixel size, whether because of background-size, of gRenderDPI
             // scaling, or both (img_w/img_h above already account for either).
+            // Honor the same "Image Scaling" (smooth vs nearest-neighbor) setting
+            // used for normal <img> elements, so background-image scaling looks
+            // consistent with the rest of the page.
             if ( img_w != native_img_w || img_h != native_img_h ) {
-                img = LVCreateStretchFilledTransform(img, img_w, img_h, IMG_TRANSFORM_STRETCH, IMG_TRANSFORM_STRETCH, 0, 0);
+                img = LVCreateStretchFilledTransform(img, img_w, img_h, IMG_TRANSFORM_STRETCH, IMG_TRANSFORM_STRETCH, 0, 0,
+                                                      drawbuf.getSmoothScalingImages());
             }
 
             // We can use some crengine facilities for background repetition and position,
