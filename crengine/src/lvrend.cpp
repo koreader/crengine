@@ -10210,9 +10210,13 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             img = enode->getParentNode()->getDocument()->getObjectImageSource(DecodeHTMLUrlString(filepath));
         }
         if (!img.isNull()) {
-            // Native image size
-            int img_w =img->GetWidth();
-            int img_h =img->GetHeight();
+            // Raw, undecoded-transform pixel size of the image file
+            int native_img_w = img->GetWidth();
+            int native_img_h = img->GetHeight();
+            // Native image size, scaled according to gRenderDPI like getStyledImageSize()
+            // does for <img> elements.
+            int img_w = scaleForRenderDPI(native_img_w);
+            int img_h = scaleForRenderDPI(native_img_h);
 
             // See if background-size specified and we need to adjust image native size
             // (if both auto, use image native size)
@@ -10277,11 +10281,14 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                     // width or height computed to 0: nothing to draw
                     return;
                 }
-                if ( new_w != img_w || new_h != img_h ) {
-                    img = LVCreateStretchFilledTransform(img, new_w, new_h, IMG_TRANSFORM_STRETCH, IMG_TRANSFORM_STRETCH, 0, 0);
-                    img_w = new_w;
-                    img_h = new_h;
-                }
+                img_w = new_w;
+                img_h = new_h;
+            }
+            // Resize the decoded image to img_w x img_h if that doesn't match its
+            // native pixel size, whether because of background-size, of gRenderDPI
+            // scaling, or both (img_w/img_h above already account for either).
+            if ( img_w != native_img_w || img_h != native_img_h ) {
+                img = LVCreateStretchFilledTransform(img, img_w, img_h, IMG_TRANSFORM_STRETCH, IMG_TRANSFORM_STRETCH, 0, 0);
             }
 
             // We can use some crengine facilities for background repetition and position,
