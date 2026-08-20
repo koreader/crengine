@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>background-image test suite</title>
+<style>
+/* background-position section */
+#background-position-test .grid {
+    margin-top: 0.5em;
+}
+#background-position-test .case {
+    display: inline-block;
+    vertical-align: top;
+    width: 230px;
+    margin: 0 14px 22px 0;
+}
+#background-position-test .label {
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+#background-position-test .label code { display: block; }
+#background-position-test .note {
+    font-size: 0.78em;
+    color: #555;
+    margin-bottom: 3px;
+}
+#background-position-test .box {
+    /* inline-block (not the default block) so the box's own pixel width is
+       always honored: under koreader's "Book" rendering profile, a plain
+       block element's CSS width is only kept if it's a relative unit
+       (%, em, ...) unless absolute units are separately allowed, but an
+       inline-block's width is always computed from its own style, same as
+       a float, regardless of those flags. */
+    display: inline-block;
+    width: 200px;
+    /* padding-top (not height) so the box gets a real rendered height even
+       under koreader's "Book" rendering profile, which doesn't force CSS
+       height onto plain empty blocks (only <hr>/images/floats always get
+       their style height honored there); padding is always added to a
+       block's height regardless of that flag, and backgrounds paint across
+       the padding box by default, so this renders identically to a 110px
+       height in both "Book" and "Web" modes. */
+    padding-top: 110px;
+    border: 1px solid #333;
+    background-color: #eef1f5;
+    /* Target marker, reused by every test case; only background-position
+       differs between cases. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%23cc2222' stroke-width='3'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23cc2222'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 24px 24px;
+}
+#background-position-test .box.noimg {
+    background-image: none;
+}
+
+/* MathML radical position section */
+#mathml-radical-position-test {
+    font-family: serif;
+}
+#mathml-radical-position-test .case { margin: 1em 0; }
+#mathml-radical-position-test .label {
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 4px;
+    max-width: 55em;
+}
+/* Outline the formula's bounding box so the radical symbol's alignment
+   against its own cell is easier to judge. */
+#mathml-radical-position-test math { border: 1px dashed #4a90d9; padding: 2px; }
+
+/* background-image scaling section */
+#background-image-scaling-test .case { margin: 1.2em 0; }
+#background-image-scaling-test .label {
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+#background-image-scaling-test .note {
+    font-size: 0.78em;
+    color: #555;
+    margin-bottom: 8px;
+    max-width: 55em;
+}
+#background-image-scaling-test .demo-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+#background-image-scaling-test .tile-label {
+    font-size: 0.78em;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+}
+#background-image-scaling-test .tile-wrap { text-align: center; }
+#background-image-scaling-test img.tile {
+    /* inline-block (not block) so the ancestor .tile-wrap's text-align:
+       center actually centers it, same as it does the .tile-label text
+       below it -- matters when the img (native/DPI-scaled size) is
+       narrower than its label, keeping the img/background-image pair
+       visually aligned. */
+    display: inline-block;
+    border: 1px solid #333;
+}
+#background-image-scaling-test .bgbox {
+    /* inline-block so this box's own pixel width/padding-driven height are
+       always honored under koreader's "Book" rendering profile (see the
+       comment on #background-position-test .box for why). */
+    display: inline-block;
+    border: 1px solid #333;
+    background-color: #f5f5f5;
+    /* 6x4 grid of 10px checkerboard cells (60x40 native size), with a red
+       marker in the top-left cell and a green marker in the bottom-right
+       cell so cropping/orientation is visible under background-size: cover. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+}
+
+/* SVG and raster image scaling comparison section */
+#svg-raster-scaling-test .case { margin: 1.2em 0; }
+#svg-raster-scaling-test .label {
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+#svg-raster-scaling-test .note {
+    font-size: 0.78em;
+    color: #555;
+    margin-bottom: 8px;
+    max-width: 55em;
+}
+#svg-raster-scaling-test .demo-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+#svg-raster-scaling-test .tile-label {
+    font-size: 0.78em;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+}
+#svg-raster-scaling-test .tile-wrap { text-align: center; }
+#svg-raster-scaling-test img.tile {
+    /* inline-block (not block) so the ancestor .tile-wrap's text-align:
+       center actually centers it, same as it does the .tile-label text
+       below it -- matters when the img (native/DPI-scaled size) is
+       narrower than its label, keeping the img/background-image pair
+       visually aligned. */
+    display: inline-block;
+    border: 1px solid #333;
+}
+#svg-raster-scaling-test .bgbox {
+    /* inline-block so this box's own pixel width/padding-driven height are
+       always honored under koreader's "Book" rendering profile (see the
+       comment on #background-position-test .box for why). */
+    display: inline-block;
+    border: 1px solid #333;
+    background-color: #f5f5f5;
+    background-repeat: no-repeat;
+}
+
+/* background-repeat section */
+#background-repeat-test .case { margin: 1.2em 0; }
+#background-repeat-test .label {
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+#background-repeat-test .note {
+    font-size: 0.78em;
+    color: #555;
+    margin-bottom: 8px;
+    max-width: 55em;
+}
+#background-repeat-test .repeat-box {
+    /* inline-block so this box's own pixel width/padding-driven height are
+       always honored under koreader's "Book" rendering profile (see the
+       comment on #background-position-test .box for why). */
+    display: inline-block;
+    border: 1px solid #333;
+    background-color: #f5f5f5;
+    /* 20x20 tile split into two diagonal triangles with a border, so that
+       correctly-abutting tiles form a continuous zigzag with no gaps or
+       overlaps, and any phase shift from background-position is obvious. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cpolygon points='0,0 20,0 0,20' fill='%233b82f6'/%3E%3Cpolygon points='20,0 20,20 0,20' fill='%23fb923c'/%3E%3Crect x='0' y='0' width='20' height='20' fill='none' stroke='%23333' stroke-width='1'/%3E%3C/svg%3E");
+    background-size: 20px 20px;
+}
+
+body {
+    font-family: sans-serif;
+    margin: 1em;
+}
+h1 { font-size: 1.6em; }
+h2 {
+    font-size: 1.3em;
+    margin-top: 2em;
+    border-bottom: 2px solid #666;
+}
+h3 {
+    font-size: 1.1em;
+    margin-top: 1.6em;
+    border-bottom: 1px solid #999;
+}
+p.intro { max-width: 60em; }
+code { background-color: #eee; }
+
+/* This style block must stay above 8192 characters (lvxml.cpp's
+   TEXT_SPLIT_SIZE): the HTML tokenizer splits larger text nodes across
+   multiple OnText() calls, and ldomDocumentWriter(Filter)::OnText() used to
+   only keep the first chunk of style content, silently dropping the rest
+   -- which broke exactly the rule (this one) that happened to straddle the
+   split point. Keep this rule (or an equivalently large one) last so any
+   regression truncates a real rule instead of a comment or blank space.
+   Fixed in lvtinydom.cpp by moving the accumulation cutoff from OnText()
+   (per chunk) to OnTagClose() (once, on /style). */
+</style>
+</head>
+<body>
+
+<h1>background-image test suite</h1>
+<p class="intro">
+Combines a <code>background-image</code> scaling test suite covering
+<code>background-size</code> scaling, an SVG/raster scaling
+comparison suite, a
+<code>background-repeat</code> tiling test suite, <code>background-position</code>
+test cases, and the MathML radical symbol position regression tests.
+</p>
+
+<section id="background-image-scaling-test">
+<h2>background-image scaling test suite</h2>
+<p class="intro">
+Exercises the DPI-scaling fix in <code>DrawBackgroundImage()</code>
+(<code>lvrend.cpp</code>): the image's native pixel size is now passed
+through <code>scaleForRenderDPI()</code> before being used as the "no
+<code>background-size</code>" size or as the basis for <code>auto</code>/
+<code>cover</code>/<code>contain</code> sizing &#8212; the same scaling
+<code>getStyledImageSize()</code> already applies to plain <code>&lt;img&gt;</code>
+elements.
+</p>
+
+<h3>1. Reference &lt;img&gt; vs. default background-size (no size specified)</h3>
+<div class="case">
+  <div class="label">left: plain <code>&lt;img&gt;</code>, no width/height
+    set &#8212; sized however crengine scales images for the current
+    <code>gRenderDPI</code>. right: a bordered box, deliberately larger
+    than the image (120&#215;80px) with <code>background-repeat: no-repeat</code>
+    and no <code>background-size</code> declared.</div>
+  <div class="note">expected: the checkerboard drawn in the right-hand box
+    (top-left corner, unrepeated) is <em>exactly the same pixel size</em>
+    as the reference <code>&lt;img&gt;</code> on the left.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E"/>
+      <div class="tile-label">&lt;img&gt;, no size set</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 120px; padding-top: 80px;"></div>
+      <div class="tile-label">background-image, no background-size,<br/>in a 120&#215;80px box</div>
+    </div>
+  </div>
+</div>
+
+<h3>2. Explicit background-size on both axes (independent, may distort)</h3>
+<div class="case">
+  <div class="label"><code>background-size: 120px 40px;</code> in a
+    120&#215;40px box</div>
+  <div class="note">expected:
+    the image stretches to exactly 120&#215;40px, so the checkerboard cells become 20px wide &#215; 10px
+    tall (visibly non-square)</div>
+  <div class="bgbox" style="width: 120px; padding-top: 40px; background-size: 120px 40px;"></div>
+</div>
+
+<h3>3. background-size with one axis auto (aspect ratio preserved)</h3>
+<div class="case">
+  <div class="label"><code>background-size: 90px auto;</code> in a
+    90&#215;60px box</div>
+  <div class="note">expected: width iand height are scaled 1.5&#215; (60px &#8594; 90px)
+     &#8212; the checkerboard cells stay square (15&#215;15px),
+    just larger.</div>
+  <div class="bgbox" style="width: 90px; padding-top: 60px; background-size: 90px auto;"></div>
+</div>
+
+<h3>4. background-size: cover</h3>
+<div class="case">
+  <div class="label"><code>background-size: cover;</code> in a
+    150&#215;40px box (much wider than the image's 3:2 aspect ratio)</div>
+  <div class="note">expected: the image is scaled up (uniformly, no
+    distortion &#8212; cells stay square) until it fully covers the box,
+    then cropped</div>
+  <div class="bgbox" style="width: 150px; padding-top: 40px; background-size: cover;"></div>
+</div>
+
+<h3>5. background-size: contain</h3>
+<div class="case">
+  <div class="label"><code>background-size: contain;</code> in a
+    150&#215;120px box (5:4, clearly wider-relative-to-its-height than the
+    image's 3:2 native ratio</div>
+  <div class="note">expected: the image is scaled up uniformly (no
+    distortion &#8212; cells stay square) &#8212; full width, with no
+    cropping, so both the red and green corner markers remain visible;
+the image
+    sits flush in the top-left corner of the box, leaving a 20px-tall pink
+    strip of bare background-color along the bottom</div>
+  <div class="bgbox" style="width: 150px; padding-top: 120px; background-size: contain; background-color: #f472b6;"></div>
+</div>
+
+</section>
+
+<section id="svg-raster-scaling-test">
+<h2>SVG and raster image scaling comparison</h2>
+<p class="intro">
+Compares a plain <code>&lt;img&gt;</code> against the same source used as a
+<code>background-image</code>, side by side, using two small images: a
+16&#215;16 vector SVG icon (a filled circle with a border &#8212; curved edges
+show up scaling/anti-aliasing differences much more clearly than a straight
+diagonal line does) and a 16&#215;16 low-resolution raster PNG checkerboard
+(a 4&#215;4 grid of 4px cells alternating black/white, with a red marker
+cell top-left and a green marker cell bottom-right &#8212; 4px cells.
+</p>
+
+<h3>1. Small SVG icon &#8212; default size (&lt;img&gt; vs background-image)</h3>
+<div class="case">
+  <div class="label">left: plain <code>&lt;img&gt;</code>, no width/height
+    set. right: the same SVG as background-image, no <code>background-size</code>
+    declared, in a 40&#215;40px box.</div>
+  <div class="note">expected: since both paths run the native 16&#215;16 SVG
+    size through the same DPI scaling, the two renderings should be
+    pixel-identical in size, and the diagonal edge should look equally sharp
+    in both.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E"/>
+      <div class="tile-label">&lt;img&gt;, no size set</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 40px; padding-top: 40px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E&quot;);"></div>
+      <div class="tile-label">background-image, no background-size,<br/>in a 40&#215;40px box</div>
+    </div>
+  </div>
+</div>
+
+<h3>2. Small SVG icon &#8212; explicit dimensions (&lt;img&gt; vs background-image)</h3>
+<div class="case">
+  <div class="label">left: <code>&lt;img&gt;</code> with <code>width="64"
+    height="64"</code> (4&#215; the SVG's native 16&#215;16). right: the same
+    SVG as background-image with <code>background-size: 64px 64px</code>, in
+    a 64&#215;64px box.</div>
+  <div class="note">expected: the two should render at exactly the same
+    64&#215;64px size and, since the source is vector, the diagonal edge
+    should still be smooth/anti-aliased rather than pixelated at this larger
+    size, with no visible difference between the two.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" width="64" height="64" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E"/>
+      <div class="tile-label">&lt;img&gt;, 64&#215;64</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 64px; padding-top: 64px; background-size: 64px 64px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E&quot;);"></div>
+      <div class="tile-label">background-image, background-size: 64px 64px</div>
+    </div>
+  </div>
+</div>
+
+<h3>3. Low-resolution raster image &#8212; default size (&lt;img&gt; vs background-image)</h3>
+<div class="case">
+  <div class="label">left: plain <code>&lt;img&gt;</code>, no width/height
+    set, using a 16&#215;16px raster PNG checkerboard (4px cells). right: the
+    same PNG as background-image, no <code>background-size</code> declared,
+    in a 40&#215;40px box.</div>
+  <div class="note">this raster image is only 16&#215;16 native pixels, so
+    unlike the SVG cases above, any scaling applied by
+    <code>scaleForRenderDPI()</code>.
+    Compare the <code>&lt;img&gt;</code> and background-image renderings to
+    check whether they apply the same treatment.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAR0lEQVR42mO8o6b2nwEJKN+8icxlYGRkROH//4+inIGJgUIw8AYw/kfzFCE/o8sPhzBgYGD4T4qfh2E6YCHVz+JLvIdbGAAAqW4cGiqn47YAAAAASUVORK5CYII="/>
+      <div class="tile-label">&lt;img&gt;, no size set</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 40px; padding-top: 40px; background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAR0lEQVR42mO8o6b2nwEJKN+8icxlYGRkROH//4+inIGJgUIw8AYw/kfzFCE/o8sPhzBgYGD4T4qfh2E6YCHVz+JLvIdbGAAAqW4cGiqn47YAAAAASUVORK5CYII=&quot;);"></div>
+      <div class="tile-label">background-image, no background-size,<br/>in a 40&#215;40px box</div>
+    </div>
+  </div>
+</div>
+
+<h3>4. Low-resolution raster image &#8212; explicit upscaled dimensions (&lt;img&gt; vs background-image)</h3>
+<div class="case">
+  <div class="label">left: <code>&lt;img&gt;</code> with <code>width="96"
+    height="96"</code> (6&#215; the PNG's native 16&#215;16). right: the same
+    PNG as background-image with <code>background-size: 96px 96px</code>, in
+    a 96&#215;96px box.</div>
+  <div class="note">at 6&#215; magnification, pixelation (if the scaler is
+    nearest-neighbor) or blurring (if it's smoothed/interpolated) will be
+    unmistakable. Compare the two renderings for both the presence of pixelation
+    and whether <code>&lt;img&gt;</code> and background-image apply it
+    consistently.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" width="96" height="96" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAR0lEQVR42mO8o6b2nwEJKN+8icxlYGRkROH//4+inIGJgUIw8AYw/kfzFCE/o8sPhzBgYGD4T4qfh2E6YCHVz+JLvIdbGAAAqW4cGiqn47YAAAAASUVORK5CYII="/>
+      <div class="tile-label">&lt;img&gt;, 96&#215;96</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 96px; padding-top: 96px; background-size: 96px 96px; background-image: url(&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAR0lEQVR42mO8o6b2nwEJKN+8icxlYGRkROH//4+inIGJgUIw8AYw/kfzFCE/o8sPhzBgYGD4T4qfh2E6YCHVz+JLvIdbGAAAqW4cGiqn47YAAAAASUVORK5CYII=&quot;);"></div>
+      <div class="tile-label">background-image, background-size: 96px 96px</div>
+    </div>
+  </div>
+</div>
+
+<h3>5. SVG data URI encoding &#8212; percent-encoded vs base64 (&lt;img&gt; vs background-image)</h3>
+<div class="case">
+  <div class="label">the exact same 16&#215;16 SVG icon markup (from cases 1
+    and 2 above), encoded two different ways as a data URI &#8212;
+    percent-encoded (<code>data:image/svg+xml,%3Csvg...</code>) and
+    base64-encoded (<code>data:image/svg+xml;base64,...</code>) &#8212; each
+    rendered both as an <code>&lt;img&gt;</code> and as a
+    <code>background-image</code>.</div>
+  <div class="note">expected: all four tiles are pixel-identical.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <img class="tile" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E"/>
+      <div class="tile-label">&lt;img&gt;, percent-encoded</div>
+    </div>
+    <div class="tile-wrap">
+      <img class="tile" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNicgaGVpZ2h0PScxNicgdmlld0JveD0nMCAwIDE2IDE2Jz48Y2lyY2xlIGN4PSc4JyBjeT0nOCcgcj0nNycgZmlsbD0nIzNiODJmNicgc3Ryb2tlPScjMDAwJyBzdHJva2Utd2lkdGg9JzEnLz48L3N2Zz4="/>
+      <div class="tile-label">&lt;img&gt;, base64-encoded</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 16px; padding-top: 16px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%233b82f6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E&quot;);"></div>
+      <div class="tile-label">background-image, percent-encoded</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 16px; padding-top: 16px; background-image: url(&quot;data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNicgaGVpZ2h0PScxNicgdmlld0JveD0nMCAwIDE2IDE2Jz48Y2lyY2xlIGN4PSc4JyBjeT0nOCcgcj0nNycgZmlsbD0nIzNiODJmNicgc3Ryb2tlPScjMDAwJyBzdHJva2Utd2lkdGg9JzEnLz48L3N2Zz4=&quot;);"></div>
+      <div class="tile-label">background-image, base64-encoded</div>
+    </div>
+  </div>
+</div>
+
+</section>
+
+<section id="background-repeat-test">
+<h2>background-repeat test suite</h2>
+<p class="intro">
+Exercises the tiling logic in <code>DrawBackgroundImage()</code>
+(<code>lvrend.cpp</code>), which supports the four keywords crengine parses
+for <code>background-repeat</code>: <code>repeat</code> (the initial value),
+<code>repeat-x</code>, <code>repeat-y</code>, and <code>no-repeat</code>.
+</p>
+
+<h3>1. background-repeat: repeat</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: repeat;</code> in a
+    205&#215;103px box (deliberately not a multiple of the 20px tile, to
+    show edge clipping)</div>
+  <div class="note">expected: the tile fills the box in both directions
+    from the top-left corner, with the diagonal zigzag continuing
+    unbroken across tile boundaries; the rightmost column and bottom row
+    of tiles are partially clipped by the box edges (10&#215;20px / 20&#215;3px
+    /  10&#215;3px remainders) rather than leaving a gap or squeezing in an
+    extra part-tile</div>
+  <div class="repeat-box" style="width: 205px; padding-top: 103px; background-repeat: repeat;"></div>
+</div>
+
+<h3>2. Default (property not set)</h3>
+<div class="case">
+  <div class="label">no <code>background-repeat</code> declared, same
+    205&#215;103px box</div>
+  <div class="note">expected: identical to case 1 &#8212; <code>repeat</code>
+    is the initial value</div>
+  <div class="repeat-box" style="width: 205px; padding-top: 103px;"></div>
+</div>
+
+<h3>3. background-repeat: repeat-x</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: repeat-x;</code> in a
+    205&#215;60px box</div>
+  <div class="note">expected: a single row of tiles across the full
+    width along the top edge (default <code>background-position: 0% 0%</code>),
+    clipped on the right; no tiling downward &#8212; the rest of the box
+    below the row shows only the plain background-color</div>
+  <div class="repeat-box" style="width: 205px; padding-top: 60px; background-repeat: repeat-x;"></div>
+</div>
+
+<h3>4. background-repeat: repeat-y</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: repeat-y;</code> in a
+    60px&#215;103px box</div>
+  <div class="note">expected: a single column of tiles down the full
+    height along the left edge, clipped on the bottom; no tiling
+    rightward &#8212; the rest of the box to the right of the column shows
+    only the plain background-color</div>
+  <div class="repeat-box" style="width: 60px; padding-top: 103px; background-repeat: repeat-y;"></div>
+</div>
+
+<h3>5. background-repeat: no-repeat</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: no-repeat;</code> in a
+    60&#215;60px box</div>
+  <div class="note">expected: a single tile in the top-left corner only;
+    the rest of the box shows only the plain background-color</div>
+  <div class="repeat-box" style="width: 60px; padding-top: 60px; background-repeat: no-repeat;"></div>
+</div>
+
+<h3>6. background-repeat: repeat with an offset background-position</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: repeat; background-position: 10px 10px;</code>
+    in the same 205&#215;103px box as case 1</div>
+  <div class="note">expected: tiling is phase-shifted so that a full
+    tile's top-left corner sits exactly at (10px, 10px)</div>
+  <div class="repeat-box" style="width: 205px; padding-top: 103px; background-repeat: repeat; background-position: 10px 10px;"></div>
+</div>
+
+<h3>7. Case-insensitivity</h3>
+<div class="case">
+  <div class="label"><code>background-repeat: Repeat-X;</code> in a
+    205&#215;60px box</div>
+  <div class="note">expected: same as <code>repeat-x</code> (case 3):
+    keywords are ASCII case-insensitive</div>
+  <div class="repeat-box" style="width: 205px; padding-top: 60px; background-repeat: Repeat-X;"></div>
+</div>
+
+</section>
+
+<section id="background-position-test">
+<h2>background-position test suite</h2>
+<p class="intro">
+Every box below is 200&#215;110px with a light fill and a 1px border, and
+carries the same 24&#215;24px target-marker image (a small red crosshair).
+</p>
+
+<h3>1. Default (property not set)</h3>
+<div class="grid">
+  <div class="case">
+    <div class="label">no <code>background-position</code> declared</div>
+    <div class="note">expected: initial value <code>0% 0%</code> (top left)</div>
+    <div class="box" style=""></div>
+  </div>
+</div>
+
+<h3>2. One value &#8212; keywords</h3>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: left;</code></div>
+    <div class="note">expected: left edge, vertically centered</div>
+    <div class="box" style="background-position: left;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right;</code></div>
+    <div class="note">expected: right edge, vertically centered</div>
+    <div class="box" style="background-position: right;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: top;</code></div>
+    <div class="note">expected: top edge, horizontally centered</div>
+    <div class="box" style="background-position: top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: bottom;</code></div>
+    <div class="note">expected: bottom edge, horizontally centered</div>
+    <div class="box" style="background-position: bottom;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: center;</code></div>
+    <div class="note">expected: centered on both axes</div>
+    <div class="box" style="background-position: center;"></div>
+  </div>
+</div>
+
+<h3>3. One value &#8212; percentages and lengths</h3>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: 0%;</code></div>
+    <div class="note">expected: same as <code>left</code></div>
+    <div class="box" style="background-position: 0%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 25%;</code></div>
+    <div class="note">expected: 25% across, vertically centered</div>
+    <div class="box" style="background-position: 25%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 50%;</code></div>
+    <div class="note">expected: same as <code>center</code></div>
+    <div class="box" style="background-position: 50%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 75%;</code></div>
+    <div class="note">expected: 75% across, vertically centered</div>
+    <div class="box" style="background-position: 75%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 100%;</code></div>
+    <div class="note">expected: same as <code>right</code></div>
+    <div class="box" style="background-position: 100%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: -10%;</code></div>
+    <div class="note">negative percentage (valid: percentages aren't
+      clamped) &#8212; expected: the computed position sits slightly left of
+      the box's left edge, but backgrounds are clipped to the padding box, so
+      only a thin sliver of the marker is visible at the left edge (the rest
+      is clipped off), vertically centered</div>
+    <div class="box" style="background-position: -10%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 120%;</code></div>
+    <div class="note">percentage over 100% (valid) &#8212; expected: the
+      marker is not visible</div>
+    <div class="box" style="background-position: 120%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 20px;</code></div>
+    <div class="note">expected: 20px from left, vertically centered</div>
+    <div class="box" style="background-position: 20px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: -20px;</code></div>
+    <div class="note">expected: the computed position sits 20px to the left
+      of the box, but backgrounds are clipped to the padding box, so only a
+      4px-wide sliver of the marker (its right edge) is visible at the left
+      border &#8212; the rest is clipped off, vertically centered</div>
+    <div class="box" style="background-position: -20px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 2em;</code></div>
+    <div class="note">expected: 2em from left (font-relative unit), vertically
+      centered</div>
+    <div class="box" style="background-position: 2em;"></div>
+  </div>
+</div>
+
+<h3>4. Two values &#8212; keyword pairs</h3>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: left top;</code></div>
+    <div class="note">expected: top-left corner</div>
+    <div class="box" style="background-position: left top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right top;</code></div>
+    <div class="note">expected: top-right corner</div>
+    <div class="box" style="background-position: right top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: left bottom;</code></div>
+    <div class="note">expected: bottom-left corner</div>
+    <div class="box" style="background-position: left bottom;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right bottom;</code></div>
+    <div class="note">expected: bottom-right corner</div>
+    <div class="box" style="background-position: right bottom;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: center center;</code></div>
+    <div class="note">expected: centered on both axes</div>
+    <div class="box" style="background-position: center center;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: center top;</code></div>
+    <div class="note">expected: top edge, horizontally centered</div>
+    <div class="box" style="background-position: center top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: left center;</code></div>
+    <div class="note">expected: left edge, vertically centered</div>
+    <div class="box" style="background-position: left center;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: top right;</code></div>
+    <div class="note">reversed keyword order (still no attached offsets) &#8212;
+      expected: same as <code>right top</code> (top-right corner)</div>
+    <div class="box" style="background-position: top right;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: bottom left;</code></div>
+    <div class="note">reversed keyword order &#8212; expected: same as
+      <code>left bottom</code> (bottom-left corner)</div>
+    <div class="box" style="background-position: bottom left;"></div>
+  </div>
+</div>
+
+<h3>5. Two values &#8212; percentages and lengths</h3>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: 25% 75%;</code></div>
+    <div class="note">expected: 25% across, 75% down</div>
+    <div class="box" style="background-position: 25% 75%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 75% 25%;</code></div>
+    <div class="note">expected: 75% across, 25% down</div>
+    <div class="box" style="background-position: 75% 25%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 0% 100%;</code></div>
+    <div class="note">expected: same as <code>left bottom</code></div>
+    <div class="box" style="background-position: 0% 100%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 100% 0%;</code></div>
+    <div class="note">expected: same as <code>right top</code></div>
+    <div class="box" style="background-position: 100% 0%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 20px 30px;</code></div>
+    <div class="note">expected: 20px from left, 30px from top</div>
+    <div class="box" style="background-position: 20px 30px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: -10px -10px;</code></div>
+    <div class="note">expected: the computed position sits 10px above and
+      10px left of the box, but backgrounds are clipped to the padding box,
+      so only a 14&#215;14px corner of the marker is visible at the
+      top-left &#8212; the rest is clipped off</div>
+    <div class="box" style="background-position: -10px -10px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 20px 50%;</code></div>
+    <div class="note">mixed length/percent &#8212; expected: 20px from left,
+      vertically centered</div>
+    <div class="box" style="background-position: 20px 50%;"></div>
+  </div>
+</div>
+
+<h3>6. Two values &#8212; keyword combined with percentage/length</h3>
+<p class="intro">
+These are the strict-order, no-attached-offset combinations: a
+horizontal-slot token (<code>left</code>/<code>center</code>/<code>right</code>/
+&lt;percentage or length&gt;) followed by a vertical-slot token
+(<code>top</code>/<code>center</code>/<code>bottom</code>/&lt;percentage or
+length&gt;). Note the quirky cases at the end: a lone edge keyword followed
+by a bare number does <em>not</em> mean "offset from that edge" here &#8212;
+that meaning only applies to the attached-offset form (out of scope for this
+suite), so the number is taken as a position on the other axis instead.
+</p>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: left 25%;</code></div>
+    <div class="note">expected: left edge, 25% down</div>
+    <div class="box" style="background-position: left 25%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 75% top;</code></div>
+    <div class="note">expected: 75% across, top edge</div>
+    <div class="box" style="background-position: 75% top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: center 30px;</code></div>
+    <div class="note">expected: horizontally centered, 30px from top</div>
+    <div class="box" style="background-position: center 30px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right 10px;</code></div>
+    <div class="note"><strong>quirk:</strong> only one keyword and it's in
+      the horizontal slot, so <code>10px</code> is the vertical value &#8212;
+      expected: right edge, 10px from top (<em>not</em> "10px in from the
+      right edge")</div>
+    <div class="box" style="background-position: right 10px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 10px bottom;</code></div>
+    <div class="note">expected: 10px from left, bottom edge</div>
+    <div class="box" style="background-position: 10px bottom;"></div>
+  </div>
+</div>
+
+<h3>7. Case-insensitivity</h3>
+<p class="intro">
+CSS keywords are ASCII case-insensitive, so mixed/upper-case spellings of
+the same keywords must resolve identically to their lower-case forms.
+</p>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: LEFT;</code></div>
+    <div class="note">expected: same as <code>left</code> (left edge,
+      vertically centered)</div>
+    <div class="box" style="background-position: LEFT;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: Center;</code></div>
+    <div class="note">expected: same as <code>center</code> (centered on
+      both axes)</div>
+    <div class="box" style="background-position: Center;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: Right Bottom;</code></div>
+    <div class="note">expected: same as <code>right bottom</code>
+      (bottom-right corner)</div>
+    <div class="box" style="background-position: Right Bottom;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: TOP RIGHT;</code></div>
+    <div class="note">expected: same as <code>top right</code> / <code>right
+      top</code> (top-right corner)</div>
+    <div class="box" style="background-position: TOP RIGHT;"></div>
+  </div>
+</div>
+
+<h3>8. Invalid values (property should be ignored)</h3>
+<p class="intro">
+Per the <a href="https://drafts.csswg.org/css-backgrounds/#the-background-position">CSS
+Backgrounds spec grammar</a> for <code>&lt;bg-position&gt;</code>, none of
+these have a legal 1- or 2-value interpretation, so the whole declaration
+should be dropped and the property should fall back to its initial value
+(<code>0% 0%</code>, top left) &#8212; same as section 1.
+</p>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: top bottom;</code></div>
+    <div class="note">invalid: both tokens can only fill the vertical slot,
+      leaving the required horizontal component unfilled &#8212; expected:
+      falls back to top left</div>
+    <div class="box" style="background-position: top bottom;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: left right;</code></div>
+    <div class="note">invalid: both tokens can only fill the horizontal slot
+      &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: left right;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: top 10px;</code></div>
+    <div class="note">invalid: <code>10px</code> can only attach as an
+      offset to a preceding <code>left</code>/<code>right</code>/
+      <code>top</code>/<code>bottom</code> keyword within its own axis, so
+      "<code>top 10px</code>" is entirely a vertical-side component, leaving
+      the required horizontal component unfilled &#8212; expected: falls
+      back to top left</div>
+    <div class="box" style="background-position: top 10px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: 10px left;</code></div>
+    <div class="note">invalid: a bare &lt;length-percentage&gt; must be the
+      first component when paired with a keyword, and can never stand alone
+      unattached to a keyword &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: 10px left;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: middle;</code></div>
+    <div class="note">invalid: <code>middle</code> is not a
+      <code>background-position</code> keyword (that's <code>center</code>)
+      &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: middle;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: banana;</code></div>
+    <div class="note">invalid: unrecognized token &#8212; expected: falls
+      back to top left</div>
+    <div class="box" style="background-position: banana;"></div>
+  </div>
+</div>
+
+<h3>9. Three- and four-value edge-offset form (not implemented, rejected)</h3>
+<p class="intro">
+CSS also defines a 3-/4-value "edge-offset" form of <code>&lt;bg-position&gt;</code>
+(eg. <code>right 10px bottom 20px</code>).
+crengine does not parse this form: any 3rd/4th token following an otherwise
+valid 2-value pair is rejected outright, falling back to the initial value
+(<code>0% 0%</code>, top left).
+</p>
+<div class="grid">
+  <div class="case">
+    <div class="label"><code>background-position: right 10px bottom 20px;</code></div>
+    <div class="note">4-value form &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: right 10px bottom 20px;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right 20% bottom 10%;</code></div>
+    <div class="note">4-value form with percentage offsets &#8212; expected:
+      falls back to top left (<em>not</em> equivalent to
+      <code>background-position: 80% 90%;</code>)</div>
+    <div class="box" style="background-position: right 20% bottom 10%;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right 10px top;</code></div>
+    <div class="note">3-value form &#8212; expected: falls back to top left
+      (<em>not</em> the quirky 2-value <code>right 10px</code> reading from
+      section 6, with <code>top</code> ignored)</div>
+    <div class="box" style="background-position: right 10px top;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right 10px left;</code></div>
+    <div class="note">invalid even under the edge-offset grammar (both
+      components forced horizontal) &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: right 10px left;"></div>
+  </div>
+  <div class="case">
+    <div class="label"><code>background-position: right 10px bottom 20px 30px;</code></div>
+    <div class="note">a 5th token can't be part of any valid
+      <code>background-position</code> &#8212; expected: falls back to top left</div>
+    <div class="box" style="background-position: right 10px bottom 20px 30px;"></div>
+  </div>
+</div>
+</section>
+
+<section id="mathml-radical-position-test">
+<h2>MathML radical symbol position test</h2>
+<p class="intro">
+Exercises the code path in <code>mathml.cpp</code>'s
+<code>setMathMLElementNodeStyle()</code> that draws the radical (&radic;)
+symbol as a synthesized SVG <code>background-image</code> on the
+<code>msqrt</code>/<code>mroot</code> root-symbol cell, anchored with
+<code>background-position: 100% 100%</code> (bottom-right of the cell). This
+was previously set via the fixed keyword-pair enum
+<code>css_background_right_bottom</code>; now that
+<code>background-position</code> is stored as two arbitrary
+<code>css_length_t</code> values instead of a closed set of keyword pairs,
+it is set directly as two 100% <code>css_length_t</code> percentages. The
+dashed blue border around each formula outlines the <code>&lt;math&gt;</code>
+element's box, making it easier to see whether the symbol is flush with the
+bottom of its cell as expected.
+</p>
+
+<h3>1. Plain msqrt &#8212; short radicand</h3>
+<div class="case">
+  <div class="label">expected: the hook of the radical sign sits right at
+    the baseline of "x", with the diagonal stroke rising to meet the
+    horizontal bar above the radicand &#8212; no gap or misalignment at the
+    bottom</div>
+  <math><msqrt><mi>x</mi></msqrt></math>
+</div>
+
+<h3>2. msqrt with a tall radicand (fraction)</h3>
+<div class="case">
+  <div class="label">the fraction makes the root symbol's cell noticeably
+    taller than the symbol's own natural size &#8212; this is the key
+    regression case for background-position: since the symbol image is
+    anchored bottom-right, its hook must still meet the bottom of the cell
+    (and the radicand's baseline) even though the cell has grown taller;
+    anchored top-left instead, the symbol would float near the top of the
+    cell with a visible gap underneath</div>
+  <math><msqrt><mfrac><mi>a</mi><mi>b</mi></mfrac></msqrt></math>
+</div>
+
+<h3>3. mroot &#8212; cube root with an index</h3>
+<div class="case">
+  <div class="label">expected: small "3" index sits above-left of the root
+    symbol; the symbol's hook still meets the radicand's baseline at the
+    bottom</div>
+  <math><mroot><mi>x</mi><mn>3</mn></mroot></math>
+</div>
+
+<h3>4. mroot with a tall radicand</h3>
+<div class="case">
+  <div class="label">combines the index-cell layout from case 3 with the
+    tall-radicand case from case 2 &#8212; the symbol must still hug the
+    bottom-right of its (now taller) cell</div>
+  <math><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mn>3</mn></mroot></math>
+</div>
+
+<h3>5. Nested msqrt</h3>
+<div class="case">
+  <div class="label">a root inside a root &#8212; both radical symbols must
+    independently anchor to the bottom of their own cell</div>
+  <math><msqrt><msqrt><mi>x</mi></msqrt></msqrt></math>
+</div>
+
+<h3>6. Font-size scaling</h3>
+<div class="case">
+  <div class="label"><code>font-size: 2.5em</code> on the
+    <code>&lt;math&gt;</code> element &#8212; the radical symbol is
+    regenerated at the larger size (<code>getRadicalSymbolSVGImageString</code>
+    is called with the resolved font size), so it must still be aligned to
+    the bottom-right of its (now larger) cell, not just scaled up from a
+    stale position</div>
+  <math style="font-size: 2.5em;"><msqrt><mi>x</mi></msqrt></math>
+</div>
+
+<h3>7. displaystyle attribute</h3>
+<div class="case">
+  <div class="label"><code>displaystyle="true"</code> &#8212; this makes the
+    cell use the display-style vertical gap metric instead of the compact
+    one, changing the cell's height; the symbol must still anchor correctly
+    regardless of which gap metric was used</div>
+  <math displaystyle="true"><msqrt><mfrac><mi>a</mi><mi>b</mi></mfrac></msqrt></math>
+</div>
+
+<h3>Expected behaviour</h3>
+<p class="intro">
+In every case above, the diagonal check-mark stroke of the radical symbol
+should visually connect: its lower hook touches the baseline/bottom of the
+radicand content, and its upper tip touches the left end of the horizontal
+bar drawn over the radicand (the cell's top/left border). If the symbol
+image were left- or top-aligned within its cell instead of anchored
+bottom-right, you would see it detached from the bar and radicand, floating
+with a visible gap underneath &#8212; most obviously in cases 2, 4, and 7,
+where the cell is noticeably taller than the symbol itself.
+</p>
+</section>
+
+</body>
+</html>
