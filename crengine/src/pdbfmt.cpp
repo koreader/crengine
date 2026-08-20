@@ -1129,9 +1129,7 @@ public:
         }
 
         // CNCX records: pool of <vwi len><string> entries. Build offset->string map.
-        // (A simple linear array of (offset,string) is fine: TOC sizes are small.)
-        LVArray<lUInt32> cncxOffsets;
-        LVArray<lString32> cncxStrings;
+        LVHashTable<lUInt32, lString32> cncxMap(1024);
         for (lUInt32 k = 0; k < ncncx; k++) {
             int recIdx = ncxidx + 1 + indxCount + k;
             if (recIdx >= _records.length())
@@ -1148,8 +1146,7 @@ public:
                 if (!readMobiVwi(cn.get(), cn.length(), p, len)
                         || len > (lUInt32)(cn.length() - p))
                     break;
-                cncxOffsets.add(base + lenStart);
-                cncxStrings.add(decodeMobiCncxString(cn.get() + p, len, encoding));
+                cncxMap.set(base + lenStart, decodeMobiCncxString(cn.get() + p, len, encoding));
                 p += len;
                 if (p == lenStart) // safety against infinite loop
                     break;
@@ -1263,12 +1260,9 @@ public:
                 entry->filepos = filepos;
                 entry->level = level;
                 if (titleOff != (lUInt32)-1) {
-                    for (int c = 0; c < cncxOffsets.length(); c++) {
-                        if (cncxOffsets[c] == titleOff) {
-                            entry->title = cncxStrings[c];
-                            break;
-                        }
-                    }
+                    lString32 title;
+                    if (cncxMap.get(titleOff, title))
+                        entry->title = title;
                 }
                 toc.add(entry);
             }
