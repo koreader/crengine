@@ -407,17 +407,18 @@ struct MobiTocEntry {
 };
 
 // Read a forward-encoded variable-width integer (7 bits per byte, big-endian,
-// last byte has its high bit set). Returns false if the data runs out.
+// last byte has its high bit set). Returns false if the data runs out or the
+// encoding is longer than 5 bytes (more than 35 bits, which cannot fit a u32).
 static bool readMobiVwi(const lUInt8 * data, int dataSize, int & pos, lUInt32 & value) {
     value = 0;
     int start = pos;
     while (pos < dataSize) {
+        if (pos - start >= 5) // a 6th byte would silently truncate the u32
+            return false;
         lUInt8 b = data[pos++];
         value = (value << 7) | (b & 0x7F);
         if (b & 0x80)
             return true;
-        if (pos - start > 5) // more than 35 bits: bogus
-            return false;
     }
     return false;
 }
@@ -1470,10 +1471,16 @@ public:
             _textSize = preamble.textLength;
             _recordCount = preamble.firstNonBookIndex - 1;
             _mobiEncoding = preamble.encoding;
-            // TOC (INDX/NCX) header record number, at offset 244 of record 0
-            // (only when the MOBI header is long enough to contain it)
+            // TOC (INDX/NCX) header record number, at offset 244 of record 0.
+            // The MOBI header starts at offset 16 and is hederLength bytes
+            // long; ncxidx sits at 244..248, so the header must be at least
+            // 232 bytes for those bytes to actually be the ncxidx field (on
+            // short-header files they'd belong to EXTH/fullname data instead).
+            // Note: on hybrid MOBI+KF8 files, the old (MOBI 6) part we render
+            // usually has ncxidx == 0xFFFFFFFF, so no TOC index there — the
+            // KF8 part (which we don't support) carries the real one.
             _mobiNcxIdx = -1;
-            if (_records[0].size >= 248) {
+            if (_records[0].size >= 248 && preamble.hederLength >= 232) {
                 lUInt32 ncxidx = 0;
                 stream->SetPos(_records[0].offset + 244);
                 if (stream->Read(&ncxidx)) {
