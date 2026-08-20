@@ -1270,7 +1270,6 @@ public:
         return toc.length() > 0;
     }
 
-
     bool readBlock( int index ) {
         if ( index<0 || index>=_recordCount )
             return false;
