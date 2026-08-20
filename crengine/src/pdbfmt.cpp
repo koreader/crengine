@@ -2046,8 +2046,15 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
                     int added = 0;
                     for (int i = 0; i < mobiToc.length(); i++) {
                         MobiTocEntry * e = mobiToc[i];
-                        lString32 id(MOBI_FILEPOS_ID_PREFIX);
-                        id.appendDecimal(e->filepos);
+                        // The target element may already have had its own id
+                        // (the pre-processor then pointed the offset at it via
+                        // the resolver instead of injecting a synthetic
+                        // id="fileposNNNN"), so look that up first.
+                        lString32 id;
+                        if (!mobiResolver.targetIds.get(e->filepos, id)) {
+                            id = lString32(MOBI_FILEPOS_ID_PREFIX);
+                            id.appendDecimal(e->filepos);
+                        }
                         ldomNode * node = doc->getElementById(id.c_str());
                         if (!node)
                             continue; // target not anchored: skip entry
