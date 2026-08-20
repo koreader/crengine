@@ -106,7 +106,8 @@ lUInt32 calcHash(css_style_rec_t & rec)
     v = v * 31 + (lUInt32)rec.border_color[2].pack();
     v = v * 31 + (lUInt32)rec.border_color[3].pack();
     v = v * 31 + (lUInt32)rec.background_repeat;
-    v = v * 31 + (lUInt32)rec.background_position;
+    v = v * 31 + (lUInt32)rec.background_position[0].pack();
+    v = v * 31 + (lUInt32)rec.background_position[1].pack();
     v = v * 31 + (lUInt32)rec.background_size[0].pack();
     v = v * 31 + (lUInt32)rec.background_size[1].pack();
     v = v * 31 + (lUInt32)rec.font_family;
@@ -196,7 +197,8 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.border_color[3]==r2.border_color[3]&&
            r1.background_image==r2.background_image&&
            r1.background_repeat==r2.background_repeat&&
-           r1.background_position==r2.background_position&&
+           r1.background_position[0]==r2.background_position[0]&&
+           r1.background_position[1]==r2.background_position[1]&&
            r1.background_size[0]==r2.background_size[0]&&
            r1.background_size[1]==r2.background_size[1]&&
            r1.border_collapse==r2.border_collapse&&
@@ -403,7 +405,8 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_LEN4(border_color);
     buf<<background_image;
     ST_PUT_ENUM(background_repeat);
-    ST_PUT_ENUM(background_position);
+    ST_PUT_LEN(background_position[0]);
+    ST_PUT_LEN(background_position[1]);
     ST_PUT_LEN(background_size[0]);
     ST_PUT_LEN(background_size[1]);
     ST_PUT_ENUM(border_collapse);
@@ -480,7 +483,8 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_LEN4(border_color);
     buf>>background_image;
     ST_GET_ENUM(css_background_repeat_value_t ,background_repeat);
-    ST_GET_ENUM(css_background_position_value_t ,background_position);
+    ST_GET_LEN(background_position[0]);
+    ST_GET_LEN(background_position[1]);
     ST_GET_LEN(background_size[0]);
     ST_GET_LEN(background_size[1]);
     ST_GET_ENUM(css_border_collapse_value_t ,border_collapse);

@@ -290,18 +290,6 @@ enum css_background_repeat_value_t {
     css_background_no_repeat,
     css_background_r_inherit
 };
-enum css_background_position_value_t {
-    css_background_left_top = 0,
-    css_background_left_center,
-    css_background_left_bottom,
-    css_background_right_top,
-    css_background_right_center,
-    css_background_right_bottom,
-    css_background_center_top,
-    css_background_center_center,
-    css_background_center_bottom = 8,
-    css_background_p_inherit = 9
-};
 
 enum css_border_collapse_value_t {
     css_border_c_inherit,
