@@ -1,6 +1,7 @@
 #include "crsetup.h"
 
 #include "../include/pdbfmt.h"
+#include "../include/crtxtenc.h"
 #include <ctype.h>
 
 // uncomment following line to save PDB content streams to /tmp
@@ -226,7 +227,9 @@ static bool findStartTagAt(const lUInt8 * data, int dataSize, int pos, int & tag
 // element keeps the target on the correct page. Only when the offset lands
 // mid-text do we insert a standalone <a id="fileposNNNN"></a> marker (the same
 // approach calibre uses).
-static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver, bool allowInjectStandaloneId) {
+// extraFileposRefs allows adding byte offsets to anchor that are not referenced
+// by any filepos= link (used for the TOC/NCX index targets).
+static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResolver & resolver, bool allowInjectStandaloneId, const LVArray<lUInt32> * extraFileposRefs = NULL) {
     stream->SetPos(0);
     LVByteArrayRef rawData = stream->GetData();
     stream->SetPos(0);
@@ -238,6 +241,13 @@ static LVStreamRef preprocessMobiHtmlStream(LVStreamRef stream, MobiFileposResol
 
     LVArray<lUInt32> fileposRefs;
     collectMobiFileposData(data, dataSize, fileposRefs);
+    if (extraFileposRefs) {
+        for (int i = 0; i < extraFileposRefs->length(); i++) {
+            lUInt32 fp = (*extraFileposRefs)[i];
+            if (fp > 0 && fp <= (lUInt32)dataSize)
+                fileposRefs.add(fp);
+        }
+    }
     if (fileposRefs.empty()) {
         return LVStreamRef();
     }
@@ -371,6 +381,77 @@ public:
 };
 
 // --- end MOBI filepos fragment support ---
+
+// --- MOBI TOC (INDX/NCX index) support ---
+// MOBI files store their TOC in a set of INDX records, referenced by the
+// "ncxidx" field (offset 244) of the MOBI header in record 0:
+//   [ncxidx]              INDX header record, containing a TAGX section that
+//                         describes how entries are encoded
+//   [ncxidx+1..+count]    index records, each holding entries listed in an
+//                         IDXT table at the end of the record
+//   [.. +ncncx]           CNCX records: a pool of <vwi length><utf-8 string>
+//                         holding all entry titles
+// Each entry starts with a <vwi len><ident string>, followed by control
+// bytes (as many as TAGX says), then vwi-encoded values for the tags whose
+// control bits are set. For the TOC ("NCX") index, the interesting tags are:
+//   1 = filepos (byte offset into the uncompressed HTML)
+//   3 = offset of the title string in the CNCX pool
+//   4 = hierarchy level (0 = top level)
+// (Also see calibre's calibre/ebooks/mobi/reader/ncx.py.)
+
+struct MobiTocEntry {
+    lUInt32 filepos;
+    lString32 title;
+    int level;
+    MobiTocEntry() : filepos(0), level(0) {}
+};
+
+// Read a forward-encoded variable-width integer (7 bits per byte, big-endian,
+// last byte has its high bit set). Returns false if the data runs out.
+static bool readMobiVwi(const lUInt8 * data, int dataSize, int & pos, lUInt32 & value) {
+    value = 0;
+    int start = pos;
+    while (pos < dataSize) {
+        lUInt8 b = data[pos++];
+        value = (value << 7) | (b & 0x7F);
+        if (b & 0x80)
+            return true;
+        if (pos - start > 5) // more than 35 bits: bogus
+            return false;
+    }
+    return false;
+}
+
+static int countSetBits(lUInt32 n) {
+    int c = 0;
+    while (n) {
+        c += n & 1;
+        n >>= 1;
+    }
+    return c;
+}
+
+// Decode a CNCX string (already sliced out of the pool) with the MOBI text
+// encoding (65001 = UTF-8, 1252 = cp1252).
+static lString32 decodeMobiCncxString(const lUInt8 * s, int len, lUInt32 encoding) {
+    if (encoding == 65001)
+        return Utf8ToUnicode(lString8((const char *)s, len));
+    // cp1252 (and anything else): map the upper 128 chars via our table
+    const lChar32 * table = GetCharsetByte2UnicodeTable(1252);
+    lString32 res;
+    res.reserve(len);
+    for (int i = 0; i < len; i++) {
+        lUInt8 ch = s[i];
+        res.append(1, ch < 128 ? (lChar32)ch : table[ch - 128]);
+    }
+    return res;
+}
+
+// Parse the INDX/TAGX/IDXT structures and collect TOC entries.
+// Implemented as PDBFile::readMobiToc() below, as it needs access to the
+// record table.
+
+// --- end MOBI TOC support ---
 
 struct PDBHdr
 {
@@ -777,6 +858,8 @@ private:
     lvsize_t _bufSize;
     lvpos_t _pos;
     lUInt16 _mobiExtraDataFlags;
+    int _mobiNcxIdx;      // PDB record number of the TOC (INDX/NCX) header, -1 if none
+    lUInt32 _mobiEncoding; // MOBI text encoding (65001 = UTF-8, 1252 = cp1252)
     CRPropRef m_doc_props;
 
     // c.f., lvtinydom.cpp's legacy ldomUnpack
@@ -980,6 +1063,209 @@ private:
         return unpack(*dstbuf, srcbuf);
     }
 
+    // --- MOBI TOC (INDX/NCX index) support ---
+
+    // Read a big-endian u32 at byte offset off of an INDX record buffer.
+    static lUInt32 indxWord(const LVArray<lUInt8> & r, int off) {
+        if (off < 0 || off + 4 > r.length())
+            return 0;
+        const lUInt8 * p = ((LVArray<lUInt8> &)r).get() + off;
+        return ((lUInt32)p[0] << 24) | ((lUInt32)p[1] << 16) | ((lUInt32)p[2] << 8) | p[3];
+    }
+
+    // Read a big-endian u16 at byte offset off of an INDX record buffer.
+    static lUInt16 indxHalf(const LVArray<lUInt8> & r, int off) {
+        if (off < 0 || off + 2 > r.length())
+            return 0;
+        const lUInt8 * p = ((LVArray<lUInt8> &)r).get() + off;
+        return (lUInt16)((p[0] << 8) | p[1]);
+    }
+
+public:
+
+    // Parse the INDX records starting at PDB record ncxidx and collect TOC
+    // entries (filepos, title, level). See the "MOBI TOC support" comment
+    // block above for the record layout. Returns false on any structural
+    // error (caller then just gets no TOC from us).
+    bool readMobiToc(int ncxidx, lUInt32 encoding, LVPtrVector<MobiTocEntry> & toc) {
+        if (ncxidx < 0 || ncxidx + 1 >= _records.length())
+            return false;
+        LVArray<lUInt8> hdr;
+        if (!readRecordNoUnpack(ncxidx, &hdr) || hdr.length() < 0xC0)
+            return false;
+        if (hdr[0] != 'I' || hdr[1] != 'N' || hdr[2] != 'D' || hdr[3] != 'X')
+            return false;
+        lUInt32 indxCount = indxWord(hdr, 4 + 5 * 4);  // word 5: number of index records
+        lUInt32 ncncx = indxWord(hdr, 4 + 12 * 4);     // word 12: number of CNCX records
+        lUInt32 tagxOff = indxWord(hdr, 4 + 44 * 4);   // word 44: offset of TAGX section
+        if (indxCount < 1 || indxCount > 0xFFFF || ncncx > 0xFFFF)
+            return false;
+        if (tagxOff + 12 > (lUInt32)hdr.length())
+            return false;
+        if (hdr[tagxOff] != 'T' || hdr[tagxOff+1] != 'A' || hdr[tagxOff+2] != 'G' || hdr[tagxOff+3] != 'X')
+            return false;
+        lUInt32 firstEntryOff = indxWord(hdr, tagxOff + 4);
+        lUInt32 controlByteCount = indxWord(hdr, tagxOff + 8);
+        if (controlByteCount < 1 || controlByteCount > 32)
+            return false;
+        // TAGX entries: 4 bytes each (tag, num_of_values, bitmask, eof),
+        // from offset 12 to firstEntryOff within the TAGX section.
+        if (firstEntryOff <= 12 || tagxOff + firstEntryOff > (lUInt32)hdr.length())
+            return false;
+        struct TagxTag { lUInt8 tag; lUInt8 numOfValues; lUInt8 bitmask; lUInt8 eof; };
+        TagxTag tagxTags[64];
+        int tagxTagCount = 0;
+        for (lUInt32 i = 12; i + 4 <= firstEntryOff && tagxTagCount < 64; i += 4) {
+            const lUInt8 * p = hdr.get() + tagxOff + i;
+            tagxTags[tagxTagCount].tag = p[0];
+            tagxTags[tagxTagCount].numOfValues = p[1];
+            tagxTags[tagxTagCount].bitmask = p[2];
+            tagxTags[tagxTagCount].eof = p[3];
+            tagxTagCount++;
+        }
+
+        // CNCX records: pool of <vwi len><string> entries. Build offset->string map.
+        // (A simple linear array of (offset,string) is fine: TOC sizes are small.)
+        LVArray<lUInt32> cncxOffsets;
+        LVArray<lString32> cncxStrings;
+        for (lUInt32 k = 0; k < ncncx; k++) {
+            int recIdx = ncxidx + 1 + indxCount + k;
+            if (recIdx >= _records.length())
+                break;
+            LVArray<lUInt8> cn;
+            if (!readRecordNoUnpack(recIdx, &cn))
+                break;
+            lUInt32 base = k * 0x10000;
+            int p = 0;
+            while (p < cn.length()) {
+                lUInt32 len;
+                int lenStart = p;
+                if (!readMobiVwi(cn.get(), cn.length(), p, len) || p + (int)len > cn.length())
+                    break;
+                cncxOffsets.add(base + lenStart);
+                cncxStrings.add(decodeMobiCncxString(cn.get() + p, len, encoding));
+                p += len;
+                if (p == lenStart) // safety against infinite loop
+                    break;
+            }
+        }
+
+        // Index records: entries listed in the IDXT table at the end.
+        for (lUInt32 ri = 0; ri < indxCount; ri++) {
+            int recIdx = ncxidx + 1 + ri;
+            if (recIdx >= _records.length())
+                break;
+            LVArray<lUInt8> r;
+            if (!readRecordNoUnpack(recIdx, &r) || r.length() < 12)
+                continue;
+            if (r[0] != 'I' || r[1] != 'N' || r[2] != 'D' || r[3] != 'X')
+                break;
+            lUInt32 idxtOff = indxWord(r, 4 + 4 * 4); // word 4: offset of IDXT section
+            lUInt32 entryCount = indxWord(r, 4 + 5 * 4); // word 5: number of entries
+            if (idxtOff + 4 + 2 * entryCount > (lUInt32)r.length())
+                continue;
+            if (r[idxtOff] != 'I' || r[idxtOff+1] != 'D' || r[idxtOff+2] != 'X' || r[idxtOff+3] != 'T')
+                continue;
+            // Entry start offsets from the IDXT table; the last entry ends at IDXT.
+            for (lUInt32 j = 0; j < entryCount; j++) {
+                int start = indxHalf(r, idxtOff + 4 + 2 * j);
+                int end = (j + 1 < entryCount) ? indxHalf(r, idxtOff + 4 + 2 * (j + 1)) : idxtOff;
+                if (start < 0 || end <= start || end > r.length())
+                    continue;
+                const lUInt8 * rec = r.get() + start;
+                int recSize = end - start;
+                int pos = 0;
+                // Entry ident: <1-byte length><string> (unused for the TOC, skip it)
+                if (pos >= recSize)
+                    continue;
+                lUInt32 identLen = rec[pos++];
+                if (pos + (int)identLen > recSize)
+                    continue;
+                pos += identLen;
+                // Control bytes
+                if (pos + (int)controlByteCount > recSize)
+                    continue;
+                lUInt8 controlBytes[32] = { 0 };
+                memcpy(controlBytes, rec + pos, controlByteCount);
+                pos += controlByteCount;
+                // Tag values
+                lUInt32 filepos = 0;
+                lUInt32 titleOff = (lUInt32)-1;
+                int level = 0;
+                bool haveFilepos = false;
+                int cbIndex = 0;
+                for (int t = 0; t < tagxTagCount; t++) {
+                    const TagxTag & tg = tagxTags[t];
+                    if (tg.eof == 0x01) {
+                        cbIndex++; // header-terminating entry: consume one control byte
+                        continue;
+                    }
+                    if (cbIndex >= (int)controlByteCount)
+                        break;
+                    lUInt32 masked = controlBytes[cbIndex] & tg.bitmask;
+                    if (masked == 0)
+                        continue; // tag not present
+                    int valueCount = 0;
+                    int valueBytes = -1; // or byte-length of the value list
+                    if (masked == tg.bitmask && countSetBits(tg.bitmask) > 1) {
+                        // All bits set and multi-bit mask: a vwi byte-length follows
+                        lUInt32 vb;
+                        if (!readMobiVwi(rec, recSize, pos, vb))
+                            break;
+                        valueBytes = vb;
+                    } else {
+                        // Shift to get the count value from the masked bits
+                        lUInt32 mask = tg.bitmask, v = masked;
+                        while (mask && !(mask & 1)) {
+                            mask >>= 1;
+                            v >>= 1;
+                        }
+                        valueCount = (masked == tg.bitmask && countSetBits(tg.bitmask) == 1) ? 1 : (int)v;
+                    }
+                    // Read the values
+                    if (valueBytes >= 0) {
+                        int total = 0;
+                        while (total < valueBytes) {
+                            lUInt32 val;
+                            int before = pos;
+                            if (!readMobiVwi(rec, recSize, pos, val))
+                                break;
+                            total += pos - before;
+                            if (tg.tag == 1 && !haveFilepos) { filepos = val; haveFilepos = true; }
+                            else if (tg.tag == 3 && titleOff == (lUInt32)-1) titleOff = val;
+                            else if (tg.tag == 4) level = (int)val;
+                        }
+                    } else {
+                        for (int n = 0; n < valueCount * tg.numOfValues; n++) {
+                            lUInt32 val;
+                            if (!readMobiVwi(rec, recSize, pos, val))
+                                break;
+                            if (tg.tag == 1 && !haveFilepos) { filepos = val; haveFilepos = true; }
+                            else if (tg.tag == 3 && titleOff == (lUInt32)-1) titleOff = val;
+                            else if (tg.tag == 4) level = (int)val;
+                        }
+                    }
+                }
+                if (!haveFilepos)
+                    continue;
+                MobiTocEntry * entry = new MobiTocEntry();
+                entry->filepos = filepos;
+                entry->level = level;
+                if (titleOff != (lUInt32)-1) {
+                    for (int c = 0; c < cncxOffsets.length(); c++) {
+                        if (cncxOffsets[c] == titleOff) {
+                            entry->title = cncxStrings[c];
+                            break;
+                        }
+                    }
+                }
+                toc.add(entry);
+            }
+        }
+        return toc.length() > 0;
+    }
+
+
     bool readBlock( int index ) {
         if ( index<0 || index>=_recordCount )
             return false;
@@ -1173,6 +1459,20 @@ public:
                 _compression = 0;
             _textSize = preamble.textLength;
             _recordCount = preamble.firstNonBookIndex - 1;
+            _mobiEncoding = preamble.encoding;
+            // TOC (INDX/NCX) header record number, at offset 244 of record 0
+            // (only when the MOBI header is long enough to contain it)
+            _mobiNcxIdx = -1;
+            if (_records[0].size >= 248) {
+                lUInt32 ncxidx = 0;
+                stream->SetPos(_records[0].offset + 244);
+                if (stream->Read(&ncxidx)) {
+                    lvByteOrderConv cnv2;
+                    cnv2.rev(&ncxidx);
+                    if (ncxidx != 0xFFFFFFFF && ncxidx < (lUInt32)_records.length())
+                        _mobiNcxIdx = (int)ncxidx;
+                }
+            }
             lUInt32 coverOffset = (lUInt32)-1;
             lUInt32 thumbOffset = 0;
             bool title_set = false;
@@ -1568,11 +1868,18 @@ public:
 
     Format getFormat() { return _format; }
 
+    /// PDB record number of the MOBI TOC (INDX/NCX) header, -1 if none
+    int getMobiNcxIdx() { return _mobiNcxIdx; }
+    /// MOBI text encoding (65001 = UTF-8, 1252 = cp1252)
+    lUInt32 getMobiEncoding() { return _mobiEncoding; }
+
     /// Constructor
     PDBFile() {
         //_container.AddRef();
         _bufIndex = -1;
         _mobiExtraDataFlags = 0;
+        _mobiNcxIdx = -1;
+        _mobiEncoding = 0;
         m_doc_props = LVCreatePropsContainer();
     }
 
@@ -1686,8 +1993,20 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
             bool allowInjectStandaloneId = doc->getDOMVersionRequested() >= 20260812;
 
             if (isMobiHtml) {
+                // Read the TOC (INDX/NCX) index first: its entries target byte
+                // offsets in the HTML, which we need to anchor (like filepos
+                // links) before parsing, so we can then resolve each entry to
+                // a DOM node via its id="fileposNNNN".
+                LVPtrVector<MobiTocEntry> mobiToc;
+                bool haveMobiToc = pdb->getMobiNcxIdx() >= 0 && pdb->readMobiToc(pdb->getMobiNcxIdx(), pdb->getMobiEncoding(), mobiToc);
+                LVArray<lUInt32> tocFileposRefs;
+                if (haveMobiToc) {
+                    for (int i = 0; i < mobiToc.length(); i++)
+                        tocFileposRefs.add(mobiToc[i]->filepos);
+                }
+
                 MobiFileposResolver mobiResolver;
-                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver, allowInjectStandaloneId);
+                LVStreamRef rewrittenStream = preprocessMobiHtmlStream(stream, mobiResolver, allowInjectStandaloneId, haveMobiToc ? &tocFileposRefs : NULL);
                 if (!rewrittenStream.isNull())
                     parserStream = rewrittenStream;
 
@@ -1702,6 +2021,44 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
                     parserStream->SetPos(0);
                     if (!parser.Parse()) {
                         return false;
+                    }
+                }
+
+                // Build the TOC from the index entries, resolving each filepos
+                // target to the DOM node carrying the matching id="fileposNNNN".
+                if (haveMobiToc) {
+                    LVTocItem * toc = doc->getToc();
+                    toc->clear();
+                    // Stack of current parent items per level (root at 0)
+                    LVTocItem * parents[17];
+                    for (int pi = 0; pi < 17; pi++) parents[pi] = toc;
+                    int curLevel = 0;
+                    int added = 0;
+                    for (int i = 0; i < mobiToc.length(); i++) {
+                        MobiTocEntry * e = mobiToc[i];
+                        lString32 id(MOBI_FILEPOS_ID_PREFIX);
+                        id.appendDecimal(e->filepos);
+                        ldomNode * node = doc->getElementById(id.c_str());
+                        if (!node)
+                            continue; // target not anchored: skip entry
+                        ldomXPointer ptr(node, 0);
+                        int level = e->level;
+                        if (level < 0)
+                            level = 0;
+                        if (level > 15)
+                            level = 15;
+                        if (level > curLevel + 1)
+                            level = curLevel + 1; // no gaps in the hierarchy
+                        LVTocItem * item = parents[level]->addChild(e->title, ptr, ptr.toString());
+                        parents[level + 1] = item;
+                        curLevel = level;
+                        added++;
+                    }
+                    if (added > 0) {
+                        CRLog::info("MOBI: TOC built from NCX index (%d entries)", added);
+                        doc->setCacheFileStale(true); // cache must be updated with the TOC
+                    } else {
+                        toc->clear();
                     }
                 }
             } else {
