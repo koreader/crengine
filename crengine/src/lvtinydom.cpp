@@ -9460,6 +9460,9 @@ void ldomDocumentWriter::OnTagClose( const lChar32 *, const lChar32 * tagname, b
     // handle. So, here below, we check that both id and curNodeId match the
     // element id we check for.
 
+    if ( id == el_style && curNodeId == el_style )
+        _inHeadStyle = false;
+
     // Parse <link rel="stylesheet">, put the css file link in _stylesheetLinks.
     // They will be added to <body><stylesheet> when we meet <BODY>
     // (duplicated in ldomDocumentWriterFilter::OnTagClose)
@@ -9571,7 +9574,6 @@ void ldomDocumentWriter::OnText( const lChar32 * text, int len, lUInt32 flags )
     // Accumulate <HEAD><STYLE> content
     if (_inHeadStyle) {
         _headStyleText << lString32(text, len);
-        _inHeadStyle = false;
         return;
     }
 
@@ -17516,6 +17518,9 @@ void ldomDocumentWriterFilter::OnTagClose( const lChar32 * /*nsname*/, const lCh
         }
     }
 
+    if ( id == el_style && curNodeId == el_style )
+        _inHeadStyle = false;
+
     // Parse <link rel="stylesheet">, put the css file link in _stylesheetLinks,
     // they will be added to <body><stylesheet> when we meet <BODY>
     // (duplicated in ldomDocumentWriter::OnTagClose)
@@ -17603,7 +17608,6 @@ void ldomDocumentWriterFilter::OnText( const lChar32 * text, int len, lUInt32 fl
     // Accumulate <HEAD><STYLE> content
     if (_inHeadStyle) {
         _headStyleText << lString32(text, len);
-        _inHeadStyle = false;
         return;
     }
 
