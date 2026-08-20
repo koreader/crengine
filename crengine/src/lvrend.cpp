@@ -10201,15 +10201,28 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
 }
 void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y, int width, int height, bool clip_to_target=true)
 {
-    // (The provided width and height gives the area we have to draw the background image on)
+    // The caller passes us the node's border box (fmt.getWidth()/getHeight()), for
+    // background-color's default background-clip: border-box. But background-position/-size
+    // resolve against the padding box (the default background-origin), so inset by the
+    // border width below -- see https://www.w3.org/TR/css-backgrounds-3/#the-background-origin
     css_style_ref_t style=enode->getStyle();
     if (!style->background_image.empty()) {
+        int leftBorderwidth = measureBorder(enode, 3);
+        int topBorderwidth = measureBorder(enode, 0);
+        int rightBorderwidth = measureBorder(enode, 1);
+        int bottomBorderwidth = measureBorder(enode, 2);
+        if (leftBorderwidth || topBorderwidth || rightBorderwidth || bottomBorderwidth) {
+            x0 += leftBorderwidth;
+            y0 += topBorderwidth;
+            width -= leftBorderwidth + rightBorderwidth;
+            height -= topBorderwidth + bottomBorderwidth;
+        }
         lString32 filepath = lString32(style->background_image.c_str());
         LVImageSourceRef img = enode->getParentNode()->getDocument()->getObjectImageSource(filepath);
         if (img.isNull()) { // filepath may be url-encoded
             img = enode->getParentNode()->getDocument()->getObjectImageSource(DecodeHTMLUrlString(filepath));
         }
-        if (!img.isNull()) {
+        if (!img.isNull() && width > 0 && height > 0) {
             // Raw, undecoded-transform pixel size of the image file
             int native_img_w = img->GetWidth();
             int native_img_h = img->GetHeight();
@@ -10226,9 +10239,10 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                  bg_h.type != css_val_unspecified || bg_h.value != css_generic_auto ) {
                 int new_w = 0;
                 int new_h = 0;
-                RenderRectAccessor fmt( enode );
-                int container_w = fmt.getWidth();
-                int container_h = fmt.getHeight();
+                // Use the (already border-inset) padding box as the basis for percentage
+                // sizes and for cover/contain scaling.
+                int container_w = width;
+                int container_h = height;
                 bool check_lengths = true;
                 if ( bg_w.type == css_val_unspecified && bg_h.type == css_val_unspecified ) {
                     if ( bg_w.value == css_generic_contain && bg_h.value == css_generic_contain ) {
