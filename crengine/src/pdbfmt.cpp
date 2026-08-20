@@ -1143,10 +1143,9 @@ public:
             while (p < cn.length()) {
                 lUInt32 len;
                 int lenStart = p;
-                // 64-bit compare: a crafted vwi length > 2^31 would make the
-                // (int)len cast negative and pass the bounds check.
+                // Unsigned compare: a crafted 5-byte vwi can exceed INT_MAX. A signed (int)len would go negative and pass the check,handing a negative length to decodeMobiCncxString() (UB).
                 if (!readMobiVwi(cn.get(), cn.length(), p, len)
-                        || (lUInt64)p + len > (lUInt64)cn.length())
+                        || len > (lUInt32)(cn.length() - p))
                     break;
                 cncxOffsets.add(base + lenStart);
                 cncxStrings.add(decodeMobiCncxString(cn.get() + p, len, encoding));
