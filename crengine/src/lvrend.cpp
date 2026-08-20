@@ -4865,7 +4865,8 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_color[3]=source->border_color[3];
     dest->background_image=source->background_image;
     dest->background_repeat=source->background_repeat;
-    dest->background_position=source->background_position;
+    dest->background_position[0]=source->background_position[0];
+    dest->background_position[1]=source->background_position[1];
     dest->background_size[0]=source->background_size[0];
     dest->background_size[1]=source->background_size[1];
     dest->border_collapse=source->border_collapse;
@@ -10348,45 +10349,22 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
                     break;
             }
             // Compute the position where to draw top left of image, as if
-            // it was a single image when no-repeat
-            int draw_x = 0;
-            int draw_y = 0;
-            switch (style->background_position) {
-                case css_background_left_top:
-                case css_background_left_center:
-                case css_background_left_bottom:
-                    break;
-                case css_background_center_top:
-                case css_background_center_center:
-                case css_background_center_bottom:
-                    draw_x = (width - img_w)/2;
-                    break;
-                case css_background_right_top:
-                case css_background_right_center:
-                case css_background_right_bottom:
-                    draw_x = width - img_w;
-                    break;
-                default:
-                    break;
-            }
-            switch (style->background_position) {
-                case css_background_left_top:
-                case css_background_center_top:
-                case css_background_right_top:
-                    break;
-                case css_background_left_center:
-                case css_background_center_center:
-                case css_background_right_center:
-                    draw_y = (height - img_h)/2;
-                    break;
-                case css_background_left_bottom:
-                case css_background_center_bottom:
-                case css_background_right_bottom:
-                    draw_y = height - img_h;
-                    break;
-                default:
-                    break;
-            }
+            // it was a single image when no-repeat.
+            // Per spec, a <percentage> position is relative to the difference
+            // between the container and (possibly background-size resized)
+            // image sizes, while a <length> is a plain absolute offset.
+            css_length_t bg_pos_x = style->background_position[0];
+            css_length_t bg_pos_y = style->background_position[1];
+            int draw_x;
+            if ( bg_pos_x.type == css_val_percent )
+                draw_x = (width - img_w) * bg_pos_x.value / (100 * 256);
+            else
+                draw_x = lengthToPx(enode, bg_pos_x, width);
+            int draw_y;
+            if ( bg_pos_y.type == css_val_percent )
+                draw_y = (height - img_h) * bg_pos_y.value / (100 * 256);
+            else
+                draw_y = lengthToPx(enode, bg_pos_y, height);
             // If tiling, we need to adjust the transform x/y (the offset
             // in img, so, a value between 0 and img_w/h) to the point
             // inside image that should be at top left of target area
@@ -11753,7 +11731,6 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     UPDATE_STYLE_FIELD( page_break_after, css_pb_inherit );
     UPDATE_STYLE_FIELD( page_break_inside, css_pb_inherit );
     UPDATE_STYLE_FIELD( background_repeat, css_background_r_inherit );
-    UPDATE_STYLE_FIELD( background_position, css_background_p_inherit );
     UPDATE_STYLE_FIELD( float_, css_f_inherit );
     UPDATE_STYLE_FIELD( clear, css_c_inherit );
     UPDATE_STYLE_FIELD( box_sizing, css_bs_inherit );
@@ -12038,6 +12015,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // background_size[2] [WH]: computed value: "as specified, but with relative lengths converted into absolute lengths"
     inheritLength( pstyle->background_size[0], parent_style->background_size[0], parent_font_size );
     inheritLength( pstyle->background_size[1], parent_style->background_size[1], parent_font_size );
+    // background_position[2] [XY]: computed value: "as specified, but with relative lengths converted into absolute lengths"
+    inheritLength( pstyle->background_position[0], parent_style->background_position[0], parent_font_size );
+    inheritLength( pstyle->background_position[1], parent_style->background_position[1], parent_font_size );
 
     // border_width[4] [TRBL]: computed value: "the absolute length or 0 if border-style is none or hidden"
     if ( pstyle->border_width[0].type == css_val_inherited ) {
