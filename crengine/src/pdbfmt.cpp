@@ -1100,7 +1100,9 @@ public:
         lUInt32 tagxOff = indxWord(hdr, 4 + 44 * 4);   // word 44: offset of TAGX section
         if (indxCount < 1 || indxCount > 0xFFFF || ncncx > 0xFFFF)
             return false;
-        if (tagxOff + 12 > (lUInt32)hdr.length())
+        // Compute in 64-bit: a crafted tagxOff near UINT32_MAX would wrap the
+        // u32 sum and pass the bounds check, leading to OOB reads below.
+        if ((lUInt64)tagxOff + 12 > (lUInt64)hdr.length())
             return false;
         if (hdr[tagxOff] != 'T' || hdr[tagxOff+1] != 'A' || hdr[tagxOff+2] != 'G' || hdr[tagxOff+3] != 'X')
             return false;
@@ -1110,7 +1112,8 @@ public:
             return false;
         // TAGX entries: 4 bytes each (tag, num_of_values, bitmask, eof),
         // from offset 12 to firstEntryOff within the TAGX section.
-        if (firstEntryOff <= 12 || tagxOff + firstEntryOff > (lUInt32)hdr.length())
+        // (64-bit sum: firstEntryOff is attacker-controlled and could wrap a u32 sum.)
+        if (firstEntryOff <= 12 || (lUInt64)tagxOff + firstEntryOff > (lUInt64)hdr.length())
             return false;
         struct TagxTag { lUInt8 tag; lUInt8 numOfValues; lUInt8 bitmask; lUInt8 eof; };
         TagxTag tagxTags[64];
@@ -1140,7 +1143,10 @@ public:
             while (p < cn.length()) {
                 lUInt32 len;
                 int lenStart = p;
-                if (!readMobiVwi(cn.get(), cn.length(), p, len) || p + (int)len > cn.length())
+                // 64-bit compare: a crafted vwi length > 2^31 would make the
+                // (int)len cast negative and pass the bounds check.
+                if (!readMobiVwi(cn.get(), cn.length(), p, len)
+                        || (lUInt64)p + len > (lUInt64)cn.length())
                     break;
                 cncxOffsets.add(base + lenStart);
                 cncxStrings.add(decodeMobiCncxString(cn.get() + p, len, encoding));
@@ -1162,7 +1168,12 @@ public:
                 break;
             lUInt32 idxtOff = indxWord(r, 4 + 4 * 4); // word 4: offset of IDXT section
             lUInt32 entryCount = indxWord(r, 4 + 5 * 4); // word 5: number of entries
-            if (idxtOff + 4 + 2 * entryCount > (lUInt32)r.length())
+            // Cap entryCount (consistent with the other caps) and compute the
+            // table end in 64-bit: a crafted entryCount >= 0x80000000 would
+            // wrap the u32 sum and pass the bounds check.
+            if (entryCount > 0xFFFF)
+                continue;
+            if ((lUInt64)idxtOff + 4 + 2 * (lUInt64)entryCount > (lUInt64)r.length())
                 continue;
             if (r[idxtOff] != 'I' || r[idxtOff+1] != 'D' || r[idxtOff+2] != 'X' || r[idxtOff+3] != 'T')
                 continue;
@@ -1179,11 +1190,11 @@ public:
                 if (pos >= recSize)
                     continue;
                 lUInt32 identLen = rec[pos++];
-                if (pos + (int)identLen > recSize)
+                if (pos + (lUInt64)identLen > (lUInt64)recSize)
                     continue;
                 pos += identLen;
                 // Control bytes
-                if (pos + (int)controlByteCount > recSize)
+                if (pos + (lUInt64)controlByteCount > (lUInt64)recSize)
                     continue;
                 lUInt8 controlBytes[32] = { 0 };
                 memcpy(controlBytes, rec + pos, controlByteCount);
