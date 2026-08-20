@@ -2258,14 +2258,19 @@ lUInt8 * LVSvgImageSource::Render(int &width, int &height, lUInt32 fillcolor, bo
 }
 
 bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback ) {
+    // If the callback can render itself at an exact target size (see
+    // LVStretchImgSource::GetTargetSize()), that's the size we want to
+    // rasterize at directly, instead of the SVG's own intrinsic size.
+    int target_w = 0, target_h = 0;
+    bool have_target_size = false;
     if ( callback ) { // We're going to draw
         // We can't just use doc->renderToBitmap(final_width, final_height) below
         // as lunasvg would just scale it to the final size. We need to tell it
         // this final size early, so it can ensure preserveAspectRatio in it.
-        int w, h;
-        if ( callback->GetTargetSize(w, h) ) {
-            lunasvg_xcontext.target_width = w;
-            lunasvg_xcontext.target_height = h;
+        if ( callback->GetTargetSize(target_w, target_h) ) {
+            have_target_size = true;
+            lunasvg_xcontext.target_width = target_w;
+            lunasvg_xcontext.target_height = target_h;
             // When drawing with Decode(callback), we're coming from NodeImageProxy()
             // which has created us with assume_valid=false, and the next LoadSVGDocument()
             // will be the first load, which will use these target_width/height.
@@ -2284,15 +2289,25 @@ bool LVSvgImageSource::Decode( LVImageDecoderCallback * callback ) {
     if ( ! callback ) // If no callback provided, only size is wanted
         return true;
 
-    lunasvg::Bitmap bitmap = lunasvg_doc->renderToBitmap(_width, _height, 0x00000000);
+    // Render at the requested target size when we have one (this is what
+    // actually rasterizes the vector content at that size -- setting
+    // target_width/height above only feeds preserveAspectRatio resolution
+    // for nested content), falling back to the SVG's own intrinsic size.
+    int render_w = have_target_size ? target_w : _width;
+    int render_h = have_target_size ? target_h : _height;
+    lunasvg::Bitmap bitmap = lunasvg_doc->renderToBitmap(render_w, render_h, 0x00000000);
     if ( ! bitmap.valid() )
         return false;
+    // Use the bitmap's actual size (lunasvg may adjust it, eg. clamping to
+    // preserve aspect ratio) rather than assuming it matches what we asked for.
+    render_w = bitmap.width();
+    render_h = bitmap.height();
 
     callback->OnStartDecode(this);
     lUInt32 * __restrict src = (lUInt32 *)bitmap.data();
-    lUInt32 * __restrict row = new lUInt32 [ _width ];
-    for (int y=0; y<_height; y++) {
-        size_t px_count = _width;
+    lUInt32 * __restrict row = new lUInt32 [ render_w ];
+    for (int y=0; y<render_h; y++) {
+        size_t px_count = render_w;
         lUInt32 * __restrict dst = row;
         while (px_count--) {
             // LunaSVG outputs BGRA with premultiplied alpha, crengine wants BGRa (inverted alpha)
@@ -2425,6 +2440,23 @@ LVImageSourceRef LVCreateStreamCopyImageSource( LVStreamRef stream )
 
 class LVStretchImgSource : public LVImageSource, public LVImageDecoderCallback
 {
+private:
+    // True when scaling from (srcW,srcH) to (dstW,dstH) preserves aspect ratio
+    // (within a small rounding tolerance), as opposed to a deliberately
+    // distorting stretch (eg. CSS background-size with independent width/height
+    // lengths). Only a ratio-preserving stretch is safe for the
+    // _srcIsScalableStretch fast path below: it asks a scalable source (SVG) to
+    // render itself directly via a target-size hint, but (at least with the
+    // vendored lunasvg) that hint always resolves like intrinsic/replaced-element
+    // sizing -- ie. aspect-preserving and letterboxed -- unlike a raw pixel
+    // remap, so it can't reproduce a genuine non-uniform distortion.
+    static bool isUniformScale(int srcW, int srcH, int dstW, int dstH) {
+        if (srcW <= 0 || srcH <= 0)
+            return false;
+        int expected_dstH = (int)(((lInt64)dstW * srcH) / srcW);
+        int diff = dstH - expected_dstH;
+        return (diff >= -2 && diff <= 2);
+    }
 protected:
 	LVImageSourceRef _src;
 	int _src_dx;
@@ -2437,11 +2469,22 @@ protected:
 	int _split_y;
 	LVArray<lUInt32> _line;
 	LVImageDecoderCallback * _callback;
+	// True when _src can render itself directly at our exact target size (eg. an
+	// SVG source) and we're doing a plain fill-the-whole-area stretch on both axes
+	// (not a 9-patch split or a tile, which need a fixed-size source to split/repeat).
+	// In that case there's no native-resolution raster to pixel-remap or smooth-scale
+	// at all: we tell _src our target size via GetTargetSize() below, and
+	// OnLineDecoded() just passes its (already correctly-sized) lines straight
+	// through instead of remapping them.
+	bool _srcIsScalableStretch;
 	// True when a smooth (interpolated) scale was requested *and* applies here: a
 	// genuine two-axis stretch of a fixed-resolution raster that actually changes
 	// size. We buffer the whole decoded source into _decoded, and OnEndDecode()
 	// runs it through the same smooth scaler used for normal <img> elements
 	// (CRe::qSmoothScaleImage), instead of nearest-neighbor remapping line by line.
+	// (Not used when _srcIsScalableStretch, as that path is strictly better: the
+	// source renders natively at the exact target size instead of being decoded
+	// at native resolution and then rescaled.)
 	bool _smoothscale;
 	lUInt8 * __restrict _decoded;
 public:
@@ -2455,7 +2498,9 @@ public:
         , _vTransform(vTransform)
 		, _split_x( splitX )
 		, _split_y( splitY )
-		, _smoothscale( smooth && hTransform == IMG_TRANSFORM_STRETCH && vTransform == IMG_TRANSFORM_STRETCH
+		, _srcIsScalableStretch( src->IsScalable() && hTransform == IMG_TRANSFORM_STRETCH && vTransform == IMG_TRANSFORM_STRETCH
+		                         && isUniformScale(_src_dx, _src_dy, newWidth, newHeight) )
+		, _smoothscale( !_srcIsScalableStretch && smooth && hTransform == IMG_TRANSFORM_STRETCH && vTransform == IMG_TRANSFORM_STRETCH
 		                && (_src_dx != newWidth || _src_dy != newHeight) )
 		, _decoded(0)
 	{
@@ -2493,6 +2538,18 @@ public:
         }
         _callback->OnEndDecode(this, res);
     }
+    // LVImageDecoderCallback: called by _src->Decode(this) below to ask us (as
+    // its callback) what size it should render itself at. Only meaningful when
+    // _srcIsScalableStretch, in which case it's our own fixed target size --
+    // see the member comment above.
+    virtual bool GetTargetSize(int & width, int & height) const {
+        if ( !_srcIsScalableStretch ) {
+            return false;
+        }
+        width = _dst_dx;
+        height = _dst_dy;
+        return true;
+    }
 	virtual ldomDocument * GetSourceDocument() { return _src.isNull() ? NULL : _src->GetSourceDocument(); }
 	virtual ldomNode * GetSourceNode() { return _src.isNull() ? NULL : _src->GetSourceNode(); }
 	virtual LVStream * GetSourceStream() { return NULL; }
@@ -2513,6 +2570,13 @@ public:
 
 bool LVStretchImgSource::OnLineDecoded( LVImageSource * obj, int y, lUInt32 * __restrict data )
 {
+    if ( _srcIsScalableStretch ) {
+        // _src was told (via our GetTargetSize() above) to render itself directly
+        // at _dst_dx x _dst_dy, so this line is already exactly what we want:
+        // no pixel remapping needed, just forward it as-is.
+        return _callback->OnLineDecoded( obj, y, data );
+    }
+
     if ( _smoothscale ) {
         // Defer everything to OnEndDecode()'s smooth-scaling pass: just stash
         // this source line at native resolution.
