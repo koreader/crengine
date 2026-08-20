@@ -1142,7 +1142,7 @@ public:
             while (p < cn.length()) {
                 lUInt32 len;
                 int lenStart = p;
-                // Unsigned compare: a crafted 5-byte vwi can exceed INT_MAX. A signed (int)len would go negative and pass the check,handing a negative length to decodeMobiCncxString() (UB).
+                // Unsigned compare: a crafted 5-byte vwi can exceed INT_MAX.
                 if (!readMobiVwi(cn.get(), cn.length(), p, len)
                         || len > (lUInt32)(cn.length() - p))
                     break;
