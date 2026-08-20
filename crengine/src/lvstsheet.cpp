@@ -3281,33 +3281,136 @@ static const char * css_bg_repeat_names[]={
         "no-repeat",
         NULL
 };
-//background position names
-static const char * css_bg_position_names[]={
-        "left top", // 0
-        "left center",
-        "left bottom",
-        "right top",
-        "right center",
-        "right bottom",
-        "center top",
-        "center center",
-        "center bottom", // 8
-        "top left", // 9
-        "center left",
-        "bottom left",
-        "top right",
-        "center right",
-        "bottom right",
-        "top center",
-        "center center",
-        "bottom center", // 17
-        "center", // 18
-        "left",
-        "right",
-        "top",
-        "bottom", // 22
-        NULL
+// background-position: https://developer.mozilla.org/en-US/docs/Web/CSS/background-position
+// Each of the (up to 2) components can be a keyword (left/right/top/bottom/center)
+// or a <percentage>/<length>. Below are helpers to parse that mix, used by both
+// the standalone background-position property and the background shorthand.
+enum {
+    bg_pos_none = -1,
+    bg_pos_left = 0,
+    bg_pos_right,
+    bg_pos_top,
+    bg_pos_bottom,
+    bg_pos_center,
+    bg_pos_length
 };
+
+// Parses a single <bg-position> component at *decl (a keyword, or a
+// <percentage>/<length> via parse_number_value()). Returns one of the
+// bg_pos_* constants above (length_val is only meaningful for bg_pos_length),
+// or bg_pos_none (and leaves decl untouched, besides skipped spaces) if nothing
+// recognizable is found there.
+static int parse_bg_position_token( const char * & decl, css_length_t & length_val ) {
+    skip_spaces(decl);
+    if ( substr_icompare( "left", decl ) )   return bg_pos_left;
+    if ( substr_icompare( "right", decl ) )  return bg_pos_right;
+    if ( substr_icompare( "top", decl ) )    return bg_pos_top;
+    if ( substr_icompare( "bottom", decl ) ) return bg_pos_bottom;
+    if ( substr_icompare( "center", decl ) ) return bg_pos_center;
+    // accept percent and (positive or negative) length units
+    if ( parse_number_value( decl, length_val, true, true, false, false, false, false, false, false, false, false ) )
+        return bg_pos_length;
+    return bg_pos_none;
+}
+
+// Resolves a parsed component (keyword or length) to its css_length_t value.
+static css_length_t bg_position_component_value( int kw, const css_length_t & length_val ) {
+    switch (kw) {
+        case bg_pos_left:
+        case bg_pos_top:
+            return css_length_t(css_val_percent, 0);
+        case bg_pos_right:
+        case bg_pos_bottom:
+            return css_length_t(css_val_percent, 100 << 8);
+        case bg_pos_center:
+            return css_length_t(css_val_percent, 50 << 8);
+        default: // bg_pos_length
+            return length_val;
+    }
+}
+
+static inline bool bg_pos_is_h_keyword( int kw ) { return kw==bg_pos_left || kw==bg_pos_right || kw==bg_pos_center; }
+static inline bool bg_pos_is_v_keyword( int kw ) { return kw==bg_pos_top  || kw==bg_pos_bottom || kw==bg_pos_center; }
+
+// Parses a full <bg-position> value (1 or 2 components, keywords and/or
+// <percentage>/<length>) from *decl into pos[0] (horizontal) and pos[1]
+// (vertical). Returns false, without touching decl or pos, if the value
+// at *decl isn't a valid 1- or 2-value <bg-position>.
+// Note: this does not implement the CSS3 4-value edge-offset syntax
+// (eg. "right 10px bottom 20px").
+static bool parse_bg_position_value( const char * & decl, css_length_t pos[2] ) {
+    const char * decl_save = decl;
+    css_length_t val[2];
+    int kw[2] = { bg_pos_none, bg_pos_none };
+    int count = 0;
+    for ( ; count < 2; count++ ) {
+        int k = parse_bg_position_token(decl, val[count]);
+        if ( k == bg_pos_none )
+            break;
+        kw[count] = k;
+    }
+    if ( count == 0 ) {
+        decl = decl_save;
+        return false;
+    }
+    if ( count == 1 ) {
+        // A lone "top"/"bottom" sets the vertical component (horizontal
+        // defaults to center); anything else (including a lone "left"/"right",
+        // or a lone percentage/length) sets the horizontal component
+        // (vertical defaults to center).
+        if ( kw[0] == bg_pos_top || kw[0] == bg_pos_bottom ) {
+            pos[0] = css_length_t(css_val_percent, 50 << 8);
+            pos[1] = bg_position_component_value(kw[0], val[0]);
+        }
+        else {
+            pos[0] = bg_position_component_value(kw[0], val[0]);
+            pos[1] = css_length_t(css_val_percent, 50 << 8);
+        }
+        return true;
+    }
+    // Two components: per the <bg-position> grammar (ignoring the 4-value
+    // edge-offset form, out of scope here), a pair is valid in one of two
+    // ways:
+    //  - strict (horizontal, vertical) order: the 1st component is
+    //    left/center/right/<percentage-or-length>, and the 2nd is
+    //    top/center/bottom/<percentage-or-length> (this is what accepts a
+    //    bare number, eg. "left 25%", "75% top", "right 10px");
+    //  - a reordered keyword-only pair (no bare numbers): one of
+    //    {left,center,right} and one of {top,center,bottom}, in either
+    //    order (eg. "top right" meaning the same as "right top").
+    // Anything else -- an axis clash like "top bottom"/"left right", or a
+    // bare number paired with a mismatched keyword like "top 10px"/
+    // "10px left" -- is invalid.
+    bool valid;
+    if ( kw[0] != bg_pos_top && kw[0] != bg_pos_bottom && kw[1] != bg_pos_left && kw[1] != bg_pos_right ) {
+        pos[0] = bg_position_component_value(kw[0], val[0]);
+        pos[1] = bg_position_component_value(kw[1], val[1]);
+        valid = true;
+    }
+    else if ( kw[0] != bg_pos_length && kw[1] != bg_pos_length &&
+              bg_pos_is_h_keyword(kw[1]) && bg_pos_is_v_keyword(kw[0]) ) {
+        pos[0] = bg_position_component_value(kw[1], val[1]);
+        pos[1] = bg_position_component_value(kw[0], val[0]);
+        valid = true;
+    }
+    else {
+        valid = false;
+    }
+    if ( valid ) {
+        // A 3rd bg-position-like token right after a valid pair means this
+        // is (or was meant to be) the CSS3 4-value edge-offset form (eg.
+        // "right 10px bottom 20px", or even just "right 10px top"), which
+        // isn't supported (see note above). Reject the whole value rather
+        // than silently keeping only its first two components, which would
+        // resolve to an incorrect position.
+        const char * after = decl;
+        css_length_t dummy;
+        if ( parse_bg_position_token(after, dummy) == bg_pos_none )
+            return true;
+    }
+    decl = decl_save;
+    return false;
+}
 
 //border-collpase names
 static const char * css_bc_names[]={
@@ -4900,17 +5003,16 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 n = parse_name( decl, css_bg_repeat_names, -1 );
                 break;
             case cssd_background_position:
-                IF_g_SET_n_AND_break(false, css_background_p_inherit, css_background_left_top);
-                n = parse_name( decl, css_bg_position_names, -1 );
-                // Only values between 0 and 8 will be checked by the background drawing code
-                if ( n>8 ) {
-                    if ( n<18 ) n=n-9;       // "top left" = "left top"
-                    else if ( n==18 ) n=7;   // "center" = "center center"
-                    else if ( n==19 ) n=1;   // "left" = "left center"
-                    else if ( n==20 ) n=4;   // "right" = "right center"
-                    else if ( n==21 ) n=6;   // "top" = "center top"
-                    else if ( n==22 ) n=8;   // "bottom" = "center bottom"
-                    else n=0;                // should not happen, but be "left top"
+                {
+                    IF_g_PUSH_LENGTH_AND_break(2, false, css_val_percent, 0);
+                    css_length_t pos[2];
+                    if ( parse_bg_position_value( decl, pos ) ) {
+                        buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                        for (int i = 0; i < 2; i++) {
+                            buf<<(lUInt32) pos[i].type;
+                            buf<<(lUInt32) pos[i].value;
+                        }
+                    }
                 }
                 break;
             case cssd_background:
@@ -4929,7 +5031,18 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
                         buf<<(lUInt32) (g == css_g_inherit ? css_background_r_inherit : css_background_repeat);
                         buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
-                        buf<<(lUInt32) (g == css_g_inherit ? css_background_p_inherit : css_background_left_top);
+                        if ( g == css_g_inherit ) {
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
+                            buf<<(lUInt32) css_val_inherited;
+                            buf<<(lUInt32) 0;
+                        }
+                        else {
+                            buf<<(lUInt32) css_val_percent;
+                            buf<<(lUInt32) 0;
+                            buf<<(lUInt32) css_val_percent;
+                            buf<<(lUInt32) 0;
+                        }
                         buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
                         if ( g == css_g_inherit ) {
                             buf<<(lUInt32) css_val_inherited;
@@ -4986,19 +5099,8 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         if( repeat != -1 ) {
                             skip_spaces(decl);
                         }
-                        int position = parse_name( decl, css_bg_position_names, -1 );
-                        if ( position != -1 ) {
-                            // Only values between 0 and 8 will be checked by the background drawing code
-                            if ( position>8 ) {
-                                if ( position<18 ) position -= 9;    // "top left" = "left top"
-                                else if ( position==18 ) position=7; // "center" = "center center"
-                                else if ( position==19 ) position=1; // "left" = "left center"
-                                else if ( position==20 ) position=4; // "right" = "right center"
-                                else if ( position==21 ) position=6; // "top" = "center top"
-                                else if ( position==22 ) position=8; // "bottom" = "center bottom"
-                                else position = 0; // should not happen, but be "left top"
-                            }
-                        }
+                        css_length_t position[2];
+                        bool has_position = parse_bg_position_value( decl, position );
                         if( repeat == -1 ) { // Try parsing repeat after position
                             skip_spaces(decl);
                             repeat = parse_name( decl, css_bg_repeat_names, -1 );
@@ -5012,9 +5114,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
                             buf<<(lUInt32) repeat;
                         }
-                        if (position != -1) {
+                        if (has_position) {
                             buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
-                            buf<<(lUInt32) position;
+                            for (int i = 0; i < 2; i++) {
+                                buf<<(lUInt32) position[i].type;
+                                buf<<(lUInt32) position[i].value;
+                            }
                         }
                     }
                     else { // no url, only color
@@ -5835,7 +5940,8 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             style->Apply( (css_background_repeat_value_t) *p++, &style->background_repeat, imp_bit_background_repeat, is_important );
             break;
         case cssd_background_position:
-            style->Apply( (css_background_position_value_t) *p++, &style->background_position, imp_bit_background_position, is_important );
+            style->Apply( read_length(p), &style->background_position[0], imp_bit_background_position_x, is_important );
+            style->Apply( read_length(p), &style->background_position[1], imp_bit_background_position_y, is_important );
             break;
         case cssd_background_size:
             style->Apply( read_length(p), &style->background_size[0], imp_bit_background_size_h, is_important );
