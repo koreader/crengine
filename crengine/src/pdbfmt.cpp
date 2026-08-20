@@ -1196,12 +1196,12 @@ public:
                 int cbIndex = 0;
                 for (int t = 0; t < tagxTagCount; t++) {
                     const TagxTag & tg = tagxTags[t];
+                    if (cbIndex >= (int)controlByteCount)
+                        break;
                     if (tg.eof == 0x01) {
                         cbIndex++; // header-terminating entry: consume one control byte
                         continue;
                     }
-                    if (cbIndex >= (int)controlByteCount)
-                        break;
                     lUInt32 masked = controlBytes[cbIndex] & tg.bitmask;
                     if (masked == 0)
                         continue; // tag not present
