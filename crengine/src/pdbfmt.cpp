@@ -391,6 +391,9 @@ public:
 //                         IDXT table at the end of the record
 //   [.. +ncncx]           CNCX records: a pool of <vwi length><utf-8 string>
 //                         holding all entry titles
+// The INDX/TAGX/IDXT parsing itself lives in PDBFile::readMobiToc() further
+// below, as it needs access to the record table; only the standalone helpers
+// (vwi decoding, CNCX string decoding) are defined here.
 // Each entry starts with a <vwi len><ident string>, followed by control
 // bytes (as many as TAGX says), then vwi-encoded values for the tags whose
 // control bits are set. For the TOC ("NCX") index, the interesting tags are:
@@ -450,10 +453,6 @@ static lString32 decodeMobiCncxString(const lUInt8 * s, int len, lUInt32 encodin
     }
     return res;
 }
-
-// Parse the INDX/TAGX/IDXT structures and collect TOC entries.
-// Implemented as PDBFile::readMobiToc() below, as it needs access to the
-// record table.
 
 // --- end MOBI TOC support ---
 
