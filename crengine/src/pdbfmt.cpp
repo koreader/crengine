@@ -1139,6 +1139,9 @@ public:
             tagxTags[tagxTagCount].eof = p[3];
             tagxTagCount++;
         }
+        if (12 + 4 * (lUInt64)tagxTagCount < firstEntryOff)
+            CRLog::trace("MOBI TOC: TAGX section declares more than %d tag entries (firstEntryOff=%u); extra entries ignored",
+                    tagxTagCount, firstEntryOff);
 
         // CNCX records: pool of <vwi len><string> entries. Build offset->string map.
         LVHashTable<lUInt32, lString32> cncxMap(1024);
@@ -1266,6 +1269,9 @@ public:
                         }
                     }
                 }
+                if (pos < recSize)
+                    CRLog::trace("MOBI TOC: index entry %u has %d unconsumed trailing byte(s)",
+                            j, recSize - pos);
                 if (!haveFilepos)
                     continue;
                 MobiTocEntry * entry = new MobiTocEntry();
