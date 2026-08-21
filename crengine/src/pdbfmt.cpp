@@ -1271,18 +1271,22 @@ public:
                     }
                 }
                 if (pos < recSize)
-                    CRLog::trace("MOBI TOC: index entry %u has %d unconsumed trailing byte(s)",
-                            j, recSize - pos);
+                    CRLog::trace("MOBI TOC: index entry %u has %d unconsumed trailing byte(s)", j, recSize - pos);
                 if (!haveFilepos)
                     continue;
+                lString32 title;
+                if (titleOff != (lUInt32)-1) {
+                    if (!cncxMap.get(titleOff, title))
+                        CRLog::trace("MOBI TOC: index entry %u title offset %u not found in CNCX pool; entry skipped", j, titleOff);
+                }
+                if (title.empty()) {
+                    // Skip blank TOC row (children, if any, will attach to this entry's parent).
+                    continue;
+                }
                 MobiTocEntry * entry = new MobiTocEntry();
                 entry->filepos = filepos;
                 entry->level = level;
-                if (titleOff != (lUInt32)-1) {
-                    lString32 title;
-                    if (cncxMap.get(titleOff, title))
-                        entry->title = title;
-                }
+                entry->title = title;
                 toc.add(entry);
             }
         }
