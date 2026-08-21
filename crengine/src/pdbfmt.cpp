@@ -435,12 +435,13 @@ static int countSetBits(lUInt32 n) {
 }
 
 // Decode a CNCX string (already sliced out of the pool) with the MOBI text
-// encoding (65001 = UTF-8, 1252 = cp1252).
+// encoding (65001 = UTF-8, 1252 = cp1252, other Windows codepages supported).
 static lString32 decodeMobiCncxString(const lUInt8 * s, int len, lUInt32 encoding) {
     if (encoding == 65001)
         return Utf8ToUnicode(lString8((const char *)s, len));
-    // cp1252 (and anything else): map the upper 128 chars via our table
-    const lChar32 * table = GetCharsetByte2UnicodeTable(1252);
+    // Map the upper 128 chars via the codepage table (unknown codepages
+    // fall back to cp1252 in GetCharsetByte2UnicodeTable())
+    const lChar32 * table = GetCharsetByte2UnicodeTable((int)encoding);
     lString32 res;
     res.reserve(len);
     for (int i = 0; i < len; i++) {
