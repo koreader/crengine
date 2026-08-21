@@ -408,15 +408,17 @@ struct MobiTocEntry {
 
 // Read a forward-encoded variable-width integer (7 bits per byte, big-endian,
 // last byte has its high bit set). Returns false if the data runs out or the
-// encoding is longer than 5 bytes (more than 32 bits, which cannot fit a u32).
+// value doesn't fit in 32 bits — a silent truncation would corrupt offsets
+// and lengths.
 static bool readMobiVwi(const lUInt8 * data, int dataSize, int & pos, lUInt32 & value) {
     value = 0;
-    int start = pos;
     while (pos < dataSize) {
-        if (pos - start >= 5) // a 6th byte would silently truncate the u32
-            return false;
         lUInt8 b = data[pos++];
-        value = (value << 7) | (b & 0x7F);
+        lUInt32 v = b & 0x7F;
+        // Exact overflow check: value<<7 | v must stay within 32 bits
+        if (value > (0xFFFFFFFFu - v) >> 7)
+            return false;
+        value = (value << 7) | v;
         if (b & 0x80)
             return true;
     }
