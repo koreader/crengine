@@ -1216,6 +1216,13 @@ public:
                 lUInt32 titleOff = (lUInt32)-1;
                 int level = 0;
                 bool haveFilepos = false;
+                // Dispatch a decoded tag value to the TOC entry fields:
+                // tag 1 = filepos, tag 3 = title offset in CNCX, tag 4 = level.
+                auto assignTagValue = [&](lUInt8 tag, lUInt32 val) {
+                    if (tag == 1 && !haveFilepos) { filepos = val; haveFilepos = true; }
+                    else if (tag == 3 && titleOff == (lUInt32)-1) titleOff = val;
+                    else if (tag == 4) level = (int)val;
+                };
                 int cbIndex = 0;
                 for (int t = 0; t < tagxTagCount; t++) {
                     const TagxTag & tg = tagxTags[t];
@@ -1254,18 +1261,14 @@ public:
                             if (!readMobiVwi(rec, recSize, pos, val))
                                 break;
                             total += pos - before;
-                            if (tg.tag == 1 && !haveFilepos) { filepos = val; haveFilepos = true; }
-                            else if (tg.tag == 3 && titleOff == (lUInt32)-1) titleOff = val;
-                            else if (tg.tag == 4) level = (int)val;
+                            assignTagValue(tg.tag, val);
                         }
                     } else {
                         for (int n = 0; n < valueCount * tg.numOfValues; n++) {
                             lUInt32 val;
                             if (!readMobiVwi(rec, recSize, pos, val))
                                 break;
-                            if (tg.tag == 1 && !haveFilepos) { filepos = val; haveFilepos = true; }
-                            else if (tg.tag == 3 && titleOff == (lUInt32)-1) titleOff = val;
-                            else if (tg.tag == 4) level = (int)val;
+                            assignTagValue(tg.tag, val);
                         }
                     }
                 }
