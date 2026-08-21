@@ -1069,18 +1069,18 @@ private:
     // --- MOBI TOC (INDX/NCX index) support ---
 
     // Read a big-endian u32 at byte offset off of an INDX record buffer.
-    static lUInt32 indxWord(const LVArray<lUInt8> & r, int off) {
+    static lUInt32 indxWord(LVArray<lUInt8> & r, int off) {
         if (off < 0 || off + 4 > r.length())
             return 0;
-        const lUInt8 * p = ((LVArray<lUInt8> &)r).get() + off;
+        const lUInt8 * p = r.get() + off;
         return ((lUInt32)p[0] << 24) | ((lUInt32)p[1] << 16) | ((lUInt32)p[2] << 8) | p[3];
     }
 
     // Read a big-endian u16 at byte offset off of an INDX record buffer.
-    static lUInt16 indxHalf(const LVArray<lUInt8> & r, int off) {
+    static lUInt16 indxHalf(LVArray<lUInt8> & r, int off) {
         if (off < 0 || off + 2 > r.length())
             return 0;
-        const lUInt8 * p = ((LVArray<lUInt8> &)r).get() + off;
+        const lUInt8 * p = r.get() + off;
         return (lUInt16)((p[0] << 8) | p[1]);
     }
 
