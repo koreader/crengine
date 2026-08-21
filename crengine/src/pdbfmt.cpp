@@ -2061,7 +2061,9 @@ bool ImportPDBDocument( LVStreamRef & stream, ldomDocument * doc, LVDocViewCallb
                 if (haveMobiToc) {
                     LVTocItem * toc = doc->getToc();
                     toc->clear();
-                    // Stack of current parent items per level (root at 0)
+                    // Stack of current parent items per level
+                    // Arbitrary limit of 15 + 2 levels so that we only need a small fixed-size array.
+                    // Root takes 0, 16 is there to avoid one more if branch when writing.
                     LVTocItem * parents[17];
                     for (int pi = 0; pi < 17; pi++) parents[pi] = toc;
                     int curLevel = 0;
