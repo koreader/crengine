@@ -1104,9 +1104,19 @@ public:
         // Compute in 64-bit: a crafted tagxOff near UINT32_MAX would wrap the
         // u32 sum and pass the bounds check, leading to OOB reads below.
         if ((lUInt64)tagxOff + 12 > (lUInt64)hdr.length())
-            return false;
-        if (hdr[tagxOff] != 'T' || hdr[tagxOff+1] != 'A' || hdr[tagxOff+2] != 'G' || hdr[tagxOff+3] != 'X')
-            return false;
+            tagxOff = 0; // invalid: try the fallback below
+        if (tagxOff == 0 || hdr[tagxOff] != 'T' || hdr[tagxOff+1] != 'A' || hdr[tagxOff+2] != 'G' || hdr[tagxOff+3] != 'X') {
+            // Word 44 can be junk on some files; KindleUnpack instead starts
+            // the TAGX section at the INDX header-length field (word 0).
+            // Retry with that before giving up (as calibre's
+            // get_tag_section_start() does with its own fallback).
+            lUInt32 alt = indxWord(hdr, 4);
+            if (alt != tagxOff && (lUInt64)alt + 12 <= (lUInt64)hdr.length()
+                    && hdr[alt] == 'T' && hdr[alt+1] == 'A' && hdr[alt+2] == 'G' && hdr[alt+3] == 'X')
+                tagxOff = alt;
+            else
+                return false;
+        }
         lUInt32 firstEntryOff = indxWord(hdr, tagxOff + 4);
         lUInt32 controlByteCount = indxWord(hdr, tagxOff + 8);
         if (controlByteCount < 1 || controlByteCount > 32)
