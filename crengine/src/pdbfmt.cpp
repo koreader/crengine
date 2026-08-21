@@ -1159,13 +1159,10 @@ public:
                 lUInt32 len;
                 int lenStart = p;
                 // Unsigned compare: a crafted 5-byte vwi can exceed INT_MAX.
-                if (!readMobiVwi(cn.get(), cn.length(), p, len)
-                        || len > (lUInt32)(cn.length() - p))
+                if (!readMobiVwi(cn.get(), cn.length(), p, len) || len > (lUInt32)(cn.length() - p))
                     break;
                 cncxMap.set(base + lenStart, decodeMobiCncxString(cn.get() + p, len, encoding));
                 p += len;
-                if (p == lenStart) // safety against infinite loop
-                    break;
             }
         }
 
