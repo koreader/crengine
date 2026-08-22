@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "../include/lvtextfm.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
@@ -4863,6 +4864,14 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_color[1]=source->border_color[1];
     dest->border_color[2]=source->border_color[2];
     dest->border_color[3]=source->border_color[3];
+    dest->border_radius_h[0]=source->border_radius_h[0];
+    dest->border_radius_h[1]=source->border_radius_h[1];
+    dest->border_radius_h[2]=source->border_radius_h[2];
+    dest->border_radius_h[3]=source->border_radius_h[3];
+    dest->border_radius_v[0]=source->border_radius_v[0];
+    dest->border_radius_v[1]=source->border_radius_v[1];
+    dest->border_radius_v[2]=source->border_radius_v[2];
+    dest->border_radius_v[3]=source->border_radius_v[3];
     dest->background_image=source->background_image;
     dest->background_repeat=source->background_repeat;
     dest->background_position[0]=source->background_position[0];
@@ -9707,6 +9716,161 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
                                         direction, baseline, enode->getDocument()->getRenderBlockRenderingFlags() );
 }
 
+// Whether a style specifies any non-zero border-radius (on any of the 4 corners).
+static inline bool styleHasBorderRadii(const css_style_rec_t * style) {
+    for (int i=0; i<4; i++) {
+        if (style->border_radius_h[i].value != 0)
+            return true;
+        if (style->border_radius_v[i].value != 0)
+            return true;
+    }
+    return false;
+}
+
+// Whether a style will cause DrawBorder() to paint a border on any of the 4
+// sides. Mirrors the hasXBorder logic in DrawBorder() itself: a style value
+// alone can decide this (no need for lengthToPx()/enode), since the only
+// width check that matters here is the explicit "border-width: 0" case.
+static bool styleHasAnyBorder(const css_style_rec_t * style) {
+    struct { css_border_style_type_t bs; css_length_t bw; css_length_t bc; } sides[4] = {
+        { style->border_style_top,    style->border_width[0], style->border_color[0] },
+        { style->border_style_right,  style->border_width[1], style->border_color[1] },
+        { style->border_style_bottom, style->border_width[2], style->border_color[2] },
+        { style->border_style_left,   style->border_width[3], style->border_color[3] },
+    };
+    for (int i=0; i<4; i++) {
+        if (sides[i].bs < css_border_solid)
+            continue;
+        if (sides[i].bw.value == 0 && sides[i].bw.type > css_val_unspecified)
+            continue; // explicit "border-width: 0"
+        lUInt32 color = sides[i].bc.type != css_val_unspecified ? sides[i].bc.value : style->color.value;
+        if (IS_COLOR_FULLY_TRANSPARENT(color))
+            continue;
+        return true;
+    }
+    return false;
+}
+
+// Compute per-corner border radii in pixels, applying CSS scaling rules.
+// Order of corners: 0=TL, 1=TR, 2=BR, 3=BL. Returns whether any radius is
+// non-zero (rx/ry are left as all-zero when it returns false).
+static bool computeBorderRadiiPx(ldomNode * node, css_style_rec_t * style, int box_w, int box_h, int rx[4], int ry[4]) {
+    if (!styleHasBorderRadii(style))
+        return false;
+    for (int i=0; i<4; i++) {
+        rx[i] = 0; ry[i] = 0;
+        css_length_t h = style->border_radius_h[i];
+        css_length_t v = style->border_radius_v[i];
+        if (h.value != 0)
+            rx[i] = lengthToPx(node, h, box_w);
+        if (v.value != 0)
+            ry[i] = lengthToPx(node, v, box_h);
+        if (rx[i] < 0) rx[i] = 0;
+        if (ry[i] < 0) ry[i] = 0;
+    }
+    if (!(rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3]))
+        return false;
+    // https://www.w3.org/TR/css-backgrounds-3/#corner-overlap: if the sum of
+    // any two adjacent radii along an edge would exceed that edge's length,
+    // scale every radius down by the same factor so they fit.
+    double fx = 1.0, fy = 1.0;
+    int sum_top = rx[0] + rx[1];
+    if (sum_top > 0 && box_w > 0)
+        fx = fmin(fx, (double)box_w / sum_top);
+    int sum_bottom = rx[3] + rx[2];
+    if (sum_bottom > 0 && box_w > 0)
+        fx = fmin(fx, (double)box_w / sum_bottom);
+    int sum_left = ry[0] + ry[3];
+    if (sum_left > 0 && box_h > 0)
+        fy = fmin(fy, (double)box_h / sum_left);
+    int sum_right = ry[1] + ry[2];
+    if (sum_right > 0 && box_h > 0)
+        fy = fmin(fy, (double)box_h / sum_right);
+    double f = fmin(fx, fy);
+    if (f < 1.0)
+        for (int i = 0; i < 4; i++) {
+            rx[i] = (int)floor(rx[i] * f + 0.5);
+            ry[i] = (int)floor(ry[i] * f + 0.5);
+        }
+    return true;
+}
+
+// Elliptical corner boundary helper: given a corner's radii and the vertical
+// distance from its center (already offset by the -0.5/+0.5 pixel-center
+// convention), returns the horizontal inset of the ellipse boundary at that
+// scanline (or the full radius once the scanline falls outside the corner's
+// vertical span).
+static inline int roundedCornerInsetDx(int rxc, int ryc, double dy) {
+    double val = 1.0 - (dy*dy) / (double)(ryc*ryc);
+    return (val <= 0.0) ? rxc : (int)floor((double)rxc * sqrt(val));
+}
+
+// Compute the horizontal span [xl2, xr2) at scanline y for a rounded rectangle
+// (defined by corner radii rx[4]/ry[4], TL/TR/BR/BL) inset per-side by
+// w_top/w_right/w_bottom/w_left (pass all zero for the outer/unshrunk span).
+static void computeInnerSpanPerSide(int y,
+                              int x0, int y0, int x1, int y1,
+                              const int rx[4], const int ry[4],
+                              int w_top, int w_right, int w_bottom, int w_left,
+                              int &xl2, int &xr2)
+{
+    int x0i = x0 + w_left, y0i = y0 + w_top, x1i = x1 - w_right, y1i = y1 - w_bottom;
+    if (x0i >= x1i || y0i >= y1i) { xl2 = xr2 = x0i; return; }
+    int rxi_tl = rx[0] > w_left ? rx[0] - w_left : 0;
+    int ryi_tl = ry[0] > w_top  ? ry[0] - w_top  : 0;
+    int rxi_tr = rx[1] > w_right ? rx[1] - w_right : 0;
+    int ryi_tr = ry[1] > w_top   ? ry[1] - w_top   : 0;
+    int rxi_br = rx[2] > w_right ? rx[2] - w_right : 0;
+    int ryi_br = ry[2] > w_bottom? ry[2] - w_bottom: 0;
+    int rxi_bl = rx[3] > w_left  ? rx[3] - w_left  : 0;
+    int ryi_bl = ry[3] > w_bottom? ry[3] - w_bottom: 0;
+    int cxi_tl = x0i + rxi_tl; int cyi_tl = y0i + ryi_tl;
+    int cxi_tr = x1i - rxi_tr; int cyi_tr = y0i + ryi_tr;
+    int cxi_br = x1i - rxi_br; int cyi_br = y1i - ryi_br;
+    int cxi_bl = x0i + rxi_bl; int cyi_bl = y1i - ryi_bl;
+    xl2 = x0i; xr2 = x1i;
+    if (y < y0i + ryi_tl && rxi_tl && ryi_tl) {
+        int dx = roundedCornerInsetDx(rxi_tl, ryi_tl, (double)(cyi_tl - y - 0.5));
+        int cand = cxi_tl - dx;
+        if (xl2 < cand)
+            xl2 = cand;
+    }
+    else if (y >= y1i - ryi_bl && rxi_bl && ryi_bl) {
+        int dx = roundedCornerInsetDx(rxi_bl, ryi_bl, (double)(y - cyi_bl + 0.5));
+        int cand = cxi_bl - dx;
+        if (xl2 < cand)
+            xl2 = cand;
+    }
+    if (y < y0i + ryi_tr && rxi_tr && ryi_tr) {
+        int dx = roundedCornerInsetDx(rxi_tr, ryi_tr, (double)(cyi_tr - y - 0.5));
+        int cand = cxi_tr + dx;
+        if (xr2 > cand)
+            xr2 = cand;
+    }
+    else if (y >= y1i - ryi_br && rxi_br && ryi_br) {
+        int dx = roundedCornerInsetDx(rxi_br, ryi_br, (double)(y - cyi_br + 0.5));
+        int cand = cxi_br + dx;
+        if (xr2 > cand)
+            xr2 = cand;
+    }
+}
+
+// Fill a rounded rectangle with potentially elliptical radii per corner.
+static void fillRoundedRect(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1, const int rx[4], const int ry[4], lUInt32 color) {
+    if (((color >> 24) & 0xFF) == 0xFF) // Fully transparent color: skip the scanline conversion
+        return;
+    if (!(rx[0]||rx[1]||rx[2]||rx[3]||ry[0]||ry[1]||ry[2]||ry[3])) {
+        drawbuf.FillRect(x0, y0, x1, y1, color);
+        return;
+    }
+    for (int y = y0; y < y1; y++) {
+        int xl, xr;
+        computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, 0, 0, 0, 0, xl, xr);
+        if (xl < xr)
+            drawbuf.FillRect(xl, y, xr, y+1, color);
+    }
+}
+
 //draw border lines,support color,width,all styles, not support border-collapse
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
@@ -10709,8 +10873,23 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 }
                 else {
                     // Regular element: draw bgcolor or image inside its border box
-                    if ( draw_bg_color )
-                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                    if ( draw_bg_color ) {
+                        // Round the background fill to match border-radius, but only when
+                        // the box has no border: a border is still drawn square by
+                        // DrawBorder(), so rounding the fill underneath it would leave
+                        // square-cornered border with mismatched round background peeking
+                        // out. Boxes with both a border and a radius fall back to the
+                        // existing square rendering until DrawBorder() itself learns to
+                        // draw rounded borders.
+                        int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+                        bool has_rounded_bg = false;
+                        if ( styleHasBorderRadii(style.get()) && !styleHasAnyBorder(style.get()) )
+                            has_rounded_bg = computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+                        if (has_rounded_bg)
+                            fillRoundedRect(drawbuf, x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), rx, ry, bg_color);
+                        else
+                            drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                    }
                     if ( draw_bg_image )
                         DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Commented identical calls below as they seem redundant with what was just done here)

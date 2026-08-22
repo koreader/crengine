@@ -87,6 +87,14 @@ enum css_style_rec_important_bit {
     imp_bit_border_collapse,
     imp_bit_border_spacing_h,
     imp_bit_border_spacing_v,
+    imp_bit_border_radius_tl_h,
+    imp_bit_border_radius_tl_v,
+    imp_bit_border_radius_tr_h,
+    imp_bit_border_radius_tr_v,
+    imp_bit_border_radius_br_h,
+    imp_bit_border_radius_br_v,
+    imp_bit_border_radius_bl_h,
+    imp_bit_border_radius_bl_v,
     imp_bit_orphans,
     imp_bit_widows,
     imp_bit_float,
@@ -101,7 +109,7 @@ enum css_style_rec_important_bit {
     imp_bit_content,
     imp_bit_cr_hint
 };
-#define NB_IMP_BITS 74 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 82 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
@@ -175,6 +183,8 @@ struct css_style_rec_tag {
     css_border_style_type_t border_style_left;
     css_length_t border_width[4]; ///< border-top-width, -right-, -bottom-, -left-
     css_length_t border_color[4]; ///< border-top-color, -right-, -bottom-, -left-
+    css_length_t border_radius_h[4]; // Order: TL, TR, BR, BL.
+    css_length_t border_radius_v[4]; // Order: TL, TR, BR, BL.
     lString8 background_image;
     css_background_repeat_value_t background_repeat;
     css_length_t background_position[2]; ///< horizontal, vertical
