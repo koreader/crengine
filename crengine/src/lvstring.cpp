@@ -656,23 +656,10 @@ lString32 & lString32::assign(const lChar8 * str)
     }
     else
     {
-        size_type len = _lStr_len(str);
-        if (pchunk->nref==1)
-        {
-            if (pchunk->size < len)
-            {
-                // resize is necessary
-                pchunk->buf32 = (lChar32*) ::realloc( pchunk->buf32, sizeof(lChar32)*(len+1) );
-                pchunk->size = len;
-            }
-        }
-        else
-        {
-            release();
-            alloc(len);
-        }
-        _lStr_cpy( pchunk->buf32, str );
-        pchunk->len = len;
+        // lChar8 is UTF-8: decode it into Unicode, like the lString32(const
+        // lChar8*) constructor does. A plain byte copy would turn multi-byte
+        // UTF-8 sequences into a mojibake of one code point per byte.
+        *this = Utf8ToUnicode(str);
     }
     return *this;
 }
