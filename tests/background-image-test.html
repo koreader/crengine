@@ -186,6 +186,47 @@
     background-size: 20px 20px;
 }
 
+/* background shorthand section */
+#background-shorthand-test .case { margin: 1.2em 0; }
+#background-shorthand-test .label {
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+#background-shorthand-test .note {
+    font-size: 0.78em;
+    color: #555;
+    margin-bottom: 8px;
+    max-width: 55em;
+}
+#background-shorthand-test .demo-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+#background-shorthand-test .tile-label {
+    font-size: 0.78em;
+    color: #555;
+    text-align: center;
+    margin-top: 4px;
+}
+#background-shorthand-test .tile-wrap { text-align: center; }
+#background-shorthand-test .bgbox {
+    /* inline-block so this box's own pixel width/padding-driven height are
+       always honored under koreader's "Book" rendering profile (see the
+       comment on #background-position-test .box for why). */
+    display: inline-block;
+    border: 1px solid #333;
+    background-color: #f5f5f5;
+}
+#background-shorthand-test .withbg {
+    /* A base rule carrying an image + repeat, used by case 6 below to show
+        that the `background: none` shorthand resets a previously-set image. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 24px 24px;
+}
+
 body {
     font-family: sans-serif;
     margin: 1em;
@@ -987,6 +1028,135 @@ bottom-right, you would see it detached from the bar and radicand, floating
 with a visible gap underneath &#8212; most obviously in cases 2, 4, and 7,
 where the cell is noticeably taller than the symbol itself.
 </p>
+</section>
+
+<section id="background-shorthand-test">
+<h2>background shorthand (with background-size) test suite</h2>
+<p class="intro">
+Exercises the <code>background</code> shorthand parser in
+<code>lvstsheet.cpp</code>, specifically the optional
+<code>background-size</code> that follows the position and is separated from
+it by <code>/</code> (eg. <code>center / cover</code>, or just
+<code>/ cover</code> with the default position). Each case pairs the shorthand
+form (left) against the equivalent expanded longhand (right) and expects them
+to render identically.
+</p>
+
+<h3>1. Shorthand with position and size: <code>center / cover</code></h3>
+<div class="case">
+  <div class="label"><code>background: url(...) no-repeat center / cover;</code>
+    vs. the equivalent longhand</div>
+  <div class="note">expected: both render the image centered and scaled with
+    <code>cover</code>, pixel-identical.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;) no-repeat center / cover;"></div>
+      <div class="tile-label">shorthand: center / cover</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: center; background-size: cover;"></div>
+      <div class="tile-label">longhand equivalent</div>
+    </div>
+  </div>
+</div>
+
+<h3>2. Shorthand with size only: <code>/ 120px 40px</code> (default position)</h3>
+<div class="case">
+  <div class="label"><code>background: url(...) / 120px 40px;</code>
+    vs. the equivalent longhand</div>
+  <div class="note">expected: the image stretches to exactly 120&#215;40px
+    (non-square cells), pixel-identical between the two.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 120px; padding-top: 40px; background: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;) no-repeat / 120px 40px;"></div>
+      <div class="tile-label">shorthand: / 120px 40px</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 120px; padding-top: 40px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-size: 120px 40px;"></div>
+      <div class="tile-label">longhand equivalent</div>
+    </div>
+  </div>
+</div>
+
+<h3>3. Shorthand with color and <code>contain</code>: <code>#f472b6 url(...) center / contain</code></h3>
+<div class="case">
+  <div class="label"><code>background: #f472b6 url(...) no-repeat center / contain;</code>
+    vs. the equivalent longhand</div>
+  <div class="note">expected: pink background with the image centered and
+    scaled with <code>contain</code> (full width, no cropping), pixel-identical
+    between the two.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 120px; background: #f472b6 url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;) no-repeat center / contain;"></div>
+      <div class="tile-label">shorthand: color url(...) center / contain</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 120px; background-color: #f472b6; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: center; background-size: contain;"></div>
+      <div class="tile-label">longhand equivalent</div>
+    </div>
+  </div>
+</div>
+
+<h3>4. Repeat after size: <code>center / cover no-repeat</code></h3>
+<div class="case">
+  <div class="label"><code>background: url(...) center / cover no-repeat;</code>
+    vs. the equivalent longhand</div>
+  <div class="note">expected: image centered, scaled with <code>cover</code>,
+    not repeated, pixel-identical between the two.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;) center / cover no-repeat;"></div>
+      <div class="tile-label">shorthand: center / cover no-repeat</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='0' width='60' height='40' fill='none' stroke='%23000' stroke-width='2'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: center; background-size: cover;"></div>
+      <div class="tile-label">longhand equivalent</div>
+    </div>
+  </div>
+</div>
+
+<h3>5. Unknown token skipped: <code>url(...) scroll no-repeat center / cover</code></h3>
+<div class="case">
+  <div class="label"><code>background: url(...) scroll no-repeat center / cover;</code>
+    vs. the equivalent longhand. <code>scroll</code> is a
+    <code>background-attachment</code> keyword that crengine does not support;
+    the shorthand parser must skip it instead of aborting, so the valid
+    tokens after it still parse.</div>
+  <div class="note">expected: identical to case 1 (centered, scaled with
+    <code>cover</code>) &#8212; the stray <code>scroll</code> is ignored.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;) scroll no-repeat center / cover;"></div>
+      <div class="tile-label">shorthand with stray `scroll`</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox" style="width: 150px; padding-top: 40px; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='40' viewBox='0 0 60 40'%3E%3Crect x='0' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='0' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='0' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='10' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='10' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='0' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='10' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='20' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='30' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='40' y='20' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='50' y='20' width='10' height='10' fill='%23fde047'/%3E%3Crect x='0' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='10' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='20' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='30' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='40' y='30' width='10' height='10' fill='%23fde047'/%3E%3Crect x='50' y='30' width='10' height='10' fill='%233b82f6'/%3E%3Ccircle cx='5' cy='5' r='3' fill='%23dc2626'/%3E%3Ccircle cx='55' cy='35' r='3' fill='%2316a34a'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: center; background-size: cover;"></div>
+      <div class="tile-label">longhand equivalent</div>
+    </div>
+  </div>
+</div>
+
+<h3>6. <code>background: none</code> resets a previously-set image</h3>
+<div class="case">
+  <div class="label">left: a box with a base <code>.withbg</code> rule setting a
+    background-image, overridden inline by <code>background: none;</code>.
+    right: the same box without the override (image visible).</div>
+  <div class="note">expected: left shows <em>no image and a transparent
+    background</em> (the inline <code>background: none</code> shorthand resets
+    both <code>background-image</code> to none and <code>background-color</code>
+    to its initial transparent value), right keeps the image.</div>
+  <div class="demo-row">
+    <div class="tile-wrap">
+      <div class="bgbox withbg" style="background: none;"></div>
+      <div class="tile-label">withbg + `background: none`</div>
+    </div>
+    <div class="tile-wrap">
+      <div class="bgbox withbg"></div>
+      <div class="tile-label">withbg alone</div>
+    </div>
+  </div>
+</div>
+
 </section>
 
 </body>
