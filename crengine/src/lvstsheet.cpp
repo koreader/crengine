@@ -6370,16 +6370,6 @@ bool LVCssSelectorRule::checkInnerText( const ldomNode * & node ) const {
     return false;
 }
 
-bool LVCssSelectorRule::quickClassCheck(const lUInt32 *classHashes, size_t size) const {
-    if (_type != cssrt_class)
-        return true;
-    for (size_t i = 0; i < size; ++i) {
-        if (classHashes[i] == _valueHash)
-            return true;
-    }
-    return false;
-}
-
 static bool getOriginalFragmentAttributeValue(const ldomNode *node, lUInt16 attrid, lString32 &original_value) {
     // EPUB/CHM documents are merged into a single DOM, and ldomDocumentFragmentWriter
     // rewrites some attributes with a "_doc_fragment_N_ " prefix so they stay unique.
@@ -7114,11 +7104,6 @@ bool LVCssSelector::check( const ldomNode * node, bool allow_cache ) const
     return true;
 }
 
-bool LVCssSelector::quickClassCheck(const lUInt32 *classHashes, size_t size) const {
-    // pseudo_elem: `LVCssSelector::check()` may move the check to its parent node
-    return !_rules || _pseudo_elem || _rules->quickClassCheck(classHashes, size);
-}
-
 bool parse_attr_value( const char * &str, char * buf, bool &parse_trailing_i, char stop_char=']' )
 {
     int pos = 0;
@@ -7775,6 +7760,7 @@ LVCssSelector::LVCssSelector( LVCssSelector & v )
 void LVStyleSheet::set(LVPtrVector<LVCssSelector> & v  )
 {
     _selectors.clear();
+    invalidateApplyIndexes();
     if ( !v.size() )
         return;
     _selectors.reserve( v.size() );
@@ -7792,6 +7778,7 @@ LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
 ,   _nested( sheet._nested )
 ,   _fontFaceDecls( sheet._fontFaceDecls )
 ,   _trackFontFaceDecls( sheet._trackFontFaceDecls )
+,   _gateCache(1024)
 {
     set( sheet._selectors );
     _selector_count = sheet._selector_count;
@@ -7810,6 +7797,91 @@ static void for_each_split(const lChar32 *begin, F functor) {
     }
     if (end > begin)
         functor(begin, end);
+}
+
+// Flatten the per-element-name chains of _selectors into _applyList, ordered
+// by the cascade: ascending specificity, and on ties an element-name chain
+// before the _selectors[0] chain, preserving source order within a chain.
+// (Each chain is already sorted by ascending specificity, stable by source
+// order, see insert_into_selectors(); this reproduces the order the previous
+// two-chain merge in apply() produced. Selectors from element-name chains
+// other than the node's own can never match and are gated out in apply().)
+void LVStyleSheet::buildApplyList() {
+    _applyList.clear();
+    int count = _selectors.length();
+    LVArray<LVCssSelector *> heads;
+    for ( int i=0; i<count; i++ )
+        heads.add( _selectors[i] );
+    for (;;) {
+        // Pick the chain head with the lowest specificity; on ties, any
+        // element-name chain (index > 0) comes before the _selectors[0]
+        // chain, and lower element ids first.
+        LVCssSelector * best = NULL;
+        int bestIdx = -1;
+        for ( int i=0; i<count; i++ ) {
+            LVCssSelector * s = heads[i];
+            if ( !s )
+                continue;
+            if ( !best || s->getSpecificity() < best->getSpecificity()
+                    || ( s->getSpecificity() == best->getSpecificity() && bestIdx == 0 && i > 0 ) ) {
+                best = s;
+                bestIdx = i;
+            }
+        }
+        if ( !best )
+            break; // all chains walked
+        _applyList.add( best );
+        heads[bestIdx] = best->getNext();
+    }
+    _applyListReady = true;
+}
+
+// Cheap pre-filter, deciding whether a selector is worth a full check() for
+// a node with element name id and node class hashes. This reproduces the
+// semantics of the former quickClassCheck() plus the element name dispatch
+// of the former per-element-name chain walk.
+static bool gateMatch( const LVCssSelector * s, lUInt16 id, const lUInt32 * classHashes, int classHashCount )
+{
+    lUInt16 selId = s->getElementNameId();
+    if ( selId != 0 && selId != id )
+        return false; // selector targets another element name
+    lUInt32 classHash = s->getGateClassHash();
+    if ( classHash == 0 )
+        return true; // not gated by a class
+    for ( int j=0; j<classHashCount; j++ ) {
+        if ( classHashes[j] == classHash )
+            return true;
+    }
+    return false; // leading class not on this node
+}
+
+LVStyleSheet::GateCacheEntry * LVStyleSheet::getGateCacheEntry( lUInt16 id, const lString32 & classValue )
+{
+    lUInt32 key = (lUInt32)id * 31 + classValue.getHash();
+    GateCacheEntry * e = _gateCache.get(key);
+    for ( ; e; e = e->nextCollision ) {
+        if ( e->nameId == id && e->classValue == classValue )
+            return e;
+    }
+    // Not cached yet: collect the candidates, i.e. the subsequence of
+    // _applyList passing the gates for this (element name, class value).
+    e = new GateCacheEntry();
+    e->nameId = id;
+    e->classValue = classValue;
+    for_each_split(classValue.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
+        e->classHashes.add(lString32::getHash(begin, end));
+    });
+    const lUInt32 * classHashes = e->classHashes.ptr();
+    int classHashCount = e->classHashes.length();
+    for ( int i=0; i<_applyList.length(); i++ ) {
+        LVCssSelector * s = _applyList[i];
+        if ( gateMatch(s, id, classHashes, classHashCount) )
+            e->candidates.add( s );
+    }
+    e->nextCollision = _gateCache.get(key);
+    _gateCache.set(key, e);
+    _gateCacheEntries.add(e);
+    return e;
 }
 
 void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
@@ -7882,47 +7954,45 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
     // _selectors[element_name_id] holds the ordered chain of selector starting
     // with that element name (eg. ".body div.chapter > p" should be
     // first checked agains all <p>).
-    // To see which selectors apply to a <p>, we must iterate thru both chains,
-    // checking and applying them in the order of specificity/parsed position.
-    LVCssSelector * selector_0 = _selectors[0];
-    LVCssSelector * selector_id = id>0 && id<_selectors.length() ? _selectors[id] : NULL;
+    // All these chains are flattened once into _applyList, already ordered by
+    // the cascade (ascending specificity, element-name chains before the
+    // _selectors[0] chain on ties, source order within a chain): see
+    // buildApplyList().
+    // On top of that, applying is memoized per (element name, class value):
+    // the first element seen with a given pair collects the candidates (the
+    // subsequence of _applyList passing the cheap element-name and leading-
+    // class gates), and further identical elements skip the scan entirely,
+    // only running the full check() on the candidates. The full check() and
+    // the declaration application are always run per element, as their
+    // outcome may depend on the node's ancestors.
+    if ( !_applyListReady )
+        const_cast<LVStyleSheet *>(this)->buildApplyList();
 
-    LVArray<lUInt32> class_hash_array;
     const lString32 &v = node->getEffectiveAttributeValue(attr_class);
+    GateCacheEntry * entry = _gateCacheEntries.length() < GATE_CACHE_MAX_ENTRIES
+        ? const_cast<LVStyleSheet *>(this)->getGateCacheEntry(id, v)
+        : NULL;
+    if ( entry ) {
+        const LVArray<LVCssSelector *> & candidates = entry->candidates;
+        for ( int i=0; i<candidates.length(); i++ ) {
+            candidates[i]->apply( node, style );
+        }
+        return;
+    }
+
+    // Gate cache full (pathological variety of class values): do the gated
+    // scan directly.
+    LVArray<lUInt32> class_hash_array;
     for_each_split(v.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
         class_hash_array.add(lString32::getHash(begin, end));
     });
+    const lUInt32 * classHashes = class_hash_array.ptr();
+    int classHashCount = class_hash_array.length();
 
-    for (;;)
-    {
-        if (selector_0!=NULL)
-        {
-            if (selector_id==NULL || selector_0->getSpecificity() < selector_id->getSpecificity() )
-            {
-                // step by sel_0
-                if (selector_0->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                    selector_0->apply( node, style );
-                selector_0 = selector_0->getNext();
-            }
-            else
-            {
-                // step by sel_id
-                if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                    selector_id->apply( node, style );
-                selector_id = selector_id->getNext();
-            }
-        }
-        else if (selector_id!=NULL)
-        {
-            // step by sel_id
-            if (selector_id->quickClassCheck(class_hash_array.ptr(), class_hash_array.length()))
-                selector_id->apply( node, style );
-            selector_id = selector_id->getNext();
-        }
-        else
-        {
-            break; // end of chains
-        }
+    for ( int i=0; i<_applyList.length(); i++ ) {
+        LVCssSelector * s = _applyList[i];
+        if ( gateMatch(s, id, classHashes, classHashCount) )
+            s->apply( node, style );
     }
 }
 
@@ -8095,6 +8165,7 @@ bool LVStyleSheet::parseAndAdvance( const char * &str, bool useragent_sheet, lSt
             }
         }
     }
+    invalidateApplyIndexes();
     return _selectors.length() > 0;
 }
 
@@ -8176,6 +8247,7 @@ bool LVStyleSheet::gatherNodeMatchingRulesets(ldomNode * node, const char * str,
 }
 
 void LVStyleSheet::merge(const LVStyleSheet &other) {
+    invalidateApplyIndexes();
     int length = other._selectors.length();
     if (length > _selectors.length())
         _selectors.set(length - 1, nullptr);

@@ -165,8 +165,6 @@ public:
     LVCssSelectorRef getSubSelectors() const { return _subSelectors; }
     void setSubSelectors(LVCssSelectorRef subSelectors) { _subSelectors = subSelectors; }
     ~LVCssSelectorRule() { if (_next) delete _next; }
-    // A fail-fast check, returning false to rule out a match.
-    bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
     /// check condition for node
     bool check( const ldomNode * & node, bool allow_cache=true ) const;
     /// check next rules for node
@@ -175,6 +173,8 @@ public:
     bool isFullChecking() const { return _type == cssrt_ancessor || _type == cssrt_predsibling; }
     lUInt32 getHash() const;
     lUInt32 getWeight() const;
+    /// Class hash if this rule is a class rule, 0 otherwise.
+    lUInt32 getLeadingClassHash() const { return (_type == cssrt_class) ? _valueHash : 0; }
 };
 
 /** \brief simple CSS selector
@@ -204,7 +204,12 @@ public:
     bool parse( const char * &str, lxmlDocBase * doc, bool useragent_sheet=false, bool for_functional_pseudo_class=false );
     lUInt16 getElementNameId() const { return _id; }
     bool check( const ldomNode * node, bool allow_cache=true ) const;
-    bool quickClassCheck(const lUInt32 *classHashes, size_t size) const;
+    /// Hash of the leading (rightmost) rule's class, 0 if this selector is not
+    /// class-gated (no rules, pseudo-element, or non-class leading rule).
+    /// Cheap pre-filter used by LVStyleSheet::apply() before the full check().
+    lUInt32 getGateClassHash() const {
+        return _pseudo_elem ? 0 : (!_rules.isNull() ? _rules->getLeadingClassHash() : 0);
+    }
     void applyToPseudoElement( const ldomNode * node, css_style_rec_t * style ) const;
     void apply( const ldomNode * node, css_style_rec_t * style ) const
     {
@@ -278,6 +283,41 @@ private:
 
     LVPtrVector <LVCssSelector> _selectors;
     LVPtrVector <LVPtrVector <LVCssSelector> > _stack;
+
+    // Flat list of all selectors from _selectors, ordered by the cascade:
+    // ascending specificity, element-name chains before the _selectors[0]
+    // chain on ties, source order within a chain (see buildApplyList()).
+    // Holds non-owning pointers into the _selectors chains.
+    LVArray <LVCssSelector *> _applyList;
+    bool _applyListReady = false;
+
+    // Memoized candidate lists: for each distinct (element name id, class
+    // attribute value) pair met while applying, the subsequence of _applyList
+    // whose selectors pass the element-name and leading-class gates. Elements
+    // seen again (the common case in real books) then skip the whole
+    // _applyList scan, and only run the full check() on plausible candidates.
+    struct GateCacheEntry {
+        lUInt16 nameId;
+        lString32 classValue;
+        GateCacheEntry * nextCollision;
+        LVArray<lUInt32> classHashes;
+        LVArray<LVCssSelector *> candidates;
+        GateCacheEntry() : nameId(0), nextCollision(NULL) { }
+    };
+    enum { GATE_CACHE_MAX_ENTRIES = 30000 };
+    LVHashTable<lUInt32, GateCacheEntry *> _gateCache;
+    LVPtrVector<GateCacheEntry> _gateCacheEntries; // owns entries
+    GateCacheEntry * getGateCacheEntry( lUInt16 id, const lString32 & classValue );
+    /// drop _applyList and the gate cache; must be called whenever _selectors changes
+    void invalidateApplyIndexes() {
+        _applyList.clear();
+        _applyListReady = false;
+        _gateCache.clear();
+        _gateCacheEntries.clear();
+    }
+
+    void buildApplyList();
+
     LVPtrVector <LVCssSelector> * dup()
     {
         LVPtrVector <LVCssSelector> * res = new LVPtrVector <LVCssSelector>();
@@ -352,11 +392,12 @@ public:
         _selectors.clear();
         _stack.clear();
         _fontFaceDecls.clear();
+        invalidateApplyIndexes();
     }
     /// set document to retrieve ID values from
     void setDocument( lxmlDocBase * doc ) { _doc = doc; }
     /// constructor
-    LVStyleSheet( lxmlDocBase * doc=NULL, bool nested=false ) : _doc(doc) , _nested(nested) , _selector_count(0) { }
+    LVStyleSheet( lxmlDocBase * doc=NULL, bool nested=false ) : _doc(doc) , _nested(nested) , _selector_count(0) , _gateCache(1024) { }
     /// copy constructor
     LVStyleSheet( LVStyleSheet & sheet );
     /// parse stylesheet, compile and add found rules to sheet
