@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Style application cascade test suite</title>
+<style>
+body {
+    font-family: sans-serif;
+    margin: 1em;
+}
+h1 { font-size: 1.6em; }
+h2 {
+    font-size: 1.3em;
+    margin-top: 2em;
+    border-bottom: 2px solid #666;
+}
+h3 { font-size: 1.1em; margin: 1.2em 0 0.4em; }
+section { margin-bottom: 2em; }
+.case { margin: 1em 0; padding: 0.6em; border: 1px solid #ccc; background: #fafafa; }
+.label { font-size: 0.85em; margin-bottom: 4px; }
+.label code, .note code { background-color: #eee; }
+.note { font-size: 0.78em; color: #555; margin-bottom: 6px; max-width: 60em; }
+.result { margin: 4px 0; padding: 4px 8px; }
+
+/* Section 1: classes named after their border color. Look-alike classes
+   (redd, blue2, greenish) must not leak in. */
+#s1 .green { border: 2px solid green; }
+#s1 .red   { border: 2px solid red; }
+#s1 .blue  { border: 2px solid blue; }
+
+/* Section 2: equal-specificity rules in different leading-class groups; later wins. */
+#s2 .pink   { color: pink; }
+#s2 .violet { color: violet; }
+
+/* Section 3: higher specificity must beat application order. */
+#s3 .shallow { border: 2px solid red; }
+#s3 .deep    { border: 2px solid green; }
+
+/* Section 4: .class::before / .class::after. A node has one ::before box,
+   so a later matching ::before (equal specificity) overrides content. */
+#s4 .note::before { content: "[NOTE] "; color: #0055cc; font-weight: bold; }
+#s4 .note::after  { content: " [end]"; color: #0055cc; }
+#s4 .warn::before { content: "!! "; color: #cc0000; font-weight: bold; }
+
+/* Section 5: non-class leading rules still apply. */
+#s5 *              { font-family: inherit; }
+#s5 span.attr-yes  { border: 2px solid green; }
+#s5 span.attr-no   { border: 2px solid red; }
+#s5 [data-mark]    { background: #ccffcc; }
+#s5 .link a        { color: blue; }
+#s5 .probe :first-child { font-style: italic; }
+
+/* Section 6: multiple classes. */
+#s6 .multi-a { border: 2px solid green; }
+#s6 .multi-b { margin-left: 1.5em; }
+#s6 .only    { color: red; }
+
+/* Section 7: class-leading rules with more selectors to their left. */
+#s7 .quote { border-left: 4px solid #888; padding-left: 6px; }
+#s7 div .quote { border-left: 4px solid #cc8800; }
+
+/* Section 8: element-name rules and their interplay with class rules. */
+#s8 p  { border: 2px solid blue; }
+#s8 p.x { border: 2px solid green; }
+#s8 .y { border: 2px solid orange; }
+#s8 div div p { border: 2px solid red; }
+</style>
+</head>
+<body>
+
+<h1>Style application cascade test suite</h1>
+<p class="note" style="max-width:60em">
+Tests <code>LVStyleSheet::apply()</code> in <code>lvstsheet.cpp</code>, which
+flattens all selector chains into an already cascade-ordered list. These cases
+cover the risky bits: look-alike classes, cross-group source order,
+pseudo-elements, attribute/universal leading rules, and combinators. The
+cascade (specificity, source order, pseudo-elements) must behave exactly as
+before.
+</p>
+
+<section id="s1">
+<h2>1. Classes stay separate</h2>
+<div class="case">
+  <div class="label">each class matches its own color; look-alikes must not.</div>
+  <div class="note">expected: <code>green</code> is green-bordered,
+    <code>red</code> red, <code>blue</code> blue; <code>redd</code>,
+    <code>blue2</code>, <code>greenish</code> get no border.</div>
+  <div class="result green">green</div>
+  <div class="result red">red</div>
+  <div class="result blue">blue</div>
+  <div class="result redd">redd (no border)</div>
+  <div class="result blue2">blue2 (no border)</div>
+  <div class="result greenish">greenish (no border)</div>
+</div>
+</section>
+
+<section id="s2">
+<h2>2. Source order wins</h2>
+<div class="case">
+  <div class="label"><code>.pink</code> and <code>.violet</code> have equal
+    specificity.</div>
+  <div class="note">expected: <strong>violet</strong> text (later source rule
+    wins) regardless of class order.</div>
+  <div class="result pink violet">pink violet</div>
+  <div class="result violet pink">violet pink (still violet)</div>
+</div>
+</section>
+
+<section id="s3">
+<h2>3. Specificity beats order</h2>
+<div class="case">
+  <div class="label"><code>#s3 .shallow</code> (0,2,0) is defined before
+    <code>.deep</code> (0,1,0); both match.</div>
+  <div class="note">expected: <strong>green</strong> border.</div>
+  <div class="result deep shallow">deep shallow</div>
+</div>
+</section>
+
+<section id="s4">
+<h2>4. Class + pseudo-element selectors</h2>
+<div class="case">
+  <div class="label">regression: a class-leading <code>::before</code>/
+    <code>::after</code> must still apply (pseudo-element nodes carry no
+    class).</div>
+  <div class="note">expected: <code>note</code> shows &quot;[NOTE] ... [end]&quot;;
+    <code>warn</code> shows &quot;!!&quot;; <code>note warn</code> shows
+    &quot;!! ... [end]&quot; (the later <code>.warn::before</code> overrides
+    <code>content</code>, as there is one <code>::before</code> box).</div>
+  <div class="result note">this is a note</div>
+  <div class="result note warn">this is a note and a warning</div>
+  <div class="result warn">this is a warning</div>
+</div>
+</section>
+
+<section id="s5">
+<h2>5. Non-class leading rules still apply</h2>
+<div class="probe">
+  <p>first child of .probe &#8212; must be italic
+    (<code>#s5 .probe :first-child</code>).</p>
+  <p>second child of .probe &#8212; must NOT be italic.</p>
+</div>
+<div class="case">
+  <div class="label">attribute, element-name, and universal leading rules
+    always apply.</div>
+  <div class="note">expected: <strong>attr-yes</strong> span is green,
+    <strong>attr-no</strong> span is red; <code>data-mark</code> line has a
+    light green background; the link in <code>.link</code> is blue.</div>
+  <div class="result"><span class="attr-yes">attr-yes span</span></div>
+  <div class="result"><span class="attr-no">attr-no span</span></div>
+  <div class="result" data-mark="x">carries data-mark</div>
+  <div class="result">no class, no attribute</div>
+  <div class="result link"><a href="#">a link inside .link</a></div>
+</div>
+</section>
+
+<section id="s6">
+<h2>6. Multiple classes</h2>
+<div class="case">
+  <div class="label"><code>multi-a multi-b</code> match two rules;
+    <code>.only</code> must not leak to class-less nodes.</div>
+  <div class="note">expected: the first box is green and indented; the no-class
+    box stays plain; <code>only</code> is red.</div>
+  <div class="result multi-a multi-b">multi-a multi-b</div>
+  <div class="result">no class (stays plain)</div>
+  <div class="result only">only (red)</div>
+</div>
+</section>
+
+<section id="s7">
+<h2>7. Class-leading combinators</h2>
+<p class="note" style="max-width:60em">regression: a class-leading rule with
+  more selectors to its left (<code>#s7 .quote</code>,
+  <code>#s7 div .quote</code>) must cascade correctly. The first quote sits
+  directly inside <code>&lt;section id=&quot;s7&quot;&gt;</code> (no
+  <code>div</code> ancestor), so only <code>#s7 .quote</code> applies (gray).
+  The second is wrapped in a <code>&lt;div&gt;</code>, so
+  <code>#s7 div .quote</code> also applies (orange).</p>
+<div class="quote">bare quote (no div ancestor &#8212; gray)</div>
+<div><div class="quote">deeper quote (inside a div &#8212; orange)</div></div>
+</section>
+
+<section id="s8">
+<h2>8. Element-name rules vs class rules</h2>
+<div class="case">
+  <div class="label">element-name leading rules and class rules must
+    interleave by specificity.</div>
+  <div class="note">expected: <code>p.x</code> is green (specificity 0,1,1),
+    <code>p.y</code> is orange (0,1,0 but later than <code>p</code>), bare
+    <code>p</code> is blue, and the deeply nested <code>p</code> is red
+    (0,0,3).</div>
+  <p>plain p (blue)</p>
+  <p class="x">p.x (green)</p>
+  <p class="y">p.y (orange)</p>
+  <div><div><p>nested p (red)</p></div></div>
+</div>
+</section>
+
+</body>
+</html>
