@@ -29,6 +29,7 @@ set(CRE_SRCS
     crengine/src/cp_stats.cpp
     crengine/src/crtxtenc.cpp
     crengine/src/docxfmt.cpp
+    crengine/src/drawutil.cpp
     crengine/src/epubfmt.cpp
     crengine/src/fb3fmt.cpp
     crengine/src/hist.cpp
