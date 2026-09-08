@@ -18,6 +18,9 @@
 #include "../include/lvrend.h"
 #include "../include/drawutil.h"
 
+inline int myMax(int a, int b) { return a > b ? a : b; }
+inline int myMin(int a, int b) { return a < b ? a : b; }
+
 // Whether a style specifies any non-zero border-radius (on any of the 4 corners).
 static inline bool styleHasBorderRadii(const css_style_rec_t * style) {
     for (int i=0; i<4; i++) {
@@ -98,9 +101,12 @@ static bool computeBorderRadiiPx(ldomNode * node, css_style_rec_t * style, int b
         fy = fmin(fy, (double)box_h / sum_right);
     double f = fmin(fx, fy);
     if (f < 1.0)
+        // Round down (not to nearest).
+        // Rounding to nearest instead can let two adjacent radii each round
+        // up by up to 0.5px, overshooting the edge by up to 1px.
         for (int i = 0; i < 4; i++) {
-            rx[i] = (int)floor(rx[i] * f + 0.5);
-            ry[i] = (int)floor(ry[i] * f + 0.5);
+            rx[i] = (int)floor(rx[i] * f);
+            ry[i] = (int)floor(ry[i] * f);
         }
     return true;
 }
@@ -181,6 +187,157 @@ static void fillRoundedRect(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1,
     }
 }
 
+// Draws one rounded-rect border ring where each side can have its own paint
+// width and color. Corners are mitered like a picture frame: the top/bottom
+// band and the left/right band are split by a 45-degree line from the box's
+// square (radius-ignoring) outer corner, clamped to *this row's* real outer.
+//
+// The 45-degree miter point measured from the square top-left/bottom-left
+// corner (miterFromLeft) or top-right/bottom-right corner (miterFromRight),
+// clamped into [lo, hi].
+static inline int miterFromLeft(int x0, int vd, int lo, int hi) {
+    int m = x0 + vd;
+    if (m < lo) m = lo;
+    if (m > hi) m = hi;
+    return m;
+}
+static inline int miterFromRight(int x1, int vd, int lo, int hi) {
+    int m = x1 - vd;
+    if (m < lo) m = lo;
+    if (m > hi) m = hi;
+    return m;
+}
+
+// Each side takes its declared width plus a draw_* bool. The width always
+// shapes this call's own corner curve/seam, as if a neighboring side had
+// that width; draw_* additionally gates whether that side's own color
+// actually gets painted.
+static void fillRoundedRectBorder(LVDrawBuf & drawbuf, int x0, int y0, int x1, int y1,
+                                   const int rx[4], const int ry[4],
+                                   int w_top, bool draw_top,
+                                   int w_right, bool draw_right,
+                                   int w_bottom, bool draw_bottom,
+                                   int w_left, bool draw_left,
+                                   const lUInt32 colors[4])
+{
+    // Nothing to draw if no side is both drawn on this pass and nonzero width.
+    if (!(draw_top && w_top > 0) && !(draw_right && w_right > 0) &&
+        !(draw_bottom && w_bottom > 0) && !(draw_left && w_left > 0))
+        return;
+
+    for (int y = y0; y < y1; y++) {
+        // This row's outer (unshrunk) span -- the box's own outline at y, radii included.
+        int xl, xr;
+        computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, 0, 0, 0, 0, xl, xr);
+        // Degenerate row (outside the box entirely) -- nothing to draw.
+        if (!(xl < xr))
+            continue;
+
+        // Is this row within top's or bottom's band, and is that side actually drawn on
+        // this pass?
+        bool inTop = draw_top && w_top > 0 && y < y0 + w_top;
+        bool inBottom = draw_bottom && w_bottom > 0 && y >= y1 - w_bottom;
+        if (inTop || inBottom) {
+            // Top/bottom band row: split into left/middle/right by the diagonal miter seam.
+            lUInt32 tbColor = inTop ? colors[0] : colors[2];
+            int vd = inTop ? (y - y0) : (y1 - 1 - y);
+
+            // The 45-degree miter, clamped directly to *this row's* real outer curve [xl,xr).
+            int xlMiter = (w_left > 0) ? miterFromLeft(x0, vd, xl, xr) : xl;
+            int xrMiter = (w_right > 0) ? miterFromRight(x1, vd, xl, xr) : xr;
+            if (xrMiter < xlMiter)
+                xrMiter = xlMiter;
+
+            // The region to the left/right of the miters is painted in the side colors.
+            if (draw_left && w_left > 0 && xlMiter > xl)
+                drawbuf.FillRect(xl, y, xlMiter, y+1, colors[3]);
+            if (xrMiter > xlMiter)
+                drawbuf.FillRect(xlMiter, y, xrMiter, y+1, tbColor);
+            if (draw_right && w_right > 0 && xr > xrMiter)
+                drawbuf.FillRect(xrMiter, y, xr, y+1, colors[1]);
+            continue;
+        }
+
+        // Middle rows: this row's inner (interior-hole) span, each side shrunk by its own width.
+        int xlInterior, xrInterior;
+        computeInnerSpanPerSide(y, x0, y0, x1, y1, rx, ry, w_top, w_right, w_bottom, w_left, xlInterior, xrInterior);
+
+        // Each side reduces to three points: the outer edge (xl/xr, already
+        // have it), the diagonal miter point, and the interior curve
+        // (xlInterior/xrInterior). Side color paints outer-to-miter;
+        // miter-to-interior is a wedge that is painted the color of whichever
+        // neighbor (top or bottom) it faces. When the side this wedge would
+        // otherwise miter against has no width of its own (e.g. left is
+        // absent), there's no side-color sliver competing for [xl, miter) --
+        // nothing else will paint it -- so the miter collapses to the outer
+        // edge and the whole span becomes the neighbor's wedge, same as the
+        // "no neighbor at that corner" rule the dashed/dotted arc-ownership
+        // logic already applies.
+        int xlMiter = xlInterior;
+        lUInt32 wedgeColorL = 0;
+        bool haveWedgeL = false;
+        if (w_top > 0 && (y - y0) < ry[0]) {
+            xlMiter = (w_left > 0) ? miterFromLeft(x0, y - y0, xl, xlInterior) : xl;
+            wedgeColorL = colors[0];
+            haveWedgeL = draw_top;
+        } else if (w_bottom > 0 && (y1 - 1 - y) < ry[3]) {
+            xlMiter = (w_left > 0) ? miterFromLeft(x0, y1 - 1 - y, xl, xlInterior) : xl;
+            wedgeColorL = colors[2];
+            haveWedgeL = draw_bottom;
+        }
+
+        // Same, mirrored for the right side.
+        int xrMiter = xrInterior;
+        lUInt32 wedgeColorR = 0;
+        bool haveWedgeR = false;
+        if (w_top > 0 && (y - y0) < ry[1]) {
+            xrMiter = (w_right > 0) ? miterFromRight(x1, y - y0, xrInterior, xr) : xr;
+            wedgeColorR = colors[0];
+            haveWedgeR = draw_top;
+        } else if (w_bottom > 0 && (y1 - 1 - y) < ry[2]) {
+            xrMiter = (w_right > 0) ? miterFromRight(x1, y1 - 1 - y, xrInterior, xr) : xr;
+            wedgeColorR = colors[2];
+            haveWedgeR = draw_bottom;
+        }
+
+        // Side-color slivers: outer edge in to each side's own miter point.
+        if (draw_left && w_left > 0 && xl < xlMiter)
+            drawbuf.FillRect(xl, y, xlMiter, y+1, colors[3]);
+        if (draw_right && w_right > 0 && xrMiter < xr)
+            drawbuf.FillRect(xrMiter, y, xr, y+1, colors[1]);
+
+        // Top/bottom's own small corner wedge: miter point in to the interior curve.
+        if (haveWedgeL && xlMiter < xlInterior) {
+            int a = myMax(xl, xlMiter), b = myMin(xr, xlInterior);
+            if (a < b)
+                drawbuf.FillRect(a, y, b, y + 1, wedgeColorL);
+        }
+        // Same wedge, mirrored on the right.
+        if (haveWedgeR && xrInterior < xrMiter) {
+            int a = myMax(xl, xrInterior), b = myMin(xr, xrMiter);
+            if (a < b)
+                drawbuf.FillRect(a, y, b, y + 1, wedgeColorR);
+        }
+    }
+}
+
+// Whether every *present* border side is one of the styles DrawBorder()'s
+// general rounded-corner path covers -- rather than falling back to the legacy
+// square-corner code for a dashed/dotted side.
+static bool styleQualifiesForRoundedBorder(const css_style_rec_t * style) {
+    for (int i=0; i<4; i++) {
+        css_border_style_type_t bs = i==0 ? style->border_style_top : i==1 ? style->border_style_right :
+                                      i==2 ? style->border_style_bottom : style->border_style_left;
+        if (bs == css_border_solid || bs == css_border_inset || bs == css_border_outset || bs < css_border_solid)
+            continue;
+        css_length_t bc = style->border_color[i];
+        lUInt32 color = bc.type != css_val_unspecified ? bc.value : style->color.value;
+        if (styleBorderSidePresent(bs, style->border_width[i], color))
+            return false; // present but not one of the roundable styles
+    }
+    return true;
+}
+
 //draw border lines,support color,width,all styles, not support border-collapse
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
@@ -226,6 +383,116 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         int leftBorderwidth = lengthToPx(enode, style->border_width[3],width);
         leftBorderwidth = leftBorderwidth!=0 ? leftBorderwidth : DEFAULT_BORDER_WIDTH;
         int tbw=topBorderwidth,rbw=rightBorderwidth,bbw=bottomBorderwidth,lbw=leftBorderwidth;
+
+        // Rounded border rendering. Any style/mix this doesn't cover (a
+        // present side that's dashed or dotted) falls back to the existing
+        // square-corner rendering below, even if the style also specifies a
+        // border-radius.
+        // A background image is also excluded here: DrawBackgroundImage()
+        // always paints it as a plain rectangle, so a rounded border over it
+        // would show the image's square corners poking out past the
+        // border's curve.
+        if (styleHasBorderRadii(style.get()) && style->background_image.empty()) {
+            int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+            if (computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry)) {
+                int X0 = x0 + doc_x;
+                int Y0 = y0 + doc_y;
+                int X1 = X0 + fmt.getWidth();
+                int Y1 = Y0 + fmt.getHeight();
+
+                // General per-side rounded rendering for the styles we
+                // support so far: SOLID/INSET/OUTSET, mitered per-side into
+                // one ring, with independent colors/widths per side. If any
+                // present side is dashed or dotted (or another style not yet
+                // covered), this box isn't covered by rounded rendering yet,
+                // so the whole box falls back to the legacy square-corner
+                // code below instead of painting some sides rounded and
+                // silently skipping that one.
+                bool side_is_solid[4] = {
+                    hastopBorder && style->border_style_top == css_border_solid,
+                    hasrightBorder && style->border_style_right == css_border_solid,
+                    hasbottomBorder && style->border_style_bottom == css_border_solid,
+                    hasleftBorder && style->border_style_left == css_border_solid};
+                bool side_is_inset[4] = {
+                    hastopBorder && style->border_style_top == css_border_inset,
+                    hasrightBorder && style->border_style_right == css_border_inset,
+                    hasbottomBorder && style->border_style_bottom == css_border_inset,
+                    hasleftBorder && style->border_style_left == css_border_inset};
+                bool side_is_outset[4] = {
+                    hastopBorder && style->border_style_top == css_border_outset,
+                    hasrightBorder && style->border_style_right == css_border_outset,
+                    hasbottomBorder && style->border_style_bottom == css_border_outset,
+                    hasleftBorder && style->border_style_left == css_border_outset};
+                bool side_coverable[4] = {
+                    !hastopBorder || side_is_solid[0] || side_is_inset[0] || side_is_outset[0],
+                    !hasrightBorder || side_is_solid[1] || side_is_inset[1] || side_is_outset[1],
+                    !hasbottomBorder || side_is_solid[2] || side_is_inset[2] || side_is_outset[2],
+                    !hasleftBorder || side_is_solid[3] || side_is_inset[3] || side_is_outset[3]};
+                if (side_coverable[0] && side_coverable[1] && side_coverable[2] && side_coverable[3]) {
+                    // Helpers for shading. Firefox uses fixed near-black
+                    // shade/light values when the border color is real black
+                    // (0x000000), rather than the generic darkening formula,
+                    // which would otherwise collapse shade == light == black.
+                    auto make_shade = [](lUInt32 c)
+                    {
+                        lUInt32 o = c & 0xFF000000;
+                        if ((c & 0xFFFFFF) == 0) {
+                            return o | 0x4c4c4cu;
+                        }
+                        lUInt32 r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+                        r = r * 160 / 255;
+                        g = g * 160 / 255;
+                        b = b * 160 / 255;
+                        return o | (r << 16) | (g << 8) | b;
+                    };
+                    auto make_light = [](lUInt32 c)
+                    {
+                        if ((c & 0xFFFFFF) == 0) {
+                            return (c & 0xFF000000) | 0xb2b2b2u;
+                        }
+                        return c;
+                    };
+
+                    // Kept raw (un-inverted) here: invertNonGrayscaleColor() and the shade/light
+                    // scaling below don't commute, so shading must happen first and inversion
+                    // last, matching the legacy square-corner path's order. Each ring block below
+                    // inverts its own final per-side colors right before painting.
+                    lUInt32 sideColors[4] = {topBordercolor, rightBordercolor, bottomBordercolor, leftBordercolor};
+
+                    // SOLID/INSET/OUTSET: one ring covers every side using
+                    // these three styles (a side is never more than one
+                    // style, so there's no cross-side interaction to resolve
+                    // here).
+                    {
+                        lUInt32 c[4] = {sideColors[0], sideColors[1], sideColors[2], sideColors[3]};
+                        // Inset: top/left shade, right/bottom light. Outset: opposite.
+                        if (side_is_inset[0] || side_is_outset[0])
+                            c[0] = side_is_inset[0] ? make_shade(c[0]) : make_light(c[0]);
+                        if (side_is_inset[1] || side_is_outset[1])
+                            c[1] = side_is_inset[1] ? make_light(c[1]) : make_shade(c[1]);
+                        if (side_is_inset[2] || side_is_outset[2])
+                            c[2] = side_is_inset[2] ? make_light(c[2]) : make_shade(c[2]);
+                        if (side_is_inset[3] || side_is_outset[3])
+                            c[3] = side_is_inset[3] ? make_shade(c[3]) : make_light(c[3]);
+                        if (invert_colors) {
+                            for (int i = 0; i < 4; i++)
+                                c[i] = invertNonGrayscaleColor(c[i]);
+                        }
+                        bool draw[4] = {
+                            side_is_solid[0] || side_is_inset[0] || side_is_outset[0],
+                            side_is_solid[1] || side_is_inset[1] || side_is_outset[1],
+                            side_is_solid[2] || side_is_inset[2] || side_is_outset[2],
+                            side_is_solid[3] || side_is_inset[3] || side_is_outset[3]};
+                        int mw[4] = {hastopBorder ? tbw : 0, hasrightBorder ? rbw : 0, hasbottomBorder ? bbw : 0, hasleftBorder ? lbw : 0};
+                        fillRoundedRectBorder(drawbuf, X0, Y0, X1, Y1, rx, ry,
+                                                  mw[0], draw[0], mw[1], draw[1], mw[2], draw[2], mw[3], draw[3], c);
+                    }
+
+                    return;
+                }
+            }
+        }
+
         if (hastopBorder) {
             int dot=1,interval=0;//default style
             topBorderwidth=tbw;
@@ -676,19 +943,22 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
 }
 
 // Fills enode's background-color rect (its border box), rounding the corners to
-// match its border-radius, but only when the box has no border: a border is
-// still drawn square by DrawBorder(), so rounding the fill underneath it would
-// leave a square-cornered border with mismatched round background peeking out.
-// Boxes with both a border and a radius fall back to the existing square
-// rendering until DrawBorder() itself learns to draw rounded borders.
+// match its border-radius when the box has no border, or when it has one that
+// DrawBorder() will itself paint as a rounded ring. Any other border is still
+// drawn square by DrawBorder(), so rounding the fill underneath it would leave a
+// square-cornered border with mismatched round background peeking out.
 void FillBackgroundRect(LVDrawBuf & drawbuf, ldomNode * enode, css_style_ref_t style, RenderRectAccessor fmt, int abs_x0, int abs_y0, lUInt32 bg_color)
 {
     int x1 = abs_x0 + fmt.getWidth();
     int y1 = abs_y0 + fmt.getHeight();
     int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
     bool has_rounded_bg = false;
-    if ( styleHasBorderRadii(style.get()) && !styleHasAnyBorder(style.get()) )
-        has_rounded_bg = computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+    if ( styleHasBorderRadii(style.get()) && style->background_image.empty() ) {
+        bool no_border = !styleHasAnyBorder(style.get());
+        bool rounded_border = no_border || styleQualifiesForRoundedBorder(style.get());
+        if (rounded_border)
+            has_rounded_bg = computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
+    }
     if (has_rounded_bg)
         fillRoundedRect(drawbuf, abs_x0, abs_y0, x1, y1, rx, ry, bg_color);
     else
