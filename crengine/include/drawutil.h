@@ -1,10 +1,11 @@
 // Border and background painting for lvrend.cpp's DrawDocument().
 //
 // This is the drawing counterpart to lvrend.cpp: DrawDocument() calls into
-// DrawBorder()/FillBackgroundRect()/DrawBackgroundImage()/DrawBodyBackground()
-// (declared here, defined in drawutil.cpp) as it walks the tree, but the
-// border/background rasterization has no bearing on how that walk itself is
-// driven, so it lives in its own file instead of adding to lvrend.cpp's length.
+// DrawBorder()/DrawBackgroundImage()/DrawBodyBackground() (declared here,
+// defined in drawutil.cpp) as it walks the tree, but the rounded/legacy
+// border rasterization and background-image sizing math has no bearing on
+// how that walk itself is driven, so it lives in its own file instead of
+// adding to lvrend.cpp's length.
 
 #ifndef __DRAWUTIL_H_INCLUDED__
 #define __DRAWUTIL_H_INCLUDED__
@@ -24,7 +25,9 @@
 // Shared with measureBorder() in lvrend.cpp.
 #define DEFAULT_BORDER_WIDTH 1
 
-//draw border lines,support color,width,all styles, not support border-collapse
+// Paints the border sides (all styles: solid/dotted/dashed/double/groove/
+// ridge/inset/outset), rounded per border-radius when applicable, falling
+// back to the legacy square-corner rendering otherwise.
 void DrawBorder(ldomNode *enode, LVDrawBuf & drawbuf, int x0, int y0, int doc_x, int doc_y, RenderRectAccessor fmt);
 
 // Fills enode's background-color rect (its border box) at absolute position
