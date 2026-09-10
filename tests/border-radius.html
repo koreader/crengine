@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>border-radius test</title>
+<style>
+.demo {
+  width: 160px;
+  height: 120px;
+  border: 2px solid black;
+  background: greenyellow;
+  margin-bottom: 8px;
+}
+.demo-high {
+  width: 40px;
+  height: 120px;
+  border: 2px solid black;
+  background: greenyellow;
+  margin-bottom: 8px;
+}
+figcaption code {
+  padding: 2px 6px;
+  font-size: 0.6em;
+  border-radius: 6px;
+  display: inline-block;
+}
+.unsupported {
+  color: #a00;
+  font-style: italic;
+}
+.none {
+  border: none;
+}
+.plain {
+  border: 5px solid black;
+}
+.dotted {
+  border: 10px dotted black;
+}
+.dashed {
+  border: 10px dashed black;
+}
+.double {
+  border: 12px double #2a6;
+}
+.groove {
+  border: 12px groove #2a6;
+}
+.ridge {
+  border: 12px ridge #2a6;
+}
+.inset {
+  border: 12px inset #2a6;
+}
+.outset {
+  border: 12px outset #2a6;
+}
+.mixed-style {
+  border-width: 10px;
+  border-style: solid ridge groove double;
+  border-color: #c33 #3a3 #33c #a3a;
+}
+.mixed-width {
+  border-color: #444;
+  border-width: 4px 20px 8px 14px;
+}
+.mixed-color {
+  border-width: 14px;
+  border-color: #e33 #3e3 #33e #ee3;
+}
+.alternating {
+  border-width: 10px;
+  border-color: #333;
+  border-style: dashed dotted dashed dotted;
+}
+.transparent-dashed-side {
+  border-width: 10px;
+  border-style: solid dashed solid solid;
+  border-color: black transparent black black;
+}
+.adjacent {
+  border-width: 14px;
+  border-color: #444;
+  border-style: none solid solid none;
+}
+.opposite {
+  border-width: 14px;
+  border-style: solid none solid none;
+}
+.bg-tile {
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAAALUlEQVR42mN8ZmPDgBtILtHCI8vEQAEY1TwyNDP+f5CGR/p5zLXRABvVTIlmADW6Bsr1/BYKAAAAAElFTkSuQmCC);
+}
+.bg-cover {
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAAB4CAIAAAD6wG44AAACDUlEQVR4nO3csU0DQRBAURtBG8SmAyqgAEISYjpwJ8S0QQVUADltkBBYusSwd7s3Myd//Z/a3lnp6VZryfL+83DYXVqPx9utt3AxXW29ActNYHgCwxMYnsDwBIYnMDyB4QkMT2B4AsMTGJ7A8ASGJzA8geEJDE9geALDu956A6i+bt7/e+nu56FyJ1MCB9RwPX9PsbTAq1pC++dHypgFHmyA9vzjBcxeskZaqRu+TiOBu4tVyTYWuK8Mj1RjgTvKk8hbWeClZZ+lSesLvKiC21DSFIHhCTxfzeObNEtgeALPVPn4ZkwUGJ7A8ARuVX8+h88VGJ7A8ASGJzA8geEJDE9geALDE7jVVr9WD5wrMDyB4Qk8U/0pHTtRYHj7w9PH1nvo7vhdPfH55b5m0NtrMIdPMDyBFxX+YJVNEXhp2cZJ6wvcUZ5x3soC95UhkXo2CNxdrEf2yS/wSFEqBXc3/8JhsJPN8Pfjmmv5TuCVDTCX0Z4SOKDJrCFd7DolcGRbKTbykgVPYHgCwxMYnsDwBIYnMDyB4QkMT2B4AsMTGJ7A8ASGJzA8geEJDE9geALDExiewPAEhicwPIHhCQxPYHgCwxMYnsDwBIYnMDyB4QkMT2B4AsMTGJ7A8ASGJzA8geEJDE9geALDExiewPAEhicwPIHhCQxPYHgCwxMYnsDwBIYnMDyB4QkMT2B4v9pTZKdDwaZYAAAAAElFTkSuQmCC);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+.bg-svg-tile {
+  background-image: url(data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%3E%3Crect%20width%3D%2220%22%20height%3D%2220%22%20fill%3D%22red%22%2F%3E%3Crect%20width%3D%2210%22%20height%3D%2210%22%20fill%3D%22yellow%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%2210%22%20width%3D%2210%22%20height%3D%2210%22%20fill%3D%22yellow%22%2F%3E%3C%2Fsvg%3E);
+}
+.bg-svg-cover {
+  background-image: url(data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22160%22%20height%3D%22120%22%3E%3Crect%20width%3D%2260%22%20height%3D%2250%22%20fill%3D%22%23d62828%22%2F%3E%3Crect%20x%3D%2260%22%20width%3D%22100%22%20height%3D%2250%22%20fill%3D%22%2328a046%22%2F%3E%3Crect%20y%3D%2250%22%20width%3D%2260%22%20height%3D%2270%22%20fill%3D%22%23285ac8%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2250%22%20width%3D%22100%22%20height%3D%2270%22%20fill%3D%22%23a03cc8%22%2F%3E%3Ccircle%20cx%3D%22115%22%20cy%3D%2240%22%20r%3D%2220%22%20fill%3D%22%23ffa500%22%2F%3E%3C%2Fsvg%3E);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+</style>
+</head>
+<body>
+
+<div>
+<h1>border-radius test</h1>
+<p>Radius values used throughout, applied consistently across border styles so results are directly comparable:</p>
+<ul>
+  <li><code>30px</code> -- uniform circular corners</li>
+  <li><code>25% 10%</code> -- uniform elliptical corners (two values: horizontal / vertical)</li>
+  <li><code>10% 30% 50% 70%</code> -- four distinct corner radii (top-left, top-right, bottom-right, bottom-left)</li>
+  <li><code>10% / 50%</code> -- small horizontal radius, large vertical radius (slash syntax)</li>
+  <li><code>10px 100px / 120px</code> -- the vertical radius (120px on all four corners) exceeds the 120px box height, so the radii must be scaled down per the CSS corner-overlap rules</li>
+  <li><code>50% 20% / 10% 40%</code> -- four distinct corners, independently elliptical</li>
+  <li><code>20% 0% 20% 0%</code> / <code>0% 20% 0% 20%</code> -- checkerboard of sharp and round corners, to check that a sharp corner next to a round one doesn't bleed</li>
+</ul>
+</div>
+
+<div style="break-before: page;"><h1>corner geometry</h1></div>
+  <div style="break-before: page;">
+    <h2>no border: <code>class="none"</code></h2>
+    <p>Full radius set, so the clip shape can be checked with nothing else (border shading, dashing) in the way.</p>
+    <figure>
+      <div class="demo none"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 20% 0% 20% 0%;"></div>
+      <figcaption><code>border-radius: 20% 0% 20% 0%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none" style="border-radius: 0% 20% 0% 20%;"></div>
+      <figcaption><code>border-radius: 0% 20% 0% 20%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid border: <code>class="plain"</code></h2>
+    <p><code>border: 5px solid black</code> -- uniform single-ring border, the simplest non-empty case.</p>
+    <figure>
+      <div class="demo plain"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 20% 0% 20% 0%;"></div>
+      <figcaption><code>border-radius: 20% 0% 20% 0%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain" style="border-radius: 0% 20% 0% 20%;"></div>
+      <figcaption><code>border-radius: 0% 20% 0% 20%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>clamped radius on a narrow box</h2>
+    <p>A 40&times;120px box where the requested radius is at least half the smaller dimension, forcing a clamp to a full capsule (pill) shape.</p>
+    <figure>
+      <div class="demo-high plain" style="border-radius: 50%;"></div>
+      <figcaption><code>border-radius: 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo-high mixed-color" style="border-radius: 50%;"></div>
+      <figcaption><code>border-radius: 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo-high plain" style="border-radius: 999px;"></div>
+      <figcaption><code>border-radius: 999px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo-high mixed-color" style="border-radius: 999px;"></div>
+      <figcaption><code>border-radius: 999px;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;"><h1>border style variants</h1></div>
+  <div style="break-before: page;">
+    <h2>dotted border: <code>class="dotted"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
+    <p class="unsupported">A dotted side falls back to the legacy square-corner border renderer, so every <code>border-radius</code> below is silently ignored.</p>
+    <figure>
+      <div class="demo dotted"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed border: <code>class="dashed"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
+    <p class="unsupported">A dashed side falls back to the legacy square-corner border renderer, so every <code>border-radius</code> below is silently ignored.</p>
+    <figure>
+      <div class="demo dashed"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border: <code>class="double"</code></h2>
+    <p><code>border: 12px double #2a6</code> -- two concentric rings.</p>
+    <figure>
+      <div class="demo double"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border, mixed width per side: <code>class="double mixed-width"</code></h2>
+    <p><code>border-width: 4px 20px 8px 14px</code> on top of the double style above.</p>
+    <figure>
+      <div class="demo double mixed-width"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border, mixed width and color per side: <code>class="double mixed-width mixed-color"</code></h2>
+    <p>Combines mixed per-side width and per-side color with the double style -- the most demanding corner case for the mitred-band geometry.</p>
+    <figure>
+      <div class="demo double mixed-width mixed-color"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double mixed-width mixed-color" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>groove border: <code>class="groove"</code></h2>
+    <p><code>border: 12px groove #2a6</code> -- shaded two-tone ring.</p>
+    <figure>
+      <div class="demo groove"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo groove" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>ridge border: <code>class="ridge"</code></h2>
+    <p><code>border: 12px ridge #2a6</code> -- shaded two-tone ring.</p>
+    <figure>
+      <div class="demo ridge"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo ridge" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>inset border: <code>class="inset"</code></h2>
+    <p><code>border: 12px inset #2a6</code> -- shaded mitred ring.</p>
+    <figure>
+      <div class="demo inset"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo inset" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>outset border: <code>class="outset"</code></h2>
+    <p><code>border: 12px outset #2a6</code> -- shaded mitred ring.</p>
+    <figure>
+      <div class="demo outset"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo outset" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed style per side: <code>class="mixed-style"</code></h2>
+    <p>top solid red / right dashed green / bottom dotted blue / left double purple -- the corner miter between very different styles.</p>
+    <figure>
+      <div class="demo mixed-style"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-style" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed width per side: <code>class="mixed-width"</code></h2>
+    <p>same solid style and color on all sides, different width per side -- tapered corner geometry.</p>
+    <figure>
+      <div class="demo mixed-width"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed color per side: <code>class="mixed-color"</code></h2>
+    <p>same solid style and width on all sides, different color per side -- the corner miter's color transition.</p>
+    <figure>
+      <div class="demo mixed-color"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-color" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>alternating dashed/dotted per side: <code>class="alternating"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
+    <p>same width and color on all sides, alternating <code>dashed</code>/<code>dotted</code> style per side.</p>
+    <p class="unsupported">Every side here is dashed or dotted, so the box falls back to the legacy square-corner border renderer and every <code>border-radius</code> below is silently ignored.</p>
+    <figure>
+      <div class="demo alternating"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid sides + one fully-transparent dashed side: <code>class="transparent-dashed-side"</code></h2>
+    <p>top/bottom/left solid black, right dashed with <code>transparent</code> color -- the dashed side paints nothing, so it should be treated the same as "no border" on that side, and the background fill should follow the rounded corner exactly like the border does.</p>
+    <p>Regression check: a transparent dashed/dotted side must not make the box fall back to a square background fill while the border is still drawn rounded -- the background's corners must not poke out past the border's curve.</p>
+    <figure>
+      <div class="demo transparent-dashed-side"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo transparent-dashed-side" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo transparent-dashed-side" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo transparent-dashed-side" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;"><h1>partial borders</h1></div>
+  <div style="break-before: page;">
+    <h2>adjacent sides only: <code>class="adjacent"</code></h2>
+    <p>right + bottom only, top and left have no border at all.</p>
+    <figure>
+      <div class="demo adjacent"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>adjacent sides only, mixed color: <code>class="adjacent mixed-color"</code></h2>
+    <p>right + bottom borders in different colors -- checks the miter where one of the two mitred sides is missing entirely.</p>
+    <figure>
+      <div class="demo adjacent mixed-color" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>opposite sides only: <code>class="opposite"</code></h2>
+    <p>top + bottom only, no left/right border at all.</p>
+    <figure>
+      <div class="demo opposite"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo opposite" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>opposite sides only, mixed color: <code>class="opposite mixed-color"</code></h2>
+    <p>top + bottom borders in different colors, with no side borders to miter against.</p>
+    <figure>
+      <div class="demo opposite mixed-color" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;">
+  <h1>border-radius + background-image, tiled <span class="unsupported">(not yet supported)</span></h1>
+  <p>Each box has a repeating 20&times;20 red/yellow checkerboard tile as its background, layered under the border. The image should be clipped to the same rounded box the border-radius describes: the border's inner curve where a border is drawn, or the box's own outer curve where it isn't.</p>
+  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
+</div>
+
+  <div style="break-before: page;">
+    <h2>no border: <code>class="none"</code></h2>
+    <p>background clipped by border-radius alone.</p>
+    <figure>
+      <div class="demo none bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid border: <code>class="plain"</code></h2>
+    <p>uniform single-ring border.</p>
+    <figure>
+      <div class="demo plain bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed border: <code>class="dashed"</code></h2>
+    <p>uniform dashed ring; the dash pattern itself is covered above -- this only checks the clip.</p>
+    <figure>
+      <div class="demo dashed bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border: <code>class="double"</code></h2>
+    <p>two concentric rings; the image should be clipped to the inner ring only.</p>
+    <figure>
+      <div class="demo double bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed width per side: <code>class="mixed-width"</code></h2>
+    <p>different width per side, so the inner clip curve is asymmetric.</p>
+    <figure>
+      <div class="demo mixed-width bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>partial border, adjacent sides: <code>class="adjacent"</code></h2>
+    <p>right + bottom only -- the background should show through the two missing sides' corners unclipped by any border.</p>
+    <figure>
+      <div class="demo adjacent bg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;">
+  <h1>border-radius + background-image, single (no-repeat, cover) <span class="unsupported">(not yet supported)</span></h1>
+  <p>Each box has a single 160&times;120 image of four asymmetric colored quadrants (red/green/blue/purple) with an off-center orange circle (<code>background-repeat: no-repeat; background-size: cover; background-position: center;</code>). The irregular, non-repeating layout makes it obvious at a glance whether the image was scaled to fit or accidentally tiled -- a periodic pattern like stripes can look the same either way.</p>
+  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
+</div>
+
+  <div style="break-before: page;">
+    <h2>no border: <code>class="none"</code></h2>
+    <figure>
+      <div class="demo none bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid border: <code>class="plain"</code></h2>
+    <figure>
+      <div class="demo plain bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed border: <code>class="dashed"</code></h2>
+    <figure>
+      <div class="demo dashed bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border: <code>class="double"</code></h2>
+    <figure>
+      <div class="demo double bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed width per side: <code>class="mixed-width"</code></h2>
+    <figure>
+      <div class="demo mixed-width bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>partial border, adjacent sides: <code>class="adjacent"</code></h2>
+    <figure>
+      <div class="demo adjacent bg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;">
+  <h1>border-radius + SVG background-image, tiled <span class="unsupported">(not yet supported)</span></h1>
+  <p>Same as the raster tiled section above, but the background is a percent-encoded <code>data:image/svg+xml,%3Csvg...</code> 20&times;20 red/yellow checkerboard tile instead of a PNG. Checks both that vector background images are clipped the same way raster ones are.</p>
+  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
+</div>
+
+  <div style="break-before: page;">
+    <h2>no border: <code>class="none"</code></h2>
+    <p>background clipped by border-radius alone.</p>
+    <figure>
+      <div class="demo none bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid border: <code>class="plain"</code></h2>
+    <p>uniform single-ring border.</p>
+    <figure>
+      <div class="demo plain bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed border: <code>class="dashed"</code></h2>
+    <p>uniform dashed ring; this only checks the clip.</p>
+    <figure>
+      <div class="demo dashed bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border: <code>class="double"</code></h2>
+    <p>two concentric rings; the image should be clipped to the inner ring only.</p>
+    <figure>
+      <div class="demo double bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed width per side: <code>class="mixed-width"</code></h2>
+    <p>different width per side, so the inner clip curve is asymmetric.</p>
+    <figure>
+      <div class="demo mixed-width bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>partial border, adjacent sides: <code>class="adjacent"</code></h2>
+    <p>right + bottom only -- the background should show through the two missing sides' corners unclipped by any border.</p>
+    <figure>
+      <div class="demo adjacent bg-svg-tile"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-tile" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-tile" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-tile" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+<div style="break-before: page;">
+  <h1>border-radius + SVG background-image, single (no-repeat, cover) <span class="unsupported">(not yet supported)</span></h1>
+  <p>Same as the raster single-image section above, but the background is a percent-encoded <code>data:image/svg+xml,%3Csvg...</code> version of the same asymmetric four-quadrant-plus-circle image (<code>background-repeat: no-repeat; background-size: cover; background-position: center;</code>).</p>
+  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
+</div>
+
+  <div style="break-before: page;">
+    <h2>no border: <code>class="none"</code></h2>
+    <figure>
+      <div class="demo none bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo none bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>solid border: <code>class="plain"</code></h2>
+    <figure>
+      <div class="demo plain bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo plain bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed border: <code>class="dashed"</code></h2>
+    <figure>
+      <div class="demo dashed bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>double border: <code>class="double"</code></h2>
+    <figure>
+      <div class="demo double bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo double bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>mixed width per side: <code>class="mixed-width"</code></h2>
+    <figure>
+      <div class="demo mixed-width bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo mixed-width bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>partial border, adjacent sides: <code>class="adjacent"</code></h2>
+    <figure>
+      <div class="demo adjacent bg-svg-cover"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-cover" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-cover" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo adjacent bg-svg-cover" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+  </div>
+
+</body>
+</html>
