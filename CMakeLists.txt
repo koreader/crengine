@@ -286,6 +286,20 @@ target_link_libraries(crengine PRIVATE ${CRE_LIBS})
 
 # }}}
 
+# tools (test/benchmark harnesses)
+
+add_executable(dump_styles crengine/Tools/dump_styles.cpp)
+target_compile_features(dump_styles PRIVATE cxx_std_17)
+target_include_directories(dump_styles PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(dump_styles PRIVATE crengine ${CRE_LIBS})
+
+add_executable(bench_pages crengine/Tools/bench_pages.cpp)
+target_compile_features(bench_pages PRIVATE cxx_std_17)
+target_include_directories(bench_pages PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(bench_pages PRIVATE crengine ${CRE_LIBS})
+
+# }}}
+
 # linting {{{
 
 foreach(F IN LISTS CRE_CSS CRE_HYPH_PATS CRE_SRCS)
