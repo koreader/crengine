@@ -328,14 +328,64 @@ static bool styleQualifiesForRoundedBorder(const css_style_rec_t * style) {
     for (int i=0; i<4; i++) {
         css_border_style_type_t bs = i==0 ? style->border_style_top : i==1 ? style->border_style_right :
                                       i==2 ? style->border_style_bottom : style->border_style_left;
-        if (bs == css_border_solid || bs == css_border_inset || bs == css_border_outset || bs < css_border_solid)
+        if (bs != css_border_dotted && bs != css_border_dashed)
             continue;
         css_length_t bc = style->border_color[i];
         lUInt32 color = bc.type != css_val_unspecified ? bc.value : style->color.value;
         if (styleBorderSidePresent(bs, style->border_width[i], color))
-            return false; // present but not one of the roundable styles
+            return false; // present dashed/dotted side
     }
     return true;
+}
+
+// Shade/light variants of a border color, used for the 3D-look styles (inset/outset/
+// groove/ridge), in both the rounded and legacy square-corner rendering paths below.
+// Firefox uses fixed near-black shade/light values when the border color is real black
+// (0x000000), rather than the generic darkening formula, which would otherwise collapse
+// shade == light == black.
+static inline lUInt32 makeBorderShade(lUInt32 c)
+{
+    lUInt32 o = c & 0xFF000000;
+    if ((c & 0xFFFFFF) == 0)
+        return o | 0x4c4c4cu;
+    lUInt32 r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+    r = r * 160 / 255;
+    g = g * 160 / 255;
+    b = b * 160 / 255;
+    return o | (r << 16) | (g << 8) | b;
+}
+static inline lUInt32 makeBorderLight(lUInt32 c)
+{
+    if ((c & 0xFFFFFF) == 0)
+        return (c & 0xFF000000) | 0xb2b2b2u;
+    return c;
+}
+
+// Splits a DOUBLE border side's declared width into its outer line, gap and inner line
+// thicknesses: each half of w gets CSS's classic double-border-line rule (a third of it,
+// rounded up via the +1, or half below the >2 threshold where a third would round down to
+// nothing), then outer/inner are clamped so they never overlap -- at w=1 this collapses
+// the border to a single solid-looking line.
+static void splitDoubleBorderWidth(int w, int &outer, int &gap, int &inner)
+{
+    int half = w / 2;
+    outer = half / (half > 2 ? 3 : 2) + 1;
+    int rem = w - half;
+    inner = rem / (rem > 2 ? 3 : 2) + 1;
+    if (outer > w)
+        outer = w;
+    if (inner > w - outer)
+        inner = w - outer;
+    gap = w - outer - inner;
+}
+
+// Splits a GROOVE/RIDGE border side's declared width in half for its two touching,
+// oppositely-shaded rings (outer/inner) -- see the two fillRoundedRectBorder() calls
+// below. At least 1px goes to the outer ring even when w is 0 or 1.
+static void splitGrooveRidgeBorderWidth(int w, int &outer, int &inner)
+{
+    outer = myMax(1, w / 2);
+    inner = myMax(0, w - outer);
 }
 
 //draw border lines,support color,width,all styles, not support border-collapse
@@ -401,13 +451,14 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                 int Y1 = Y0 + fmt.getHeight();
 
                 // General per-side rounded rendering for the styles we
-                // support so far: SOLID/INSET/OUTSET, mitered per-side into
-                // one ring, with independent colors/widths per side. If any
-                // present side is dashed or dotted (or another style not yet
-                // covered), this box isn't covered by rounded rendering yet,
-                // so the whole box falls back to the legacy square-corner
-                // code below instead of painting some sides rounded and
-                // silently skipping that one.
+                // support so far: SOLID/INSET/OUTSET (mitered per-side, one
+                // ring) and DOUBLE/GROOVE/RIDGE (each its own two independent
+                // rings). Any mix of these six is fine, with independent
+                // colors/widths per side. If any present side is dashed or
+                // dotted, this box isn't covered by rounded rendering yet, so
+                // the whole box falls back to the legacy square-corner code
+                // below instead of painting some sides rounded and silently
+                // skipping that one.
                 bool side_is_solid[4] = {
                     hastopBorder && style->border_style_top == css_border_solid,
                     hasrightBorder && style->border_style_right == css_border_solid,
@@ -423,36 +474,27 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     hasrightBorder && style->border_style_right == css_border_outset,
                     hasbottomBorder && style->border_style_bottom == css_border_outset,
                     hasleftBorder && style->border_style_left == css_border_outset};
+                bool side_is_double[4] = {
+                    hastopBorder && style->border_style_top == css_border_double,
+                    hasrightBorder && style->border_style_right == css_border_double,
+                    hasbottomBorder && style->border_style_bottom == css_border_double,
+                    hasleftBorder && style->border_style_left == css_border_double};
+                bool side_is_groove[4] = {
+                    hastopBorder && style->border_style_top == css_border_groove,
+                    hasrightBorder && style->border_style_right == css_border_groove,
+                    hasbottomBorder && style->border_style_bottom == css_border_groove,
+                    hasleftBorder && style->border_style_left == css_border_groove};
+                bool side_is_ridge[4] = {
+                    hastopBorder && style->border_style_top == css_border_ridge,
+                    hasrightBorder && style->border_style_right == css_border_ridge,
+                    hasbottomBorder && style->border_style_bottom == css_border_ridge,
+                    hasleftBorder && style->border_style_left == css_border_ridge};
                 bool side_coverable[4] = {
-                    !hastopBorder || side_is_solid[0] || side_is_inset[0] || side_is_outset[0],
-                    !hasrightBorder || side_is_solid[1] || side_is_inset[1] || side_is_outset[1],
-                    !hasbottomBorder || side_is_solid[2] || side_is_inset[2] || side_is_outset[2],
-                    !hasleftBorder || side_is_solid[3] || side_is_inset[3] || side_is_outset[3]};
+                    !hastopBorder || side_is_solid[0] || side_is_inset[0] || side_is_outset[0] || side_is_double[0] || side_is_groove[0] || side_is_ridge[0],
+                    !hasrightBorder || side_is_solid[1] || side_is_inset[1] || side_is_outset[1] || side_is_double[1] || side_is_groove[1] || side_is_ridge[1],
+                    !hasbottomBorder || side_is_solid[2] || side_is_inset[2] || side_is_outset[2] || side_is_double[2] || side_is_groove[2] || side_is_ridge[2],
+                    !hasleftBorder || side_is_solid[3] || side_is_inset[3] || side_is_outset[3] || side_is_double[3] || side_is_groove[3] || side_is_ridge[3]};
                 if (side_coverable[0] && side_coverable[1] && side_coverable[2] && side_coverable[3]) {
-                    // Helpers for shading. Firefox uses fixed near-black
-                    // shade/light values when the border color is real black
-                    // (0x000000), rather than the generic darkening formula,
-                    // which would otherwise collapse shade == light == black.
-                    auto make_shade = [](lUInt32 c)
-                    {
-                        lUInt32 o = c & 0xFF000000;
-                        if ((c & 0xFFFFFF) == 0) {
-                            return o | 0x4c4c4cu;
-                        }
-                        lUInt32 r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
-                        r = r * 160 / 255;
-                        g = g * 160 / 255;
-                        b = b * 160 / 255;
-                        return o | (r << 16) | (g << 8) | b;
-                    };
-                    auto make_light = [](lUInt32 c)
-                    {
-                        if ((c & 0xFFFFFF) == 0) {
-                            return (c & 0xFF000000) | 0xb2b2b2u;
-                        }
-                        return c;
-                    };
-
                     // Kept raw (un-inverted) here: invertNonGrayscaleColor() and the shade/light
                     // scaling below don't commute, so shading must happen first and inversion
                     // last, matching the legacy square-corner path's order. Each ring block below
@@ -462,18 +504,26 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                     // SOLID/INSET/OUTSET: one ring covers every side using
                     // these three styles (a side is never more than one
                     // style, so there's no cross-side interaction to resolve
-                    // here).
+                    // here). DOUBLE/GROOVE/RIDGE sides paint themselves via
+                    // their own two-ring calls just below instead -- a side
+                    // is only drawn here if it's actually solid/inset/outset.
+                    // Every side's *true* declared width is still passed
+                    // regardless of its own style, so e.g. a solid left
+                    // border's corner still miters correctly against a
+                    // double/groove/ridge top neighbor's real reach without
+                    // this call painting into it -- see
+                    // fillRoundedRectBorder's width/draw_* split.
                     {
                         lUInt32 c[4] = {sideColors[0], sideColors[1], sideColors[2], sideColors[3]};
                         // Inset: top/left shade, right/bottom light. Outset: opposite.
                         if (side_is_inset[0] || side_is_outset[0])
-                            c[0] = side_is_inset[0] ? make_shade(c[0]) : make_light(c[0]);
+                            c[0] = side_is_inset[0] ? makeBorderShade(c[0]) : makeBorderLight(c[0]);
                         if (side_is_inset[1] || side_is_outset[1])
-                            c[1] = side_is_inset[1] ? make_light(c[1]) : make_shade(c[1]);
+                            c[1] = side_is_inset[1] ? makeBorderLight(c[1]) : makeBorderShade(c[1]);
                         if (side_is_inset[2] || side_is_outset[2])
-                            c[2] = side_is_inset[2] ? make_light(c[2]) : make_shade(c[2]);
+                            c[2] = side_is_inset[2] ? makeBorderLight(c[2]) : makeBorderShade(c[2]);
                         if (side_is_inset[3] || side_is_outset[3])
-                            c[3] = side_is_inset[3] ? make_shade(c[3]) : make_light(c[3]);
+                            c[3] = side_is_inset[3] ? makeBorderShade(c[3]) : makeBorderLight(c[3]);
                         if (invert_colors) {
                             for (int i = 0; i < 4; i++)
                                 c[i] = invertNonGrayscaleColor(c[i]);
@@ -486,6 +536,124 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                         int mw[4] = {hastopBorder ? tbw : 0, hasrightBorder ? rbw : 0, hasbottomBorder ? bbw : 0, hasleftBorder ? lbw : 0};
                         fillRoundedRectBorder(drawbuf, X0, Y0, X1, Y1, rx, ry,
                                                   mw[0], draw[0], mw[1], draw[1], mw[2], draw[2], mw[3], draw[3], c);
+                    }
+
+                    // DOUBLE: two fully independent lines -- the outer one drawn as its
+                    // own single-band ring on the real box/radii, the inner one drawn as
+                    // its own single-band ring on a box shrunk by (outer+gap) per side,
+                    // with each corner radius reduced by the same amount.
+                    if (side_is_double[0] || side_is_double[1] || side_is_double[2] || side_is_double[3]) {
+                        lUInt32 c[4] = {sideColors[0], sideColors[1], sideColors[2], sideColors[3]};
+                        if (invert_colors) {
+                            for (int i = 0; i < 4; i++)
+                                c[i] = invertNonGrayscaleColor(c[i]);
+                        }
+                        int outer_t, gap_t, inner_t;
+                        splitDoubleBorderWidth(tbw, outer_t, gap_t, inner_t);
+                        int outer_b, gap_b, inner_b;
+                        splitDoubleBorderWidth(bbw, outer_b, gap_b, inner_b);
+                        int outer_r, gap_r, inner_r;
+                        splitDoubleBorderWidth(rbw, outer_r, gap_r, inner_r);
+                        int outer_l, gap_l, inner_l;
+                        splitDoubleBorderWidth(lbw, outer_l, gap_l, inner_l);
+
+                        // Widths: every bordered neighbor is treated as if it were
+                        // itself double, split the same way from its own real
+                        // declared width -- regardless of what style it actually is
+                        // (e.g. solid).
+                        int w_ot = hastopBorder ? outer_t : 0, w_ob = hasbottomBorder ? outer_b : 0;
+                        int w_or = hasrightBorder ? outer_r : 0, w_ol = hasleftBorder ? outer_l : 0;
+                        fillRoundedRectBorder(drawbuf, X0, Y0, X1, Y1, rx, ry,
+                                                  w_ot, side_is_double[0], w_or, side_is_double[1],
+                                                  w_ob, side_is_double[2], w_ol, side_is_double[3], c);
+
+                        int insetT = hastopBorder ? (outer_t + gap_t) : 0, insetB = hasbottomBorder ? (outer_b + gap_b) : 0;
+                        int insetR = hasrightBorder ? (outer_r + gap_r) : 0, insetL = hasleftBorder ? (outer_l + gap_l) : 0;
+                        int iX0 = X0 + insetL, iY0 = Y0 + insetT, iX1 = X1 - insetR, iY1 = Y1 - insetB;
+                        if (iX0 < iX1 && iY0 < iY1) {
+                            int irx[4] = {myMax(0, rx[0] - insetL), myMax(0, rx[1] - insetR), myMax(0, rx[2] - insetR), myMax(0, rx[3] - insetL)};
+                            int iry[4] = {myMax(0, ry[0] - insetT), myMax(0, ry[1] - insetT), myMax(0, ry[2] - insetB), myMax(0, ry[3] - insetB)};
+                            int w_it = hastopBorder ? inner_t : 0, w_ib = hasbottomBorder ? inner_b : 0;
+                            int w_ir = hasrightBorder ? inner_r : 0, w_il = hasleftBorder ? inner_l : 0;
+                            fillRoundedRectBorder(drawbuf, iX0, iY0, iX1, iY1, irx, iry,
+                                                      w_it, side_is_double[0], w_ir, side_is_double[1],
+                                                      w_ib, side_is_double[2], w_il, side_is_double[3], c);
+                        }
+                    }
+
+                    // GROOVE/RIDGE: same trick as DOUBLE just above -- two independent
+                    // rings via fillRoundedRectBorder (each with the real, simultaneous,
+                    // both-axes-at-once corner inset). Unlike DOUBLE's two lines,
+                    // groove/ridge's outer and inner rings are touching (no gap: inner
+                    // ring's own width is simply w-outer) and are shaded oppositely per
+                    // side (dark/light swapped between outer and inner) rather than
+                    // same-colored, to fake a carved-in (groove) or raised (ridge) look.
+                    if (side_is_groove[0] || side_is_groove[1] || side_is_groove[2] || side_is_groove[3] ||
+                        side_is_ridge[0] || side_is_ridge[1] || side_is_ridge[2] || side_is_ridge[3])
+                    {
+                        lUInt32 c_outer[4] = {sideColors[0], sideColors[1], sideColors[2], sideColors[3]};
+                        lUInt32 c_inner[4] = {sideColors[0], sideColors[1], sideColors[2], sideColors[3]};
+                        // groove: outer shade on top/left, light on bottom/right, inner
+                        // half reversed; ridge: outer/inner swapped from groove.
+                        if (side_is_groove[0] || side_is_ridge[0]) {
+                            c_outer[0] = side_is_groove[0] ? makeBorderShade(c_outer[0]) : makeBorderLight(c_outer[0]);
+                            c_inner[0] = side_is_groove[0] ? makeBorderLight(c_inner[0]) : makeBorderShade(c_inner[0]);
+                        }
+                        if (side_is_groove[1] || side_is_ridge[1]) {
+                            c_outer[1] = side_is_groove[1] ? makeBorderLight(c_outer[1]) : makeBorderShade(c_outer[1]);
+                            c_inner[1] = side_is_groove[1] ? makeBorderShade(c_inner[1]) : makeBorderLight(c_inner[1]);
+                        }
+                        if (side_is_groove[2] || side_is_ridge[2]) {
+                            c_outer[2] = side_is_groove[2] ? makeBorderLight(c_outer[2]) : makeBorderShade(c_outer[2]);
+                            c_inner[2] = side_is_groove[2] ? makeBorderShade(c_inner[2]) : makeBorderLight(c_inner[2]);
+                        }
+                        if (side_is_groove[3] || side_is_ridge[3]) {
+                            c_outer[3] = side_is_groove[3] ? makeBorderShade(c_outer[3]) : makeBorderLight(c_outer[3]);
+                            c_inner[3] = side_is_groove[3] ? makeBorderLight(c_inner[3]) : makeBorderShade(c_inner[3]);
+                        }
+                        if (invert_colors) {
+                            for (int i = 0; i < 4; i++) {
+                                c_outer[i] = invertNonGrayscaleColor(c_outer[i]);
+                                c_inner[i] = invertNonGrayscaleColor(c_inner[i]);
+                            }
+                        }
+
+                        // Virtual half-split computed for every bordered side, regardless
+                        // of its real style: this is what a neighbor's width contributes
+                        // to *this* ring's corner geometry, as if that neighbor were
+                        // itself groove/ridge with its own real declared width -- same
+                        // rationale as DOUBLE just above.
+                        int vouter_t = 0, vinner_t = 0;
+                        if (hastopBorder)
+                            splitGrooveRidgeBorderWidth(tbw, vouter_t, vinner_t);
+                        int vouter_b = 0, vinner_b = 0;
+                        if (hasbottomBorder)
+                            splitGrooveRidgeBorderWidth(bbw, vouter_b, vinner_b);
+                        int vouter_r = 0, vinner_r = 0;
+                        if (hasrightBorder)
+                            splitGrooveRidgeBorderWidth(rbw, vouter_r, vinner_r);
+                        int vouter_l = 0, vinner_l = 0;
+                        if (hasleftBorder)
+                            splitGrooveRidgeBorderWidth(lbw, vouter_l, vinner_l);
+
+                        bool draw_t = side_is_groove[0] || side_is_ridge[0];
+                        bool draw_r = side_is_groove[1] || side_is_ridge[1];
+                        bool draw_b = side_is_groove[2] || side_is_ridge[2];
+                        bool draw_l = side_is_groove[3] || side_is_ridge[3];
+
+                        fillRoundedRectBorder(drawbuf, X0, Y0, X1, Y1, rx, ry,
+                                                  vouter_t, draw_t, vouter_r, draw_r,
+                                                  vouter_b, draw_b, vouter_l, draw_l, c_outer);
+
+                        int insetT = vouter_t, insetB = vouter_b, insetR = vouter_r, insetL = vouter_l;
+                        int iX0 = X0 + insetL, iY0 = Y0 + insetT, iX1 = X1 - insetR, iY1 = Y1 - insetB;
+                        if (iX0 < iX1 && iY0 < iY1) {
+                            int irx[4] = {myMax(0, rx[0] - insetL), myMax(0, rx[1] - insetR), myMax(0, rx[2] - insetR), myMax(0, rx[3] - insetL)};
+                            int iry[4] = {myMax(0, ry[0] - insetT), myMax(0, ry[1] - insetT), myMax(0, ry[2] - insetB), myMax(0, ry[3] - insetB)};
+                            fillRoundedRectBorder(drawbuf, iX0, iY0, iX1, iY1, irx, iry,
+                                                      vinner_t, draw_t, vinner_r, draw_r,
+                                                      vinner_b, draw_b, vinner_l, draw_l, c_inner);
+                        }
                     }
 
                     return;
