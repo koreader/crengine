@@ -4864,6 +4864,14 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->border_color[1]=source->border_color[1];
     dest->border_color[2]=source->border_color[2];
     dest->border_color[3]=source->border_color[3];
+    dest->border_radius_h[0]=source->border_radius_h[0];
+    dest->border_radius_h[1]=source->border_radius_h[1];
+    dest->border_radius_h[2]=source->border_radius_h[2];
+    dest->border_radius_h[3]=source->border_radius_h[3];
+    dest->border_radius_v[0]=source->border_radius_v[0];
+    dest->border_radius_v[1]=source->border_radius_v[1];
+    dest->border_radius_v[2]=source->border_radius_v[2];
+    dest->border_radius_v[3]=source->border_radius_v[3];
     dest->background_image=source->background_image;
     dest->background_repeat=source->background_repeat;
     dest->background_position[0]=source->background_position[0];
@@ -9832,8 +9840,9 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * enode, int x0, int y0, int dx
                 }
                 else {
                     // Regular element: draw bgcolor or image inside its border box
-                    if ( draw_bg_color )
-                        drawbuf.FillRect( x0 + doc_x, y0 + doc_y, x0 + doc_x+fmt.getWidth(), y0+doc_y+fmt.getHeight(), bg_color );
+                    if ( draw_bg_color ) {
+                        FillBackgroundRect(drawbuf, enode, style, fmt, x0 + doc_x, y0 + doc_y, bg_color);
+                    }
                     if ( draw_bg_image )
                         DrawBackgroundImage(enode, drawbuf, x0, y0, doc_x, doc_y, fmt.getWidth(), fmt.getHeight());
                         // (Commented identical calls below as they seem redundant with what was just done here)
@@ -11166,6 +11175,14 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
             pstyle->border_width[3] = css_length_t(css_val_screen_px, 0);
         else
             inheritLength( pstyle->border_width[3], parent_style->border_width[3], parent_font_size );
+    }
+
+    // border-radius: not inherited by default, but if the CSS value was explicitly
+    // "inherit", grab the parent's computed value, like border-width
+    // and border-color do just above/below.
+    for ( int i=0; i < 4; i++ ) {
+        inheritLength( pstyle->border_radius_h[i], parent_style->border_radius_h[i], parent_font_size );
+        inheritLength( pstyle->border_radius_v[i], parent_style->border_radius_v[i], parent_font_size );
     }
 
     // About color properties:

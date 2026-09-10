@@ -122,6 +122,11 @@ enum css_decl_code {
     cssd_border_right,
     cssd_border_bottom,
     cssd_border_left,
+    cssd_border_top_left_radius,
+    cssd_border_top_right_radius,
+    cssd_border_bottom_right_radius,
+    cssd_border_bottom_left_radius,
+    cssd_border_radius,
     cssd_background,
     cssd_background_image,
     cssd_background_repeat,
@@ -236,6 +241,11 @@ static const char * css_decl_name[] = {
     "border-right",
     "border-bottom",
     "border-left",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+    "border-radius",
     "background",
     "background-image",
     "background-repeat",
@@ -5165,6 +5175,77 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     }
                 }
                 break;
+
+            // Border radius: shorthand and per-corner, support percentages and optional '/'
+            // (horizontal / vertical radii) for elliptical corners.
+            case cssd_border_radius:
+                IF_g_PUSH_LENGTH_AND_break(8, false, css_val_screen_px, 0);
+                {
+                    // Parse horizontal radii list (1-4 values)
+                    css_length_t h[4];
+                    int hcount = 0;
+                    for (int i=0; i<4; i++) {
+                        css_length_t len;
+                        if (!parse_number_value( decl, len, true ))
+                            break;
+                        h[hcount++] = len;
+                        skip_spaces(decl);
+                    }
+                    if (hcount == 0)
+                        break; // nothing parsed
+                    // Expand 1->4 like other shorthands (TL, TR, BR, BL)
+                    switch (hcount) { case 1: h[1]=h[0]; /*fallthrough*/ case 2: h[2]=h[0]; /*fallthrough*/ case 3: h[3]=h[1]; }
+                    // Optional vertical part after '/'
+                    css_length_t v[4];
+                    int vcount = 0;
+                    skip_spaces(decl);
+                    if (*decl == '/') {
+                        decl++; // consume '/'
+                        skip_spaces(decl);
+                        for (int i=0; i<4; i++) {
+                            css_length_t len;
+                            if (!parse_number_value( decl, len, true ))
+                                break;
+                            v[vcount++] = len;
+                            skip_spaces(decl);
+                        }
+                        if (vcount == 0)
+                            break; // '/' present but no values: ignore whole decl
+                        switch (vcount) { case 1: v[1]=v[0]; /*fallthrough*/ case 2: v[2]=v[0]; /*fallthrough*/ case 3: v[3]=v[1]; }
+                    } else {
+                        // No vertical list: vertical radii = horizontal radii
+                        for (int i=0; i<4; i++) v[i] = h[i];
+                    }
+                    // Emit 8 values (TL, TR, BR, BL) h then v
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                    for (int i=0; i<4; i++) { buf<<(lUInt32) h[i].type; buf<<(lUInt32) h[i].value; }
+                    for (int i=0; i<4; i++) { buf<<(lUInt32) v[i].type; buf<<(lUInt32) v[i].value; }
+                }
+                break;
+            case cssd_border_top_left_radius:
+            case cssd_border_top_right_radius:
+            case cssd_border_bottom_right_radius:
+            case cssd_border_bottom_left_radius:
+                IF_g_PUSH_LENGTH_AND_break(2, false, css_val_screen_px, 0);
+                {
+                    // Individual corner: accepts 1 or 2 values (h [ '/' v ])
+                    css_length_t h, v;
+                    if (!parse_number_value( decl, h, true ))
+                        break;
+                    skip_spaces(decl);
+                    if (*decl == '/') {
+                        decl++; skip_spaces(decl);
+                        if (!parse_number_value( decl, v, true ))
+                            break;
+                    } else {
+                        v = h; // single value => same for vertical
+                    }
+                    buf<<(lUInt32) (prop_code | importance | parse_important(decl));
+                    buf<<(lUInt32) h.type; buf<<(lUInt32) h.value;
+                    buf<<(lUInt32) v.type; buf<<(lUInt32) v.value;
+                }
+                break;
+
             case cssd_border_spacing:
                 IF_g_PUSH_LENGTH_AND_break(2, true, css_val_screen_px, 0);
                 {
@@ -5692,6 +5773,46 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
         prop_code = prop_code & IMPORTANT_DECL_REMOVE;
         switch (prop_code)
         {
+        case cssd_border_radius:
+            {
+                // 8 lengths encoded: h[0..3], v[0..3]
+                css_length_t len;
+                for (int i=0;i<4;i++) { len = read_length(p); style->Apply( len, &style->border_radius_h[i], (css_style_rec_important_bit)(imp_bit_border_radius_tl_h + i*2), is_important ); }
+                for (int i=0;i<4;i++) { len = read_length(p); style->Apply( len, &style->border_radius_v[i], (css_style_rec_important_bit)(imp_bit_border_radius_tl_v + i*2), is_important ); }
+            }
+            break;
+        case cssd_border_top_left_radius:
+            {
+                css_length_t h = read_length(p);
+                css_length_t v = read_length(p);
+                style->Apply( h, &style->border_radius_h[0], imp_bit_border_radius_tl_h, is_important );
+                style->Apply( v, &style->border_radius_v[0], imp_bit_border_radius_tl_v, is_important );
+            }
+            break;
+        case cssd_border_top_right_radius:
+            {
+                css_length_t h = read_length(p);
+                css_length_t v = read_length(p);
+                style->Apply( h, &style->border_radius_h[1], imp_bit_border_radius_tr_h, is_important );
+                style->Apply( v, &style->border_radius_v[1], imp_bit_border_radius_tr_v, is_important );
+            }
+            break;
+        case cssd_border_bottom_right_radius:
+            {
+                css_length_t h = read_length(p);
+                css_length_t v = read_length(p);
+                style->Apply( h, &style->border_radius_h[2], imp_bit_border_radius_br_h, is_important );
+                style->Apply( v, &style->border_radius_v[2], imp_bit_border_radius_br_v, is_important );
+            }
+            break;
+        case cssd_border_bottom_left_radius:
+            {
+                css_length_t h = read_length(p);
+                css_length_t v = read_length(p);
+                style->Apply( h, &style->border_radius_h[3], imp_bit_border_radius_bl_h, is_important );
+                style->Apply( v, &style->border_radius_v[3], imp_bit_border_radius_bl_v, is_important );
+            }
+            break;
         case cssd_display:
             style->Apply( (css_display_t) *p++, &style->display, imp_bit_display, is_important );
             break;
