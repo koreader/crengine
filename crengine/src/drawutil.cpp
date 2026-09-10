@@ -10,6 +10,37 @@
 
 *******************************************************/
 
+/*
+ * This file holds two mostly-independent pieces of what used to live in
+ * lvrend.cpp's DrawDocument() support: rounded-corner-aware border/background
+ * painting, and background-image sizing/tiling/positioning. They're grouped
+ * here not because they share machinery, but because together they made
+ * lvrend.cpp too long, and neither has any bearing on how DrawDocument()
+ * walks the tree.
+ *
+ * Border painting has two independent code paths:
+ *   - The general per-side rounded-corner path (fillRoundedRect(),
+ *     fillRoundedRectBorder()) draws solid/inset/outset as one mitered ring,
+ *     and double/groove/ridge as two independent concentric rings, against
+ *     elliptical per-corner radii computed by computeBorderRadiiPx(). It's
+ *     used whenever the style requests a border-radius and every present
+ *     side is one of those six styles (styleQualifiesForRoundedBorder()).
+ *   - The legacy square-corner path (drawBorderSideSquare(),
+ *     drawBorderStraightLine()) is DrawBorder()'s original per-side
+ *     rendering, generalized so all four sides share one implementation
+ *     mitered against whichever neighbor sides are present. It's still used
+ *     for dashed/dotted sides (which the rounded path doesn't support yet)
+ *     and whenever no border-radius applies.
+ *
+ * FillBackgroundRect() and DrawBorder() must agree on whether a given box's
+ * corners end up rounded or square, so they share the same predicates
+ * (styleHasBorderRadii(), styleHasAnyBorder(), styleQualifiesForRoundedBorder()).
+ *
+ * DrawBackgroundImage()/DrawBodyBackground() are otherwise unrelated: they
+ * handle background-position/-size/-repeat resolution and <body>'s
+ * viewport-wide (not margin-obeying) background painting.
+ */
+
 #include "crsetup.h"
 
 #include <math.h>
@@ -388,41 +419,212 @@ static void splitGrooveRidgeBorderWidth(int w, int &outer, int &inner)
     inner = myMax(0, w - outer);
 }
 
+// Draws one legacy (square-corner) border side as a stack of single-pixel DrawLine calls,
+// each stepping diagonally from p1 towards p2 to miter against whatever's on the two
+// perpendicular neighbor sides (rate1/rate2 are 0 when that neighbor doesn't miter against
+// this side, making that edge vertical/horizontal instead of slanted).
+// horizontal covers top/bottom (the stepped axis is y, offset axis is x); !horizontal
+// covers right/left (stepped axis is x, offset axis is y). sign is +1 to step from p1
+// towards p2 along the stepped axis (top, right), -1 to step the other way (bottom, left).
+// Computes the coordinates of one scanline (step i, 0-based) of a border ring
+// spanning from corner point p1 to corner point p2, stepping into the box along
+// the cross axis at rate `sign` and along the along-axis at each corner's own
+// rate -- shared by drawBorderStraightLine() (as a DrawLine) and, for the
+// double/groove/ridge styles, drawBorderSideSquare() (as a FillRect).
+static inline void borderRingStepRect(bool horizontal, int sign, lvPoint p1, lvPoint p2,
+                                       double rate1, double rate2, int i,
+                                       int &x0, int &y0, int &x1, int &y1)
+{
+    if (horizontal) {
+        x0 = p1.x + i*rate1;     y0 = p1.y + sign*i;
+        x1 = p2.x - i*rate2 + 1; y1 = p2.y + sign*i + 1;
+    } else {
+        x0 = p1.x - sign*i;      y0 = p1.y + i*rate1;
+        x1 = p2.x - sign*i + 1;  y1 = p2.y - i*rate2 + 1;
+    }
+}
+
+static void drawBorderStraightLine(LVDrawBuf & drawbuf, bool horizontal, int sign,
+                                    lvPoint p1, lvPoint p2, double rate1, double rate2,
+                                    int count, lUInt32 color, int dot, int interval)
+{
+    for (int i = 0; i < count; i++) {
+        int x0, y0, x1, y1;
+        borderRingStepRect(horizontal, sign, p1, p2, rate1, rate2, i, x0, y0, x1, y1);
+        drawbuf.DrawLine(x0, y0, x1, y1, color, dot, interval, horizontal ? 0 : 1);
+    }
+}
+
+// One neighboring side, as seen by drawBorderSideSquare(): whether it actually
+// paints (see styleBorderSidePresent()), its style (checked for dotted/dashed),
+// and its own declared width (used for the miter only when mitered).
+struct BorderSideNeighbor {
+    bool present;
+    css_border_style_type_t style;
+    int width;
+};
+
+// Draws one side of the legacy (square-corner) border -- dotted, dashed, solid,
+// double, groove, ridge, inset or outset -- mitered against whichever of its two
+// neighboring sides (a = the side at the "start" corner, b = at the "end"
+// corner) is present, generalizing what used to be four separate, near-identical
+// top/right/bottom/left blocks in DrawBorder().
+//
+// horizontal/sign follow borderRingStepRect()'s convention: horizontal selects
+// this side's own axis (true for top/bottom, false for left/right); sign
+// selects the direction this side's ring grows into the box along the cross
+// axis (top/right: +1, bottom/left: -1). along0/along1 are this side's own
+// along-axis extent (e.g. the box's left/right x for a horizontal side, in
+// along0<along1 order); cross0 is this side's own baseline cross-axis
+// coordinate (e.g. the box's top y for the top side); own_width/own_style/
+// own_color describe this side itself.
+//
+// outer_ring_inclusive preserves a long-standing per-side asymmetry in this
+// legacy code (present before this refactor, not introduced by it -- see the
+// callers for what it encodes): where the groove/ridge outer/inner ring
+// boundary falls. top_left_shading picks which of the two 3D-bevel shades
+// (inset/outset, groove/ridge) this side uses on its "outer" half: true for
+// top/left, false for right/bottom -- matching the shading already used for
+// these styles in the rounded-corner path above.
+static void drawBorderSideSquare(LVDrawBuf & drawbuf, bool invert_colors,
+                                  bool horizontal, int sign,
+                                  int along0, int along1, int cross0, int own_width,
+                                  css_border_style_type_t own_style, lUInt32 own_color,
+                                  const BorderSideNeighbor & a, const BorderSideNeighbor & b,
+                                  bool outer_ring_inclusive, bool top_left_shading)
+{
+    int dot = 1, interval = 0; // default style
+
+    lUInt32 shadecolor = makeBorderShade(own_color);
+    lUInt32 lightcolor = makeBorderLight(own_color);
+    if (invert_colors) {
+        own_color = invertNonGrayscaleColor(own_color);
+        shadecolor = invertNonGrayscaleColor(shadecolor);
+        lightcolor = invertNonGrayscaleColor(lightcolor);
+    }
+    // The "outer" (top/left-facing) half of a groove/ridge or inset/outset
+    // side uses one of these two shades, the "inner" half the other; which
+    // physical color each represents just flips between top/left and
+    // right/bottom -- see top_left_shading above.
+    lUInt32 outerBase = top_left_shading ? shadecolor : lightcolor;
+    lUInt32 innerBase = top_left_shading ? lightcolor : shadecolor;
+
+    // A side is "mitered" against a given neighbor only when that neighbor is
+    // both present and not itself dashed/dotted -- a dashed/dotted edge has
+    // no continuous line to miter against, so it's always treated as a flat
+    // (unmitered) corner regardless of its width. When not mitered, the
+    // neighbor's width contributes nothing (0) below.
+    bool aMiters = a.present && a.style != css_border_dotted && a.style != css_border_dashed;
+    bool bMiters = b.present && b.style != css_border_dotted && b.style != css_border_dashed;
+    int aw = aMiters ? a.width : 0;
+    int bw = bMiters ? b.width : 0;
+    double rateA = (double)aw / (double)own_width;
+    double rateB = (double)bw / (double)own_width;
+
+    // Maps an (along, cross) pair to a real (x, y) point given this side's
+    // orientation -- the same role convention borderRingStepRect() uses.
+    auto pt = [&](double along, double cross) {
+        return horizontal ? lvPoint((int)along, (int)cross) : lvPoint((int)cross, (int)along);
+    };
+    // Own width always offsets the cross coordinate in full, in the direction
+    // this side's ring grows into the box; the neighbor's (possibly zeroed
+    // above) width offsets the along coordinate, towards the interior from
+    // each corner -- point 1 is the literal corner, point 2 the half-width
+    // point, point 3 the full-width point.
+    double crossStep = horizontal ? (double)sign : -(double)sign;
+    lvPoint pA1 = pt(along0,        cross0);
+    lvPoint pA2 = pt(along0 + 0.5*aw, cross0 + crossStep*0.5*own_width);
+    lvPoint pA3 = pt(along0 + aw,      cross0 + crossStep*own_width);
+    lvPoint pB1 = pt(along1,        cross0);
+    lvPoint pB2 = pt(along1 - 0.5*bw, cross0 + crossStep*0.5*own_width);
+    lvPoint pB3 = pt(along1 - bw,      cross0 + crossStep*own_width);
+
+    switch (own_style) {
+        case css_border_dotted:
+            dot = interval = own_width;
+            drawBorderStraightLine(drawbuf, horizontal, sign, pA1, pB1, rateA, rateB, own_width, own_color, dot, interval);
+            break;
+        case css_border_dashed:
+            dot = 3*own_width;
+            interval = 3*own_width;
+            drawBorderStraightLine(drawbuf, horizontal, sign, pA1, pB1, rateA, rateB, own_width, own_color, dot, interval);
+            break;
+        case css_border_solid:
+            drawBorderStraightLine(drawbuf, horizontal, sign, pA1, pB1, rateA, rateB, own_width, own_color, dot, interval);
+            break;
+        case css_border_double: {
+            int outerN, gapN, innerN;
+            splitDoubleBorderWidth(own_width, outerN, gapN, innerN);
+            for (int i = 0; i < outerN; i++) {
+                int rx0, ry0, rx1, ry1;
+                borderRingStepRect(horizontal, sign, pA1, pB1, rateA, rateB, i, rx0, ry0, rx1, ry1);
+                drawbuf.FillRect(rx0, ry0, rx1, ry1, own_color);
+            }
+            // The inner ring grows the other way: outward from pA3/pB3 back
+            // towards pA1/pB1, hence the negated sign and rates.
+            for (int i = 0; i < innerN; i++) {
+                int rx0, ry0, rx1, ry1;
+                borderRingStepRect(horizontal, -sign, pA3, pB3, -rateA, -rateB, i, rx0, ry0, rx1, ry1);
+                drawbuf.FillRect(rx0, ry0, rx1, ry1, own_color);
+            }
+            break;
+        }
+        case css_border_groove:
+        case css_border_ridge: {
+            bool isGroove = (own_style == css_border_groove);
+            lUInt32 outerColor = isGroove ? outerBase : innerBase;
+            lUInt32 innerColor = isGroove ? innerBase : outerBase;
+            auto crossOf = [&](const lvPoint &p) { return horizontal ? p.y : p.x; };
+            int halfDelta = crossOf(pA2) - crossOf(pA1);
+            if (halfDelta < 0) halfDelta = -halfDelta;
+            int fullDelta = crossOf(pA3) - crossOf(pA2);
+            if (fullDelta < 0) fullDelta = -fullDelta;
+            int outerCount = outer_ring_inclusive ? halfDelta + 1 : halfDelta;
+            int innerCount = outer_ring_inclusive ? fullDelta : fullDelta + 1;
+            for (int i = 0; i < outerCount; i++) {
+                int rx0, ry0, rx1, ry1;
+                borderRingStepRect(horizontal, sign, pA1, pB1, rateA, rateB, i, rx0, ry0, rx1, ry1);
+                drawbuf.FillRect(rx0, ry0, rx1, ry1, outerColor);
+            }
+            for (int i = 0; i < innerCount; i++) {
+                int rx0, ry0, rx1, ry1;
+                borderRingStepRect(horizontal, sign, pA2, pB2, rateA, rateB, i, rx0, ry0, rx1, ry1);
+                drawbuf.FillRect(rx0, ry0, rx1, ry1, innerColor);
+            }
+            break;
+        }
+        case css_border_inset:
+            drawBorderStraightLine(drawbuf, horizontal, sign, pA1, pB1, rateA, rateB, own_width, outerBase, dot, interval);
+            break;
+        case css_border_outset:
+            drawBorderStraightLine(drawbuf, horizontal, sign, pA1, pB1, rateA, rateB, own_width, innerBase, dot, interval);
+            break;
+        default:
+            break;
+    }
+}
+
 //draw border lines,support color,width,all styles, not support border-collapse
 void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int doc_y,RenderRectAccessor fmt)
 {
     css_style_ref_t style = enode->getStyle();
     const bool invert_colors = drawbuf.getInvertColors();
-    bool hastopBorder = (style->border_style_top >=css_border_solid);
-    bool hasrightBorder = (style->border_style_right >=css_border_solid);
-    bool hasbottomBorder = (style->border_style_bottom >=css_border_solid);
-    bool hasleftBorder = (style->border_style_left >=css_border_solid);
-
-    // Check for explicit 'border-width: 0' which means no border.
-    css_length_t bw;
-    bw = style->border_width[0];
-    hastopBorder = hastopBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = style->border_width[1];
-    hasrightBorder = hasrightBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = style->border_width[2];
-    hasbottomBorder = hasbottomBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
-    bw = style->border_width[3];
-    hasleftBorder = hasleftBorder & !(bw.value == 0 && bw.type > css_val_unspecified);
 
     // We have css_val_unspecified only when css_generic_currentcolor, and we should use the current text color.
-    // If it is transparent, we have nothing to draw.
     lUInt32 topBordercolor = style->border_color[0].type != css_val_unspecified ? style->border_color[0].value : style->color.value;
-    hastopBorder = hastopBorder & !IS_COLOR_FULLY_TRANSPARENT(topBordercolor);
     lUInt32 rightBordercolor = style->border_color[1].type != css_val_unspecified ? style->border_color[1].value : style->color.value;
-    hasrightBorder = hasrightBorder & !IS_COLOR_FULLY_TRANSPARENT(rightBordercolor);
     lUInt32 bottomBordercolor = style->border_color[2].type != css_val_unspecified ? style->border_color[2].value : style->color.value;
-    hasbottomBorder = hasbottomBorder & !IS_COLOR_FULLY_TRANSPARENT(bottomBordercolor);
     lUInt32 leftBordercolor = style->border_color[3].type != css_val_unspecified ? style->border_color[3].value : style->color.value;
-    hasleftBorder = hasleftBorder & !IS_COLOR_FULLY_TRANSPARENT(leftBordercolor);
+
+    // A side is only actually drawn if its style/width/color make it "present" --
+    // see styleBorderSidePresent() for the (shared) rules, e.g. a fully-transparent
+    // color means we have nothing to draw on that side.
+    bool hastopBorder = styleBorderSidePresent(style->border_style_top, style->border_width[0], topBordercolor);
+    bool hasrightBorder = styleBorderSidePresent(style->border_style_right, style->border_width[1], rightBordercolor);
+    bool hasbottomBorder = styleBorderSidePresent(style->border_style_bottom, style->border_width[2], bottomBordercolor);
+    bool hasleftBorder = styleBorderSidePresent(style->border_style_left, style->border_width[3], leftBordercolor);
 
     if (hasbottomBorder || hasleftBorder || hasrightBorder || hastopBorder) {
-        lUInt32 shadecolor=0x555555;
-        lUInt32 lightcolor=0xAAAAAA;
         int width = 0; // values in % are invalid for borders, so we shouldn't get any
         int topBorderwidth = lengthToPx(enode, style->border_width[0],width);
         topBorderwidth = topBorderwidth!=0 ? topBorderwidth : DEFAULT_BORDER_WIDTH;
@@ -661,460 +863,54 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             }
         }
 
+        // Own axis/sign follow drawBorderSideSquare()'s convention (see its
+        // comment): horizontal picks this side's axis, sign picks which way
+        // its ring grows into the box. a/b are this side's two neighbors, in
+        // along-axis order (left-then-right for top/bottom, top-then-bottom
+        // for left/right). outer_ring_inclusive preserves a pre-existing
+        // per-side asymmetry in this legacy code -- see drawBorderSideSquare()'s
+        // comment for what it means.
         if (hastopBorder) {
-            int dot=1,interval=0;//default style
-            topBorderwidth=tbw;
-            rightBorderwidth=rbw;
-            // bottomBorderwidth=bbw; // (not used)
-            leftBorderwidth=lbw;
-            {
-                lUInt32 r,g,b,o;
-                r=g=b=o=topBordercolor;
-                r=r>>16&0xff;
-                g=g>>8&0xff;
-                b=b&0xff;
-                o=o&0xFF000000;
-                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
-                lightcolor=topBordercolor;
-                if ( (topBordercolor & 0xFFFFFF) == 0 ) {
-                    shadecolor = o|0x4c4c4c; // Firefox uses these values when color is real black 0x000000 (but not if 0x010101)
-                    lightcolor = o|0xb2b2b2;
-                }
-                if ( invert_colors ) {
-                    topBordercolor = invertNonGrayscaleColor(topBordercolor);
-                    shadecolor = invertNonGrayscaleColor(shadecolor);
-                    lightcolor = invertNonGrayscaleColor(lightcolor);
-                }
-            }
-            int left=1,right=1;
-            left=(hasleftBorder)?0:1;
-            right=(hasrightBorder)?0:1;
-            left=(style->border_style_left==css_border_dotted||style->border_style_left==css_border_dashed)?0:left;
-            right=(style->border_style_right==css_border_dotted||style->border_style_right==css_border_dashed)?0:right;
-            lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y),
-                    leftpoint2=lvPoint(x0+doc_x,y0+doc_y+0.5*topBorderwidth),
-                    leftpoint3=lvPoint(x0+doc_x,doc_y+y0+topBorderwidth),
-                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0),
-                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+0.5*topBorderwidth),
-                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+topBorderwidth);
-            double leftrate=1,rightrate=1;
-            if (left==0) {
-                leftpoint1.x=x0+doc_x;
-                leftpoint1.y=doc_y+y0;
-                leftpoint2.x=x0+doc_x+0.5*leftBorderwidth;
-                leftpoint2.y=doc_y+y0+0.5*topBorderwidth;
-                leftpoint3.x=x0+doc_x+leftBorderwidth;
-                leftpoint3.y=doc_y+y0+topBorderwidth;
-            }else leftBorderwidth=0;
-            leftrate=(double)leftBorderwidth/(double)topBorderwidth;
-            if (right==0) {
-                rightpoint1.x=x0+doc_x+fmt.getWidth()-1;
-                rightpoint1.y=doc_y+y0;
-                rightpoint2.x=x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth;
-                rightpoint2.y=doc_y+y0+0.5*topBorderwidth;
-                rightpoint3.x=x0+doc_x+fmt.getWidth()-1-rightBorderwidth;
-                rightpoint3.y=doc_y+y0+topBorderwidth;
-            } else rightBorderwidth=0;
-            rightrate=(double)rightBorderwidth/(double)topBorderwidth;
-            switch (style->border_style_top){
-                case css_border_dotted:
-                    dot=interval=topBorderwidth;
-                    for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
-                    break;
-                case css_border_dashed:
-                    dot=3*topBorderwidth;
-                    interval=3*topBorderwidth;
-                    for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
-                    break;
-                case css_border_solid:
-                    for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, topBordercolor,dot,interval,0);}
-                    break;
-                case css_border_double:
-                    for(int i=0;i<=(leftpoint2.y-leftpoint1.y)/(leftpoint2.y-leftpoint1.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, topBordercolor);}
-                    for(int i=0;i<=(leftpoint3.y-leftpoint2.y)/(leftpoint3.y-leftpoint2.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint3.x-i*leftrate, leftpoint3.y-i, rightpoint3.x+i*rightrate+1,
-                                      rightpoint3.y-i+1, topBordercolor);}
-                    break;
-                case css_border_groove:
-                    for(int i=0;i<=leftpoint2.y-leftpoint1.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, shadecolor);}
-                    for(int i=0;i<leftpoint3.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate+1,
-                                      rightpoint2.y+i+1, lightcolor);}
-                    break;
-                case css_border_inset:
-                    for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, shadecolor,dot,interval,0);}
-                    break;
-                case css_border_outset:
-                    for(int i=0;i<leftpoint3.y-leftpoint1.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y+i+1, lightcolor,dot,interval,0);}
-                    break;
-                case css_border_ridge:
-                    for(int i=0;i<=leftpoint2.y-leftpoint1.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y+i, rightpoint1.x-i*rightrate+1,
-                                     rightpoint1.y+i+1, lightcolor);}
-                    for(int i=0;i<leftpoint3.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y+i, rightpoint2.x-i*rightrate+1,
-                                      rightpoint2.y+i+1, shadecolor);}
-                    break;
-                default:
-                    break;
-            }
+            drawBorderSideSquare(drawbuf, invert_colors, true, 1,
+                                  x0+doc_x, x0+doc_x+fmt.getWidth()-1, doc_y+y0, tbw,
+                                  style->border_style_top, topBordercolor,
+                                  BorderSideNeighbor{hasleftBorder, style->border_style_left, lbw},
+                                  BorderSideNeighbor{hasrightBorder, style->border_style_right, rbw},
+                                  /*outer_ring_inclusive=*/true, /*top_left_shading=*/true);
         }
-        //right
         if (hasrightBorder) {
-            int dot=1,interval=0;//default style
-            topBorderwidth=tbw;
-            rightBorderwidth=rbw;
-            bottomBorderwidth=bbw;
-            // leftBorderwidth=lbw; // (not used)
-            {
-                lUInt32 r,g,b,o;
-                r=g=b=o=rightBordercolor;
-                r=r>>16&0xff;
-                g=g>>8&0xff;
-                b=b&0xff;
-                o=o&0xFF000000;
-                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
-                lightcolor=rightBordercolor;
-                if ( (rightBordercolor & 0xFFFFFF) == 0 ) {
-                    shadecolor = o|0x4c4c4c;
-                    lightcolor = o|0xb2b2b2;
-                }
-                if ( invert_colors ) {
-                    rightBordercolor = invertNonGrayscaleColor(rightBordercolor);
-                    shadecolor = invertNonGrayscaleColor(shadecolor);
-                    lightcolor = invertNonGrayscaleColor(lightcolor);
-                }
-            }
-            int up=1,down=1;
-            up=(hastopBorder)?0:1;
-            down=(hasbottomBorder)?0:1;
-            up=(style->border_style_top==css_border_dotted||style->border_style_top==css_border_dashed)?1:up;
-            down=(style->border_style_bottom==css_border_dotted||style->border_style_bottom==css_border_dashed)?1:down;
-            lvPoint toppoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0),
-                    toppoint2=lvPoint(x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth,doc_y+y0),
-                    toppoint3=lvPoint(x0+doc_x+fmt.getWidth()-1-rightBorderwidth,doc_y+y0),
-                    bottompoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1),
-                    bottompoint2=lvPoint(x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth,doc_y+y0+fmt.getHeight()-1),
-                    bottompoint3=lvPoint(x0+doc_x+fmt.getWidth()-1-rightBorderwidth,doc_y+y0+fmt.getHeight()-1);
-            double toprate=1,bottomrate=1;
-            if (up==0) {
-                toppoint3.y=doc_y+y0+topBorderwidth;
-                toppoint2.y=doc_y+y0+0.5*topBorderwidth;
-            } else topBorderwidth=0;
-            toprate=(double)topBorderwidth/(double)rightBorderwidth;
-            if (down==0) {
-                bottompoint3.y=y0+doc_y+fmt.getHeight()-1-bottomBorderwidth;
-                bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
-            } else bottomBorderwidth=0;
-            bottomrate=(double)bottomBorderwidth/(double)rightBorderwidth;
-            switch (style->border_style_right){
-                case css_border_dotted:
-                    dot=interval=rightBorderwidth;
-                    for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_dashed:
-                    dot=3*rightBorderwidth;
-                    interval=3*rightBorderwidth;
-                    for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_solid:
-                    for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, rightBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_double:
-                    for (int i=0;i<=(toppoint1.x-toppoint2.x)/(toppoint1.x-toppoint2.x>2?3:2);i++){
-                        drawbuf.FillRect(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, rightBordercolor);
-                    }
-                    for (int i=0;i<=(toppoint2.x-toppoint3.x)/(toppoint2.x-toppoint3.x>2?3:2);i++){
-                        drawbuf.FillRect(toppoint3.x+i,toppoint3.y-i*toprate,bottompoint3.x+i+1,
-                                         bottompoint3.y+i*bottomrate+1, rightBordercolor);
-                    }
-                    break;
-                case css_border_groove:
-                    for (int i=0;i<toppoint1.x-toppoint2.x;i++){
-                        drawbuf.FillRect(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, lightcolor);
-                    }
-                    for (int i=0;i<=toppoint2.x-toppoint3.x;i++){
-                        drawbuf.FillRect(toppoint2.x-i,toppoint2.y+i*toprate,bottompoint2.x-i+1,
-                                         bottompoint2.y-i*bottomrate+1, shadecolor);
-                    }
-                    break;
-                case css_border_inset:
-                    for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, lightcolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_outset:
-                    for (int i=0;i<toppoint1.x-toppoint3.x;i++){
-                        drawbuf.DrawLine(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, shadecolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_ridge:
-                    for (int i=0;i<toppoint1.x-toppoint2.x;i++){
-                        drawbuf.FillRect(toppoint1.x-i,toppoint1.y+i*toprate,bottompoint1.x-i+1,
-                                         bottompoint1.y-i*bottomrate+1, shadecolor);
-                    }
-                    for (int i=0;i<=toppoint2.x-toppoint3.x;i++){
-                        drawbuf.FillRect(toppoint2.x-i,toppoint2.y+i*toprate,bottompoint2.x-i+1,
-                                         bottompoint2.y-i*bottomrate+1,lightcolor);
-                    }
-                    break;
-                default:break;
-            }
+            drawBorderSideSquare(drawbuf, invert_colors, false, 1,
+                                  doc_y+y0, doc_y+y0+fmt.getHeight()-1, x0+doc_x+fmt.getWidth()-1, rbw,
+                                  style->border_style_right, rightBordercolor,
+                                  BorderSideNeighbor{hastopBorder, style->border_style_top, tbw},
+                                  BorderSideNeighbor{hasbottomBorder, style->border_style_bottom, bbw},
+                                  /*outer_ring_inclusive=*/false, /*top_left_shading=*/false);
         }
-        //bottom
         if (hasbottomBorder) {
-            int dot=1,interval=0;//default style
-            // topBorderwidth=tbw; // (not used)
-            rightBorderwidth=rbw;
-            bottomBorderwidth=bbw;
-            leftBorderwidth=lbw;
-            {
-                lUInt32 r,g,b,o;
-                r=g=b=o=bottomBordercolor;
-                r=r>>16&0xff;
-                g=g>>8&0xff;
-                b=b&0xff;
-                o=o&0xFF000000;
-                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
-                lightcolor=bottomBordercolor;
-                if ( (bottomBordercolor & 0xFFFFFF) == 0 ) {
-                    shadecolor = o|0x4c4c4c;
-                    lightcolor = o|0xb2b2b2;
-                }
-                if ( invert_colors ) {
-                    bottomBordercolor = invertNonGrayscaleColor(bottomBordercolor);
-                    shadecolor = invertNonGrayscaleColor(shadecolor);
-                    lightcolor = invertNonGrayscaleColor(lightcolor);
-                }
-            }
-            int left=1,right=1;
-            left=(hasleftBorder)?0:1;
-            right=(hasrightBorder)?0:1;
-            left=(style->border_style_left==css_border_dotted||style->border_style_left==css_border_dashed)?1:left;
-            right=(style->border_style_right==css_border_dotted||style->border_style_right==css_border_dashed)?1:right;
-            lvPoint leftpoint1=lvPoint(x0+doc_x,y0+doc_y+fmt.getHeight()-1),
-                    leftpoint2=lvPoint(x0+doc_x,y0+doc_y-0.5*bottomBorderwidth+fmt.getHeight()-1),
-                    leftpoint3=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-1-bottomBorderwidth),
-                    rightpoint1=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1),
-                    rightpoint2=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1-0.5*bottomBorderwidth),
-                    rightpoint3=lvPoint(x0+doc_x+fmt.getWidth()-1,doc_y+y0+fmt.getHeight()-1-bottomBorderwidth);
-            double leftrate=1,rightrate=1;
-            if (left==0) {
-                leftpoint3.x=x0+doc_x+leftBorderwidth;
-                leftpoint2.x=x0+doc_x+0.5*leftBorderwidth;
-            }else leftBorderwidth=0;
-            leftrate=(double)leftBorderwidth/(double)bottomBorderwidth;
-            if (right==0) {
-                rightpoint3.x=x0+doc_x+fmt.getWidth()-1-rightBorderwidth;
-                rightpoint2.x=x0+doc_x+fmt.getWidth()-1-0.5*rightBorderwidth;
-            } else rightBorderwidth=0;
-            rightrate=(double)rightBorderwidth/(double)bottomBorderwidth;
-            switch (style->border_style_bottom){
-                case css_border_dotted:
-                    dot=interval=bottomBorderwidth;
-                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
-                    break;
-                case css_border_dashed:
-                    dot=3*bottomBorderwidth;
-                    interval=3*bottomBorderwidth;
-                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
-                    break;
-                case css_border_solid:
-                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, bottomBordercolor,dot,interval,0);}
-                    break;
-                case css_border_double:
-                    for(int i=0;i<=(leftpoint1.y-leftpoint2.y)/(leftpoint1.y-leftpoint2.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, bottomBordercolor);}
-                    for(int i=0;i<=(leftpoint2.y-leftpoint3.y)/(leftpoint2.y-leftpoint3.y>2?3:2);i++)
-                    {drawbuf.FillRect(leftpoint3.x-i*leftrate, leftpoint3.y+i, rightpoint3.x+i*rightrate+1,
-                                      rightpoint3.y+i+1, bottomBordercolor);}
-                    break;
-                case css_border_groove:
-                    for(int i=0;i<=leftpoint1.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, lightcolor);}
-                    for(int i=0;i<leftpoint2.y-leftpoint3.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y-i, rightpoint2.x-i*rightrate+1,
-                                      rightpoint2.y-i+1, shadecolor);}
-                    break;
-                case css_border_inset:
-                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, lightcolor,dot,interval,0);}
-                    break;
-                case css_border_outset:
-                    for(int i=0;i<leftpoint1.y-leftpoint3.y;i++)
-                    {drawbuf.DrawLine(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, shadecolor,dot,interval,0);}
-                    break;
-                case css_border_ridge:
-                    for(int i=0;i<=leftpoint1.y-leftpoint2.y;i++)
-                    {drawbuf.FillRect(leftpoint1.x+i*leftrate, leftpoint1.y-i, rightpoint1.x-i*rightrate+1,
-                                      rightpoint1.y-i+1, shadecolor);}
-                    for(int i=0;i<leftpoint2.y-leftpoint3.y;i++)
-                    {drawbuf.FillRect(leftpoint2.x+i*leftrate, leftpoint2.y-i, rightpoint2.x-i*rightrate+1,
-                                      rightpoint2.y-i+1, lightcolor);}
-                    break;
-                default:break;
-            }
+            drawBorderSideSquare(drawbuf, invert_colors, true, -1,
+                                  x0+doc_x, x0+doc_x+fmt.getWidth()-1, doc_y+y0+fmt.getHeight()-1, bbw,
+                                  style->border_style_bottom, bottomBordercolor,
+                                  BorderSideNeighbor{hasleftBorder, style->border_style_left, lbw},
+                                  BorderSideNeighbor{hasrightBorder, style->border_style_right, rbw},
+                                  /*outer_ring_inclusive=*/true, /*top_left_shading=*/false);
         }
-        //left
         if (hasleftBorder) {
-            int dot=1,interval=0;//default style
-            topBorderwidth=tbw;
-            // rightBorderwidth=rbw; // (not used)
-            bottomBorderwidth=bbw;
-            leftBorderwidth=lbw;
-            {
-                lUInt32 r,g,b,o;
-                r=g=b=o=leftBordercolor;
-                r=r>>16&0xff;
-                g=g>>8&0xff;
-                b=b&0xff;
-                o=o&0xFF000000;
-                shadecolor=o|(r*160/255)<<16|(g*160/255)<<8|b*160/255;
-                lightcolor=leftBordercolor;
-                if ( (leftBordercolor & 0xFFFFFF) == 0 ) {
-                    shadecolor = o|0x4c4c4c;
-                    lightcolor = o|0xb2b2b2;
-                }
-                if ( invert_colors ) {
-                    leftBordercolor = invertNonGrayscaleColor(leftBordercolor);
-                    shadecolor = invertNonGrayscaleColor(shadecolor);
-                    lightcolor = invertNonGrayscaleColor(lightcolor);
-                }
-            }
-            int up=1,down=1;
-            up=(hastopBorder)?0:1;
-            down=(hasbottomBorder)?0:1;
-            up=(style->border_style_top==css_border_dotted||style->border_style_top==css_border_dashed)?1:up;
-            down=(style->border_style_bottom==css_border_dotted||style->border_style_bottom==css_border_dashed)?1:down;
-            lvPoint toppoint1=lvPoint(x0+doc_x,doc_y+y0),
-                    toppoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0),
-                    toppoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0),
-                    bottompoint1=lvPoint(x0+doc_x,doc_y+y0+fmt.getHeight()-1),
-                    bottompoint2=lvPoint(x0+doc_x+0.5*leftBorderwidth,doc_y+y0+fmt.getHeight()-1),
-                    bottompoint3=lvPoint(x0+doc_x+leftBorderwidth,doc_y+y0+fmt.getHeight()-1);
-            double toprate=1,bottomrate=1;
-            if (up==0) {
-                toppoint3.y=doc_y+y0+topBorderwidth;
-                toppoint2.y=doc_y+y0+0.5*topBorderwidth;
-            } else topBorderwidth=0;
-            toprate=(double)topBorderwidth/(double)leftBorderwidth;
-            if (down==0) {
-                bottompoint3.y=y0+doc_y+fmt.getHeight()-1-bottomBorderwidth;
-                bottompoint2.y=y0+doc_y+fmt.getHeight()-1-0.5*bottomBorderwidth;
-            } else bottomBorderwidth=0;
-            bottomrate=(double)bottomBorderwidth/(double)leftBorderwidth;
-            switch (style->border_style_left){
-                case css_border_dotted:
-                    dot=interval=leftBorderwidth;
-                    for (int i=0;i<toppoint3.x-toppoint1.x;i++){
-                        drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_dashed:
-                    dot=3*leftBorderwidth;
-                    interval=3*leftBorderwidth;
-                    for (int i=0;i<toppoint3.x-toppoint1.x;i++){
-                        drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_solid:
-                    for (int i=0;i<toppoint3.x-toppoint1.x;i++){
-                        drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,leftBordercolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_double:
-                    for (int i=0;i<=(toppoint2.x-toppoint1.x)/(toppoint2.x-toppoint1.x>2?3:2);i++){
-                        drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,leftBordercolor);
-                    }
-                    for (int i=0;i<=(toppoint3.x-toppoint2.x)/(toppoint3.x-toppoint2.x>2?3:2);i++){
-                        drawbuf.FillRect(toppoint3.x-i,toppoint3.y-i*toprate,bottompoint3.x-i+1,
-                                         bottompoint3.y+i*bottomrate+1,leftBordercolor);
-                    }
-                    break;
-                case css_border_groove:
-                    for (int i=0;i<=toppoint2.x-toppoint1.x;i++){
-                        drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,shadecolor);
-                    }
-                    for (int i=0;i<toppoint3.x-toppoint2.x;i++){
-                        drawbuf.FillRect(toppoint2.x+i,toppoint2.y+i*toprate,bottompoint2.x+i+1,
-                                         bottompoint2.y-i*bottomrate+1,lightcolor);
-                    }
-                    break;
-                case css_border_inset:
-                    for (int i=0;i<toppoint3.x-toppoint1.x;i++){
-                        drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,shadecolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_outset:
-                    for (int i=0;i<toppoint3.x-toppoint1.x;i++){
-                        drawbuf.DrawLine(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,lightcolor,dot,interval,1);
-                    }
-                    break;
-                case css_border_ridge:
-                    for (int i=0;i<=toppoint2.x-toppoint1.x;i++){
-                        drawbuf.FillRect(toppoint1.x+i,toppoint1.y+i*toprate,bottompoint1.x+i+1,
-                                         bottompoint1.y-i*bottomrate+1,lightcolor);
-                    }
-                    for (int i=0;i<toppoint3.x-toppoint2.x;i++){
-                        drawbuf.FillRect(toppoint2.x+i,toppoint2.y+i*toprate,bottompoint2.x+i+1,
-                                         bottompoint2.y-i*bottomrate+1,shadecolor);
-                    }
-                    break;
-                default:break;
-            }
+            drawBorderSideSquare(drawbuf, invert_colors, false, -1,
+                                  doc_y+y0, doc_y+y0+fmt.getHeight()-1, x0+doc_x, lbw,
+                                  style->border_style_left, leftBordercolor,
+                                  BorderSideNeighbor{hastopBorder, style->border_style_top, tbw},
+                                  BorderSideNeighbor{hasbottomBorder, style->border_style_bottom, bbw},
+                                  /*outer_ring_inclusive=*/true, /*top_left_shading=*/true);
         }
     }
 }
 
 // Fills enode's background-color rect (its border box), rounding the corners to
-// match its border-radius when the box has no border, or when it has one that
-// DrawBorder() will itself paint as a rounded ring. Any other border is still
-// drawn square by DrawBorder(), so rounding the fill underneath it would leave a
-// square-cornered border with mismatched round background peeking out.
+// match its border-radius when the box either has no border (nothing else will
+// round it) or has one that DrawBorder() will itself paint as a rounded ring.
+// Any other border is still drawn square by DrawBorder(), so rounding the fill
+// underneath it would leave a square-cornered border with mismatched round
+// background peeking out.
 void FillBackgroundRect(LVDrawBuf & drawbuf, ldomNode * enode, css_style_ref_t style, RenderRectAccessor fmt, int abs_x0, int abs_y0, lUInt32 bg_color)
 {
     int x1 = abs_x0 + fmt.getWidth();
