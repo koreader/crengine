@@ -5064,82 +5064,221 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                         }
                         break;
                     }
-                    // Limited parsing of this possibly complex property
-                    // We only support a single layer in these orders:
-                    //   - color
-                    //   - url(...) repeat position
-                    //   - color url(...) repeat position
-                    //   - color url(...) position repeat
-                    // (with repeat and position possibly absent or re-ordered)
+                    // Robust, token-skipping parsing of the `background`
+                    // shorthand (a single layer). Supported components:
+                    //   <bg-image>        : url(...) or none
+                    //   <repeat-style>    : repeat | repeat-x | repeat-y | no-repeat
+                    //   <bg-position> [ / <bg-size> ]
+                    //   <'background-color'>
+                    // Unknown tokens (eg. background-attachment/origin/clip
+                    // keywords such as scroll/fixed/border-box, or typos) are
+                    // now skipped instead of aborting the parse, so they can no
+                    // longer "stick" the cursor and silently drop the valid
+                    // tokens that follow (eg. `url(x) scroll no-repeat` used to
+                    // lose everything after `scroll`). `none` as the image, or a
+                    // color-only shorthand, resets the image to none (initial),
+                    // so `background: none` / `background: red` no longer leave a
+                    // previously-set image in place.
+
+                    // <'background-color'> is accepted anywhere in the (single)
+                    // layer, per CSS: it belongs to the <final-bg-layer>, and a
+                    // single-layer shorthand is by definition its own final layer.
+                    // So `background: red`, `background: red url(x)` and
+                    // `background: url(x) red` are all valid and set both the image
+                    // and the color. Two colors in one layer is invalid CSS, so it
+                    // makes the whole shorthand invalid (dropped). This matches W3C
+                    // for the single-layer case (multi-layer comma syntax, where a
+                    // color must be in the last layer, is out of scope here).
                     css_length_t color;
                     bool has_color = parse_color_value(decl, color);
                     skip_spaces(decl);
-                    const char *tmp = decl;
-                    int len = 0;
-                    while (*tmp && *tmp!=';' && *tmp!=stop_char && *tmp!='!') {
-                        if ( *tmp == '(' && *(tmp-3) == 'u' && *(tmp-2) == 'r' && *(tmp-1) == 'l') {
-                            // Accepts everything until ')' after 'url(', including ';'
-                            // needed when parsing: url("data:image/png;base64,abcd...")
-                            tmp++; len++;
-                            while ( *tmp && *tmp!=')' ) {
+
+                    lString8 image_str;         // resolved url path (when an image is given)
+                    bool has_image = false;     // a <bg-image> component was seen
+                    bool image_is_none = false; // <bg-image> was the keyword "none"
+                    int repeat = -1;
+                    css_length_t position[2];
+                    bool has_position = false;
+                    css_length_t size[2];
+                    bool has_size = false;
+
+                    while (*decl && *decl != ';' && *decl != stop_char && *decl != '!' && *decl != ',') {
+                        skip_spaces(decl);
+                        if (!*decl || *decl == ';' || *decl == stop_char || *decl == '!' || *decl == ',')
+                            break;
+
+                        // <'background-color'>: accepted anywhere in the layer
+                        // (see comment above). A second color makes the whole
+                        // shorthand invalid per CSS, so drop the declaration.
+                        css_length_t c;
+                        if (parse_color_value(decl, c)) {
+                            if (has_color)
+                                return false; // invalid: more than one <background-color>
+                            has_color = true;
+                            color = c;
+                            skip_spaces(decl);
+                            continue;
+                        }
+
+                        // <bg-image>: url(...)  (keyword is case-insensitive, like
+                        // the other keywords matched via substr_icompare in this file)
+                        // Only one <bg-image> is allowed per layer. A second url()
+                        // makes the whole shorthand invalid per CSS, so we drop the
+                        // entire declaration instead of applying a partial value.
+                        if (toLower(*decl)=='u' && toLower(*(decl+1))=='r' && toLower(*(decl+2))=='l' && *(decl+3)=='(') {
+                            if (has_image)
+                                return false; // invalid: more than one <bg-image> in a layer
+                            const char *tmp = decl;
+                            int len = 0;
+                            while (*tmp && *tmp != ')') {
                                 tmp++; len++;
                             }
+                            len++; // include the ')'
+                            image_str.append(decl, len);
+                            decl += len;
+                            resolve_url_path(image_str, codeBase);
+                            has_image = true;
+                            image_is_none = false;
+                            continue;
                         }
-                        else {
-                            tmp++; len++;
+                        // <bg-image>: none
+                        if (substr_icompare("none", decl)) {
+                            if (has_image)
+                                return false; // invalid: more than one <bg-image> in a layer
+                            has_image = true;
+                            image_is_none = true;
+                            continue;
                         }
-                    }
-                    lString8 str;
-                    str.append(decl,len);
-                    if ( Utf8ToUnicode(str).lowercase().startsWith("url(") ) {
-                        tmp = str.c_str();
-                        len = 0;
-                        while (*tmp && *tmp!=')') {
-                            tmp++; len++;
+                        // <repeat-style>
+                        int r = parse_name(decl, css_bg_repeat_names, -1);
+                        if (r != -1) {
+                            repeat = r;
+                            continue;
                         }
-                        len = len + 1;
-                        str.clear();
-                        str.append(decl, len);
-                        decl += len;
-                        resolve_url_path(str, codeBase);
-                        len = str.length();
-                        // Try parsing following repeat and position
-                        skip_spaces(decl);
-                        int repeat = parse_name( decl, css_bg_repeat_names, -1 );
-                        if( repeat != -1 ) {
+                        // <bg-position> [ / <bg-size> ]
+                        css_length_t pos[2];
+                        bool did_position = parse_bg_position_value(decl, pos);
+                        if (did_position) {
+                            has_position = true;
+                            position[0] = pos[0];
+                            position[1] = pos[1];
                             skip_spaces(decl);
                         }
-                        css_length_t position[2];
-                        bool has_position = parse_bg_position_value( decl, position );
-                        if( repeat == -1 ) { // Try parsing repeat after position
+                        // Optional '/ <bg-size>' (whether or not a position
+                        // preceded it, eg. "url(x) / 120px 40px")
+                        if (*decl == '/') {
+                            decl++;
                             skip_spaces(decl);
-                            repeat = parse_name( decl, css_bg_repeat_names, -1 );
-                        }
-                        parsed_important = parse_important(decl);
-                        buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
-                        buf<<(lUInt32) len;
-                        for (int i = 0; i < len; i++)
-                            buf<<(lUInt32) str[i];
-                        if(repeat != -1) {
-                            buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
-                            buf<<(lUInt32) repeat;
-                        }
-                        if (has_position) {
-                            buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
-                            for (int i = 0; i < 2; i++) {
-                                buf<<(lUInt32) position[i].type;
-                                buf<<(lUInt32) position[i].value;
+                            int i;
+                            for (i = 0; i < 2; i++) {
+                                // accept percent, auto and contain/cover
+                                if (!parse_number_value(decl, size[i], true, false, true, false, false, false, true))
+                                    break;
                             }
+                            if (i) {
+                                if (i == 1) { // Only 1 value parsed
+                                    if (size[0].type == css_val_unspecified) { // "auto", "contain" or "cover"
+                                        size[1].type = css_val_unspecified;
+                                        size[1].value = size[0].value;
+                                    }
+                                    else { // first value is a length: second value should be "auto"
+                                        size[1].type = css_val_unspecified;
+                                        size[1].value = css_generic_auto;
+                                    }
+                                }
+                                has_size = true;
+                            }
+                            continue;
+                        }
+                        if (did_position)
+                            continue;
+                        // Unknown token: skip it (and any balanced parentheses,
+                        // eg. an unsupported gradient(...) value) so it cannot
+                        // prevent the parsing of the tokens that follow
+                        while (*decl && *decl != ' ' && *decl != '\t' && *decl != ';' &&
+                               *decl != stop_char && *decl != '!' && *decl != ',') {
+                            // Skip a quoted string as a single unit.
+                            if (*decl == '\'' || *decl == '"') {
+                                char quote = *decl++;
+                                while (*decl && *decl != quote) {
+                                    if (*decl == '\\' && *(decl+1)) // skip escaped char
+                                        decl++;
+                                    decl++;
+                                }
+                                if (*decl == quote)
+                                    decl++; // consume the closing quote
+                                continue;
+                            }
+                            if (*decl == '(') {
+                                int depth = 0;
+                                do {
+                                    // Inside the parenthesised group, also skip
+                                    // quoted strings so their parens don't affect depth.
+                                    if (*decl == '\'' || *decl == '"') {
+                                        char quote = *decl++;
+                                        while (*decl && *decl != quote) {
+                                            if (*decl == '\\' && *(decl+1)) decl++;
+                                            decl++;
+                                        }
+                                        if (*decl == quote) decl++;
+                                        continue;
+                                    }
+                                    if (*decl == '(') depth++;
+                                    else if (*decl == ')') depth--;
+                                    decl++;
+                                } while (*decl && depth > 0);
+                                continue;
+                            }
+                            decl++;
                         }
                     }
-                    else { // no url, only color
-                        decl += len; // skip any unsupported stuff until !
-                        parsed_important = parse_important(decl);
+
+                    parsed_important = parse_important(decl);
+
+                    // <bg-image>: emit the url, or reset to none when "none" was
+                    // given, or when the shorthand was color-only (background-
+                    // image's initial value is "none")
+                    if (has_image && !image_is_none) {
+                        int ilen = image_str.length();
+                        buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
+                        buf<<(lUInt32) ilen;
+                        for (int i = 0; i < ilen; i++)
+                            buf<<(lUInt32) image_str[i];
                     }
-                    if ( has_color ) {
+                    else if (image_is_none || (has_color && !has_image)) {
+                        buf<<(lUInt32) (cssd_background_image | importance | parsed_important);
+                        buf<<(lUInt32) 0; // empty string -> no image
+                    }
+                    if (repeat != -1) {
+                        buf<<(lUInt32) (cssd_background_repeat | importance | parsed_important);
+                        buf<<(lUInt32) repeat;
+                    }
+                    if (has_position) {
+                        buf<<(lUInt32) (cssd_background_position | importance | parsed_important);
+                        for (int i = 0; i < 2; i++) {
+                            buf<<(lUInt32) position[i].type;
+                            buf<<(lUInt32) position[i].value;
+                        }
+                    }
+                    if (has_size) {
+                        buf<<(lUInt32) (cssd_background_size | importance | parsed_important);
+                        for (int i = 0; i < 2; i++) {
+                            buf<<(lUInt32) size[i].type;
+                            buf<<(lUInt32) size[i].value;
+                        }
+                    }
+                    // <'background-color'>: emit the parsed color, or reset to
+                    // transparent when "none" was the image (background: none
+                    // resets color to its initial value)
+                    if (has_color) {
                         buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
                         buf<<(lUInt32) color.type;
                         buf<<(lUInt32) color.value;
+                    }
+                    else if (image_is_none) {
+                        buf<<(lUInt32) (cssd_background_color | importance | parsed_important);
+                        buf<<(lUInt32) css_val_color;
+                        buf<<(lUInt32) CSS_COLOR_TRANSPARENT;
                     }
                 }
                 break;
