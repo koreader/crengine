@@ -305,8 +305,12 @@ private:
         GateCacheEntry() : nameId(0), nextCollision(NULL) { }
     };
     enum { GATE_CACHE_MAX_ENTRIES = 30000 };
+    // Total candidate pointers summed over all entries: bounds cache memory
+    // when many ungated rules give each entry a large share of _applyList.
+    enum { GATE_CACHE_MAX_CANDIDATES = 2000000 };
     LVHashTable<lUInt32, GateCacheEntry *> _gateCache;
     LVPtrVector<GateCacheEntry> _gateCacheEntries; // owns entries
+    int _gateCacheCandidateCount = 0;
     GateCacheEntry * getGateCacheEntry( lUInt16 id, const lString32 & classValue );
     /// drop _applyList and the gate cache; must be called whenever _selectors changes
     void invalidateApplyIndexes() {
@@ -314,6 +318,7 @@ private:
         _applyListReady = false;
         _gateCache.clear();
         _gateCacheEntries.clear();
+        _gateCacheCandidateCount = 0;
     }
 
     void buildApplyList();

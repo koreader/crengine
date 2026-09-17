@@ -7986,8 +7986,9 @@ LVStyleSheet::GateCacheEntry * LVStyleSheet::getGateCacheEntry( lUInt16 id, cons
     }
     // Not cached yet: collect the candidates, i.e. the subsequence of
     // _applyList passing the gates for this (element name, class value).
-    // If the cache is full (pathological variety of class values), don't
-    // insert: apply() will re-run the gated scan for not-yet-cached pairs.
+    // If the cache is full (pathological variety of class values or entries
+    // hoarding huge candidate lists), don't insert: apply() will re-run the
+    // gated scan for not-yet-cached pairs, so results stay correct.
     if ( _gateCacheEntries.length() >= GATE_CACHE_MAX_ENTRIES )
         return NULL;
     e = new GateCacheEntry();
@@ -8003,6 +8004,11 @@ LVStyleSheet::GateCacheEntry * LVStyleSheet::getGateCacheEntry( lUInt16 id, cons
         if ( gateMatch(s, id, classHashes, classHashCount) )
             e->candidates.add( s );
     }
+    if ( _gateCacheCandidateCount + e->candidates.length() > GATE_CACHE_MAX_CANDIDATES ) {
+        delete e;
+        return NULL;
+    }
+    _gateCacheCandidateCount += e->candidates.length();
     e->nextCollision = _gateCache.get(key);
     _gateCache.set(key, e);
     _gateCacheEntries.add(e);
