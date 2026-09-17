@@ -7986,6 +7986,10 @@ LVStyleSheet::GateCacheEntry * LVStyleSheet::getGateCacheEntry( lUInt16 id, cons
     }
     // Not cached yet: collect the candidates, i.e. the subsequence of
     // _applyList passing the gates for this (element name, class value).
+    // If the cache is full (pathological variety of class values), don't
+    // insert: apply() will re-run the gated scan for not-yet-cached pairs.
+    if ( _gateCacheEntries.length() >= GATE_CACHE_MAX_ENTRIES )
+        return NULL;
     e = new GateCacheEntry();
     e->nameId = id;
     e->classValue = classValue;
@@ -8090,9 +8094,9 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
         const_cast<LVStyleSheet *>(this)->buildApplyList();
 
     const lString32 &v = node->getEffectiveAttributeValue(attr_class);
-    GateCacheEntry * entry = _gateCacheEntries.length() < GATE_CACHE_MAX_ENTRIES
-        ? const_cast<LVStyleSheet *>(this)->getGateCacheEntry(id, v)
-        : NULL;
+    // Once full, the cache stops accepting new entries but keeps serving
+    // lookups: existing entries cost nothing extra to keep using.
+    GateCacheEntry * entry = const_cast<LVStyleSheet *>(this)->getGateCacheEntry(id, v);
     if ( entry ) {
         const LVArray<LVCssSelector *> & candidates = entry->candidates;
         for ( int i=0; i<candidates.length(); i++ ) {
@@ -8101,8 +8105,7 @@ void LVStyleSheet::apply( const ldomNode * node, css_style_rec_t * style ) const
         return;
     }
 
-    // Gate cache full (pathological variety of class values): do the gated
-    // scan directly.
+    // Not cached and cache is full: re-run the gated scan directly.
     LVArray<lUInt32> class_hash_array;
     for_each_split(v.c_str(), [&](const lChar32 *begin, const lChar32 *end) {
         class_hash_array.add(lString32::getHash(begin, end));
