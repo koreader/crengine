@@ -7897,9 +7897,9 @@ void LVStyleSheet::set(LVPtrVector<LVCssSelector> & v  )
 LVStyleSheet::LVStyleSheet( LVStyleSheet & sheet )
 :   _doc( sheet._doc )
 ,   _nested( sheet._nested )
+,   _gateCache(1024)
 ,   _fontFaceDecls( sheet._fontFaceDecls )
 ,   _trackFontFaceDecls( sheet._trackFontFaceDecls )
-,   _gateCache(1024)
 {
     set( sheet._selectors );
     _selector_count = sheet._selector_count;
