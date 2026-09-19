@@ -72,6 +72,41 @@ figcaption code {
   border-color: #333;
   border-style: dashed dotted dashed dotted;
 }
+.dashed-solid {
+  border-width: 10px;
+  border-color: #333;
+  border-style: dashed solid dashed solid;
+}
+.dotted-solid {
+  border-width: 10px;
+  border-color: #333;
+  border-style: dotted solid dotted solid;
+}
+.dashed-double {
+  border-width: 12px;
+  border-color: #2a6;
+  border-style: dashed double dashed double;
+}
+.alternating-mixed-width {
+  border-color: #333;
+  border-style: dashed dotted dashed dotted;
+  border-width: 6px 20px 10px 4px;
+}
+.alternating-mixed-color {
+  border-width: 12px;
+  border-style: dashed dotted dashed dotted;
+  border-color: #e33 #3e3 #33e #ee3;
+}
+.dashed-adjacent {
+  border-width: 10px;
+  border-color: #333;
+  border-style: dashed dashed none none;
+}
+.kitchen-sink {
+  border-style: solid dashed double dotted;
+  border-width: 6px 16px 10px 22px;
+  border-color: #c33 #3a3 #33c #a3a;
+}
 .transparent-dashed-side {
   border-width: 10px;
   border-style: solid dashed solid solid;
@@ -250,8 +285,8 @@ figcaption code {
 
 <div style="break-before: page;"><h1>border style variants</h1></div>
   <div style="break-before: page;">
-    <h2>dotted border: <code>class="dotted"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
-    <p class="unsupported">A dotted side falls back to the legacy square-corner border renderer, so every <code>border-radius</code> below is silently ignored.</p>
+    <h2>dotted border: <code>class="dotted"</code></h2>
+    <p>All 4 sides dotted, same width and color -- a single-pass rounded ring phased by arc length around the whole perimeter.</p>
     <figure>
       <div class="demo dotted"></div>
       <figcaption>no <code>border-radius</code></figcaption>
@@ -287,11 +322,26 @@ figcaption code {
       <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
     </figure>
 
+    <figure>
+      <div class="demo dotted" style="border-radius: 0 30px 0 30px;"></div>
+      <figcaption><code>border-radius: 0 30px 0 30px;</code> (round/square corners alternating; top-left, at the ring's start/end seam, is square)</figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 30px 30px 0 0;"></div>
+      <figcaption><code>border-radius: 30px 30px 0 0;</code> (two square corners adjacent, sharing the bottom edge; neither is at the seam)</figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted" style="border-radius: 0 30px 30px 30px;"></div>
+      <figcaption><code>border-radius: 0 30px 30px 30px;</code> (one square corner, top-left, at the ring's start/end seam)</figcaption>
+    </figure>
+
   </div>
 
   <div style="break-before: page;">
-    <h2>dashed border: <code>class="dashed"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
-    <p class="unsupported">A dashed side falls back to the legacy square-corner border renderer, so every <code>border-radius</code> below is silently ignored.</p>
+    <h2>dashed border: <code>class="dashed"</code></h2>
+    <p>All 4 sides dashed, same width and color -- a single-pass rounded ring phased by arc length around the whole perimeter.</p>
     <figure>
       <div class="demo dashed"></div>
       <figcaption>no <code>border-radius</code></figcaption>
@@ -730,9 +780,8 @@ figcaption code {
   </div>
 
   <div style="break-before: page;">
-    <h2>alternating dashed/dotted per side: <code>class="alternating"</code> <span class="unsupported">(border-radius not yet supported)</span></h2>
-    <p>same width and color on all sides, alternating <code>dashed</code>/<code>dotted</code> style per side.</p>
-    <p class="unsupported">Every side here is dashed or dotted, so the box falls back to the legacy square-corner border renderer and every <code>border-radius</code> below is silently ignored.</p>
+    <h2>alternating dashed/dotted per side: <code>class="alternating"</code></h2>
+    <p>same width and color on all sides, alternating <code>dashed</code>/<code>dotted</code> style per side -- each side walks its own edge plus whichever half of its two neighboring corner arcs it owns (split at the 45-degree bisector), independently phased.</p>
     <figure>
       <div class="demo alternating"></div>
       <figcaption>no <code>border-radius</code></figcaption>
@@ -765,6 +814,301 @@ figcaption code {
 
     <figure>
       <div class="demo alternating" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed alternating with solid: <code>class="dashed-solid"</code></h2>
+    <p>same width and color on all sides, dashed alternating with <code>solid</code> (not another dashed/dotted style) per side -- each shared corner splits between the dashed side's own arc-length walk and the solid side's mitered ring, which independently curves into its own half via <code>fillRoundedRectBorder</code>'s width split.</p>
+    <figure>
+      <div class="demo dashed-solid"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-solid" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dotted alternating with solid: <code>class="dotted-solid"</code></h2>
+    <p>same width and color on all sides, dotted alternating with <code>solid</code> per side -- each dotted side is its own open chain, so a corner it doesn't share with a matching dotted neighbor keeps that corner's whole arc (or, if the corner's declared radius is 0, is simply a square corner with no arc at all).</p>
+    <figure>
+      <div class="demo dotted-solid"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 0 30px 30px 30px;"></div>
+      <figcaption><code>border-radius: 0 30px 30px 30px;</code> (top edge: square at its left end, round at its right end)</figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 30px 0 30px 30px;"></div>
+      <figcaption><code>border-radius: 30px 0 30px 30px;</code> (top edge: round at its left end, square at its right end)</figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dotted-solid" style="border-radius: 0 0 30px 30px;"></div>
+      <figcaption><code>border-radius: 0 0 30px 30px;</code> (top edge: square at both ends)</figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed alternating with double: <code>class="dashed-double"</code></h2>
+    <p>dashed alternating with <code>double</code> per side -- the dashed side's single arc-length walk meets double's two independent concentric rings at the shared corner.</p>
+    <figure>
+      <div class="demo dashed-double"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-double" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>alternating dashed/dotted, mixed width per side: <code>class="alternating-mixed-width"</code></h2>
+    <p>dashed/dotted alternating per side, each side its own width (6px/20px/10px/4px) -- each side walks its own edge using its own centerline (inset by its own width/2), so a shared corner's two independently-computed half-arcs meet only approximately when the two sides' widths differ, the same tradeoff the solid mitered border already makes at that seam.</p>
+    <figure>
+      <div class="demo alternating-mixed-width"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-width" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>alternating dashed/dotted, mixed color per side: <code>class="alternating-mixed-color"</code></h2>
+    <p>dashed/dotted alternating per side, each side its own color, same width -- each side's own <code>walkAndDashSegments</code> call paints in its own color, independent of its neighbors.</p>
+    <figure>
+      <div class="demo alternating-mixed-color"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo alternating-mixed-color" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>dashed on two adjacent sides only: <code>class="dashed-adjacent"</code></h2>
+    <p>top and right dashed, bottom and left absent -- the top-left corner (left absent) and bottom-right corner (bottom absent) each have only one bordered side, so that side keeps the whole corner arc to itself instead of splitting it with a neighbor; the top-right corner (both present) still splits at the bisector as usual.</p>
+    <figure>
+      <div class="demo dashed-adjacent"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo dashed-adjacent" style="border-radius: 50% 20% / 10% 40%;"></div>
+      <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
+    </figure>
+
+  </div>
+
+  <div style="break-before: page;">
+    <h2>kitchen sink: all four styles, widths and colors differ per side: <code>class="kitchen-sink"</code></h2>
+    <p>top solid / right dashed / bottom double / left dotted, each its own width (6px/16px/10px/22px) and color -- every corner mixes a different pair of styles, widths and colors, exercising the general per-side path's full generality at once.</p>
+    <figure>
+      <div class="demo kitchen-sink"></div>
+      <figcaption>no <code>border-radius</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 30px;"></div>
+      <figcaption><code>border-radius: 30px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 25% 10%;"></div>
+      <figcaption><code>border-radius: 25% 10%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 10% 30% 50% 70%;"></div>
+      <figcaption><code>border-radius: 10% 30% 50% 70%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 10% / 50%;"></div>
+      <figcaption><code>border-radius: 10% / 50%;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 10px 100px / 120px;"></div>
+      <figcaption><code>border-radius: 10px 100px / 120px;</code></figcaption>
+    </figure>
+
+    <figure>
+      <div class="demo kitchen-sink" style="border-radius: 50% 20% / 10% 40%;"></div>
       <figcaption><code>border-radius: 50% 20% / 10% 40%;</code></figcaption>
     </figure>
 
