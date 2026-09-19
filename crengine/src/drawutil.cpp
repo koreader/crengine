@@ -42,6 +42,12 @@
 #include "crsetup.h"
 
 #include <math.h>
+#include <vector>
+#include <utility>
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_STROKER_H
+#include FT_OUTLINE_H
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
 #include "../include/lvrend.h"
@@ -510,15 +516,15 @@ static inline bool crCenterlineHasArc(const CRRoundRectCenterline &g, int i) {
 }
 
 // Cumulative state for walking a perimeter segment sequence by distance --
-// shared by crPerimeterLocate()/crPerimeterPointAt()/crPerimeterEdgePointsAt()
-// below, so walkAndDashSegments() only has to build it once per call.
+// shared by crPerimeterLocate()/crPerimeterPointAt() below, so
+// walkAndDashSegments() only has to build it once per call.
 struct CRPerimeterWalk {
     const CRPerimeterSeg *segs;
     int segCount;
     double prefix[9]; // segCount is at most 8 (closed ring) or 3 (open chain)
     double totalLen;
     bool closed;
-    double half; // ring half-width (w/2), for crPerimeterEdgePointsAt()'s rails
+    double half; // ring half-width (w/2)
 };
 
 static inline bool crPerimeterIsOn(double pos, int dash_len, int period) {
@@ -528,8 +534,7 @@ static inline bool crPerimeterIsOn(double pos, int dash_len, int period) {
 }
 
 // Locates the segment and within-segment distance for an absolute distance
-// d along the sequence -- shared by crPerimeterPointAt() and
-// crPerimeterEdgePointsAt() below.
+// d along the sequence -- used by crPerimeterPointAt() below.
 static void crPerimeterLocate(const CRPerimeterWalk &pw, double d, int &segIdx, double &local) {
     double dd;
     if (pw.closed) {
@@ -557,9 +562,11 @@ static void crPerimeterLocate(const CRPerimeterWalk &pw, double d, int &segIdx, 
 
 // Maps a within-segment arc distance back to its parameter angle, via the
 // segment's cumulative arc-length table (there's no closed form for that --
-// see crMakeArcSeg). Shared by crPerimeterPointAt() and
-// crPerimeterEdgePointsAt().
+// see crMakeArcSeg). Shared by crPerimeterPointAt() below and the FT_Stroker
+// path emitters further down.
 static double crArcAngleAt(const CRPerimeterSeg &sg, double local) {
+    if (local < 0) local = 0;
+    if (local > sg.len) local = sg.len;
     int lo = 0, hi = 64;
     while (lo < hi) {
         int mid = (lo + hi) / 2;
@@ -572,7 +579,7 @@ static double crArcAngleAt(const CRPerimeterSeg &sg, double local) {
 }
 
 // Point + inward unit vector at distance d along the sequence -- used only
-// for a dotted dab's center (crFlushDashRun() below), which needs no more
+// for a dotted dab's center (crFlushDottedDab() below), which needs no more
 // than that single point.
 static void crPerimeterPointAt(const CRPerimeterWalk &pw, double d, double &px, double &py, double &iux, double &iuy) {
     int segIdx; double local;
@@ -591,63 +598,202 @@ static void crPerimeterPointAt(const CRPerimeterWalk &pw, double d, double &px, 
     iux = -nx; iuy = -ny; // inward = -outward normal
 }
 
-// Outer/inner rail points at distance d along the sequence, for stroking a
-// dashed run of width w -- used by crFlushDashRun() below in place of
-// crPerimeterPointAt(). An edge's rails are exact (a straight line offset by
-// a constant perpendicular distance is still a straight line), but an arc's
-// are not: offsetting an ellipse point along its own normal by a constant
-// distance doesn't trace a concentric ellipse (only a circle has that
-// property), so on a noticeably elliptical corner it can poke outside the
-// true outer curve or fall short of the inner one. Instead this evaluates
-// the actual outer/inner ellipses (radii crx+-half, cry+-half) at the same
-// parameter angle as the centerline sample -- concentric by construction --
-// matching the true boundaries the solid-style paths use.
-static void crPerimeterEdgePointsAt(const CRPerimeterWalk &pw, double d, double &ox, double &oy, double &ix, double &iy) {
-    int segIdx; double local;
-    crPerimeterLocate(pw, d, segIdx, local);
-    const CRPerimeterSeg &sg = pw.segs[segIdx];
-    if (!sg.isArc) {
-        double px = sg.ex0 + sg.dux*local, py = sg.ey0 + sg.duy*local;
-        ox = px - sg.iux*pw.half; oy = py - sg.iuy*pw.half;
-        ix = px + sg.iux*pw.half; iy = py + sg.iuy*pw.half;
-        return;
-    }
-    double tt = crArcAngleAt(sg, local);
-    double c = cos(tt), s = sin(tt);
-    double orx = sg.crx + pw.half, ory = sg.cry + pw.half;
-    double irx = myMax(0.0, sg.crx - pw.half), iry = myMax(0.0, sg.cry - pw.half);
-    ox = sg.cx + orx*c; oy = sg.cy + ory*s;
-    ix = sg.cx + irx*c; iy = sg.cy + iry*s;
-}
-
-// Flush one dash-on run [distStart, distEnd) along segs[], which walks the
-// border's *centerline* -- painting just needs to spread +-w/2 across it.
-// Dotted: one dab of radius w/2 at the run's midpoint. Dashed: ~1px-of-arc
-// strips via crPerimeterEdgePointsAt, so each strip follows the true curve.
-static void crFlushDashRun(LVDrawBuf &drawbuf, const CRPerimeterWalk &pw, int w, bool dotted, lUInt32 color,
+// Paints one dotted dab, radius w/2, centered at the run's midpoint. Dashed
+// runs go through dashRuns/strokeDashRunsFT() instead (see
+// walkAndDashSegments() below).
+static void crFlushDottedDab(LVDrawBuf &drawbuf, const CRPerimeterWalk &pw, int w, lUInt32 color,
                             double distStart, double distEnd)
 {
-    if (dotted) {
-        double mid = (distStart + distEnd) * 0.5;
-        double px, py, iux, iuy;
-        crPerimeterPointAt(pw, mid, px, py, iux, iuy);
-        fillCircle(drawbuf, px, py, w/2.0, color);
+    double mid = (distStart + distEnd) * 0.5;
+    double px, py, iux, iuy;
+    crPerimeterPointAt(pw, mid, px, py, iux, iuy);
+    fillCircle(drawbuf, px, py, w/2.0, color);
+}
+
+// FreeType-based stroking for round DASHED borders (DOTTED uses the
+// fillCircle dab above instead). FT_Stroker turns the dash path -- edges
+// plus corner arcs as cubic Beziers -- into a properly capped/joined
+// outline, rasterized and composited via the same LVDrawBuf::Draw() glyph
+// path so borders dither like text. One border's dash runs all batch into
+// a single stroke/rasterize pass.
+
+// Lazily create a dedicated FT_Library for border stroking, independent of
+// LVFreeTypeFontManager's library (private to lvfntman.cpp) since stroking a
+// synthetic rectangle path has nothing to do with font/glyph loading.
+static FT_Library getBorderStrokeFTLibrary() {
+    static FT_Library library = [] {
+        FT_Library lib = NULL;
+        FT_Init_FreeType(&lib);
+        return lib;
+    }();
+    return library;
+}
+
+// Point at local distance `local` within one segment (edge or arc).
+static void crPointOnSeg(const CRPerimeterSeg &sg, double local, double &px, double &py) {
+    if (!sg.isArc) {
+        px = sg.ex0 + sg.dux*local; py = sg.ey0 + sg.duy*local;
         return;
     }
-    double d = distStart;
-    double ox0, oy0, ix0, iy0;
-    crPerimeterEdgePointsAt(pw, d, ox0, oy0, ix0, iy0);
-    while (d < distEnd) {
-        double dn = myMin(distEnd, d + 1.0);
-        double ox1, oy1, ix1, iy1;
-        crPerimeterEdgePointsAt(pw, dn, ox1, oy1, ix1, iy1);
-        int minx = (int)floor(myMin(myMin(ox0, ox1), myMin(ix0, ix1)));
-        int maxx = (int)ceil (myMax(myMax(ox0, ox1), myMax(ix0, ix1)));
-        int miny = (int)floor(myMin(myMin(oy0, oy1), myMin(iy0, iy1)));
-        int maxy = (int)ceil (myMax(myMax(oy0, oy1), myMax(iy0, iy1)));
-        drawbuf.FillRect(minx, miny, maxx, maxy, color);
-        d = dn; ox0 = ox1; oy0 = oy1; ix0 = ix1; iy0 = iy1;
+    double t = crArcAngleAt(sg, local);
+    px = sg.cx + sg.crx*cos(t); py = sg.cy + sg.cry*sin(t);
+}
+
+// Converts a device-space point into an FT 26.6 fixed-point point relative to
+// a bitmap whose top-left device pixel is (originX, originY).
+static inline FT_Vector crToFTPoint(double px, double py, double originX, double originY, double bmpH) {
+    FT_Vector v;
+    v.x = (FT_Pos)llround((px - originX) * 64.0);
+    v.y = (FT_Pos)llround((bmpH - (py - originY)) * 64.0);
+    return v;
+}
+
+// Emits, into an already-open FT_Stroker subpath, the path geometry from
+// local distance `local0` to `local1` within a single perimeter segment.
+// Straight edges need only their endpoint (LineTo); arcs are approximated by
+// one cubic Bezier.
+static void crEmitSegRange(FT_Stroker stroker, const CRPerimeterSeg &sg, double local0, double local1,
+                            double originX, double originY, double bmpH) {
+    if (!sg.isArc) {
+        double ex = sg.ex0 + sg.dux*local1, ey = sg.ey0 + sg.duy*local1;
+        FT_Vector v = crToFTPoint(ex, ey, originX, originY, bmpH);
+        FT_Stroker_LineTo(stroker, &v);
+        return;
     }
+    double t0 = crArcAngleAt(sg, local0);
+    double t1 = crArcAngleAt(sg, local1);
+    double sx = sg.cx + sg.crx*cos(t0), sy = sg.cy + sg.cry*sin(t0);
+    double ex = sg.cx + sg.crx*cos(t1), ey = sg.cy + sg.cry*sin(t1);
+    double k = (4.0/3.0) * tan((t1 - t0) / 4.0);
+    double c1x = sx + k*(-sg.crx*sin(t0)), c1y = sy + k*( sg.cry*cos(t0));
+    double c2x = ex - k*(-sg.crx*sin(t1)), c2y = ey - k*( sg.cry*cos(t1));
+    FT_Vector fc1 = crToFTPoint(c1x, c1y, originX, originY, bmpH);
+    FT_Vector fc2 = crToFTPoint(c2x, c2y, originX, originY, bmpH);
+    FT_Vector fend = crToFTPoint(ex, ey, originX, originY, bmpH);
+    FT_Stroker_CubicTo(stroker, &fc1, &fc2, &fend);
+}
+
+// Adds one dash run [d0, d1] (perimeter distances, d0 <= d1, both within
+// [0, totalLen]) as a single subpath, so the stroker's joins/caps land
+// exactly perpendicular to (or, for a closed run, exactly along) the true
+// path tangent at the run's ends.
+//
+// `closedRun` is true only for a run that covers the entire perimeter of a
+// closed ring (a dash pattern with no visible gap).
+static void crEmitDashRun(FT_Stroker stroker, const CRPerimeterSeg *segs, const double *prefix, int numSegs,
+                           double d0, double d1, double originX, double originY, double bmpH, bool closedRun) {
+    int last = numSegs - 1;
+    int segIdx0 = last, segIdx1 = last;
+    for (int i = 0; i < numSegs; i++) { if (d0 <= prefix[i+1] || i == last) { segIdx0 = i; break; } }
+    for (int i = 0; i < numSegs; i++) { if (d1 <= prefix[i+1] || i == last) { segIdx1 = i; break; } }
+    double local0 = d0 - prefix[segIdx0];
+
+    double sx, sy;
+    crPointOnSeg(segs[segIdx0], local0, sx, sy);
+    FT_Vector start = crToFTPoint(sx, sy, originX, originY, bmpH);
+    FT_Stroker_BeginSubPath(stroker, &start, closedRun ? 0 : 1);
+
+    if (segIdx0 == segIdx1) {
+        crEmitSegRange(stroker, segs[segIdx0], local0, d1 - prefix[segIdx1], originX, originY, bmpH);
+    } else {
+        crEmitSegRange(stroker, segs[segIdx0], local0, segs[segIdx0].len, originX, originY, bmpH);
+        for (int i = segIdx0 + 1; i < segIdx1; i++)
+            crEmitSegRange(stroker, segs[i], 0, segs[i].len, originX, originY, bmpH);
+        crEmitSegRange(stroker, segs[segIdx1], 0, d1 - prefix[segIdx1], originX, originY, bmpH);
+    }
+    FT_Stroker_EndSubPath(stroker);
+}
+
+// Strokes every accumulated dash run in one FT_Stroker pass and composites
+// the resulting antialiased coverage mask. `fullLoopRun` marks a single run
+// that goes all the way around a closed ring with no gap.
+static void strokeDashRunsFT(LVDrawBuf & drawbuf, const CRPerimeterSeg segs[], int segCount,
+                              int w, lUInt32 color, const std::vector<std::pair<double,double> > &runs,
+                              bool fullLoopRun)
+{
+    if (runs.empty())
+        return;
+
+    double prefix[9] = {0.0}; // segCount is at most 8 (closed ring) or 3 (open chain)
+    for (int i = 0; i < segCount; i++) prefix[i+1] = prefix[i] + segs[i].len;
+
+    double minx = 1e300, miny = 1e300, maxx = -1e300, maxy = -1e300;
+    for (int i = 0; i < segCount; i++) {
+        const CRPerimeterSeg &sg = segs[i];
+        if (!sg.isArc) {
+            double ex1 = sg.ex0 + sg.dux*sg.len, ey1 = sg.ey0 + sg.duy*sg.len;
+            minx = myMin(minx, myMin(sg.ex0, ex1)); maxx = myMax(maxx, myMax(sg.ex0, ex1));
+            miny = myMin(miny, myMin(sg.ey0, ey1)); maxy = myMax(maxy, myMax(sg.ey0, ey1));
+        } else {
+            minx = myMin(minx, sg.cx - sg.crx); maxx = myMax(maxx, sg.cx + sg.crx);
+            miny = myMin(miny, sg.cy - sg.cry); maxy = myMax(maxy, sg.cy + sg.cry);
+        }
+    }
+    if (minx > maxx || miny > maxy)
+        return;
+
+    FT_Library library = getBorderStrokeFTLibrary();
+    if (!library)
+        return;
+
+    FT_Stroker stroker;
+    if (FT_Stroker_New(library, &stroker))
+        return;
+    FT_Stroker_Set(stroker, (FT_Fixed)llround(w * 0.5 * 64.0),
+                   FT_STROKER_LINECAP_BUTT, FT_STROKER_LINEJOIN_ROUND, 0);
+
+    // Canvas covers segs[]'s bounding box, padded by half the stroke width (a
+    // dash can extend that far past the nominal centerline) plus a couple of
+    // pixels of AA/rounding slop.
+    const int pad = w/2 + 2;
+    const int originX = (int)floor(minx) - pad, originY = (int)floor(miny) - pad;
+    const int bmpW = ((int)ceil(maxx) - (int)floor(minx)) + 2*pad;
+    const int bmpH = ((int)ceil(maxy) - (int)floor(miny)) + 2*pad;
+    if (bmpW <= 0 || bmpH <= 0) {
+        FT_Stroker_Done(stroker);
+        return;
+    }
+
+    for (const auto &r : runs)
+        crEmitDashRun(stroker, segs, prefix, segCount, r.first, r.second, originX, originY, (double)bmpH, fullLoopRun);
+
+    FT_UInt numPoints = 0, numContours = 0;
+    FT_Stroker_GetCounts(stroker, &numPoints, &numContours);
+    if (numPoints == 0 || numContours == 0) {
+        FT_Stroker_Done(stroker);
+        return;
+    }
+
+    FT_Outline outline;
+    if (FT_Outline_New(library, numPoints, numContours, &outline)) {
+        FT_Stroker_Done(stroker);
+        return;
+    }
+    outline.n_points = 0;
+    outline.n_contours = 0;
+    FT_Stroker_Export(stroker, &outline);
+    FT_Stroker_Done(stroker);
+
+    std::vector<lUInt8> bmpBuf((size_t)bmpW * (size_t)bmpH, 0);
+    FT_Bitmap bmp;
+    memset(&bmp, 0, sizeof(bmp));
+    bmp.width = bmpW; bmp.rows = bmpH; bmp.pitch = bmpW;
+    bmp.buffer = bmpBuf.data(); bmp.pixel_mode = FT_PIXEL_MODE_GRAY; bmp.num_grays = 256;
+    FT_Outline_Get_Bitmap(library, &outline, &bmp);
+    FT_Outline_Done(library, &outline);
+
+    // Composite the AA coverage mask through the same call used for every
+    // glyph bitmap in the document, so it picks up the same per-bit-depth
+    // dithering as text -- but bypass the glyph-specific "hide if more than
+    // half clipped at a page edge" behavior (LVDrawBuf::Draw's
+    // _hidePartialGlyphs).
+    lUInt32 prevColor = drawbuf.GetTextColor();
+    bool prevHide = drawbuf.getHidePartialGlyphs();
+    drawbuf.SetTextColor(color);
+    drawbuf.setHidePartialGlyphs(false);
+    drawbuf.Draw(originX, originY, bmpBuf.data(), bmpW, bmpH, NULL);
+    drawbuf.setHidePartialGlyphs(prevHide);
+    drawbuf.SetTextColor(prevColor);
 }
 
 // Walk a sequence of perimeter segments -- either a closed loop (closed=true:
@@ -676,6 +822,14 @@ static void walkAndDashSegments(LVDrawBuf & drawbuf, const CRPerimeterSeg segs[]
     pw.closed = closed;
     pw.half = w * 0.5;
 
+    // DASHED: every dash-on run [distStart, distEnd) (distances along the
+    // sequence) is recorded here and handed to strokeDashRunsFT() in one
+    // FT_Stroker pass after the walk below -- see the comment above
+    // strokeDashRunsFT for why FT_Stroker replaces the old AABB-quad walk for
+    // this case. DOTTED runs are unaffected: they're still flushed inline by
+    // crFlushDottedDab() below as each run is found.
+    std::vector<std::pair<double, double> > dashRuns;
+
     // Single pass over the whole sequence, ~1 device pixel of arc length per
     // step, so a run is only closed when the dash pattern truly goes off.
     const int totalSteps = myMax(1, (int)llround(pw.totalLen));
@@ -685,9 +839,23 @@ static void walkAndDashSegments(LVDrawBuf & drawbuf, const CRPerimeterSeg segs[]
         if (on && runStart < 0) {
             runStart = i;
         } else if (!on && runStart >= 0) {
-            crFlushDashRun(drawbuf, pw, w, dotted, color, (double)runStart, (double)i);
+            if (dotted)
+                crFlushDottedDab(drawbuf, pw, w, color, (double)runStart, (double)i);
+            else
+                dashRuns.push_back(std::make_pair((double)runStart, (double)i));
             runStart = -1;
         }
+    }
+
+    if (!dotted) {
+        // A dash pattern with no visible gap collapses the whole walk into
+        // one run spanning [0, totalSteps] exactly (runStart latches at i==0
+        // and is only flushed by the loop's forced on=false at i==totalSteps)
+        // -- see crEmitDashRun for why that specific run needs closing
+        // instead of capping to avoid a seam.
+        bool fullLoopRun = closed && dashRuns.size() == 1 &&
+                            dashRuns[0].first == 0.0 && dashRuns[0].second == (double)totalSteps;
+        strokeDashRunsFT(drawbuf, segs, segCount, w, color, dashRuns, fullLoopRun);
     }
 }
 
