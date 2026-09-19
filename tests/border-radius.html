@@ -23,10 +23,6 @@ figcaption code {
   border-radius: 6px;
   display: inline-block;
 }
-.unsupported {
-  color: #a00;
-  font-style: italic;
-}
 .none {
   border: none;
 }
@@ -1242,9 +1238,8 @@ figcaption code {
   </div>
 
 <div style="break-before: page;">
-  <h1>border-radius + background-image, tiled <span class="unsupported">(not yet supported)</span></h1>
+  <h1>border-radius + background-image, tiled</h1>
   <p>Each box has a repeating 20&times;20 red/yellow checkerboard tile as its background, layered under the border. The image should be clipped to the same rounded box the border-radius describes: the border's inner curve where a border is drawn, or the box's own outer curve where it isn't.</p>
-  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
 </div>
 
   <div style="break-before: page;">
@@ -1398,9 +1393,8 @@ figcaption code {
   </div>
 
 <div style="break-before: page;">
-  <h1>border-radius + background-image, single (no-repeat, cover) <span class="unsupported">(not yet supported)</span></h1>
+  <h1>border-radius + background-image, single (no-repeat, cover)</h1>
   <p>Each box has a single 160&times;120 image of four asymmetric colored quadrants (red/green/blue/purple) with an off-center orange circle (<code>background-repeat: no-repeat; background-size: cover; background-position: center;</code>). The irregular, non-repeating layout makes it obvious at a glance whether the image was scaled to fit or accidentally tiled -- a periodic pattern like stripes can look the same either way.</p>
-  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
 </div>
 
   <div style="break-before: page;">
@@ -1548,9 +1542,8 @@ figcaption code {
   </div>
 
 <div style="break-before: page;">
-  <h1>border-radius + SVG background-image, tiled <span class="unsupported">(not yet supported)</span></h1>
+  <h1>border-radius + SVG background-image, tiled</h1>
   <p>Same as the raster tiled section above, but the background is a percent-encoded <code>data:image/svg+xml,%3Csvg...</code> 20&times;20 red/yellow checkerboard tile instead of a PNG. Checks both that vector background images are clipped the same way raster ones are.</p>
-  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
 </div>
 
   <div style="break-before: page;">
@@ -1704,9 +1697,8 @@ figcaption code {
   </div>
 
 <div style="break-before: page;">
-  <h1>border-radius + SVG background-image, single (no-repeat, cover) <span class="unsupported">(not yet supported)</span></h1>
+  <h1>border-radius + SVG background-image, single (no-repeat, cover)</h1>
   <p>Same as the raster single-image section above, but the background is a percent-encoded <code>data:image/svg+xml,%3Csvg...</code> version of the same asymmetric four-quadrant-plus-circle image (<code>background-repeat: no-repeat; background-size: cover; background-position: center;</code>).</p>
-  <p class="unsupported">Any element with a <code>background-image</code> falls back to the legacy square-corner border renderer, so every <code>border-radius</code> in this section is silently ignored and the image is painted as a plain rectangle.</p>
 </div>
 
   <div style="break-before: page;">
