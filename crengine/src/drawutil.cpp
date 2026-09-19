@@ -1646,6 +1646,30 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
             }
         }
 
+        // Square box (no border-radius at all): give dotted sides the same
+        // round fillCircle dabs as a rounded box, via drawDashedDottedSides()
+        // with all radii 0, instead of the legacy square dot pattern below.
+        // Dashed sides are untouched. sideDotted[] defaults all-false so a
+        // declared-but-zero border-radius (not a true square box) safely
+        // falls through to the legacy path instead.
+        bool sideDotted[4] = {false, false, false, false};
+        if (!styleHasBorderRadii(style.get())) {
+            sideDotted[0] = hastopBorder && style->border_style_top == css_border_dotted;
+            sideDotted[1] = hasrightBorder && style->border_style_right == css_border_dotted;
+            sideDotted[2] = hasbottomBorder && style->border_style_bottom == css_border_dotted;
+            sideDotted[3] = hasleftBorder && style->border_style_left == css_border_dotted;
+            if (sideDotted[0] || sideDotted[1] || sideDotted[2] || sideDotted[3]) {
+                int X0 = x0 + doc_x, Y0 = y0 + doc_y;
+                int X1 = X0 + fmt.getWidth(), Y1 = Y0 + fmt.getHeight();
+                const int rx0[4] = {0, 0, 0, 0}, ry0[4] = {0, 0, 0, 0};
+                const bool noneDashed[4] = {false, false, false, false};
+                const lUInt32 sideColors[4] = {topBordercolor, rightBordercolor, bottomBordercolor, leftBordercolor};
+                drawDashedDottedSides(drawbuf, invert_colors, X0, Y0, X1, Y1, rx0, ry0,
+                                      hastopBorder, hasrightBorder, hasbottomBorder, hasleftBorder,
+                                      tbw, rbw, bbw, lbw, noneDashed, sideDotted, sideColors);
+            }
+        }
+
         // Own axis/sign follow drawBorderSideSquare()'s convention (see its
         // comment): horizontal picks this side's axis, sign picks which way
         // its ring grows into the box. a/b are this side's two neighbors, in
@@ -1653,7 +1677,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         // for left/right). outer_ring_inclusive preserves a pre-existing
         // per-side asymmetry in this legacy code -- see drawBorderSideSquare()'s
         // comment for what it means.
-        if (hastopBorder) {
+        if (hastopBorder && !sideDotted[0]) {
             drawBorderSideSquare(drawbuf, invert_colors, true, 1,
                                   x0+doc_x, x0+doc_x+fmt.getWidth()-1, doc_y+y0, tbw,
                                   style->border_style_top, topBordercolor,
@@ -1661,7 +1685,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                                   BorderSideNeighbor{hasrightBorder, style->border_style_right, rbw},
                                   /*outer_ring_inclusive=*/true, /*top_left_shading=*/true);
         }
-        if (hasrightBorder) {
+        if (hasrightBorder && !sideDotted[1]) {
             drawBorderSideSquare(drawbuf, invert_colors, false, 1,
                                   doc_y+y0, doc_y+y0+fmt.getHeight()-1, x0+doc_x+fmt.getWidth()-1, rbw,
                                   style->border_style_right, rightBordercolor,
@@ -1669,7 +1693,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                                   BorderSideNeighbor{hasbottomBorder, style->border_style_bottom, bbw},
                                   /*outer_ring_inclusive=*/false, /*top_left_shading=*/false);
         }
-        if (hasbottomBorder) {
+        if (hasbottomBorder && !sideDotted[2]) {
             drawBorderSideSquare(drawbuf, invert_colors, true, -1,
                                   x0+doc_x, x0+doc_x+fmt.getWidth()-1, doc_y+y0+fmt.getHeight()-1, bbw,
                                   style->border_style_bottom, bottomBordercolor,
@@ -1677,7 +1701,7 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
                                   BorderSideNeighbor{hasrightBorder, style->border_style_right, rbw},
                                   /*outer_ring_inclusive=*/true, /*top_left_shading=*/false);
         }
-        if (hasleftBorder) {
+        if (hasleftBorder && !sideDotted[3]) {
             drawBorderSideSquare(drawbuf, invert_colors, false, -1,
                                   doc_y+y0, doc_y+y0+fmt.getHeight()-1, x0+doc_x, lbw,
                                   style->border_style_left, leftBordercolor,
