@@ -105,6 +105,7 @@ public:
     virtual bool WantsHiddenContent() const { return false; }
     /// set to true for drawing in Paged mode, false for Scroll mode
     virtual void setHidePartialGlyphs( bool hide ) = 0;
+    virtual bool getHidePartialGlyphs() const = 0;
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) = 0;
     virtual bool getInvertImages() const = 0;
@@ -271,6 +272,7 @@ protected:
 public:
     /// set to true for drawing in Paged mode, false for Scroll mode
     virtual void setHidePartialGlyphs( bool hide ) { _hidePartialGlyphs = hide; }
+    virtual bool getHidePartialGlyphs() const { return _hidePartialGlyphs; }
     /// set to true to invert images only (so they get inverted back to normal by nightmode)
     virtual void setInvertImages( bool invert ) { _invertImages = invert; }
     virtual bool getInvertImages() const { return _invertImages; }
