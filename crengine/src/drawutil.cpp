@@ -18,22 +18,6 @@
  * lvrend.cpp too long, and neither has any bearing on how DrawDocument()
  * walks the tree.
  *
- * Border painting has two code paths, tried in this order whenever the
- * style requests a border-radius:
- *   - The per-side rounded-corner path, via styleQualifiesForRoundedBorder():
- *     solid/inset/outset (fillRoundedRect(), fillRoundedRectBorder(), one
- *     mitered ring), double/groove/ridge (two independent concentric rings),
- *     and dashed/dotted.
- *   - The legacy square-corner path (drawBorderSideSquare(),
- *     drawBorderStraightLine()) is DrawBorder()'s original per-side
- *     rendering, generalized so all four sides share one implementation
- *     mitered against whichever neighbor sides are present. Only reached
- *     when there's no border-radius at all.
- *
- * FillBackgroundRect() and DrawBorder() must agree on whether a given box's
- * corners end up rounded or square, so they share the same predicates
- * (styleHasBorderRadii(), styleHasAnyBorder(), styleQualifiesForRoundedBorder()).
- *
  * DrawBackgroundImage()/DrawBodyBackground() are otherwise unrelated: they
  * handle background-position/-size/-repeat resolution and <body>'s
  * viewport-wide (not margin-obeying) background painting.
@@ -72,8 +56,7 @@ static inline bool styleHasBorderRadii(const css_style_rec_t * style) {
 // Whether a single border side is actually "present" for rendering purposes:
 // a paintable style, no explicit "border-width: 0", and a non-transparent
 // effective color. This is the one place that decision is made -- shared by
-// styleHasAnyBorder(), styleQualifiesForRoundedBorder(), and DrawBorder()'s
-// own hasXBorder computation -- so those three can't silently drift apart
+// DrawBorder()'s own hasXBorder computation -- so it can't silently drift
 // (e.g. over how a fully-transparent dashed/dotted side is treated).
 static bool styleBorderSidePresent(css_border_style_type_t bs, css_length_t bw, lUInt32 color) {
     if (bs < css_border_solid)
@@ -83,22 +66,6 @@ static bool styleBorderSidePresent(css_border_style_type_t bs, css_length_t bw, 
     if (IS_COLOR_FULLY_TRANSPARENT(color))
         return false;
     return true;
-}
-
-// Whether a style will cause DrawBorder() to paint a border on any of the 4 sides.
-static bool styleHasAnyBorder(const css_style_rec_t * style) {
-    struct { css_border_style_type_t bs; css_length_t bw; css_length_t bc; } sides[4] = {
-        { style->border_style_top,    style->border_width[0], style->border_color[0] },
-        { style->border_style_right,  style->border_width[1], style->border_color[1] },
-        { style->border_style_bottom, style->border_width[2], style->border_color[2] },
-        { style->border_style_left,   style->border_width[3], style->border_color[3] },
-    };
-    for (int i=0; i<4; i++) {
-        lUInt32 color = sides[i].bc.type != css_val_unspecified ? sides[i].bc.value : style->color.value;
-        if (styleBorderSidePresent(sides[i].bs, sides[i].bw, color))
-            return true;
-    }
-    return false;
 }
 
 // Compute per-corner border radii in pixels, applying CSS scaling rules.
@@ -356,25 +323,6 @@ static void fillRoundedRectBorder(LVDrawBuf & drawbuf, int x0, int y0, int x1, i
                 drawbuf.FillRect(a, y, b, y + 1, wedgeColorR);
         }
     }
-}
-
-// Whether every *present* border side is one of the styles DrawBorder()'s
-// rounded-corner paths cover: solid, inset, outset, dashed, dotted, double,
-// groove, or ridge.
-static bool styleQualifiesForRoundedBorder(const css_style_rec_t * style) {
-    for (int i=0; i<4; i++) {
-        css_border_style_type_t bs = i==0 ? style->border_style_top : i==1 ? style->border_style_right :
-                                      i==2 ? style->border_style_bottom : style->border_style_left;
-        css_length_t bc = style->border_color[i];
-        lUInt32 color = bc.type != css_val_unspecified ? bc.value : style->color.value;
-        if (!styleBorderSidePresent(bs, style->border_width[i], color))
-            continue;
-        if (bs != css_border_solid && bs != css_border_inset && bs != css_border_outset &&
-            bs != css_border_dashed && bs != css_border_dotted &&
-            bs != css_border_double && bs != css_border_groove && bs != css_border_ridge)
-            return false;
-    }
-    return true;
 }
 
 static const double CRE_PI = 3.14159265358979323846;
@@ -1407,11 +1355,9 @@ void DrawBorder(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int doc_x,int 
         // border style is covered once a radius is present, so the legacy
         // square-corner rendering below is only reached when there's no
         // border-radius at all, or no border to draw.
-        // A background image is also excluded here: DrawBackgroundImage()
-        // always paints it as a plain rectangle, so a rounded border over it
-        // would show the image's square corners poking out past the
-        // border's curve.
-        if (styleHasBorderRadii(style.get()) && style->background_image.empty()) {
+        // DrawBackgroundImage() clips the image to this same curve, so a
+        // background image doesn't need to be excluded here.
+        if (styleHasBorderRadii(style.get())) {
             int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
             if (computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry)) {
                 int X0 = x0 + doc_x;
@@ -1723,13 +1669,8 @@ void FillBackgroundRect(LVDrawBuf & drawbuf, ldomNode * enode, css_style_ref_t s
     int x1 = abs_x0 + fmt.getWidth();
     int y1 = abs_y0 + fmt.getHeight();
     int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
-    bool has_rounded_bg = false;
-    if ( styleHasBorderRadii(style.get()) && style->background_image.empty() ) {
-        bool no_border = !styleHasAnyBorder(style.get());
-        bool rounded_border = no_border || styleQualifiesForRoundedBorder(style.get());
-        if (rounded_border)
-            has_rounded_bg = computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
-    }
+    bool has_rounded_bg = styleHasBorderRadii(style.get()) &&
+                           computeBorderRadiiPx(enode, style.get(), fmt.getWidth(), fmt.getHeight(), rx, ry);
     if (has_rounded_bg)
         fillRoundedRect(drawbuf, abs_x0, abs_y0, x1, y1, rx, ry, bg_color);
     else
@@ -1744,6 +1685,11 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
     // border width below -- see https://www.w3.org/TR/css-backgrounds-3/#the-background-origin
     css_style_ref_t style=enode->getStyle();
     if (!style->background_image.empty()) {
+        // Border box, before we inset x0/y0/width/height to the padding box below --
+        // border-radius is defined against the border box (same as DrawBorder() and
+        // FillBackgroundRect() use fmt.getWidth()/getHeight() for).
+        int borderBoxX0 = x0 + doc_x, borderBoxY0 = y0 + doc_y;
+        int borderBoxX1 = borderBoxX0 + width, borderBoxY1 = borderBoxY0 + height;
         int leftBorderwidth = measureBorder(enode, 3);
         int topBorderwidth = measureBorder(enode, 0);
         int rightBorderwidth = measureBorder(enode, 1);
@@ -1933,21 +1879,71 @@ void DrawBackgroundImage(ldomNode *enode,LVDrawBuf & drawbuf,int x0,int y0,int d
             */
             LVImageSourceRef transformed = LVCreateStretchFilledTransform(img, transform_w, transform_h,
                                                hori_transform, vert_transform, transform_x, transform_y);
-            // We use the DrawBuf clip facility to ensure we don't draw outside this node fmt
+            // We use the DrawBuf clip facility to ensure we don't draw outside this node fmt.
+            // When the border box has a border-radius, clip to its rounded padding-box
+            // shape instead of the plain rectangle.
+            int rx[4]={0,0,0,0}, ry[4]={0,0,0,0};
+            bool rounded = clip_to_target && computeBorderRadiiPx(enode, style.get(), borderBoxX1 - borderBoxX0, borderBoxY1 - borderBoxY0, rx, ry);
             lvRect orig_clip;
-            if (clip_to_target) {
+            if (clip_to_target)
                 drawbuf.GetClipRect( &orig_clip ); // Backup the original one
-                // Set a new one to the target area
-                lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);;
-                // But don't overflow page top and bottom, in case target spans multiple pages
-                if ( target_clip.top < orig_clip.top )
-                    target_clip.top = orig_clip.top;
-                if ( target_clip.bottom > orig_clip.bottom )
-                    target_clip.bottom = orig_clip.bottom;
-                drawbuf.SetClipRect( &target_clip );
+            if (!rounded) {
+                if (clip_to_target) {
+                    // Set a new one to the target area
+                    lvRect target_clip = lvRect(x0+doc_x, y0+doc_y, x0+doc_x+width, y0+doc_y+height);
+                    // But don't overflow page top and bottom, in case target spans multiple pages
+                    if ( target_clip.top < orig_clip.top )
+                        target_clip.top = orig_clip.top;
+                    if ( target_clip.bottom > orig_clip.bottom )
+                        target_clip.bottom = orig_clip.bottom;
+                    drawbuf.SetClipRect( &target_clip );
+                }
+                // Draw
+                drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
             }
-            // Draw
-            drawbuf.Draw(transformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
+            else {
+                // The loop below issues one Draw() call per distinct row span.
+                // LVImageSourceRef::Decode() -- what Draw() calls under the hood --
+                // redoes the *full* image transform (e.g. SVG rendering) from scratch
+                // every single call.
+                // Decode `transformed` once into an offscreen raw pixel buffer instead,
+                // and issue all the corner/batch draws from that.
+                LVRef<LVColorDrawBuf> baked = LVRef<LVColorDrawBuf>( new LVColorDrawBuf(transform_w, transform_h, 32) );
+                // Start from a transparent canvas so any transparency in the image
+                // itself survives being baked in.
+                baked->Clear(0xFFFFFFFF);
+                baked->Draw(transformed, 0, 0, transform_w, transform_h, false); // dither doesn't matter into a color buffer
+                LVImageSourceRef bakedTransformed = LVCreateDrawBufImageSource(baked.get(), false);
+
+                int padY0 = y0+doc_y, padY1 = padY0 + height;
+                if ( padY0 < orig_clip.top )
+                    padY0 = orig_clip.top;
+                if ( padY1 > orig_clip.bottom )
+                    padY1 = orig_clip.bottom;
+                // Batch consecutive rows sharing the same span into a single Draw() call
+                // (the common case away from the corners' curve, where every row's span
+                // is the same full padding-box width) instead of drawing one row at a time.
+                bool haveBatch = false;
+                int batchXl = 0, batchXr = 0, batchY0 = padY0;
+                for (int y = padY0; y <= padY1; y++) {
+                    int xl = 0, xr = 0;
+                    bool rowValid = y < padY1;
+                    if (rowValid)
+                        computeInnerSpanPerSide(y, borderBoxX0, borderBoxY0, borderBoxX1, borderBoxY1, rx, ry,
+                                                 topBorderwidth, rightBorderwidth, bottomBorderwidth, leftBorderwidth, xl, xr);
+                    if (haveBatch && (!rowValid || xl != batchXl || xr != batchXr)) {
+                        if (batchXl < batchXr) {
+                            lvRect target_clip = lvRect(batchXl, batchY0, batchXr, y);
+                            drawbuf.SetClipRect( &target_clip );
+                            drawbuf.Draw(bakedTransformed, x0+doc_x+draw_x, y0+doc_y+draw_y, transform_w, transform_h);
+                        }
+                        haveBatch = false;
+                    }
+                    if (rowValid && !haveBatch) {
+                        batchXl = xl; batchXr = xr; batchY0 = y; haveBatch = true;
+                    }
+                }
+            }
             if (clip_to_target) {
                 drawbuf.SetClipRect( &orig_clip ); // Restore the original one
             }
