@@ -822,6 +822,102 @@ static void walkAndDashSegments(LVDrawBuf & drawbuf, const CRPerimeterSeg segs[]
     pw.closed = closed;
     pw.half = w * 0.5;
 
+    // DOTTED, partial ring: Nudge the dot pitch by up to +-20% so the dot
+    // nearest a square corner centers exactly on it, rather than wherever
+    // the default spacing happens to land; falls through to the generic
+    // walk below, unadjusted, when neither end is square or the fit needs
+    // more stretch than that.
+    if (dotted && !closed) {
+        bool squareStart = !segs[0].isArc;
+        bool squareEnd = !segs[segCount - 1].isArc;
+        if (squareStart || squareEnd) {
+            double half = dash_len / 2.0;
+            double anchor = squareStart ? 0.0 : half;
+            double target = squareEnd ? pw.totalLen : (pw.totalLen - half);
+            double avail = target - anchor;
+            int n = (int)llround(avail / period);
+            double newPeriod = n > 0 ? avail / n : 0.0;
+            if (n > 0 && newPeriod >= period * 0.8 && newPeriod <= period * 1.2) {
+                for (int k = 0; k <= n; k++) {
+                    double px, py, iux, iuy;
+                    crPerimeterPointAt(pw, anchor + k * newPeriod, px, py, iux, iuy);
+                    fillCircle(drawbuf, px, py, w / 2.0, color);
+                }
+                return;
+            }
+        }
+    }
+
+    // DOTTED, closed ring: a corner is square when segs[k] and its
+    // predecessor (wrapping) are both plain edges. Square corners split the
+    // ring into "smooth segments" -- runs perceived as one continuous curve
+    // or line -- each pitch-adjusted independently so a dot lands exactly on
+    // the square corner.
+    if (dotted && closed) {
+        double squarePos[8];
+        int squareCount = 0;
+        for (int k = 0; k < segCount; k++) {
+            int prevK = (k - 1 + segCount) % segCount;
+            if (!segs[k].isArc && !segs[prevK].isArc)
+                squarePos[squareCount++] = pw.prefix[k];
+        }
+        // A ring with no square corner at all is still one smooth segment
+        // -- the whole loop, with no real corner to pin a dot to, so
+        // squarePos[0] is just an arbitrary phase reference (segs[0]'s own
+        // start) rather than a corner position.
+        if (squareCount == 0)
+            squarePos[squareCount++] = 0.0;
+        double segAnchor[8], segPeriod[8];
+        int segDotCount[8];
+        bool allFit = true;
+        for (int i = 0; i < squareCount; i++) {
+            double start = squarePos[i];
+            double end = (i + 1 < squareCount) ? squarePos[i + 1] : squarePos[0] + pw.totalLen;
+            double segLen = end - start;
+            int n = (int)llround(segLen / period);
+            double newPeriod = n > 0 ? segLen / n : 0.0;
+            if (n <= 0 || newPeriod < period * 0.8 || newPeriod > period * 1.2) {
+                allFit = false;
+                break;
+            }
+            segAnchor[i] = start;
+            segPeriod[i] = newPeriod;
+            segDotCount[i] = n;
+        }
+        if (allFit) {
+            // Half-open range (k=0..n-1, never n): the shared corner at the
+            // end is left for the next segment's k=0, avoiding a duplicate
+            // dot per corner.
+            for (int i = 0; i < squareCount; i++) {
+                for (int k = 0; k < segDotCount[i]; k++) {
+                    double px, py, iux, iuy;
+                    crPerimeterPointAt(pw, segAnchor[i] + k * segPeriod[i], px, py, iux, iuy);
+                    fillCircle(drawbuf, px, py, w / 2.0, color);
+                }
+            }
+            return;
+        }
+    }
+
+    // DASHED, closed ring, uniform width the whole way around: nudge the
+    // dash pitch by up to +-20%, same tolerance as the dotted case above, so
+    // a whole number of dashes tiles the entire perimeter exactly -- unlike
+    // dotted, this never tries to land a dash edge on a particular corner.
+    if (!dotted && closed) {
+        int n = (int)llround(pw.totalLen / period);
+        double newPeriod = n > 0 ? pw.totalLen / n : 0.0;
+        if (n > 0 && newPeriod >= period * 0.8 && newPeriod <= period * 1.2) {
+            double newDashLen = newPeriod / 2.0;
+            std::vector<std::pair<double, double> > dashRuns;
+            for (int k = 0; k < n; k++) {
+                double start = k * newPeriod;
+                dashRuns.push_back(std::make_pair(start, start + newDashLen));
+            }
+            strokeDashRunsFT(drawbuf, segs, segCount, w, color, dashRuns, /*fullLoopRun=*/false);
+            return;
+        }
+    }
+
     // DASHED: every dash-on run [distStart, distEnd) (distances along the
     // sequence) is recorded here and handed to strokeDashRunsFT() in one
     // FT_Stroker pass after the walk below -- see the comment above
