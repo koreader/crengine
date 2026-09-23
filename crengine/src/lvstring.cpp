@@ -884,9 +884,10 @@ lString32 & lString32::append(const lChar32 * str)
 
 lString32 & lString32::append(const lChar32 * str, size_type count)
 {
-    reserve(pchunk->len + count);
-    _lStr_ncpy(pchunk->buf32 + pchunk->len, str, count);
-    pchunk->len += count;
+    size_type len = _lStr_nlen(str, count);
+    reserve(pchunk->len + len);
+    _lStr_ncpy(pchunk->buf32 + pchunk->len, str, len);
+    pchunk->len += len;
     return *this;
 }
 
@@ -901,9 +902,10 @@ lString32 & lString32::append(const lChar8 * str)
 
 lString32 & lString32::append(const lChar8 * str, size_type count)
 {
-    reserve(pchunk->len + count);
-    _lStr_ncpy(pchunk->buf32+pchunk->len, str, count);
-    pchunk->len += count;
+    size_type len = _lStr_nlen(str, count);
+    reserve(pchunk->len + len);
+    _lStr_ncpy(pchunk->buf32+pchunk->len, str, len);
+    pchunk->len += len;
     return *this;
 }
 
