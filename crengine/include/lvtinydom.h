@@ -1864,6 +1864,33 @@ public:
     }
 };
 
+/**
+ * @brief EPUB CFI (Canonical Fragment Identifier) for a location in a document.
+ *
+ * Built from the same (node, offset) couple as an ldomXPointer, it serializes
+ * that location as a string conforming to the EPUB Canonical Fragment Identifier
+ * specification (https://w3c.github.io/epub-specs/epub33/epubcfi/), pointing at
+ * the same location in the book as ldomXPointer::toStringV2() would.
+ */
+class ldomEPubCFI
+{
+protected:
+    ldomXPointer _pointer;
+public:
+    /// default constructor makes a NULL CFI
+    ldomEPubCFI() { }
+    /// constructor from an existing XPointer
+    ldomEPubCFI( const ldomXPointer & pointer ) : _pointer(pointer) { }
+    /// constructor by node pointer and offset
+    ldomEPubCFI( ldomNode * node, int offset ) : _pointer(node, offset) { }
+    /// returns the XPointer this CFI points to the same location as
+    const ldomXPointer & getXPointer() const { return _pointer; }
+    /// returns true for NULL CFI
+    bool isNull() const { return _pointer.isNull(); }
+    /// converts to an "epubcfi(...)" string (empty string if the location can't be expressed)
+    lString32 toString();
+};
+
 #define MAX_DOM_LEVEL 64
 /// Xpointer optimized to iterate through DOM tree
 class ldomXPointerEx : public ldomXPointer

@@ -11738,6 +11738,250 @@ lString32 ldomXPointer::toStringV2AsIndexes()
     return path;
 }
 
+// ===========================================================================
+// EPUB CFI (Canonical Fragment Identifier)
+// https://w3c.github.io/epub-specs/epub33/epubcfi/
+//
+// A CFI addresses a location with a path of steps, where the children of an
+// element are indexed as: 2, 4, 6... for its element children, and 1, 3, 5...
+// for the text between them (all adjacent text/CDATA nodes between two
+// elements make out a single indexed "text chunk", and comments and processing
+// instructions are ignored and don't take an index).
+// A location inside a text chunk is given by a ":charOffset" terminating step,
+// the offset being an offset in the concatenated text of that chunk.
+// A path may carry assertions (in square brackets) to help recovering from
+// documents having been updated: we only add the "id" of elements that have one.
+//
+// With EPUBs, the path starts in the package document (OPF) and walks down to
+// the <itemref> of the <spine> that references the content document, then jumps
+// into that content document with the "!" indirection step, from where the
+// remaining steps are relative to the root <html> element of that document.
+//
+// crengine parses all the spine items into a single DOM, each of them wrapped
+// in a <DocFragment> element (which so stands for the <html> of a content
+// document), and it does not keep the package document around: we assume the
+// usual OPF layout, where <spine> is the 3rd element child of <package> (after
+// <metadata> and <manifest>), ie. step "/6", and that the Nth <DocFragment> is
+// made from the Nth <itemref>, ie. step "/(2*(N+1))".
+// The <body> of a content document usually follows its <head>, so it is its
+// 2nd element child: step "/4".
+//
+// Note that, like with XPointers, offsets are offsets in the text as stored in
+// the DOM, which may slightly differ from the source document text (HTML entities
+// are decoded, and some whitespace may have been trimmed by the HTML parser).
+// ===========================================================================
+
+// CFI offsets are offsets into DOM strings, which are UTF-16 encoded
+static int getCFITextLength( const lString32 & text )
+{
+    int length = 0;
+    for ( int i=0; i<text.length(); i++ )
+        length += text[i] > 0xFFFF ? 2 : 1; // non-BMP chars are a surrogate pair
+    return length;
+}
+
+// "^" escapes the characters that are special in a CFI
+static lString32 escapeCFIAssertion( const lString32 & value )
+{
+    lString32 escaped;
+    escaped.reserve(value.length());
+    for ( int i=0; i<value.length(); i++ ) {
+        lChar32 c = value[i];
+        if ( c=='^' || c=='[' || c==']' || c=='(' || c==')' || c==',' || c==';' || c=='=' )
+            escaped << '^';
+        escaped << c;
+    }
+    return escaped;
+}
+
+// Returns the id= of an element as it is in the source document, or an empty
+// string if it has none.
+static lString32 getCFIElementId( ldomNode * node )
+{
+    if ( !node->hasAttribute(attr_id) )
+        return lString32::empty_str;
+    lString32 id = node->getAttributeValue(attr_id);
+    // EPUB/CHM sub-documents are merged into a single DOM, and
+    // ldomDocumentFragmentWriter rewrote their id= with a "_doc_fragment_N_ "
+    // prefix to keep them unique: recover the original id.
+    if ( id.startsWith(U"_doc_fragment_") ) {
+        int sep = id.pos(lString32(" "));
+        if ( sep > 0 && sep + 1 <= id.length() && id[sep-1] == U'_' )
+            id = id.substr(sep + 1);
+    }
+    return id;
+}
+
+// Makes a "/index" step, with the element id as an assertion when it has one
+static lString32 getCFIElementStep( int index, ldomNode * node )
+{
+    lString32 step;
+    step << "/" << fmt::decimal(index);
+    lString32 id = getCFIElementId(node);
+    if ( !id.empty() )
+        step << "[" << escapeCFIAssertion(id) << "]";
+    return step;
+}
+
+struct cfiChildScanState {
+    ldomNode * target;
+    int elementCount; // nb of element children before target
+    int textLength;   // length of the text chunk right before target
+    bool found;
+    cfiChildScanState( ldomNode * node ) : target(node), elementCount(0), textLength(0), found(false) { }
+};
+
+// Walks the children of parent (looking into boxing elements, that don't exist
+// in the source document, as if their children were children of parent), and
+// gathers what is needed to index target as a CFI step.
+static void scanCFIChildren( ldomNode * parent, cfiChildScanState & scan )
+{
+    int count = parent->getChildCount();
+    for ( int i=0; i<count; i++ ) {
+        ldomNode * child = parent->getChildNode(i);
+        if ( child == scan.target ) {
+            scan.found = true;
+            return;
+        }
+        if ( child->isBoxingNode() ) { // autoBoxing, floatBox, inlineBox, tabularBox
+            scanCFIChildren(child, scan);
+            if ( scan.found )
+                return;
+        }
+        else if ( child->isBoxingNode(true) ) {
+            continue; // pseudoElem: generated content, not in the source document
+        }
+        else if ( child->isElement() ) {
+            scan.elementCount++;
+            scan.textLength = 0; // this element ends any preceding text chunk
+        }
+        else if ( child->isText() ) {
+            scan.textLength += getCFITextLength(child->getText());
+        }
+    }
+}
+
+lString32 ldomEPubCFI::toString()
+{
+    if ( _pointer.isNull() )
+        return lString32::empty_str;
+    ldomNode * node = _pointer.getNode();
+    int offset = _pointer.getOffset();
+    ldomNode * p = node;
+    if ( node->isBoxingNode(true) ) { // (or pseudoElem)
+        // Be really sure we get a node that exists in the source document
+        // (same as ldomXPointer::toStringV2() does)
+        if ( offset >= 0 && offset < p->getChildCount() ) {
+            p = p->getChildNode(offset);
+            if ( p->isBoxingNode(true) ) {
+                p = p->getUnboxedFirstChild();
+                if ( !p )
+                    p = node->getUnboxedParent();
+            }
+        }
+        else {
+            p = node->getUnboxedParent();
+        }
+        offset = -1;
+    }
+    else if ( p->isElement() && offset >= 0 ) {
+        // An offset on an element is an index among its children: a CFI can't
+        // express that, so point at the start of that child instead.
+        ldomNode * child = offset < p->getChildCount() ? p->getChildNode(offset) : NULL;
+        while ( child && child->isBoxingNode(true) )
+            child = child->getUnboxedFirstChild();
+        if ( child ) {
+            p = child;
+            offset = p->isText() ? 0 : -1;
+        }
+        else { // no such child (or offset past the last child): point at the element
+            offset = -1;
+        }
+    }
+    if ( !p )
+        return lString32::empty_str;
+
+    lString32 path;
+    ldomNode * docFragment = NULL;
+    ldomNode * rootNode = node->getDocument()->getRootNode();
+    while ( p && p != rootNode ) {
+        if ( p->getNodeId() == el_DocFragment ) {
+            // The pointer targets a whole content document: point at its <body>
+            docFragment = p;
+            if ( path.empty() ) {
+                ldomNode * body = NULL;
+                for ( int i=0; i<p->getChildCount() && !body; i++ ) {
+                    ldomNode * child = p->getChildNode(i);
+                    if ( child->isElement() && child->getNodeId() == el_body )
+                        body = child;
+                }
+                path = body ? getCFIElementStep(4, body) : cs32("/4");
+            }
+            break;
+        }
+        ldomNode * parent = p->getParentNode();
+        while ( parent && isBoxingNode(parent) )
+            parent = parent->getParentNode();
+        if ( !parent )
+            break;
+        if ( parent->getNodeId() == el_DocFragment ) {
+            // <DocFragment> stands for the <html> of a content document: only its
+            // <body> child has a counterpart in that source document (the other
+            // possible child, <stylesheet>, is a crengine internal element).
+            if ( p->getNodeId() != el_body )
+                return lString32::empty_str;
+            path = getCFIElementStep(4, p) + path;
+            docFragment = parent;
+            break;
+        }
+        if ( parent == rootNode )
+            break; // p is the root element of the document: it makes no CFI step
+        cfiChildScanState scan(p);
+        scanCFIChildren(parent, scan);
+        if ( !scan.found )
+            return lString32::empty_str;
+        if ( p->isElement() ) {
+            path = getCFIElementStep(2*(scan.elementCount+1), p) + path;
+        }
+        else { // text node, which can only be the node we started from
+            lString32 step;
+            step << "/" << fmt::decimal(2*scan.elementCount + 1);
+            if ( offset >= 0 ) {
+                // Offsets are relative to the whole text chunk this text node is part of
+                lString32 text = p->getText();
+                int o = offset <= text.length() ? offset : text.length();
+                step << ":" << fmt::decimal(scan.textLength + getCFITextLength(text.substr(0, o)));
+            }
+            path = step + path;
+        }
+        p = parent;
+    }
+
+    lString32 cfi;
+    if ( docFragment ) {
+        // Path in the package document to the <itemref> this <DocFragment> was made from,
+        // followed by the "!" indirection step into the content document it references.
+        int index = 0;
+        ldomNode * parent = docFragment->getParentNode();
+        if ( parent ) {
+            for ( int i=0; i<parent->getChildCount(); i++ ) {
+                ldomNode * sibling = parent->getChildNode(i);
+                if ( sibling == docFragment )
+                    break;
+                if ( sibling->getNodeId() == el_DocFragment )
+                    index++;
+            }
+        }
+
+        // because the OPF DOM is discarded we derive the cfi root by convention
+        cfi << "/6/" << fmt::decimal(2*(index+1)) << "!";
+    }
+    cfi << path;
+    if ( cfi.empty() )
+        return lString32::empty_str;
+    return cs32("epubcfi(") + cfi + ")";
+}
+
 #if BUILD_LITE!=1
 int ldomDocument::getFullHeight()
 {
