@@ -1889,6 +1889,10 @@ public:
     bool isNull() const { return _pointer.isNull(); }
     /// converts to an "epubcfi(...)" string (empty string if the location can't be expressed)
     lString32 toString();
+    /// converts to an "epubcfi(parent,start,end)" range string spanning from this
+    /// location to the given one, in document order whichever way round they come
+    /// (empty string if the range can't be expressed)
+    lString32 toRangeString( const ldomXPointer & to );
 };
 
 #define MAX_DOM_LEVEL 64

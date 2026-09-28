@@ -11830,12 +11830,17 @@ static void scanCFIChildren( ldomNode * parent, cfiChildScanState & scan )
     }
 }
 
-lString32 ldomEPubCFI::toString()
+// Builds the CFI steps for the pointed location, from the package document down
+// to the target. The indirection step ("!") is glued to the step it introduces,
+// as a path may neither start nor end on it.
+// Returns false if the location can't be expressed as a CFI.
+static bool getCFIPathSteps( const ldomXPointer & pointer, lString32Collection & steps )
 {
-    if ( _pointer.isNull() )
-        return lString32::empty_str;
-    ldomNode * node = _pointer.getNode();
-    int offset = _pointer.getOffset();
+    steps.clear();
+    if ( pointer.isNull() )
+        return false;
+    ldomNode * node = pointer.getNode();
+    int offset = pointer.getOffset();
     ldomNode * p = node;
     if ( node->isBoxingNode(true) ) { // (or pseudoElem)
         // Get a node that exists in the source document (as toStringV2() does)
@@ -11867,23 +11872,23 @@ lString32 ldomEPubCFI::toString()
         }
     }
     if ( !p )
-        return lString32::empty_str;
+        return false;
 
-    lString32 path;
+    lString32Collection reversed; // steps are gathered from the target upwards
     ldomNode * docFragment = NULL;
     ldomNode * rootNode = node->getDocument()->getRootNode();
     while ( p && p != rootNode ) {
         if ( p->getNodeId() == el_DocFragment ) {
             // The pointer targets a whole content document: point at its <body>
             docFragment = p;
-            if ( path.empty() ) {
+            if ( reversed.length() == 0 ) {
                 ldomNode * body = NULL;
                 for ( int i=0; i<p->getChildCount() && !body; i++ ) {
                     ldomNode * child = p->getChildNode(i);
                     if ( child->isElement() && child->getNodeId() == el_body )
                         body = child;
                 }
-                path = body ? getCFIElementStep(4, body) : cs32("/4");
+                reversed.add( body ? getCFIElementStep(4, body) : cs32("/4") );
             }
             break;
         }
@@ -11896,8 +11901,8 @@ lString32 ldomEPubCFI::toString()
             // Only <body> has a counterpart in the source document (the other
             // possible child, <stylesheet>, is a crengine internal element).
             if ( p->getNodeId() != el_body )
-                return lString32::empty_str;
-            path = getCFIElementStep(4, p) + path;
+                return false;
+            reversed.add( getCFIElementStep(4, p) );
             docFragment = parent;
             break;
         }
@@ -11906,9 +11911,9 @@ lString32 ldomEPubCFI::toString()
         cfiChildScanState scan(p);
         scanCFIChildren(parent, scan);
         if ( !scan.found )
-            return lString32::empty_str;
+            return false;
         if ( p->isElement() ) {
-            path = getCFIElementStep(2*(scan.elementCount+1), p) + path;
+            reversed.add( getCFIElementStep(2*(scan.elementCount+1), p) );
         }
         else { // text node, which can only be the node we started from
             lString32 step;
@@ -11919,12 +11924,11 @@ lString32 ldomEPubCFI::toString()
                 int o = offset <= text.length() ? offset : text.length();
                 step << ":" << fmt::decimal(scan.textLength + getCFITextLength(text.substr(0, o)));
             }
-            path = step + path;
+            reversed.add( step );
         }
         p = parent;
     }
 
-    lString32 cfi;
     if ( docFragment ) {
         // Index of the <itemref> in the spine this <DocFragment> was made from
         int index = 0;
@@ -11940,11 +11944,66 @@ lString32 ldomEPubCFI::toString()
         }
 
         // because the OPF DOM is discarded we derive the cfi root by convention
-        cfi << "/6/" << fmt::decimal(2*(index+1)) << "!";
+        steps.add( cs32("/6") );
+        steps.add( cs32("/") + fmt::decimal(2*(index+1)) );
+        // The <body> step, gathered last, is the one reached through the indirection
+        reversed[reversed.length()-1] = cs32("!") + reversed[reversed.length()-1];
     }
-    cfi << path;
-    if ( cfi.empty() )
+    for ( int i=reversed.length()-1; i>=0; i-- )
+        steps.add( reversed[i] );
+    return steps.length() > 0;
+}
+
+lString32 ldomEPubCFI::toString()
+{
+    lString32Collection steps;
+    if ( !getCFIPathSteps(_pointer, steps) )
         return lString32::empty_str;
+    lString32 cfi;
+    for ( int i=0; i<steps.length(); i++ )
+        cfi << steps[i];
+    return cs32("epubcfi(") + cfi + ")";
+}
+
+lString32 ldomEPubCFI::toRangeString( const ldomXPointer & to )
+{
+    if ( _pointer.isNull() || to.isNull() )
+        return lString32::empty_str;
+    if ( _pointer.getNode()->getDocument() != to.getNode()->getDocument() )
+        return lString32::empty_str;
+    // A range is expressed in document order
+    ldomXPointer start = _pointer;
+    ldomXPointer end = to;
+    if ( ldomXPointerEx(start).compare( ldomXPointerEx(end) ) > 0 ) {
+        start = to;
+        end = _pointer;
+    }
+    lString32Collection startSteps;
+    lString32Collection endSteps;
+    if ( !getCFIPathSteps(start, startSteps) || !getCFIPathSteps(end, endSteps) )
+        return lString32::empty_str;
+
+    // The parent path takes the deepest common path. It must not be empty, and
+    // neither may the end subpath; the start subpath may, when the end location
+    // lies within the subtree rooted at the start location.
+    int limit = endSteps.length() - 1;
+    if ( limit > startSteps.length() )
+        limit = startSteps.length();
+    int common = 0;
+    while ( common < limit && startSteps[common] == endSteps[common] )
+        common++;
+    if ( common == 0 )
+        return lString32::empty_str; // no common parent path: no range
+
+    lString32 cfi;
+    for ( int i=0; i<common; i++ )
+        cfi << startSteps[i];
+    cfi << ",";
+    for ( int i=common; i<startSteps.length(); i++ )
+        cfi << startSteps[i];
+    cfi << ",";
+    for ( int i=common; i<endSteps.length(); i++ )
+        cfi << endSteps[i];
     return cs32("epubcfi(") + cfi + ")";
 }
 
