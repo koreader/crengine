@@ -11776,31 +11776,20 @@ static lString32 escapeCFIAssertion( const lString32 & value )
     return escaped;
 }
 
-// Returns the id= of an element as it is in the source document, or an empty
-// string if it has none.
-static lString32 getCFIElementId( ldomNode * node )
-{
-    if ( !node->hasAttribute(attr_id) )
-        return lString32::empty_str;
-    lString32 id = node->getAttributeValue(attr_id);
-    // ldomDocumentFragmentWriter prefixed it with "_doc_fragment_N_ " to keep
-    // ids unique across the merged sub-documents: recover the original.
-    if ( id.startsWith(U"_doc_fragment_") ) {
-        int sep = id.pos(lString32(" "));
-        if ( sep > 0 && sep + 1 <= id.length() && id[sep-1] == U'_' )
-            id = id.substr(sep + 1);
-    }
-    return id;
-}
-
 // Makes a "/index" step, with the element id as an assertion when it has one
 static lString32 getCFIElementStep( int index, ldomNode * node )
 {
     lString32 step;
     step << "/" << fmt::decimal(index);
-    lString32 id = getCFIElementId(node);
-    if ( !id.empty() )
-        step << "[" << escapeCFIAssertion(id) << "]";
+    if ( node->hasAttribute(attr_id) ) {
+        lString32 id = node->getAttributeValue(attr_id);
+        // ldomDocumentFragmentWriter prefixed it with "_doc_fragment_N_ " to keep
+        // ids unique across the merged sub-documents: recover the original.
+        if ( id.startsWith(U"_doc_fragment_") )
+            id = id.substr(id.pos(lString32(" ")) + 1);
+        if ( !id.empty() )
+            step << "[" << escapeCFIAssertion(id) << "]";
+    }
     return step;
 }
 
