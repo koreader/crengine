@@ -1420,6 +1420,24 @@ lString8 familyName( FT_Face face )
     return faceName;
 }
 
+// Style name keywords and their weight, in matching priority order
+// (longer/more specific names first, so "extrabold" wins over "bold")
+static const struct {
+    const char * name;
+    int weight;
+} font_weight_names[] = {
+    { "extrablack", 950 }, { "ultrablack", 950 }, { "extra black", 950 }, { "ultra black", 950 },
+    { "extrabold", 800 },  { "ultrabold", 800 },  { "extra bold", 800 },  { "ultra bold", 800 },
+    { "demibold", 600 },   { "semibold", 600 },   { "demi bold", 600 },   { "semi bold", 600 },
+    { "extralight", 200 }, { "ultralight", 200 }, { "extra light", 200 }, { "ultra light", 200 },
+    { "demilight", 300 },  { "light", 300 },      { "demi light", 300 },
+    { "regular", 400 },    { "normal", 400 },     { "book", 400 },        { "text", 400 },
+    { "thin", 100 },
+    { "medium", 500 },
+    { "bold", 700 },
+    { "black", 900 },      { "heavy", 900 },
+};
+
 int getFontWeight(FT_Face face) {
     if (!face)
         return -1;
@@ -1427,33 +1445,44 @@ int getFontWeight(FT_Face face) {
     bool bold_flag = (face->style_flags & FT_STYLE_FLAG_BOLD) != 0;
     lString32 style32(face->style_name);
     style32 = style32.lowercase();
-    if (style32.pos("extrablack") >= 0 || style32.pos("ultrablack") >= 0
-          || style32.pos("extra black") >= 0 || style32.pos("ultra black") >= 0)
-        weight = 950;
-    else if (style32.pos("extrabold") >= 0 || style32.pos("ultrabold") >= 0
-          || style32.pos("extra bold") >= 0 || style32.pos("ultra bold") >= 0)
-        weight = 800;
-    else if (style32.pos("demibold") >= 0 || style32.pos("semibold") >= 0
-          || style32.pos("demi bold") >= 0 || style32.pos("semi bold") >= 0)
-        weight = 600;
-    else if (style32.pos("extralight") >= 0 || style32.pos("ultralight") >= 0
-          || style32.pos("extra light") >= 0 || style32.pos("ultra light") >= 0)
-        weight = 200;
-    else if (style32.pos("demilight") >= 0 || style32.pos("light") >= 0
-          || style32.pos("demi light") >= 0)
-        weight = 300;
-    else if (style32.pos("regular") >= 0 || style32.pos("normal") >= 0 || style32.pos("book") >= 0 || style32.pos("text") >= 0)
-        weight = 400;
-    else if (style32.pos("thin") >= 0)
-        weight = 100;
-    else if (style32.pos("medium") >= 0)
-        weight = 500;
-    else if (style32.pos("bold") >= 0)
-        weight = 700;
-    else if (style32.pos("black") >= 0 || style32.pos("heavy") >= 0)
-        weight = 900;
 
-    if (-1 == weight)
+    // 1. A style name that is exactly regular, semibold or bold (ignoring
+    // any italic/oblique part) gets its round value, so that e.g. a "Regular"
+    // face is always 400 whatever odd usWeightClass it may declare
+    // (KOReader expects Regular to be 400, and may synthesize bold otherwise).
+    lString32 plain = style32;
+    plain.replace(cs32("italic"), lString32::empty_str);
+    plain.replace(cs32("oblique"), lString32::empty_str);
+    plain.trimNonAlpha();
+    if (plain.empty() || plain == "regular") // empty: "Italic" alone
+        weight = 400;
+    else if (plain == "semibold" || plain == "semi bold")
+        weight = 600;
+    else if (plain == "bold")
+        weight = 700;
+
+    // 2. The OS/2 table's usWeightClass, if present
+    if (weight == -1) {
+        TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, FT_SFNT_OS2);
+        if (os2 && os2->version != 0xFFFF) {
+            int wc = os2->usWeightClass;
+            if (wc >= 1 && wc <= 1000)
+                weight = wc;
+        }
+    }
+
+    // 3. Weight keywords found anywhere in the style name
+    if (weight == -1) {
+        for (size_t i = 0; i < sizeof(font_weight_names) / sizeof(font_weight_names[0]); i++) {
+            if (style32.pos(font_weight_names[i].name) >= 0) {
+                weight = font_weight_names[i].weight;
+                break;
+            }
+        }
+    }
+
+    // 4. Only the bold flag left to go by
+    if (weight == -1)
         weight = bold_flag ? 700 : 400;
     else if (weight <= 400 && bold_flag)
         weight = 700;
