@@ -1453,6 +1453,17 @@ int getFontWeight(FT_Face face) {
     else if (style32.pos("black") >= 0 || style32.pos("heavy") >= 0)
         weight = 900;
 
+    if (-1 == weight) {
+        // Style name gave no hint: fall back to the OS/2 table's usWeightClass
+        TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, FT_SFNT_OS2);
+        if (os2 && os2->version != 0xFFFF) {
+            int wc = os2->usWeightClass;
+            if (wc >= 1 && wc <= 9) // some old fonts use a 1..9 scale
+                wc *= 100;
+            if (wc >= 1 && wc <= 1000)
+                weight = wc;
+        }
+    }
     if (-1 == weight)
         weight = bold_flag ? 700 : 400;
     else if (weight <= 400 && bold_flag)
