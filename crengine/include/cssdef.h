@@ -21,6 +21,7 @@
 #include "lvtypes.h"
 #include "lvref.h"
 #include "lvstring.h"
+#include "lvarray.h"
 
 // The order of items in following enums should match the order in the tables in src/lvstsheet.cpp
 /// display property values
@@ -514,5 +515,59 @@ typedef struct css_length_tag {
     // used only in hash calculation
     lUInt32 pack() { return (lUInt32)type + (((lUInt32)value)<<4); }
 } css_length_t;
+
+/// One explicitly requested font-variation axis in CSS.
+struct css_font_variation_axis_t {
+    lUInt32 tag;
+    float value;
+
+    css_font_variation_axis_t() : tag(0), value(0.0f) {}
+    css_font_variation_axis_t(lUInt32 axisTag, float axisValue) : tag(axisTag), value(axisValue) {}
+};
+
+/// CSS font-variation-settings value, kept independent of font-manager state.
+struct css_font_variation_settings_t {
+    css_value_type_t type;
+    LVArray<css_font_variation_axis_t> axes;
+
+    css_font_variation_settings_t(css_value_type_t valueType = css_val_inherited)
+        : type(valueType) {}
+
+    void set(lUInt32 tag, float value)
+    {
+        int pos = 0;
+        while (pos < axes.length() && axes[pos].tag < tag) pos++;
+        if (pos < axes.length() && axes[pos].tag == tag)
+            axes[pos].value = value;
+        else
+            axes.insert(pos, css_font_variation_axis_t(tag, value));
+    }
+    int count() const { return axes.length(); }
+    lUInt32 tagAt(int index) const { return axes[index].tag; }
+    float valueAt(int index) const { return axes[index].value; }
+    void clear() { axes.clear(); }
+    bool operator==(const css_font_variation_settings_t& o) const
+    {
+        if (type != o.type || axes.length() != o.axes.length())
+            return false;
+        for (int i = 0; i < axes.length(); i++)
+            if (axes[i].tag != o.axes[i].tag || axes[i].value != o.axes[i].value)
+                return false;
+        return true;
+    }
+    lUInt32 hash() const
+    {
+        lUInt32 h = (lUInt32)type;
+        h = h * 31 + (lUInt32)axes.length();
+        for (int i = 0; i < axes.length(); i++) {
+            lUInt32 bits;
+            float axisValue = axes[i].value;
+            memcpy(&bits, &axisValue, sizeof(bits));
+            h = h * 31 + axes[i].tag;
+            h = h * 31 + bits;
+        }
+        return h;
+    }
+};
 
 #endif // __CSS_DEF_H_INCLUDED__

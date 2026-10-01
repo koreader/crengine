@@ -15,6 +15,8 @@
 
 #include "crsetup.h"
 
+#include <stdlib.h>
+
 #include "../include/lvstsheet.h"
 #include "../include/lvtinydom.h"
 #include "../include/fb2def.h"
@@ -67,6 +69,7 @@ enum css_decl_code {
     cssd_font_weight,
     cssd_font_features,           // font-feature-settings (not yet parsed)
     cssd_font_optical_sizing,
+    cssd_font_variation_settings,
     cssd_font_variant,            // all these are parsed specifically and mapped into
     cssd_font_variant_ligatures,  // the same style->font_features 31 bits bitmap
     cssd_font_variant_ligatures2, // -webkit-font-variant-ligatures (former Webkit property)
@@ -186,6 +189,7 @@ static const char * css_decl_name[] = {
     "font-weight",
     "font-feature-settings",
     "font-optical-sizing",
+    "font-variation-settings",
     "font-variant",
     "font-variant-ligatures",
     "-webkit-font-variant-ligatures",
@@ -547,6 +551,88 @@ static lUInt32 parse_important( const char *str ) // does not advance the origin
     return 0;
 }
 
+static bool parse_css_number( const char * & str, float & value )
+{
+    const char * start = str;
+    if (*str == '+' || *str == '-')
+        str++;
+    bool has_digits = false;
+    while (*str >= '0' && *str <= '9') {
+        has_digits = true;
+        str++;
+    }
+    if (*str == '.') {
+        str++;
+        while (*str >= '0' && *str <= '9') {
+            has_digits = true;
+            str++;
+        }
+    }
+    if (!has_digits)
+        return false;
+    if (*str == 'e' || *str == 'E') {
+        str++;
+        if (*str == '+' || *str == '-')
+            str++;
+        const char * exponent_start = str;
+        while (*str >= '0' && *str <= '9')
+            str++;
+        if (str == exponent_start)
+            return false;
+    }
+    char * parsed_end = NULL;
+    value = strtof(start, &parsed_end);
+    return parsed_end == str && isfinite(value);
+}
+
+static bool is_css_declaration_end( const char * str )
+{
+    return !*str || *str == ';' || *str == '}' || *str == ')' || parse_important(str);
+}
+
+static bool parse_css_font_variation_settings( const char * & str, css_font_variation_settings_t & settings )
+{
+    skip_spaces(str);
+    if (substr_icompare("normal", str)) {
+        str += 6;
+        skip_spaces(str);
+        return is_css_declaration_end(str);
+    }
+
+    int parsed_count = 0;
+    while (*str) {
+        skip_spaces(str);
+        char quote = *str++;
+        if (quote != '\'' && quote != '"')
+            return false;
+        lUInt32 tag = 0;
+        for (int i = 0; i < 4; i++) {
+            if (!*str)
+                return false;
+            unsigned char ch = (unsigned char)*str++;
+            if (ch < 0x20 || ch > 0x7e || ch == (unsigned char)quote || ch == '\\')
+                return false;
+            tag = (tag << 8) | ch;
+        }
+        if (!*str || *str++ != quote)
+            return false;
+        if (!skip_spaces(str))
+            return false;
+        float value;
+        if (!parse_css_number(str, value))
+            return false;
+        settings.set(tag, value);
+        parsed_count++;
+        skip_spaces(str);
+        if (*str == ',') {
+            str++;
+            continue;
+        }
+        return parsed_count > 0 && is_css_declaration_end(str);
+    }
+    return false;
+}
+
 static inline bool skip_to_next( const char * & str, char stop_char_to_skip, char stop_char_no_skip, char token_sep_char=0 )
 {
     // https://www.w3.org/TR/CSS2/syndata.html#parsing-errors
@@ -622,6 +708,15 @@ static inline bool skip_to_next( const char * & str, char stop_char_to_skip, cha
 static inline bool next_property( const char * & str )
 {
     return skip_to_next( str, ';', '}' );
+}
+
+static bool skip_invalid_css_value( const char * & str, char stop_char, lUInt32 & parsed_important )
+{
+    skip_to_next(str, ';', stop_char, '!');
+    if (*str != '!')
+        return false;
+    parsed_important = parse_important(str);
+    return true;
 }
 
 static inline bool next_token( const char * & str, char stop_char='}')
@@ -4319,6 +4414,30 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 IF_g_SET_n_AND_break(true, css_fos_inherit, css_fos_auto)
                 n = parse_name( decl, css_fos_names, -1 );
                 break;
+            case cssd_font_variation_settings:
+                {
+                    css_font_variation_settings_t settings(css_val_unspecified);
+                    if (g >= 0) {
+                        if (g != css_g_initial)
+                            settings.type = css_val_inherited;
+                    }
+                    else if (!parse_css_font_variation_settings(decl, settings)) {
+                        if (_check_if_supported)
+                            break;
+                        settings.clear();
+                        skip_to_next_property = skip_invalid_css_value(decl, stop_char, parsed_important);
+                    }
+                    buf << (lUInt32)(prop_code | importance | parsed_important | parse_important(decl));
+                    buf << (lUInt32)settings.type;
+                    buf << (lUInt32)settings.count();
+                    for (int i = 0; i < settings.count(); i++) {
+                        lUInt32 bits;
+                        float value = settings.valueAt(i);
+                        memcpy(&bits, &value, sizeof(bits));
+                        buf << settings.tagAt(i) << bits;
+                    }
+                }
+                break;
             case cssd_font_features: // font-feature-settings
                 // Not (yet) implemented.
                 // We map font-variant(|-*) values into the style->font_features bitmap,
@@ -5891,6 +6010,22 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
         case cssd_font_optical_sizing:
             style->Apply( (css_font_optical_sizing_t) *p++, &style->font_optical_sizing, imp_bit_font_optical_sizing, is_important );
             style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            break;
+        case cssd_font_variation_settings:
+            {
+                css_font_variation_settings_t settings;
+                settings.type = (css_value_type_t)*p++;
+                int count = (int)*p++;
+                for (int i = 0; i < count; i++) {
+                    lUInt32 tag = *p++;
+                    lUInt32 bits = *p++;
+                    float value;
+                    memcpy(&value, &bits, sizeof(value));
+                    settings.set(tag, value);
+                }
+                style->Apply(settings, &style->font_variation_settings, imp_bit_font_variation_settings, is_important);
+                style->flags |= STYLE_REC_FLAG_INHERITABLE_APPLIED;
+            }
             break;
         case cssd_font_features:
             // We want to 'OR' the bitmap from any declaration that is to be applied to this node

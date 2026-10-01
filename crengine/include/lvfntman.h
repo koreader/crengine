@@ -609,7 +609,7 @@ enum font_antialiasing_t
     font_aa_all
 };
 
-// 4-char axis tags used in variable font variation axes
+// OpenType-registered 4-char axis tags used in variable font variation axes
 #ifndef LVFONT_TAG
 #define LVFONT_TAG(a,b,c,d) ((lUInt32)((lUInt8)(a))<<24 | (lUInt32)((lUInt8)(b))<<16 \
                              | (lUInt32)((lUInt8)(c))<<8  | (lUInt32)((lUInt8)(d)))
@@ -620,14 +620,24 @@ enum font_antialiasing_t
 #define LVFONT_TAG_SLNT  LVFONT_TAG('s','l','n','t')  // slant axis
 #define LVFONT_TAG_WDTH  LVFONT_TAG('w','d','t','h')  // width axis
 
-/// Active design-space values for the five registered variable-font axes.
-/// Axes not explicitly set carry no value and do not affect the cache key.
+// Custom foundry-specific variation axis tag/value pairs
+struct LVFontAxisValue {
+    lUInt32 tag;
+    float value;
+
+    LVFontAxisValue() : tag(0), value(0.0f) {}
+    LVFontAxisValue(lUInt32 axisTag, float axisValue) : tag(axisTag), value(axisValue) {}
+};
+
+/// Active design-space values for the five registered variable-font axes
+/// and an other_axes array for arbitrary unregistered axes
 struct LVFontVariations {
     bool  wght_set; float wght;
     bool  opsz_set; float opsz;
     bool  ital_set; float ital;
     bool  slnt_set; float slnt;
     bool  wdth_set; float wdth;
+    LVArray<LVFontAxisValue> other_axes;
 
     LVFontVariations()
         : wght_set(false), wght(0.0f)
@@ -637,7 +647,29 @@ struct LVFontVariations {
         , wdth_set(false), wdth(0.0f)
     {}
 
-    bool empty() const { return !wght_set && !opsz_set && !ital_set && !slnt_set && !wdth_set; }
+    bool empty() const { return !wght_set && !opsz_set && !ital_set && !slnt_set && !wdth_set && other_axes.empty(); }
+
+    int count() const {
+        return (int)wght_set + (int)opsz_set + (int)ital_set + (int)slnt_set + (int)wdth_set + other_axes.length();
+    }
+
+    lUInt32 tagAt(int index) const {
+        if (wght_set && index-- == 0) return LVFONT_TAG_WGHT;
+        if (opsz_set && index-- == 0) return LVFONT_TAG_OPSZ;
+        if (ital_set && index-- == 0) return LVFONT_TAG_ITAL;
+        if (slnt_set && index-- == 0) return LVFONT_TAG_SLNT;
+        if (wdth_set && index-- == 0) return LVFONT_TAG_WDTH;
+        return other_axes[index].tag;
+    }
+
+    float valueAt(int index) const {
+        if (wght_set && index-- == 0) return wght;
+        if (opsz_set && index-- == 0) return opsz;
+        if (ital_set && index-- == 0) return ital;
+        if (slnt_set && index-- == 0) return slnt;
+        if (wdth_set && index-- == 0) return wdth;
+        return other_axes[index].value;
+    }
 
     bool has(lUInt32 tag) const {
         switch (tag) {
@@ -646,7 +678,10 @@ struct LVFontVariations {
             case LVFONT_TAG_ITAL: return ital_set;
             case LVFONT_TAG_SLNT: return slnt_set;
             case LVFONT_TAG_WDTH: return wdth_set;
-            default: return false;
+            default:
+                for (int i = 0; i < other_axes.length(); i++)
+                    if (other_axes[i].tag == tag) return true;
+                return false;
         }
     }
     float get(lUInt32 tag, float fallback = 0.0f) const {
@@ -656,30 +691,48 @@ struct LVFontVariations {
             case LVFONT_TAG_ITAL: return ital_set ? ital : fallback;
             case LVFONT_TAG_SLNT: return slnt_set ? slnt : fallback;
             case LVFONT_TAG_WDTH: return wdth_set ? wdth : fallback;
-            default: return fallback;
+            default:
+                for (int i = 0; i < other_axes.length(); i++)
+                    if (other_axes[i].tag == tag) return other_axes[i].value;
+                return fallback;
         }
     }
     void set(lUInt32 tag, float value) {
-        if (!isfinite(value)) {
-            CRLog::error("LVFontVariations::set: non-finite value for axis 0x%08x: ignoring", tag);
-            return;
-        }
         switch (tag) {
             case LVFONT_TAG_WGHT: wght_set = true; wght = value; break;
             case LVFONT_TAG_OPSZ: opsz_set = true; opsz = value; break;
             case LVFONT_TAG_ITAL: ital_set = true; ital = value; break;
             case LVFONT_TAG_SLNT: slnt_set = true; slnt = value; break;
             case LVFONT_TAG_WDTH: wdth_set = true; wdth = value; break;
-            default: break;
+            default: {
+                int pos = 0;
+                while (pos < other_axes.length() && other_axes[pos].tag < tag) pos++;
+                if (pos < other_axes.length() && other_axes[pos].tag == tag)
+                    other_axes[pos].value = value;
+                else
+                    other_axes.insert(pos, LVFontAxisValue(tag, value));
+                break;
+            }
         }
     }
 
+    void clear() {
+        wght_set = opsz_set = ital_set = slnt_set = wdth_set = false;
+        other_axes.clear();
+    }
+
     bool operator==(const LVFontVariations& o) const {
-        return wght_set == o.wght_set && (!wght_set || wght == o.wght)
+        if (!(wght_set == o.wght_set && (!wght_set || wght == o.wght)
             && opsz_set == o.opsz_set && (!opsz_set || opsz == o.opsz)
             && ital_set == o.ital_set && (!ital_set || ital == o.ital)
             && slnt_set == o.slnt_set && (!slnt_set || slnt == o.slnt)
-            && wdth_set == o.wdth_set && (!wdth_set || wdth == o.wdth);
+            && wdth_set == o.wdth_set && (!wdth_set || wdth == o.wdth)
+            && other_axes.length() == o.other_axes.length()))
+            return false;
+        for (int i = 0; i < other_axes.length(); i++)
+            if (other_axes[i].tag != o.other_axes[i].tag || other_axes[i].value != o.other_axes[i].value)
+                return false;
+        return true;
     }
     bool operator!=(const LVFontVariations& o) const { return !(*this == o); }
 
@@ -690,6 +743,13 @@ struct LVFontVariations {
         if (ital_set) { memcpy(&b, &ital, sizeof(b)); h = h*31 + LVFONT_TAG_ITAL; h = h*31 + b; }
         if (slnt_set) { memcpy(&b, &slnt, sizeof(b)); h = h*31 + LVFONT_TAG_SLNT; h = h*31 + b; }
         if (wdth_set) { memcpy(&b, &wdth, sizeof(b)); h = h*31 + LVFONT_TAG_WDTH; h = h*31 + b; }
+        h = h * 31 + other_axes.length();
+        for (int i = 0; i < other_axes.length(); i++) {
+            float axisValue = other_axes[i].value;
+            memcpy(&b, &axisValue, sizeof(b));
+            h = h * 31 + other_axes[i].tag;
+            h = h * 31 + b;
+        }
         return h;
     }
 };
