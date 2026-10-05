@@ -551,40 +551,6 @@ static lUInt32 parse_important( const char *str ) // does not advance the origin
     return 0;
 }
 
-static bool parse_css_number( const char * & str, float & value )
-{
-    const char * start = str;
-    if (*str == '+' || *str == '-')
-        str++;
-    bool has_digits = false;
-    while (*str >= '0' && *str <= '9') {
-        has_digits = true;
-        str++;
-    }
-    if (*str == '.') {
-        str++;
-        while (*str >= '0' && *str <= '9') {
-            has_digits = true;
-            str++;
-        }
-    }
-    if (!has_digits)
-        return false;
-    if (*str == 'e' || *str == 'E') {
-        str++;
-        if (*str == '+' || *str == '-')
-            str++;
-        const char * exponent_start = str;
-        while (*str >= '0' && *str <= '9')
-            str++;
-        if (str == exponent_start)
-            return false;
-    }
-    char * parsed_end = NULL;
-    value = strtof(start, &parsed_end);
-    return parsed_end == str && isfinite(value);
-}
-
 static bool is_css_declaration_end( const char * str )
 {
     return !*str || *str == ';' || *str == '}' || *str == ')' || parse_important(str);
@@ -618,9 +584,12 @@ static bool parse_css_font_variation_settings( const char * & str, css_font_vari
             return false;
         if (!skip_spaces(str))
             return false;
-        float value;
-        if (!parse_css_number(str, value))
+        css_length_t number;
+        if (!parse_number_value(str, number, false, true, false, false, false, true) ||
+                (number.type != css_val_unspecified &&
+                 (number.type != css_val_px || number.value != 0)))
             return false;
+        float value = number.value / 256.0f;
         settings.set(tag, value);
         parsed_count++;
         skip_spaces(str);
