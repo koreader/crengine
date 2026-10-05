@@ -1725,7 +1725,7 @@ public:
                 getFontFamily(),
                 getTypeFace(),
                 getFeatures() | LFNT_OT_FEATURES_P_TNUM,
-                -1, false);
+                -1, false, _variations.empty() ? NULL : &_variations);
             if ( _DecimalListItemFont.isNull() ) // shouldn't happen
                 _DecimalListItemFont = LVFontRef(this);
         }
@@ -2199,7 +2199,8 @@ public:
             0,        /* pixel_width           */
             _face_size );  /* pixel_height          */
 
-        // Apply variable font axis coordinates (wght, opsz, ...) if any were requested
+        // Apply the computed design coordinates in the font's axis order.
+        bool variationsApplied = _variations.empty();
         if (!_variations.empty() && FT_Err_Ok == error) {
             FT_MM_Var* mm_var = NULL;
             if (FT_Get_MM_Var(_face, &mm_var) == FT_Err_Ok && mm_var) {
@@ -2211,7 +2212,9 @@ public:
                         ? (FT_Fixed)(_variations.get(axTag) * 65536.0f)
                         : mm_var->axis[ai].def;
                 }
-                FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
+                FT_Error variationError = FT_Set_Var_Design_Coordinates(_face, mm_var->num_axis, coords);
+                // Record whether FT actually applied our coordinates, so HB isn't told variations FT didn't set
+                variationsApplied = variationError == FT_Err_Ok;
                 delete[] coords;
                 #ifdef DEBUG_VAR_FONT
                 {
@@ -2260,15 +2263,17 @@ public:
                     flags |= FT_LOAD_COLOR;
                 hb_ft_font_set_load_flags(_hb_font, flags);
                 // Apply variable font variations to the HarfBuzz font as well
-                if (!_variations.empty()) {
-                    hb_variation_t hbvars[5]; // at most 5 standard axes
-                    unsigned int nvar = 0;
-                    if (_variations.wght_set) { hbvars[nvar].tag = LVFONT_TAG_WGHT; hbvars[nvar++].value = _variations.wght; }
-                    if (_variations.opsz_set) { hbvars[nvar].tag = LVFONT_TAG_OPSZ; hbvars[nvar++].value = _variations.opsz; }
-                    if (_variations.ital_set) { hbvars[nvar].tag = LVFONT_TAG_ITAL; hbvars[nvar++].value = _variations.ital; }
-                    if (_variations.slnt_set) { hbvars[nvar].tag = LVFONT_TAG_SLNT; hbvars[nvar++].value = _variations.slnt; }
-                    if (_variations.wdth_set) { hbvars[nvar].tag = LVFONT_TAG_WDTH; hbvars[nvar++].value = _variations.wdth; }
-                    hb_font_set_variations(_hb_font, hbvars, nvar);
+                // but skip if FT failed to set them, so HB shaping doesn't diverge from the rasterized glyphs
+                if (!_variations.empty() && variationsApplied) {
+                    LVArray<hb_variation_t> hbvars;
+                    hbvars.reserve(_variations.count());
+                    for (int i = 0; i < _variations.count(); i++) {
+                        hb_variation_t variation;
+                        variation.tag = _variations.tagAt(i);
+                        variation.value = _variations.valueAt(i);
+                        hbvars.add(variation);
+                    }
+                    hb_font_set_variations(_hb_font, hbvars.ptr(), (unsigned int)hbvars.length());
                 }
             }
         }
@@ -5901,6 +5906,16 @@ static LVFontRef dumpFontRef( LVFontRef fnt ) {
 // Registry of physical font faces, selector, and instance cache.
 // ============================================================================
 
+struct LVFontVariationAxisRange {
+    lUInt32 tag;
+    float min_value;
+    float max_value;
+
+    LVFontVariationAxisRange() : tag(0), min_value(0.0f), max_value(0.0f) {}
+    LVFontVariationAxisRange(lUInt32 axisTag, float minValue, float maxValue)
+        : tag(axisTag), min_value(minValue), max_value(maxValue) {}
+};
+
 /// One physical font face as registered from a file or in-memory buffer.
 struct LVFontFace {
     lString8           file_path;    // filesystem path, or container-relative path for embedded fonts
@@ -5925,6 +5940,7 @@ struct LVFontFace {
     bool  _has_ital; float _ital_min, _ital_max;
     bool  _has_slnt; float _slnt_min, _slnt_max;
     bool  _has_wdth; float _wdth_min, _wdth_max;
+    LVArray<LVFontVariationAxisRange> variation_axes;
 
     LVFontFace() : face_index(-1), is_italic(false)
                , has_emojis(false), has_ot_math(false), has_small_caps(false), documentId(-1)
@@ -5980,6 +5996,26 @@ struct LVFontFace {
             case LVFONT_TAG_SLNT: _has_slnt = true; _slnt_min = mn; _slnt_max = mx; break;
             case LVFONT_TAG_WDTH: _has_wdth = true; _wdth_min = mn; _wdth_max = mx; break;
         }
+    }
+    void setVariationAxisRange(lUInt32 tag, float mn, float mx) {
+        int pos = 0;
+        while (pos < variation_axes.length() && variation_axes[pos].tag < tag) pos++;
+        if (pos < variation_axes.length() && variation_axes[pos].tag == tag) {
+            variation_axes[pos].min_value = mn;
+            variation_axes[pos].max_value = mx;
+        } else {
+            variation_axes.insert(pos, LVFontVariationAxisRange(tag, mn, mx));
+        }
+    }
+    bool clampVariationAxis(lUInt32 tag, float& value) const {
+        for (int i = 0; i < variation_axes.length(); i++) {
+            if (variation_axes[i].tag == tag) {
+                if (value < variation_axes[i].min_value) value = variation_axes[i].min_value;
+                if (value > variation_axes[i].max_value) value = variation_axes[i].max_value;
+                return true;
+            }
+        }
+        return false;
     }
     bool hasAxis(lUInt32 tag) const {
         switch (tag) {
@@ -6362,6 +6398,7 @@ public:
 /// the requested weight/italic vs the face's own weight/italic at load time.
 struct LVFontMatch {
     const LVFontFace*  face;
+    LVFontVariations   requested_variations;
     LVFontVariations   computed_variations;  // variable font axes; empty for static fonts
 
     LVFontMatch() : face(nullptr) {}
@@ -6428,8 +6465,7 @@ class LVFontSelector {
         return best;
     }
 
-    // requested: CSS font-variation-settings passthrough (opsz, wdth only;
-    //            wght and ital/slnt come from the weight/italic CSS properties).
+    // requested: low-level CSS font-variation-settings overrides.
     // computed:  the full axis set to hand to FreeType, including wght derived
     //            from the weight parameter and ital/slnt derived from italic.
     LVFontVariations computeVariations(const LVFontFace& f,
@@ -6438,21 +6474,25 @@ class LVFontSelector {
     {
         LVFontVariations computed;
         // wght and ital/slnt are derived from the weight/italic CSS properties.
-        if (f._has_wght) {
+        if (f.hasWeightAxis()) {
             float w = (float)weight;
-            if (w < f._wght_min) w = f._wght_min;
-            if (w > f._wght_max) w = f._wght_max;
-            computed.set(LVFONT_TAG_WGHT, w);
+            if (f.clampVariationAxis(LVFONT_TAG_WGHT, w)) computed.set(LVFONT_TAG_WGHT, w);
         }
-        if (italic && f._has_ital && f._ital_max > 0.5f)
-            computed.set(LVFONT_TAG_ITAL, 1.0f);
-        else if (italic && !f.is_italic && f._has_slnt && f._slnt_min < 0.0f)
-            computed.set(LVFONT_TAG_SLNT, -12.0f);
-        // opsz and wdth are passed through verbatim from requested.
-        if (requested.opsz_set && f._has_opsz)
-            computed.set(LVFONT_TAG_OPSZ, requested.opsz);
-        if (requested.wdth_set && f._has_wdth)
-            computed.set(LVFONT_TAG_WDTH, requested.wdth);
+        float italValue = 1.0f;
+        if (italic && f.clampVariationAxis(LVFONT_TAG_ITAL, italValue) && f._ital_max > 0.5f)
+            computed.set(LVFONT_TAG_ITAL, italValue);
+        else if (italic && !f.is_italic && f._has_slnt && f._slnt_min < 0.0f) {
+            float slntValue = -12.0f;
+            if (f.clampVariationAxis(LVFONT_TAG_SLNT, slntValue))
+                computed.set(LVFONT_TAG_SLNT, slntValue);
+        }
+        // Explicit low-level settings override the derived high-level axes.
+        for (int i = 0; i < requested.count(); i++) {
+            lUInt32 tag = requested.tagAt(i);
+            float value = requested.valueAt(i);
+            if (f.clampVariationAxis(tag, value))
+                computed.set(tag, value);
+        }
         return computed;
     }
 
@@ -6503,6 +6543,7 @@ public:
         if (!face) return m;
 
         m.face                = face;
+        m.requested_variations = requested;
         m.computed_variations = computeVariations(*face, requested, weight, italic);
         return m;
     }
@@ -6569,7 +6610,8 @@ struct LVFontInstanceKey {
     int     features;          // OpenType features bitmap
     int     requested_weight;  // CSS-requested weight (e.g. 700); loadAndCache() synthesizes bold if face's wght axis differs
     bool    requested_italic;  // CSS-requested italic; loadAndCache() synthesizes italic if face.is_italic differs
-    lUInt32 computed_variations_hash;   // LVFontVariations::hash() of computed axis values
+    LVFontVariations requested_variations; // explicitly requested variable axis values (e.g. GRAD=50)
+    LVFontVariations computed_variations;  // computed variable axis values (bold -> wght=700)
 
     bool operator==(const LVFontInstanceKey& o) const {
         return face_id         == o.face_id
@@ -6578,7 +6620,8 @@ struct LVFontInstanceKey {
             && features        == o.features
             && requested_weight == o.requested_weight
             && requested_italic == o.requested_italic
-            && computed_variations_hash == o.computed_variations_hash;
+            && requested_variations == o.requested_variations
+            && computed_variations == o.computed_variations;
     }
     lUInt32 hash() const {
         lUInt32 h = face_id;
@@ -6587,7 +6630,8 @@ struct LVFontInstanceKey {
         h = h * 31 + (lUInt32)(unsigned)features;
         h = h * 31 + (lUInt32)(unsigned)requested_weight;
         h = h * 31 + ((lUInt32)requested_italic);
-        h = h * 31 + computed_variations_hash;
+        h = h * 31 + requested_variations.hash();
+        h = h * 31 + computed_variations.hash();
         return h;
     }
 };
@@ -6789,7 +6833,8 @@ public:
     }
 
     /// returns fallback font for specified size, weight and italic
-    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false, lString8 forFaceName=lString8::empty_str) {
+    virtual LVFontRef GetFallbackFont(int size, int weight=400, bool italic=false,
+                                      lString8 forFaceName=lString8::empty_str) {
         FONT_MAN_GUARD
         if ( _fallbackFontFaces.length() == 0 )
             return LVFontRef();
@@ -6820,7 +6865,8 @@ public:
         // assuming the fallback font is a standalone regular font
         // without any bold/italic sibling.
         // GetFont() works just as fine when we need specified weigh and italic.
-        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFaces[idx], 0, -1);
+        return GetFont(size, weight, italic, css_ff_sans_serif, _fallbackFontFaces[idx],
+                   0, -1, false);
     }
 
     bool isBitmapModeForSize( int size )
@@ -7661,6 +7707,7 @@ public:
                     float   minValue = mm_var->axis[ai].minimum / 65536.0f;
                     float   maxValue = mm_var->axis[ai].maximum / 65536.0f;
                     def.setAxisInfo(tag, minValue, maxValue);
+                    def.setVariationAxisRange(tag, minValue, maxValue);
                     #ifdef DEBUG_VAR_FONT
                     if (axisBufPos < (int)sizeof(axisBuf) - 40)
                         axisBufPos += snprintf(axisBuf + axisBufPos, sizeof(axisBuf) - axisBufPos,
@@ -7732,6 +7779,7 @@ public:
     LVFontRef loadAndCache(const LVFontFace& face, int size, int face_size,
                             int weight, bool italic,
                             int features, const LVFontVariations& computed_variations,
+                            const LVFontVariations& requested_variations,
                             const LVFontInstanceKey& key)
     {
         bool wghtByAxis = face.hasWeightAxis();
@@ -7751,8 +7799,7 @@ public:
             needsSynthWeight = weight - loadWeight >= 200;
         #endif
         }
-        bool italByAxis = (face._has_ital && face._ital_max > 0.5f) ||
-                          (face._has_slnt && face._slnt_min < 0.0f);
+        bool italByAxis = computed_variations.ital_set || computed_variations.slnt_set;
         bool italicize = italic && !face.is_italic && !italByAxis;
 
         LVFreeTypeFace* font = new LVFreeTypeFace(_lock, _library, &_globalCache);
@@ -7793,16 +7840,13 @@ public:
         if (needsSmallCaps) {
             int small_size = (size * 3 + 2) / 4; // ~75%, rounded up
             if (small_size < 1) small_size = 1;
-            // Carry wdth/opsz through verbatim: computeVariations() only honours
-            // `requested` for those two axes. ital/slnt are NOT taken from
-            // `requested` - computeVariations() derives them solely from the
-            // `italic` bool - so pass the original CSS-requested `italic` flag
+            // Carry explicit axes to the smaller instance; high-level
+            // weight/style are recomputed for its own size and weight request.
+            // Pass the original CSS-requested `italic` flag
             // (not `face.is_italic || italicize`, which is false for axis-based
             // oblique faces like Acumin's slnt axis) so the small font's selector
             // pass recomputes the same slant the main face got.
-            LVFontVariations smallVars;
-            if (computed_variations.wdth_set)
-                smallVars.set(LVFONT_TAG_WDTH, computed_variations.wdth);
+            LVFontVariations smallVars = requested_variations;
             if (computed_variations.opsz_set)
                 smallVars.set(LVFONT_TAG_OPSZ, computed_variations.opsz * 0.75f);
             // Downscaled glyphs lose apparent stroke thickness, so request a bit
@@ -7856,14 +7900,15 @@ public:
         key.features         = features;
         key.requested_weight = weight;
         key.requested_italic = italic;
-        key.computed_variations_hash = m.computed_variations.hash();
+        key.requested_variations = requested;
+        key.computed_variations = m.computed_variations;
 
         // 3. Return cached instance if available; otherwise load and cache.
         LVFontRef cached = _instance_cache.get(key);
         if (!cached.isNull()) return cached;
 
         return loadAndCache(*m.face, size, face_size, weight, italic,
-                            features, m.computed_variations, key);
+                            features, m.computed_variations, m.requested_variations, key);
     }
 
     bool checkCharSet( FT_Face face )

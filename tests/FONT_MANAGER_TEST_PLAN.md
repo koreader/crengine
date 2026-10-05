@@ -196,6 +196,12 @@ correctly across sessions.
 | 13.5 | Variable font with slnt axis (no ital), italic requested | slnt=-12 applied; no software slant |
 | 13.6 | Variable font with opsz axis | opsz value derived from size and DPI; varies between sizes |
 | 13.7 | Variable font, multiple axes simultaneously | wght + opsz + ital all set correctly in one instance |
+| 13.8 | Apply `font-variation-settings: "GRAD" 50` using a variable font that exposes a GRAD axis (eg. Roboto Flex) | The custom axis changes the glyph design; changing the value selects the corresponding instance |
+| 13.9 | Apply two explicit axes, e.g. `font-variation-settings: "GRAD" 50, "wdth" 90` | Both requested coordinates affect the same font instance |
+| 13.10 | Request an axis tag absent from the selected variable font | No crash or shaping failure; the absent axis has no visible effect |
+| 13.11 | Request a value below an axis minimum and above its maximum | Values clamp to the font's min/max; FreeType rendering and HarfBuzz shaping agree |
+| 13.12 | Change an axis value in a stylesheet and reopen the document from cache | Updated design is shown; old axis-specific instance is not reused |
+| 13.13 | Follow `font-variation-settings: "GRAD" 50` with `font-variation-settings: invalid !important`, then another CSS declaration | The malformed important setting resolves to an empty axis list, overrides the earlier axis, and the following declaration is still applied |
 
 ---
 

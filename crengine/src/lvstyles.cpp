@@ -75,6 +75,7 @@ lUInt32 calcHash(css_style_rec_t & rec)
     v = v * 31 + (lUInt32)rec.font_weight;
     v = v * 31 + (lUInt32)rec.font_features.pack();
     v = v * 31 + (lUInt32)rec.font_optical_sizing;
+    v = v * 31 + (lUInt32)rec.font_variation_settings.hash();
     v = v * 31 + (lUInt32)rec.line_height.pack();
     v = v * 31 + (lUInt32)rec.color.pack();
     v = v * 31 + (lUInt32)rec.background_color.pack();
@@ -191,6 +192,7 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.font_family == r2.font_family&&
            r1.font_features == r2.font_features&&
            r1.font_optical_sizing == r2.font_optical_sizing&&
+           r1.font_variation_settings == r2.font_variation_settings&&
            r1.border_style_top==r2.border_style_top&&
            r1.border_style_right==r2.border_style_right&&
            r1.border_style_bottom==r2.border_style_bottom&&
@@ -366,6 +368,38 @@ static const char * style_magic = "CR3STYLE";
 #define ST_GET_LEN(v) { lUInt8 t; buf >> t; lInt32 val; buf >> val; v.type = (css_value_type_t)t; v.value = val; if (buf.error()) return false; }
 #define ST_PUT_LEN4(v) ST_PUT_LEN(v[0]);ST_PUT_LEN(v[1]);ST_PUT_LEN(v[2]);ST_PUT_LEN(v[3]);
 #define ST_GET_LEN4(v) ST_GET_LEN(v[0]);ST_GET_LEN(v[1]);ST_GET_LEN(v[2]);ST_GET_LEN(v[3]);
+#define ST_PUT_KVPAIR(tag, v) { lUInt32 bits; memcpy(&bits, &(v), sizeof(bits)); buf << (lUInt32)(tag) << bits; }
+#define ST_GET_KVPAIR(tag, v) { lUInt32 bits; buf >> tag >> bits; memcpy(&(v), &bits, sizeof(bits)); if (buf.error()) return false; }
+static void putKeyValuePairs(SerialBuf& buf, const css_font_variation_settings_t& pairs)
+{
+    buf << (lUInt8)pairs.type << (lUInt32)pairs.count();
+    for (int i = 0; i < pairs.count(); i++) {
+        float value = pairs.valueAt(i);
+        ST_PUT_KVPAIR(pairs.tagAt(i), value);
+    }
+}
+
+static bool getKeyValuePairs(SerialBuf& buf, css_font_variation_settings_t& pairs)
+{
+    lUInt8 valueType;
+    lUInt32 count;
+    buf >> valueType >> count;
+    if (buf.error())
+        return false;
+
+    pairs.clear();
+    pairs.type = (css_value_type_t)valueType;
+    for (lUInt32 i = 0; i < count; i++) {
+        lUInt32 tag;
+        float value;
+        ST_GET_KVPAIR(tag, value);
+        pairs.set(tag, value);
+    }
+    return true;
+}
+
+#define ST_PUT_KVPAIRS(v) putKeyValuePairs(buf, v)
+#define ST_GET_KVPAIRS(v) { if (!getKeyValuePairs(buf, v)) return false; }
 #define ST_PUT_UI64(v) buf << (lUInt32)(v>>32) << (lUInt32)(v&0xFFFFFFFFULL)
 #define ST_GET_UI64(v) { lUInt32 t; buf >> t; v = (lUInt64)(t)<<32; buf >> t; v += t; if (buf.error()) return false; }
 bool css_style_rec_t::serialize( SerialBuf & buf )
@@ -393,6 +427,7 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_U16(font_weight);        //    lUInt16              font_weight;
     ST_PUT_LEN(font_features);      //    css_length_t         font_features;
     ST_PUT_ENUM(font_optical_sizing);
+    ST_PUT_KVPAIRS(font_variation_settings);
     ST_PUT_LEN(text_indent);        //    css_length_t         text_indent;
     ST_PUT_LEN(line_height);        //    css_length_t         line_height;
     ST_PUT_LEN(width);              //    css_length_t         width;
@@ -473,6 +508,7 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_U16(lUInt16, font_weight);
     ST_GET_LEN(font_features);                              //    css_length_t         font_features;
     ST_GET_ENUM(css_font_optical_sizing_t, font_optical_sizing);
+    ST_GET_KVPAIRS(font_variation_settings);
     ST_GET_LEN(text_indent);                                //    css_length_t         text_indent;
     ST_GET_LEN(line_height);                                //    css_length_t         line_height;
     ST_GET_LEN(width);                                      //    css_length_t         width;

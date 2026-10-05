@@ -2379,7 +2379,8 @@ bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 )
         && (style1->font_size == style2->font_size)
         && (style1->font_style == style2->font_style)
         && (style1->font_name == style2->font_name)
-        && (style1->font_weight == style2->font_weight);
+        && (style1->font_weight == style2->font_weight)
+        && (style1->font_variation_settings == style2->font_variation_settings);
 }
 
 static int rend_font_base_weight = 400;
@@ -2444,6 +2445,9 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int 
     LVFontVariations variations;
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    for (int i = 0; i < style->font_variation_settings.count(); i++)
+        variations.set(style->font_variation_settings.tagAt(i),
+                       style->font_variation_settings.valueAt(i));
     if (docFragmentIdx == DOC_FRAGMENT_IDX_UNKNOWN)
         docFragmentIdx = (documentId != -1) ? node->getDocFragmentIdx() : -1;
     LVFontRef fnt = fontMan->GetFont(
@@ -4811,6 +4815,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->font_weight = source->font_weight ;
     dest->font_features.type = source->font_features.type ;
     dest->font_features.value = source->font_features.value ;
+    dest->font_variation_settings = source->font_variation_settings;
     dest->text_indent = source->text_indent ;
     dest->line_height = source->line_height ;
     dest->width = source->width ;
@@ -10871,6 +10876,9 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         // for the parent node
         pstyle->font_name = parent_font.get()->getTypeFace();
     }
+
+    if (pstyle->font_variation_settings.type == css_val_inherited)
+        pstyle->font_variation_settings = parent_style->font_variation_settings;
 
     // font_features (font-variant/font-feature-settings)
     // The specs say a font-variant resets the ones that would be
