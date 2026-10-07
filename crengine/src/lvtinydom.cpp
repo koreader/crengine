@@ -22320,31 +22320,40 @@ void ldomDocument::setNodeNumberingProps( lUInt32 nodeDataIndex, ListNumberingPr
     lists.set(nodeDataIndex, v);
 }
 
-/// returns the sum of this node and its parents' top and bottom margins, borders and paddings
+/// returns the sum of the decorations (margin, border, padding) enclosing this node in document flow
 /// (provide account_height_below_strut_baseline=true for images, as they align on the baseline,
 /// so their container would be larger because of the strut)
 int ldomNode::getSurroundingAddedHeight(bool account_height_below_strut_baseline)
 {
     int h = 0;
     ldomNode * n = this;
+    // Reserve an ancestor's top/bottom decorations only while this node is
+    // still at that edge in the block flow. Body padding should constrain
+    // an image that is the body's only block content, but not one between
+    // other blocks.
+    bool has_top_edge = true;
+    bool has_bottom_edge = true;
     while (true) {
         ldomNode * parent = n->getParentNode();
         lvdom_element_render_method rm = n->getRendMethod();
         if ( rm != erm_inline && rm != erm_invisible && rm != erm_killed) {
-            // Add offset of border and padding
+            // Margins and padding in % are scaled according to parent's width.
             int base_width = 0;
             if ( parent && !(parent->isNull()) ) {
-                // margins and padding in % are scaled according to parent's width
                 RenderRectAccessor fmt( parent );
                 base_width = fmt.getWidth();
             }
             css_style_ref_t style = n->getStyle();
-            h += lengthToPx( n, style->margin[2], base_width );  // top margin
-            h += lengthToPx( n, style->margin[3], base_width );  // bottom margin
-            h += lengthToPx( n, style->padding[2], base_width ); // top padding
-            h += lengthToPx( n, style->padding[3], base_width ); // bottom padding
-            h += measureBorder(n, 0); // top border
-            h += measureBorder(n, 2); // bottom border
+            if ( has_top_edge ) {
+                h += lengthToPx( n, style->margin[2], base_width );
+                h += lengthToPx( n, style->padding[2], base_width );
+                h += measureBorder(n, 0);
+            }
+            if ( has_bottom_edge ) {
+                h += lengthToPx( n, style->margin[3], base_width );
+                h += lengthToPx( n, style->padding[3], base_width );
+                h += measureBorder(n, 2);
+            }
             if ( account_height_below_strut_baseline && rm == erm_final ) {
                 if ( n == this && isImage() ) {
                     // We're usually called on an image by lvtextfm.cpp, where lvrend.cpp,
@@ -22397,6 +22406,25 @@ int ldomNode::getSurroundingAddedHeight(bool account_height_below_strut_baseline
         }
         if ( !parent || parent->isNull() )
             break;
+        // Look for direct block-like siblings on either side. Text/inline,
+        // hidden/killed nodes and floatBoxes do not move normal-flow content.
+        for ( int side = 0; side < 2; side++ ) {
+            bool top = side == 0;
+            int idx = n->getNodeIndex() + (top ? -1 : 1);
+            while ( idx >= 0 && idx < parent->getChildCount() ) {
+                ldomNode * sibling = parent->getChildNode(idx);
+                lvdom_element_render_method rm = sibling->getRendMethod(); // returns erm_invisible for text nodes
+                if ( rm != erm_inline && rm != erm_invisible && rm != erm_killed && !sibling->isFloatingBox() )
+                    break; // There is a sibling in the block axis: this is not an edge
+                idx += top ? -1 : 1;
+            }
+            if ( idx >= 0 && idx < parent->getChildCount() ) {
+                if ( top )
+                    has_top_edge = false;
+                else
+                    has_bottom_edge = false;
+            }
+        }
         n = parent;
     }
     return h;
