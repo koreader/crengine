@@ -293,6 +293,7 @@ typedef struct
    lUInt32               height;        /**< height of text fragment */
    lUInt16               width;         /**< width of text fragment */
    lUInt16               page_height;   /**< max page height */
+   lInt32                percent_height_base; /**< -1 if percentage heights cannot resolve */
    LVHashTable<lUInt32, lString32Collection*> * inlineboxes_links;
 
     // Each line box starts with a zero-width inline box (called "strut") with
@@ -411,6 +412,11 @@ public:
     void setStrut(lUInt16 height, lUInt16 baseline) {
         m_pbuffer->strut_height = height;
         m_pbuffer->strut_baseline = baseline;
+    }
+
+    /// set the content-box height percentage-sized inline images resolve against.
+    void setPercentHeightBase(int height) {
+        m_pbuffer->percent_height_base = height;
     }
 
     /// set image scaling options
