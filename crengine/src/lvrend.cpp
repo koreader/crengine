@@ -3934,19 +3934,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
                 valign_dy -= lengthToPx(enode, vertical_align, base_pct, base_em);
             }
         }
-        switch ( style->text_decoration ) {
-            case css_td_underline:
-            case css_td_blink: // (render it underlined)
-                flags |= LTEXT_TD_UNDERLINE;
-                break;
-            case css_td_overline:
-                flags |= LTEXT_TD_OVERLINE;
-                break;
-            case css_td_line_through:
-                flags |= LTEXT_TD_LINE_THROUGH;
-                break;
-            default:
-                break;
+        if ( (style->text_decoration & css_td_underline) || (style->text_decoration & css_td_blink) ) {
+            flags |= LTEXT_TD_UNDERLINE; // (render blink as underline)
+        }
+        if ( style->text_decoration & css_td_overline ) {
+            flags |= LTEXT_TD_OVERLINE;
+        }
+        if ( style->text_decoration & css_td_line_through ) {
+            flags |= LTEXT_TD_LINE_THROUGH;
         }
         switch ( style->hyphenate ) {
             case css_hyph_auto:
@@ -10832,10 +10827,19 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
         */
     }
 
-    // text-decoration should not be inherited per CSS specs, but our quite
-    // limited support for it requires us to have its initial value be
-    // inherit, and to get it inherited by children.
-    UPDATE_STYLE_FIELD( text_decoration, css_td_inherit );
+    // text-decoration should not be inherited per CSS specs, but the resulting
+    // decorations apply across descendants. So, when a node specifies its own
+    // decorations, merge them with the parent's instead of replacing them.
+    if ( pstyle->text_decoration == css_td_inherit ) {
+        pstyle->text_decoration = parent_style->text_decoration;
+    }
+    else {
+        pstyle->text_decoration = (parent_style->text_decoration & ~css_td_none)
+                                | (pstyle->text_decoration & ~css_td_none);
+        if ( !pstyle->text_decoration ) {
+            pstyle->text_decoration = css_td_none;
+        }
+    }
 
     // Note: we don't inherit "direction" (which should be inherited per specs);
     // We'll handle inheritance of direction in renderBlockEnhanced, because

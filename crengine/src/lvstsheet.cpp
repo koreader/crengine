@@ -547,7 +547,8 @@ static lUInt32 parse_important( const char *str ) // does not advance the origin
     return 0;
 }
 
-static inline bool skip_to_next( const char * & str, char stop_char_to_skip, char stop_char_no_skip, char token_sep_char=0 )
+static inline bool skip_to_next( const char * & str, char stop_char_to_skip, char stop_char_no_skip,
+                                 char stop_char_no_skip2=0, bool stop_at_token_boundary=false )
 {
     // https://www.w3.org/TR/CSS2/syndata.html#parsing-errors
     //  "User agents must handle unexpected tokens encountered while
@@ -585,14 +586,15 @@ static inline bool skip_to_next( const char * & str, char stop_char_to_skip, cha
             str++; // skip it
             break;
         }
-        else if ( *str == stop_char_no_skip ) {
+        else if ( *str == stop_char_no_skip || *str == stop_char_no_skip2 ) {
             // i.e. '}' or ')', skipping handled by callers
             break;
         }
-        else if ( *str == token_sep_char ) {
-            // token_sep_char provided and met
+        else if ( stop_at_token_boundary && ( *str == ' ' || *str == '\t' || *str == '\n' || *str == '\r'
+                                                        || ( *str == '/' && str[1] == '*' ) ) ) {
+            // Whitespace/comments separate CSS value tokens
             if ( skip_spaces( str ) ) {
-                if ( *str != stop_char_to_skip && *str != stop_char_no_skip ) {
+                if ( *str != stop_char_to_skip && *str != stop_char_no_skip && *str != stop_char_no_skip2 ) {
                     // Something else before any stop char (before next property or end of declaration)
                     return true;
                 }
@@ -626,7 +628,7 @@ static inline bool next_property( const char * & str )
 
 static inline bool next_token( const char * & str, char stop_char='}')
 {
-    return skip_to_next( str, ';', stop_char, ' ' );
+    return skip_to_next( str, 0, ';', stop_char, true );
 }
 
 static bool parse_integer( const char * & str, unsigned & value)
@@ -4053,7 +4055,33 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                 prop_code = cssd_text_decoration;
                 // (Not default-inherited per specs, but inherited by our implementation)
                 IF_g_SET_n_AND_break(true, css_td_inherit, css_td_none)
-                n = parse_name( decl, css_td_names, -1 );
+                {
+                    css_text_decoration_t text_decoration = css_td_none;
+                    bool has_value = false;
+                    while ( *decl && *decl != ';' && *decl != stop_char ) {
+                        if ( parse_important(decl) ) {
+                            parsed_important = IMPORTANT_DECL_SET;
+                            break;
+                        }
+                        int keyword = parse_name( decl, css_td_names, -1 );
+                        if ( keyword < 1 ) {
+                            // This shorthand also accepts color, style and thickness values that
+                            // we don't support. Skip these whole value tokens so we can still
+                            // honor any line keywords we do support in the same declaration.
+                            if ( !next_token(decl, stop_char) ) {
+                                break;
+                            }
+                            continue;
+                        }
+                        has_value = true;
+                        if ( keyword > 1 ) {
+                            css_text_decoration_t keyword_mask = (css_text_decoration_t)(1 << (keyword - 1));
+                            text_decoration = (text_decoration & ~css_td_none) | keyword_mask;
+                        }
+                        skip_spaces( decl );
+                    }
+                    n = has_value ? text_decoration : -1;
+                }
                 break;
             case cssd_text_transform:
                 IF_g_SET_n_AND_break(true, css_tt_inherit, css_tt_none)
