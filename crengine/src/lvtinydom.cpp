@@ -12873,6 +12873,8 @@ static bool findTextRev( const lString32 & str, int & pos, int & endpos, const l
     return false;
 }
 
+inline bool IsWordBoundary( lChar32 ch );
+
 // findTextEnhanced() helpers
 static inline bool isSearchSpaceFoldChar(lChar32 ch)
 {
@@ -13369,6 +13371,7 @@ static bool findTextEnhanced(const lString32 & pattern, bool caseInsensitive, bo
     ranges.clear();
     if (pattern.empty())
         return false;
+    bool wholeWordsOnly = (searchFlags & LDOM_FIND_TEXT_MATCH_WHOLE_WORDS) != 0;
 
     if (reverse) {
         if (!end.isText()) {
@@ -13393,6 +13396,21 @@ static bool findTextEnhanced(const lString32 & pattern, bool caseInsensitive, bo
                 int offs = block.text.length();
                 int endpos;
                 while (::findTextRev(block.text, offs, endpos, pattern, patternIsRegex)) {
+                    if (wholeWordsOnly) {
+                        // We reuse the existing word-boundary helpers so whole-word search
+                        // stays consistent with word navigation; but unlike then, we treat
+                        // hyphens as boundaries so "operate" can match in "co-operate".
+                        bool leftBoundary = offs <= 0
+                                            || IsWordBoundary(block.text[offs - 1])
+                                            || (lGetCharProps(block.text[offs - 1]) & CH_PROP_HYPHEN) != 0;
+                        bool rightBoundary = endpos >= block.text.length()
+                                            || IsWordBoundary(block.text[endpos])
+                                            || (lGetCharProps(block.text[endpos]) & CH_PROP_HYPHEN) != 0;
+                        if (!leftBoundary || !rightBoundary) {
+                            offs--;
+                            continue;
+                        }
+                    }
                     appendFindTextMatchRange(block, offs, endpos, ranges);
                     if (firstFoundTextY == -1 && maxHeight > 0 && ranges.length() > 0) {
                         ldomXRange * firstRange = ranges[ranges.length() - 1];
@@ -13444,6 +13462,21 @@ static bool findTextEnhanced(const lString32 & pattern, bool caseInsensitive, bo
                 int offs = 0;
                 int endpos;
                 while (::findText(block.text, offs, endpos, pattern, patternIsRegex)) {
+                    if (wholeWordsOnly) {
+                        // We reuse the existing word-boundary helpers so whole-word search
+                        // stays consistent with word navigation; but unlike them, we treat
+                        // hyphens as boundaries so "operate" can match in "co-operate".
+                        bool leftBoundary = offs <= 0
+                                            || IsWordBoundary(block.text[offs - 1])
+                                            || (lGetCharProps(block.text[offs - 1]) & CH_PROP_HYPHEN) != 0;
+                        bool rightBoundary = endpos >= block.text.length()
+                                            || IsWordBoundary(block.text[endpos])
+                                            || (lGetCharProps(block.text[endpos]) & CH_PROP_HYPHEN) != 0;
+                        if (!leftBoundary || !rightBoundary) {
+                            offs++;
+                            continue;
+                        }
+                    }
                     // Convert match indices in the transient block buffer back to
                     // a DOM range using the per-codepoint origin mapping.
                     appendFindTextMatchRange(block, offs, endpos, ranges);
