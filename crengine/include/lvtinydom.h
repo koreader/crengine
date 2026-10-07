@@ -182,10 +182,12 @@ extern const int gDOMVersionCurrent;
 ///   "co-operate", "co‐operate", "co−operate".
 /// - IGNORE_DIACRITICS ignores combining-mark distinctions after decomposition:
 ///   "замок", "за́мок", "замо́к" can match by base letters.
+/// - MATCH_WHOLE_WORDS keeps only matches delimited by word boundaries in the
+///   searchable text buffer.
 ///
-/// Regex search ignores all folding/normalization/format-control flags, but when
-/// MATCH_ACROSS_TEXT_NODES is set it can still search the raw text of a whole rendered
-/// block across inline node boundaries.
+/// Regex search ignores all folding/normalization/format-control/whole-word flags,
+/// but when MATCH_ACROSS_TEXT_NODES is set it can still search the raw text of a
+/// whole rendered block across inline node boundaries.
 ///
 /// In the current implementation, the order of processing is roughly:
 ///    1. optional decomposition/normalization (CANONICAL or COMPATIBILITY)
@@ -195,6 +197,7 @@ extern const int gDOMVersionCurrent;
 ///       and optional IGNORE_FORMAT_CONTROL_CHARS
 ///    4. optional IGNORE_DIACRITICS
 ///    5. optional COLLAPSE_CONSECUTIVE_SPACES
+///    6. optional MATCH_WHOLE_WORDS boundary check on the final searchable text
 ///
 enum ldomFindTextFlag : lUInt32 {
     LDOM_FIND_TEXT_NONE                        = 0x0000,
@@ -207,6 +210,7 @@ enum ldomFindTextFlag : lUInt32 {
     LDOM_FIND_TEXT_FOLD_APOSTROPHES            = 0x0040,
     LDOM_FIND_TEXT_FOLD_HYPHENS                = 0x0080,
     LDOM_FIND_TEXT_IGNORE_DIACRITICS           = 0x0100,
+    LDOM_FIND_TEXT_MATCH_WHOLE_WORDS           = 0x1000,
 };
 
 
