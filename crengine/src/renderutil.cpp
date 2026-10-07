@@ -616,7 +616,7 @@ static int getInitialLetterDecorationBottomPx(ldomNode * enode, css_style_rec_t 
     if ( !isAppliedInitialLetterPseudoElem(enode, style) ) {
         return -1;
     }
-    if ( style->text_decoration != css_td_underline && style->text_decoration != css_td_blink ) {
+    if ( !(style->text_decoration & css_td_underline) && !(style->text_decoration & css_td_blink) ) {
         return -1;
     }
     int adjusted_baseline = getInitialLetterStyleAdjustedBaselinePx(enode->getDocument(), enode, style, font, computed_em);

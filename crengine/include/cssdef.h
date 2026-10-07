@@ -138,15 +138,14 @@ enum css_vertical_align_t {
 };
 
 /// text-decoration property values
-enum css_text_decoration_t {
-    // TODO: support multiple flags
-    css_td_inherit = 0,
-    css_td_none = 1,
-    css_td_underline = 2,
-    css_td_overline = 3,
-    css_td_line_through = 4,
-    css_td_blink = 5
-};
+/// (bit flags, so multiple decorations may be combined)
+typedef lUInt8 css_text_decoration_t;
+static const css_text_decoration_t css_td_inherit = 0;
+static const css_text_decoration_t css_td_none = 0x01;
+static const css_text_decoration_t css_td_underline = 0x02;
+static const css_text_decoration_t css_td_overline = 0x04;
+static const css_text_decoration_t css_td_line_through = 0x08;
+static const css_text_decoration_t css_td_blink = 0x10;
 
 /// text-transform property values
 enum css_text_transform_t {
