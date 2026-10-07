@@ -440,8 +440,12 @@ protected:
     int _top_overflow;    // Overflow (positive value) below _y
     int _bottom_overflow; // Overflow (positive value) after _y+_height
 
+    int _percent_height_base; // For erm_final nodes: height:NN% base (-1 if unavailable)
+
     int _lang_node_idx;     // dataIndex of the upper node this erm_final block
                             // should get its lang= langage from
+    int _listprop_node_idx; // dataIndex of the UL/OL node this erm_final block
+                            // should get its marker from
 
     // Flags & extras, to have additional info related to this rect cached.
     // - For erm_final nodes, these contain the footprint of outer floats
@@ -457,12 +461,8 @@ protected:
     int  _extra4;
     int  _extra5;
 
-    int _listprop_node_idx; // dataIndex of the UL/OL node this erm_final block
-                            // should get its marker from
-
-    // We're now at 16 32-bits ints. If needing new fields, add some padding:
-    // Added for padding from 17 to 20 32-bits ints
-    // int _available1; int _available2; int _available3;
+    // We're now at 17 32-bits ints. If needing new fields shorter
+    // than 'int', add some padding (ie. short _available1).
 
 public:
     lvdomElementFormatRec()
@@ -470,10 +470,11 @@ public:
     , _inner_width(0), _inner_x(0), _inner_y(0), _baseline(0)
     , _usable_left_overflow(0), _usable_right_overflow(0)
     , _top_overflow(0), _bottom_overflow(0)
+    , _percent_height_base(-1)
     , _lang_node_idx(0)
+    , _listprop_node_idx(0)
     , _flags(0), _extra0(0)
     , _extra1(0), _extra2(0), _extra3(0), _extra4(0), _extra5(0)
-    , _listprop_node_idx(0)
     {
     }
     ~lvdomElementFormatRec()
@@ -485,6 +486,7 @@ public:
         _inner_width = _inner_x = _inner_y = _baseline = 0;
         _usable_left_overflow = _usable_right_overflow = 0;
         _top_overflow = _bottom_overflow = 0;
+        _percent_height_base = -1;
         _lang_node_idx = _listprop_node_idx = 0;
         _flags = _extra0 = 0;
         _extra1 = _extra2 = _extra3 = _extra4 = _extra5 = 0;
@@ -496,6 +498,7 @@ public:
                 _inner_y==v._inner_y && _baseline==v._baseline &&
                 _usable_left_overflow==v._usable_left_overflow && _usable_right_overflow==v._usable_right_overflow &&
                 _top_overflow==v._top_overflow && _bottom_overflow==v._bottom_overflow &&
+                _percent_height_base==v._percent_height_base &&
                 _lang_node_idx==v._lang_node_idx && _listprop_node_idx==v._listprop_node_idx &&
                 _flags==v._flags && _extra0==v._extra0 &&
                 _extra1==v._extra1 && _extra2==v._extra2 && _extra3==v._extra3 &&
@@ -509,6 +512,7 @@ public:
                 _inner_y!=v._inner_y || _baseline!=v._baseline ||
                 _usable_left_overflow!=v._usable_left_overflow || _usable_right_overflow!=v._usable_right_overflow ||
                 _top_overflow!=v._top_overflow || _bottom_overflow!=v._bottom_overflow ||
+                _percent_height_base!=v._percent_height_base ||
                 _lang_node_idx!=v._lang_node_idx || _listprop_node_idx!=v._listprop_node_idx ||
                 _flags!=v._flags || _extra0!=v._extra0 ||
                 _extra1!=v._extra1 || _extra2!=v._extra2 || _extra3!=v._extra3 ||

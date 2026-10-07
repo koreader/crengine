@@ -101,7 +101,7 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.82k"
+#define CACHE_FILE_FORMAT_VERSION "3.05.83k"
 /// increment following value to force re-formatting of old book after load
 #define FORMATTING_VERSION_ID 0x0036
 
@@ -2184,6 +2184,33 @@ int RenderRectAccessor::getLangNodeIndex()
 #endif
     }
     return _lang_node_idx;
+}
+
+int RenderRectAccessor::getPercentHeightBase()
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    return _percent_height_base;
+}
+
+void RenderRectAccessor::setPercentHeightBase( int height )
+{
+    if ( _dirty ) {
+        _dirty = false;
+        _node->getRenderData(*this);
+#ifdef DEBUG_RENDER_RECT_ACCESS
+        rr_lock( _node );
+#endif
+    }
+    if ( _percent_height_base != height ) {
+        _percent_height_base = height;
+        _modified = true;
+    }
 }
 void RenderRectAccessor::setLangNodeIndex( int idx )
 {

@@ -856,6 +856,9 @@ public:
 
     int  getBaseline();
     void setBaseline( int baseline );
+    int  getPercentHeightBase();
+    void setPercentHeightBase( int height );
+
     int  getListPropNodeIndex();
     void setListPropNodeIndex( int idx );
     int  getLangNodeIndex();

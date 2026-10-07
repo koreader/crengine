@@ -163,6 +163,7 @@ formatted_text_fragment_t * lvtextAllocFormatter( lUInt16 width )
     pbuffer->width = width;
     pbuffer->strut_height = 0;
     pbuffer->strut_baseline = 0;
+    pbuffer->percent_height_base = -1;
     pbuffer->is_reusable = true;
     pbuffer->light_formatting = false;
     int defMode = MAX_IMAGE_SCALE_MUL > 1 ? (ARBITRARY_IMAGE_SCALE_ENABLED==1 ? 2 : 1) : 0;
@@ -2458,9 +2459,7 @@ public:
                         ldomNode * node = (ldomNode *) src->object;
                         int width = 0;
                         int height = 0;
-                        // We have yet no container height to provide for CSS heights in %,
-                        // so they won't apply
-                        getStyledImageSize( node, width, height, m_pbuffer->width, -1 );
+                        getStyledImageSize( node, width, height, m_pbuffer->width, m_pbuffer->percent_height_base );
                         // Ensure they are constrained to this paragraph width and page height
                         // Note: resizeImage() may do some additional scaling depending on image_scaling_options,
                         // use mode=0 scale=1 for these if this is not desirable.
