@@ -217,8 +217,8 @@
         "name": "Malayalam",
         "filename": "Malayalam.pattern",
         "language": "ml",
-        "left_hyphen_min": 2,
-        "right_hyphen_min": 3,
+        "left_hyphen_min": 3,
+        "right_hyphen_min": 4,
         "aliases": ["mal"]
     },
     {
