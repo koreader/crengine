@@ -85,7 +85,7 @@ static struct {
     { "lv",    "Latvian",       "Latvian.pattern",       2, 2 },
     { "lt",    "Lithuanian",    "Lithuanian.pattern",    2, 2 },
     { "mk",    "Macedonian",    "Macedonian.pattern",    2, 2 },
-    { "ml",    "Malayalam",     "Malayalam.pattern",     2, 3 },
+    { "ml",    "Malayalam",     "Malayalam.pattern",     3, 4 },
     { "no",    "Norwegian",     "Norwegian.pattern",     2, 2 },
     { "oc",    "Occitan",       "Occitan.pattern",       2, 2 },
     { "pms",   "Piedmontese",   "Piedmontese.pattern",   2, 2 },
