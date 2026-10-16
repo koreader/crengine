@@ -364,14 +364,14 @@ static const char * EMBEDDED_FONT_DEF_MAGIC = "FNTD";
 ////////////////////////////////////////////////////////////////////
 bool LVEmbeddedFontDef::serialize(SerialBuf & buf) {
     buf.putMagic(EMBEDDED_FONT_DEF_MAGIC);
-    buf << _url << _face << _weight << _italic << _isLocal << _docFragmentIdx;
+    buf << _url << _face << _weight << _italic << _isLocal << _docFragmentIdx << _width;
     return !buf.error();
 }
 
 bool LVEmbeddedFontDef::deserialize(SerialBuf & buf) {
     if (!buf.checkMagic(EMBEDDED_FONT_DEF_MAGIC))
         return false;
-    buf >> _url >> _face >> _weight >> _italic >> _isLocal >> _docFragmentIdx;
+    buf >> _url >> _face >> _weight >> _italic >> _isLocal >> _docFragmentIdx >> _width;
     return !buf.error();
 }
 
@@ -390,12 +390,13 @@ bool LVEmbeddedFontList::addAll(LVEmbeddedFontList & list) {
     bool changed = false;
     for (int i=0; i<list.length(); i++) {
         LVEmbeddedFontDef * def = list.get(i);
-        changed = add(def->getUrl(), def->getFace(), def->getWeight(), def->getItalic(), def->getIsLocal(), def->getDocFragmentIdx()) || changed;
+        changed = add(def->getUrl(), def->getFace(), def->getWeight(), def->getWidth(), def->getItalic(), def->getIsLocal(),
+                      def->getDocFragmentIdx()) || changed;
     }
     return changed;
 }
 
-bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool italic, bool isLocal, int docFragmentIdx) {
+bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, int width, bool italic, bool isLocal, int docFragmentIdx) {
     LVEmbeddedFontDef * def = findByUrlAndDocFragment(url, docFragmentIdx);
     if (def) {
         bool changed = false;
@@ -405,6 +406,10 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool ital
         }
         if (def->getWeight() != weight) {
             def->setWeight(weight);
+            changed = true;
+        }
+        if (def->getWidth() != width) {
+            def->setWidth(width);
             changed = true;
         }
         if (def->getItalic() != italic) {
@@ -417,7 +422,7 @@ bool LVEmbeddedFontList::add(lString32 url, lString8 face, int weight, bool ital
         }
         return changed;
     }
-    def = new LVEmbeddedFontDef(url, face, weight, italic, isLocal, docFragmentIdx);
+    def = new LVEmbeddedFontDef(url, face, weight, width, italic, isLocal, docFragmentIdx);
     add(def);
     return false;
 }
@@ -1488,6 +1493,17 @@ int getFontWeight(FT_Face face) {
         weight = 700;
     // printf("%s %d: %s => %d\n", face->family_name, face->style_flags & FT_STYLE_FLAG_BOLD, face->style_name, weight);
     return weight;
+}
+
+// CSS Fonts 4 sec 5.2: a font's width (in tenths of a percent) is its OS/2 usWidthClass,
+// mapped per the font-width keyword table. Without a valid value (no OS/2 table, e.g. Type 1,
+// or a value outside 1-9), the face is normal width (100%).
+static int getFontWidth(FT_Face face) {
+    static const int os2Widths[] = { 500, 625, 750, 875, 1000, 1125, 1250, 1500, 2000 };
+    TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, FT_SFNT_OS2);
+    if (os2 && os2->usWidthClass >= 1 && os2->usWidthClass <= 9)
+        return os2Widths[os2->usWidthClass - 1];
+    return css_fwd_normal;
 }
 
 // The 2 slots with "LCHAR_IS_SPACE | LCHAR_ALLOW_WRAP_AFTER" on the 2nd line previously
@@ -6386,12 +6402,12 @@ public:
 };
 
 /// Result of a font selection.
-/// computed_variations holds the OpenType axis values to apply (variable fonts only).
+/// computed_variations holds the OpenType axis values to apply (only used by variable fonts).
 /// Synthesized bold/italic are NOT here; loadAndCache() re-derives them from
 /// the requested weight/italic vs the face's own weight/italic at load time.
 struct LVFontMatch {
     const LVFontFace*  face;
-    LVFontVariations   computed_variations;  // variable font axes; empty for static fonts
+    LVFontVariations   computed_variations;  // axis values; static faces get their fixed wght/wdth
 
     LVFontMatch() : face(nullptr) {}
     bool valid() const { return face != nullptr; }
@@ -6457,10 +6473,10 @@ class LVFontSelector {
         return best;
     }
 
-    // requested: CSS font-variation-settings passthrough (opsz, wdth only;
-    //            wght and ital/slnt come from the weight/italic CSS properties).
-    // computed:  the full axis set to hand to FreeType, including wght derived
-    //            from the weight parameter and ital/slnt derived from italic.
+    // requested: opsz (font-optical-sizing) and wdth (font-width); wght and
+    //            ital/slnt come from the weight/italic parameters.
+    // computed:  the full axis set to hand to FreeType, with wght and wdth
+    //            clamped to the face's ranges and ital/slnt derived from italic.
     LVFontVariations computeVariations(const LVFontFace& f,
                                         const LVFontVariations& requested,
                                         int weight, bool italic) const
@@ -6477,12 +6493,45 @@ class LVFontSelector {
             computed.set(LVFONT_TAG_ITAL, 1.0f);
         else if (italic && !f.is_italic && f._has_slnt && f._slnt_min < 0.0f)
             computed.set(LVFONT_TAG_SLNT, -12.0f);
-        // opsz and wdth are passed through verbatim from requested.
+        // opsz is passed through verbatim from requested.
         if (requested.opsz_set && f._has_opsz)
             computed.set(LVFONT_TAG_OPSZ, requested.opsz);
-        if (requested.wdth_set && f._has_wdth)
-            computed.set(LVFONT_TAG_WDTH, requested.wdth);
+        // wdth (from font-width) is clamped to the face's axis range, as wght above.
+        if (f._has_wdth) {
+            float w = requested.wdth_set ? requested.wdth : 100.0f;
+            if (w < f._wdth_min) w = f._wdth_min;
+            if (w > f._wdth_max) w = f._wdth_max;
+            computed.set(LVFONT_TAG_WDTH, w);
+        }
         return computed;
+    }
+
+    // Whether a face may be used by the given document/DocFragment at all.
+    static bool faceVisible(const LVFontFace& face, int documentId, int docFragmentIdx)
+    {
+        if (face.documentId != -1 && face.documentId != documentId)
+            return false;
+        // Doc-fragment-scoped: only visible to DocFragments that declared this font.
+        // Guard on documentId != -1 so that when doc fonts are disabled
+        // (getFontContextDocIndex() returns -1), doc fragment filtering is also off.
+        if (documentId != -1 && !face.allowedForDocFragment(docFragmentIdx))
+            return false;
+        return true;
+    }
+
+    // Lower is better. Follows sec 5.2's width rule: a face whose range contains
+    // the requested width is best (0); otherwise, for a request <= 100%, the
+    // nearest narrower face is preferred to any wider one, and for a request > 100%
+    // the nearest wider one is preferred to any narrower one.
+    static float widthRank(const LVFontFace& f, float req)
+    {
+        if (req >= f._wdth_min && req <= f._wdth_max)
+            return 0;
+        const float penalty = 100000.0f; // pushes the less preferred direction behind the preferred one
+        bool narrower = f._wdth_max < req; // face is entirely narrower than requested
+        float dist = narrower ? req - f._wdth_max : f._wdth_min - req;
+        bool preferNarrower = req <= 100.0f;
+        return 1 + dist + (narrower == preferNarrower ? 0 : penalty);
     }
 
 public:
@@ -6501,14 +6550,26 @@ public:
         // sys_preferred/sys_fallback = system faces (italic match / mismatch).
         LVArray<const LVFontFace*> preferred, fallback;
         LVArray<const LVFontFace*> sys_preferred, sys_fallback;
+        // Sec 5.2 matches font-width first: every face has a width (range), and
+        // only the faces with the best-matching one survive. Computed separately for document and
+        // system faces so that an embedded face is never dropped in favour of a system one.
+        const float reqWidth = requested.wdth_set ? requested.wdth : 100.0f;
+        float docWidthDist = -1, sysWidthDist = -1;
         for (int i = 0; i < family->faceCount(); i++) {
             const LVFontFace& face = family->faceAt(i);
-            if (face.documentId != -1 && face.documentId != documentId)
+            if (!faceVisible(face, documentId, docFragmentIdx))
                 continue;
-            // Doc-fragment-scoped: only visible to DocFragments that declared this font.
-            // Guard on documentId != -1 so that when doc fonts are disabled
-            // (getFontContextDocIndex() returns -1), doc fragment filtering is also off.
-            if (documentId != -1 && !face.allowedForDocFragment(docFragmentIdx))
+            float& best = (face.documentId != -1) ? docWidthDist : sysWidthDist;
+            float d = widthRank(face, reqWidth);
+            if (best < 0 || d < best)
+                best = d;
+        }
+        for (int i = 0; i < family->faceCount(); i++) {
+            const LVFontFace& face = family->faceAt(i);
+            if (!faceVisible(face, documentId, docFragmentIdx))
+                continue;
+            float bestWidth = (face.documentId != -1) ? docWidthDist : sysWidthDist;
+            if (widthRank(face, reqWidth) > bestWidth)
                 continue;
             bool nativelyItalic = face.is_italic ||
                     (face._has_ital && face._ital_max > 0.5f) ||
@@ -6730,6 +6791,8 @@ public:
                 h = h * 31 + (lUInt32)(unsigned)(int)face._wght_min;
                 h = h * 31 + (lUInt32)(unsigned)(int)face._wght_max;
                 h = h * 31 + (lUInt32)face.is_italic;
+                h = h * 31 + (lUInt32)(face._wdth_min * 10 + 0.5f);
+                h = h * 31 + (lUInt32)(face._wdth_max * 10 + 0.5f);
                 hash += h;
             }
         }
@@ -6996,7 +7059,7 @@ public:
 
             FcObjectSet *os = FcObjectSetBuild(FC_FILE, FC_WEIGHT, FC_FAMILY,
                                                FC_SLANT, FC_SPACING, FC_INDEX,
-                                               FC_STYLE, FC_SCALABLE, NULL);
+                                               FC_STYLE, FC_SCALABLE, FC_WIDTH, NULL);
             FcPattern *pat = FcPatternCreate();
             //FcBool b = 1;
             FcPatternAddBool(pat, FC_SCALABLE, 1);
@@ -7111,6 +7174,14 @@ public:
                     CRLog::debug("no FC_SLANT for %s", s);
                     //continue;
                 }
+                // FC_WIDTH constants are already CSS font-width percentages (FC_WIDTH_CONDENSED
+                // is 75, etc). A variable font reports a range instead of an integer, and we
+                // don't know its axis here: it is then treated as a static normal (100%) face.
+                int fcWidth = 100;
+                res = FcPatternGetInteger(fontset->fonts[i], FC_WIDTH, 0, &fcWidth);
+                if(res != FcResultMatch || fcWidth <= 0) {
+                    fcWidth = 100;
+                }
                 int spacing = 0;
                 res = FcPatternGetInteger(fontset->fonts[i], FC_SPACING, 0, &spacing);
                 if(res != FcResultMatch) {
@@ -7152,6 +7223,7 @@ public:
                 def.file_path  = lString8((const char*)s);
                 def.face_index = index;
                 def.setAxisInfo(LVFONT_TAG_WGHT, (float)weight, (float)weight);
+                def.setAxisInfo(LVFONT_TAG_WDTH, (float)fcWidth, (float)fcWidth);
                 def.is_italic  = italic;
                 def.css_family = fontFamily;
                 def.typeface   = face;
@@ -7658,9 +7730,9 @@ public:
     /// Inspect an open FT_Face and populate all capability/axis fields on def.
     /// Called after the def constructor so that HarfBuzz and FreeType queries
     /// only happen once per face regardless of which registration path is used.
-    /// defaultWeight is used to pin the wght axis for non-variable fonts (those
-    /// without their own fvar wght axis).
-    void inspectFTFace(FT_Face ft_face, LVFontFace& def, int defaultWeight)
+    /// defaultWeight and defaultWidth are used to pin the wght and wdth axes for
+    /// non-variable fonts (those without their own fvar wght or wdth axis).
+    void inspectFTFace(FT_Face ft_face, LVFontFace& def, int defaultWeight, int defaultWidth)
     {
         def.has_emojis = checkForEmojis(ft_face);
         #if USE_HARFBUZZ==1
@@ -7706,13 +7778,16 @@ public:
                 FT_DONE_MM_VAR(_library, mm_var);
             }
         }
-        // All fonts carry wght and ital axis info; non-variable fonts get a fixed-point range.
+        // All fonts carry wght, ital and wdth axis info; non-variable fonts get a fixed-point range.
         if (!def.hasAxis(LVFONT_TAG_WGHT)) {
             def.setAxisInfo(LVFONT_TAG_WGHT, (float)defaultWeight, (float)defaultWeight);
         }
         if (!def.hasAxis(LVFONT_TAG_ITAL)) {
             float iv = def.is_italic ? 1.0f : 0.0f;
             def.setAxisInfo(LVFONT_TAG_ITAL, iv, iv);
+        }
+        if (!def.hasAxis(LVFONT_TAG_WDTH)) {
+            def.setAxisInfo(LVFONT_TAG_WDTH, defaultWidth / 10.0f, defaultWidth / 10.0f);
         }
     }
 
@@ -7830,8 +7905,7 @@ public:
             // oblique faces like Acumin's slnt axis) so the small font's selector
             // pass recomputes the same slant the main face got.
             LVFontVariations smallVars;
-            if (computed_variations.wdth_set)
-                smallVars.set(LVFONT_TAG_WDTH, computed_variations.wdth);
+            smallVars.set(LVFONT_TAG_WDTH, computed_variations.wdth);
             if (computed_variations.opsz_set)
                 smallVars.set(LVFONT_TAG_OPSZ, computed_variations.opsz * 0.75f);
             // Downscaled glyphs lose apparent stroke thickness, so request a bit
@@ -7965,7 +8039,8 @@ public:
     // Note: publishers can specify font-variant/font-feature-settings/font-variation-settings
     // in the @font-face declaration.
     // todo: parse it and pass it here, and set it on the non-instantiated font (instead of -1)
-    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, int weight, bool italic, int docFragmentIdx = -1) {
+    virtual bool RegisterDocumentFont(int documentId, LVContainerRef container, lString32 name, lString8 faceName, int weight, int width,
+                                     bool italic, int docFragmentIdx = -1) {
         FONT_MAN_GUARD
         if (container.isNull()) // no container to resolve src: url() against (e.g. a styletweak)
             return false;
@@ -8033,6 +8108,7 @@ public:
             */
 
             int resolvedWeight = !faceName.empty() ? weight : getFontWeight(face);
+            int resolvedWidth = !faceName.empty() ? width : getFontWidth(face);
             bool italicFlag = !faceName.empty() ? italic : (face->style_flags & FT_STYLE_FLAG_ITALIC) != 0;
 
             LVFontFace def;
@@ -8043,7 +8119,7 @@ public:
             def.typeface    = familyName;
             def.documentId  = documentId;
             def.buf         = buf;
-            inspectFTFace(face, def, resolvedWeight);
+            inspectFTFace(face, def, resolvedWeight, resolvedWidth);
             #if (DEBUG_FONT_MAN==1)
                 if ( _log )
                     fprintf(_log, "registering font: (file=%s[%d], weight=%d, italic=%d, family=%d, typeface=%s)\n",
@@ -8109,7 +8185,8 @@ public:
         _registry.removeFonts(documentId);
     }
 
-    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, int weight, bool italic, int docFragmentIdx = -1) {
+    virtual bool RegisterExternalFont(int documentId, lString32 name, lString8 family_name, int weight, int width,
+                                     bool italic, int docFragmentIdx = -1) {
         if (name.startsWithNoCase(lString32("res://")))
             name = name.substr(6);
         else if (name.startsWithNoCase(lString32("file://")))
@@ -8170,7 +8247,7 @@ public:
             def.css_family  = fontFamily;
             def.typeface    = family_name;
             def.documentId  = documentId;
-            inspectFTFace(face, def, weight);
+            inspectFTFace(face, def, weight, width);
             FT_Done_Face( face ); face = NULL;
             if (!tryRegisterFace(def, docFragmentIdx)) return false;
             res = true;
@@ -8278,7 +8355,7 @@ public:
             def.is_italic  = italicFlag;
             def.css_family = fontFamily;
             def.typeface   = familyName;
-            inspectFTFace(face, def, weight);
+            inspectFTFace(face, def, weight, getFontWidth(face));
             #if (DEBUG_FONT_MAN==1)
                 if ( _log )
                     fprintf(_log, "registering font: (file=%s[%d], weight=%d, italic=%d, family=%d, typeface=%s)\n",
