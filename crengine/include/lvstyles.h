@@ -38,6 +38,7 @@ enum css_style_rec_important_bit {
     imp_bit_font_size,
     imp_bit_font_style,
     imp_bit_font_weight,
+    imp_bit_font_width,
     imp_bit_font_features,
     imp_bit_font_optical_sizing,
     imp_bit_text_indent,
@@ -109,7 +110,7 @@ enum css_style_rec_important_bit {
     imp_bit_content,
     imp_bit_cr_hint
 };
-#define NB_IMP_BITS 82 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 83 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
@@ -155,6 +156,7 @@ struct css_style_rec_tag {
     css_length_t         font_size;
     css_font_style_t     font_style;
     lUInt16              font_weight;
+    lUInt16              font_width; // in tenths of a percent, see css_fwd_*
     css_length_t         font_features;
     css_font_optical_sizing_t  font_optical_sizing;
     css_length_t         text_indent;
@@ -228,6 +230,7 @@ struct css_style_rec_tag {
     , font_size(css_val_inherited, 0)
     , font_style(css_fs_inherit)
     , font_weight(css_fw_inherit)
+    , font_width(css_fwd_inherit)
     , font_features(css_val_inherited, 0)
     , font_optical_sizing(css_fos_inherit)
     , text_indent(css_val_inherited, 0)
