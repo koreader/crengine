@@ -179,6 +179,13 @@ static const lUInt16 css_fw_bold     = 1002; // keyword "bold"    → 700 at com
 static const lUInt16 css_fw_bolder   = 1003; // keyword "bolder"  → relative
 static const lUInt16 css_fw_lighter  = 1004; // keyword "lighter" → relative
 
+/// font-width (legacy name: font-stretch): stored as the percentage in tenths of a percent
+/// (100% = 1000, 87.5% = 875), so all CSS keywords and fractional values are exact.
+/// 0 means unset / inherit. Initial value is normal = 100%.
+static const lUInt16 css_fwd_inherit = 0;
+static const lUInt16 css_fwd_normal  = 1000;
+#define CSS_FWD_MAX 65000 // clamp for stored values (6500%)
+
 /// font-optical-sizing property values
 enum css_font_optical_sizing_t {
     css_fos_inherit,
