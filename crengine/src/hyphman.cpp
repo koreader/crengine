@@ -26,6 +26,9 @@
 
 #include <stdlib.h>
 #include <string.h>
+#if USE_UTF8PROC==1
+#include <utf8proc.h>
+#endif
 #include "../include/lvxml.h"
 
 #if !defined(__SYMBIAN32__)
@@ -84,8 +87,9 @@ public:
 
 class AlgoHyph : public HyphMethod
 {
+    bool _use_graphemes;
 public:
-    AlgoHyph(): HyphMethod(HYPH_DICT_ID_ALGORITHM) {};
+    AlgoHyph(bool use_graphemes=false): HyphMethod(HYPH_DICT_ID_ALGORITHM), _use_graphemes(use_graphemes) {};
     virtual bool hyphenate( const lChar32 * str, int len, const lUInt16 * widths, lUInt8 * flags, lUInt16 hyphCharWidth, lUInt16 maxWidth, size_t flagSize );
     virtual ~AlgoHyph();
 };
@@ -112,6 +116,7 @@ public:
 
 static NoHyph NO_HYPH;
 static AlgoHyph ALGO_HYPH;
+static AlgoHyph GRAPHEME_HYPH(true);
 static SoftHyphensHyph SOFTHYPHENS_HYPH;
 
 // Obsolete: provided by TextLangMan main lang
@@ -254,6 +259,8 @@ HyphDictionary * HyphMan::getSelectedDictionary() {
 HyphMethod * HyphMan::getHyphMethodForDictionary( lString32 id, int leftHyphenMin, int rightHyphenMin ) {
     if ( id.empty() || NULL == _dataLoader)
         return &NO_HYPH;
+    if ( id == HYPH_DICT_ID_ALGORITHM_GRAPHEME )
+        return &GRAPHEME_HYPH;
     HyphDictionary * p = _dictList->find(id);
     if ( !p || p->getType() == HDT_NONE )
         return &NO_HYPH;
@@ -1088,6 +1095,39 @@ bool AlgoHyph::hyphenate( const lChar32 * str, int len, const lUInt16 * widths, 
 
     if (len < left_hyphen_min + right_hyphen_min)
         return false; // too small
+
+#if USE_UTF8PROC==1
+    if ( _use_graphemes ) {
+        LVArray<int> ends;
+        utf8proc_int32_t state = 0;
+        int previous = -1;
+        for ( int i=0; i<len; i++ ) {
+            // Soft hyphens must not create or split graphemes when not trusted.
+            if ( str[i] == UNICODE_SOFT_HYPHEN_CODE )
+                continue;
+            if ( previous >= 0 && utf8proc_grapheme_break_stateful(str[previous], str[i], &state) )
+                ends.add(i-1);
+            previous = i;
+        }
+        if ( previous < 0 )
+            return false;
+        ends.add(len-1);
+        bool res = false;
+        // Leave at least left_hyphen_min/right_hyphen_min grapheme clusters on each side
+        // of the break. A cluster counts as one, even when made of several codepoints.
+        for ( int i=left_hyphen_min-1; i<ends.length()-right_hyphen_min; i++ ) {
+            int pos = ends[i];
+            if ( widths[pos] + hyphCharWidth >= maxWidth )
+                continue;
+            if ( flagSize == 2 )
+                ((lUInt16*)flags)[pos] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            else
+                flags[pos] |= LCHAR_ALLOW_HYPH_WRAP_AFTER;
+            res = true;
+        }
+        return res;
+    }
+#endif
 
     lUInt16 chprops[WORD_LENGTH];
     if ( len > WORD_LENGTH-2 )
