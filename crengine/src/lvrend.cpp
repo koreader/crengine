@@ -2379,7 +2379,8 @@ bool isSameFontStyle( css_style_rec_t * style1, css_style_rec_t * style2 )
         && (style1->font_size == style2->font_size)
         && (style1->font_style == style2->font_style)
         && (style1->font_name == style2->font_name)
-        && (style1->font_weight == style2->font_weight);
+        && (style1->font_weight == style2->font_weight)
+        && (style1->font_width == style2->font_width);
 }
 
 static int rend_font_base_weight = 400;
@@ -2444,6 +2445,9 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int 
     LVFontVariations variations;
     if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
         variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    // font-width: selects among static width faces, and sets the wdth axis of variable ones.
+    if (style->font_width != css_fwd_normal)
+        variations.set(LVFONT_TAG_WDTH, style->font_width / 10.0f);
     if (docFragmentIdx == DOC_FRAGMENT_IDX_UNKNOWN)
         docFragmentIdx = (documentId != -1) ? node->getDocFragmentIdx() : -1;
     LVFontRef fnt = fontMan->GetFont(
@@ -4809,6 +4813,7 @@ void copystyle( css_style_ref_t source, css_style_ref_t dest )
     dest->font_size.value = source->font_size.value ;
     dest->font_style = source->font_style ;
     dest->font_weight = source->font_weight ;
+    dest->font_width = source->font_width ;
     dest->font_features.type = source->font_features.type ;
     dest->font_features.value = source->font_features.value ;
     dest->text_indent = source->text_indent ;
@@ -10867,6 +10872,7 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     // These have "inherit" as their initial value (others, less straightforward, are handled below)
     UPDATE_STYLE_FIELD( font_style, css_fs_inherit );
     UPDATE_STYLE_FIELD( font_optical_sizing, css_fos_inherit );
+    UPDATE_STYLE_FIELD( font_width, css_fwd_inherit );
     UPDATE_STYLE_FIELD( white_space, css_ws_inherit );
     UPDATE_STYLE_FIELD( text_align, css_ta_inherit );
     UPDATE_STYLE_FIELD( text_align_last, css_ta_inherit );

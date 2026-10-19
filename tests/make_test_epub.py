@@ -11,14 +11,16 @@ import zipfile
 
 MIMETYPE = b"application/epub+zip"
 
-# Real font binary used to test embedding the same file under two distinct
-# @font-face family names (see CH10 below). Reused from KOReader's bundled
-# fonts rather than vendoring a duplicate copy -- this script is expected to
-# run from within a full koreader checkout (crengine is nested under
+# Real font binaries embedded in the EPUB, reused from KOReader's bundled fonts
+# rather than vendoring duplicate copies -- this script is expected to run from
+# within a full koreader checkout (crengine is nested under
 # base/thirdparty/kpvcrlib here).
-FONT_SRC_PATH = os.path.join(os.path.dirname(__file__),
-                              "..", "..", "..", "..", "..",
-                              "resources", "fonts", "droid", "DroidSansMono.ttf")
+FONTS_ROOT = os.path.join(os.path.dirname(__file__),
+                          "..", "..", "..", "..", "..", "resources", "fonts")
+EMBEDDED_FONTS = {
+    # CH10: the same file declared under two @font-face family names.
+    "fonts/mono.ttf": "droid/DroidSansMono.ttf",
+}
 
 CONTAINER_XML = """\
 <?xml version="1.0" encoding="UTF-8"?>
@@ -94,7 +96,7 @@ TOC_NCX = """\
       <content src="ch03.html"/>
     </navPoint>
     <navPoint id="ch04" playOrder="4">
-      <navLabel><text>4. Font Stretch</text></navLabel>
+      <navLabel><text>4. Font Width</text></navLabel>
       <content src="ch04.html"/>
     </navPoint>
     <navPoint id="ch05" playOrder="5">
@@ -178,11 +180,17 @@ p    { margin: 0.2em 0; }
 .synth-all  { font-synthesis: weight style; }
 .synth-none { font-synthesis: none; }
 
-/* Stretch */
+/* Width (font-width, and its legacy name font-stretch) */
+.width-50  { font-width: ultra-condensed; }
+.width-62  { font-width: extra-condensed; }
+.width-75  { font-width: condensed; }
+.width-87  { font-width: semi-condensed; }
+.width-100 { font-width: normal; }
+.width-112 { font-width: semi-expanded; }
+.width-125 { font-width: expanded; }
+.width-150 { font-width: extra-expanded; }
+.width-200 { font-width: ultra-expanded; }
 .stretch-75  { font-stretch: condensed; }
-.stretch-87  { font-stretch: semi-condensed; }
-.stretch-100 { font-stretch: normal; }
-.stretch-112 { font-stretch: semi-expanded; }
 .stretch-125 { font-stretch: expanded; }
 
 .sans  { font-family: sans-serif; }
@@ -376,50 +384,144 @@ CH04 = """\
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
   "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
-<head><title>Font Stretch</title>
-<link rel="stylesheet" type="text/css" href="style.css"/></head>
+<head><title>Font Width</title>
+<link rel="stylesheet" type="text/css" href="style.css"/>
+<style type="text/css">
+.pct-0   { font-width: 0%; }
+.pct-80  { font-width: 80%; }
+.pct-99  { font-width: 99%; }
+.pct-100 { font-width: 100%; }
+.pct-101 { font-width: 101%; }
+.pct-300 { font-width: 300%; }
+
+.bad-number  { font-width: 75; }
+.bad-neg     { font-width: -50%; }
+.bad-unit    { font-width: 75px; }
+.bad-keyword { font-width: narrow; }
+
+.kw-inherit { font-width: inherit; }
+.kw-initial { font-width: initial; }
+
+.last-wins-width   { font-stretch: condensed; font-width: expanded; }
+.last-wins-stretch { font-width: expanded; font-stretch: condensed; }
+.imp-condensed     { font-width: condensed !important; }
+</style>
+</head>
 <body>
-<h1>Chapter 4 — Font Stretch</h1>
+<h1>Chapter 4 &#x2014; Font Width</h1>
 
-<p class="label">&#x26A0; Not yet implemented. The font-stretch CSS property is not
-parsed. All lines in this chapter will render at normal width.</p>
+<p>All samples use the default reading font. Set it to the font under test
+before reading this chapter.</p>
 
-<h2>CSS keyword values (serif)</h2>
-<p class="label">font-stretch: condensed (75%)</p>
-<p class="sample serif stretch-75">
-  The quick brown fox jumps over the lazy dog. Condensed.</p>
-<p class="label">font-stretch: semi-condensed (87.5%)</p>
-<p class="sample serif stretch-87">
-  The quick brown fox jumps over the lazy dog. Semi-condensed.</p>
-<p class="label">font-stretch: normal (100%)</p>
-<p class="sample serif stretch-100">
-  The quick brown fox jumps over the lazy dog. Normal.</p>
-<p class="label">font-stretch: semi-expanded (112.5%)</p>
-<p class="sample serif stretch-112">
-  The quick brown fox jumps over the lazy dog. Semi-expanded.</p>
-<p class="label">font-stretch: expanded (125%)</p>
-<p class="sample serif stretch-125">
-  The quick brown fox jumps over the lazy dog. Expanded.</p>
+<p class="label">&#x26A0; Width changes are only guaranteed to show if the
+default font is a <strong>variable font with a width (wdth) axis</strong>.
+Lines then compress or expand, clamped to the axis range (e.g. a font whose
+axis runs 75&#x2013;100% renders every expanded line at 100%). A static font
+only changes width if its family also has separate condensed or expanded
+faces, and then snaps to the nearest one: for requests up to 100% the nearest
+narrower face is used, above 100% the nearest wider one. Width is never
+synthesized, so with a single-width font every line in this chapter renders
+at normal width.</p>
 
-<h2>Same values, sans-serif</h2>
-<p class="sample sans stretch-75">Sans condensed (75%). The quick brown fox.</p>
-<p class="sample sans stretch-100">Sans normal (100%). The quick brown fox.</p>
-<p class="sample sans stretch-125">Sans expanded (125%). The quick brown fox.</p>
+<h2>Keywords</h2>
+<p class="label">Each line should be at least as wide as the one before it.</p>
+<p class="label">ultra-condensed (50%)</p>
+<p class="sample width-50">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">extra-condensed (62.5%)</p>
+<p class="sample width-62">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">condensed (75%)</p>
+<p class="sample width-75">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">semi-condensed (87.5%)</p>
+<p class="sample width-87">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">normal (100%) &#x2014; reference line</p>
+<p class="sample width-100">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">semi-expanded (112.5%)</p>
+<p class="sample width-112">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">expanded (125%)</p>
+<p class="sample width-125">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">extra-expanded (150%)</p>
+<p class="sample width-150">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">ultra-expanded (200%)</p>
+<p class="sample width-200">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">No font-width set: same as the reference line</p>
+<p class="sample">The quick brown fox jumps over the lazy dog.</p>
 
-<h2>Stretch + weight</h2>
-<p class="sample serif stretch-75 w700">Bold condensed. The quick brown fox.</p>
-<p class="sample serif stretch-125 w700">Bold expanded. The quick brown fox.</p>
+<h2>Percentages</h2>
+<p class="label">0% (smallest allowed): as narrow as the font allows</p>
+<p class="sample pct-0">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">80%: between condensed and semi-condensed</p>
+<p class="sample pct-80">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">99%: very slightly narrower than the reference (variable font);
+with static width faces, the nearest narrower face</p>
+<p class="sample pct-99">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">100%: same as the reference line</p>
+<p class="sample pct-100">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">101%: very slightly wider than the reference (variable font);
+with static width faces, the nearest wider face</p>
+<p class="sample pct-101">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">300%: as wide as the font allows</p>
+<p class="sample pct-300">The quick brown fox jumps over the lazy dog.</p>
 
-<h2>Expected behaviour</h2>
-<p>For variable fonts with a wdth axis, text should visibly compress or expand.
-For static fonts without width variants, synthesis applies a horizontal scale
-transform (if enabled) or the normal face is used unchanged.</p>
+<h2>Legacy name: font-stretch</h2>
+<p class="label">font-stretch: condensed: same as the condensed line above</p>
+<p class="sample stretch-75">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">font-stretch: expanded: same as the expanded line above</p>
+<p class="sample stretch-125">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">font-stretch then font-width in one rule: the last one
+(expanded) wins</p>
+<p class="sample last-wins-width">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">font-width then font-stretch in one rule: the last one
+(condensed) wins</p>
+<p class="sample last-wins-stretch">The quick brown fox jumps over the lazy dog.</p>
+
+<h2>Invalid values are ignored</h2>
+<p class="label">These lines sit inside an expanded block, so an ignored value
+keeps the inherited expanded width. All five lines must match the first one;
+a narrower line means the value was wrongly accepted.</p>
+<div class="width-125">
+<p class="sample">Expanded reference. The quick brown fox.</p>
+<p class="sample bad-number">font-width: 75 (no unit). The quick brown fox.</p>
+<p class="sample bad-neg">font-width: -50% (negative). The quick brown fox.</p>
+<p class="sample bad-unit">font-width: 75px (length). The quick brown fox.</p>
+<p class="sample bad-keyword">font-width: narrow (unknown keyword). The quick brown fox.</p>
+</div>
+
+<h2>Inheritance and cascade</h2>
+<div class="width-75">
+<p class="label">Inherited from a condensed block: condensed</p>
+<p class="sample">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">Same block, child with font-width: inherit: condensed</p>
+<p class="sample kw-inherit">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">Same block, child with font-width: initial: normal</p>
+<p class="sample kw-initial">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">Same block, child with font-width: normal: normal</p>
+<p class="sample width-100">The quick brown fox jumps over the lazy dog.</p>
+<p class="label">Inline span: only the middle word is expanded</p>
+<p class="sample">Condensed <span class="width-125">expanded</span> condensed.</p>
+</div>
+<p class="label">!important condensed beats an inline style of expanded:
+condensed</p>
+<p class="sample imp-condensed" style="font-width: expanded">The quick brown fox jumps over the lazy dog.</p>
+
+<h2>Width with weight and style</h2>
+<p class="label">Each line keeps its width while also being bold or italic.</p>
+<p class="sample width-75 w700">Condensed bold. The quick brown fox.</p>
+<p class="sample width-125 w700">Expanded bold. The quick brown fox.</p>
+<p class="sample width-75 italic">Condensed italic. The quick brown fox.</p>
+<p class="sample width-125 italic">Expanded italic. The quick brown fox.</p>
+
+<h2>Small caps keep the width</h2>
+<p class="label">Both the capitals and the smaller capitals must have the
+line's width. If the font has no small capitals they are synthesized from a
+second, smaller font lookup, which must use the same width.</p>
+<p class="sample width-75 sc">Condensed Small Caps. The Quick Brown Fox.</p>
+<p class="sample width-125 sc">Expanded Small Caps. The Quick Brown Fox.</p>
 
 <h2>Regression check: baseline fonts</h2>
 <p class="label">These should always appear in their default style</p>
-<p class="sample serif w400 roman">Serif normal roman — this line is the baseline.</p>
-<p class="sample sans  w400 roman">Sans normal roman — this line is the baseline.</p>
-<p class="sample mono  w400 roman">Monospace roman — this line is the baseline.</p>
+<p class="sample serif w400 roman">Serif normal roman &#x2014; this line is the baseline.</p>
+<p class="sample sans  w400 roman">Sans normal roman &#x2014; this line is the baseline.</p>
+<p class="sample mono  w400 roman">Monospace roman &#x2014; this line is the baseline.</p>
 </body>
 </html>
 """
@@ -946,15 +1048,17 @@ PADDING = bytes((i * 2654435761) & 0xFF for i in range(PADDING_SIZE))
 # ---------------------------------------------------------------------------
 
 def build_epub(path):
-    font_src_path = os.path.normpath(FONT_SRC_PATH)
-    if not os.path.isfile(font_src_path):
-        raise SystemExit(
-            f"Font file not found: {font_src_path}\n"
-            "Chapter 10 (duplicate face registration) embeds a real font "
-            "file and needs to be run from within a full koreader checkout "
-            "(crengine nested under base/thirdparty/kpvcrlib).")
-    with open(font_src_path, "rb") as f:
-        font_data = f.read()
+    font_data = {}
+    for dest, rel in EMBEDDED_FONTS.items():
+        src = os.path.normpath(os.path.join(FONTS_ROOT, rel))
+        if not os.path.isfile(src):
+            raise SystemExit(
+                f"Font file not found: {src}\n"
+                "Chapter 10 embeds a real font file, so this script needs "
+                "to be run from within a full koreader checkout (crengine "
+                "nested under base/thirdparty/kpvcrlib).")
+        with open(src, "rb") as f:
+            font_data[dest] = f.read()
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -976,7 +1080,8 @@ def build_epub(path):
         zf.writestr("OEBPS/ch09.html",        CH09)
         zf.writestr("OEBPS/ch10.html",        CH10)
         zf.writestr("OEBPS/ch11.html",        CH11)
-        zf.writestr("OEBPS/fonts/mono.ttf",   font_data)
+        for dest, data in font_data.items():
+            zf.writestr("OEBPS/" + dest, data)
         zf.writestr(zipfile.ZipInfo("OEBPS/padding.bin"), PADDING,
                     compress_type=zipfile.ZIP_STORED)
     with open(path, "wb") as f:
