@@ -89,6 +89,8 @@ public:
 
 #define HYPH_DICT_ID_NONE U"@none"
 #define HYPH_DICT_ID_ALGORITHM U"@algorithm"
+// Internal factory selector; the returned method still reports @algorithm.
+#define HYPH_DICT_ID_ALGORITHM_GRAPHEME U"@algorithm-grapheme"
 #define HYPH_DICT_ID_SOFTHYPHENS U"@softhyphens"
 #define HYPH_DICT_ID_DICTIONARY U"@dictionary"
 
