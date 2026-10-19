@@ -12358,9 +12358,10 @@ void getRenderedWidths(ldomNode * node, int &maxWidth, int &minWidth, int direct
         lb_process_next_char(&lbCtx, (utf32_t)(*txt));
         #endif
         while (true) {
+            int chunk_len = len > MAX_TEXT_CHUNK_SIZE ? MAX_TEXT_CHUNK_SIZE : len;
             int chars_measured = font->measureText(
                     txt + start,
-                    len,
+                    chunk_len,
                     widths, flags,
                     0x7FFF, // very wide width
                     '?',    // replacement char
