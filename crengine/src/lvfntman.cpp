@@ -3578,8 +3578,7 @@ public:
 
         // find last word
         if ( allow_hyphenation ) {
-            if ( !_hyphen_width )
-                _hyphen_width = getCharWidth( getHyphChar() );
+            int hyphen_width = ( lang_cfg ? lang_cfg : TextLangMan::getTextLangCfg() )->hideHyphenationMark() ? 0 : getHyphenWidth();
             if ( lastFitChar > 3 ) {
                 int hwStart, hwEnd;
                 bool hasRtl;
@@ -3587,9 +3586,9 @@ public:
                 if ( !hasRtl && hwStart < (int)(lastFitChar-1) && hwEnd > hwStart+3 ) {
                     //int maxw = max_width - (hwStart>0 ? widths[hwStart-1] : 0);
                     if ( lang_cfg )
-                        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+                        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphen_width, max_width);
                     else // Use global lang hyph method
-                        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+                        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphen_width, max_width);
                 }
             }
         }
@@ -9733,6 +9732,7 @@ lUInt16 LVWin32DrawFont::measureText(
 
     if ( !_hyphen_width )
         _hyphen_width = getCharWidth( UNICODE_SOFT_HYPHEN_CODE );
+    int hyphen_width = ( lang_cfg ? lang_cfg : TextLangMan::getTextLangCfg() )->hideHyphenationMark() ? 0 : _hyphen_width;
 
     lUInt16 wsum = 0;
     lUInt16 nchars = 0;
@@ -9784,9 +9784,9 @@ lUInt16 LVWin32DrawFont::measureText(
 
     }
     if ( lang_cfg )
-        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+        lang_cfg->getHyphMethod()->hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphen_width, max_width);
     else // Use global lang hyph method
-        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, _hyphen_width, max_width);
+        HyphMan::hyphenate(text+hwStart, hwEnd-hwStart, widths+hwStart, flags+hwStart, hyphen_width, max_width);
 
     return nchars;
 }
@@ -10076,6 +10076,8 @@ lUInt16 LVWin32Font::measureText(
 
     glyph = GetGlyphRec( UNICODE_SOFT_HYPHEN_CODE );
     hyphwidth = glyph ? glyph->gi.width : 0;
+    if ( (lang_cfg ? lang_cfg : TextLangMan::getTextLangCfg())->hideHyphenationMark() )
+        hyphwidth = 0;
 
     for ( ; wsum < max_width && nchars < len; nchars++ )
     {

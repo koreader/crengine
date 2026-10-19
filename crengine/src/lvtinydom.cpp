@@ -11067,7 +11067,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                                     int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
                                     bool hyphen_added = false;
                                     if ( offset == word->t.start + word->t.len - 1
-                                            && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                            && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
+                                            && !src->lang_cfg->hideHyphenationMark() ) {
                                         // if offset is the end of word, and this word has
                                         // been hyphenated, includes the hyphen width
                                         chw += font->getHyphenWidth();
@@ -11225,7 +11226,8 @@ bool ldomXPointer::getRect(lvRect & rect, bool extended, bool adjusted, int * ct
                             int chw = word->t.len == 1 ? word->width : w[ offset - word->t.start ] - chx;
                             bool hyphen_added = false;
                             if ( offset == word->t.start + word->t.len - 1
-                                    && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER) ) {
+                                    && (word->flags & LTEXT_WORD_CAN_HYPH_BREAK_LINE_AFTER)
+                                    && !src->lang_cfg->hideHyphenationMark() ) {
                                 // if offset is the end of word, and this word has
                                 // been hyphenated, includes the hyphen width
                                 chw += font->getHyphenWidth();
