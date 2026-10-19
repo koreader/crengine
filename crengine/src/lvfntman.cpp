@@ -1404,19 +1404,107 @@ void LVFontGlobalGlyphCache::clear()
     }
 }
 
+// Width classes (OS/2 usWidthClass 1-9, and the CSS font-width keywords), in tenths
+// of a percent, and the names used as family name suffixes for them.
+static const int fontWidthClasses[] = { 500, 625, 750, 875, 1000, 1125, 1250, 1500, 2000 };
+static const char * const fontWidthClassNames[] = {
+    "UltraCondensed", "ExtraCondensed", "Condensed", "SemiCondensed", NULL,
+    "SemiExpanded", "Expanded", "ExtraExpanded", "UltraExpanded"
+};
+
+// A font's width (in tenths of a percent) is its OS/2 usWidthClass, mapped per the
+// CSS font-width keyword table. Without a valid value (no OS/2 table, e.g. Type 1,
+// or a value outside 1-9), the face is normal width (100%).
+static int getFontWidth(FT_Face face) {
+    TT_OS2 * os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, FT_SFNT_OS2);
+    if (os2 && os2->usWidthClass >= 1 && os2->usWidthClass <= 9)
+        return fontWidthClasses[os2->usWidthClass - 1];
+    return 1000;
+}
+
+// Whether a family name already names a width ("Roboto Condensed", "Arial Narrow"...),
+// so that no width suffix is added to it.
+static bool familyNamesWidth( const lString8 & family )
+{
+    // Matched anywhere: unambiguous, and often glued to a prefix
+    // ("SemiCondensed", "UltraExpanded", "RobotoCondensed").
+    static const char * const anywhere[] = { "condensed", "expanded", NULL };
+    // Matched as whole words only (split on ' ' and '-'): these also occur
+    // inside unrelated names ("cond" in "Second", "wide" in "Worldwide").
+    static const char * const words[] = { "narrow", "wide", "compressed", "extended", "cond", NULL };
+    lString8 lc(family);
+    lc.lowercase();
+    for ( int i = 0; anywhere[i]; i++ ) {
+        if ( lc.pos(anywhere[i]) >= 0 )
+            return true;
+    }
+    int start = 0;
+    while ( start < lc.length() ) {
+        int end = start;
+        while ( end < lc.length() && lc[end] != ' ' && lc[end] != '-' )
+            end++;
+        lString8 word = lc.substr(start, end - start);
+        for ( int i = 0; words[i]; i++ ) {
+            if ( word == words[i] )
+                return true;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
+// Static faces whose width is not normal are registered as their own family
+// ("Foo Condensed", "Foo Expanded"...): they show as separate fonts, as condensed
+// ones always have, and are not mixed with the normal faces of their family.
+// Returns the suffix to append to the family name, or NULL.
+// - family: no suffix if it already names a width, whatever the style name says
+//   (no "Roboto Condensed Condensed", or "Foo Expanded Condensed" from a bad style name).
+// - style: the face's style name. A width keyword in it wins; the condensed ones
+//   are checked first, as they always were, so existing family names don't change.
+// - width: the face's width class, in tenths of a percent. Used when the style name
+//   has no width keyword.
+// - isVariable: variable fonts are never split, their wdth axis covers the widths.
+static const char * widthFamilySuffix( const lString8 & family, const char * style, int width, bool isVariable )
+{
+    if ( isVariable || familyNamesWidth(family) )
+        return NULL;
+    if ( style && *style ) {
+        lString8 lc(style);
+        lc.lowercase();
+        if ( lc.pos("extracondensed") >= 0 )
+            return "ExtraCondensed";
+        if ( lc.pos("semicondensed") >= 0 )
+            return "SemiCondensed";
+        if ( lc.pos("condensed") >= 0 )
+            return "Condensed";
+        if ( lc.pos("ultraexpanded") >= 0 )
+            return "UltraExpanded";
+        if ( lc.pos("extraexpanded") >= 0 )
+            return "ExtraExpanded";
+        if ( lc.pos("semiexpanded") >= 0 )
+            return "SemiExpanded";
+        if ( lc.pos("expanded") >= 0 )
+            return "Expanded";
+        // e.g. Arial Narrow: family "Arial", styles "Narrow", "Narrow Bold"...
+        if ( lc.pos("narrow") >= 0 )
+            return "Narrow";
+    }
+    // Nearest width class (FontConfig's FC_WIDTH values are rounded percentages, e.g. 63, 87).
+    int best = 0;
+    for ( int i = 1; i < 9; i++ ) {
+        if ( abs(fontWidthClasses[i] - width) < abs(fontWidthClasses[best] - width) )
+            best = i;
+    }
+    return fontWidthClassNames[best];
+}
+
 lString8 familyName( FT_Face face )
 {
     lString8 faceName( face->family_name );
-    if ( face->style_name ) {
-        if (faceName == "Arial" && !strcmp(face->style_name, "Narrow"))
-            faceName << " " << face->style_name;
-        else if (strstr(face->style_name, "ExtraCondensed"))
-            faceName << " " << "ExtraCondensed";
-        else if (strstr(face->style_name, "SemiCondensed"))
-            faceName << " " << "SemiCondensed";
-        else if (strstr(face->style_name, "Condensed"))
-            faceName << " " << "Condensed";
-    }
+    const char * suffix = widthFamilySuffix(faceName, face->style_name, getFontWidth(face),
+                                            FT_HAS_MULTIPLE_MASTERS(face));
+    if ( suffix )
+        faceName << " " << suffix;
     return faceName;
 }
 
@@ -6727,6 +6815,7 @@ public:
                     continue;
                 lUInt32 h = face.file_path.getHash();
                 h = h * 31 + (lUInt32)face.face_index;
+                h = h * 31 + face.typeface.getHash(); // family name: changes if a face is moved to another family
                 h = h * 31 + (lUInt32)(unsigned)(int)face._wght_min;
                 h = h * 31 + (lUInt32)(unsigned)(int)face._wght_max;
                 h = h * 31 + (lUInt32)face.is_italic;
@@ -6996,7 +7085,11 @@ public:
 
             FcObjectSet *os = FcObjectSetBuild(FC_FILE, FC_WEIGHT, FC_FAMILY,
                                                FC_SLANT, FC_SPACING, FC_INDEX,
-                                               FC_STYLE, FC_SCALABLE, NULL);
+                                               FC_STYLE, FC_SCALABLE, FC_WIDTH,
+#ifdef FC_VARIABLE
+                                               FC_VARIABLE,
+#endif
+                                               NULL);
             FcPattern *pat = FcPatternCreate();
             //FcBool b = 1;
             FcPatternAddBool(pat, FC_SCALABLE, 1);
@@ -7111,6 +7204,13 @@ public:
                     CRLog::debug("no FC_SLANT for %s", s);
                     //continue;
                 }
+                // FC_WIDTH values are percentages (FC_WIDTH_CONDENSED is 75, etc).
+                // Only used to pick the family name suffix of static faces.
+                int fcWidth = 100;
+                res = FcPatternGetInteger(fontset->fonts[i], FC_WIDTH, 0, &fcWidth);
+                if(res != FcResultMatch || fcWidth <= 0) {
+                    fcWidth = 100;
+                }
                 int spacing = 0;
                 res = FcPatternGetInteger(fontset->fonts[i], FC_SPACING, 0, &spacing);
                 if(res != FcResultMatch) {
@@ -7138,15 +7238,14 @@ public:
                 //css_ff_monospace,
                 bool italic = (slant!=FC_SLANT_ROMAN);
 
+                FcBool variable = FcFalse;
+#ifdef FC_VARIABLE
+                FcPatternGetBool(fontset->fonts[i], FC_VARIABLE, 0, &variable);
+#endif
                 lString8 face((const char*)family);
-                lString8 style8((const char*)style);
-                style8.lowercase();
-                if (style8.pos("extracondensed") >= 0)
-                    face << " ExtraCondensed";
-                else if (style8.pos("semicondensed") >= 0)
-                    face << " SemiCondensed";
-                else if (style8.pos("condensed") >= 0)
-                    face << " Condensed";
+                const char * suffix = widthFamilySuffix(face, (const char*)style, fcWidth * 10, variable == FcTrue);
+                if (suffix)
+                    face << " " << suffix;
 
                 LVFontFace def;
                 def.file_path  = lString8((const char*)s);
