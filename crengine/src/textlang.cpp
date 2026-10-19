@@ -1030,6 +1030,39 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     // a real hyphen at end of line must be duplicated at start of next line.
     _duplicate_real_hyphen_on_next_line = false;
 
+    // These orthographies normally break words without a visible hyphen.
+    // https://r12a.github.io/scripts/mlym/ml.html#linebreak
+    // https://r12a.github.io/scripts/taml/ta.html#linebreak
+    // An explicit different script (e.g. ml-Latn) keeps the usual marker.
+    static const struct {
+        const char * lang;
+        const char * script;
+    } unmarked_hyphenation[] = {
+        { "ml", "mlym" },
+        { "ta", "taml" },
+        { NULL, NULL }
+    };
+    lString32 script;
+    int script_start = lang_tag.pos("-") + 1;
+    if ( script_start > 0 && lang_tag.length() >= script_start + 4
+            && (lang_tag.length() == script_start + 4 || lang_tag[script_start + 4] == '-') ) {
+        bool is_script = true;
+        for ( int i=script_start; i<script_start + 4; i++ ) {
+            if ( lang_tag[i] < 'a' || lang_tag[i] > 'z' )
+                is_script = false;
+        }
+        if ( is_script )
+            script = lang_tag.substr(script_start, 4);
+    }
+    _hide_hyphenation_mark = false;
+    for ( int i=0; unmarked_hyphenation[i].lang; i++ ) {
+        if ( langStartsWith(lang_tag, unmarked_hyphenation[i].lang)
+                && (script.empty() || script == lString32(unmarked_hyphenation[i].script)) ) {
+            _hide_hyphenation_mark = true;
+            break;
+        }
+    }
+
     // getCssLbCharSub(), possibly called on each glyph, has some different behaviours with 'ja' and 'zh'
     _is_ja_zh = false;
     // These may be used to tweak CJK typography. Default typography for CJK segments will be

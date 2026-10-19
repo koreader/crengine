@@ -260,6 +260,7 @@ class TextLangCfg
     #endif
 
     bool _duplicate_real_hyphen_on_next_line;
+    bool _hide_hyphenation_mark;
 
     bool _is_ja_zh;
     bool _is_ja;
@@ -307,6 +308,8 @@ public:
     #endif
 
     bool duplicateRealHyphenOnNextLine() const { return _duplicate_real_hyphen_on_next_line; }
+    // Applies to inserted hyphens, including soft-hyphen breaks, not literal hyphens.
+    bool hideHyphenationMark() const { return _hide_hyphenation_mark; }
 
     int getCJKWidthAdjustment( cjk_type_t current, cjk_type_t other ) const {
         return (int)(*_cjk_width_adjustment_table)[current][other];
