@@ -6569,17 +6569,20 @@ class LVFontSelector {
             if (w > f._wght_max) w = f._wght_max;
             computed.set(LVFONT_TAG_WGHT, w);
         }
-        // Faces without an ital axis have a fixed 0..0 (1..1 if italic) range.
-        bool italByItalAxis = italic && f._has_ital && f._ital_max > 0.5f;
+        // At most one axis provides the italic: ital if usable, else slnt.
+        // The other (and both when not italic) is set to its upright value.
+        bool italByItal = italic && f._has_ital && f._ital_max > 0.5f;
+        bool italBySlnt = italic && !italByItal && !f.is_italic
+                          && f._has_slnt && f._slnt_min < 0.0f;
         if (f._has_ital) {
-            float i = italByItalAxis ? 1.0f : 0.0f;
+            float i = italByItal ? 1.0f : 0.0f;
             if (i < f._ital_min) i = f._ital_min;
             if (i > f._ital_max) i = f._ital_max;
             computed.set(LVFONT_TAG_ITAL, i);
         }
-        // slnt: -12 if it provides the italic, else 0. Italic faces keep their own.
+        // Italic faces keep their own slnt.
         if (f._has_slnt && !(italic && f.is_italic)) {
-            float s = (italic && !italByItalAxis && f._slnt_min < 0.0f) ? -12.0f : 0.0f;
+            float s = italBySlnt ? -12.0f : 0.0f;
             if (s < f._slnt_min) s = f._slnt_min;
             if (s > f._slnt_max) s = f._slnt_max;
             computed.set(LVFONT_TAG_SLNT, s);
