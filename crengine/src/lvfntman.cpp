@@ -6555,8 +6555,8 @@ class LVFontSelector {
 
     // requested: opsz (font-optical-sizing) and wdth (font-width); wght and
     //            ital/slnt come from the weight/italic parameters.
-    // computed:  the full axis set to hand to FreeType, with wght and wdth
-    //            clamped to the face's ranges and ital/slnt derived from italic.
+    // computed:  the full axis set to hand to FreeType, clamped to the face's
+    //            ranges. Set explicitly: font defaults may be at an axis end.
     LVFontVariations computeVariations(const LVFontFace& f,
                                         const LVFontVariations& requested,
                                         int weight, bool italic) const
@@ -6569,13 +6569,37 @@ class LVFontSelector {
             if (w > f._wght_max) w = f._wght_max;
             computed.set(LVFONT_TAG_WGHT, w);
         }
-        if (italic && f._has_ital && f._ital_max > 0.5f)
-            computed.set(LVFONT_TAG_ITAL, 1.0f);
-        else if (italic && !f.is_italic && f._has_slnt && f._slnt_min < 0.0f)
-            computed.set(LVFONT_TAG_SLNT, -12.0f);
-        // opsz is passed through verbatim from requested.
-        if (requested.opsz_set && f._has_opsz)
-            computed.set(LVFONT_TAG_OPSZ, requested.opsz);
+        // ital/slnt are set explicitly for consistency with the other axes.
+        // This is defensive: known real fonts default these to upright (0),
+        // unlike wght, wdth and opsz, which can have odd defaults.
+        // At most one axis provides the italic: ital if usable, else slnt.
+        // The other (and both when not italic) is set to its upright value.
+        bool italByItal = italic && f._has_ital && f._ital_max > 0.5f;
+        bool italBySlnt = italic && !italByItal && !f.is_italic
+                          && f._has_slnt && f._slnt_min < 0.0f;
+        if (f._has_ital) {
+            float i = italByItal ? 1.0f : 0.0f;
+            if (i < f._ital_min) i = f._ital_min;
+            if (i > f._ital_max) i = f._ital_max;
+            computed.set(LVFONT_TAG_ITAL, i);
+        }
+        // Also defensive: when italic is wanted and we picked a face that is itself
+        // italic/oblique, it hypothetically may still have a slnt axis (e.g. an
+        // "Oblique" font defaulting to -12). Forcing 0 would make it upright, so
+        // leave the default.
+        if (f._has_slnt && !(italic && f.is_italic)) {
+            float s = italBySlnt ? -12.0f : 0.0f;
+            if (s < f._slnt_min) s = f._slnt_min;
+            if (s > f._slnt_max) s = f._slnt_max;
+            computed.set(LVFONT_TAG_SLNT, s);
+        }
+        // opsz (from font-optical-sizing) is clamped, as wght above.
+        if (requested.opsz_set && f._has_opsz) {
+            float o = requested.opsz;
+            if (o < f._opsz_min) o = f._opsz_min;
+            if (o > f._opsz_max) o = f._opsz_max;
+            computed.set(LVFONT_TAG_OPSZ, o);
+        }
         // wdth (from font-width) is clamped to the face's axis range, as wght above.
         if (f._has_wdth) {
             float w = requested.wdth_set ? requested.wdth : 100.0f;

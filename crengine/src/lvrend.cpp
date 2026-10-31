@@ -57,6 +57,9 @@
 int gRenderDPI = DEF_RENDER_DPI; // if 0: old crengine behaviour: 1px/pt=1px, 1in/cm/pc...=0px
 bool gRenderScaleFontWithDPI = DEF_RENDER_SCALE_FONT_WITH_DPI;
 
+// opsz when gRenderDPI isn't a usable screen DPI: typical body text size
+#define OPSZ_FALLBACK_PT 12.0f
+
 int scaleForRenderDPI( int value ) {
     // if gRenderDPI == 0 or 96, use value as is (1px = 1px)
     if (gRenderDPI && gRenderDPI != BASE_CSS_DPI) {
@@ -2443,8 +2446,12 @@ LVFontRef getFont(ldomNode * node, css_style_rec_t * style, int documentId, int 
     // GetFont's computeVariations() derives those from weight/italic and
     // ignores requested.wght/requested.ital.
     LVFontVariations variations;
-    if (style->font_optical_sizing != css_fos_none && gRenderDPI >= 100)
-        variations.set(LVFONT_TAG_OPSZ, sz * 72.0f / (float)gRenderDPI);
+    // opsz in points. A user-set gRenderDPI approximates the screen DPI;
+    // the default (96) or "off" (0) doesn't, so use a fixed fallback.
+    if (style->font_optical_sizing != css_fos_none) {
+        float opsz = gRenderDPI >= 100 ? sz * 72.0f / (float)gRenderDPI : OPSZ_FALLBACK_PT;
+        variations.set(LVFONT_TAG_OPSZ, opsz);
+    }
     // font-width: selects among static width faces, and sets the wdth axis of variable ones.
     if (style->font_width != css_fwd_normal)
         variations.set(LVFONT_TAG_WDTH, style->font_width / 10.0f);
