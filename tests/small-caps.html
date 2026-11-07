@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>small-caps / all-small-caps test suite</title>
+<style>
+/* ------------------------------------------------------------------ *
+ * Fonts under test.
+ *
+ * crengine picks one of four code paths per (font, font-variant-caps)
+ * pair, in LVFontManager::GetFont() (crengine/src/lvfntman.cpp):
+ *
+ *   [native]  font has the needed GSUB feature ('smcp' for small-caps,
+ *             'c2sc' for all-small-caps) -- HarfBuzz does the work, no
+ *             wrapper.
+ *   [synth]   font has no 'smcp' at all -- LVFontSmallCapsTransform in
+ *             SYNTH_SMCP / SYNTH_C2SC mode: lowercase (and, for
+ *             all-small-caps, uppercase too) is drawn from uppercase
+ *             glyphs of a second font instance at ~75% size, +100 weight.
+ *   [fold]    font has 'smcp' but no 'c2sc', all-small-caps requested --
+ *             LVFontSmallCapsTransform in FOLD_UPPER mode: uppercase is
+ *             rewritten to lowercase in the *same* font so the font's own
+ *             'smcp' (enabled alongside +c2sc) turns it into small caps.
+ *             Nothing is synthesized and no second font instance exists.
+ *   [none]    feature requested that crengine never synthesizes
+ *             (petite-caps, unicase, titling-caps): unchanged text.
+ *
+ * The [fold] path is the one that needs a font you probably don't have
+ * installed: 'smcp' present, 'c2sc' absent. Put such a font next to this
+ * file as smcp-no-c2sc.ttf, or edit the src below. The quickest way to
+ * get one is to take a font that has both and make its 'c2sc' feature
+ * unfindable, e.g. with fontTools, by retagging the feature record:
+ *
+ *     from fontTools.ttLib import TTFont
+ *     f = TTFont("NotoSerif-Regular.ttf")
+ *     for fr in f["GSUB"].table.FeatureList.FeatureRecord:
+ *         if fr.FeatureTag == "c2sc":
+ *             fr.FeatureTag = "ZZZZ"
+ *     f["name"].setName("Smcp No C2sc", 1, 3, 1, 0x409)
+ *     f["name"].setName("Smcp No C2sc", 4, 3, 1, 0x409)
+ *     f.save("smcp-no-c2sc.ttf")
+ *
+ * Deriving it from Noto Serif is worth the trouble: section C then
+ * compares [fold] against [native] output of the *same* outlines, so the
+ * two lines must match glyph for glyph.
+ *
+ * Section B2 wants a second font: one whose 'smcp'/'c2sc' are registered
+ * only under a non-default script/langsys (e.g. only 'latn', with no
+ * 'DFLT' script record). Those used to be missed, because the lookup only
+ * asked script index 0 / default langsys; hasGSUBFeature() now walks the
+ * whole GSUB feature list. Optional -- drop it in as smcp-latn-only.ttf.
+ *
+ * Every family below is listed with ", monospace" as a last resort: if a
+ * specimen comes out monospaced, that @font-face file is missing and the
+ * section is not testing anything.
+ * ------------------------------------------------------------------ */
+
+@font-face {
+    font-family: "Smcp No C2sc";
+    src: url(smcp-no-c2sc.ttf);
+}
+@font-face {
+    font-family: "Smcp Latn Only";
+    src: url(smcp-latn-only.ttf);
+}
+
+/* Families, by code path. Keep these in sync with the section headings. */
+.f-native { font-family: "Noto Serif", monospace; }          /* smcp + c2sc, under DFLT */
+.f-native-sans { font-family: "Noto Sans", monospace; }      /* smcp + c2sc, under DFLT */
+.f-nodflt { font-family: "FreeSerif", monospace; }           /* smcp + c2sc, but no DFLT script record */
+.f-latn   { font-family: "Smcp Latn Only", monospace; }      /* smcp + c2sc, only outside the first script record */
+.f-fold   { font-family: "Smcp No C2sc", monospace; }        /* smcp, no c2sc  -> the new [fold] path */
+.f-synth  { font-family: "Libron R", monospace; }            /* neither        -> [synth] */
+.f-synth2 { font-family: "Droid Sans Mono", monospace; }     /* neither        -> [synth] */
+
+/* The three values under test. */
+.v-normal { font-variant-caps: normal; }
+.v-smcp   { font-variant-caps: small-caps; }
+.v-c2sc   { font-variant-caps: all-small-caps; }
+
+/* Layout: a label, then specimen lines, one per value. */
+body { margin: 0.6em; }
+h1 { font-size: 1.3em; }
+h2 { font-size: 1.1em; margin: 1.2em 0 0.3em; }
+h3 { font-size: 1em; margin: 1em 0 0.2em; }
+/* Labels sit inside the cases they describe, so they have to opt out of
+   everything the case under test sets, or they become unreadable. */
+p.intro, p.look {
+    font-family: "Noto Serif", serif;
+    font-variant-caps: normal;
+    font-weight: normal;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-decoration: none;
+    text-align: left;
+    text-transform: none;
+}
+p.intro { font-size: 0.85em; margin: 0.3em 0; }
+p.look { font-size: 0.8em; font-style: italic; margin: 0.2em 0 0.4em; }
+div.case { margin: 0 0 0.7em; }
+div.case p { margin: 0; }
+span.tag {
+    font-family: "Droid Sans Mono", monospace;
+    font-size: 0.7em;
+    font-variant-caps: normal;
+    font-style: normal;
+    font-weight: normal;
+}
+code { font-family: "Droid Sans Mono", monospace; font-size: 0.8em; }
+</style>
+</head>
+<body>
+
+<h1>small-caps / all-small-caps test suite</h1>
+
+<p class="intro">Exercises <code>font-variant-caps: small-caps</code> and
+<code>all-small-caps</code> across the four code paths crengine can take for
+them: native GSUB, synthesis from a smaller font instance, uppercase folding
+onto the font's own <code>smcp</code>, and no-op. The uppercase-folding path is
+what commit <q>lvfntman: fake c2sc</q> added, so sections C and D are the ones
+that are new; A, B and E are the regression surface around it.</p>
+
+<p class="intro">Two of the sections need fonts that are unusual enough that
+you have to supply them; the <code>@font-face</code> rules and a recipe are in
+the comment at the top of this file's <code>&lt;style&gt;</code>. Any specimen
+that renders monospaced is a missing font, not a result.</p>
+
+<h2>A. Native <code>smcp</code> + <code>c2sc</code> &mdash; control</h2>
+
+<p class="intro">Noto Serif and Noto Sans register both features under the
+<code>DFLT</code> script, so neither value involves a wrapper. These rows are
+the reference for what correct output looks like, and must be unchanged by the
+commit.</p>
+
+<div class="case f-native">
+<p class="look">Noto Serif. Expected: row 2 keeps <i>C</i>, <i>XIV</i> and
+<i>ACME</i> at full cap height and shrinks only the lowercase; row 3 has no
+full-height capital left anywhere. Digits and punctuation are identical in all
+three rows.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps, native]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps, native]</span></p>
+</div>
+
+<div class="case f-native-sans">
+<p class="look">Noto Sans, same expectations.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps, native]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps, native]</span></p>
+</div>
+
+<h2>B. Feature detection</h2>
+
+<h3>B1. Features registered, but no <code>DFLT</code> script record</h3>
+
+<p class="intro">FreeSerif has <code>smcp</code> and <code>c2sc</code> under
+<code>cyrl</code>, <code>grek</code> and <code>latn</code> (and
+<code>smcp</code> alone under <code>math</code>), but no <code>DFLT</code>
+script record at all. Detection used to ask script index 0 and the default
+langsys only, so whether the features were seen depended on which script
+happened to sort first; the table-wide scan sees them regardless.</p>
+
+<div class="case f-nodflt">
+<p class="look">Expected: true small caps in rows 2 and 3 &mdash; same
+proportions and stroke weight as row 1's capitals. Thin, slightly cramped
+capitals that look like shrunk full caps would mean the font was taken for a
+small-caps-less one and went down the synthesis path.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps]</span></p>
+</div>
+
+<h3>B2. Features registered only under a non-first script (optional font)</h3>
+
+<p class="intro">Same point, sharpened: a font that registers
+<code>smcp</code>/<code>c2sc</code> only under <code>latn</code>, with a
+<code>DFLT</code> record that does not list them. Before the change this font
+was synthesized; now it is native.</p>
+
+<div class="case f-latn">
+<p class="look">Expected: true small caps in rows 2 and 3.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps]</span></p>
+</div>
+
+<h2>C. No <code>smcp</code> at all &mdash; synthesis</h2>
+
+<p class="intro">Libron R and Droid Sans Mono have no caps features, so both
+values are synthesized from a ~75%-size, +100-weight instance. The commit must
+not have changed this path: it only renamed the mode and made the second font
+instance optional.</p>
+
+<div class="case f-synth">
+<p class="look">Libron R. Expected: row 2 shrinks the lowercase into capitals
+and leaves <i>C</i>, <i>XIV</i>, <i>ACME</i> full height; row 3 shrinks those
+too, so the whole line is one height. Synthesized caps are visibly shrunk full
+caps &mdash; that is the expected look here, not a defect. Baseline must stay
+put and the space before/after the shrunk runs must not collapse or double.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps, synth]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps, synth]</span></p>
+</div>
+
+<div class="case f-synth2">
+<p class="look">Droid Sans Mono. Same, and because the font is monospaced the
+advance width of every glyph in rows 2 and 3 should be the small instance's
+width, uniformly &mdash; a stray full-width advance is a mapping bug.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps, synth]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps, synth]</span></p>
+</div>
+
+<h2>D. <code>smcp</code> but no <code>c2sc</code> &mdash; uppercase folding</h2>
+
+<p class="intro">The new path. <code>small-caps</code> is untouched by it (the
+font's own <code>smcp</code> handles that natively). For
+<code>all-small-caps</code>, crengine rewrites each uppercase character to its
+lowercase counterpart and lets the font's <code>smcp</code> &mdash; enabled
+alongside the <code>+c2sc</code> that the font ignores &mdash; map it to a
+small cap. No second font instance is involved, so nothing should be shrunk,
+re-weighted, or shifted off the baseline.</p>
+
+<div class="case f-fold">
+<p class="look">Expected: row 3 is true small caps throughout, at the same
+weight and height as row 2's small caps. Any letter appearing as a real
+lowercase glyph means the fold found no <code>smcp</code> mapping for it.</p>
+<p class="v-normal">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[normal]</span></p>
+<p class="v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[small-caps, native]</span></p>
+<p class="v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[all-small-caps, fold]</span></p>
+</div>
+
+<h3>D1. Folded vs. native, same outlines</h3>
+
+<p class="intro">Only meaningful if <code>smcp-no-c2sc.ttf</code> was derived
+from Noto Serif (see the recipe at the top). The two pairs below then differ
+only in which code path produced them.</p>
+
+<div class="case">
+<p class="look">Expected: within each pair the two lines are identical, glyph
+for glyph and width for width. A difference in the <code>all-small-caps</code>
+pair is a folding bug; a difference in the <code>small-caps</code> pair means
+the derived font is not what this section assumes.</p>
+<p class="f-native v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[native c2sc]</span></p>
+<p class="f-fold v-c2sc">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[folded]</span></p>
+<p class="f-native v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[native smcp]</span></p>
+<p class="f-fold v-smcp">Chapter XIV: the Rise of ACME Corp &mdash; 1842 ff. <span class="tag">[native smcp]</span></p>
+</div>
+
+<h3>D2. What the fold does to each kind of character</h3>
+
+<p class="intro">Folding uses the engine's per-character simple lowercase
+mapping (<code>lStr_lowercase()</code>, i.e. <code>utf8proc_tolower()</code>),
+which is context-free and never expands one character into two. Each row below pairs
+the native <code>c2sc</code> rendering with the folded one; they should agree.
+The rows where they provably cannot are gathered in D3.</p>
+
+<div class="case">
+<p class="look">All-caps alphabet. Expected: identical; every letter a small
+cap, no lowercase anywhere.</p>
+<p class="f-native v-c2sc">ABCDEFGHIJKLMNOPQRSTUVWXYZ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">ABCDEFGHIJKLMNOPQRSTUVWXYZ <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">All-lowercase alphabet. Expected: identical &mdash; the fold
+leaves lowercase alone, so both lines are plain native <code>smcp</code>.</p>
+<p class="f-native v-c2sc">abcdefghijklmnopqrstuvwxyz <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">abcdefghijklmnopqrstuvwxyz <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Accented and ligature capitals, the ones a Latin
+<code>smcp</code> is likely to cover. Expected: identical. A real lowercase
+<i>à</i> or <i>œ</i> in the folded line is the D3 effect reaching letters this
+common, which would be worth reporting.</p>
+<p class="f-native v-c2sc">ÀÉÎÕÜ ÇŒÆØÅ ĆŁŠŻ ǸǼǢ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">ÀÉÎÕÜ ÇŒÆØÅ ĆŁŠŻ ǸǼǢ <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Capitals whose lowercase is a special case. <b>caveat</b> on
+all three: <i>ẞ</i> folds to <i>ß</i> (and most fonts have no small-cap
+<i>ß</i>, so expect a real lowercase <i>ß</i> there); <i>Ĳ</i> folds to
+<i>ĳ</i>; <i>İ</i> folds to a bare <i>i</i>, dropping the dot-above that full
+Unicode casing would keep. <i>STRASSE</i> and <i>GRÜSSE</i> are ordinary
+letters and must come out as clean small caps in both lines.</p>
+<p class="f-native v-c2sc">ẞ STRASSE GRÜSSE ĲSSELMEER İSTANBUL <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">ẞ STRASSE GRÜSSE ĲSSELMEER İSTANBUL <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Uncased characters: digits, punctuation, symbols, and scripts
+without case. Expected: identical to each other <i>and</i> to the plain
+<code>normal</code> row below them &mdash; the fold must not touch any of
+these, and must not disturb the fallback-font runs.</p>
+<p class="f-native v-c2sc">1234567890 ‰ §¶†‡ &lt;&gt;&amp; — ‘’“” ☞ 漢字 देवनागरी <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">1234567890 ‰ §¶†‡ &lt;&gt;&amp; — ‘’“” ☞ 漢字 देवनागरी <span class="tag">[folded]</span></p>
+<p class="f-fold v-normal">1234567890 ‰ §¶†‡ &lt;&gt;&amp; — ‘’“” ☞ 漢字 देवनागरी <span class="tag">[normal]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Mixed within a word, and letters with no uppercase partner
+(<i>ſ</i>, <i>ĸ</i>, <i>ʒ</i>). Expected: identical; per-character mapping
+must not break the word into differently-shaped runs or lose kerning across
+the boundaries.</p>
+<p class="f-native v-c2sc">McDONALD’S iPhone DVD-RW ſĸʒ ÆØÅ-æøå <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">McDONALD’S iPhone DVD-RW ſĸʒ ÆØÅ-æøå <span class="tag">[folded]</span></p>
+</div>
+
+<h3>D3. Where folding can show real lowercase</h3>
+
+<p class="intro">The fold hands a lowercase character to the font and trusts
+<code>smcp</code> to map it back up. Where <code>smcp</code> does not cover
+that character, nothing maps it back and the reader sees an actual lowercase
+letter &mdash; whereas native <code>c2sc</code>, lacking coverage, leaves the
+capital alone. So the two paths fail differently: native degrades to
+unchanged capitals, folding degrades to changed case. A font will usually
+cover whatever its <code>smcp</code> was drawn for (Latin, typically) and no
+more, so these rows are where you find out how far that goes.</p>
+
+<p class="intro">With a font derived from Noto Serif, all three rows below
+fold into visible lowercase, because its <code>smcp</code> covers Latin only
+even though the feature is registered under <code>cyrl</code> and
+<code>grek</code> too. Compare each pair: the native line keeps its capitals,
+the folded one does not.</p>
+
+<div class="case">
+<p class="look">Greek. Also note that the final sigma of <i>ΛΟΓΟΣ</i> folds to
+<i>σ</i> and never to <i>ς</i>, the mapping being context-free; with a
+Greek-covering <code>smcp</code> that still lands on a small-cap sigma, so it
+would not show.</p>
+<p class="f-native v-c2sc">ΑΒΓΔΕΖΗΘ ΛΟΓΟΣ ΣΟΦΟΣ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">ΑΒΓΔΕΖΗΘ ΛΟΓΟΣ ΣΟΦΟΣ <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Cyrillic.</p>
+<p class="f-native v-c2sc">АБВГДЕЖЗ МОСКВА ЩЁРСТЬ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">АБВГДЕЖЗ МОСКВА ЩЁРСТЬ <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Latin digraphs, including the titlecase forms between the
+upper and lower ones. <i>Ǆ</i> folds to <i>ǆ</i>; the titlecase <i>ǅ</i> is
+treated as uppercase too and folds as well, so all three of
+<i>Ǆ&nbsp;ǅ&nbsp;ǆ</i> come out as the same glyph.</p>
+<p class="f-native v-c2sc">Ǆ ǅ ǆ ǇǈǉǊǋǌ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">Ǆ ǅ ǆ ǇǈǉǊǋǌ <span class="tag">[folded]</span></p>
+</div>
+
+<div class="case">
+<p class="look">Latin letters that are rarer than the usual
+<code>smcp</code> coverage: the folded line turning lowercase here is the same
+effect inside the font's own script.</p>
+<p class="f-native v-c2sc">ǸǼǢ ƉƐƔƜ ẀẂẄ ȀȄȆ <span class="tag">[native]</span></p>
+<p class="f-fold v-c2sc">ǸǼǢ ƉƐƔƜ ẀẂẄ ȀȄȆ <span class="tag">[folded]</span></p>
+</div>
+
+<h2>E. Interactions</h2>
+
+<p class="intro">Each of these builds a separate font instance, so each is a
+separate chance for the wrapper to be set up wrong. Rows are given for the
+folding font and for a synthesizing font; where the native font would differ
+it is shown too.</p>
+
+<h3>E1. Weight and style</h3>
+
+<div class="case">
+<p class="look">Expected: bold and italic small caps in every line, at the
+small-caps height, with no fallback to upright or regular. In the synthesized
+rows the shrunk glyphs carry the +100 weight bump, so they should not look
+thin next to the surrounding bold text.</p>
+<p class="f-fold v-c2sc"><b>Bold ACME Corp</b> and <i>italic ACME Corp</i> and <b><i>both ACME Corp</i></b> <span class="tag">[fold]</span></p>
+<p class="f-native v-c2sc"><b>Bold ACME Corp</b> and <i>italic ACME Corp</i> and <b><i>both ACME Corp</i></b> <span class="tag">[native]</span></p>
+<p class="f-synth v-c2sc"><b>Bold ACME Corp</b> and <i>italic ACME Corp</i> and <b><i>both ACME Corp</i></b> <span class="tag">[synth]</span></p>
+</div>
+
+<h3>E2. Decorations</h3>
+
+<div class="case">
+<p class="look">Expected: one continuous underline / strike at one height
+across the whole run, including across the boundary between full-size and
+small-cap glyphs. A step in the line, or a gap at a boundary, means the
+decoration metrics are being taken from the wrong instance.</p>
+<p class="f-fold v-c2sc" style="text-decoration: underline">Underlined ACME Corp text, 1842 <span class="tag">[fold]</span></p>
+<p class="f-fold v-c2sc" style="text-decoration: line-through">Struck ACME Corp text, 1842 <span class="tag">[fold]</span></p>
+<p class="f-synth v-c2sc" style="text-decoration: underline">Underlined ACME Corp text, 1842 <span class="tag">[synth]</span></p>
+<p class="f-synth v-smcp" style="text-decoration: underline">Underlined ACME Corp text, 1842 <span class="tag">[synth, small-caps]</span></p>
+</div>
+
+<h3>E3. Letter-spacing and word-spacing</h3>
+
+<div class="case">
+<p class="look">Expected: even tracking across the whole line in each row,
+with no extra or missing gap where a folded or shrunk glyph meets an untouched
+one.</p>
+<p class="f-fold v-c2sc" style="letter-spacing: 0.15em">Tracked ACME Corp 1842 <span class="tag">[fold]</span></p>
+<p class="f-synth v-c2sc" style="letter-spacing: 0.15em">Tracked ACME Corp 1842 <span class="tag">[synth]</span></p>
+<p class="f-fold v-c2sc" style="word-spacing: 0.5em">Wide spaced ACME Corp 1842 <span class="tag">[fold]</span></p>
+</div>
+
+<h3>E4. Measurement over a justified paragraph</h3>
+
+<p class="intro">Width measuring and drawing go through different entry points
+on the wrapper; a mismatch shows up as uneven word gaps, text overflowing the
+right margin, or a last line that does not end where the glyphs do.</p>
+
+<div class="case f-fold v-c2sc" style="text-align: justify">
+<p class="look">Folding font, justified. Expected: flush left and right
+margins on every line but the last, gaps of plausible width, no glyph crossing
+the right edge.</p>
+<p>The quick brown fox jumps over the lazy dog while ACME Corp of
+DELAWARE files its 1842 annual report in triplicate, and the compositor
+sets the whole thing in small capitals to see whether the measured width
+of every folded word matches the width actually drawn, line after line,
+until the paragraph has wrapped often enough for any drift to accumulate
+into something plainly visible at the right margin.</p>
+</div>
+
+<div class="case f-synth v-c2sc" style="text-align: justify">
+<p class="look">Synthesizing font, same text and expectations.</p>
+<p>The quick brown fox jumps over the lazy dog while ACME Corp of
+DELAWARE files its 1842 annual report in triplicate, and the compositor
+sets the whole thing in small capitals to see whether the measured width
+of every folded word matches the width actually drawn, line after line,
+until the paragraph has wrapped often enough for any drift to accumulate
+into something plainly visible at the right margin.</p>
+</div>
+
+<h3>E5. Nesting and resetting</h3>
+
+<div class="case f-fold v-c2sc">
+<p class="look">Inside an <code>all-small-caps</code> paragraph. crengine
+keeps font-variant values from several properties in one bitmap and
+deliberately ORs a node's own bits into the inherited ones instead of
+replacing them (see the comment in <code>setNodeStyle()</code>,
+<code>lvrend.cpp</code>), so the spec's "the inner value replaces the outer
+one" does not apply here. Expected: the <code>small-caps</code> span inherits
+the outer <code>all-small-caps</code> and stays all-small-caps &mdash;
+<i>ACME</i> no taller than its neighbours; the <code>normal</code> span, the
+documented way out, is ordinary mixed-case text; the rest of the paragraph is
+unaffected.</p>
+<p>Outer ACME text, <span class="v-smcp">inner small-caps ACME span</span>,
+<span class="v-normal">inner normal ACME span</span>, outer ACME again.</p>
+</div>
+
+<div class="case f-fold v-c2sc">
+<p class="look">Size changes inside the run. Expected: each size gets its own
+correctly folded instance &mdash; small caps at every size, all sitting on the
+same baseline.</p>
+<p>Base ACME <span style="font-size: 0.7em">smaller ACME</span>
+<span style="font-size: 1.4em">larger ACME</span> base ACME again.</p>
+</div>
+
+<h3>E6. Spelling of the value</h3>
+
+<div class="case f-fold">
+<p class="look">Expected: all four lines identical &mdash; the shorthand, the
+longhand, and the shorthand followed by an unrelated longhand reset all have
+to reach the same <code>font_features</code> bit, and
+<code>font-variant-caps: normal</code> on top of the shorthand has to clear
+it.</p>
+<p style="font-variant: all-small-caps">Chapter XIV: ACME Corp 1842 <span class="tag">[font-variant shorthand]</span></p>
+<p style="font-variant-caps: all-small-caps">Chapter XIV: ACME Corp 1842 <span class="tag">[longhand]</span></p>
+<p style="font-variant: all-small-caps; font-variant-numeric: normal">Chapter XIV: ACME Corp 1842 <span class="tag">[shorthand + unrelated reset]</span></p>
+<p style="font-variant: all-small-caps !important">Chapter XIV: ACME Corp 1842 <span class="tag">[shorthand !important]</span></p>
+<p style="font-variant: all-small-caps; font-variant-caps: normal">Chapter XIV: ACME Corp 1842 <span class="tag">[overridden by normal: must NOT be small caps]</span></p>
+</div>
+
+<h3>E7. With <code>text-transform</code></h3>
+
+<div class="case f-fold">
+<p class="look">Expected: the transform runs first, so row 1 (everything
+uppercased, then all-small-caps) is uniformly small caps, and row 2
+(everything lowercased) is too. Row 3 uppercases under plain
+<code>small-caps</code>, which therefore has nothing lowercase left to shrink
+&mdash; it must come out as full-size capitals.</p>
+<p class="v-c2sc" style="text-transform: uppercase">Chapter XIV: ACME Corp 1842 <span class="tag">[uppercase + all-small-caps]</span></p>
+<p class="v-c2sc" style="text-transform: lowercase">Chapter XIV: ACME Corp 1842 <span class="tag">[lowercase + all-small-caps]</span></p>
+<p class="v-smcp" style="text-transform: uppercase">Chapter XIV: ACME Corp 1842 <span class="tag">[uppercase + small-caps]</span></p>
+</div>
+
+<h3>E8. Values crengine does not synthesize</h3>
+
+<p class="intro">Only <code>smcp</code> and <code>c2sc</code> get a fallback.
+The rest are passed to HarfBuzz and quietly do nothing when the font lacks the
+feature, which all the fonts here do.</p>
+
+<div class="case f-fold">
+<p class="look">Expected: all four lines look like plain mixed-case text. In
+particular <code>all-petite-caps</code> must not be folded or synthesized
+&mdash; if it comes out as small caps, the petite-caps bits are leaking into
+the caps path.</p>
+<p style="font-variant-caps: petite-caps">Chapter XIV: ACME Corp 1842 <span class="tag">[petite-caps]</span></p>
+<p style="font-variant-caps: all-petite-caps">Chapter XIV: ACME Corp 1842 <span class="tag">[all-petite-caps]</span></p>
+<p style="font-variant-caps: unicase">Chapter XIV: ACME Corp 1842 <span class="tag">[unicase]</span></p>
+<p style="font-variant-caps: titling-caps">Chapter XIV: ACME Corp 1842 <span class="tag">[titling-caps]</span></p>
+</div>
+
+<h3>E9. Headings</h3>
+
+<p class="intro">The usual real-world use, and the one that combines bold,
+a larger size and a stylesheet-level declaration.</p>
+
+<div class="case">
+<h3 class="f-fold v-c2sc" style="margin: 0">A Heading of ACME Corp, 1842 <span class="tag">[fold]</span></h3>
+<h3 class="f-native v-c2sc" style="margin: 0">A Heading of ACME Corp, 1842 <span class="tag">[native]</span></h3>
+<h3 class="f-synth v-c2sc" style="margin: 0">A Heading of ACME Corp, 1842 <span class="tag">[synth]</span></h3>
+<p class="look">Expected: all three in small caps at heading size and weight;
+the first two indistinguishable in shape if the folding font was derived from
+Noto Serif, the third visibly a shrunk-caps imitation.</p>
+</div>
+
+<h2>F. Re-render and cache</h2>
+
+<p class="intro">Font instances are cached per (size, weight, style, features)
+key, and the wrapper is part of what gets cached. Worth running twice: change
+the font size or the kerning mode, let the document re-render, and compare
+against the first pass &mdash; sections A, C and D should come back
+identical. Reopening the file from a saved render cache should as well.</p>
+
+</body>
+</html>
