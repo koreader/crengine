@@ -69,8 +69,9 @@ jobs:
         wget http://mirrors.kernel.org/ubuntu/pool/universe/libu/libunibreak/libunibreak{6,-dev}_6.1-2_amd64.deb
         sudo dpkg -i *.deb
         # Install stylelint.
+        # stylelint-config-standard 41 requires stylelint 18, but that's not supported yet by @csstools/stylelint-formatter-github.
         npm init --yes
-        npm install @csstools/stylelint-formatter-github stylelint stylelint-config-standard
+        npm install @csstools/stylelint-formatter-github@2 stylelint@17 stylelint-config-standard@40
 
     - name: Cache buildcache directory
       uses: actions/cache@v6
