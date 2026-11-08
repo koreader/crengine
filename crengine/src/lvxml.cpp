@@ -3110,7 +3110,7 @@ bool LVXMLParser::Parse()
 //                    CRLog::trace("<%s>", LCSTR(tagname) );
                 if (!bodyStarted && tagname == "body")
                     bodyStarted = true;
-                else if ( tagname.length() == 5 &&
+                else if ( tagns.empty() && tagname.length() == 5 &&
                         ( tagname[0] == U'S' || tagname[0] == U's') &&
                         ( tagname[1] == U'T' || tagname[1] == U't') &&
                         ( tagname[2] == U'Y' || tagname[2] == U'y') &&
