@@ -5409,10 +5409,8 @@ private:
         return (lGetCharProps(ch) & CH_PROP_UPPER) != 0;
     }
     void mapChar(lChar32 ch, LVFont*& font, lChar32& mapped) const {
-        if (_mode == FOLD_UPPER) {
-            font = _font; mapped = isUppercase(ch) ? toLowercase(ch) : ch;
-        }
-        else if (isLowercase(ch))                       { font = _smallFont; mapped = toUppercase(ch); }
+        if (_mode == FOLD_UPPER)                         { font = _font;      mapped = isUppercase(ch) ? toLowercase(ch) : ch; }
+        else if (isLowercase(ch))                        { font = _smallFont; mapped = toUppercase(ch); }
         else if (_mode == SYNTH_C2SC && isUppercase(ch)) { font = _smallFont; mapped = ch; }
         else                                             { font = _font;      mapped = ch; }
     }
@@ -5443,7 +5441,7 @@ public:
     explicit LVFontSmallCapsTransform(LVFontRef normalFont)
         : LVFontProxy(normalFont), _smallFont(normalFont.get()), _mode(FOLD_UPPER) {}
 
-    virtual void setBitmapMode(bool m)           { LVFontProxy::setBitmapMode(m);  if (hasSeparateSmallFont()) _smallFont->setBitmapMode(m); }
+    virtual void setBitmapMode(bool m)            { LVFontProxy::setBitmapMode(m);  if (hasSeparateSmallFont()) _smallFont->setBitmapMode(m); }
     virtual void setKerningMode(kerning_mode_t m) { LVFontProxy::setKerningMode(m); if (hasSeparateSmallFont()) _smallFont->setKerningMode(m); }
     virtual void setHintingMode(hinting_mode_t m) { LVFontProxy::setHintingMode(m); if (hasSeparateSmallFont()) _smallFont->setHintingMode(m); }
     virtual void clearCache() { LVFontProxy::clearCache(); if (hasSeparateSmallFont()) _smallFont->clearCache(); }
@@ -7859,11 +7857,6 @@ public:
         }
     }
 
-    /// Inspect an open FT_Face and populate all capability/axis fields on def.
-    /// Called after the def constructor so that HarfBuzz and FreeType queries
-    /// only happen once per face regardless of which registration path is used.
-    /// defaultWeight and defaultWidth are used to pin the wght and wdth axes for
-    /// non-variable fonts (those without their own fvar wght or wdth axis).
     #if USE_HARFBUZZ==1
     /// True if the GSUB table has a feature with this tag under any script/language
     /// (some fonts register 'smcp'/'c2sc' only under 'latn', not under 'DFLT').
@@ -7884,6 +7877,11 @@ public:
     }
     #endif
 
+    /// Inspect an open FT_Face and populate all capability/axis fields on def.
+    /// Called after the def constructor so that HarfBuzz and FreeType queries
+    /// only happen once per face regardless of which registration path is used.
+    /// defaultWeight and defaultWidth are used to pin the wght and wdth axes for
+    /// non-variable fonts (those without their own fvar wght or wdth axis).
     void inspectFTFace(FT_Face ft_face, LVFontFace& def, int defaultWeight, int defaultWidth)
     {
         def.has_emojis = checkForEmojis(ft_face);
