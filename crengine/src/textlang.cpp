@@ -1028,7 +1028,7 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     // a bit wrong to limit this feature to documents with lang tags.
     // Better to implement a generic font fallback chain independant of language.
 
-    // https://unicode.org/reports/tr14/#Hyphen : in Polish, Portuguese and Croatian,
+    // https://unicode.org/reports/tr14/#Hyphen : in Croatian, Polish and Portuguese,
     // a real hyphen at end of line must be duplicated at start of next line.
     _duplicate_real_hyphen_on_next_line = false;
 
@@ -1278,7 +1278,7 @@ TextLangCfg::TextLangCfg( lString32 lang_tag ) {
     else if ( langStartsWith(lang_tag, "cs", "sk") ) { // Czech, Slovak
         _lb_char_sub_func = &lb_char_sub_func_czech_slovak;
     }
-    else if ( langStartsWith(lang_tag, "pt", "sr", "hr") ) { // Portuguese, Serbian, Croatian
+    else if ( langStartsWith(lang_tag, "hr", "pt", "sr") ) { // Croatian, Portuguese, Serbian
         _duplicate_real_hyphen_on_next_line = true;
     }
     else if ( langStartsWith(lang_tag, "ru") ) { // Russian
