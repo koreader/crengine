@@ -3487,6 +3487,14 @@ bool LVDocView::goLink(lString32 link, bool savePos) {
 	link = link.substr(1, link.length() - 1);
 	lUInt32 id = m_doc->getAttrValueIndex(link.c_str());
 	ldomNode * dest = m_doc->getNodeById(id);
+	if (!dest) {
+		// Try again in case it is %-encoded
+		lString32 decodedLink = DecodeHTMLUrlString(link);
+		if (decodedLink != link) {
+			id = m_doc->getAttrValueIndex(decodedLink.c_str());
+			dest = m_doc->getNodeById(id);
+		}
+	}
 	if (!dest)
 		return false;
 	savePosToNavigationHistory();
