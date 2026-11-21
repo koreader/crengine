@@ -398,6 +398,8 @@ private:
     bool m_in_cdata;
     bool m_in_html_style_tag;
     bool m_in_html_script_tag;
+    lString32 m_html_style_tag_name;
+    lString32 m_html_script_tag_name;
     bool m_trimspaces;
     bool SkipSpaces();
     bool SkipTillChar( lChar32 ch );
