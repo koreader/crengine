@@ -2898,6 +2898,8 @@ void LVXMLParser::Reset()
     m_in_cdata = false;
     m_in_html_style_tag = false;
     m_in_html_script_tag = false;
+    m_html_style_tag_name.clear();
+    m_html_script_tag_name.clear();
 }
 
 LVXMLParser::LVXMLParser( LVStreamRef stream, LVXMLParserCallback * callback, bool allowHtml, bool fb2Only, bool svgOnly )
@@ -3110,28 +3112,39 @@ bool LVXMLParser::Parse()
 //                    CRLog::trace("<%s>", LCSTR(tagname) );
                 if (!bodyStarted && tagname == "body")
                     bodyStarted = true;
-                else if ( tagname.length() == 5 &&
-                        ( tagname[0] == U'S' || tagname[0] == U's') &&
-                        ( tagname[1] == U'T' || tagname[1] == U't') &&
-                        ( tagname[2] == U'Y' || tagname[2] == U'y') &&
-                        ( tagname[3] == U'L' || tagname[3] == U'l') &&
-                        ( tagname[4] == U'E' || tagname[4] == U'e') ) {
+                // Only HTML/XHTML and SVG use <style> for raw CSS. DOCX/ODT
+                // <*:style> elements have structured XML children; SVG names
+                // are case-sensitive, while HTML names are not.
+                else if ( (m_citags || m_svgOnly) && tagname.length() == 5 && ( (m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS) ?
+                                tagname == U"style" : ( tagname[0] == U'S' || tagname[0] == U's') &&
+                                                      ( tagname[1] == U'T' || tagname[1] == U't') &&
+                                                      ( tagname[2] == U'Y' || tagname[2] == U'y') &&
+                                                      ( tagname[3] == U'L' || tagname[3] == U'l') &&
+                                                      ( tagname[4] == U'E' || tagname[4] == U'e') ) ) {
                     // Handle content as text, but don't stop just at any '<',
-                    // only at '</style>', as <style> may contain comments
+                    // only at its matching closing tag, as <style> may contain comments
                     // (which can contain anything, so tags) and even tags
                     // (eg. "background-image:url('data:image/svg+xml;utf8,<svg><path...")
                     m_in_html_style_tag = true;
+                    m_html_style_tag_name = tagns;
+                    if ( !m_html_style_tag_name.empty() )
+                        m_html_style_tag_name.append(1, ':');
+                    m_html_style_tag_name << tagname;
                 }
-                else if ( tagname.length() == 6 &&
-                        ( tagname[0] == U'S' || tagname[0] == U's') &&
-                        ( tagname[1] == U'C' || tagname[1] == U'c') &&
-                        ( tagname[2] == U'R' || tagname[2] == U'r') &&
-                        ( tagname[3] == U'I' || tagname[3] == U'i') &&
-                        ( tagname[4] == U'P' || tagname[4] == U'p') &&
-                        ( tagname[5] == U'T' || tagname[5] == U't') ) {
+                else if ( (m_citags || m_svgOnly) && tagname.length() == 6 && ( (m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS) ?
+                               tagname == U"script" : ( tagname[0] == U'S' || tagname[0] == U's') &&
+                                                      ( tagname[1] == U'C' || tagname[1] == U'c') &&
+                                                      ( tagname[2] == U'R' || tagname[2] == U'r') &&
+                                                      ( tagname[3] == U'I' || tagname[3] == U'i') &&
+                                                      ( tagname[4] == U'P' || tagname[4] == U'p') &&
+                                                      ( tagname[5] == U'T' || tagname[5] == U't') ) ) {
                     // Handle content as text, but don't stop just at any '<',
-                    // only at '</script>', as <script> may contain tags
+                    // only at its matching closing tag, as <script> may contain tags
                     m_in_html_script_tag = true;
+                    m_html_script_tag_name = tagns;
+                    if ( !m_html_script_tag_name.empty() )
+                        m_html_script_tag_name.append(1, ':');
+                    m_html_script_tag_name << tagname;
                 }
 
                 m_state = ps_attr;
@@ -3149,10 +3162,14 @@ bool LVXMLParser::Parse()
                     // end of tag
                     if ( ch!='>' ) { // '/' in '<hr/>' : self closing tag
                         m_callback->OnTagClose(tagns.c_str(), tagname.c_str(), true);
-                        if ( m_in_html_style_tag )
+                        if ( m_in_html_style_tag ) {
                             m_in_html_style_tag = false;
-                        if ( m_in_html_script_tag )
+                            m_html_style_tag_name.clear();
+                        }
+                        if ( m_in_html_script_tag ) {
                             m_in_html_script_tag = false;
+                            m_html_script_tag_name.clear();
+                        }
                     }
                     if ( ch=='>' )
                         PeekNextCharFromBuffer();
@@ -3261,9 +3278,11 @@ bool LVXMLParser::Parse()
                 }
                 else if ( m_in_html_style_tag ) {
                     m_in_html_style_tag = false;
+                    m_html_style_tag_name.clear();
                 }
                 else if ( m_in_html_script_tag ) {
                     m_in_html_script_tag = false;
+                    m_html_script_tag_name.clear();
                 }
             }
             break;
@@ -5795,13 +5814,16 @@ bool LVXMLParser::ReadText()
                 }
             }
             else if ( ch=='<' ) {
-                if ( m_in_html_style_tag ) { // we're done only when we meet </style>
+                if ( m_in_html_style_tag ) { // we're done only when we meet the opening tag's closing name
                     if ( ptr + 1 < end ) {
                         if ( ptr[1] == '/' ) {
-                            if ( ptr + 6 < end ) {
+                            int taglen = m_html_style_tag_name.length();
+                            if ( ptr + taglen + 2 < end ) {
                                 const lChar32 * buf = ptr + 2;
-                                lString32 tag(buf, 5);
-                                if ( tag.lowercase() == U"style" ) {
+                                lString32 tag(buf, taglen);
+                                lChar32 tagend = ptr[taglen + 2];
+                                if ( (m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS ? tag : tag.lowercase()) == m_html_style_tag_name
+                                        && ( tagend == '>' || IsSpaceChar(tagend) ) ) {
                                     nbCharToSkipOnFlgBreak = 1;
                                     goto end_of_node;
                                 }
@@ -5815,13 +5837,16 @@ bool LVXMLParser::ReadText()
                         break;
                     }
                 }
-                else if ( m_in_html_script_tag ) { // we're done only when we meet </script>
+                else if ( m_in_html_script_tag ) { // we're done only when we meet the opening tag's closing name
                     if ( ptr + 1 < end ) {
                         if ( ptr[1] == '/' ) {
-                            if ( ptr + 7 < end ) {
+                            int taglen = m_html_script_tag_name.length();
+                            if ( ptr + taglen + 2 < end ) {
                                 const lChar32 * buf = ptr + 2;
-                                lString32 tag(buf, 6);
-                                if ( tag.lowercase() == U"script" ) {
+                                lString32 tag(buf, taglen);
+                                lChar32 tagend = ptr[taglen + 2];
+                                if ( (m_callback->getFlags() & TXTFLG_CASE_SENSITIVE_TAGS_ATTRS ? tag : tag.lowercase()) == m_html_script_tag_name
+                                        && ( tagend == '>' || IsSpaceChar(tagend) ) ) {
                                     nbCharToSkipOnFlgBreak = 1;
                                     goto end_of_node;
                                 }
