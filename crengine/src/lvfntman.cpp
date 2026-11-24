@@ -1143,7 +1143,8 @@ static LVFontGlyphCacheItem * newItem( LVFontLocalGlyphCache * local_cache, lCha
         } // else:
         #endif
         if (bitmap->buffer && w > 0 && h > 0) {
-            memcpy( item->bmp, bitmap->buffer, w*h );
+            for ( int y=0; y<h; y++ )
+                memcpy( item->bmp + y*w, bitmap->buffer + y*bitmap->pitch, w );
             // correct gamma
             if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
                 cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
@@ -1194,7 +1195,8 @@ static LVFontGlyphCacheItem * newItem(LVFontLocalGlyphCache *local_cache, lUInt3
     }
     else {
         if (bitmap->buffer && w > 0 && h > 0) {
-            memcpy( item->bmp, bitmap->buffer, w*h );
+            for ( int y=0; y<h; y++ )
+                memcpy( item->bmp + y*w, bitmap->buffer + y*bitmap->pitch, w );
             // correct gamma
             if ( gammaIndex!=GAMMA_NO_CORRECTION_INDEX )
                 cr_correct_gamma_buf(item->bmp, w*h, gammaIndex);
@@ -5263,9 +5265,17 @@ public:
         if (bitmap->pixel_mode == FT_PIXEL_MODE_BGRA)
             buf->DrawColorGlyph( x + pad_x, y + pad_y,
                 bitmap->buffer, bitmap->width, bitmap->rows, bitmap->pitch, palette);
-        else
+        else if ( bitmap->pitch <= (int)bitmap->width )
             buf->Draw( x + pad_x, y + pad_y,
                 bitmap->buffer, bitmap->width, bitmap->rows, palette);
+        else {
+            // Draw() expects rows without padding
+            LVArray<lUInt8> rows( bitmap->width * bitmap->rows, 0 );
+            for ( unsigned int r=0; r<bitmap->rows; r++ )
+                memcpy( rows.get() + r*bitmap->width, bitmap->buffer + r*bitmap->pitch, bitmap->width );
+            buf->Draw( x + pad_x, y + pad_y,
+                rows.get(), bitmap->width, bitmap->rows, palette);
+        }
 
         // Restore original pixel size
         error = FT_Set_Pixel_Sizes(
