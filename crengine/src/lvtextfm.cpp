@@ -2520,8 +2520,12 @@ public:
                             // Don't touch first_word_len: we might want to ensure locked
                             // spacing on the first space(s) following a left pad.
                         }
-                        // No support for any negative value
-                        if ( margin < 0 ) margin = 0;
+                        // No support for any negative value, except a negative inline
+                        // margin in a fixed-layout book: PDFTron-style content kerns the
+                        // digits of a page number with a negative margin that cancels a
+                        // letter-spacing spacer (reflowable rendering is unchanged).
+                        bool fxl = node->getDocument()->getProps()->getIntDef(DOC_PROP_FIXED_LAYOUT, 0) == DOC_FIXED_LAYOUT_ALL;
+                        if ( margin < 0 && !fxl ) margin = 0;
                         if ( border < 0 ) border = 0;
                         if ( padding < 0 ) padding = 0;
                         // We store these computed values in the available fields

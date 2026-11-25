@@ -337,6 +337,21 @@ enum css_clear_t {
     css_c_both
 };
 
+/// position property values
+// Used only for fixed-layout (EPUB3 pre-paginated) rendering: crengine is a
+// reflow engine, so for reflowable documents all elements are laid out in
+// normal flow and 'position' has no effect (css_pos_static behaviour). For a
+// pre-paginated DocFragment, a post-layout pass (see lvrend.cpp) honours these
+// to place elements on the fixed page canvas.
+enum css_position_t {
+    css_pos_inherit, // not a real CSS value (position is not inherited); used as the "inherit" sentinel
+    css_pos_static,  // initial value
+    css_pos_relative,
+    css_pos_absolute,
+    css_pos_fixed,
+    css_pos_sticky   // handled as 'relative' (no scrolling container in a fixed page)
+};
+
 /// direction property values
 enum css_direction_t {
     css_dir_inherit,

@@ -4118,7 +4118,14 @@ void renderFinalBlock( ldomNode * enode, LFormattedText * txform, RenderRectAcce
             int margin_right = lengthToPx( enode, style->margin[1], width );
             int border_right = measureBorder(enode, 1);
             int padding_right = lengthToPx( enode, style->padding[1], width );
-            if ( margin_left > 0 || border_left > 0 || padding_left > 0 || margin_right > 0 || border_right > 0 || padding_right > 0 ) {
+            // A negative inline margin is normally ignored (see lvtextfm, "No support
+            // for any negative value"), but fixed-layout (PDFTron-style) content uses
+            // negative margins to kern the digits of a page number (cancelling a
+            // letter-spacing spacer), so for a fixed-layout book we still add the pad.
+            bool fxl_neg_margin = ( margin_left < 0 || margin_right < 0 )
+                && enode->getDocument()->getProps()->getIntDef(DOC_PROP_FIXED_LAYOUT, 0) == DOC_FIXED_LAYOUT_ALL;
+            if ( margin_left > 0 || border_left > 0 || padding_left > 0 || margin_right > 0 || border_right > 0 || padding_right > 0
+                    || fxl_neg_margin ) {
                 txform->AddSourceObject(flags, LTEXT_OBJECT_IS_PAD, line_h, valign_dy, indent, enode, lang_cfg );
                 flags &= ~LTEXT_FLAG_NEWLINE & ~LTEXT_SRC_IS_CLEAR_BOTH; // clear newline flag
                 add_right_pad = true;
@@ -9779,6 +9786,211 @@ int renderBlockElement( LVRendPageContext & context, ldomNode * enode, int x, in
 
 
 //=======================================================================
+// Fixed-layout (EPUB3 pre-paginated) positioned layout
+//=======================================================================
+// crengine is a reflow engine with no CSS positioning: for reflowable books all
+// elements are laid out in normal flow and 'position' is ignored. For a fully
+// pre-paginated book we let normal flow run (each DocFragment is sized to its
+// page viewport by setNodeStyle), then this pass walks the fragment and rewrites
+// the RenderRectAccessor (x/y/width/height) of every positioned element so it
+// lands where CSS position/top/left/right/bottom put it on the page canvas.
+//
+// It exploits how DrawDocument (below) accumulates geometry: drawing a node adds
+// its fmt.getX()/getY() to the running doc_x/doc_y, so a node's on-canvas
+// position is the sum of its ancestors' fmt offsets. We therefore only need to
+// set each positioned node's fmt offset *relative to its parent's on-canvas
+// position*:  node.fmt.X = target_canvas_x - parent_canvas_x. Static (in-flow)
+// descendants keep their flow offset and ride along with a repositioned ancestor
+// automatically.
+//
+// Supported: position static/relative/absolute/fixed (sticky handled as
+// relative), top/right/bottom/left, and width/height resolution of the
+// positioned box against its containing block. Offsets are resolved with
+// lengthToPx(), exactly as the flow laid out the content, so the two stay
+// consistent. Known follow-ups (documented in the test plan): z-index paint
+// ordering (we paint in DOM order), CSS transforms (the scaled text layer of
+// PDFTron-generated books), and the rare case of an in-flow sibling that should
+// reclaim the space of an out-of-flow absolute sibling (FXL content is almost
+// always fully positioned, so this is seldom visible).
+
+// Fixed-layout viewport fallback: a cover/title page sometimes declares its
+// canvas with an <svg viewBox="min-x min-y W H"> (commonly wrapping a single
+// full-page <image>) instead of a <meta name="viewport">. Parse the viewBox's
+// width/height (its 3rd and 4th numbers).
+static bool getSvgViewBoxSize( const lString32 & vb, int & out_w, int & out_h ) {
+    int vals[4];
+    int ni = 0;
+    int len = vb.length();
+    int i = 0;
+    while ( i < len && ni < 4 ) {
+        while ( i < len && ( vb[i]==' ' || vb[i]==',' || vb[i]=='\t' || vb[i]=='\n' || vb[i]=='\r' ) )
+            i++;
+        if ( i >= len )
+            break;
+        int start = i;
+        if ( vb[i]=='-' || vb[i]=='+' )
+            i++;
+        while ( i < len && ( ( vb[i]>='0' && vb[i]<='9' ) || vb[i]=='.' ) )
+            i++;
+        if ( i > start )
+            vals[ni++] = vb.substr(start, i-start).atoi();
+        else
+            i++; // skip an unexpected char, don't loop forever
+    }
+    if ( ni >= 4 && vals[2] > 0 && vals[3] > 0 ) {
+        out_w = vals[2];
+        out_h = vals[3];
+        return true;
+    }
+    return false;
+}
+
+// Find the first <svg viewBox> in a fixed-layout fragment's subtree (depth-first).
+static bool findFixedLayoutSvgViewport( ldomNode * node, int & out_w, int & out_h ) {
+    if ( !node || !node->isElement() )
+        return false;
+    if ( node->getNodeId() == el_svg ) {
+        lString32 vb = node->getAttributeValue(U"", U"viewBox");
+        if ( !vb.empty() && getSvgViewBoxSize(vb, out_w, out_h) )
+            return true;
+    }
+    int n = node->getChildCount();
+    for ( int i = 0; i < n; i++ ) {
+        ldomNode * ch = node->getChildNode(i);
+        if ( ch && ch->isElement() && findFixedLayoutSvgViewport(ch, out_w, out_h) )
+            return true;
+    }
+    return false;
+}
+
+static inline bool isFixedLayoutAutoLength( const css_length_t & len ) {
+    return len.type == css_val_unspecified && len.value == css_generic_auto;
+}
+static inline bool isFixedLayoutSpecifiedLength( const css_length_t & len ) {
+    // A real, resolvable length/percentage (not auto, none, or otherwise unset).
+    return len.type != css_val_unspecified && len.type != css_val_inherited;
+}
+
+// Fold an absolute pixel length by a 16.16 fixed-point scale factor (see
+// setNodeStyle: an ancestor's transform:scale() scaling a fixed-layout element's
+// coordinate frame). A no-op for the identity scale and for non-pixel lengths:
+// percentages, auto and relative units are left for layout / the positioning pass
+// to resolve against the (unscaled) containing block, so only literal px offsets
+// are scaled. 16.16 (not 1/256) precision matters: the scale multiplies huge
+// coordinates (scale(0.045327) x ~25000px), where 1/256 rounding drifts ~40px.
+static inline void foldFixedLayoutLength( css_length_t & len, int scale_16_16 ) {
+    if ( scale_16_16 == 0x10000 )
+        return;
+    if ( len.type == css_val_px || len.type == css_val_screen_px )
+        len.value = (int)( (lInt64)len.value * scale_16_16 / 0x10000 );
+}
+
+// node_cx/node_cy      : on-canvas top-left of `node` (as DrawDocument would reach it)
+// cb_x/cb_y/cb_w/cb_h  : containing block for absolutely positioned descendants
+static void renderFixedLayoutPositionedChildren( ldomNode * node,
+                int node_cx, int node_cy,
+                int cb_x, int cb_y, int cb_w, int cb_h )
+{
+    if ( !node || !node->isElement() )
+        return;
+    int nb = node->getChildCount();
+    for ( int i = 0; i < nb; i++ ) {
+        ldomNode * child = node->getChildNode(i);
+        if ( !child || !child->isElement() )
+            continue;
+        css_style_ref_t style = child->getStyle();
+        if ( style.isNull() )
+            continue;
+
+        RenderRectAccessor fmt( child );
+        int flow_x = fmt.getX();
+        int flow_y = fmt.getY();
+        int w = fmt.getWidth();
+        int h = fmt.getHeight();
+        // on-canvas position this child currently has from normal flow:
+        int flow_cx = node_cx + flow_x;
+        int flow_cy = node_cy + flow_y;
+
+        css_position_t pos = style->position;
+        int child_cx = flow_cx;
+        int child_cy = flow_cy;
+        bool establishes_cb = false; // does child become the CB for its abs descendants?
+
+        if ( pos == css_pos_absolute || pos == css_pos_fixed ) {
+            establishes_cb = true;
+            // Resolve width/height against the containing block, but only when
+            // specified: an auto size keeps whatever the flow gave the box (e.g.
+            // an <img> sized from its width/height attributes or intrinsic size).
+            if ( isFixedLayoutSpecifiedLength(style->width) )
+                w = lengthToPx( child, style->width, cb_w );
+            if ( isFixedLayoutSpecifiedLength(style->height) )
+                h = lengthToPx( child, style->height, cb_h );
+            // Horizontal placement: left wins, else right, else the CB origin.
+            // With both offsets auto, CSS uses the static position; but in a
+            // fixed-layout page the flow position of an out-of-flow box is
+            // unreliable (e.g. a full-page text layer whose preceding absolute
+            // background image still consumed flow height would be pushed off the
+            // page), and such a box is meant to sit at its container's origin.
+            if ( isFixedLayoutSpecifiedLength(style->left) )
+                child_cx = cb_x + lengthToPx( child, style->left, cb_w );
+            else if ( isFixedLayoutSpecifiedLength(style->right) )
+                child_cx = cb_x + cb_w - lengthToPx( child, style->right, cb_w ) - w;
+            else
+                child_cx = cb_x;
+            // Vertical placement: top wins, else bottom, else the CB origin.
+            if ( isFixedLayoutSpecifiedLength(style->top) )
+                child_cy = cb_y + lengthToPx( child, style->top, cb_h );
+            else if ( isFixedLayoutSpecifiedLength(style->bottom) )
+                child_cy = cb_y + cb_h - lengthToPx( child, style->bottom, cb_h ) - h;
+            else
+                child_cy = cb_y;
+            fmt.setX( child_cx - node_cx );
+            fmt.setY( child_cy - node_cy );
+            fmt.setWidth( w );
+            fmt.setHeight( h );
+        }
+        else if ( pos == css_pos_relative || pos == css_pos_sticky ) {
+            establishes_cb = true;
+            // Offset from the static (flow) position; left/top win over right/bottom.
+            int dx = 0, dy = 0;
+            if ( isFixedLayoutSpecifiedLength(style->left) )
+                dx = lengthToPx( child, style->left, cb_w );
+            else if ( isFixedLayoutSpecifiedLength(style->right) )
+                dx = -lengthToPx( child, style->right, cb_w );
+            if ( isFixedLayoutSpecifiedLength(style->top) )
+                dy = lengthToPx( child, style->top, cb_h );
+            else if ( isFixedLayoutSpecifiedLength(style->bottom) )
+                dy = -lengthToPx( child, style->bottom, cb_h );
+            child_cx = flow_cx + dx;
+            child_cy = flow_cy + dy;
+            fmt.setX( flow_x + dx );
+            fmt.setY( flow_y + dy );
+        }
+        // else css_pos_static: keep flow geometry; does not establish a CB.
+
+        // Recurse. For a positioned child, its border box becomes the containing
+        // block of its absolutely positioned descendants; otherwise the current
+        // containing block is passed through unchanged.
+        if ( establishes_cb )
+            renderFixedLayoutPositionedChildren( child, child_cx, child_cy, child_cx, child_cy, w, h );
+        else
+            renderFixedLayoutPositionedChildren( child, child_cx, child_cy, cb_x, cb_y, cb_w, cb_h );
+    }
+}
+
+// Entry point: reposition the content of one pre-paginated DocFragment onto its
+// page canvas. vp_w/vp_h is the page viewport (the initial containing block).
+void renderFixedLayoutPositioning( ldomNode * fragment, int vp_w, int vp_h )
+{
+    if ( !fragment || !fragment->isElement() || vp_w <= 0 || vp_h <= 0 )
+        return;
+    // The fragment is sized to the viewport; take its own on-canvas origin as our
+    // (0,0) reference. Everything we set is relative, so the choice is arbitrary.
+    renderFixedLayoutPositionedChildren( fragment, 0, 0, 0, 0, vp_w, vp_h );
+}
+
+
+//=======================================================================
 // Draw document
 //=======================================================================
 // Recursively called as children nodes are walked.
@@ -11039,6 +11251,11 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
     }
 
     // font-size
+    // Remember whether font-size was specified as a literal (absolute) size: only
+    // then may a fixed-layout ancestor transform:scale() be folded into it below
+    // (an em/%/inherited size derives from the parent's already-folded font and
+    // must not be scaled a second time). Captured before the switch resolves it.
+    css_value_type_t orig_font_size_type = pstyle->font_size.type;
     switch( pstyle->font_size.type )
     { // ordered here as most likely to be met
     case css_val_inherited:
@@ -11400,6 +11617,160 @@ void setNodeStyle( ldomNode * enode, css_style_ref_t parent_style, LVFontRef par
 
     if ( nodeElementId <= EL_BOXING_END && nodeElementId >= EL_BOXING_START && (pstyle->flags & STYLE_REC_FLAG_INHERITABLE_APPLIED) ) {
         doc->setNodeStylesInvalidIfLoading(NODE_STYLES_INVALID_INHERITED_PROPERTY_SET_ON_BOXING_ELEMENT);
+    }
+
+    // Fixed-layout (EPUB3 pre-paginated): force each pre-paginated DocFragment to
+    // lay out as a block the exact pixel size of its page viewport, so its content
+    // uses native viewport coordinates (absolute positioning in a later slice). The
+    // page is drawn scaled to fit the screen (see LVDocView::drawPageTo). This
+    // overrides any author CSS width/height on the fragment.
+    if ( nodeElementId == el_DocFragment
+            && enode->getAttributeValue(U"", U"LayoutMode") == U"pre-paginated" ) {
+        lString32 viewport = enode->getAttributeValue(U"", U"Viewport");
+        lString32 vp_w_str, vp_h_str;
+        int vp_w = 0, vp_h = 0;
+        if ( viewport.split2(U"x", vp_w_str, vp_h_str) ) {
+            vp_w = vp_w_str.atoi();
+            vp_h = vp_h_str.atoi();
+        }
+        if ( !( vp_w > 0 && vp_h > 0 ) ) {
+            // No <meta name="viewport"> (nor an OPF-provided fallback): a cover or
+            // title page may instead declare its canvas with an <svg viewBox>
+            // (often wrapping a single full-page image). Use that, so the page is
+            // still sized to its canvas and fills the screen rather than being laid
+            // out at the default width and letterboxed.
+            findFixedLayoutSvgViewport(enode, vp_w, vp_h);
+        }
+        if ( vp_w > 0 && vp_h > 0 ) {
+            pstyle->display = css_d_block;
+            pstyle->width  = css_length_t(vp_w); // css_val_screen_px (direct pixels)
+            pstyle->height = css_length_t(vp_h);
+            pstyle->min_width  = css_length_t(css_val_unspecified, 0);
+            pstyle->max_width  = css_length_t(css_val_unspecified, 0);
+            pstyle->min_height = css_length_t(css_val_unspecified, 0);
+            pstyle->max_height = css_length_t(css_val_unspecified, 0);
+        }
+    }
+
+    // Fixed-layout (EPUB3 pre-paginated) tweaks, only for fully pre-paginated
+    // books so reflowable rendering is completely untouched.
+    if ( doc->getProps()->getIntDef(DOC_PROP_FIXED_LAYOUT, 0) == DOC_FIXED_LAYOUT_ALL ) {
+        // A full-page cover/title <svg viewBox="0 0 W H"> (typically wrapping one
+        // full-page <image>) should fill its page. Left to normal flow it renders
+        // as an inline replaced element (baseline spacing above/below) sized to
+        // its DPI-scaled intrinsic size, so it ends up inset with white margins.
+        // Force it to a block of exactly its viewBox pixel size, with no margins,
+        // so it fills the page canvas the fragment was sized to.
+        if ( nodeElementId == el_svg ) {
+            int svg_w = 0, svg_h = 0;
+            lString32 vb = enode->getAttributeValue(U"", U"viewBox");
+            if ( !vb.empty() && getSvgViewBoxSize(vb, svg_w, svg_h) ) {
+                pstyle->display = css_d_block;
+                pstyle->width  = css_length_t(svg_w); // css_val_screen_px (direct pixels)
+                pstyle->height = css_length_t(svg_h);
+                pstyle->margin[0] = css_length_t(css_val_screen_px, 0);
+                pstyle->margin[1] = css_length_t(css_val_screen_px, 0);
+                pstyle->margin[2] = css_length_t(css_val_screen_px, 0);
+                pstyle->margin[3] = css_length_t(css_val_screen_px, 0);
+            }
+        }
+        // CSS transform: an ancestor's transform:scale() scales this element's
+        // content and coordinate frame. crengine has no transform support, but a
+        // pre-paginated book's selectable "text layer" depends on it: PDFTron-style
+        // output lays text out at huge coordinates (left:2336px bottom:29137px,
+        // font-size:1024px) inside a container scaled right down (scale(0.03125)),
+        // so without it the text is formatted far off-canvas and clipped away.
+        // We fold the cumulative *ancestor* scale into this node's font-size and
+        // pixel offsets/size now — before the font is built (initNodeFont, below)
+        // and the content laid out — so text is formatted at its final on-page size
+        // and the positioning pass (which reads the already-scaled offsets) places
+        // it correctly. A node's own transform is not applied to its own box; it
+        // only scales its descendants, which pick it up when they walk up here.
+        // (transform-origin is not needed: the positioning pass anchors left/top
+        // against the container's left/top edge and right/bottom against its
+        // right/bottom edge, which reproduces any origin at a box corner — and
+        // these generators always pair e.g. 'transform-origin:left bottom' with
+        // left/bottom offsets.)
+        int anc_scale_x = 0x10000, anc_scale_y = 0x10000; // cumulative ancestor scale, 16.16 fixed-point
+        for ( ldomNode * anc = enode->getParentNode(); anc && anc->isElement(); anc = anc->getParentNode() ) {
+            css_style_ref_t astyle = anc->getStyle();
+            if ( astyle.isNull() )
+                break;
+            if ( astyle->transform_scale_x.value != 0x10000 )
+                anc_scale_x = (int)( (lInt64)anc_scale_x * astyle->transform_scale_x.value / 0x10000 );
+            if ( astyle->transform_scale_y.value != 0x10000 )
+                anc_scale_y = (int)( (lInt64)anc_scale_y * astyle->transform_scale_y.value / 0x10000 );
+        }
+        if ( anc_scale_x != 0x10000 || anc_scale_y != 0x10000 ) {
+            // Fold font-size only if it was a literal (absolute) size: an em/%/
+            // inherited size already carries the ancestor scale via the parent's
+            // (folded) font, so scaling it again would double-count.
+            bool fold_font = orig_font_size_type == css_val_px || orig_font_size_type == css_val_screen_px
+                          || orig_font_size_type == css_val_pt || orig_font_size_type == css_val_in
+                          || orig_font_size_type == css_val_cm || orig_font_size_type == css_val_mm
+                          || orig_font_size_type == css_val_pc || orig_font_size_type == css_val_q;
+            if ( fold_font )
+                foldFixedLayoutLength( pstyle->font_size, anc_scale_y );
+            // Offsets/size are not inheritance-derived, so always fold (px only).
+            foldFixedLayoutLength( pstyle->left,   anc_scale_x );
+            foldFixedLayoutLength( pstyle->right,  anc_scale_x );
+            foldFixedLayoutLength( pstyle->width,  anc_scale_x );
+            foldFixedLayoutLength( pstyle->top,    anc_scale_y );
+            foldFixedLayoutLength( pstyle->bottom, anc_scale_y );
+            foldFixedLayoutLength( pstyle->height, anc_scale_y );
+            // Text-layout lengths live in the same scaled coordinate system, so
+            // they must scale too. PDFTron output positions and kerns the digits of
+            // a page number with big margin-left / letter-spacing values (a positive
+            // letter-spacing spreads them, a negative margin-left pulls a digit
+            // group back); unscaled, these fling the digits across the page. Margins
+            // and padding are not inheritance-derived, so fold them unconditionally.
+            // foldFixedLayoutLength only touches px lengths, so a unitless/em
+            // line-height (which already tracks the folded font) is left alone.
+            foldFixedLayoutLength( pstyle->letter_spacing, anc_scale_x );
+            foldFixedLayoutLength( pstyle->text_indent,    anc_scale_x );
+            foldFixedLayoutLength( pstyle->line_height,    anc_scale_y );
+            foldFixedLayoutLength( pstyle->margin[0],  anc_scale_x ); // left
+            foldFixedLayoutLength( pstyle->margin[1],  anc_scale_x ); // right
+            foldFixedLayoutLength( pstyle->margin[2],  anc_scale_y ); // top
+            foldFixedLayoutLength( pstyle->margin[3],  anc_scale_y ); // bottom
+            foldFixedLayoutLength( pstyle->padding[0], anc_scale_x );
+            foldFixedLayoutLength( pstyle->padding[1], anc_scale_x );
+            foldFixedLayoutLength( pstyle->padding[2], anc_scale_y );
+            foldFixedLayoutLength( pstyle->padding[3], anc_scale_y );
+        }
+        // An absolutely positioned box is taken out of normal flow and placed on
+        // the page canvas by a post-layout pass (renderFixedLayoutPositioning,
+        // below). CSS computes the 'display' of an absolute/fixed box to a
+        // block-level value ("blockification"); we need that here so the box gets
+        // its own block RenderRectAccessor the pass can move (an inline <img> or
+        // <span> would otherwise be laid out and drawn by the inline formatter,
+        // out of reach of a geometry override).
+        if ( ( pstyle->position == css_pos_absolute || pstyle->position == css_pos_fixed )
+                && pstyle->display == css_d_inline ) {
+            pstyle->display = css_d_block;
+        }
+        // Images on a fixed page must render at their declared size so a full-page
+        // background fills the viewport. Two crengine behaviours get in the way:
+        //  - it ignores the HTML width/height attributes (it sizes from the
+        //    intrinsic image or CSS only), and
+        //  - it caps an image to the page content box (height minus margins/header).
+        // So, honour width=/height= as the used size (CSS still wins if present),
+        // and set NO_CAP so the declared size is not shrunk. Without a declared
+        // size we leave capping on, so an image with no dimensions can't overflow.
+        if ( is_object ) {
+            if ( pstyle->width.type == css_val_unspecified ) {
+                int aw = enode->getAttributeValue(U"", U"width").atoi();
+                if ( aw > 0 )
+                    pstyle->width = css_length_t(css_val_px, aw*256);
+            }
+            if ( pstyle->height.type == css_val_unspecified ) {
+                int ah = enode->getAttributeValue(U"", U"height").atoi();
+                if ( ah > 0 )
+                    pstyle->height = css_length_t(css_val_px, ah*256);
+            }
+            if ( pstyle->width.type != css_val_unspecified || pstyle->height.type != css_val_unspecified )
+                pstyle->cr_hint.value |= CSS_CR_HINT_NO_CAP_IMAGE_SIZE;
+        }
     }
 
     pstyle->flags = 0; // cleanup, before setStyle() adds it to cache

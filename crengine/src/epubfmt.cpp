@@ -15,16 +15,30 @@ public:
     lString32 title;
     bool is_xhtml;
     bool nonlinear;
+    // Fixed-layout (EPUB3 pre-paginated) per-spine-item info, resolved from the
+    // global rendition:layout plus any per-itemref properties= override.
+    bool is_fixed_layout = false;
+    lString32 page_spread; // "left"/"right"/"center" from rendition:page-spread-*
+    int viewport_width = 0;  // fallback viewport from OPF/iBooks (per-page <meta> wins)
+    int viewport_height = 0;
     EpubItem()
     { }
     EpubItem( const EpubItem & v )
-        : href(v.href), mediaType(v.mediaType), id(v.id), is_xhtml(v.is_xhtml)
+        : href(v.href), mediaType(v.mediaType), id(v.id), is_xhtml(v.is_xhtml),
+          nonlinear(v.nonlinear), is_fixed_layout(v.is_fixed_layout), page_spread(v.page_spread),
+          viewport_width(v.viewport_width), viewport_height(v.viewport_height)
     { }
     EpubItem & operator = ( const EpubItem & v )
     {
         href = v.href;
         mediaType = v.mediaType;
         id = v.id;
+        is_xhtml = v.is_xhtml;
+        nonlinear = v.nonlinear;
+        is_fixed_layout = v.is_fixed_layout;
+        page_spread = v.page_spread;
+        viewport_width = v.viewport_width;
+        viewport_height = v.viewport_height;
         return *this;
     }
 };
@@ -76,6 +90,21 @@ public:
 //        }
 //    }
 //}
+
+// Check whether a space-separated EPUB "properties" attribute (as found on a
+// manifest <item> or a spine <itemref>) contains a given property token.
+static bool hasProperty( const lString32 & properties, const lChar32 * token ) {
+    if ( properties.empty() )
+        return false;
+    lString32 t(token);
+    lString32 before = cs32(" ") + t;         // " token"
+    lString32 after  = t + cs32(" ");         // "token "
+    lString32 both   = cs32(" ") + t + cs32(" "); // " token "
+    return properties == t
+        || properties.startsWith(after.c_str())
+        || properties.endsWith(before.c_str())
+        || properties.pos(both.c_str()) >= 0;
+}
 
 bool DetectEpubFormat( LVStreamRef stream )
 {
@@ -1370,6 +1399,79 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
             }
         }
 
+        // ====== Fixed-layout (EPUB3 pre-paginated) rendition metadata ======
+        // Resolve the book's global rendition:layout and an optional default
+        // viewport. Per spine-item overrides (properties=) are applied later,
+        // when gathering the spine items.
+        // c.f. https://www.w3.org/publishing/epub32/epub-packages.html#sec-rendering-metadata
+        bool doc_default_fixed_layout = false;
+        int doc_default_viewport_width = 0;
+        int doc_default_viewport_height = 0;
+        lString32 primary_writing_mode; // KF8 hint: "horizontal-rl"/"vertical-rl" => RTL
+        if ( metadata && metadata->isElement() ) {
+            lUInt16 meta_id = doc->getElementNameIndex(U"meta");
+            for (int i=0; i<nb_metadata_items; i++) {
+                ldomNode * item = metadata->getChildNode(i);
+                if ( item->getNodeId() != meta_id )
+                    continue;
+                // EPUB3 standard: <meta property="rendition:layout">pre-paginated</meta>
+                lString32 property = item->getAttributeValue("property");
+                if ( property == U"rendition:layout" ) {
+                    if ( item->getText().trim().lowercase() == U"pre-paginated" )
+                        doc_default_fixed_layout = true;
+                    continue;
+                }
+                if ( property == U"rendition:viewport" ) { // deprecated, but still met
+                    parseFixedLayoutViewport(item->getText(), doc_default_viewport_width, doc_default_viewport_height);
+                    continue;
+                }
+                // Legacy hints (Amazon KF8-in-EPUB, older authoring tools): name=/content=
+                lString32 name = item->getAttributeValue("name");
+                if ( name == U"fixed-layout" ) {
+                    if ( lString32(item->getAttributeValue("content")).lowercase() == U"true" )
+                        doc_default_fixed_layout = true;
+                }
+                else if ( name == U"original-resolution" ) {
+                    parseFixedLayoutViewport(item->getAttributeValue("content"),
+                                             doc_default_viewport_width, doc_default_viewport_height);
+                }
+                else if ( name == U"primary-writing-mode" ) {
+                    primary_writing_mode = lString32(item->getAttributeValue("content")).lowercase();
+                }
+            }
+        }
+        // Legacy iBooks fixed-layout flag, stored outside the OPF in
+        // META-INF/com.apple.ibooks.display-options.xml:
+        //   <display_options><platform name="*">
+        //     <option name="fixed-layout">true</option> ...
+        if ( !doc_default_fixed_layout ) {
+            LVStreamRef ibooks_stream = m_arc->OpenStream(U"META-INF/com.apple.ibooks.display-options.xml", LVOM_READ);
+            if ( !ibooks_stream.isNull() ) {
+                ldomDocument * ibooks_doc = LVParseXMLStream( ibooks_stream );
+                if ( ibooks_doc ) {
+                    ldomNode * disp = ibooks_doc->nodeFromXPath( cs32("display_options") );
+                    if ( disp && disp->isElement() ) {
+                        for (int p=0; p<disp->getChildCount() && !doc_default_fixed_layout; p++) {
+                            ldomNode * platform = disp->getChildNode(p);
+                            if ( !platform->isElement() )
+                                continue;
+                            for (int o=0; o<platform->getChildCount(); o++) {
+                                ldomNode * option = platform->getChildNode(o);
+                                if ( !option->isElement() )
+                                    continue;
+                                if ( option->getAttributeValue("name") == U"fixed-layout"
+                                        && option->getText().trim().lowercase() == U"true" ) {
+                                    doc_default_fixed_layout = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    delete ibooks_doc;
+                }
+            }
+        }
+
         // We'll be reusing these later
         ldomNode * spine = doc->nodeFromXPath( cs32("package/spine") );
         lUInt16 itemref_id = doc->getElementNameIndex(U"itemref");
@@ -1542,10 +1644,56 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                     EpubItem * epubItem = epubItems.findById( item->getAttributeValue("idref") );
                     if ( epubItem ) {
                         epubItem->nonlinear = lString32(item->getAttributeValue("linear")).lowercase() == U"no";
+                        // Fixed-layout: a per-itemref properties= value overrides the
+                        // book's global rendition:layout for this spine item.
+                        lString32 properties = item->getAttributeValue("properties");
+                        bool item_fixed = doc_default_fixed_layout;
+                        if ( hasProperty(properties, U"rendition:layout-pre-paginated") )
+                            item_fixed = true;
+                        else if ( hasProperty(properties, U"rendition:layout-reflowable") )
+                            item_fixed = false;
+                        epubItem->is_fixed_layout = item_fixed;
+                        if ( item_fixed ) {
+                            // page-spread-left/right are in the default itemref
+                            // property vocabulary (unprefixed); center only comes
+                            // prefixed. Accept both the prefixed and bare forms,
+                            // as real books use either.
+                            if ( hasProperty(properties, U"page-spread-left") || hasProperty(properties, U"rendition:page-spread-left") )
+                                epubItem->page_spread = U"left";
+                            else if ( hasProperty(properties, U"page-spread-right") || hasProperty(properties, U"rendition:page-spread-right") )
+                                epubItem->page_spread = U"right";
+                            else if ( hasProperty(properties, U"page-spread-center") || hasProperty(properties, U"rendition:page-spread-center") )
+                                epubItem->page_spread = U"center";
+                            if ( doc_default_viewport_width > 0 && doc_default_viewport_height > 0 ) {
+                                epubItem->viewport_width = doc_default_viewport_width;
+                                epubItem->viewport_height = doc_default_viewport_height;
+                            }
+                        }
                         spineItems.add( epubItem );
                     }
                 }
             }
+            // Record book-level fixed-layout info for the frontend. These props are
+            // serialized into the doc cache, so they survive a later cached open
+            // (when all the parsing above is skipped).
+            int nb_fixed = 0;
+            for ( int i=0; i<spineItems.length(); i++ ) {
+                if ( spineItems[i]->is_fixed_layout )
+                    nb_fixed++;
+            }
+            int fixed_layout_mode = DOC_FIXED_LAYOUT_NONE;
+            if ( nb_fixed > 0 )
+                fixed_layout_mode = ( nb_fixed == spineItems.length() )
+                                  ? DOC_FIXED_LAYOUT_ALL : DOC_FIXED_LAYOUT_MIXED;
+            m_doc_props->setInt(DOC_PROP_FIXED_LAYOUT, fixed_layout_mode);
+            // Reading direction: explicit <spine page-progression-direction="..">,
+            // else a KF8 vertical/horizontal-rl primary-writing-mode hint => rtl.
+            lString32 ppd = spine ? lString32(spine->getAttributeValue("page-progression-direction")).lowercase()
+                                  : lString32::empty_str;
+            if ( ppd.empty() && (primary_writing_mode == U"horizontal-rl" || primary_writing_mode == U"vertical-rl") )
+                ppd = U"rtl";
+            if ( ppd == U"rtl" || ppd == U"ltr" )
+                m_doc_props->setString(DOC_PROP_PAGE_PROGRESSION_DIRECTION, ppd);
             CRLog::debug("opf: reading spine done");
         }
         delete doc;
@@ -1628,6 +1776,15 @@ bool ImportEpubDocument( LVStreamRef stream, ldomDocument * m_doc, LVDocViewCall
                 appender.setCodeBase( name );
                 appender.setNonLinearFlag(spineItems[i]->nonlinear);
                 appender.setFragmentType(); // unset
+                // Carry this spine item's fixed-layout info (resolved from the OPF)
+                // into the fragment writer, so it can stamp the <DocFragment>. The
+                // per-page <meta name="viewport"> found while parsing wins over the
+                // OPF-level viewport fallback passed here.
+                appender.setFixedLayout(
+                    spineItems[i]->is_fixed_layout ? cs32("pre-paginated") : lString32::empty_str,
+                    spineItems[i]->page_spread,
+                    spineItems[i]->viewport_width,
+                    spineItems[i]->viewport_height);
                 CRLog::debug("Checking fragment: %s", LCSTR(name));
                 LVStreamRef stream = m_arc->OpenStream(name.c_str(), LVOM_READ);
                 if ( !stream.isNull() ) {

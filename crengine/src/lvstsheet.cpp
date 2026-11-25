@@ -155,6 +155,12 @@ enum css_decl_code {
     cssd_cr_hint,
     cssd_cr_only_if,
     cssd_cr_apply_func,
+    cssd_position,
+    cssd_top,
+    cssd_right,
+    cssd_bottom,
+    cssd_left,
+    cssd_transform,
     cssd_stop
 };
 
@@ -276,6 +282,12 @@ static const char * css_decl_name[] = {
     "-cr-hint",
     "-cr-only-if",
     "-cr-apply-func",
+    "position",
+    "top",
+    "right",
+    "bottom",
+    "left",
+    "transform",
     NULL
 };
 
@@ -435,6 +447,35 @@ static bool skip_spaces( const char * & str )
         oldpos = str;
     }
     return *str != 0;
+}
+
+// Parse a plain decimal number (e.g. a CSS transform scale factor) into 16.16
+// fixed-point, advancing str; sets ok. Unlike parse_number_value (which quantises
+// to 1/256, far too coarse for scales like 0.045327) this keeps full fractional
+// precision, so the huge coordinates of a fixed-layout text layer fold accurately.
+static int parse_decimal_16_16( const char * & str, bool & ok )
+{
+    skip_spaces( str );
+    ok = false;
+    bool neg = false;
+    if ( *str == '-' ) { neg = true; str++; }
+    else if ( *str == '+' ) { str++; }
+    lInt64 ipart = 0;
+    bool any = false;
+    while ( *str >= '0' && *str <= '9' ) { ipart = ipart*10 + (*str - '0'); str++; any = true; }
+    lInt64 frac = 0, fdiv = 1;
+    if ( *str == '.' ) {
+        str++;
+        while ( *str >= '0' && *str <= '9' ) {
+            if ( fdiv < 100000000 ) { frac = frac*10 + (*str - '0'); fdiv *= 10; }
+            str++; any = true;
+        }
+    }
+    if ( !any )
+        return 0x10000; // nothing parsed: identity
+    ok = true;
+    lInt64 val = ipart * 65536 + ( frac * 65536 + fdiv/2 ) / fdiv;
+    return (int)( neg ? -val : val );
 }
 
 static bool parse_ident( const char * &str, char * ident, size_t maxsize, bool skip_namespace=false )
@@ -3527,6 +3568,17 @@ static const char * css_f_names[] =
     NULL
 };
 
+static const char * css_pos_names[] =
+{
+    "", // css_pos_inherit
+    "static",
+    "relative",
+    "absolute",
+    "fixed",
+    "sticky",
+    NULL
+};
+
 // clear value names
 static const char * css_c_names[] =
 {
@@ -4726,6 +4778,10 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_height:
             case cssd_min_width:
             case cssd_min_height:
+            case cssd_top:
+            case cssd_right:
+            case cssd_bottom:
+            case cssd_left:
                 IF_g_PUSH_LENGTH_AND_break(1, false, css_val_unspecified, css_generic_auto);
             case cssd_max_width:
             case cssd_max_height:
@@ -4745,10 +4801,12 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                     if ( prop_code==cssd_border_bottom_width || prop_code==cssd_border_top_width ||
                             prop_code==cssd_border_left_width || prop_code==cssd_border_right_width )
                         accept_percent = false;
-                    // only margin accepts negative values
+                    // only margin and positioning offsets accept negative values
                     bool accept_negative = false;
                     if ( prop_code==cssd_margin_bottom || prop_code==cssd_margin_top ||
-                            prop_code==cssd_margin_left || prop_code==cssd_margin_right )
+                            prop_code==cssd_margin_left || prop_code==cssd_margin_right ||
+                            prop_code==cssd_top || prop_code==cssd_right ||
+                            prop_code==cssd_bottom || prop_code==cssd_left )
                         accept_negative = true;
                     // only margin, width, height, min-width, min-height accept keyword "auto"
                     // (also accept it with max-width, max-height for style tweaks user sake)
@@ -4757,7 +4815,9 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
                             prop_code==cssd_margin_left || prop_code==cssd_margin_right ||
                             prop_code==cssd_width || prop_code==cssd_height ||
                             prop_code==cssd_min_width || prop_code==cssd_min_height ||
-                            prop_code==cssd_max_width || prop_code==cssd_max_height )
+                            prop_code==cssd_max_width || prop_code==cssd_max_height ||
+                            prop_code==cssd_top || prop_code==cssd_right ||
+                            prop_code==cssd_bottom || prop_code==cssd_left )
                         accept_auto = true;
                     // only max-width, max-height accept keyword "none"
                     // (also accepts it with min-width, min-height for style tweaks user sake)
@@ -5382,6 +5442,50 @@ bool LVCssDeclaration::parse( const char * &decl, bool higher_importance, lxmlDo
             case cssd_float:
                 IF_g_SET_n_AND_break(false, css_f_inherit, css_f_none);
                 n = parse_name( decl, css_f_names, -1 );
+                break;
+            case cssd_position:
+                IF_g_SET_n_AND_break(false, css_pos_inherit, css_pos_static);
+                n = parse_name( decl, css_pos_names, -1 );
+                break;
+            case cssd_transform:
+                {
+                    // Only 'transform: scale(sx[, sy])' is interpreted (and only for
+                    // fixed-layout books, in setNodeStyle). Other transform functions
+                    // (matrix/translate/rotate/...) are not supported and leave the
+                    // identity scale, as does 'none'. Scale factors are stored as
+                    // css_length_t with .value in 16.16 fixed-point (identity = 0x10000);
+                    // the extra precision matters because the scale multiplies huge
+                    // coordinates (e.g. scale(0.045327) x ~25000px).
+                    css_length_t sx(css_val_screen_px, 0x10000);
+                    css_length_t sy(css_val_screen_px, 0x10000);
+                    skip_spaces( decl );
+                    if ( substr_icompare( "scale", decl ) ) {
+                        skip_spaces( decl );
+                        if ( *decl == '(' ) {
+                            decl++;
+                            bool ok = false;
+                            int v = parse_decimal_16_16( decl, ok );
+                            if ( ok ) {
+                                sx.value = v;
+                                sy.value = v; // uniform unless a second value follows
+                                skip_spaces( decl );
+                                if ( *decl == ',' ) {
+                                    decl++;
+                                    bool ok2 = false;
+                                    int v2 = parse_decimal_16_16( decl, ok2 );
+                                    if ( ok2 )
+                                        sy.value = v2;
+                                }
+                            }
+                            skip_spaces( decl );
+                            if ( *decl == ')' )
+                                decl++;
+                        }
+                    }
+                    buf<<(lUInt32) (cssd_transform | importance | parse_important(decl));
+                    buf<<(lUInt32) sx.type << (lUInt32) sx.value;
+                    buf<<(lUInt32) sy.type << (lUInt32) sy.value;
+                }
                 break;
             case cssd_clear:
                 IF_g_SET_n_AND_break(false, css_c_inherit, css_c_none);
@@ -6192,6 +6296,31 @@ void LVCssDeclaration::apply( css_style_rec_t * style, const ldomNode * node ) c
             break;
         case cssd_clear:
             style->Apply( (css_clear_t) *p++, &style->clear, imp_bit_clear, is_important );
+            break;
+        case cssd_position:
+            style->Apply( (css_position_t) *p++, &style->position, imp_bit_position, is_important );
+            break;
+        case cssd_top:
+            style->Apply( read_length(p), &style->top, imp_bit_top, is_important );
+            break;
+        case cssd_right:
+            style->Apply( read_length(p), &style->right, imp_bit_right, is_important );
+            break;
+        case cssd_bottom:
+            style->Apply( read_length(p), &style->bottom, imp_bit_bottom, is_important );
+            break;
+        case cssd_left:
+            style->Apply( read_length(p), &style->left, imp_bit_left, is_important );
+            break;
+        case cssd_transform:
+            {
+                // No !important tracking for transform (not needed by fixed-layout
+                // books): the cascade applies declarations in order, last wins.
+                css_length_t sx = read_length(p);
+                css_length_t sy = read_length(p);
+                style->transform_scale_x = sx;
+                style->transform_scale_y = sy;
+            }
             break;
         case cssd_direction:
             style->Apply( (css_direction_t) *p++, &style->direction, imp_bit_direction, is_important );

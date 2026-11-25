@@ -61,6 +61,7 @@
 
 #define RN_PAGE_TYPE_NORMAL           0x01
 #define RN_PAGE_TYPE_COVER            0x02
+#define RN_PAGE_TYPE_FIXED            0x04 // fixed-layout (EPUB3 pre-paginated) page: one spine item, drawn scaled to fit
 #define RN_PAGE_MOSTLY_RTL            0x10
 #define RN_PAGE_FOOTNOTES_MOSTLY_RTL  0x20
 
