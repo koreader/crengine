@@ -844,6 +844,17 @@ public:
 
     /// draws page to image buffer
     void drawPageTo( LVDrawBuf * drawBuf, LVRendPageInfo & page, lvRect * pageRect, int pageCount, int basePage, bool hasTwoVisiblePages=false, bool isRightPage=false, bool isLastPage=false);
+    /// Fixed-layout spreads: DocFragment for a page (pages are 1:1 with fragments)
+    ldomNode * getFixedLayoutFragmentForPage( int pageIndex );
+    /// Fixed-layout spreads: a page's rendition:page-spread-* side
+    /// (0=left, 1=right, 2=center, -1=unspecified)
+    int getFixedLayoutPageSpreadSide( int pageIndex );
+    /// Fixed-layout spreads: the spread (view of 1-2 pages) containing `page`,
+    /// honouring page-spread-left/right/center and reading direction. Returns the
+    /// reading-order first page of the spread, and the page indices to draw on the
+    /// left/right screen halves (either may be -1 for a blank half). Fixed-layout
+    /// only; the two-page grouping (even/odd) is used elsewhere for reflowable.
+    void getFixedLayoutSpread( int page, int & startPage, int & leftPage, int & rightPage );
     /// draws coverpage to image buffer
     void drawCoverTo( LVDrawBuf * drawBuf, lvRect & rc );
     /// returns cover page image source, if any

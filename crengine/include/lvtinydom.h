@@ -115,6 +115,16 @@ extern const int gDOMVersionCurrent;
 #define DOC_PROP_FILE_CRC32      "doc.file.crc32"
 #define DOC_PROP_CODE_BASE       "doc.file.code.base"
 #define DOC_PROP_COVER_FILE      "doc.cover.file"
+// Fixed-layout (EPUB3 pre-paginated / legacy iBooks & KF8) book-level info.
+// DOC_PROP_FIXED_LAYOUT values: 0=reflowable (none), 1=fully pre-paginated, 2=mixed
+#define DOC_PROP_FIXED_LAYOUT    "doc.fixed.layout"
+// Book's reading direction from <spine page-progression-direction="..">: "ltr" or "rtl"
+#define DOC_PROP_PAGE_PROGRESSION_DIRECTION "doc.page.progression.direction"
+
+// DOC_PROP_FIXED_LAYOUT possible values
+#define DOC_FIXED_LAYOUT_NONE   0 // reflowable document (no pre-paginated spine item)
+#define DOC_FIXED_LAYOUT_ALL    1 // every spine item is pre-paginated (fixed-layout book)
+#define DOC_FIXED_LAYOUT_MIXED  2 // some spine items pre-paginated, some reflowable
 
 #define DEF_SPACE_WIDTH_SCALE_PERCENT 100
 #define DEF_MIN_SPACE_CONDENSING_PERCENT 50
@@ -3218,6 +3228,21 @@ private:
 
     bool m_nonlinear = false;
 
+    // Fixed-layout (EPUB3 pre-paginated) support.
+    // These are set per spine item (by the EPUB importer) via setFixedLayout(),
+    // before the fragment is parsed, and get stamped onto the <DocFragment>.
+    lString32 fixedLayoutMode;  // "pre-paginated" when this fragment is fixed-layout, else empty
+    lString32 fixedLayoutPageSpread; // "left"/"right"/"center" from rendition:page-spread-*, else empty
+    int fixedLayoutOpfViewportWidth = 0;  // viewport fallback from OPF rendition:viewport / iBooks original-resolution
+    int fixedLayoutOpfViewportHeight = 0;
+    // The authoritative per-page viewport is captured here from the spine
+    // document's own <meta name="viewport" content="width=.., height=..">.
+    int metaViewportWidth = 0;
+    int metaViewportHeight = 0;
+    int metaDetectionState = 0; // non-zero while parsing a <meta> in the (dropped) <head>
+    lString32 tmpMetaName;
+    lString32 tmpMetaContent;
+
 public:
 
     ldomNode * getBaseElement() { return lastBaseElement; }
@@ -3232,6 +3257,15 @@ public:
 
     bool hasMetBaseTag() { return baseTagMet; }
     void setFragmentType( lString32 fragment_type=lString32::empty_str ) { fragmentType = fragment_type; }
+    // Set per spine item before parsing it, to carry EPUB3/legacy fixed-layout info
+    // (an empty layout_mode means this spine item is reflowable).
+    void setFixedLayout( lString32 layout_mode=lString32::empty_str, lString32 page_spread=lString32::empty_str,
+                         int viewport_width=0, int viewport_height=0 ) {
+        fixedLayoutMode = layout_mode;
+        fixedLayoutPageSpread = page_spread;
+        fixedLayoutOpfViewportWidth = viewport_width;
+        fixedLayoutOpfViewportHeight = viewport_height;
+    }
 
     void setCodeBase( lString32 filePath );
     /// returns flags
@@ -3253,6 +3287,13 @@ public:
         htmlDir.clear();
         htmlLang.clear();
         htmlStyle.clear();
+        // Per-fragment <meta name="viewport"> capture (fixedLayout* are set by the
+        // importer via setFixedLayout() for each spine item, so not reset here).
+        metaViewportWidth = 0;
+        metaViewportHeight = 0;
+        metaDetectionState = 0;
+        tmpMetaName.clear();
+        tmpMetaContent.clear();
     }
     /// called on parsing end
     virtual void OnStop()
@@ -3304,6 +3345,9 @@ public:
 };
 
 //utils
+/// parse a fixed-layout viewport declaration ("width=1200, height=1600" or "1200x1600")
+/// into pixel dimensions; out_width/out_height are left at 0 when not determinable
+void parseFixedLayoutViewport( const lString32 & content, int & out_width, int & out_height );
 /// extract authors from FB2 document, delimiter is lString32 by default
 lString32 extractDocAuthors( ldomDocument * doc, lString32 delimiter=lString32::empty_str, bool shortMiddleName=true );
 lString32 extractDocTitle( ldomDocument * doc );

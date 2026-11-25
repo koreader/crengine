@@ -127,6 +127,13 @@ lUInt32 calcHash(css_style_rec_t & rec)
     v = v * 31 + (lUInt32)rec.widows;
     v = v * 31 + (lUInt32)rec.float_;
     v = v * 31 + (lUInt32)rec.clear;
+    v = v * 31 + (lUInt32)rec.position;
+    v = v * 31 + (lUInt32)rec.top.pack();
+    v = v * 31 + (lUInt32)rec.right.pack();
+    v = v * 31 + (lUInt32)rec.bottom.pack();
+    v = v * 31 + (lUInt32)rec.left.pack();
+    v = v * 31 + (lUInt32)rec.transform_scale_x.pack();
+    v = v * 31 + (lUInt32)rec.transform_scale_y.pack();
     v = v * 31 + (lUInt32)rec.direction;
     v = v * 31 + (lUInt32)rec.visibility;
     v = v * 31 + (lUInt32)rec.line_break;
@@ -226,6 +233,13 @@ bool operator == (const css_style_rec_t & r1, const css_style_rec_t & r2)
            r1.widows==r2.widows&&
            r1.float_ == r2.float_&&
            r1.clear == r2.clear&&
+           r1.position == r2.position&&
+           r1.top == r2.top&&
+           r1.right == r2.right&&
+           r1.bottom == r2.bottom&&
+           r1.left == r2.left&&
+           r1.transform_scale_x == r2.transform_scale_x&&
+           r1.transform_scale_y == r2.transform_scale_y&&
            r1.direction == r2.direction&&
            r1.visibility == r2.visibility&&
            r1.line_break == r2.line_break&&
@@ -437,6 +451,13 @@ bool css_style_rec_t::serialize( SerialBuf & buf )
     ST_PUT_ENUM(widows);
     ST_PUT_ENUM(float_);
     ST_PUT_ENUM(clear);
+    ST_PUT_ENUM(position);
+    ST_PUT_LEN(top);
+    ST_PUT_LEN(right);
+    ST_PUT_LEN(bottom);
+    ST_PUT_LEN(left);
+    ST_PUT_LEN(transform_scale_x);
+    ST_PUT_LEN(transform_scale_y);
     ST_PUT_ENUM(direction);
     ST_PUT_ENUM(visibility);
     ST_PUT_ENUM(line_break);
@@ -518,6 +539,13 @@ bool css_style_rec_t::deserialize( SerialBuf & buf )
     ST_GET_ENUM(css_orphans_widows_value_t, widows);
     ST_GET_ENUM(css_float_t, float_);
     ST_GET_ENUM(css_clear_t, clear);
+    ST_GET_ENUM(css_position_t, position);
+    ST_GET_LEN(top);
+    ST_GET_LEN(right);
+    ST_GET_LEN(bottom);
+    ST_GET_LEN(left);
+    ST_GET_LEN(transform_scale_x);
+    ST_GET_LEN(transform_scale_y);
     ST_GET_ENUM(css_direction_t, direction);
     ST_GET_ENUM(css_visibility_t, visibility);
     ST_GET_ENUM(css_line_break_t, line_break);

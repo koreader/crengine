@@ -1999,6 +1999,87 @@ void LVDocView::drawPageHeader(LVDrawBuf * drawbuf, const lvRect & headerRc,
 	drawbuf->SetTextColor(getTextColor());
 }
 
+// Fixed-layout pages are built 1:1 with <DocFragment> nodes, in order (see
+// ldomDocument::render()), so page N is the N-th DocFragment.
+ldomNode * LVDocView::getFixedLayoutFragmentForPage( int pageIndex ) {
+	ldomNode * root = m_doc ? m_doc->getRootNode() : NULL;
+	ldomNode * body = root ? root->getChildNode(0) : NULL;
+	if ( !body || pageIndex < 0 )
+		return NULL;
+	int nb = body->getChildCount();
+	int frag_i = 0;
+	for ( int i = 0; i < nb; i++ ) {
+		ldomNode * ch = body->getChildNode(i);
+		if ( ch->getNodeId() != el_DocFragment )
+			continue;
+		if ( frag_i == pageIndex )
+			return ch;
+		frag_i++;
+	}
+	return NULL;
+}
+
+int LVDocView::getFixedLayoutPageSpreadSide( int pageIndex ) {
+	ldomNode * frag = getFixedLayoutFragmentForPage(pageIndex);
+	if ( !frag )
+		return -1;
+	lString32 ps = frag->getAttributeValue(U"", U"PageSpread");
+	if ( ps == "left" )
+		return 0;
+	if ( ps == "right" )
+		return 1;
+	if ( ps == "center" )
+		return 2;
+	return -1;
+}
+
+void LVDocView::getFixedLayoutSpread( int target, int & startPage, int & leftPage, int & rightPage ) {
+	int n = m_pages.length();
+	bool rtl = ( m_doc_props->getStringDef(DOC_PROP_PAGE_PROGRESSION_DIRECTION, "") == "rtl" );
+	int leadingSide = rtl ? 1 : 0;   // physical side the reading-order first page sits on
+	int trailingSide = rtl ? 0 : 1;
+	int i = 0;
+	while ( i < n ) {
+		int s0 = getFixedLayoutPageSpreadSide(i);
+		int sp_pages = 1; // 1 (standalone) or 2 (a left+right pair)
+		if ( s0 == 2 ) {
+			sp_pages = 1; // an explicit center page stands alone
+		}
+		else if ( i + 1 < n ) {
+			int s1 = getFixedLayoutPageSpreadSide(i + 1);
+			// Pair i with i+1, unless the next page must begin its own spread
+			// (it is a center page, or sits on the leading side), or this page
+			// is a lone trailing page (its leading half is blank, e.g. a recto
+			// cover). Pages with no page-spread hint pack two-up (the default).
+			if ( s1 == 2 || s1 == leadingSide || s0 == trailingSide )
+				sp_pages = 1;
+			else
+				sp_pages = 2;
+		}
+		if ( target >= i && target < i + sp_pages ) {
+			startPage = i;
+			leftPage = -1;
+			rightPage = -1;
+			if ( sp_pages == 2 ) {
+				if ( leadingSide == 0 ) { leftPage = i; rightPage = i + 1; }
+				else { rightPage = i; leftPage = i + 1; }
+			}
+			else { // standalone: draw on its declared side, else the leading side
+				if ( s0 == 0 ) leftPage = i;
+				else if ( s0 == 1 ) rightPage = i;
+				else if ( leadingSide == 0 ) leftPage = i;
+				else rightPage = i;
+			}
+			return;
+		}
+		i += sp_pages;
+	}
+	// Fallback (target out of range): standalone on the leading side.
+	startPage = target;
+	leftPage = ( leadingSide == 0 ) ? target : -1;
+	rightPage = ( leadingSide == 1 ) ? target : -1;
+}
+
 void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 		lvRect * pageRect, int pageCount, int basePage, bool hasTwoVisiblePages, bool isRightPage, bool isLastPage) {
 	int start = page.start;
@@ -2011,6 +2092,87 @@ void LVDocView::drawPageTo(LVDrawBuf * drawbuf, LVRendPageInfo & page,
 	lvRect fullRect(0, 0, drawbuf->GetWidth(), drawbuf->GetHeight());
 	if (!pageRect)
 		pageRect = &fullRect;
+
+	if (page.flags & RN_PAGE_TYPE_FIXED) {
+		// Fixed-layout (EPUB3 pre-paginated) page: the spine item (a <DocFragment>)
+		// was laid out at its native viewport size. Render it to an offscreen
+		// buffer and scale it, letterboxed, to fit the page area.
+		lvRect frag_rc;
+		ldomNode * frag_node = NULL;
+		bool found = false;
+		ldomNode * root = m_doc->getRootNode();
+		ldomNode * body = root ? root->getChildNode(0) : NULL;
+		if (body) {
+			int nb = body->getChildCount();
+			for (int i = 0; i < nb; i++) {
+				ldomNode * frag = body->getChildNode(i);
+				if (frag->getNodeId() != el_DocFragment)
+					continue;
+				lvRect rc;
+				frag->getAbsRect(rc);
+				if (start >= rc.top && start < rc.bottom) {
+					frag_rc = rc;
+					frag_node = frag;
+					found = true;
+					break;
+				}
+			}
+		}
+		// Always paint the page background (also serves as the letterbox bars).
+		drawbuf->FillRect(pageRect->left, pageRect->top, pageRect->right, pageRect->bottom, m_backgroundColor);
+		if (found) {
+			// The page canvas is the author-declared viewport (stamped on the
+			// DocFragment as Viewport="WxH"), NOT the fragment's rendered box: a
+			// pre-paginated spine item's content (positioned layers, an empty but
+			// sized text container, oversized text) makes the flow-rendered height
+			// unreliable. Fall back to the rendered box only if the attribute is absent.
+			int vp_w = frag_rc.width();
+			int vp_h = frag_rc.height();
+			if (frag_node) {
+				lString32 vp = frag_node->getAttributeValue(U"", U"Viewport");
+				lString32 vp_w_str, vp_h_str;
+				if (vp.split2(U"x", vp_w_str, vp_h_str)) {
+					int aw = vp_w_str.atoi();
+					int ah = vp_h_str.atoi();
+					if (aw > 0 && ah > 0) {
+						vp_w = aw;
+						vp_h = ah;
+					}
+				}
+			}
+			if (vp_w > 0 && vp_h > 0) {
+				int avail_w = pageRect->width();
+				int avail_h = pageRect->height();
+				// Uniform scale to fit (letterbox).
+				double scale_w = (double)avail_w / vp_w;
+				double scale_h = (double)avail_h / vp_h;
+				double scale = scale_w < scale_h ? scale_w : scale_h;
+				int dest_w = (int)(vp_w * scale + 0.5);
+				int dest_h = (int)(vp_h * scale + 0.5);
+				if (dest_w < 1) dest_w = 1;
+				if (dest_h < 1) dest_h = 1;
+				int dest_x = pageRect->left + (avail_w - dest_w) / 2;
+				int dest_y = pageRect->top + (avail_h - dest_h) / 2;
+				// Render the fragment at native viewport resolution into an
+				// offscreen color buffer, then let the draw buffer scale it to the
+				// destination rect (via an image source, which works through the
+				// base LVDrawBuf interface; DrawRescaled() is not in the base class).
+				LVColorDrawBuf * offscreen = new LVColorDrawBuf(vp_w, vp_h, 32);
+				offscreen->Clear(m_backgroundColor);
+				// Draw only THIS fragment's subtree (not the whole document root):
+				// the offscreen is a full viewport tall, but a pre-paginated spine
+				// item's flow-rendered box can be much shorter than its viewport, so
+				// drawing from the root would let the next fragment's content leak in
+				// below it. DrawDocument() re-adds frag's own fmt offset, which the
+				// -frag_rc.top/left cancels, landing the fragment content at (0,0).
+				DrawDocument(*offscreen, frag_node, 0, 0, vp_w, vp_h,
+						0 - frag_rc.left, 0 - frag_rc.top, vp_h, NULL, NULL);
+				LVImageSourceRef img = LVCreateDrawBufImageSource(offscreen, true); // own=true: frees offscreen
+				drawbuf->Draw(img, dest_x, dest_y, dest_w, dest_h, true);
+			}
+		}
+		return;
+	}
 	// drawbuf->setHidePartialGlyphs(getViewMode() == DVM_PAGES); // (is always true)
 	// setHidePartialGlyphs() was added to allow drawing parts of glyphs outside the
 	// clip (which can happen when small interline space), but its implementation is
@@ -2407,8 +2569,19 @@ bool LVDocView::goToPage(int page, bool internal, bool updatePosBookmark, bool r
 			page = 0;
 			res = false;
 		}
-		if (pc == 2 && regulateTwoPages)
-			page &= ~1; // first page will always be odd (page are counted from 0)
+		if (pc == 2 && regulateTwoPages) {
+			if (page >= 0 && page < m_pages.length()
+					&& (m_pages[page]->flags & RN_PAGE_TYPE_FIXED)) {
+				// Fixed-layout: align to the start of the spread `page` belongs
+				// to (honours page-spread-* and a lone cover), not just the even
+				// page, so facing pages line up.
+				int startP, leftP, rightP;
+				getFixedLayoutSpread(page, startP, leftP, rightP);
+				page = startP;
+			}
+			else
+				page &= ~1; // first page will always be odd (page are counted from 0)
+		}
 		if (page >= 0 && page < m_pages.length()) {
 			_pos = m_pages[page]->start;
 			_page = page;
@@ -2592,12 +2765,29 @@ void LVDocView::Draw(LVDrawBuf & drawbuf, int position, int page, bool rotate, b
         //drawPageBackground(drawbuf, (page * 1356) & 0xFFF, 0x1000 - (page * 1356) & 0xFFF);
         drawPageBackground(drawbuf, 0, 0);
 
+        if (pc == 2 && page >= 0 && page < m_pages.length()
+                && (m_pages[page]->flags & RN_PAGE_TYPE_FIXED)) {
+            // Fixed-layout spread: place this spread's (up to two) pages on their
+            // physical sides, honouring page-spread-left/right/center and the
+            // reading direction, and leaving a half blank for a standalone page
+            // (e.g. a lone cover). `page` is the spread's first page: goToPage()
+            // aligned the view to a spread start.
+            int startP, leftP, rightP;
+            getFixedLayoutSpread(page, startP, leftP, rightP);
+            if (leftP >= 0 && leftP < m_pages.length())
+                drawPageTo(&drawbuf, *m_pages[leftP], &m_pageRects[0],
+                        m_pages.length(), 1, true, false, leftP==m_pages.length()-1);
+            if (rightP >= 0 && rightP < m_pages.length())
+                drawPageTo(&drawbuf, *m_pages[rightP], &m_pageRects[1],
+                        m_pages.length(), 1, true, true, rightP==m_pages.length()-1);
+        } else {
         if (page >= 0 && page < m_pages.length())
 			drawPageTo(&drawbuf, *m_pages[page], &m_pageRects[0],
 					m_pages.length(), 1, pc==2, false, page==m_pages.length()-1);
 		if (pc == 2 && page >= 0 && page + 1 < m_pages.length())
 			drawPageTo(&drawbuf, *m_pages[page + 1], &m_pageRects[1],
 					m_pages.length(), 1, true, true, page+1==m_pages.length()-1);
+        }
 	}
 #if CR_INTERNAL_PAGE_ORIENTATION==1
 	if ( rotate ) {

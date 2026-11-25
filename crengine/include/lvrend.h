@@ -192,6 +192,11 @@ void DrawDocument( LVDrawBuf & drawbuf, ldomNode * node, int x0, int y0, int dx,
                    int page_height, ldomMarkedRangeList * marks, ldomMarkedRangeList * bookmarks = NULL,
                    bool draw_content=true, bool draw_background=true, bool skip_initial_borders=false );
 
+/// Fixed-layout (EPUB3 pre-paginated): reposition the content of one pre-paginated
+/// DocFragment onto its page canvas according to CSS position/top/left/right/bottom,
+/// after normal flow has run. vp_w/vp_h is the page viewport (initial containing block).
+void renderFixedLayoutPositioning( ldomNode * fragment, int vp_w, int vp_h );
+
 // Estimate width of node when rendered:
 //   maxWidth: width if it would be rendered on an infinite width area
 //   minWidth: width with a wrap on all spaces (no hyphenation), so width taken by the longest word

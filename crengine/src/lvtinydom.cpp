@@ -101,9 +101,17 @@ extern const int gDOMVersionCurrent = DOM_VERSION_CURRENT;
 
 /// change in case of incompatible changes in swap/cache file format to avoid using incompatible swap file
 // increment to force complete reload/reparsing of old file
-#define CACHE_FILE_FORMAT_VERSION "3.05.84k"
+// 3.05.84l: css_style_rec_t gained position + top/right/bottom/left (fixed-layout positioning)
+// 3.05.84m: css_style_rec_t gained transform_scale_x/y (fixed-layout transform:scale())
+// 3.05.84n: transform_scale_x/y stored as 16.16 fixed-point (was x256; too coarse)
+#define CACHE_FILE_FORMAT_VERSION "3.05.84o"
 /// increment following value to force re-formatting of old book after load
-#define FORMATTING_VERSION_ID 0x0036
+// 0x0037: fixed-layout (pre-paginated) CSS positioned layout
+// 0x0038: fixed-layout transform:scale() folded into font-size/offsets (text layer)
+// 0x0039: fixed-layout transform scale precision raised to 16.16
+// 0x003a: fixed-layout also folds letter-spacing/indent/line-height/margin/padding
+// 0x003b: fixed-layout honours negative inline margins (page-number digit kerning)
+#define FORMATTING_VERSION_ID 0x003c
 
 #ifndef DOC_DATA_COMPRESSION_LEVEL
 /// data compression level (0=no compression, 1=fast compressions, 3=normal compression)
@@ -5742,6 +5750,47 @@ bool ldomDocument::render( LVRendPageList * pages, LVDocViewCallback * callback,
         gc();
         CRLog::trace("finalizing... fonts.length=%d", _fonts.length());
         context.Finalize();
+        // Fixed-layout (EPUB3 pre-paginated): replace the flow-based page list with
+        // one page per spine item. Each spine item is a <DocFragment> that
+        // setNodeStyle() sized to its viewport; here each becomes its own page,
+        // to be drawn scaled to fit the screen (see LVDocView::drawPageTo). The
+        // RN_PAGE_TYPE_FIXED flag serializes into the cache, so cached opens keep it.
+        if ( getProps()->getIntDef(DOC_PROP_FIXED_LAYOUT, 0) == DOC_FIXED_LAYOUT_ALL ) {
+            ldomNode * body = getRootNode() ? getRootNode()->getChildNode(0) : NULL;
+            if ( body ) {
+                int nb = body->getChildCount();
+                int nb_frags = 0;
+                for ( int i=0; i<nb; i++ )
+                    if ( body->getChildNode(i)->getNodeId() == el_DocFragment )
+                        nb_frags++;
+                if ( nb_frags > 0 ) { // don't discard a valid page list if we found nothing
+                    pages->clear();
+                    for ( int i=0; i<nb; i++ ) {
+                        ldomNode * frag = body->getChildNode(i);
+                        if ( frag->getNodeId() != el_DocFragment )
+                            continue;
+                        // Place this spine item's positioned content onto its page
+                        // canvas (CSS position/top/left/right/bottom). No-op for a
+                        // fragment with no positioned elements. The viewport size is
+                        // the one setNodeStyle() sized the fragment to.
+                        lString32 vp = frag->getAttributeValue(U"", U"Viewport");
+                        lString32 vp_w_str, vp_h_str;
+                        if ( vp.split2(U"x", vp_w_str, vp_h_str) ) {
+                            int vp_w = vp_w_str.atoi();
+                            int vp_h = vp_h_str.atoi();
+                            if ( vp_w > 0 && vp_h > 0 )
+                                renderFixedLayoutPositioning( frag, vp_w, vp_h );
+                        }
+                        lvRect rc;
+                        frag->getAbsRect(rc);
+                        lUInt16 h = rc.height() > 0 ? (lUInt16)rc.height() : 1;
+                        LVRendPageInfo * page = new LVRendPageInfo(rc.top, h, pages->length());
+                        page->flags = RN_PAGE_TYPE_FIXED;
+                        pages->add(page);
+                    }
+                }
+            }
+        }
         updateRenderContext();
         _pagesData.reset();
         pages->serialize( _pagesData );
@@ -16669,6 +16718,64 @@ void ldomDocumentFragmentWriter::setCodeBase( lString32 fileName )
     }
 }
 
+// Parse a fixed-layout viewport declaration into pixel width & height.
+// Handles the EPUB3 spine document form:
+//     <meta name="viewport" content="width=1200, height=1600">
+// as well as bare "1200x1600" (legacy iBooks/KF8 original-resolution).
+// Relative or keyword values (device-width, initial-scale, ...) are ignored.
+void parseFixedLayoutViewport( const lString32 & content, int & out_width, int & out_height )
+{
+    out_width = 0;
+    out_height = 0;
+    lString32 s(content);
+    s.lowercase();
+    lString32Collection tokens;
+    tokens.parse(s, U',', true);
+    int bare[2] = {0, 0};
+    int nbBare = 0;
+    for ( int i=0; i<tokens.length(); i++ ) {
+        lString32 tok = tokens[i];
+        tok.trim();
+        if ( tok.empty() )
+            continue;
+        lString32 key, val;
+        if ( tok.split2(U"=", key, val) ) {
+            key.trim();
+            val.trim();
+            int num = val.atoi();
+            if ( num > 0 ) {
+                if ( key == U"width" )
+                    out_width = num;
+                else if ( key == U"height" )
+                    out_height = num;
+            }
+        }
+        else {
+            // No '=': maybe a bare "1200x1600" pair, or a lone number.
+            lString32 a, b;
+            if ( tok.split2(U"x", a, b) ) {
+                a.trim();
+                b.trim();
+                int na = a.atoi();
+                int nb = b.atoi();
+                if ( na > 0 && nb > 0 ) {
+                    out_width = na;
+                    out_height = nb;
+                }
+            }
+            else {
+                int num = tok.atoi();
+                if ( num > 0 && nbBare < 2 )
+                    bare[nbBare++] = num;
+            }
+        }
+    }
+    if ( (out_width==0 || out_height==0) && nbBare==2 ) {
+        out_width = bare[0];
+        out_height = bare[1];
+    }
+}
+
 /// called on attribute
 void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lChar32 * attrname, const lChar32 * attrvalue )
 {
@@ -16735,6 +16842,14 @@ void ldomDocumentFragmentWriter::OnAttribute( const lChar32 * nsname, const lCha
                 tmpStylesheetMediaCondition = media;
             }
         }
+        else if ( metaDetectionState ) {
+            // Gather name= and content= of a <meta> in the <head> (not kept in the
+            // DOM), so OnTagBody() can pick up a fixed-layout viewport if present.
+            if ( !lStr_cmp(attrname, "name") )
+                tmpMetaName = attrvalue;
+            else if ( !lStr_cmp(attrname, "content") )
+                tmpMetaContent = attrvalue;
+        }
     }
 }
 
@@ -16751,6 +16866,13 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
         }
         else if ( !lStr_cmp(tagname, "style") )
             headStyleState = 1;
+        else if ( !lStr_cmp(tagname, "meta") ) {
+            // Fixed-layout spine documents carry their canvas size in
+            // <meta name="viewport" content="width=.., height=..">.
+            metaDetectionState = 1;
+            tmpMetaName.clear();
+            tmpMetaContent.clear();
+        }
         else if ( !lStr_cmp(tagname, "html") ) {
             insideHtmlTag = true;
             htmlDir.clear();
@@ -16815,6 +16937,24 @@ ldomNode * ldomDocumentFragmentWriter::OnTagOpen( const lChar32 * nsname, const 
                 parent->OnAttribute(U"", U"T", fragmentType.c_str() );
             if ( !filePathName.empty() ) // may help users find the file to investigate in the EPUB
                 parent->OnAttribute(U"", U"Source", filePathName.c_str() );
+            if ( !fixedLayoutMode.empty() ) {
+                // This spine item is fixed-layout (EPUB3 pre-paginated / legacy).
+                // Stamp the <DocFragment> so the renderer can lay it out as a single
+                // fixed page scaled to the screen (done in a later slice).
+                // add attribute <DocFragment LayoutMode="pre-paginated"
+                parent->OnAttribute(U"", U"LayoutMode", fixedLayoutMode.c_str() );
+                // The authoritative viewport is the spine document's own
+                // <meta name="viewport">; fall back to any OPF-provided size.
+                int vp_w = metaViewportWidth > 0 ? metaViewportWidth : fixedLayoutOpfViewportWidth;
+                int vp_h = metaViewportHeight > 0 ? metaViewportHeight : fixedLayoutOpfViewportHeight;
+                if ( vp_w > 0 && vp_h > 0 ) {
+                    // add attribute <DocFragment Viewport="1200x1600"
+                    lString32 viewport = lString32::itoa(vp_w) + U"x" + lString32::itoa(vp_h);
+                    parent->OnAttribute(U"", U"Viewport", viewport.c_str() );
+                }
+                if ( !fixedLayoutPageSpread.empty() ) // add attribute <DocFragment PageSpread="left"
+                    parent->OnAttribute(U"", U"PageSpread", fixedLayoutPageSpread.c_str() );
+            }
 
             parent->OnTagBody(); // inside <DocFragment>
             if ( !headStyleText.empty() || stylesheetLinks.length() > 0 ) {
@@ -16902,6 +17042,18 @@ void ldomDocumentFragmentWriter::OnTagBody()
             stylesheetLinksMediaConditions.add(tmpStylesheetMediaCondition);
         }
         styleDetectionState = 0;
+    }
+    if ( metaDetectionState ) { // <meta.../> closing
+        lString32 metaName = tmpMetaName;
+        if ( metaName.lowercase() == U"viewport" && !tmpMetaContent.empty() ) {
+            int w = 0, h = 0;
+            parseFixedLayoutViewport(tmpMetaContent, w, h);
+            if ( w > 0 && h > 0 ) {
+                metaViewportWidth = w;
+                metaViewportHeight = h;
+            }
+        }
+        metaDetectionState = 0;
     }
 }
 

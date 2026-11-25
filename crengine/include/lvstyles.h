@@ -108,9 +108,14 @@ enum css_style_rec_important_bit {
     imp_bit_caption_side,
     imp_bit_ruby_position,
     imp_bit_content,
-    imp_bit_cr_hint
+    imp_bit_cr_hint,
+    imp_bit_position,
+    imp_bit_top,
+    imp_bit_right,
+    imp_bit_bottom,
+    imp_bit_left
 };
-#define NB_IMP_BITS 83 // The number of lines in the enum above: KEEP IT UPDATED.
+#define NB_IMP_BITS 88 // The number of lines in the enum above: KEEP IT UPDATED.
 
 #define NB_IMP_SLOTS    ((NB_IMP_BITS-1)>>5)+1
 // In lvstyles.cpp, we have hardcoded important[0] ... importance[2]
@@ -197,6 +202,13 @@ struct css_style_rec_tag {
     css_orphans_widows_value_t widows;
     css_float_t            float_; // "float" is a C++ keyword...
     css_clear_t            clear;
+    css_position_t         position; // only honoured for fixed-layout (pre-paginated) fragments
+    css_length_t           top;      // offsets for position:relative/absolute/fixed
+    css_length_t           right;
+    css_length_t           bottom;
+    css_length_t           left;
+    css_length_t           transform_scale_x; // fixed-layout only: CSS 'transform: scale()' sx (.value is 16.16 fixed-point, identity 65536)
+    css_length_t           transform_scale_y; // fixed-layout only: CSS 'transform: scale()' sy
     css_direction_t        direction;
     css_visibility_t       visibility;
     css_line_break_t       line_break;
@@ -261,6 +273,13 @@ struct css_style_rec_tag {
     , widows(css_orphans_widows_inherit)
     , float_(css_f_none)
     , clear(css_c_none)
+    , position(css_pos_static)
+    , top(css_val_unspecified, css_generic_auto)
+    , right(css_val_unspecified, css_generic_auto)
+    , bottom(css_val_unspecified, css_generic_auto)
+    , left(css_val_unspecified, css_generic_auto)
+    , transform_scale_x(css_val_screen_px, 0x10000) // identity (1.0, 16.16 fixed-point)
+    , transform_scale_y(css_val_screen_px, 0x10000)
     , direction(css_dir_inherit)
     , visibility(css_v_inherit)
     , line_break(css_lb_inherit)
